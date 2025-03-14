@@ -13,14 +13,22 @@ import kotlinx.serialization.json.Json
 import java.time.LocalDateTime
 import kotlinx.coroutines.flow.catch
 import java.io.IOException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 private val Context.chatHistoryDataStore by preferencesDataStore(name = "chat_histories")
 
 class ChatHistoryManager(private val context: Context) {
     private val json = Json { 
         ignoreUnknownKeys = true 
-        prettyPrint = true
+        prettyPrint = false // Change to false for better performance
     }
+    
+    // Use a mutex to prevent concurrent modifications
+    private val mutex = Mutex()
+    
+    // Add in-memory cache to reduce reads from DataStore
+    private var cachedHistories: List<ChatHistory>? = null
     
     private object PreferencesKeys {
         val CHAT_HISTORIES = stringPreferencesKey("chat_histories")
@@ -39,9 +47,11 @@ class ChatHistoryManager(private val context: Context) {
         .map { preferences ->
             val historiesJson = preferences[PreferencesKeys.CHAT_HISTORIES] ?: "[]"
             try {
-                json.decodeFromString(historiesJson)
+                val histories = json.decodeFromString<List<ChatHistory>>(historiesJson)
+                cachedHistories = histories // Update cache with latest data
+                histories
             } catch (e: Exception) {
-                emptyList()
+                emptyList<ChatHistory>().also { cachedHistories = it }
             }
         }
     
@@ -53,25 +63,35 @@ class ChatHistoryManager(private val context: Context) {
     
     // 保存聊天历史
     suspend fun saveChatHistory(history: ChatHistory) {
-        context.chatHistoryDataStore.edit { preferences ->
-            val existingHistoriesJson = preferences[PreferencesKeys.CHAT_HISTORIES] ?: "[]"
-            val existingHistories: MutableList<ChatHistory> = try {
-                json.decodeFromString<List<ChatHistory>>(existingHistoriesJson).toMutableList()
-            } catch (e: Exception) {
-                mutableListOf()
+        // Use mutex to ensure thread safety
+        mutex.withLock {
+            context.chatHistoryDataStore.edit { preferences ->
+                // First try to use cached data to avoid reading from preferences
+                val existingHistories = cachedHistories?.toMutableList() ?: run {
+                    val existingHistoriesJson = preferences[PreferencesKeys.CHAT_HISTORIES] ?: "[]"
+                    try {
+                        json.decodeFromString<List<ChatHistory>>(existingHistoriesJson).toMutableList()
+                    } catch (e: Exception) {
+                        mutableListOf()
+                    }
+                }
+                
+                // 查找是否已存在该ID的历史记录
+                val existingIndex = existingHistories.indexOfFirst { it.id == history.id }
+                
+                // 如果存在则更新，不存在则添加
+                if (existingIndex != -1) {
+                    existingHistories[existingIndex] = history
+                } else {
+                    existingHistories.add(0, history) // 添加到列表开头
+                }
+                
+                // Update the cache
+                cachedHistories = existingHistories
+                
+                // Save to preferences
+                preferences[PreferencesKeys.CHAT_HISTORIES] = json.encodeToString(existingHistories)
             }
-            
-            // 查找是否已存在该ID的历史记录
-            val existingIndex = existingHistories.indexOfFirst { it.id == history.id }
-            
-            // 如果存在则更新，不存在则添加
-            if (existingIndex != -1) {
-                existingHistories[existingIndex] = history
-            } else {
-                existingHistories.add(0, history) // 添加到列表开头
-            }
-            
-            preferences[PreferencesKeys.CHAT_HISTORIES] = json.encodeToString(existingHistories)
         }
     }
     
@@ -82,7 +102,6 @@ class ChatHistoryManager(private val context: Context) {
         return !hasUserOrAIMessage
     }
 
-
     // 设置当前聊天ID
     suspend fun setCurrentChatId(chatId: String) {
         context.chatHistoryDataStore.edit { preferences ->
@@ -92,11 +111,10 @@ class ChatHistoryManager(private val context: Context) {
     
     // 创建新对话
     suspend fun createNewChat(): ChatHistory {
-        var welcomeMessage = ChatMessage(
+        val welcomeMessage = ChatMessage(
             "system",
             "AI Assistant v1.0\n欢迎使用AI助手！请在下方输入您的问题。"
         )
-        
         
         val newHistory = ChatHistory(
             title = "新对话 ${LocalDateTime.now()}",
