@@ -1,0 +1,63 @@
+<resources>
+    <string name="app_name">Operit</string>
+    
+    <!-- Navigation -->
+    <string name="nav_ai_chat">AI 对话</string>
+    <string name="nav_adb_commands">ADB 命令执行</string>
+    <string name="nav_settings">设置</string>
+    <string name="menu">菜单</string>
+    
+    <!-- AI Chat Screen -->
+    <string name="configure_ai">配置 AI 接口</string>
+    <string name="api_endpoint">API 接口地址</string>
+    <string name="api_key">API 密钥</string>
+    <string name="model_name">模型名称</string>
+    <string name="save_and_start">保存并开始对话</string>
+    <string name="ai_chat">AI 对话</string>
+    <string name="start_chat_hint">开始新的对话。输入您的问题以获取AI回复。</string>
+    <string name="enter_question">输入您的问题</string>
+    <string name="send">发送</string>
+    <string name="ai_response_placeholder">这是一个模拟的AI回复。在实际应用中，这里将集成真实的AI API调用。</string>
+    <string name="network_unavailable">网络连接不可用，请检查您的网络设置</string>
+    <string name="network_status">网络状态: %1$s</string>
+    
+    <!-- Settings Screen -->
+    <string name="settings">设置</string>
+    <string name="no_settings">暂无设置选项可用</string>
+    <string name="api_settings">API 配置设置</string>
+    <string name="save_settings">保存设置</string>
+    <string name="settings_saved">设置已保存</string>
+    
+    <!-- Shizuku Command Screen -->
+    <string name="shizuku_command_executor">Shizuku ADB 命令执行器</string>
+    <string name="device_info">设备信息</string>
+    <string name="android_version">Android版本: %1$s (API %2$d)</string>
+    <string name="device_model">设备型号: %1$s %2$s</string>
+    <string name="shizuku_status">Shizuku 状态</string>
+    <string name="refresh">刷新</string>
+    <string name="installed">已安装: %1$s</string>
+    <string name="service_running">服务运行: %1$s</string>
+    <string name="permission_status">权限状态: %1$s</string>
+    <string name="yes">是</string>
+    <string name="no">否</string>
+    <string name="authorized">已授权</string>
+    <string name="unauthorized">未授权</string>
+    <string name="install_shizuku">安装 Shizuku</string>
+    <string name="open_shizuku">打开 Shizuku 应用</string>
+    <string name="show_help">显示帮助</string>
+    <string name="hide_help">隐藏帮助</string>
+    <string name="request_permission">请求Shizuku权限</string>
+    <string name="execute_adb">执行ADB命令</string>
+    <string name="enter_command">输入ADB命令</string>
+    <string name="show_samples">显示示例命令</string>
+    <string name="hide_samples">隐藏示例命令</string>
+    <string name="select_example">选择一个示例命令:</string>
+    <string name="execute_command">执行命令</string>
+    <string name="result_placeholder">结果将显示在这里</string>
+    <string name="executing">执行中...</string>
+    <string name="command_success">命令执行成功:\n%1$s</string>
+    <string name="command_failure">命令执行失败 (退出码: %1$d):\n%2$s</string>
+    <string name="start_shizuku_first">请先启动Shizuku服务</string>
+    <string name="grant_permission_first">请授予Shizuku权限</string>
+    <string name="feature_unavailable">无法使用ADB命令功能</string>
+</resources>
