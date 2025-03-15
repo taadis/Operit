@@ -83,7 +83,7 @@ class ChatHistoryManager(private val context: Context) {
                 if (existingIndex != -1) {
                     existingHistories[existingIndex] = history
                 } else {
-                    existingHistories.add(0, history) // 添加到列表开头
+                    existingHistories.add(history) // 添加到列表末尾，而不是列表开头
                 }
                 
                 // Update the cache

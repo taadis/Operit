@@ -67,6 +67,10 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import com.ai.assistance.operit.ui.components.SimpleLinearProgressIndicator
 import com.ai.assistance.operit.ui.components.SimpleAnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.draw.rotate
+import androidx.compose.foundation.border
+import androidx.compose.material.icons.filled.Autorenew
 
 // Constants
 private const val CHAT_HISTORY_PAGE_SIZE = 20
@@ -367,12 +371,6 @@ fun AIChatScreen() {
         userMessage = ""
         focusManager.clearFocus()
         
-        // 添加消息到记忆
-        chatMemory.add(Pair("user", trimmedMessage))
-        if (chatMemory.size > 10) {
-            chatMemory.removeAt(0) // 保持最近10条对话
-        }
-        
         // Add AI "thinking" message
         var thinkingContent = "正在思考..."
         val processingMsg = ChatMessage("think", thinkingContent)
@@ -385,11 +383,15 @@ fun AIChatScreen() {
         coroutineScope.launch {
             isLoading = true
             try {
+                // 从当前UI界面构建聊天历史，不使用chatMemory
+                val currentChatHistory = chatHistory
+                    .filter { it.sender == "user" || it.sender == "ai" } // 只保留用户和AI消息
+                    .map { Pair(it.sender, it.content) } // 转换为所需格式
+                
                 enhancedAiService?.sendMessage(
                     message = tempMessage,
                     onPartialResponse = { content, thinking ->
                         if (thinking != null) {
-                            Log.i("thinking", thinking)
                             // 更新思考内容
                             thinkingContent = thinking
                             
@@ -420,17 +422,11 @@ fun AIChatScreen() {
                                     
                                     // 添加新的AI消息，而不是替换thinking消息
                                     chatHistory = chatHistory + ChatMessage("ai", trimmedContent)
-                                    
-                                    // 添加消息到记忆
-                                    chatMemory.add(Pair("ai", trimmedContent))
-                                    if (chatMemory.size > 10) {
-                                        chatMemory.removeAt(0)
-                                    }
                                 }
                             }
                         }
                     },
-                    chatHistory = chatMemory.toList(),
+                    chatHistory = currentChatHistory,
                     onComplete = {
                         // AI回复完全完成后再保存对话历史
                         saveCurrentChat()
@@ -498,6 +494,9 @@ fun AIChatScreen() {
             
             // Clear references when switching chats
             enhancedAiService?.clearReferences()
+            
+            // 清除内存中的聊天历史记录，避免历史混淆
+            chatMemory.clear()
             
             chatHistoryManager.setCurrentChatId(chatId)
             val selectedChat = chatHistories.find { it.id == chatId }
@@ -904,26 +903,115 @@ fun CursorStyleChatMessage(
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
                     
-                    // 解析内容中可能的代码块
-                    val codeBlockPattern = Regex("```([\\s\\S]*?)```")
-                    val segments = codeBlockPattern.split(message.content)
-                    val matches = codeBlockPattern.findAll(message.content).map { it.groupValues[1] }.toList()
+                    // 检测内容中是否有工具执行部分，并特殊处理
+                    val toolExecutionPattern = Regex("\\*\\*Tool Execution \\[(.*?)\\]\\*\\*\n_Processing\\.\\.\\._")
+                    val toolResultPattern = Regex("\\*\\*Tool Result \\[(.*?)\\]\\*\\*\n```\n([\\s\\S]*?)\n```")
+                    val toolErrorPattern = Regex("\\*\\*Tool Error \\[(.*?)\\]\\*\\*\n```\n([\\s\\S]*?)\n```")
                     
-                    // 将匹配的内容添加到段落中
-                    val formattedContent = segments.joinToString("") { segment ->
-                        if (segment.startsWith("```") && segment.endsWith("```")) {
-                            val code = segment.substring(3, segment.length - 3)
-                            "<code>$code</code>"
+                    var hasToolContent = false
+                    
+                    // 渲染消息内容
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        // 检查是否有工具执行标记
+                        val toolExecutionMatch = toolExecutionPattern.find(message.content)
+                        if (toolExecutionMatch != null) {
+                            hasToolContent = true
+                            val toolName = toolExecutionMatch.groupValues[1]
+                            
+                            // 显示工具执行中状态
+                            ToolExecutionBox(
+                                toolName = toolName,
+                                isProcessing = true,
+                                result = null,
+                                isError = false
+                            )
+                        }
+                        
+                        // 检查是否有工具执行结果标记
+                        val toolResultMatch = toolResultPattern.find(message.content)
+                        if (toolResultMatch != null) {
+                            hasToolContent = true
+                            val toolName = toolResultMatch.groupValues[1]
+                            val resultContent = toolResultMatch.groupValues[2]
+                            
+                            // 显示工具执行结果
+                            ToolExecutionBox(
+                                toolName = toolName,
+                                isProcessing = false,
+                                result = resultContent,
+                                isError = false
+                            )
+                        }
+                        
+                        // 检查是否有工具执行错误标记
+                        val toolErrorMatch = toolErrorPattern.find(message.content)
+                        if (toolErrorMatch != null) {
+                            hasToolContent = true
+                            val toolName = toolErrorMatch.groupValues[1]
+                            val errorContent = toolErrorMatch.groupValues[2]
+                            
+                            // 显示工具执行错误
+                            ToolExecutionBox(
+                                toolName = toolName,
+                                isProcessing = false,
+                                result = errorContent,
+                                isError = true
+                            )
+                        }
+                        
+                        // 如果内容中没有工具执行标记，则正常显示内容
+                        if (!hasToolContent) {
+                            // 解析内容中可能的代码块
+                            val codeBlockPattern = Regex("```([\\s\\S]*?)```")
+                            val segments = codeBlockPattern.split(message.content)
+                            val matches = codeBlockPattern.findAll(message.content).map { it.groupValues[1] }.toList()
+                            
+                            // 将匹配的内容添加到段落中
+                            val formattedContent = segments.joinToString("") { segment ->
+                                if (segment.startsWith("```") && segment.endsWith("```")) {
+                                    val code = segment.substring(3, segment.length - 3)
+                                    "<code>$code</code>"
+                                } else {
+                                    segment
+                                }
+                            }
+                            
+                            Text(
+                                text = formattedContent,
+                                color = aiTextColor,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
                         } else {
-                            segment
+                            // 如果有工具执行标记，只显示内容中非工具执行部分
+                            val contentWithoutTools = message.content
+                                .replace(toolExecutionPattern, "")
+                                .replace(toolResultPattern, "")
+                                .replace(toolErrorPattern, "")
+                                .trim()
+                            
+                            if (contentWithoutTools.isNotBlank()) {
+                                // 解析内容中可能的代码块
+                                val codeBlockPattern = Regex("```([\\s\\S]*?)```")
+                                val segments = codeBlockPattern.split(contentWithoutTools)
+                                
+                                // 将匹配的内容添加到段落中
+                                val formattedContent = segments.joinToString("") { segment ->
+                                    if (segment.startsWith("```") && segment.endsWith("```")) {
+                                        val code = segment.substring(3, segment.length - 3)
+                                        "<code>$code</code>"
+                                    } else {
+                                        segment
+                                    }
+                                }
+                                
+                                Text(
+                                    text = formattedContent,
+                                    color = aiTextColor,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
                         }
                     }
-                    
-                    Text(
-                        text = formattedContent,
-                        color = aiTextColor,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
                 }
             }
         }
@@ -992,6 +1080,133 @@ fun CursorStyleChatMessage(
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(12.dp)
                     )
+            }
+        }
+    }
+}
+
+// 新增一个工具执行状态框组件
+@Composable
+fun ToolExecutionBox(
+    toolName: String,
+    isProcessing: Boolean,
+    result: String?,
+    isError: Boolean
+) {
+    val accentColor = if (isError) 
+        MaterialTheme.colorScheme.error 
+    else 
+        MaterialTheme.colorScheme.primary
+    
+    val backgroundColor = if (isProcessing)
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+    else if (isError)
+        MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f)
+    else
+        MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+    
+    val textColor = if (isProcessing)
+        MaterialTheme.colorScheme.onPrimaryContainer
+    else if (isError)
+        MaterialTheme.colorScheme.onErrorContainer
+    else
+        MaterialTheme.colorScheme.onSecondaryContainer
+    
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .border(
+                width = 1.dp,
+                color = accentColor.copy(alpha = 0.5f),
+                shape = RoundedCornerShape(8.dp)
+            )
+            .background(backgroundColor)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            // 工具执行标题栏
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 图标
+                Icon(
+                    imageVector = when {
+                        isProcessing -> Icons.Default.Autorenew
+                        isError -> Icons.Default.Close
+                        else -> Icons.Default.Check
+                    },
+                    contentDescription = when {
+                        isProcessing -> "执行中"
+                        isError -> "执行错误"
+                        else -> "执行成功"
+                    },
+                    tint = accentColor,
+                    modifier = if (isProcessing) {
+                        Modifier
+                            .size(18.dp)
+                            .rotate(
+                                animateFloatAsState(
+                                    targetValue = (System.currentTimeMillis() / 10 % 360).toFloat(),
+                                    animationSpec = tween(0),
+                                    label = "loading"
+                                ).value
+                            )
+                    } else {
+                        Modifier.size(18.dp)
+                    }
+                )
+                
+                Spacer(modifier = Modifier.width(8.dp))
+                
+                // 工具名称
+                Text(
+                    text = when {
+                        isProcessing -> "正在执行工具: $toolName"
+                        isError -> "工具执行失败: $toolName"
+                        else -> "工具执行成功: $toolName"
+                    },
+                    style = MaterialTheme.typography.titleSmall,
+                    color = textColor
+                )
+            }
+            
+            // 处理中状态显示进度条
+            if (isProcessing) {
+                Spacer(modifier = Modifier.height(12.dp))
+                SimpleLinearProgressIndicator(
+                    progress = 1f, // 使用无限循环进度条
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    text = "工具正在执行中，请稍候...",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = textColor.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+            
+            // 结果内容
+            if (!isProcessing && result != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                Text(
+                    text = result,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = FontFamily.Monospace
+                    ),
+                    color = textColor,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(textColor.copy(alpha = 0.1f))
+                        .padding(8.dp)
+                )
             }
         }
     }

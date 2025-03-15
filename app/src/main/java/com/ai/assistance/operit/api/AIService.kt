@@ -181,4 +181,52 @@ class AIService(
             onComplete()
         }
     }
+
+    /**
+     * Provides feedback to the AI about tool execution results.
+     * This enables bidirectional streaming for tool calls, allowing Claude to continue
+     * the conversation based on tool results.
+     * 
+     * @param feedback The feedback message containing tool execution results
+     */
+    suspend fun provideFeedback(feedback: String) = withContext(Dispatchers.IO) {
+        try {
+            // Create a feedback request
+            val jsonObject = JSONObject()
+            jsonObject.put("model", modelName)
+            jsonObject.put("stream", true)
+            
+            // Create a message object for the feedback
+            val messageObject = JSONObject()
+            messageObject.put("role", "assistant")
+            messageObject.put("content", feedback)
+            
+            // Add the message to the messages array
+            val messagesArray = JSONArray()
+            messagesArray.put(messageObject)
+            jsonObject.put("messages", messagesArray)
+            
+            // Add a flag to indicate this is a tool response feedback
+            jsonObject.put("tool_feedback", true)
+            
+            // Create the request
+            val requestBody = jsonObject.toString().toRequestBody(JSON)
+            val request = Request.Builder()
+                .url("$apiEndpoint/feedback") // Use a feedback endpoint
+                .addHeader("Authorization", "Bearer $apiKey")
+                .addHeader("Content-Type", "application/json")
+                .post(requestBody)
+                .build()
+            
+            // Send the feedback
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    val errorBody = response.body?.string() ?: "No error details"
+                    throw IOException("Tool feedback request failed with code: ${response.code}, error: $errorBody")
+                }
+            }
+        } catch (e: Exception) {
+            throw IOException("Failed to send tool feedback: ${e.message}")
+        }
+    }
 } 

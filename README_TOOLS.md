@@ -33,6 +33,29 @@ Search the web for information.
 </tool>
 ```
 
+### 4. Blocking Sleep Tool
+Pause execution for a specified duration in milliseconds (blocks the thread).
+```
+<tool name="blocking_sleep">
+<param name="duration_ms">2000</param>
+</tool>
+```
+
+### 5. Non-Blocking Sleep Tool
+Initiate a delay without blocking execution.
+```
+<tool name="non_blocking_sleep">
+<param name="duration_ms">2000</param>
+</tool>
+```
+
+### 6. Device Info Tool
+Obtain basic device information for the current app session.
+```
+<tool name="device_info">
+</tool>
+```
+
 ## How It Works
 
 1. When you send a message to the AI, the enhanced AI service processes your request.
