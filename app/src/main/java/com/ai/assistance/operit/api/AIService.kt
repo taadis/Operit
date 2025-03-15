@@ -170,7 +170,7 @@ class AIService(
                 } catch (e: UnknownHostException) {
                     throw IOException("无法连接到服务器，请检查网络连接或API地址是否正确")
                 } catch (e: Exception) {
-                    throw IOException("AI响应获取失败: ${e.message}")
+                    throw IOException("AI响应获取失败: ${e.message} ${e.stackTrace.joinToString("\n")}")
                 }
             }
             

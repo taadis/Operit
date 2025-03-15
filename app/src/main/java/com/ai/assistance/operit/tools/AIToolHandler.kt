@@ -485,4 +485,12 @@ class AIToolHandler(private val context: Context) {
  */
 fun interface ToolExecutor {
     operator fun invoke(tool: AITool): ToolResult
+    
+    /**
+     * Validates the parameters of a tool before execution
+     * Default implementation always returns valid
+     */
+    fun validateParameters(tool: AITool): ToolValidationResult {
+        return ToolValidationResult(valid = true)
+    }
 } 

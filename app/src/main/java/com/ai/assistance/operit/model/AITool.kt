@@ -64,4 +64,13 @@ data class ToolExecutionProgress(
     val progress: Float = 0f, // 0.0 to 1.0
     val message: String = "",
     val result: ToolResult? = null
+)
+
+/**
+ * Represents the validation result for tool parameters
+ */
+@Serializable
+data class ToolValidationResult(
+    val valid: Boolean,
+    val errorMessage: String = ""
 ) 
