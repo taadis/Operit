@@ -28,15 +28,20 @@ class AIService(
 
     // 解析服务器返回的内容，处理<think>标签
     private fun parseResponse(content: String): Pair<String, String?> {
-        val thinkPattern = "<think>(.*?)</think>".toRegex(RegexOption.DOT_MATCHES_ALL)
-        val thinkMatch = thinkPattern.find(content)
+        val thinkStartTag = "<think>"
+        val thinkEndTag = "</think>"
         
-        return if (thinkMatch != null) {
+        val startIndex = content.indexOf(thinkStartTag)
+        val endIndex = content.lastIndexOf(thinkEndTag)
+        
+        return if (startIndex != -1 && endIndex != -1 && startIndex < endIndex) {
             // 提取思考内容和主要内容
-            val thinkContent = thinkMatch.groupValues[1].trim()
-            val mainContent = content.replace(thinkMatch.value, "").trim()
+            val thinkContent = content.substring(startIndex + thinkStartTag.length, endIndex).trim()
+            val mainContent = content.substring(endIndex + thinkEndTag.length).trim()
             Pair(mainContent, thinkContent)
-        } else {
+        } else if(startIndex != -1 && endIndex == -1){
+            Pair("",content.substring(startIndex + thinkStartTag.length).trim())
+        }else{
             // 没有思考内容，返回原始内容
             Pair(content, null)
         }

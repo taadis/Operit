@@ -1,6 +1,7 @@
 package com.ai.assistance.operit.ui.screens
 
 import android.content.Context
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -57,6 +58,15 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.lazy.rememberLazyListState
 import java.util.*
+import com.ai.assistance.operit.api.EnhancedAIService
+import com.ai.assistance.operit.ui.components.ToolProgressBar
+import com.ai.assistance.operit.ui.components.ReferencesDisplay
+import com.ai.assistance.operit.model.ToolExecutionProgress
+import com.ai.assistance.operit.model.ToolExecutionState
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.collectLatest
+import com.ai.assistance.operit.ui.components.SimpleLinearProgressIndicator
+import com.ai.assistance.operit.ui.components.SimpleAnimatedVisibility
 
 // Constants
 private const val CHAT_HISTORY_PAGE_SIZE = 20
@@ -200,10 +210,20 @@ fun AIChatScreen() {
     var userMessage by remember { mutableStateOf("") }
     var chatHistory by remember { mutableStateOf(listOf<ChatMessage>()) }
     var isConfigured by remember { mutableStateOf(storedApiKey.isNotBlank()) }
-    var aiService by remember { mutableStateOf<AIService?>(null) }
+    var enhancedAiService by remember { mutableStateOf<EnhancedAIService?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var chatMemory by remember { mutableStateOf(mutableListOf<Pair<String, String>>()) }
+    
+    // Tool progress state
+    var toolProgress by remember { mutableStateOf(ToolExecutionProgress(state = ToolExecutionState.IDLE)) }
+    
+    // Input processing state
+    var isProcessingInput by remember { mutableStateOf(false) }
+    var inputProcessingMessage by remember { mutableStateOf("") }
+    
+    // References from AI responses
+    var aiReferences by remember { mutableStateOf(listOf<com.ai.assistance.operit.api.AiReference>()) }
     
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
@@ -230,12 +250,10 @@ fun AIChatScreen() {
         apiEndpoint = storedApiEndpoint
         modelName = storedModelName
         
-        // 清理所有历史记录中的 thinking 消息
-        chatHistoryManager.cleanUpThinkingMessages()
         
-        // Initialize AIService if we have stored credentials
+        // Initialize EnhancedAIService if we have stored credentials
         if (storedApiKey.isNotBlank()) {
-            aiService = AIService(storedApiEndpoint, storedApiKey, storedModelName)
+            enhancedAiService = EnhancedAIService(storedApiEndpoint, storedApiKey, storedModelName, context)
             
             // If we're not already configured, set up the chat
             if(currentChatId != null) {
@@ -245,9 +263,44 @@ fun AIChatScreen() {
                 isConfigured = true
                 val welcomeMessage = ChatMessage(
                     "system",
-                    "AI Assistant v1.0\n欢迎使用AI助手！请在下方输入您的问题。"
+                    "AI Assistant v1.0\n欢迎使用AI助手！请在下方输入您的问题。\n\n本助手已启用工具功能，AI可以使用各种工具来帮助您。"
                 )
                 chatHistory = listOf(welcomeMessage)
+            }
+            
+            // Collect tool progress updates
+            enhancedAiService?.let { service ->
+                scope.launch {
+                    service.getToolProgressFlow().collect { progress ->
+                        toolProgress = progress
+                    }
+                }
+                
+                // Collect references
+                scope.launch {
+                    service.references.collect { refs ->
+                        aiReferences = refs
+                    }
+                }
+                
+                // Collect input processing state
+                scope.launch {
+                    service.inputProcessingState.collect { state ->
+                        when(state) {
+                            is com.ai.assistance.operit.api.InputProcessingState.Idle -> {
+                                isProcessingInput = false
+                                inputProcessingMessage = ""
+                            }
+                            is com.ai.assistance.operit.api.InputProcessingState.Processing -> {
+                                isProcessingInput = true
+                                inputProcessingMessage = state.message
+                            }
+                            is com.ai.assistance.operit.api.InputProcessingState.Completed -> {
+                                isProcessingInput = false
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -269,8 +322,6 @@ fun AIChatScreen() {
         }
     }
     
-
-    
     // Function to handle sending messages
     fun saveCurrentChat() {
         // 只有聊天消息大于1条时才保存（避免保存空对话）
@@ -281,8 +332,8 @@ fun AIChatScreen() {
                 
                 val title = chatHistory.firstOrNull { it.sender == "user" }?.content?.take(20) ?: "新对话"
                 
-                // 过滤掉所有 "think" 类型的消息再保存
-                val filteredMessages = chatHistory.filter { it.sender != "think" }
+                // 保留思考消息，不再过滤
+                val filteredMessages = chatHistory
                 
                 val history = ChatHistory(
                     id = chatId,
@@ -330,15 +381,15 @@ fun AIChatScreen() {
         // 记录是否已经有AI回复
         var hasAiResponse = false
         
-        // Call AI service
+        // Call enhanced AI service
         coroutineScope.launch {
             isLoading = true
             try {
-                // 使用新的流式响应API，传递聊天记忆
-                aiService?.sendMessage(
+                enhancedAiService?.sendMessage(
                     message = tempMessage,
                     onPartialResponse = { content, thinking ->
                         if (thinking != null) {
+                            Log.i("thinking", thinking)
                             // 更新思考内容
                             thinkingContent = thinking
                             
@@ -351,7 +402,7 @@ fun AIChatScreen() {
                             }
                         }
                         
-                        // 更新AI回复内容
+                        // 更新AI回复内容 - 确保思考内容与回复内容分开
                         if (content.isNotEmpty()) {
                             val trimmedContent = content.trim()
                             if (trimmedContent.isNotBlank()) {
@@ -364,10 +415,11 @@ fun AIChatScreen() {
                                         }
                                     }
                                 } else {
-                                    // 第一次收到AI回复，删除thinking消息并添加AI消息
+                                    // 第一次收到AI回复，添加AI消息但保留thinking消息
                                     hasAiResponse = true
-                                    // 过滤掉thinking消息
-                                    chatHistory = chatHistory.filter { it.sender != "think" } + ChatMessage("ai", trimmedContent)
+                                    
+                                    // 添加新的AI消息，而不是替换thinking消息
+                                    chatHistory = chatHistory + ChatMessage("ai", trimmedContent)
                                     
                                     // 添加消息到记忆
                                     chatMemory.add(Pair("ai", trimmedContent))
@@ -383,7 +435,10 @@ fun AIChatScreen() {
                         // AI回复完全完成后再保存对话历史
                         saveCurrentChat()
                     }
-                )
+                ) ?: run {
+                    // fallback to regular AIService if enhanced service isn't initialized
+                    errorMessage = "增强AI服务未初始化，请检查设置"
+                }
                 
             } catch (e: Exception) {
                 errorMessage = e.message
@@ -427,6 +482,9 @@ fun AIChatScreen() {
                 }
             }
             
+            // Clear references when starting a new chat
+            enhancedAiService?.clearReferences()
+            
             val newChat = chatHistoryManager.createNewChat()
             chatHistory = newChat.messages
         }
@@ -437,6 +495,9 @@ fun AIChatScreen() {
         coroutineScope.launch {
             // 保存当前对话
             saveCurrentChat()
+            
+            // Clear references when switching chats
+            enhancedAiService?.clearReferences()
             
             chatHistoryManager.setCurrentChatId(chatId)
             val selectedChat = chatHistories.find { it.id == chatId }
@@ -455,49 +516,67 @@ fun AIChatScreen() {
                     tonalElevation = 3.dp,
                     modifier = Modifier.shadow(4.dp)
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        OutlinedTextField(
-                            value = userMessage,
-                            onValueChange = { userMessage = it },
-                            placeholder = { Text("请输入您的问题...") },
-                            modifier = Modifier
-                                .weight(1f)
-                                .focusRequester(inputFocusRequester),
-                            textStyle = modernTextStyle,
-                            maxLines = 3,
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                            keyboardActions = KeyboardActions(onSend = { sendUserMessage(userMessage) }),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                            ),
-                            shape = RoundedCornerShape(24.dp)
-                        )
-                        
-                        Spacer(modifier = Modifier.width(8.dp))
-                        
-                        IconButton(
-                            onClick = { sendUserMessage(userMessage) },
-                            enabled = userMessage.isNotBlank() && !isLoading,
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(RoundedCornerShape(50))
-                                .background(
-                                    if (userMessage.isNotBlank() && !isLoading)
-                                        MaterialTheme.colorScheme.primary
-                                    else
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                                )
-                        ) {
-                            Text(
-                                text = "发送",
-                                color = MaterialTheme.colorScheme.onPrimary
+                    Column {
+                        // Input processing indicator
+                        SimpleAnimatedVisibility(visible = isProcessingInput) {
+                            SimpleLinearProgressIndicator(
+                                progress = 1f, // Indeterminate mode using full width
+                                modifier = Modifier.fillMaxWidth()
                             )
+                            if (inputProcessingMessage.isNotBlank()) {
+                                Text(
+                                    text = inputProcessingMessage,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                        
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                value = userMessage,
+                                onValueChange = { userMessage = it },
+                                placeholder = { Text("请输入您的问题...") },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .focusRequester(inputFocusRequester),
+                                textStyle = modernTextStyle,
+                                maxLines = 3,
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                                keyboardActions = KeyboardActions(onSend = { sendUserMessage(userMessage) }),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                                ),
+                                shape = RoundedCornerShape(24.dp)
+                            )
+                            
+                            Spacer(modifier = Modifier.width(8.dp))
+                            
+                            IconButton(
+                                onClick = { sendUserMessage(userMessage) },
+                                enabled = userMessage.isNotBlank() && !isLoading && !isProcessingInput,
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .background(
+                                        if (userMessage.isNotBlank() && !isLoading && !isProcessingInput)
+                                            MaterialTheme.colorScheme.primary
+                                        else
+                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                                    )
+                            ) {
+                                Text(
+                                    text = "发送",
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                            }
                         }
                     }
                 }
@@ -581,7 +660,22 @@ fun AIChatScreen() {
                                         chatHistory = newChat.messages
                                     }
                                     
-                                    aiService = AIService(apiEndpoint, apiKey, modelName)
+                                    enhancedAiService = EnhancedAIService(apiEndpoint, apiKey, modelName, context)
+                                    
+                                    // Set up tool progress collection
+                                    coroutineScope.launch {
+                                        enhancedAiService?.getToolProgressFlow()?.collect { progress ->
+                                            toolProgress = progress
+                                        }
+                                    }
+                                    
+                                    // Set up references collection
+                                    coroutineScope.launch {
+                                        enhancedAiService?.references?.collect { refs ->
+                                            aiReferences = refs
+                                        }
+                                    }
+                                    
                                     isConfigured = true
                                 } else {
                                     errorMessage = "请输入API密钥、接口地址和模型名称"
@@ -663,6 +757,18 @@ fun AIChatScreen() {
                             }
                         }
                         
+                        // References display
+                        ReferencesDisplay(
+                            references = aiReferences,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        
+                        // Tool progress bar
+                        ToolProgressBar(
+                            toolProgress = toolProgress,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        
                         // 聊天消息列表
                         LazyColumn(
                             state = listState,
@@ -689,7 +795,7 @@ fun AIChatScreen() {
                     }
                 }
                 
-                // 添加加载指示器到Box的底部（如原有代码）
+                // 添加加载指示器到Box的底部
                 if (isLoading) {
                     Box(
                         modifier = Modifier
@@ -799,44 +905,31 @@ fun CursorStyleChatMessage(
                     )
                     
                     // 解析内容中可能的代码块
-                    val codeBlockPattern = "```([\\s\\S]*?)```".toRegex()
+                    val codeBlockPattern = Regex("```([\\s\\S]*?)```")
                     val segments = codeBlockPattern.split(message.content)
                     val matches = codeBlockPattern.findAll(message.content).map { it.groupValues[1] }.toList()
                     
-                    segments.forEachIndexed { index, text ->
-                        if (text.isNotEmpty()) {
-                            Text(
-                                text = text,
+                    // 将匹配的内容添加到段落中
+                    val formattedContent = segments.joinToString("") { segment ->
+                        if (segment.startsWith("```") && segment.endsWith("```")) {
+                            val code = segment.substring(3, segment.length - 3)
+                            "<code>$code</code>"
+                        } else {
+                            segment
+                        }
+                    }
+                    
+                    Text(
+                        text = formattedContent,
                         color = aiTextColor,
                         style = MaterialTheme.typography.bodyMedium
                     )
-                        }
-                        
-                        if (index < matches.size) {
-                            // 代码块
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 8.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant,
-                                shape = RoundedCornerShape(4.dp)
-                            ) {
-                                Text(
-                                    text = matches[index],
-                                    style = MaterialTheme.typography.bodySmall.copy(
-                                        fontFamily = FontFamily.Monospace
-                                    ),
-                                    modifier = Modifier.padding(12.dp)
-                                )
-                            }
-                        }
-                    }
                 }
             }
         }
         "think" -> {
             // 思考过程 - Cursor IDE 风格的折叠面板
-            var expanded by remember { mutableStateOf(true) }
+            var expanded by remember { mutableStateOf(false) } // 默认折叠
             
             Card(
                 modifier = Modifier
@@ -849,28 +942,28 @@ fun CursorStyleChatMessage(
             ) {
                 Column(
                     modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { expanded = !expanded }
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                            text = "Thinking...",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = thinkingTextColor
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { expanded = !expanded }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Thinking Process",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = thinkingTextColor
+                        )
+                        
+                        Icon(
+                            imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = if (expanded) "折叠" else "展开",
+                            tint = thinkingTextColor
+                        )
+                    }
                     
-                    Icon(
-                        imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                        contentDescription = if (expanded) "折叠" else "展开",
-                        tint = thinkingTextColor
-                    )
-                }
-                
                     AnimatedVisibility(visible = expanded) {
                         Text(
                             text = message.content,
@@ -902,4 +995,5 @@ fun CursorStyleChatMessage(
             }
         }
     }
-} 
+}
+

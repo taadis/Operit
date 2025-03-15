@@ -21,6 +21,20 @@
     <string name="network_unavailable">网络连接不可用，请检查您的网络设置</string>
     <string name="network_status">网络状态: %1$s</string>
     
+    <!-- AI Tools -->
+    <string name="ai_tools_enabled">已启用AI工具功能</string>
+    <string name="tools_extracting">正在检测工具调用...</string>
+    <string name="tools_executing">正在执行工具: %1$s</string>
+    <string name="tools_completed">工具执行完成</string>
+    <string name="tools_failed">工具执行失败: %1$s</string>
+    <string name="tool_result">工具执行结果</string>
+    <string name="processing_input">正在处理输入...</string>
+    <string name="references">参考资料:</string>
+    <string name="tool_weather">天气查询</string>
+    <string name="tool_calculator">计算器</string>
+    <string name="tool_web_search">网络搜索</string>
+    <string name="enhanced_service_not_initialized">增强AI服务未初始化，请检查设置</string>
+    
     <!-- Settings Screen -->
     <string name="settings">设置</string>
     <string name="no_settings">暂无设置选项可用</string>

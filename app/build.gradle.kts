@@ -59,15 +59,17 @@ dependencies {
     // Kotlin Serialization
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.2")
 
-    // Compose dependencies
+    // Compose dependencies - use BOM for version consistency
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.graphics)
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
     implementation(libs.activity.compose)
-    implementation("androidx.compose.material:material-icons-extended:1.6.0")
-
+    // Use BOM version for all Compose dependencies
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.compose.animation:animation")
+    implementation("androidx.compose.animation:animation-core")
 
     // Shizuku dependencies
     implementation("dev.rikka.shizuku:api:13.1.5")
