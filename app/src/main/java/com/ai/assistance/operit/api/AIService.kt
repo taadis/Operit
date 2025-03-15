@@ -92,7 +92,8 @@ class AIService(
     // 处理响应
     private suspend fun processResponse(
         response: Response, 
-        onPartialResponse: (content: String, thinking: String?) -> Unit
+        onPartialResponse: (content: String, thinking: String?) -> Unit,
+        onComplete: () -> Unit
     ) {
         if (!response.isSuccessful) {
             val errorBody = response.body?.string() ?: "No error details"
@@ -128,12 +129,16 @@ class AIService(
                 }
             }
         }
+        
+        // 处理完成，调用完成回调
+        onComplete()
     }
 
     suspend fun sendMessage(
         message: String,
         onPartialResponse: (content: String, thinking: String?) -> Unit,
-        chatHistory: List<Pair<String, String>> = emptyList()
+        chatHistory: List<Pair<String, String>> = emptyList(),
+        onComplete: () -> Unit = {}
     ) = withContext(Dispatchers.IO) {
         val maxRetries = 3
         var retryCount = 0
@@ -142,28 +147,33 @@ class AIService(
         val requestBody = createRequestBody(message, chatHistory)
         val request = createRequest(requestBody)
         
-        while (retryCount < maxRetries) {
-            try {
-                client.newCall(request).execute().use { response ->
-                    processResponse(response, onPartialResponse)
+        try {
+            while (retryCount < maxRetries) {
+                try {
+                    client.newCall(request).execute().use { response ->
+                        processResponse(response, onPartialResponse, onComplete)
+                    }
+                    // 成功处理，返回
+                    return@withContext
+                } catch (e: SocketTimeoutException) {
+                    lastException = e
+                    retryCount++
+                    // 通知正在重试
+                    onPartialResponse("", "连接超时，正在进行第 $retryCount 次重试...")
+                    // 指数退避重试
+                    delay(1000L * retryCount)
+                } catch (e: UnknownHostException) {
+                    throw IOException("无法连接到服务器，请检查网络连接或API地址是否正确")
+                } catch (e: Exception) {
+                    throw IOException("AI响应获取失败: ${e.message}")
                 }
-                // 成功处理，返回
-                return@withContext
-            } catch (e: SocketTimeoutException) {
-                lastException = e
-                retryCount++
-                // 通知正在重试
-                onPartialResponse("", "连接超时，正在进行第 $retryCount 次重试...")
-                // 指数退避重试
-                delay(1000L * retryCount) // 第一次等待1秒，第二次2秒，第三次3秒
-            } catch (e: UnknownHostException) {
-                throw IOException("无法连接到服务器，请检查网络连接或API地址是否正确")
-            } catch (e: Exception) {
-                throw IOException("AI响应获取失败: ${e.message}")
             }
+            
+            // 所有重试都失败
+            throw IOException("连接超时，已重试 $maxRetries 次: ${lastException?.message}")
+        } finally {
+            // 无论成功或失败，确保调用onComplete
+            onComplete()
         }
-        
-        // 所有重试都失败
-        throw IOException("连接超时，已重试 $maxRetries 次: ${lastException?.message}")
     }
 } 

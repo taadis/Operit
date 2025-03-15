@@ -56,6 +56,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.lazy.rememberLazyListState
+import java.util.*
 
 // Constants
 private const val CHAT_HISTORY_PAGE_SIZE = 20
@@ -229,6 +230,9 @@ fun AIChatScreen() {
         apiEndpoint = storedApiEndpoint
         modelName = storedModelName
         
+        // 清理所有历史记录中的 thinking 消息
+        chatHistoryManager.cleanUpThinkingMessages()
+        
         // Initialize AIService if we have stored credentials
         if (storedApiKey.isNotBlank()) {
             aiService = AIService(storedApiEndpoint, storedApiKey, storedModelName)
@@ -269,15 +273,28 @@ fun AIChatScreen() {
     
     // Function to handle sending messages
     fun saveCurrentChat() {
-        if (currentChatId != null && chatHistory.size > 1) {
+        // 只有聊天消息大于1条时才保存（避免保存空对话）
+        if (chatHistory.size > 1) {
             coroutineScope.launch {
+                // 有currentChatId时使用它，没有时创建新ID
+                val chatId = currentChatId ?: UUID.randomUUID().toString()
+                
                 val title = chatHistory.firstOrNull { it.sender == "user" }?.content?.take(20) ?: "新对话"
+                
+                // 过滤掉所有 "think" 类型的消息再保存
+                val filteredMessages = chatHistory.filter { it.sender != "think" }
+                
                 val history = ChatHistory(
-                    id = currentChatId!!,
+                    id = chatId,
                     title = "$title...",
-                    messages = chatHistory
+                    messages = filteredMessages
                 )
                 chatHistoryManager.saveChatHistory(history)
+                
+                // 如果没有currentChatId，设置一个
+                if (currentChatId == null) {
+                    chatHistoryManager.setCurrentChatId(chatId)
+                }
             }
         }
     }
@@ -347,9 +364,10 @@ fun AIChatScreen() {
                                         }
                                     }
                                 } else {
-                                    // 第一次收到AI回复，保留thinking消息并添加AI消息
+                                    // 第一次收到AI回复，删除thinking消息并添加AI消息
                                     hasAiResponse = true
-                                    chatHistory = chatHistory + ChatMessage("ai", trimmedContent)
+                                    // 过滤掉thinking消息
+                                    chatHistory = chatHistory.filter { it.sender != "think" } + ChatMessage("ai", trimmedContent)
                                     
                                     // 添加消息到记忆
                                     chatMemory.add(Pair("ai", trimmedContent))
@@ -360,12 +378,20 @@ fun AIChatScreen() {
                             }
                         }
                     },
-                    chatHistory = chatMemory.toList()
+                    chatHistory = chatMemory.toList(),
+                    onComplete = {
+                        // AI回复完全完成后再保存对话历史
+                        saveCurrentChat()
+                    }
                 )
+                
             } catch (e: Exception) {
                 errorMessage = e.message
                 // 出错时，保留思考内容，并添加错误消息
                 chatHistory = chatHistory + ChatMessage("ai", "错误: ${e.message}")
+                
+                // 即使出错也保存对话历史
+                saveCurrentChat()
             } finally {
                 isLoading = false
                 // Request focus back to input field
@@ -373,7 +399,6 @@ fun AIChatScreen() {
                 inputFocusRequester.requestFocus()
             }
         }
-        saveCurrentChat()
     }
     
     // Show error in snackbar
@@ -389,6 +414,9 @@ fun AIChatScreen() {
     // 新建对话
     fun createNewChat() {
         coroutineScope.launch {
+            // 保存当前对话
+            saveCurrentChat()
+            
             // 检查上一个对话是否为空对话
             if (currentChatId != null) {
                 val currentChat = chatHistories.find { it.id == currentChatId }
@@ -407,6 +435,9 @@ fun AIChatScreen() {
     // 切换对话
     fun switchChat(chatId: String) {
         coroutineScope.launch {
+            // 保存当前对话
+            saveCurrentChat()
+            
             chatHistoryManager.setCurrentChatId(chatId)
             val selectedChat = chatHistories.find { it.id == chatId }
             if (selectedChat != null) {

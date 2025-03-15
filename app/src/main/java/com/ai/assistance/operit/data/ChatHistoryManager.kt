@@ -124,4 +124,29 @@ class ChatHistoryManager(private val context: Context) {
         setCurrentChatId(newHistory.id)
         return newHistory
     }
+
+    // 清理所有历史记录中的 "think" 类型消息
+    suspend fun cleanUpThinkingMessages() {
+        mutex.withLock {
+            context.chatHistoryDataStore.edit { preferences ->
+                val existingHistoriesJson = preferences[PreferencesKeys.CHAT_HISTORIES] ?: "[]"
+                try {
+                    val existingHistories = json.decodeFromString<List<ChatHistory>>(existingHistoriesJson).toMutableList()
+                    
+                    // 遍历所有聊天记录，移除 "think" 类型消息
+                    val cleanedHistories = existingHistories.map { history ->
+                        history.copy(messages = history.messages.filter { it.sender != "think" })
+                    }
+                    
+                    // 更新缓存
+                    cachedHistories = cleanedHistories
+                    
+                    // 保存到 preferences
+                    preferences[PreferencesKeys.CHAT_HISTORIES] = json.encodeToString(cleanedHistories)
+                } catch (e: Exception) {
+                    // 处理可能的错误
+                }
+            }
+        }
+    }
 } 
