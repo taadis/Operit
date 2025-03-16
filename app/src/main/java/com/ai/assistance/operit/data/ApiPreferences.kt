@@ -21,9 +21,9 @@ class ApiPreferences(private val context: Context) {
         val MODEL_NAME = stringPreferencesKey("model_name")
         
         // Default values
-        const val DEFAULT_API_ENDPOINT = "https://xuedingmao.online/v1/chat/completions"
-        const val DEFAULT_MODEL_NAME = "claude-3-7-sonnet-thinking"
-        const val DEFAULT_API_KEY = "sk-vI7omFy9Wvyr25tc7gxKtI3bbRCJt3mQBW5Buvy5qoCx7lC2"
+        const val DEFAULT_API_ENDPOINT = "https://api.deepseek.com/v1/chat/completions"
+        const val DEFAULT_MODEL_NAME = "deepseek-reasoner"
+        const val DEFAULT_API_KEY = "sk-e565390c164c4cfa8820624ef47d68bf"
     }
     
     // Get API Key as Flow

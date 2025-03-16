@@ -71,6 +71,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.draw.rotate
 import androidx.compose.foundation.border
 import androidx.compose.material.icons.filled.Autorenew
+import com.ai.assistance.operit.util.ChatUtils
 
 // Constants
 private const val CHAT_HISTORY_PAGE_SIZE = 20
@@ -265,11 +266,6 @@ fun AIChatScreen() {
                 chatHistory = chatHistories.find { it.id == currentChatId }?.messages ?: emptyList()
             }else if (!isConfigured) {
                 isConfigured = true
-                val welcomeMessage = ChatMessage(
-                    "system",
-                    "AI Assistant v1.0\n欢迎使用AI助手！请在下方输入您的问题。\n\n本助手已启用工具功能，AI可以使用各种工具来帮助您。"
-                )
-                chatHistory = listOf(welcomeMessage)
             }
             
             // Collect tool progress updates
@@ -364,18 +360,8 @@ fun AIChatScreen() {
             errorMessage = networkUnavailableMessage
             return
         }
-        
-        val userMsg = ChatMessage("user", trimmedMessage)
-        chatHistory = chatHistory + userMsg
-        val tempMessage = trimmedMessage
         userMessage = ""
         focusManager.clearFocus()
-        
-        // Add AI "thinking" message
-        var thinkingContent = "正在思考..."
-        val processingMsg = ChatMessage("think", thinkingContent)
-        chatHistory = chatHistory + processingMsg
-        
         // 记录是否已经有AI回复
         var hasAiResponse = false
         
@@ -383,18 +369,17 @@ fun AIChatScreen() {
         coroutineScope.launch {
             isLoading = true
             try {
-                // 从当前UI界面构建聊天历史，不使用chatMemory
-                val currentChatHistory = chatHistory
-                    .filter { it.sender == "user" || it.sender == "ai" } // 只保留用户和AI消息
-                    .map { Pair(it.sender, it.content) } // 转换为所需格式
-                
+                // 从当前UI界面构建聊天历史，使用工具函数统一处理
+                val currentChatHistory = ChatUtils.prepareMessagesForApi(
+                    chatHistory,
+                    setOf("user", "ai", "system") // 只保留用户、系统和AI消息
+                )
+                chatHistory = chatHistory + ChatMessage("user", trimmedMessage)
+                chatHistory = chatHistory + ChatMessage("think","正在思考...")
                 enhancedAiService?.sendMessage(
-                    message = tempMessage,
+                    message = trimmedMessage,
                     onPartialResponse = { content, thinking ->
                         if (thinking != null) {
-                            // 更新思考内容
-                            thinkingContent = thinking
-                            
                             // 查找并更新thinking消息
                             val thinkIndex = chatHistory.indexOfLast { it.sender == "think" }
                             if (thinkIndex >= 0) {
@@ -434,6 +419,9 @@ fun AIChatScreen() {
                 ) ?: run {
                     // fallback to regular AIService if enhanced service isn't initialized
                     errorMessage = "增强AI服务未初始化，请检查设置"
+                    
+                    // 确保重置处理状态
+                    isProcessingInput = false
                 }
                 
             } catch (e: Exception) {
@@ -443,6 +431,9 @@ fun AIChatScreen() {
                 
                 // 即使出错也保存对话历史
                 saveCurrentChat()
+                
+                // 确保重置处理状态
+                isProcessingInput = false
             } finally {
                 isLoading = false
                 // Request focus back to input field

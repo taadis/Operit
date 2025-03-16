@@ -12,6 +12,8 @@ import java.net.UnknownHostException
 import java.net.SocketTimeoutException
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.delay
+import com.ai.assistance.operit.util.ChatUtils
+import android.util.Log
 
 class AIService(
     private val apiEndpoint: String, 
@@ -64,8 +66,26 @@ class AIService(
             systemMessage.put("content", "这是一个有记忆的持续会话，请基于之前的对话上下文回答用户的问题。")
             messagesArray.put(systemMessage)
             
-            // 添加历史消息
-            for ((role, content) in chatHistory) {
+            // 添加历史消息 - 使用工具函数统一转换角色格式，并确保没有连续的相同角色
+            val standardizedHistory = ChatUtils.mapChatHistoryToStandardRoles(chatHistory)
+            
+            // 防止连续相同角色消息
+            val filteredHistory = mutableListOf<Pair<String, String>>()
+            var lastRole: String? = null
+            
+            for ((role, content) in standardizedHistory) {
+                // 如果当前消息角色与上一个相同，跳过（除了system消息）
+                if (role == lastRole && role != "system") {
+                    Log.d("AIService", "跳过连续相同角色的消息: $role")
+                    continue
+                }
+                
+                filteredHistory.add(Pair(role, content))
+                lastRole = role
+            }
+            
+            // 将过滤后的历史添加到消息数组
+            for ((role, content) in filteredHistory) {
                 val historyMessage = JSONObject()
                 historyMessage.put("role", role)
                 historyMessage.put("content", content)
@@ -73,14 +93,26 @@ class AIService(
             }
         }
         
-        // 添加当前消息
-        val messageObject = JSONObject()
-        messageObject.put("role", "user")
-        messageObject.put("content", message)
-        messagesArray.put(messageObject)
+        // 添加当前消息，确保与上一条消息角色不同
+        val lastMessageRole = if (messagesArray.length() > 0) {
+            messagesArray.getJSONObject(messagesArray.length() - 1).getString("role")
+        } else null
+        
+        if (lastMessageRole != "user") {
+            val messageObject = JSONObject()
+            messageObject.put("role", "user")
+            messageObject.put("content", message)
+            messagesArray.put(messageObject)
+        } else {
+            // 如果上一条消息也是用户，将当前消息与上一条合并
+            Log.d("AIService", "合并连续的用户消息")
+            val lastMessage = messagesArray.getJSONObject(messagesArray.length() - 1)
+            val combinedContent = lastMessage.getString("content") + "\n\n" + message
+            lastMessage.put("content", combinedContent)
+        }
         
         jsonObject.put("messages", messagesArray)
-        
+        Log.d("AIService", "请求体: $jsonObject")
         return jsonObject.toString().toRequestBody(JSON)
     }
     
@@ -120,7 +152,7 @@ class AIService(
                             if (choices.length() > 0) {
                                 val delta = choices.getJSONObject(0).optJSONObject("delta")
                                 val content = delta?.optString("content", "") ?: ""
-                                if (content.isNotEmpty()) {
+                                if (content.isNotEmpty() && content != "null") {
                                     currentContent.append(content)
                                     // 解析内容并回调
                                     val (mainContent, thinkContent) = parseResponse(currentContent.toString())
@@ -151,82 +183,29 @@ class AIService(
         
         val requestBody = createRequestBody(message, chatHistory)
         val request = createRequest(requestBody)
-        
-        try {
-            while (retryCount < maxRetries) {
-                try {
-                    client.newCall(request).execute().use { response ->
-                        processResponse(response, onPartialResponse, onComplete)
-                    }
-                    // 成功处理，返回
-                    return@withContext
-                } catch (e: SocketTimeoutException) {
-                    lastException = e
-                    retryCount++
-                    // 通知正在重试
-                    onPartialResponse("", "连接超时，正在进行第 $retryCount 次重试...")
-                    // 指数退避重试
-                    delay(1000L * retryCount)
-                } catch (e: UnknownHostException) {
-                    throw IOException("无法连接到服务器，请检查网络连接或API地址是否正确")
-                } catch (e: Exception) {
-                    throw IOException("AI响应获取失败: ${e.message} ${e.stackTrace.joinToString("\n")}")
+
+        while (retryCount < maxRetries) {
+            try {
+                client.newCall(request).execute().use { response ->
+                    processResponse(response, onPartialResponse, onComplete)
                 }
+                // 成功处理，返回
+                return@withContext
+            } catch (e: SocketTimeoutException) {
+                lastException = e
+                retryCount++
+                // 通知正在重试
+                onPartialResponse("", "连接超时，正在进行第 $retryCount 次重试...")
+                // 指数退避重试
+                delay(1000L * retryCount)
+            } catch (e: UnknownHostException) {
+                throw IOException("无法连接到服务器，请检查网络连接或API地址是否正确")
+            } catch (e: Exception) {
+                throw IOException("AI响应获取失败: ${e.message} ${e.stackTrace.joinToString("\n")}")
             }
+        }
             
             // 所有重试都失败
             throw IOException("连接超时，已重试 $maxRetries 次: ${lastException?.message}")
-        } finally {
-            // 无论成功或失败，确保调用onComplete
-            onComplete()
-        }
     }
-
-    /**
-     * Provides feedback to the AI about tool execution results.
-     * This enables bidirectional streaming for tool calls, allowing Claude to continue
-     * the conversation based on tool results.
-     * 
-     * @param feedback The feedback message containing tool execution results
-     */
-    suspend fun provideFeedback(feedback: String) = withContext(Dispatchers.IO) {
-        try {
-            // Create a feedback request
-            val jsonObject = JSONObject()
-            jsonObject.put("model", modelName)
-            jsonObject.put("stream", true)
-            
-            // Create a message object for the feedback
-            val messageObject = JSONObject()
-            messageObject.put("role", "assistant")
-            messageObject.put("content", feedback)
-            
-            // Add the message to the messages array
-            val messagesArray = JSONArray()
-            messagesArray.put(messageObject)
-            jsonObject.put("messages", messagesArray)
-            
-            // Add a flag to indicate this is a tool response feedback
-            jsonObject.put("tool_feedback", true)
-            
-            // Create the request
-            val requestBody = jsonObject.toString().toRequestBody(JSON)
-            val request = Request.Builder()
-                .url("$apiEndpoint/feedback") // Use a feedback endpoint
-                .addHeader("Authorization", "Bearer $apiKey")
-                .addHeader("Content-Type", "application/json")
-                .post(requestBody)
-                .build()
-            
-            // Send the feedback
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    val errorBody = response.body?.string() ?: "No error details"
-                    throw IOException("Tool feedback request failed with code: ${response.code}, error: $errorBody")
-                }
-            }
-        } catch (e: Exception) {
-            throw IOException("Failed to send tool feedback: ${e.message}")
-        }
-    }
-} 
+}

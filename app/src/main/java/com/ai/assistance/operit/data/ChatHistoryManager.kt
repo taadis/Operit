@@ -111,14 +111,10 @@ class ChatHistoryManager(private val context: Context) {
     
     // 创建新对话
     suspend fun createNewChat(): ChatHistory {
-        val welcomeMessage = ChatMessage(
-            "system",
-            "AI Assistant v1.0\n欢迎使用AI助手！请在下方输入您的问题。"
-        )
         
         val newHistory = ChatHistory(
             title = "新对话 ${LocalDateTime.now()}",
-            messages = listOf(welcomeMessage)
+            messages = listOf<ChatMessage>()
         )
         saveChatHistory(newHistory)
         setCurrentChatId(newHistory.id)

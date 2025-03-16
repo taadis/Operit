@@ -7,6 +7,9 @@ import com.ai.assistance.operit.model.ToolExecutionState
 import com.ai.assistance.operit.model.AITool
 import com.ai.assistance.operit.model.ToolResult
 import com.ai.assistance.operit.model.ToolInvocation
+import com.ai.assistance.operit.model.ConversationRoundManager
+import com.ai.assistance.operit.model.ConversationMarkupManager
+import com.ai.assistance.operit.util.ChatUtils
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.CoroutineScope
@@ -36,14 +39,10 @@ class EnhancedAIService(
             
             When calling a tool, the user will see your response, and then will automatically send the tool results back to you in a follow-up message.
             
-            ⚠️ CRITICAL TOOL USAGE RESTRICTION ⚠️
+            CRITICAL TOOL USAGE RESTRICTION
             - YOU MUST ONLY INVOKE ONE TOOL AT A TIME. This is absolutely critical.
             - NEVER include more than one tool invocation in a single response. The system can only handle one at a time.
-            - If you need multiple tools to complete a task, use them sequentially - call one, wait for its result, then call the next.
-            - After receiving a tool result, you can decide to use another tool or complete the task.
-            - Violating this restriction will cause significant errors and prevent task completion.
-            
-            IMPORTANT COMMUNICATION GUIDELINES:
+            - only call the tool at the end of your response.
             - Keep your responses concise and to the point. Avoid lengthy explanations unless specifically requested.
             - When responding after tool execution, be brief and focus on insights from the tool result.
             - Your responses should naturally flow with previous messages as if it's one continuous conversation.
@@ -82,16 +81,13 @@ class EnhancedAIService(
     val references = _references.asStateFlow()
     
     private val streamBuffer = StringBuilder()
-    private val contentAccumulationPool = StringBuilder()
-    private val isNewResponseStarted = AtomicBoolean(true)
-    private val currentResponseRound = AtomicInteger(0)
-    private var lastContentForCurrentRound = ""
+    private val roundManager = ConversationRoundManager()
+    private val isConversationActive = AtomicBoolean(false)
     
     private val toolProcessingScope = CoroutineScope(Dispatchers.IO)
     private val toolExecutionJobs = ConcurrentHashMap<String, Job>()
     private val conversationHistory = mutableListOf<Pair<String, String>>()
     private val conversationMutex = Mutex()
-    private val isConversationActive = AtomicBoolean(false)
     
     private var currentResponseCallback: ((content: String, thinking: String?) -> Unit)? = null
     private var currentCompleteCallback: (() -> Unit)? = null
@@ -152,10 +148,36 @@ class EnhancedAIService(
             clearReferences()
             cancelAllToolExecutions()
             streamBuffer.clear()
-            isNewResponseStarted.set(true)
+            roundManager.initializeNewConversation()
         }
         
         val processedInput = processUserInput(message)
+        val enhancedChatHistory = prepareConversationHistory(chatHistory, processedInput)
+        
+        withContext(Dispatchers.IO) {
+            aiService.sendMessage(
+                message = processedInput,
+                onPartialResponse = { content, thinking ->
+                    processContent(
+                        content,
+                        thinking,
+                        onPartialResponse,
+                        enhancedChatHistory,
+                        isFollowUp = false
+                    )
+                },
+                chatHistory = enhancedChatHistory,
+                onComplete = {
+                    handleStreamingComplete(onComplete)
+                }
+            )
+        }
+    }
+    
+    private suspend fun prepareConversationHistory(
+        chatHistory: List<Pair<String, String>>, 
+        processedInput: String
+    ): MutableList<Pair<String, String>> {
         val enhancedChatHistory = mutableListOf<Pair<String, String>>()
         
         conversationMutex.withLock {
@@ -164,7 +186,8 @@ class EnhancedAIService(
                 conversationHistory.clear()
                 conversationHistory.addAll(enhancedChatHistory)
             } else if (chatHistory.isNotEmpty()) {
-                enhancedChatHistory.addAll(chatHistory)
+                // 处理传入的聊天历史，确保角色映射正确
+                enhancedChatHistory.addAll(ChatUtils.mapChatHistoryToStandardRoles(chatHistory))
                 
                 if (!enhancedChatHistory.any { it.first == "system" }) {
                     enhancedChatHistory.add(0, Pair("system", SYSTEM_PROMPT))
@@ -178,31 +201,13 @@ class EnhancedAIService(
             
             conversationHistory.add(Pair("user", processedInput))
         }
-        
-        withContext(Dispatchers.IO) {
-            aiService.sendMessage(
-                message = processedInput,
-                onPartialResponse = { content, thinking ->
-                    processStreamingContent(
-                        content,
-                        thinking,
-                        onPartialResponse,
-                        conversationHistory
-                    )
-                },
-                chatHistory = conversationHistory,
-                onComplete = {
-                    handleStreamingComplete(onComplete)
-                }
-            )
-        }
+        return enhancedChatHistory
     }
     
     fun cancelConversation() {
         isConversationActive.set(false)
         cancelAllToolExecutions()
-        contentAccumulationPool.clear()
-        currentResponseRound.set(0)
+        roundManager.clearContent()
         Log.d(TAG, "Conversation canceled - content pool cleared")
         
         currentCompleteCallback?.invoke()
@@ -210,396 +215,270 @@ class EnhancedAIService(
         currentCompleteCallback = null
     }
     
-    private fun processStreamingContent(
+    private fun processContent(
         content: String, 
         thinking: String?,
         onPartialResponse: (content: String, thinking: String?) -> Unit,
-        chatHistory: MutableList<Pair<String, String>>
+        chatHistory: List<Pair<String, String>>,
+        isFollowUp: Boolean
     ) {
+        // 仅在流式回调中更新内容，不处理任何工具调用等逻辑
         streamBuffer.replace(0, streamBuffer.length, content)
         
-        if (isNewResponseStarted.getAndSet(false)) {
-            currentResponseRound.set(0)
-            contentAccumulationPool.clear()
-            contentAccumulationPool.append(content)
-            lastContentForCurrentRound = content
-            
-            Log.d(TAG, "New conversation started - content pool initialized with first content")
-        } else {
-            if (content != lastContentForCurrentRound) {
-                val poolContent = contentAccumulationPool.toString()
-                val currentRoundStartIndex = poolContent.lastIndexOf("--- Round ${currentResponseRound.get()} ---")
-                
-                if (currentRoundStartIndex >= 0) {
-                    val beforeCurrentRound = poolContent.substring(0, currentRoundStartIndex)
-                    contentAccumulationPool.replace(0, contentAccumulationPool.length, 
-                        beforeCurrentRound + "--- Round ${currentResponseRound.get()} ---\n" + content)
-                } else {
-                    contentAccumulationPool.append("\n\n--- Round ${currentResponseRound.get()} ---\n").append(content)
-                }
-                
-                lastContentForCurrentRound = content
-                
-                Log.d(TAG, "Updated content for round ${currentResponseRound.get()}")
-            }
-        }
+        // 更新round manager中的内容
+        val displayContent = roundManager.updateContent(content)
         
-        val accumulatedContent = contentAccumulationPool.toString()
-        
-        if (content.contains("[TASK_COMPLETE]")) {
-            handleTaskCompletion(accumulatedContent, thinking, onPartialResponse)
-            return
-        }
-        
-        val contentWithoutSeparators = accumulatedContent.replace(Regex("--- Round \\d+ ---\n"), "")
-        extractReferences(contentWithoutSeparators)
-        
-        val toolInvocations = toolHandler.extractToolInvocations(content)
-        
-        if (toolInvocations.isNotEmpty()) {
-            toolProcessingScope.launch {
-                conversationMutex.withLock {
-                    val contentWithoutSeparators = accumulatedContent.replace(Regex("--- Round \\d+ ---\n"), "")
-                    conversationHistory.add(Pair("assistant", contentWithoutSeparators))
-                }
-            }
-        }
-        
-        val displayContent = accumulatedContent.replace(Regex("--- Round \\d+ ---\n"), "")
+        // 更新UI显示
         onPartialResponse(displayContent, thinking)
-        
-        // Only process the first tool invocation when multiple are found
-        // This ensures we only execute one tool at a time, as stated in the system prompt
-        if (toolInvocations.isNotEmpty() && toolExecutionJobs.isEmpty()) {
-            val invocation = toolInvocations.first()
-            val toolId = "${invocation.tool.name}_${invocation.responseLocation.first}"
-            
-            val newRound = currentResponseRound.incrementAndGet()
-            Log.d(TAG, "Starting new tool execution round: $newRound")
-            
-            val job = toolProcessingScope.launch {
-                executeToolWithFollowUp(invocation, displayContent, onPartialResponse)
-            }
-            
-            toolExecutionJobs[toolId] = job
-            
-            // Log warning if multiple tools were detected but we're only processing the first one
-            if (toolInvocations.size > 1) {
-                Log.w(TAG, "Multiple tool invocations found (${toolInvocations.size}), but only processing the first one: ${invocation.tool.name}")
-                
-                // Append a notification to the content
-                contentAccumulationPool.append("\n\n<status type=\"warning\">多个工具被同时调用，系统只能处理一个。现在仅处理: ${invocation.tool.name}</status>")
-                val updatedDisplayContent = contentAccumulationPool.toString().replace(Regex("--- Round \\d+ ---\n"), "")
-                onPartialResponse(updatedDisplayContent, thinking)
-            }
-        }
-    }
-    
-    private suspend fun executeToolWithFollowUp(
-        invocation: ToolInvocation,
-        currentContent: String,
-        onPartialResponse: (content: String, thinking: String?) -> Unit
-    ) {
-        _inputProcessingState.value = InputProcessingState.Processing(
-            "Executing tool: ${invocation.tool.name}"
-        )
-        
-        contentAccumulationPool.append("\n\n<status type=\"executing\" tool=\"${invocation.tool.name}\"></status>")
-        lastContentForCurrentRound = ""
-        
-        val displayContent = contentAccumulationPool.toString().replace(Regex("--- Round \\d+ ---\n"), "")
-        onPartialResponse(displayContent, null)
-        
-        val executor = toolHandler.getToolExecutor(invocation.tool.name)
-        
-        if (executor == null) {
-            Log.w(TAG, "Tool not available: ${invocation.tool.name}")
-            
-            val errorMessage = "无法找到工具: ${invocation.tool.name}"
-            contentAccumulationPool.append("\n\n<status type=\"error\" tool=\"${invocation.tool.name}\">$errorMessage</status>")
-            
-            val updatedDisplayContent = contentAccumulationPool.toString().replace(Regex("--- Round \\d+ ---\n"), "")
-            onPartialResponse(updatedDisplayContent, null)
-            
-            postToolResultAsUserMessage(
-                ToolResult(
-                    toolName = invocation.tool.name,
-                    success = false,
-                    result = "",
-                    error = "Tool '${invocation.tool.name}' is not available"
-                )
-            )
-        } else {
-            val result = try {
-                val validationResult = executor.validateParameters(invocation.tool)
-                if (!validationResult.valid) {
-                    ToolResult(
-                        toolName = invocation.tool.name,
-                        success = false,
-                        result = "",
-                        error = "Invalid tool parameters: ${validationResult.errorMessage}"
-                    )
-                } else {
-                    executor.invoke(invocation.tool)
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error during tool execution: ${invocation.tool.name}", e)
-                ToolResult(
-                    toolName = invocation.tool.name,
-                    success = false,
-                    result = "",
-                    error = "Tool execution error: ${e.message}"
-                )
-            }
-            
-            val toolResultString = if (result.success) result.result else "${result.error}"
-            contentAccumulationPool.append("\n\n<status type=\"result\" tool=\"${invocation.tool.name}\" success=\"${result.success}\">${toolResultString}</status>")
-            
-            val updatedDisplayContent = contentAccumulationPool.toString().replace(Regex("--- Round \\d+ ---\n"), "")
-            onPartialResponse(updatedDisplayContent, null)
-            
-            postToolResultAsUserMessage(result)
-        }
-        
-        toolHandler.markToolInvocationProcessed(invocation)
-        
-        val toolId = "${invocation.tool.name}_${invocation.responseLocation.first}"
-        toolExecutionJobs.remove(toolId)
-    }
-    
-    private suspend fun postToolResultAsUserMessage(result: ToolResult) {
-        if (!isConversationActive.get()) {
-            Log.d(TAG, "Conversation is no longer active, not posting tool result")
-            return
-        }
-        
-        val toolResultMessage = formatToolResultForMessage(result)
-        
-        conversationMutex.withLock {
-            conversationHistory.add(Pair("user", toolResultMessage))
-        }
-        
-        val currentChatHistory = conversationMutex.withLock {
-            conversationHistory.toList()
-        }
-        
-        val responseCallback = currentResponseCallback ?: return
-        val completeCallback = currentCompleteCallback ?: {}
-        
-        val currentDisplay = currentChatHistory
-            .lastOrNull { it.first == "assistant" }?.second ?: ""
-        
-        if (currentDisplay.isNotEmpty()) {
-            val updatedContent = "$currentDisplay\n\n<status type=\"thinking\"></status>"
-            responseCallback(updatedContent, null)
-        }
-        
-        aiService.sendMessage(
-            message = toolResultMessage,
-            onPartialResponse = { content, thinking ->
-                processFollowUpResponse(content, thinking, responseCallback, currentChatHistory)
-            },
-            chatHistory = currentChatHistory,
-            onComplete = {
-                if (!isConversationActive.get()) {
-                    completeCallback()
-                }
-            }
-        )
-    }
-    
-    private fun processFollowUpResponse(
-        content: String,
-        thinking: String?,
-        onPartialResponse: (content: String, thinking: String?) -> Unit,
-        chatHistory: List<Pair<String, String>>
-    ) {
-        if (isNewResponseStarted.getAndSet(false)) {
-            val newRound = currentResponseRound.incrementAndGet()
-            Log.d(TAG, "Starting new AI follow-up round: $newRound")
-            
-            contentAccumulationPool.append("\n\n--- Round $newRound ---\n").append(content)
-            lastContentForCurrentRound = content
-        } else {
-            if (content != lastContentForCurrentRound) {
-                val poolContent = contentAccumulationPool.toString()
-                val currentRound = currentResponseRound.get()
-                val currentRoundStartIndex = poolContent.lastIndexOf("--- Round $currentRound ---")
-                
-                if (currentRoundStartIndex >= 0) {
-                    val beforeCurrentRound = poolContent.substring(0, currentRoundStartIndex)
-                    contentAccumulationPool.replace(0, contentAccumulationPool.length, 
-                        beforeCurrentRound + "--- Round $currentRound ---\n" + content)
-                } else {
-                    contentAccumulationPool.append("\n\n--- Round $currentRound ---\n").append(content)
-                }
-                
-                lastContentForCurrentRound = content
-                
-                Log.d(TAG, "Updated content for follow-up round $currentRound")
-            }
-        }
-        
-        val displayContent = contentAccumulationPool.toString().replace(Regex("--- Round \\d+ ---\n"), "")
-        
-        if (content.contains("[TASK_COMPLETE]")) {
-            handleTaskCompletion(displayContent, thinking, onPartialResponse)
-            return
-        }
-        
-        onPartialResponse(displayContent, thinking)
-        
-        val toolInvocations = toolHandler.extractToolInvocations(content)
-        
-        if (toolInvocations.isNotEmpty()) {
-            toolProcessingScope.launch {
-                conversationMutex.withLock {
-                    conversationHistory.add(Pair("assistant", displayContent))
-                }
-            }
-            
-            // Only process the first tool invocation when multiple are found
-            // This ensures we only execute one tool at a time, as stated in the system prompt
-            if (toolExecutionJobs.isEmpty()) {
-                val invocation = toolInvocations.first()
-                val toolId = "${invocation.tool.name}_${invocation.responseLocation.first}"
-                
-                val newRound = currentResponseRound.incrementAndGet()
-                Log.d(TAG, "Starting new tool execution round from follow-up: $newRound")
-                
-                val job = toolProcessingScope.launch {
-                    executeToolWithFollowUp(invocation, displayContent, onPartialResponse)
-                }
-                
-                toolExecutionJobs[toolId] = job
-                
-                // Log warning if multiple tools were detected but we're only processing the first one
-                if (toolInvocations.size > 1) {
-                    Log.w(TAG, "Multiple tool invocations found in follow-up (${toolInvocations.size}), but only processing the first one: ${invocation.tool.name}")
-                    
-                    // Append a notification to the content
-                    contentAccumulationPool.append("\n\n<status type=\"warning\">多个工具被同时调用，系统只能处理一个。现在仅处理: ${invocation.tool.name}</status>")
-                    val updatedDisplayContent = contentAccumulationPool.toString().replace(Regex("--- Round \\d+ ---\n"), "")
-                    onPartialResponse(updatedDisplayContent, thinking)
-                }
-            }
-        } else {
-            toolProcessingScope.launch {
-                conversationMutex.withLock {
-                    conversationHistory.add(Pair("assistant", displayContent))
-                }
-            }
-        }
-    }
-    
-    private fun formatToolResultForMessage(result: ToolResult): String {
-        return if (result.success) {
-            """
-            <tool_result name="${result.toolName}" status="success">
-            <content>
-            ${result.result}
-            </content>
-            </tool_result>
-            """.trimIndent()
-        } else {
-            """
-            <tool_result name="${result.toolName}" status="error">
-            <error>${result.error ?: "Unknown error"}</error>
-            </tool_result>
-            """.trimIndent()
-        }
+        // 不做任何其他处理，全部放到complete回调中
     }
     
     private fun handleStreamingComplete(onComplete: () -> Unit) {
         toolProcessingScope.launch {
-            val activeJobs = toolExecutionJobs.values.toList()
-            val timeout = System.currentTimeMillis() + 10000 // 10 seconds timeout
+            val content = streamBuffer.toString()
+            val displayContent = roundManager.getDisplayContent()
+            val responseCallback = currentResponseCallback ?: return@launch
             
-            for (job in activeJobs) {
-                if (System.currentTimeMillis() > timeout) {
-                    Log.w(TAG, "Timed out waiting for tool executions to complete")
-                    break
-                }
+            // 在complete阶段提取引用
+            extractReferences(displayContent)
+            
+            // 处理任务完成标记
+            if (ConversationMarkupManager.containsTaskCompletion(content)) {
+                handleTaskCompletion(displayContent, null, responseCallback)
                 
-                withContext(Dispatchers.Default) {
-                    kotlinx.coroutines.withTimeoutOrNull(1000) {
-                        job.join()
-                    }
-                }
+                // 确保在任务完成后，状态被正确重置
+                _inputProcessingState.value = InputProcessingState.Completed
+                
+                onComplete()
+                return@launch
             }
             
-            _inputProcessingState.value = InputProcessingState.Completed
-            
-            if (isConversationActive.get() && toolExecutionJobs.isEmpty()) {
-                val displayContent = contentAccumulationPool.toString().replace(Regex("--- Round \\d+ ---\n"), "")
-                
-                if (!displayContent.contains("[TASK_COMPLETE]")) {
-                    val hasToolInvocations = toolHandler.extractToolInvocations(displayContent).isNotEmpty()
-                    
-                    if (!hasToolInvocations) {
-                        Log.d(TAG, "No tool invocations found in non-streaming mode, assuming completion")
-                        
-                        val responseCallback = currentResponseCallback
-                        if (responseCallback != null) {
-                            handleTaskCompletion(displayContent, null, responseCallback)
-                        } else {
-                            markConversationCompleted()
-                        }
-                    }
-                }
+            // 添加当前助手消息到对话历史
+            conversationMutex.withLock {
+                conversationHistory.add(Pair("assistant", displayContent))
             }
             
-            if (!isConversationActive.get()) {
+            // 主流程：检测和处理工具调用
+            val toolInvocations = toolHandler.extractToolInvocations(content)
+            
+            if (toolInvocations.isNotEmpty() && isConversationActive.get()) {
+                // 工具调用处理流程
+                handleToolInvocation(toolInvocations, displayContent, responseCallback, onComplete)
+            } else {
+                // 没有工具调用，标记对话回合结束
+                Log.d(TAG, "没有找到工具调用，完成当前回合")
+                _inputProcessingState.value = InputProcessingState.Completed
+                
+                if (isConversationActive.get()) {
+                    markConversationCompleted()
+                }
+                
                 onComplete()
             }
         }
     }
     
     /**
-     * Centralizes the logic for handling task completion across the different methods.
-     * Cleans content, updates UI, and marks the conversation as completed.
+     * 处理工具调用并获取结果 - 作为handleStreamingComplete的子流程
+     */
+    private suspend fun handleToolInvocation(
+        toolInvocations: List<ToolInvocation>,
+        displayContent: String,
+        responseCallback: (content: String, thinking: String?) -> Unit,
+        onComplete: () -> Unit
+    ) {
+        Log.d(TAG, "完成内容中找到工具调用，开始处理")
+        
+        // 只处理第一个工具调用，如果有多个则显示警告
+        val invocation = toolInvocations.first()
+        
+        if (toolInvocations.size > 1) {
+            Log.w(TAG, "找到多个工具调用 (${toolInvocations.size})，但只处理第一个: ${invocation.tool.name}")
+            
+            val updatedDisplayContent = roundManager.appendContent(
+                ConversationMarkupManager.createMultipleToolsWarning(invocation.tool.name)
+            )
+            responseCallback(updatedDisplayContent, null)
+        }
+        
+        // 开始执行工具
+        _inputProcessingState.value = InputProcessingState.Processing(
+            "执行工具: ${invocation.tool.name}"
+        )
+        
+        // 更新UI显示工具执行状态
+        val updatedDisplayContent = roundManager.appendContent(
+            ConversationMarkupManager.createExecutingToolStatus(invocation.tool.name)
+        )
+        responseCallback(updatedDisplayContent, null)
+        
+        // 获取工具执行器并执行
+        val executor = toolHandler.getToolExecutor(invocation.tool.name)
+        val result: ToolResult
+        
+        if (executor == null) {
+            // 工具不可用处理
+            Log.w(TAG, "工具不可用: ${invocation.tool.name}")
+            
+            val errorDisplayContent = roundManager.appendContent(
+                ConversationMarkupManager.createToolNotAvailableError(invocation.tool.name)
+            )
+            responseCallback(errorDisplayContent, null)
+            
+            // 创建错误结果
+            result = ToolResult(
+                toolName = invocation.tool.name,
+                success = false,
+                result = "",
+                error = "工具 '${invocation.tool.name}' 不可用"
+            )
+        } else {
+            // 执行工具
+            result = executeToolSafely(invocation, executor)
+            
+            // 显示工具执行结果
+            val toolResultString = if (result.success) result.result else "${result.error}"
+            val resultDisplayContent = roundManager.appendContent(
+                ConversationMarkupManager.createToolResultStatus(
+                    invocation.tool.name, 
+                    result.success, 
+                    toolResultString
+                )
+            )
+            responseCallback(resultDisplayContent, null)
+        }
+        
+        toolHandler.markToolInvocationProcessed(invocation)
+        
+        // 处理工具结果 - 直接在这里继续处理，不调用单独的方法
+        // 这是整个循环的关键部分，工具结果处理后直接继续下一轮AI请求
+        if (!isConversationActive.get()) {
+            Log.d(TAG, "对话不再活跃，不处理工具结果")
+            onComplete()
+            return
+        }
+        
+        // 工具结果处理和后续AI请求 - 全都在complete回调的流程中
+        val toolResultMessage = ConversationMarkupManager.formatToolResultForMessage(result)
+        
+        // 添加工具结果到对话历史
+        conversationMutex.withLock {
+            conversationHistory.add(Pair("user", toolResultMessage))
+        }
+        
+        // 获取当前对话历史
+        val currentChatHistory = conversationMutex.withLock {
+            ChatUtils.mapChatHistoryToStandardRoles(conversationHistory)
+        }
+        
+        // 更新UI显示AI思考状态
+        val currentDisplay = currentChatHistory.lastOrNull { it.first == "assistant" }?.second ?: ""
+        if (currentDisplay.isNotEmpty()) {
+            val updatedContent = ConversationMarkupManager.appendThinkingStatus(currentDisplay)
+            responseCallback(updatedContent, null)
+        }
+        
+        // 开始新回合
+        roundManager.startNewRound()
+        Log.d(TAG, "开始AI响应工具结果回合")
+        
+        // 清空buffer，准备接收新内容
+        streamBuffer.clear()
+        
+        // 直接在当前流程中请求AI响应，保持在complete的主循环中
+        withContext(Dispatchers.IO) {
+            aiService.sendMessage(
+                message = toolResultMessage,
+                onPartialResponse = { content, thinking ->
+                    // 只处理显示，不执行任何工具逻辑
+                    processContent(content, thinking, responseCallback, currentChatHistory, isFollowUp = true)
+                },
+                chatHistory = currentChatHistory,
+                onComplete = {
+                    handleStreamingComplete {
+                        if (!isConversationActive.get()) {
+                            currentCompleteCallback?.invoke()
+                        }
+                    }
+                }
+            )
+        }
+    }
+    
+    private fun executeToolSafely(
+        invocation: ToolInvocation,
+        executor: com.ai.assistance.operit.tools.ToolExecutor
+    ): ToolResult {
+        return try {
+            val validationResult = executor.validateParameters(invocation.tool)
+            if (!validationResult.valid) {
+                ToolResult(
+                    toolName = invocation.tool.name,
+                    success = false,
+                    result = "",
+                    error = "参数无效: ${validationResult.errorMessage}"
+                )
+            } else {
+                executor.invoke(invocation.tool)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "工具执行错误: ${invocation.tool.name}", e)
+            ToolResult(
+                toolName = invocation.tool.name,
+                success = false,
+                result = "",
+                error = "工具执行错误: ${e.message}"
+            )
+        }
+    }
+    
+    /**
+     * 处理任务完成逻辑
      */
     private fun handleTaskCompletion(content: String, thinking: String?, onPartialResponse: (content: String, thinking: String?) -> Unit) {
-        // Mark conversation as inactive
+        // 标记对话完成
         isConversationActive.set(false)
         
-        // Clean content by removing the task complete marker and any round separators
-        val cleanedContent = content
-            .replace("[TASK_COMPLETE]", "")
-            .replace(Regex("--- Round \\d+ ---\n"), "")
-            .trim() + "\n\n<status type=\"complete\"></status>"  // 在所有情况下统一添加任务完成的文本
+        // 清理任务完成标记
+        val cleanedContent = ConversationMarkupManager.createTaskCompletionContent(content)
         
-        // Clear the content accumulation pool
-        contentAccumulationPool.clear()
-        Log.d(TAG, "Task complete - content pool cleared")
+        // 清理内容池
+        roundManager.clearContent()
         
-        // Update UI with the cleaned content
+        // 添加：确保更新输入处理状态为已完成
+        _inputProcessingState.value = InputProcessingState.Completed
+        
+        Log.d(TAG, "任务完成 - 内容池已清理，输入处理状态已更新为Completed")
+        
+        // 更新UI
         onPartialResponse(cleanedContent, thinking)
         
-        // Update conversation history
+        // 更新对话历史
         toolProcessingScope.launch {
             conversationMutex.withLock {
                 conversationHistory.add(Pair("assistant", cleanedContent))
             }
             
-            // Invoke the complete callback if present
+            // 调用完成回调
             currentCompleteCallback?.invoke()
         }
     }
     
     /**
-     * Marks the conversation as completed and clears necessary state
+     * 标记对话完成
      */
     private fun markConversationCompleted() {
         isConversationActive.set(false)
-        contentAccumulationPool.clear()
-        currentResponseRound.set(0)
-        Log.d(TAG, "Assumed task complete - content pool cleared")
+        roundManager.clearContent()
+        _inputProcessingState.value = InputProcessingState.Completed
+        Log.d(TAG, "标记对话完成 - 内容池已清理")
     }
     
+    /**
+     * 取消所有工具执行
+     */
     private fun cancelAllToolExecutions() {
         toolProcessingScope.coroutineContext.cancelChildren()
-        toolExecutionJobs.clear()
     }
 }
 
