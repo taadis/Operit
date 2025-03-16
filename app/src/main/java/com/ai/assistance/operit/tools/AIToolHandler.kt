@@ -377,7 +377,7 @@ class AIToolHandler(private val context: Context) {
                 message = "Failed to process tools: ${e.message}"
             )
             
-            return "$response\n\nError processing tools: ${e.message}"
+            return "$response\nError processing tools: ${e.message}"
         }
     }
     
@@ -392,7 +392,7 @@ class AIToolHandler(private val context: Context) {
         val before = response.substring(0, invocation.responseLocation.first)
         val after = response.substring(invocation.responseLocation.last + 1)
         
-        return "$before\n\n**Tool Result [${invocation.tool.name}]:** \n$result\n\n$after"
+        return "$before\n**Tool Result [${invocation.tool.name}]:** \n$result\n$after"
     }
     
     /**

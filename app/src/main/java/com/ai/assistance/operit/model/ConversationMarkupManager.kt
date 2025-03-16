@@ -126,7 +126,7 @@ class ConversationMarkupManager {
         fun createTaskCompletionContent(content: String): String {
             return content
                 .replace("[TASK_COMPLETE]", "")
-                .trim() + "\n\n" + createCompleteStatus()
+                .trim() + "\n" + createCompleteStatus()
         }
         
         /**
@@ -136,7 +136,7 @@ class ConversationMarkupManager {
          * @return The content with thinking status appended
          */
         fun appendThinkingStatus(currentContent: String): String {
-            return "$currentContent\n\n" + createThinkingStatus()
+            return "$currentContent\n" + createThinkingStatus()
         }
         
         /**

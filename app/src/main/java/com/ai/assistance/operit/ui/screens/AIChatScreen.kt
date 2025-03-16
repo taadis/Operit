@@ -72,115 +72,10 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.foundation.border
 import androidx.compose.material.icons.filled.Autorenew
 import com.ai.assistance.operit.util.ChatUtils
-
-// Constants
-private const val CHAT_HISTORY_PAGE_SIZE = 20
-
-// ChatHistorySelector as a top-level composable
-@Composable
-fun ChatHistorySelector(
-    modifier: Modifier = Modifier,
-    onNewChat: () -> Unit,
-    onSelectChat: (String) -> Unit,
-    chatHistories: List<ChatHistory>,
-    currentId: String?
-) {
-    // State to track how many items to load
-    var itemsToLoad by remember { mutableStateOf(CHAT_HISTORY_PAGE_SIZE) }
-    val historySelectorListState = rememberLazyListState()
-    
-    // Listen for scroll events to load more items when approaching the end
-    LaunchedEffect(historySelectorListState) {
-        snapshotFlow { historySelectorListState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }
-            .collect { lastVisibleIndex ->
-                val totalItemsCount = chatHistories.size
-                if (totalItemsCount > 0 && lastVisibleIndex >= itemsToLoad - 5 && itemsToLoad < totalItemsCount) {
-                    // Load the next page when user is 5 items from the end
-                    itemsToLoad = (itemsToLoad + CHAT_HISTORY_PAGE_SIZE).coerceAtMost(totalItemsCount)
-                }
-            }
-    }
-    
-    Column(modifier = modifier) {
-        // 标题
-        Text(
-            text = "对话历史",
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(16.dp)
-        )
-        
-        // 新建对话按钮
-        Button(
-            onClick = { onNewChat() },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-        ) {
-            Icon(Icons.Default.Add, contentDescription = "新建对话")
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("新建对话")
-        }
-
-        
-        Spacer(modifier = Modifier.height(8.dp))
-        Divider()
-        Spacer(modifier = Modifier.height(8.dp))
-        
-        // 对话历史列表
-        LazyColumn(
-            state = historySelectorListState,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-        ) {
-            // Only load a subset of items for better performance
-            val itemsToShow = chatHistories.take(itemsToLoad)
-            
-            items(
-                items = itemsToShow,
-                key = { it.id }
-            ) { history ->
-                val isSelected = history.id == currentId
-                
-                // Simplify by calculating colors directly in composable context
-                val surfaceColor = if (isSelected) 
-                    MaterialTheme.colorScheme.primaryContainer 
-                else 
-                    MaterialTheme.colorScheme.surface
-                
-                val textColor = if (isSelected) 
-                    MaterialTheme.colorScheme.onPrimaryContainer 
-                else 
-                    MaterialTheme.colorScheme.onSurface
-                
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                        .clickable { onSelectChat(history.id) },
-                    color = surfaceColor,
-                    shape = MaterialTheme.shapes.medium
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = history.title,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = textColor,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
+import com.ai.assistance.operit.ui.components.ChatHistorySelector
+import com.ai.assistance.operit.ui.components.CursorStyleChatMessage
+import com.ai.assistance.operit.ui.components.ToolExecutionBox
+import com.ai.assistance.operit.model.ConversationMarkupManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -375,7 +270,10 @@ fun AIChatScreen() {
                     setOf("user", "ai", "system") // 只保留用户、系统和AI消息
                 )
                 chatHistory = chatHistory + ChatMessage("user", trimmedMessage)
-                chatHistory = chatHistory + ChatMessage("think","正在思考...")
+                
+                // 使用ConversationMarkupManager创建思考状态
+                chatHistory = chatHistory + ChatMessage("think", ConversationMarkupManager.createThinkingStatus())
+                
                 enhancedAiService?.sendMessage(
                     message = trimmedMessage,
                     onPartialResponse = { content, thinking ->
@@ -383,8 +281,10 @@ fun AIChatScreen() {
                             // 查找并更新thinking消息
                             val thinkIndex = chatHistory.indexOfLast { it.sender == "think" }
                             if (thinkIndex >= 0) {
+                                // 使用标准的思考格式
+                                val thinkingContent = ConversationMarkupManager.appendThinkingStatus(thinking)
                                 chatHistory = chatHistory.toMutableList().apply {
-                                    set(thinkIndex, ChatMessage("think", thinking))
+                                    set(thinkIndex, ChatMessage("think", thinkingContent))
                                 }
                             }
                         }
@@ -397,16 +297,30 @@ fun AIChatScreen() {
                                     // 已经有AI回复，更新内容
                                     val aiIndex = chatHistory.indexOfLast { it.sender == "ai" }
                                     if (aiIndex >= 0) {
+                                        // 检查是否有任务完成标记，有则添加完成状态
+                                        val finalContent = if (ConversationMarkupManager.containsTaskCompletion(trimmedContent)) {
+                                            ConversationMarkupManager.createTaskCompletionContent(trimmedContent)
+                                        } else {
+                                            trimmedContent
+                                        }
+                                        
                                         chatHistory = chatHistory.toMutableList().apply {
-                                            set(aiIndex, ChatMessage("ai", trimmedContent))
+                                            set(aiIndex, ChatMessage("ai", finalContent))
                                         }
                                     }
                                 } else {
                                     // 第一次收到AI回复，添加AI消息但保留thinking消息
                                     hasAiResponse = true
                                     
+                                    // 检查是否有任务完成标记
+                                    val finalContent = if (ConversationMarkupManager.containsTaskCompletion(trimmedContent)) {
+                                        ConversationMarkupManager.createTaskCompletionContent(trimmedContent)
+                                    } else {
+                                        trimmedContent
+                                    }
+                                    
                                     // 添加新的AI消息，而不是替换thinking消息
-                                    chatHistory = chatHistory + ChatMessage("ai", trimmedContent)
+                                    chatHistory = chatHistory + ChatMessage("ai", finalContent)
                                 }
                             }
                         }
@@ -427,7 +341,8 @@ fun AIChatScreen() {
             } catch (e: Exception) {
                 errorMessage = e.message
                 // 出错时，保留思考内容，并添加错误消息
-                chatHistory = chatHistory + ChatMessage("ai", "错误: ${e.message}")
+                val errorMessage = ConversationMarkupManager.createToolErrorStatus("ai_service", "错误: ${e.message}")
+                chatHistory = chatHistory + ChatMessage("ai", errorMessage)
                 
                 // 即使出错也保存对话历史
                 saveCurrentChat()
@@ -702,7 +617,7 @@ fun AIChatScreen() {
                                 .background(MaterialTheme.colorScheme.surface)
                                 .padding(top = 8.dp),
                             onNewChat = { createNewChat() },
-                            onSelectChat = { switchChat(it) },
+                            onSelectChat = { chatId -> switchChat(chatId) },
                             chatHistories = sortedChatHistories,
                             currentId = currentChatId
                         )
@@ -777,7 +692,9 @@ fun AIChatScreen() {
                                     systemMessageColor = systemMessageColor,
                                     systemTextColor = systemTextColor,
                                     thinkingBackgroundColor = thinkingBackgroundColor,
-                                    thinkingTextColor = thinkingTextColor
+                                    thinkingTextColor = thinkingTextColor,
+                                    // 添加工具执行的相关属性，确保能正确处理标记
+                                    supportToolMarkup = true
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                             }
@@ -823,382 +740,6 @@ fun AIChatScreen() {
     DisposableEffect(Unit) {
         onDispose {
             saveCurrentChat()
-        }
-    }
-}
-
-@Composable
-fun CursorStyleChatMessage(
-    message: ChatMessage,
-    userMessageColor: Color,
-    aiMessageColor: Color,
-    userTextColor: Color,
-    aiTextColor: Color,
-    systemMessageColor: Color,
-    systemTextColor: Color,
-    thinkingBackgroundColor: Color,
-    thinkingTextColor: Color
-) {
-    when (message.sender) {
-        "user" -> {
-            // 用户提问 - Cursor IDE 风格
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = userMessageColor
-                ),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                ) {
-                    Text(
-                        text = "Prompt",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = userTextColor.copy(alpha = 0.7f),
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                    Text(
-                        text = message.content,
-                        color = userTextColor,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-            }
-        }
-        "ai" -> {
-            // AI 回复 - Cursor IDE 风格
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = aiMessageColor
-                ),
-                shape = RoundedCornerShape(8.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                ) {
-                    Text(
-                        text = "Response",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = aiTextColor.copy(alpha = 0.7f),
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                    
-                    // 检测内容中是否有工具执行部分，并特殊处理
-                    val toolExecutionPattern = Regex("\\*\\*Tool Execution \\[(.*?)\\]\\*\\*\n_Processing\\.\\.\\._")
-                    val toolResultPattern = Regex("\\*\\*Tool Result \\[(.*?)\\]\\*\\*\n```\n([\\s\\S]*?)\n```")
-                    val toolErrorPattern = Regex("\\*\\*Tool Error \\[(.*?)\\]\\*\\*\n```\n([\\s\\S]*?)\n```")
-                    
-                    var hasToolContent = false
-                    
-                    // 渲染消息内容
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        // 检查是否有工具执行标记
-                        val toolExecutionMatch = toolExecutionPattern.find(message.content)
-                        if (toolExecutionMatch != null) {
-                            hasToolContent = true
-                            val toolName = toolExecutionMatch.groupValues[1]
-                            
-                            // 显示工具执行中状态
-                            ToolExecutionBox(
-                                toolName = toolName,
-                                isProcessing = true,
-                                result = null,
-                                isError = false
-                            )
-                        }
-                        
-                        // 检查是否有工具执行结果标记
-                        val toolResultMatch = toolResultPattern.find(message.content)
-                        if (toolResultMatch != null) {
-                            hasToolContent = true
-                            val toolName = toolResultMatch.groupValues[1]
-                            val resultContent = toolResultMatch.groupValues[2]
-                            
-                            // 显示工具执行结果
-                            ToolExecutionBox(
-                                toolName = toolName,
-                                isProcessing = false,
-                                result = resultContent,
-                                isError = false
-                            )
-                        }
-                        
-                        // 检查是否有工具执行错误标记
-                        val toolErrorMatch = toolErrorPattern.find(message.content)
-                        if (toolErrorMatch != null) {
-                            hasToolContent = true
-                            val toolName = toolErrorMatch.groupValues[1]
-                            val errorContent = toolErrorMatch.groupValues[2]
-                            
-                            // 显示工具执行错误
-                            ToolExecutionBox(
-                                toolName = toolName,
-                                isProcessing = false,
-                                result = errorContent,
-                                isError = true
-                            )
-                        }
-                        
-                        // 如果内容中没有工具执行标记，则正常显示内容
-                        if (!hasToolContent) {
-                            // 解析内容中可能的代码块
-                            val codeBlockPattern = Regex("```([\\s\\S]*?)```")
-                            val segments = codeBlockPattern.split(message.content)
-                            val matches = codeBlockPattern.findAll(message.content).map { it.groupValues[1] }.toList()
-                            
-                            // 将匹配的内容添加到段落中
-                            val formattedContent = segments.joinToString("") { segment ->
-                                if (segment.startsWith("```") && segment.endsWith("```")) {
-                                    val code = segment.substring(3, segment.length - 3)
-                                    "<code>$code</code>"
-                                } else {
-                                    segment
-                                }
-                            }
-                            
-                            Text(
-                                text = formattedContent,
-                                color = aiTextColor,
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        } else {
-                            // 如果有工具执行标记，只显示内容中非工具执行部分
-                            val contentWithoutTools = message.content
-                                .replace(toolExecutionPattern, "")
-                                .replace(toolResultPattern, "")
-                                .replace(toolErrorPattern, "")
-                                .trim()
-                            
-                            if (contentWithoutTools.isNotBlank()) {
-                                // 解析内容中可能的代码块
-                                val codeBlockPattern = Regex("```([\\s\\S]*?)```")
-                                val segments = codeBlockPattern.split(contentWithoutTools)
-                                
-                                // 将匹配的内容添加到段落中
-                                val formattedContent = segments.joinToString("") { segment ->
-                                    if (segment.startsWith("```") && segment.endsWith("```")) {
-                                        val code = segment.substring(3, segment.length - 3)
-                                        "<code>$code</code>"
-                                    } else {
-                                        segment
-                                    }
-                                }
-                                
-                                Text(
-                                    text = formattedContent,
-                                    color = aiTextColor,
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        "think" -> {
-            // 思考过程 - Cursor IDE 风格的折叠面板
-            var expanded by remember { mutableStateOf(false) } // 默认折叠
-            
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = thinkingBackgroundColor
-                ),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { expanded = !expanded }
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "Thinking Process",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = thinkingTextColor
-                        )
-                        
-                        Icon(
-                            imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                            contentDescription = if (expanded) "折叠" else "展开",
-                            tint = thinkingTextColor
-                        )
-                    }
-                    
-                    AnimatedVisibility(visible = expanded) {
-                        Text(
-                            text = message.content,
-                            color = thinkingTextColor,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
-                        )
-                    }
-                }
-            }
-        }
-        "system" -> {
-            // 系统消息
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = systemMessageColor
-                ),
-                shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text(
-                        text = message.content,
-                        color = systemTextColor,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(12.dp)
-                    )
-            }
-        }
-    }
-}
-
-// 新增一个工具执行状态框组件
-@Composable
-fun ToolExecutionBox(
-    toolName: String,
-    isProcessing: Boolean,
-    result: String?,
-    isError: Boolean
-) {
-    val accentColor = if (isError) 
-        MaterialTheme.colorScheme.error 
-    else 
-        MaterialTheme.colorScheme.primary
-    
-    val backgroundColor = if (isProcessing)
-        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-    else if (isError)
-        MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f)
-    else
-        MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
-    
-    val textColor = if (isProcessing)
-        MaterialTheme.colorScheme.onPrimaryContainer
-    else if (isError)
-        MaterialTheme.colorScheme.onErrorContainer
-    else
-        MaterialTheme.colorScheme.onSecondaryContainer
-    
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .border(
-                width = 1.dp,
-                color = accentColor.copy(alpha = 0.5f),
-                shape = RoundedCornerShape(8.dp)
-            )
-            .background(backgroundColor)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            // 工具执行标题栏
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // 图标
-                Icon(
-                    imageVector = when {
-                        isProcessing -> Icons.Default.Autorenew
-                        isError -> Icons.Default.Close
-                        else -> Icons.Default.Check
-                    },
-                    contentDescription = when {
-                        isProcessing -> "执行中"
-                        isError -> "执行错误"
-                        else -> "执行成功"
-                    },
-                    tint = accentColor,
-                    modifier = if (isProcessing) {
-                        Modifier
-                            .size(18.dp)
-                            .rotate(
-                                animateFloatAsState(
-                                    targetValue = (System.currentTimeMillis() / 10 % 360).toFloat(),
-                                    animationSpec = tween(0),
-                                    label = "loading"
-                                ).value
-                            )
-                    } else {
-                        Modifier.size(18.dp)
-                    }
-                )
-                
-                Spacer(modifier = Modifier.width(8.dp))
-                
-                // 工具名称
-                Text(
-                    text = when {
-                        isProcessing -> "正在执行工具: $toolName"
-                        isError -> "工具执行失败: $toolName"
-                        else -> "工具执行成功: $toolName"
-                    },
-                    style = MaterialTheme.typography.titleSmall,
-                    color = textColor
-                )
-            }
-            
-            // 处理中状态显示进度条
-            if (isProcessing) {
-                Spacer(modifier = Modifier.height(12.dp))
-                SimpleLinearProgressIndicator(
-                    progress = 1f, // 使用无限循环进度条
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Text(
-                    text = "工具正在执行中，请稍候...",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = textColor.copy(alpha = 0.7f),
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
-            
-            // 结果内容
-            if (!isProcessing && result != null) {
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                Text(
-                    text = result,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = FontFamily.Monospace
-                    ),
-                    color = textColor,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(textColor.copy(alpha = 0.1f))
-                        .padding(8.dp)
-                )
-            }
         }
     }
 }

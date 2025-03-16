@@ -107,7 +107,7 @@ class AIService(
             // 如果上一条消息也是用户，将当前消息与上一条合并
             Log.d("AIService", "合并连续的用户消息")
             val lastMessage = messagesArray.getJSONObject(messagesArray.length() - 1)
-            val combinedContent = lastMessage.getString("content") + "\n\n" + message
+            val combinedContent = lastMessage.getString("content") + "\n" + message
             lastMessage.put("content", combinedContent)
         }
         

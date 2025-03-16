@@ -84,13 +84,13 @@ class ConversationRoundManager {
         
         sortedKeys.forEachIndexed { index, round ->
             val content = roundContents[round] ?: ""
-            if (index > 0) buffer.append("\n\n")
+            if (index > 0) buffer.append("\n")
             buffer.append(content)
         }
         
         // Append any content that's outside rounds (key -1)
         if (roundContents.containsKey(-1)) {
-            buffer.append("\n\n").append(roundContents[-1])
+            buffer.append("\n").append(roundContents[-1])
         }
         
         return buffer.toString()
@@ -109,14 +109,14 @@ class ConversationRoundManager {
         
         sortedKeys.forEachIndexed { index, round ->
             val content = roundContents[round] ?: ""
-            if (index > 0) buffer.append("\n\n")
+            if (index > 0) buffer.append("\n")
             buffer.append(String.format(ROUND_SEPARATOR_FORMAT, round))
             buffer.append(content)
         }
         
         // Append any content that's outside rounds (key -1)
         if (roundContents.containsKey(-1)) {
-            buffer.append("\n\n").append(roundContents[-1])
+            buffer.append("\n").append(roundContents[-1])
         }
         
         return buffer.toString()

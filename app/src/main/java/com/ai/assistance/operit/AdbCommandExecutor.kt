@@ -311,11 +311,11 @@ class AdbCommandExecutor {
          * 获取Shizuku启动说明
          */
         fun getShizukuStartupInstructions(): String {
-            return "要启动Shizuku服务：\n\n" +
+            return "要启动Shizuku服务：\n" +
                    "1. 确保已安装Shizuku应用\n" +
                    "2. 使用ADB命令启动Shizuku:\n" +
-                   "   adb shell sh /sdcard/Android/data/moe.shizuku.privileged.api/start.sh\n\n" +
-                   "或者\n\n" + 
+                   "   adb shell sh /sdcard/Android/data/moe.shizuku.privileged.api/start.sh\n" +
+                   "或者\n" + 
                    "3. 打开Shizuku应用并按照屏幕上的说明操作"
         }
         
