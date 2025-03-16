@@ -77,6 +77,7 @@ dependencies {
 
     // Network dependencies
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("org.jsoup:jsoup:1.16.2")
 
     // DataStore dependencies
     implementation("androidx.datastore:datastore-preferences:1.0.0")
