@@ -18,8 +18,8 @@ fun SimpleLinearProgressIndicator(
     color: Color = MaterialTheme.colorScheme.primary,
     trackColor: Color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
 ) {
-    if (progress >= 0f && progress <= 1f) {
-        // 确定性进度条
+    if (progress in 0.0f..1.0f) {
+        // 确定性进度条 - 有特定进度值
         LinearProgressIndicator(
             progress = progress,
             modifier = modifier.height(4.dp),
@@ -27,7 +27,7 @@ fun SimpleLinearProgressIndicator(
             trackColor = trackColor
         )
     } else {
-        // 不确定性进度条
+        // 不确定性进度条 - 无限循环动画
         LinearProgressIndicator(
             modifier = modifier.height(4.dp),
             color = color,
