@@ -14,6 +14,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Color
 import com.ai.assistance.operit.AdbCommandExecutor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -90,7 +92,9 @@ fun ShizukuDemoScreen() {
     ) {
         Text(
             text = "Shizuku ADB 命令执行器",
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.headlineSmall,
+            fontSize = 16.sp,
+            color = Color.White,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(bottom = 24.dp)
         )

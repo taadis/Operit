@@ -25,6 +25,23 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import java.util.UUID
 
+// 简单的聊天记忆类，用于存储对话内容
+class ChatMemory {
+    private val messages = mutableListOf<Pair<String, String>>()
+    
+    fun add(role: String, content: String) {
+        messages.add(Pair(role, content))
+    }
+    
+    fun clear() {
+        messages.clear()
+    }
+    
+    fun getAll(): List<Pair<String, String>> {
+        return messages.toList()
+    }
+}
+
 class ChatViewModel(
     private val context: Context
 ) : ViewModel() {
@@ -32,9 +49,17 @@ class ChatViewModel(
     // Preferences and managers
     private val apiPreferences = ApiPreferences(context)
     private val chatHistoryManager = ChatHistoryManager(context)
+    private val chatMemory = ChatMemory()
     
     // API service
     private var enhancedAiService: EnhancedAIService? = null
+    
+    // 防止重复创建聊天
+    private var initialChatCreated = false
+    
+    // 加载状态跟踪
+    private var historiesLoaded = false
+    private var currentChatIdLoaded = false
     
     // State flows
     private val _apiKey = MutableStateFlow("")
@@ -82,7 +107,17 @@ class ChatViewModel(
     private val _currentChatId = MutableStateFlow<String?>(null)
     val currentChatId: StateFlow<String?> = _currentChatId
     
-    private val chatMemory = mutableListOf<Pair<String, String>>()
+    // Add a new state flow for popup messages
+    private val _popupMessage = MutableStateFlow<String?>(null)
+    val popupMessage: StateFlow<String?> = _popupMessage.asStateFlow()
+    
+    // Adding a new toast event flow
+    private val _toastEvent = MutableStateFlow<String?>(null)
+    val toastEvent: StateFlow<String?> = _toastEvent.asStateFlow()
+    
+    // State for show thinking preference
+    private val _showThinking = MutableStateFlow(ApiPreferences.DEFAULT_SHOW_THINKING)
+    val showThinking: StateFlow<Boolean> = _showThinking.asStateFlow()
     
     init {
         // Load API settings
@@ -111,18 +146,31 @@ class ChatViewModel(
         viewModelScope.launch {
             chatHistoryManager.chatHistoriesFlow.collect { histories ->
                 _chatHistories.value = histories
+                historiesLoaded = true
+                checkIfShouldCreateNewChat()
             }
         }
         
         viewModelScope.launch {
             chatHistoryManager.currentChatIdFlow.collect { chatId ->
                 _currentChatId.value = chatId
+                currentChatIdLoaded = true
+                checkIfShouldCreateNewChat()
+                
                 if (chatId != null) {
                     val selectedChat = _chatHistories.value.find { it.id == chatId }
                     if (selectedChat != null) {
                         _chatHistory.value = selectedChat.messages
                     }
                 }
+            }
+        }
+        
+        // Collect show thinking preference
+        viewModelScope.launch {
+            apiPreferences.showThinkingFlow.collect { showThinkingValue ->
+                _showThinking.value = showThinkingValue
+                
             }
         }
     }
@@ -179,10 +227,8 @@ class ChatViewModel(
                 
                 _isConfigured.value = true
                 
-                // Initialize chat if needed
-                if (_currentChatId.value == null) {
-                    createNewChat()
-                }
+                // 标记为已配置，然后检查是否应该创建新对话
+                checkIfShouldCreateNewChat()
             }
         }
     }
@@ -256,10 +302,8 @@ class ChatViewModel(
             
             _isConfigured.value = true
             
-            // Create a new chat history when first configuring
-            if (_currentChatId.value == null) {
-                createNewChat()
-            }
+            // 标记为已配置，然后检查是否应该创建新对话
+            checkIfShouldCreateNewChat()
         }
     }
     
@@ -301,103 +345,58 @@ class ChatViewModel(
         }
     }
     
-    fun sendUserMessage() {
-        val message = _userMessage.value.trim()
-        if (message.isBlank() || _isLoading.value) return
-        
-        // Check network connectivity
-        if (!NetworkUtils.isNetworkAvailable(context)) {
-            _errorMessage.value = "网络不可用，请检查网络连接后重试"
+    fun sendMessage(message: String) {
+        if (message.trim().isEmpty()) {
             return
         }
         
-        _userMessage.value = ""
-        var hasAiResponse = false
-        
         viewModelScope.launch {
-            _isLoading.value = true
             try {
-                // Prepare chat history for the API
-                val currentChatHistory = ChatUtils.prepareMessagesForApi(
-                    _chatHistory.value,
-                    setOf("user", "ai", "system")
-                )
+                // 重置错误信息
+                _errorMessage.value = null
                 
-                // Add user message to chat history
-                _chatHistory.value = _chatHistory.value + ChatMessage("user", message)
+                // 注意：用户消息已经在sendUserMessage方法中添加，这里不再添加
                 
-                // Add thinking message
-                _chatHistory.value = _chatHistory.value + ChatMessage("think", "思考中...")
-                
-                enhancedAiService?.sendMessage(
-                    message = message,
-                    onPartialResponse = { content, thinking ->
-                        if (thinking != null) {
-                            // Update thinking message
-                            val thinkIndex = _chatHistory.value.indexOfLast { it.sender == "think" }
-                            if (thinkIndex >= 0) {
-                                val updatedHistory = _chatHistory.value.toMutableList()
-                                updatedHistory[thinkIndex] = ChatMessage("think", thinking)
-                                _chatHistory.value = updatedHistory
-                            }
-                        }
-                        
-                        // Update AI response content
-                        if (content.isNotEmpty()) {
-                            val trimmedContent = content.trim()
-                            if (trimmedContent.isNotBlank()) {
-                                if (hasAiResponse) {
-                                    // Update existing AI response
-                                    val aiIndex = _chatHistory.value.indexOfLast { it.sender == "ai" }
-                                    if (aiIndex >= 0) {
-                                        val finalContent = if (ConversationMarkupManager.containsTaskCompletion(trimmedContent)) {
-                                            ConversationMarkupManager.createTaskCompletionContent(trimmedContent)
-                                        } else {
-                                            trimmedContent
-                                        }
-                                        
-                                        val updatedHistory = _chatHistory.value.toMutableList()
-                                        updatedHistory[aiIndex] = ChatMessage("ai", finalContent)
-                                        _chatHistory.value = updatedHistory
-                                    }
-                                } else {
-                                    // Add new AI response
-                                    hasAiResponse = true
-                                    
-                                    val finalContent = if (ConversationMarkupManager.containsTaskCompletion(trimmedContent)) {
-                                        ConversationMarkupManager.createTaskCompletionContent(trimmedContent)
-                                    } else {
-                                        trimmedContent
-                                    }
-                                    
-                                    _chatHistory.value = _chatHistory.value + ChatMessage("ai", finalContent)
-                                }
-                            }
-                        }
-                    },
-                    chatHistory = currentChatHistory,
-                    onComplete = {
-                        // Save chat history when AI response is complete
-                        saveCurrentChat()
-                    }
-                ) ?: run {
-                    _errorMessage.value = "增强AI服务未初始化，请检查设置"
-                    _isProcessingInput.value = false
+                // 检查服务实例是否存在
+                val service = enhancedAiService ?: run {
+                    // 无法发送，显示错误信息
+                    _errorMessage.value = "AI服务未初始化"
+                    _isLoading.value = false
+                    return@launch
                 }
                 
+                // 准备聊天历史
+                val history = prepareChatHistory()
+                
+                // 发送消息到AI服务
+                service.sendMessage(
+                    message = message,
+                    onPartialResponse = { content, thinking ->
+                        handleAIResponse(content, thinking)
+                    },
+                    chatHistory = history,
+                    onComplete = {
+                        // 消息处理完成
+                        _isLoading.value = false
+                        
+                        // 保存当前对话
+                        saveCurrentChat()
+                    }
+                )
             } catch (e: Exception) {
-                _errorMessage.value = e.message
-                
-                // Add error message to chat
-                val errorMessage = ConversationMarkupManager.createToolErrorStatus("ai_service", "错误: ${e.message}")
-                _chatHistory.value = _chatHistory.value + ChatMessage("ai", errorMessage)
-                
-                // Save chat history even on error
-                saveCurrentChat()
-                
-                _isProcessingInput.value = false
-            } finally {
-                _isLoading.value = false
+                if(e.message?.contains("CANCEL") != true) {
+                    // 处理异常
+                    _errorMessage.value = "发送消息失败: ${e.message}"
+                    _isLoading.value = false
+                    
+                    // 添加系统错误消息到历史
+                    // _chatHistory.value = _chatHistory.value + ChatMessage(
+                    //     sender = "system",
+                    //     content = "发送消息失败: ${e.message}"
+                    // )
+                    
+                    Log.e("ChatViewModel", "发送消息失败", e)
+                }
             }
         }
     }
@@ -452,30 +451,68 @@ class ChatViewModel(
     fun cancelCurrentMessage() {
         viewModelScope.launch {
             try {
-                // 取消当前的AI响应
-                enhancedAiService?.cancelConversation()
-                
-                // 移除思考中消息
-                val updatedHistory = _chatHistory.value.filterNot { it.sender == "think" }
-                _chatHistory.value = updatedHistory
-                
-                // 重置加载状态
+                // 首先设置标志，避免其他操作继续处理
                 _isLoading.value = false
                 _isProcessingInput.value = false
                 _inputProcessingMessage.value = ""
                 
-                // 可选：添加一个系统消息表示已取消
-                _chatHistory.value = _chatHistory.value + ChatMessage(
-                    sender = "system",
-                    content = "已取消当前对话"
-                )
+                // 添加一个系统消息表示正在取消
+                // _chatHistory.value = _chatHistory.value + ChatMessage(
+                //     sender = "system",
+                //     content = "正在取消当前对话..."
+                // )
+                
+                // 取消当前的AI响应 - 使用try-catch专门捕获取消过程中的错误
+                try {
+                    enhancedAiService?.cancelConversation()
+                    Log.d("ChatViewModel", "成功取消AI对话")
+                } catch (e: Exception) {
+                    Log.e("ChatViewModel", "取消对话时发生错误", e)
+                    // 即使出错也继续后续处理
+                }
+                
+                // 移除思考中消息和最后一个AI回复（如果有）
+                val updatedHistory = _chatHistory.value.toMutableList()
+                
+                // 首先移除所有思考中消息和取消中消息
+                val historyWithoutThinking = updatedHistory.filterNot { 
+                    it.sender == "think" || 
+                    (it.sender == "system" && it.content == "正在取消当前对话...") 
+                }
+                
+                // 找到最后一个用户消息的索引
+                val lastUserMessageIndex = historyWithoutThinking.indexOfLast { it.sender == "user" }
+                
+                // 保留所有直到最后一个用户消息的内容（包括该用户消息）
+                val finalHistory = if (lastUserMessageIndex >= 0) {
+                    historyWithoutThinking.subList(0, lastUserMessageIndex + 1)
+                } else {
+                    historyWithoutThinking
+                }
+                
+                // 更新聊天历史
+                _chatHistory.value = finalHistory
+                
+                // 触发弹窗显示
+                showToast("已取消当前对话")
+                
+                // 延迟保存，确保UI已更新
+                kotlinx.coroutines.delay(300)
                 
                 // 保存当前对话
                 saveCurrentChat()
+                
+                Log.d("ChatViewModel", "取消流程完成")
             } catch (e: Exception) {
                 _errorMessage.value = "取消对话失败: ${e.message}"
+                Log.e("ChatViewModel", "取消对话过程中发生错误", e)
             }
         }
+    }
+    
+    // Add a method to clear the popup message after it's been shown
+    fun clearPopupMessage() {
+        _popupMessage.value = null
     }
     
     fun deleteChatHistory(chatId: String) {
@@ -493,5 +530,157 @@ class ChatViewModel(
                 _errorMessage.value = "删除聊天历史失败: ${e.message}"
             }
         }
+    }
+    
+    // 检查是否应该创建新聊天，确保同步
+    private fun checkIfShouldCreateNewChat() {
+        // 只有当历史记录和当前对话ID都已加载，且未创建过初始对话时才检查
+        if (!historiesLoaded || !currentChatIdLoaded || initialChatCreated) {
+            return
+        }
+        
+        // 如果没有当前对话ID，说明需要创建一个新对话
+        if (_currentChatId.value == null && _isConfigured.value) {
+            initialChatCreated = true
+            viewModelScope.launch {
+                createNewChat()
+            }
+        } else {
+            // 即使有当前对话ID，也标记为已创建初始对话，避免重复创建
+            initialChatCreated = true
+        }
+    }
+    
+    /**
+     * 处理AI响应的回调方法
+     */
+    private fun handleAIResponse(content: String, thinking: String?) {
+        try {
+            // 如果正在加载过程中，才处理消息
+            if (!_isLoading.value) {
+                Log.d("ChatViewModel", "已取消加载，跳过响应处理")
+                return
+            }
+            
+            if (thinking != null && _showThinking.value) {
+                // 更新或添加思考消息
+                val thinkIndex = _chatHistory.value.indexOfLast { it.sender == "think" }
+                if (thinkIndex >= 0) {
+                    try {
+                        // 更新现有思考消息
+                        val updatedHistory = _chatHistory.value.toMutableList()
+                        updatedHistory[thinkIndex] = ChatMessage("think", thinking)
+                        _chatHistory.value = updatedHistory
+                    } catch (e: Exception) {
+                        Log.e("ChatViewModel", "更新思考消息时出错", e)
+                        // 出错时尝试添加新思考消息
+                        _chatHistory.value = _chatHistory.value + ChatMessage("think", thinking)
+                    }
+                } else {
+                    // 添加新的思考消息
+                    _chatHistory.value = _chatHistory.value + ChatMessage("think", thinking)
+                }
+            }
+            
+            // 处理AI响应内容
+            if (content.isNotEmpty()) {
+                val trimmedContent = content.trim()
+                if (trimmedContent.isNotBlank()) {
+                    // 检查最后一条用户消息后是否已有AI回复
+                    val lastUserIndex = _chatHistory.value.indexOfLast { it.sender == "user" }
+                    val lastAiIndex = _chatHistory.value.indexOfLast { it.sender == "ai" }
+                    
+                    // 处理任务完成标记
+                    val finalContent = if (ConversationMarkupManager.containsTaskCompletion(trimmedContent)) {
+                        ConversationMarkupManager.createTaskCompletionContent(trimmedContent)
+                    } else {
+                        trimmedContent
+                    }
+                    
+                    try {
+                        // 只有当这是当前用户消息的第一个AI回复时才更新现有消息，否则创建新消息
+                        if (lastAiIndex > lastUserIndex) {
+                            // 这是本轮对话中的后续响应，更新已有AI回复
+                            val updatedHistory = _chatHistory.value.toMutableList()
+                            updatedHistory[lastAiIndex] = ChatMessage("ai", finalContent)
+                            _chatHistory.value = updatedHistory
+                        } else {
+                            // 这是本轮对话的第一个AI回复，创建新消息
+                            _chatHistory.value = _chatHistory.value + ChatMessage("ai", finalContent)
+                        }
+                    } catch (e: Exception) {
+                        Log.e("ChatViewModel", "更新AI响应消息时出错", e)
+                        // 出错时尝试添加新AI消息
+                        _chatHistory.value = _chatHistory.value + ChatMessage("ai", finalContent)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("ChatViewModel", "处理AI响应时发生未处理错误", e)
+            // 确保错误不会中断UI更新
+        }
+    }
+    
+    /**
+     * 准备聊天历史供API使用
+     */
+    private fun prepareChatHistory(): List<Pair<String, String>> {
+        return ChatUtils.prepareMessagesForApi(
+            _chatHistory.value,
+            setOf("user", "ai", "system")
+        )
+    }
+    
+    /**
+     * 向对话中发送用户消息
+     */
+    fun sendUserMessage() {
+        val message = _userMessage.value.trim()
+        if (message.isBlank() || _isLoading.value) return
+        
+        // 检查网络连接
+        if (!NetworkUtils.isNetworkAvailable(context)) {
+            _errorMessage.value = "网络不可用，请检查网络连接后重试"
+            return
+        }
+        
+        // 清空输入框
+        _userMessage.value = ""
+        
+        // 标记为加载状态
+        _isLoading.value = true
+        
+        // 先添加用户消息
+        _chatHistory.value = _chatHistory.value + ChatMessage("user", message)
+        
+        // 只有在网络请求开始时才添加思考消息
+        viewModelScope.launch {
+            try {
+                enhancedAiService?.let { service ->
+                    // 添加思考消息
+                    if(_showThinking.value) {
+                        _chatHistory.value = _chatHistory.value + ChatMessage("think", "思考中...")
+                    }
+                    
+                    // 发送消息
+                    sendMessage(message)
+                } ?: run {
+                    // 如果服务不可用，显示错误
+                    _errorMessage.value = "AI服务未初始化"
+                    _isLoading.value = false
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = "发送消息失败: ${e.message}"
+                _isLoading.value = false
+            }
+        }
+    }
+    
+    private fun showToast(message: String) {
+        _toastEvent.value = message
+    }
+    
+    fun clearToastEvent() {
+        _toastEvent.value = null
     }
 } 

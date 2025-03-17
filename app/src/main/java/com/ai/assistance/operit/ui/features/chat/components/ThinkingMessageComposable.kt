@@ -12,7 +12,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.model.ChatMessage
 import com.ai.assistance.operit.ui.common.displays.MessageContentParser
 import com.ai.assistance.operit.ui.common.displays.MessageContentParser.Companion.ContentSegment
@@ -65,7 +67,7 @@ fun ThinkingMessageComposable(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "思考过程",
+                    text = stringResource(id = R.string.thinking_process),
                     style = MaterialTheme.typography.labelMedium,
                     color = textColor
                 )

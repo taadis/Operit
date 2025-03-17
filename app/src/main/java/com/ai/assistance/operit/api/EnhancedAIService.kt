@@ -169,30 +169,35 @@ class EnhancedAIService(
         chatHistory: List<Pair<String, String>> = emptyList(),
         onComplete: () -> Unit = {}
     ) {
+        // 清理任何现有状态
+        cancelAllToolExecutions()
+        
+        // 设置新回调
         currentResponseCallback = onPartialResponse
         currentCompleteCallback = onComplete
         isConversationActive.set(true)
         
+        // 如果是新对话，重置所有状态
         if (chatHistory.isEmpty()) {
+            Log.d(TAG, "开始新对话 - 重置所有状态")
             conversationHistory.clear()
             clearReferences()
-            cancelAllToolExecutions()
             streamBuffer.clear()
             roundManager.initializeNewConversation()
         }
         
-        // Show processing input feedback
+        // 显示处理输入反馈
         val processedInput = processUserInput(message)
         val enhancedChatHistory = prepareConversationHistory(chatHistory, processedInput)
         
-        // Show connecting to AI feedback
+        // 显示连接到AI反馈
         _inputProcessingState.value = InputProcessingState.Connecting("Connecting to AI service...")
         
         withContext(Dispatchers.IO) {
             aiService.sendMessage(
                 message = processedInput,
                 onPartialResponse = { content, thinking ->
-                    // First response received, update to receiving state
+                    // 首个响应接收，更新为接收状态
                     if (streamBuffer.isEmpty()) {
                         _inputProcessingState.value = InputProcessingState.Receiving("Receiving AI response...")
                     }
@@ -210,7 +215,7 @@ class EnhancedAIService(
                     handleStreamingComplete(onComplete)
                 },
                 onConnectionStatus = { status ->
-                    // Update the connection status in the UI
+                    // 更新UI中的连接状态
                     when {
                         status.contains("准备连接") || status.contains("正在建立连接") -> 
                             _inputProcessingState.value = InputProcessingState.Connecting(status)
@@ -255,14 +260,48 @@ class EnhancedAIService(
     }
     
     fun cancelConversation() {
+        // 设置对话未激活状态
         isConversationActive.set(false)
+        
+        // 取消底层AIService的流式传输
+        aiService.cancelStreaming()
+        
+        // 取消所有工具执行
         cancelAllToolExecutions()
+        
+        // 清理当前对话内容
         roundManager.clearContent()
         Log.d(TAG, "Conversation canceled - content pool cleared")
         
-        currentCompleteCallback?.invoke()
+        // 安全地清理对话历史，使用协程以避免阻塞主线程
+        toolProcessingScope.launch {
+            try {
+                // 使用withLock而不是tryLock，确保操作的线程安全性
+                conversationMutex.withLock {
+                    // 如果最后一条消息是AI的，则移除它，因为它可能是不完整的
+                    if (conversationHistory.isNotEmpty() && conversationHistory.last().first == "assistant") {
+                        Log.d(TAG, "从对话历史中移除不完整的AI消息")
+                        conversationHistory.removeAt(conversationHistory.size - 1)
+                    }
+                }
+                
+                Log.d(TAG, "对话历史清理完成")
+            } catch (e: Exception) {
+                Log.e(TAG, "清理对话历史时出错", e)
+            }
+        }
+        
+        // 重置输入处理状态
+        _inputProcessingState.value = InputProcessingState.Idle
+        
+        // 清理引用
+        clearReferences()
+        
+        // 清理回调引用，防止重复触发
         currentResponseCallback = null
         currentCompleteCallback = null
+        
+        Log.d(TAG, "对话取消完成 - 所有状态已重置")
     }
     
     private fun processContent(
@@ -272,76 +311,133 @@ class EnhancedAIService(
         chatHistory: List<Pair<String, String>>,
         isFollowUp: Boolean
     ) {
-        // 更新缓冲区内容
-        streamBuffer.replace(0, streamBuffer.length, content)
+        // 先检查对话是否已取消
+        if (!isConversationActive.get()) {
+            Log.d(TAG, "对话已取消，跳过内容处理")
+            return
+        }
         
-        // 检测是否存在完整的工具调用
-        
-        // 更新round manager中的内容
-        val displayContent = roundManager.updateContent(content)
-        
-        // 更新UI显示
-        onPartialResponse(displayContent, thinking)
-        
-        // val toolInvocations = toolHandler.extractToolInvocations(content)
-        // 如果检测到工具调用，且工具调用请求已经完整输出，则立即停止响应，直接调用onComplete
-        // if (toolInvocations.isNotEmpty()) {
-        //     // 验证工具调用是否完整
-        //     val lastToolInvocation = toolInvocations.last()
-        //     // 检查最后一个工具调用的结束位置是否接近content的结尾，表示工具调用已经完整输出
-        //     val isToolCallComplete = content.length - lastToolInvocation.responseLocation.last < 20
+        try {
+            // 如果是工具调用后的跟进，使用新的内容回合
+            if (isFollowUp) {
+                // 使用全新的内容处理
+                streamBuffer.replace(0, streamBuffer.length, content)
+                val displayContent = roundManager.updateContent(content)
+                onPartialResponse(displayContent, thinking)
+                return
+            }
             
-        //     if (isToolCallComplete) {
-        //         Log.d(TAG, "检测到完整的工具调用，立即停止响应，进入onComplete")
-        //         // 如果工具调用完整，则触发aiService中断流式传输
-        //         aiService.cancelStreaming()
-        //         // 而且直接跳转到onComplete回调
-        //         handleStreamingComplete { /* 这里不需要调用外部的onComplete */ }
-        //     }
-        // }
+            // 常规消息处理
+            streamBuffer.replace(0, streamBuffer.length, content)
+            
+            // 更新round manager中的内容
+            val displayContent = roundManager.updateContent(content)
+            
+            // 再次检查对话是否活跃
+            if (!isConversationActive.get()) {
+                Log.d(TAG, "对话在处理过程中被取消，跳过回调")
+                return
+            }
+            
+            // 更新UI显示
+            onPartialResponse(displayContent, thinking)
+        } catch (e: Exception) {
+            Log.e(TAG, "处理内容时出错", e)
+            // 即使出错也不中断流程
+        }
     }
     
     private fun handleStreamingComplete(onComplete: () -> Unit) {
         toolProcessingScope.launch {
-            val content = streamBuffer.toString()
-            val displayContent = roundManager.getDisplayContent()
-            val responseCallback = currentResponseCallback ?: return@launch
-            
-            // 在complete阶段提取引用
-            extractReferences(displayContent)
-            
-            // 处理任务完成标记
-            if (ConversationMarkupManager.containsTaskCompletion(content)) {
-                handleTaskCompletion(displayContent, null, responseCallback)
-                
-                // 确保在任务完成后，状态被正确重置
-                _inputProcessingState.value = InputProcessingState.Completed
-                
-                onComplete()
-                return@launch
-            }
-            
-            // 添加当前助手消息到对话历史
-            conversationMutex.withLock {
-                conversationHistory.add(Pair("assistant", displayContent))
-            }
-            
-            // 主流程：检测和处理工具调用
-            val toolInvocations = toolHandler.extractToolInvocations(content)
-            
-            if (toolInvocations.isNotEmpty() && isConversationActive.get()) {
-                // 工具调用处理流程
-                handleToolInvocation(toolInvocations, displayContent, responseCallback, onComplete)
-            } else {
-                // 没有工具调用，标记对话回合结束
-                Log.d(TAG, "没有找到工具调用，完成当前回合")
-                _inputProcessingState.value = InputProcessingState.Completed
-                
-                if (isConversationActive.get()) {
-                    markConversationCompleted()
+            try {
+                // 如果对话已经不活跃，直接返回
+                if (!isConversationActive.get()) {
+                    Log.d(TAG, "对话已取消，跳过流式传输完成处理")
+                    onComplete()
+                    return@launch
                 }
                 
-                onComplete()
+                // 获取响应内容
+                val content = streamBuffer.toString().trim()
+                
+                // 如果内容为空，直接结束
+                if (content.isEmpty()) {
+                    Log.d(TAG, "响应内容为空，跳过处理")
+                    onComplete()
+                    return@launch
+                }
+                
+                val displayContent = roundManager.getDisplayContent()
+                val responseCallback = currentResponseCallback ?: run {
+                    Log.d(TAG, "回调已被清除，跳过处理")
+                    onComplete()
+                    return@launch
+                }
+                
+                // 在complete阶段提取引用
+                extractReferences(displayContent)
+                
+                // 处理任务完成标记
+                if (ConversationMarkupManager.containsTaskCompletion(content)) {
+                    handleTaskCompletion(displayContent, null, responseCallback)
+                    
+                    // 确保在任务完成后，状态被正确重置
+                    _inputProcessingState.value = InputProcessingState.Completed
+                    
+                    onComplete()
+                    return@launch
+                }
+                
+                // 再次检查对话是否活跃
+                if (!isConversationActive.get()) {
+                    Log.d(TAG, "对话在提取内容后被取消，停止进一步处理")
+                    onComplete()
+                    return@launch
+                }
+                
+                // 添加当前助手消息到对话历史
+                // 使用try-catch捕获可能的锁异常
+                try {
+                    conversationMutex.withLock {
+                        conversationHistory.add(Pair("assistant", displayContent))
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "添加助手消息到历史时出错", e)
+                    
+                    // 发生错误时仍调用完成回调
+                    onComplete()
+                    return@launch
+                }
+                
+                // 再次检查对话是否活跃
+                if (!isConversationActive.get()) {
+                    Log.d(TAG, "对话在处理历史后被取消，停止进一步处理")
+                    onComplete()
+                    return@launch
+                }
+                
+                // 主流程：检测和处理工具调用
+                val toolInvocations = toolHandler.extractToolInvocations(content)
+                
+                if (toolInvocations.isNotEmpty() && isConversationActive.get()) {
+                    // 工具调用处理流程
+                    handleToolInvocation(toolInvocations, displayContent, responseCallback, onComplete)
+                } else {
+                    // 没有工具调用，标记对话回合结束
+                    Log.d(TAG, "没有找到工具调用，完成当前回合")
+                    _inputProcessingState.value = InputProcessingState.Completed
+                    
+                    if (isConversationActive.get()) {
+                        markConversationCompleted()
+                    }
+                    
+                    onComplete()
+                }
+            } catch (e: Exception) {
+                // 捕获任何处理过程中的异常
+                Log.e(TAG, "处理流式传输完成时出错", e)
+                _inputProcessingState.value = InputProcessingState.Idle
+                onComplete() // 确保即使发生错误也调用完成回调
             }
         }
     }
@@ -449,8 +545,9 @@ class EnhancedAIService(
             responseCallback(updatedContent, null)
         }
         
-        // 开始新回合
+        // 开始新回合 - 确保处理工具执行后的回复会在新消息中显示
         roundManager.startNewRound()
+        streamBuffer.clear() // 清空buffer，确保将创建新的消息
         Log.d(TAG, "开始AI响应工具结果回合")
         
         // 明确显示我们正在准备发送工具结果给AI
@@ -459,15 +556,14 @@ class EnhancedAIService(
         // 添加短暂延迟使状态变化更加明显
         kotlinx.coroutines.delay(300)
         
-        // 清空buffer，准备接收新内容
-        streamBuffer.clear()
-        
         // 直接在当前流程中请求AI响应，保持在complete的主循环中
         withContext(Dispatchers.IO) {
             aiService.sendMessage(
                 message = toolResultMessage,
                 onPartialResponse = { content, thinking ->
                     // 只处理显示，不执行任何工具逻辑
+                    // 使用新的处理方式，确保这是一个新消息
+                    // 注意清空buffer，使得processContent认为这是一个新的消息
                     processContent(content, thinking, responseCallback, currentChatHistory, isFollowUp = true)
                 },
                 chatHistory = currentChatHistory,

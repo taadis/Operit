@@ -23,6 +23,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Color
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.navigation.NavItem
 import com.ai.assistance.operit.ui.features.chat.screens.AIChatScreen
@@ -31,6 +33,7 @@ import com.ai.assistance.operit.ui.features.demo.screens.ShizukuDemoScreen
 import com.ai.assistance.operit.util.NetworkUtils
 import com.ai.assistance.operit.data.ChatHistoryManager
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 // Reference the screen components that will be created
 private const val PLACEHOLDER = "Screens to be implemented"
@@ -44,8 +47,19 @@ fun OperitApp() {
     var selectedItem by remember { mutableStateOf<NavItem>(NavItem.AiChat) }
     val navItems = listOf(NavItem.AiChat, NavItem.ShizukuCommands, NavItem.Settings)
     val context = LocalContext.current
-    val isNetworkAvailable = NetworkUtils.isNetworkAvailable(context)
-    val networkType = NetworkUtils.getNetworkType(context)
+    
+    // 网络状态 - 使用remember记住状态，避免每次重组时重新获取
+    var isNetworkAvailable by remember { mutableStateOf(NetworkUtils.isNetworkAvailable(context)) }
+    var networkType by remember { mutableStateOf(NetworkUtils.getNetworkType(context)) }
+    
+    // 周期性检查网络状态 - 每10秒更新一次，而不是每次重组都更新
+    LaunchedEffect(Unit) {
+        while(true) {
+            isNetworkAvailable = NetworkUtils.isNetworkAvailable(context)
+            networkType = NetworkUtils.getNetworkType(context)
+            delay(10000) // 10秒检查一次
+        }
+    }
     
     // 获取聊天历史管理器
     val chatHistoryManager = remember { ChatHistoryManager(context) }
@@ -141,15 +155,17 @@ fun OperitApp() {
                         ) {
                             Text(
                                 stringResource(id = selectedItem.titleResId),
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 14.sp,
+                                color = Color.White
                             )
                             
                             // 显示当前聊天标题（仅在AI对话页面）
                             if (selectedItem == NavItem.AiChat && currentChatTitle.isNotBlank()) {
                                 Text(
                                     text = "- $currentChatTitle",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.White.copy(alpha = 0.8f),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -163,13 +179,13 @@ fun OperitApp() {
                             Icon(
                                 Icons.Default.Menu, 
                                 contentDescription = stringResource(id = R.string.menu),
-                                tint = MaterialTheme.colorScheme.primary
+                                tint = Color.White
                             )
                         }
                     },
                     colors = TopAppBarDefaults.smallTopAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f),
-                        titleContentColor = MaterialTheme.colorScheme.onSurface
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        titleContentColor = Color.White
                     )
                 )
                 

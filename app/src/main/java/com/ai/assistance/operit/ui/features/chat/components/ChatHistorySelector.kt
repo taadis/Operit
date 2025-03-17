@@ -75,7 +75,7 @@ fun ChatHistorySelector(
             state = historySelectorListState,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = 10.dp)
         ) {
             // Only load a subset of items for better performance
             val itemsToShow = chatHistories.take(itemsToLoad)
@@ -100,14 +100,14 @@ fun ChatHistorySelector(
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp),
+                        .padding(vertical = 2.dp),
                     color = surfaceColor,
                     shape = MaterialTheme.shapes.medium
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(12.dp),
+                            .padding(horizontal = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         // 对话标题，点击切换到该对话

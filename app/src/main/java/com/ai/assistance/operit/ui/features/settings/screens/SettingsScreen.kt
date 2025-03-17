@@ -12,9 +12,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.ApiPreferences
 import kotlinx.coroutines.launch
+import androidx.compose.ui.graphics.Color
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -27,18 +29,21 @@ fun SettingsScreen() {
     val apiKey = apiPreferences.apiKeyFlow.collectAsState(initial = "").value
     val apiEndpoint = apiPreferences.apiEndpointFlow.collectAsState(initial = ApiPreferences.DEFAULT_API_ENDPOINT).value
     val modelName = apiPreferences.modelNameFlow.collectAsState(initial = ApiPreferences.DEFAULT_MODEL_NAME).value
+    val showThinking = apiPreferences.showThinkingFlow.collectAsState(initial = ApiPreferences.DEFAULT_SHOW_THINKING).value
     
     // Mutable state for editing
     var apiKeyInput by remember { mutableStateOf(apiKey) }
     var apiEndpointInput by remember { mutableStateOf(apiEndpoint) }
     var modelNameInput by remember { mutableStateOf(modelName) }
+    var showThinkingInput by remember { mutableStateOf(showThinking) }
     var showSaveSuccessMessage by remember { mutableStateOf(false) }
     
     // Update local state when preferences change
-    LaunchedEffect(apiKey, apiEndpoint, modelName) {
+    LaunchedEffect(apiKey, apiEndpoint, modelName, showThinking) {
         apiKeyInput = apiKey
         apiEndpointInput = apiEndpoint
         modelNameInput = modelName
+        showThinkingInput = showThinking
     }
     
     Column(
@@ -49,7 +54,9 @@ fun SettingsScreen() {
     ) {
         Text(
             text = stringResource(id = R.string.settings),
-            style = MaterialTheme.typography.headlineSmall,
+            style = MaterialTheme.typography.titleMedium,
+            fontSize = 16.sp,
+            color = Color.White,
             modifier = Modifier.padding(bottom = 16.dp)
         )
         
@@ -98,10 +105,11 @@ fun SettingsScreen() {
                 Button(
                     onClick = {
                         scope.launch {
-                            apiPreferences.saveApiSettings(
+                            apiPreferences.saveAllSettings(
                                 apiKeyInput,
                                 apiEndpointInput,
-                                modelNameInput
+                                modelNameInput,
+                                showThinkingInput
                             )
                             showSaveSuccessMessage = true
                         }
@@ -124,6 +132,46 @@ fun SettingsScreen() {
                             .padding(top = 8.dp)
                             .fillMaxWidth(),
                         textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
+        
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    text = stringResource(id = R.string.display_settings),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = stringResource(id = R.string.show_thinking),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    
+                    Switch(
+                        checked = showThinkingInput,
+                        onCheckedChange = { 
+                            showThinkingInput = it
+                            scope.launch {
+                                apiPreferences.saveShowThinking(it)
+                                showSaveSuccessMessage = true
+                            }
+                        }
                     )
                 }
             }

@@ -1,4 +1,3 @@
-
 package com.ai.assistance.operit.ui.features.chat.screens
 
 import android.content.Context
@@ -50,6 +49,7 @@ fun AIChatScreen() {
     val showChatHistorySelector by viewModel.showChatHistorySelector.collectAsState()
     val chatHistories by viewModel.chatHistories.collectAsState()
     val currentChatId by viewModel.currentChatId.collectAsState()
+    val popupMessage by viewModel.popupMessage.collectAsState()
     
     // UI state
     val listState = rememberLazyListState()
@@ -86,6 +86,16 @@ fun AIChatScreen() {
             snackbarHostState.showSnackbar(message)
             delay(3000)
             viewModel.clearError()
+        }
+    }
+    
+    // Handle toast event
+    val toastEvent by viewModel.toastEvent.collectAsState()
+    
+    toastEvent?.let { message ->
+        LaunchedEffect(message) {
+            android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
+            viewModel.clearToastEvent()
         }
     }
     
@@ -198,6 +208,20 @@ fun AIChatScreen() {
                 }
             }
         }
+    }
+    
+    // Show popup message dialog when needed
+    popupMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = { viewModel.clearPopupMessage() },
+            title = { Text("提示") },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.clearPopupMessage() }) {
+                    Text("确定")
+                }
+            }
+        )
     }
 }
 

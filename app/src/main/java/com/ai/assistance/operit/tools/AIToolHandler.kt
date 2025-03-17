@@ -19,9 +19,9 @@ class AIToolHandler(private val context: Context) {
     companion object {
         private const val TAG = "AIToolHandler"
         
-        // Regex patterns for tool extraction
+        // Updated regex patterns for tool extraction
         private val TOOL_PATTERN = Pattern.compile(
-            "<tool\\s+name=\"([^\"]+)\"[^>]*>(.*?)</tool>", 
+            "<tool\\s+name=\"([^\"]+)\"(?:\\s+description=\"([^\"]+)\")?[^>]*>([\\s\\S]*?)</tool>", 
             Pattern.DOTALL
         )
         
@@ -31,7 +31,7 @@ class AIToolHandler(private val context: Context) {
         )
         
         private val TOOL_PARAM_PATTERN = Pattern.compile(
-            "<param\\s+name=\"([^\"]+)\">(.*?)</param>", 
+            "<param\\s+name=\"([^\"]+)\">([\\s\\S]*?)</param>", 
             Pattern.DOTALL
         )
     }
@@ -434,7 +434,7 @@ class AIToolHandler(private val context: Context) {
         while (matcher.find()) {
             val rawText = matcher.group(0) ?: continue
             val toolName = matcher.group(1) ?: continue
-            val toolContent = matcher.group(2) ?: continue
+            val toolContent = matcher.group(3) ?: continue  // Updated to use group 3 since group 2 is now the optional description
             val start = matcher.start()
             val end = matcher.end()
             

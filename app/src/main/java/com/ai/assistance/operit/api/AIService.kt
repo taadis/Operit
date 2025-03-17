@@ -74,11 +74,6 @@ class AIService(
         
         // 添加聊天历史
         if (chatHistory.isNotEmpty()) {
-            // 添加系统消息指示这是有记忆的会话
-            val systemMessage = JSONObject()
-            systemMessage.put("role", "system")
-            systemMessage.put("content", "这是一个有记忆的持续会话，请基于之前的对话上下文回答用户的问题。")
-            messagesArray.put(systemMessage)
             
             // 添加历史消息 - 使用工具函数统一转换角色格式，并确保没有连续的相同角色
             val standardizedHistory = ChatUtils.mapChatHistoryToStandardRoles(chatHistory)
@@ -154,7 +149,9 @@ class AIService(
         val responseBody = response.body ?: throw IOException("API响应为空")
         val reader = responseBody.charStream().buffered()
         var currentContent = StringBuilder()
+        var currentThinking = StringBuilder()
         var isFirstResponse = true
+        var wasCancelled = false  // 添加取消标志
 
         try {
             reader.useLines { lines ->
@@ -162,6 +159,7 @@ class AIService(
                     // 如果call已被取消，提前退出
                     if (activeCall?.isCanceled() == true) {
                         Log.d("AIService", "流式传输已被取消，提前退出处理")
+                        wasCancelled = true  // 设置取消标志
                         return@forEach
                     }
                     
@@ -171,23 +169,80 @@ class AIService(
                             try {
                                 val jsonResponse = JSONObject(data)
                                 val choices = jsonResponse.getJSONArray("choices")
+                                
                                 if (choices.length() > 0) {
-                                    val delta = choices.getJSONObject(0).optJSONObject("delta")
-                                    val content = delta?.optString("content", "") ?: ""
-                                    if (content.isNotEmpty() && content != "null") {
+                                    val choice = choices.getJSONObject(0)
+                                    
+                                    // 检查是否有reasoning_content（Deepseek API格式）
+                                    var hasReasoningContent = false
+                                    var reasoningContent = ""
+                                    var content = ""
+                                    
+                                    // 处理delta格式（流式响应）
+                                    val delta = choice.optJSONObject("delta")
+                                    if (delta != null) {
+                                        // 尝试获取常规内容
+                                        content = delta.optString("content", "")
+                                        
+                                        // 尝试获取reasoning_content（思考内容）
+                                        reasoningContent = delta.optString("reasoning_content", "")
+                                        if (reasoningContent.isNotEmpty() && reasoningContent != "null") {
+                                            hasReasoningContent = true
+                                        }
+                                    } 
+                                    // 处理message格式（非流式响应）
+                                    else {
+                                        val message = choice.optJSONObject("message")
+                                        if (message != null) {
+                                            content = message.optString("content", "")
+                                            reasoningContent = message.optString("reasoning_content", "")
+                                            if (reasoningContent.isNotEmpty() && reasoningContent != "null") {
+                                                hasReasoningContent = true
+                                            }
+                                        }
+                                    }
+                                    
+                                    // 处理收到的内容
+                                    if ((content.isNotEmpty() && content != "null") || hasReasoningContent) {
                                         // 当收到第一个有效内容时，标记不再是首次响应
                                         if (isFirstResponse) {
                                             isFirstResponse = false
                                         }
                                         
-                                        currentContent.append(content)
-                                        // 解析内容并回调
+                                        // 更新内容
+                                        if (content.isNotEmpty() && content != "null") {
+                                            currentContent.append(content)
+                                        }
+                                        
+                                        // 更新思考内容（仅当使用Deepseek API时）
+                                        if (hasReasoningContent) {
+                                            currentThinking.append(reasoningContent)
+                                        }
+                                        
+                                        // 解析内容，检查<think>标签（原始方案）
                                         val (mainContent, thinkContent) = parseResponse(currentContent.toString())
-                                        onPartialResponse(mainContent, thinkContent)
+                                        
+                                        // 确定最终输出内容
+                                        val finalContent = if (mainContent.isNotEmpty()) mainContent else currentContent.toString()
+                                        
+                                        // 确定思考内容，保持两种方式
+                                        val finalThinking = when {
+                                            // 如果原始方案有思考内容，则使用原始方案的思考内容
+                                            thinkContent != null -> thinkContent
+                                            
+                                            // 如果Deepseek API有思考内容，则使用Deepseek API的思考内容
+                                            currentThinking.isNotEmpty() -> currentThinking.toString()
+                                            
+                                            // 都没有则返回null
+                                            else -> null
+                                        }
+                                        
+                                        onPartialResponse(finalContent, finalThinking)
                                     }
                                 }
                             } catch (e: Exception) {
                                 // 忽略解析错误，继续处理下一行
+                                Log.d("AIService", "JSON解析错误: ${e.message}")
                             }
                         }
                     }
@@ -197,13 +252,22 @@ class AIService(
             // 捕获IO异常，可能是由于取消Call导致的
             if (activeCall?.isCanceled() == true) {
                 Log.d("AIService", "流式传输已被取消，处理IO异常")
+                wasCancelled = true  // 设置取消标志
             } else {
                 throw e
             }
         }
         
-        // 处理完成，调用完成回调
-        onComplete()
+        // 只有在未被取消时才调用完成回调
+        if (!wasCancelled && activeCall?.isCanceled() != true) {
+            Log.d("AIService", "处理完成，调用完成回调")
+            onComplete()
+        } else {
+            Log.d("AIService", "流被取消，跳过完成回调")
+        }
+        
+        // 清理活跃Call引用
+        activeCall = null
     }
 
     suspend fun sendMessage(

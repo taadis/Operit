@@ -41,6 +41,8 @@
     <string name="api_settings">API 配置设置</string>
     <string name="save_settings">保存设置</string>
     <string name="settings_saved">设置已保存</string>
+    <string name="display_settings">显示设置</string>
+    <string name="show_thinking">显示思考过程</string>
     
     <!-- Shizuku Command Screen -->
     <string name="shizuku_command_executor">Shizuku ADB 命令执行器</string>
@@ -74,4 +76,5 @@
     <string name="start_shizuku_first">请先启动Shizuku服务</string>
     <string name="grant_permission_first">请授予Shizuku权限</string>
     <string name="feature_unavailable">无法使用ADB命令功能</string>
+    <string name="thinking_process">思考过程</string>
 </resources>

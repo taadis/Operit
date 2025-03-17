@@ -143,7 +143,7 @@ class ChatHistoryManager(private val context: Context) {
     // 创建新对话
     suspend fun createNewChat(): ChatHistory {
         val dateTime = LocalDateTime.now()
-        val formattedTime = "${dateTime.hour}:${dateTime.minute.toString().padStart(2, '0')}"
+        val formattedTime = "${dateTime.hour}:${dateTime.minute.toString().padStart(2, '0')}:${dateTime.second.toString().padStart(2, '0')}"
         
         val newHistory = ChatHistory(
             title = "新对话 $formattedTime",
