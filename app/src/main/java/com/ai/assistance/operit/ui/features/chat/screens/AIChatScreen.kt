@@ -1,3 +1,4 @@
+
 package com.ai.assistance.operit.ui.features.chat.screens
 
 import android.content.Context
@@ -111,6 +112,7 @@ fun AIChatScreen() {
                     userMessage = userMessage,
                     onUserMessageChange = { viewModel.updateUserMessage(it) },
                     onSendMessage = { viewModel.sendUserMessage() },
+                    onCancelMessage = { viewModel.cancelCurrentMessage() },
                     isLoading = isLoading,
                     isProcessingInput = isProcessingInput,
                     inputProcessingMessage = inputProcessingMessage,
@@ -154,6 +156,7 @@ fun AIChatScreen() {
                                 .padding(top = 8.dp),
                             onNewChat = { viewModel.createNewChat() },
                             onSelectChat = { chatId -> viewModel.switchChat(chatId) },
+                            onDeleteChat = { chatId -> viewModel.deleteChatHistory(chatId) },
                             chatHistories = chatHistories.sortedByDescending { it.updatedAt },
                             currentId = currentChatId
                         )
@@ -208,4 +211,3 @@ class ChatViewModelFactory(private val context: Context) : androidx.lifecycle.Vi
         throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
-

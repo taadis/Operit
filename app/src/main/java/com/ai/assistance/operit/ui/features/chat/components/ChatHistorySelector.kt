@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,6 +25,7 @@ fun ChatHistorySelector(
     modifier: Modifier = Modifier,
     onNewChat: () -> Unit,
     onSelectChat: (String) -> Unit,
+    onDeleteChat: (String) -> Unit,
     chatHistories: List<ChatHistory>,
     currentId: String?
 ) {
@@ -98,8 +100,7 @@ fun ChatHistorySelector(
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                        .clickable { onSelectChat(history.id) },
+                        .padding(vertical = 4.dp),
                     color = surfaceColor,
                     shape = MaterialTheme.shapes.medium
                 ) {
@@ -109,14 +110,31 @@ fun ChatHistorySelector(
                             .padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // 对话标题，点击切换到该对话
                         Text(
                             text = history.title,
                             style = MaterialTheme.typography.bodyMedium,
                             color = textColor,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { onSelectChat(history.id) }
                         )
+                        
+                        // 删除按钮
+                        IconButton(
+                            onClick = { onDeleteChat(history.id) },
+                            colors = IconButtonDefaults.iconButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error
+                            )
+                        ) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "删除",
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
                     }
                 }
             }

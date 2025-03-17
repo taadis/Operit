@@ -5,6 +5,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -24,6 +27,7 @@ fun ChatInputSection(
     userMessage: String,
     onUserMessageChange: (String) -> Unit,
     onSendMessage: () -> Unit,
+    onCancelMessage: () -> Unit,
     isLoading: Boolean,
     isProcessingInput: Boolean,
     inputProcessingMessage: String,
@@ -33,6 +37,8 @@ fun ChatInputSection(
     val modernTextStyle = TextStyle(
         fontSize = 14.sp
     )
+    
+    val isProcessing = isLoading || isProcessingInput
     
     Surface(
         color = MaterialTheme.colorScheme.surface,
@@ -90,33 +96,50 @@ fun ChatInputSection(
                     textStyle = modernTextStyle,
                     maxLines = 3,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                    keyboardActions = KeyboardActions(onSend = { onSendMessage() }),
+                    keyboardActions = KeyboardActions(onSend = { if (!isProcessing) onSendMessage() }),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = MaterialTheme.colorScheme.primary,
                         unfocusedBorderColor = MaterialTheme.colorScheme.outline
                     ),
-                    shape = RoundedCornerShape(24.dp)
+                    shape = RoundedCornerShape(24.dp),
+                    enabled = !isProcessing
                 )
                 
                 Spacer(modifier = Modifier.width(8.dp))
                 
                 IconButton(
-                    onClick = { onSendMessage() },
-                    enabled = userMessage.isNotBlank() && !isLoading && !isProcessingInput,
+                    onClick = { 
+                        if (isProcessing) {
+                            onCancelMessage()
+                        } else {
+                            onSendMessage()
+                        }
+                    },
+                    enabled = if (isProcessing) true else userMessage.isNotBlank(),
                     modifier = Modifier
                         .size(48.dp)
                         .clip(RoundedCornerShape(50))
                         .background(
-                            if (userMessage.isNotBlank() && !isLoading && !isProcessingInput)
-                                MaterialTheme.colorScheme.primary
-                            else
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                            when {
+                                isProcessing -> MaterialTheme.colorScheme.error
+                                userMessage.isNotBlank() -> MaterialTheme.colorScheme.primary
+                                else -> MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                            }
                         )
                 ) {
-                    Text(
-                        text = "发送",
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
+                    if (isProcessing) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "取消",
+                            tint = MaterialTheme.colorScheme.onError
+                        )
+                    } else {
+                        Icon(
+                            Icons.Default.Send,
+                            contentDescription = "发送",
+                            tint = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
                 }
             }
         }

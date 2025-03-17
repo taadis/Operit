@@ -109,11 +109,44 @@ class ChatHistoryManager(private val context: Context) {
         }
     }
     
+    // 删除聊天历史
+    suspend fun deleteChatHistory(chatId: String) {
+        mutex.withLock {
+            context.chatHistoryDataStore.edit { preferences ->
+                // 使用缓存或从preferences中获取现有历史记录
+                val existingHistories = cachedHistories?.toMutableList() ?: run {
+                    val existingHistoriesJson = preferences[PreferencesKeys.CHAT_HISTORIES] ?: "[]"
+                    try {
+                        json.decodeFromString<List<ChatHistory>>(existingHistoriesJson).toMutableList()
+                    } catch (e: Exception) {
+                        mutableListOf()
+                    }
+                }
+                
+                // 移除指定ID的聊天历史
+                val updatedHistories = existingHistories.filter { it.id != chatId }
+                
+                // 更新缓存
+                cachedHistories = updatedHistories
+                
+                // 保存到preferences
+                preferences[PreferencesKeys.CHAT_HISTORIES] = json.encodeToString(updatedHistories)
+                
+                // 如果删除的是当前聊天，则清除当前聊天ID
+                if (preferences[PreferencesKeys.CURRENT_CHAT_ID] == chatId) {
+                    preferences.remove(PreferencesKeys.CURRENT_CHAT_ID)
+                }
+            }
+        }
+    }
+    
     // 创建新对话
     suspend fun createNewChat(): ChatHistory {
+        val dateTime = LocalDateTime.now()
+        val formattedTime = "${dateTime.hour}:${dateTime.minute.toString().padStart(2, '0')}"
         
         val newHistory = ChatHistory(
-            title = "新对话 ${LocalDateTime.now()}",
+            title = "新对话 $formattedTime",
             messages = listOf<ChatMessage>()
         )
         saveChatHistory(newHistory)

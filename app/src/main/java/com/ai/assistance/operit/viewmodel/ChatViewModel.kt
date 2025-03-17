@@ -272,11 +272,25 @@ class ChatViewModel(
                 
                 val title = _chatHistory.value.firstOrNull { it.sender == "user" }?.content?.take(20) ?: "新对话"
                 
-                val history = ChatHistory(
-                    id = chatId,
-                    title = "$title...",
-                    messages = _chatHistory.value
-                )
+                // 查找是否已有该ID的聊天历史，以保留原始createdAt
+                val existingChat = _chatHistories.value.find { it.id == chatId }
+                
+                val history = if (existingChat != null) {
+                    // 如果是更新现有聊天，则保留原始的createdAt，只更新updatedAt
+                    existingChat.copy(
+                        title = "$title...",
+                        messages = _chatHistory.value,
+                        updatedAt = java.time.LocalDateTime.now()
+                    )
+                } else {
+                    // 如果是新聊天，则创建新的ChatHistory对象
+                    ChatHistory(
+                        id = chatId,
+                        title = "$title...",
+                        messages = _chatHistory.value
+                    )
+                }
+                
                 chatHistoryManager.saveChatHistory(history)
                 
                 // Set current chat ID if not already set
@@ -390,28 +404,24 @@ class ChatViewModel(
     
     fun createNewChat() {
         viewModelScope.launch {
-            // Save current chat first
-            saveCurrentChat()
-            
-            // Check if previous chat is empty
-            if (_currentChatId.value != null) {
-                val currentChat = _chatHistories.value.find { it.id == _currentChatId.value }
-                if (currentChat != null && 
-                    currentChat.messages.none { it.sender == "user" }) {
-                    // If previous chat is empty, just use it
-                    return@launch
-                }
+            try {
+                // Save current chat before creating a new one
+                saveCurrentChat()
+                
+                // Clear references
+                enhancedAiService?.clearReferences()
+                
+                // Clear chat memory
+                chatMemory.clear()
+                
+                // Create a new chat
+                val newChat = chatHistoryManager.createNewChat()
+                
+                // Update UI state
+                _chatHistory.value = newChat.messages
+            } catch (e: Exception) {
+                _errorMessage.value = "创建新对话失败: ${e.message}"
             }
-            
-            // Clear references
-            enhancedAiService?.clearReferences()
-            
-            // Clear chat memory
-            chatMemory.clear()
-            
-            // Create new chat
-            val newChat = chatHistoryManager.createNewChat()
-            _chatHistory.value = newChat.messages
         }
     }
     
@@ -437,5 +447,51 @@ class ChatViewModel(
     
     fun clearError() {
         _errorMessage.value = null
+    }
+    
+    fun cancelCurrentMessage() {
+        viewModelScope.launch {
+            try {
+                // 取消当前的AI响应
+                enhancedAiService?.cancelConversation()
+                
+                // 移除思考中消息
+                val updatedHistory = _chatHistory.value.filterNot { it.sender == "think" }
+                _chatHistory.value = updatedHistory
+                
+                // 重置加载状态
+                _isLoading.value = false
+                _isProcessingInput.value = false
+                _inputProcessingMessage.value = ""
+                
+                // 可选：添加一个系统消息表示已取消
+                _chatHistory.value = _chatHistory.value + ChatMessage(
+                    sender = "system",
+                    content = "已取消当前对话"
+                )
+                
+                // 保存当前对话
+                saveCurrentChat()
+            } catch (e: Exception) {
+                _errorMessage.value = "取消对话失败: ${e.message}"
+            }
+        }
+    }
+    
+    fun deleteChatHistory(chatId: String) {
+        viewModelScope.launch {
+            try {
+                // 如果要删除的是当前聊天，先创建一个新的聊天
+                if (chatId == _currentChatId.value) {
+                    val newChat = chatHistoryManager.createNewChat()
+                    _chatHistory.value = newChat.messages
+                }
+                
+                // 删除聊天历史
+                chatHistoryManager.deleteChatHistory(chatId)
+            } catch (e: Exception) {
+                _errorMessage.value = "删除聊天历史失败: ${e.message}"
+            }
+        }
     }
 } 
