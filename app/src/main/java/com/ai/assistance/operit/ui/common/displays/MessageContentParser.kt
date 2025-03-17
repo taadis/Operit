@@ -1,6 +1,4 @@
-package com.ai.assistance.operit.ui.components
-
-import com.ai.assistance.operit.model.ConversationMarkupManager
+package com.ai.assistance.operit.ui.common.displays
 
 /**
  * A utility class to parse message content with XML markup.

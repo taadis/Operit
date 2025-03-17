@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.components
+package com.ai.assistance.operit.ui.common.animations
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Box

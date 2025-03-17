@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.features.chat.components
+package com.ai.assistance.operit.ui.components
 
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.LinearProgressIndicator

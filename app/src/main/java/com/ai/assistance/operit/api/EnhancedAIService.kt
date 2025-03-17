@@ -44,10 +44,11 @@ class EnhancedAIService(
             - NEVER include more than one tool invocation in a single response. The system can only handle one at a time.
             - only call the tool at the end of your response.
             - Keep your responses concise and to the point. Avoid lengthy explanations unless specifically requested.
-            - When responding after tool execution, be brief and focus on insights from the tool result.
-            - Your responses should naturally flow with previous messages as if it's one continuous conversation.
-            - Avoid phrases like "based on the tool result" or "as I mentioned earlier" that suggest separate interactions.
-            - Don't repeat information that was already provided in previous messages.
+            - Please stop content output immediately after calling the tool
+            - Only respond to the current step. Do NOT repeat all previous content in your new responses.
+            - Maintain conversational context naturally without explicitly referencing previous interactions.
+            - Do NOT predict or generate content beyond what is explicitly requested by the user.
+            - Focus only on addressing the current request without speculating about future interactions.
             
             To use a tool, use this format in your response:
             
@@ -56,12 +57,41 @@ class EnhancedAIService(
             </tool>
             
             Available tools:
-            - weather: Provides simulated weather data only (no real weather API calls). No parameters needed.
             - calculate: Simple calculator that evaluates basic expressions locally. Parameters: expression (e.g. "2+2", "sqrt(16)")
-            - web_search: Returns pre-defined simulated search results (no actual web access). Parameters: query (the search term)
-            - blocking_sleep: Demonstration tool that pauses briefly. Parameters: duration_ms (milliseconds, default 1000, max 10000)
-            - non_blocking_sleep: Demonstration tool for asynchronous operations. Parameters: duration_ms (milliseconds, default 1000, max 10000)
+            - sleep: Demonstration tool that pauses briefly. Parameters: duration_ms (milliseconds, default 1000, max 10000)
             - device_info: Returns basic device identifier for the current app session only. No parameters needed.
+            
+            File System Tools:
+            - list_files: List files in a directory. Parameters: path (e.g. "/sdcard/Download")
+            - read_file: Read the content of a file. Parameters: path (file path)
+            - write_file: Write content to a file. Parameters: path (file path), content (text to write), append (boolean, default false)
+            - delete_file: Delete a file or directory. Parameters: path (target path), recursive (boolean, default false)
+            - file_exists: Check if a file or directory exists. Parameters: path (target path)
+            - move_file: Move or rename a file or directory. Parameters: source (source path), destination (destination path)
+            - copy_file: Copy a file or directory. Parameters: source (source path), destination (destination path), recursive (boolean, default false)
+            - make_directory: Create a directory. Parameters: path (directory path), create_parents (boolean, default false)
+            - find_files: Search for files matching a pattern. Parameters: path (search path, MUST start with /sdcard/ to avoid system issues), pattern (search pattern, e.g. "*.jpg"), max_depth (optional, controls depth of subdirectory search, -1=unlimited), use_path_pattern (boolean, default false), case_insensitive (boolean, default false)
+            - file_info: Get information about a file or directory. Parameters: path (target path)
+            - zip_files: Compress files or directories. Parameters: source (path to compress), destination (output zip file)
+            - unzip_files: Extract a zip file. Parameters: source (zip file path), destination (extract path)
+            - open_file: 使用系统默认应用打开文件. Parameters: path (文件路径)
+            - share_file: 分享文件. Parameters: path (文件路径), title (分享标题，可选，默认为"分享文件")
+            - download_file: 从网络下载文件. Parameters: url (文件URL), destination (保存路径)
+            
+            HTTP Tools:
+            - fetch_web_page: 获取网页内容. Parameters: url (网页URL), format (返回格式，可选: "text"或"html"，默认为"text")
+            - http_request: 发送HTTP请求. Parameters: url (请求URL), method (请求方法，可选: GET/POST/PUT/DELETE，默认GET), headers (请求头，JSON格式，可选), body (请求体，可选), body_type (请求体类型，可选: "json"/"form"/"text"，默认"json")
+            - web_search: Returns pre-defined simulated search results (no actual web access). Parameters: query (the search term)
+            
+
+            System Operation Tools (这些工具需要用户授权):
+            - get_system_setting: 获取系统设置的值. Parameters: setting (设置名称), namespace (命名空间: system/secure/global, 默认system)
+            - modify_system_setting: 修改系统设置的值. Parameters: setting (设置名称), value (设置值), namespace (命名空间: system/secure/global, 默认system)
+            - install_app: 安装应用程序. Parameters: apk_path (APK文件路径)
+            - uninstall_app: 卸载应用程序. Parameters: package_name (应用包名), keep_data (是否保留数据, 默认false)
+            - list_installed_apps: 获取已安装应用列表. Parameters: include_system_apps (是否包含系统应用, 默认false)
+            - start_app: 启动应用程序. Parameters: package_name (应用包名), activity (可选的活动名称)
+            - stop_app: 停止应用程序. Parameters: package_name (应用包名)
             
             When you finish your task and no longer need any tools, end your response with: [TASK_COMPLETE]
             
@@ -151,13 +181,22 @@ class EnhancedAIService(
             roundManager.initializeNewConversation()
         }
         
+        // Show processing input feedback
         val processedInput = processUserInput(message)
         val enhancedChatHistory = prepareConversationHistory(chatHistory, processedInput)
+        
+        // Show connecting to AI feedback
+        _inputProcessingState.value = InputProcessingState.Connecting("Connecting to AI service...")
         
         withContext(Dispatchers.IO) {
             aiService.sendMessage(
                 message = processedInput,
                 onPartialResponse = { content, thinking ->
+                    // First response received, update to receiving state
+                    if (streamBuffer.isEmpty()) {
+                        _inputProcessingState.value = InputProcessingState.Receiving("Receiving AI response...")
+                    }
+                    
                     processContent(
                         content,
                         thinking,
@@ -169,6 +208,17 @@ class EnhancedAIService(
                 chatHistory = enhancedChatHistory,
                 onComplete = {
                     handleStreamingComplete(onComplete)
+                },
+                onConnectionStatus = { status ->
+                    // Update the connection status in the UI
+                    when {
+                        status.contains("准备连接") || status.contains("正在建立连接") -> 
+                            _inputProcessingState.value = InputProcessingState.Connecting(status)
+                        status.contains("连接成功") ->
+                            _inputProcessingState.value = InputProcessingState.Receiving(status)
+                        status.contains("超时") || status.contains("失败") -> 
+                            _inputProcessingState.value = InputProcessingState.Processing(status)
+                    }
                 }
             )
         }
@@ -222,15 +272,33 @@ class EnhancedAIService(
         chatHistory: List<Pair<String, String>>,
         isFollowUp: Boolean
     ) {
-        // 仅在流式回调中更新内容，不处理任何工具调用等逻辑
+        // 更新缓冲区内容
         streamBuffer.replace(0, streamBuffer.length, content)
+        
+        // 检测是否存在完整的工具调用
         
         // 更新round manager中的内容
         val displayContent = roundManager.updateContent(content)
         
         // 更新UI显示
         onPartialResponse(displayContent, thinking)
-        // 不做任何其他处理，全部放到complete回调中
+        
+        // val toolInvocations = toolHandler.extractToolInvocations(content)
+        // 如果检测到工具调用，且工具调用请求已经完整输出，则立即停止响应，直接调用onComplete
+        // if (toolInvocations.isNotEmpty()) {
+        //     // 验证工具调用是否完整
+        //     val lastToolInvocation = toolInvocations.last()
+        //     // 检查最后一个工具调用的结束位置是否接近content的结尾，表示工具调用已经完整输出
+        //     val isToolCallComplete = content.length - lastToolInvocation.responseLocation.last < 20
+            
+        //     if (isToolCallComplete) {
+        //         Log.d(TAG, "检测到完整的工具调用，立即停止响应，进入onComplete")
+        //         // 如果工具调用完整，则触发aiService中断流式传输
+        //         aiService.cancelStreaming()
+        //         // 而且直接跳转到onComplete回调
+        //         handleStreamingComplete { /* 这里不需要调用外部的onComplete */ }
+        //     }
+        // }
     }
     
     private fun handleStreamingComplete(onComplete: () -> Unit) {
@@ -348,6 +416,9 @@ class EnhancedAIService(
             responseCallback(resultDisplayContent, null)
         }
         
+        // 添加过渡状态
+        _inputProcessingState.value = InputProcessingState.Processing("工具执行完成，准备进一步处理...")
+        
         toolHandler.markToolInvocationProcessed(invocation)
         
         // 处理工具结果 - 直接在这里继续处理，不调用单独的方法
@@ -382,6 +453,12 @@ class EnhancedAIService(
         roundManager.startNewRound()
         Log.d(TAG, "开始AI响应工具结果回合")
         
+        // 明确显示我们正在准备发送工具结果给AI
+        _inputProcessingState.value = InputProcessingState.Processing("正在准备处理工具执行结果...")
+        
+        // 添加短暂延迟使状态变化更加明显
+        kotlinx.coroutines.delay(300)
+        
         // 清空buffer，准备接收新内容
         streamBuffer.clear()
         
@@ -399,6 +476,17 @@ class EnhancedAIService(
                         if (!isConversationActive.get()) {
                             currentCompleteCallback?.invoke()
                         }
+                    }
+                },
+                onConnectionStatus = { status ->
+                    // 更新工具执行后请求的连接状态
+                    when {
+                        status.contains("准备连接") || status.contains("正在建立连接") -> 
+                            _inputProcessingState.value = InputProcessingState.Connecting(status + " (工具执行后)")
+                        status.contains("连接成功") ->
+                            _inputProcessingState.value = InputProcessingState.Receiving(status + " (工具执行后)")
+                        status.contains("超时") || status.contains("失败") -> 
+                            _inputProcessingState.value = InputProcessingState.Processing(status + " (工具执行后)")
                     }
                 }
             )
@@ -485,6 +573,8 @@ class EnhancedAIService(
 sealed class InputProcessingState {
     object Idle : InputProcessingState()
     data class Processing(val message: String) : InputProcessingState()
+    data class Connecting(val message: String) : InputProcessingState()
+    data class Receiving(val message: String) : InputProcessingState() 
     object Completed : InputProcessingState()
 }
 

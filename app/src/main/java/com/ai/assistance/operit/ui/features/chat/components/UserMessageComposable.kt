@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.components
+package com.ai.assistance.operit.ui.features.chat.components
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import com.ai.assistance.operit.ui.common.displays.TextWithCodeBlocksComposable
 
 /**
  * A composable function for rendering user messages in a Cursor IDE style.

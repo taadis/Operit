@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.components
+package com.ai.assistance.operit.ui.common.displays
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*

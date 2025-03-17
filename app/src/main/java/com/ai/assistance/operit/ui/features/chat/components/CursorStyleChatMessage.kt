@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.components
+package com.ai.assistance.operit.ui.features.chat.components
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color

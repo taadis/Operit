@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.regex.Pattern
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.runBlocking
 
 /**
  * Handles the extraction and execution of AI tools from responses
@@ -86,15 +87,9 @@ class AIToolHandler(private val context: Context) {
             webSearchTool.invoke(tool)
         }
         
-        // Demonstration synchronous delay tool
-        registerTool("blocking_sleep") { tool ->
+        // Sleep tool
+        registerTool("sleep") { tool ->
             val sleepExecutor = BlockingSleepToolExecutor()
-            sleepExecutor.invoke(tool)
-        }
-        
-        // Demonstration asynchronous delay tool
-        registerTool("non_blocking_sleep") { tool ->
-            val sleepExecutor = NonBlockingSleepToolExecutor()
             sleepExecutor.invoke(tool)
         }
         
@@ -102,6 +97,183 @@ class AIToolHandler(private val context: Context) {
         registerTool("device_info") { tool ->
             val deviceInfoExecutor = ConnectionToolExecutor()
             deviceInfoExecutor.invoke(tool)
+        }
+        
+        // File System Tools
+        val fileSystemTools = FileSystemTools(context)
+        
+        // List directory contents
+        registerTool("list_files") { tool ->
+            kotlinx.coroutines.runBlocking {
+                fileSystemTools.listFiles(tool)
+            }
+        }
+        
+        // Read file content
+        registerTool("read_file") { tool ->
+            kotlinx.coroutines.runBlocking {
+                fileSystemTools.readFile(tool)
+            }
+        }
+        
+        // Write to file
+        registerTool("write_file") { tool ->
+            kotlinx.coroutines.runBlocking {
+                fileSystemTools.writeFile(tool)
+            }
+        }
+        
+        // Delete file/directory
+        registerTool("delete_file") { tool ->
+            kotlinx.coroutines.runBlocking {
+                fileSystemTools.deleteFile(tool)
+            }
+        }
+        
+        // Check if file exists
+        registerTool("file_exists") { tool ->
+            kotlinx.coroutines.runBlocking {
+                fileSystemTools.fileExists(tool)
+            }
+        }
+        
+        // Move/rename file or directory
+        registerTool("move_file") { tool ->
+            kotlinx.coroutines.runBlocking {
+                fileSystemTools.moveFile(tool)
+            }
+        }
+        
+        // Copy file or directory
+        registerTool("copy_file") { tool ->
+            kotlinx.coroutines.runBlocking {
+                fileSystemTools.copyFile(tool)
+            }
+        }
+        
+        // Create directory
+        registerTool("make_directory") { tool ->
+            kotlinx.coroutines.runBlocking {
+                fileSystemTools.makeDirectory(tool)
+            }
+        }
+        
+        // Search for files
+        registerTool("find_files") { tool ->
+            kotlinx.coroutines.runBlocking {
+                fileSystemTools.findFiles(tool)
+            }
+        }
+        
+        // Get file information
+        registerTool("file_info") { tool ->
+            kotlinx.coroutines.runBlocking {
+                fileSystemTools.fileInfo(tool)
+            }
+        }
+        
+        // Compress files/directories
+        registerTool("zip_files") { tool ->
+            kotlinx.coroutines.runBlocking {
+                fileSystemTools.zipFiles(tool)
+            }
+        }
+        
+        // Extract zip files
+        registerTool("unzip_files") { tool ->
+            kotlinx.coroutines.runBlocking {
+                fileSystemTools.unzipFiles(tool)
+            }
+        }
+        
+        // 打开文件
+        registerTool("open_file") { tool ->
+            kotlinx.coroutines.runBlocking {
+                fileSystemTools.openFile(tool)
+            }
+        }
+        
+        // 分享文件
+        registerTool("share_file") { tool ->
+            kotlinx.coroutines.runBlocking {
+                fileSystemTools.shareFile(tool)
+            }
+        }
+        
+        // 下载文件
+        registerTool("download_file") { tool ->
+            kotlinx.coroutines.runBlocking {
+                fileSystemTools.downloadFile(tool)
+            }
+        }
+        
+        // HTTP网络请求工具
+        val httpTools = HttpTools(context)
+        
+        // 获取网页内容
+        registerTool("fetch_web_page") { tool ->
+            kotlinx.coroutines.runBlocking {
+                httpTools.fetchWebPage(tool)
+            }
+        }
+        
+        // 发送HTTP请求
+        registerTool("http_request") { tool ->
+            kotlinx.coroutines.runBlocking {
+                httpTools.httpRequest(tool)
+            }
+        }
+        
+        // 系统操作工具
+        val systemOperationTools = SystemOperationTools(context)
+        
+        // 修改系统设置
+        registerTool("modify_system_setting") { tool ->
+            kotlinx.coroutines.runBlocking {
+                systemOperationTools.modifySystemSetting(tool)
+            }
+        }
+        
+        // 获取系统设置
+        registerTool("get_system_setting") { tool ->
+            kotlinx.coroutines.runBlocking {
+                systemOperationTools.getSystemSetting(tool)
+            }
+        }
+        
+        // 安装应用
+        registerTool("install_app") { tool ->
+            kotlinx.coroutines.runBlocking {
+                systemOperationTools.installApp(tool)
+            }
+        }
+        
+        // 卸载应用
+        registerTool("uninstall_app") { tool ->
+            kotlinx.coroutines.runBlocking {
+                systemOperationTools.uninstallApp(tool)
+            }
+        }
+        
+        // 获取已安装应用列表
+        registerTool("list_installed_apps") { tool ->
+            kotlinx.coroutines.runBlocking {
+                systemOperationTools.listInstalledApps(tool)
+            }
+        }
+        
+        // 启动应用
+        registerTool("start_app") { tool ->
+            kotlinx.coroutines.runBlocking {
+                systemOperationTools.startApp(tool)
+            }
+        }
+        
+        // 停止应用
+        registerTool("stop_app") { tool ->
+            kotlinx.coroutines.runBlocking {
+                systemOperationTools.stopApp(tool)
+            }
         }
     }
     

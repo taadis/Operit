@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.components
+package com.ai.assistance.operit.ui.features.chat.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -11,7 +11,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.model.ChatMessage
-import com.ai.assistance.operit.ui.components.MessageContentParser.Companion.ContentSegment
+import com.ai.assistance.operit.ui.common.displays.MessageContentParser.Companion.ContentSegment
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -21,6 +21,8 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.text.selection.SelectionContainer
+import com.ai.assistance.operit.ui.common.displays.MessageContentParser
+import com.ai.assistance.operit.ui.common.displays.TextWithCodeBlocksComposable
 
 /**
  * A composable function for rendering AI response messages in a Cursor IDE style.
@@ -60,7 +62,8 @@ fun AiMessageComposable(
             )
             
             // Parse the message content to identify tool markup
-            val contentSegments = MessageContentParser.parseContent(message.content, supportToolMarkup)
+            val contentSegments =
+                MessageContentParser.parseContent(message.content, supportToolMarkup)
             
             // Render each segment
             contentSegments.forEach { segment ->

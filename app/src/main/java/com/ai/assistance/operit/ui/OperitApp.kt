@@ -25,9 +25,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.navigation.NavItem
-import com.ai.assistance.operit.ui.screens.AIChatScreen
-import com.ai.assistance.operit.ui.screens.SettingsScreen
-import com.ai.assistance.operit.ui.screens.ShizukuDemoScreen
+import com.ai.assistance.operit.ui.features.chat.screens.AIChatScreen
+import com.ai.assistance.operit.ui.features.settings.screens.SettingsScreen
+import com.ai.assistance.operit.ui.features.demo.screens.ShizukuDemoScreen
 import com.ai.assistance.operit.util.NetworkUtils
 import com.ai.assistance.operit.data.ChatHistoryManager
 import kotlinx.coroutines.launch

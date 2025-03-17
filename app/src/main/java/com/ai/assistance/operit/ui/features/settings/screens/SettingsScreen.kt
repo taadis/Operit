@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.screens
+package com.ai.assistance.operit.ui.features.settings.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState

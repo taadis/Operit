@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.screens
+package com.ai.assistance.operit.ui.features.demo.screens
 
 import android.content.Intent
 import android.net.Uri
@@ -12,11 +12,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.AdbCommandExecutor
-import com.ai.assistance.operit.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 

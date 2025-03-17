@@ -27,7 +27,21 @@ class AIService(
         .build()
         
     private val JSON = "application/json; charset=utf-8".toMediaType()
-
+    
+    // 当前活跃的Call对象，用于取消流式传输
+    private var activeCall: Call? = null
+    
+    // 取消当前流式传输
+    fun cancelStreaming() {
+        activeCall?.let {
+            if (!it.isCanceled()) {
+                it.cancel()
+                Log.d("AIService", "已取消当前流式传输")
+            }
+        }
+        activeCall = null
+    }
+    
     // 解析服务器返回的内容，处理<think>标签
     private fun parseResponse(content: String): Pair<String, String?> {
         val thinkStartTag = "<think>"
@@ -140,30 +154,51 @@ class AIService(
         val responseBody = response.body ?: throw IOException("API响应为空")
         val reader = responseBody.charStream().buffered()
         var currentContent = StringBuilder()
+        var isFirstResponse = true
 
-        reader.useLines { lines ->
-            lines.forEach { line ->
-                if (line.startsWith("data: ")) {
-                    val data = line.substring(6).trim()
-                    if (data != "[DONE]") {
-                        try {
-                            val jsonResponse = JSONObject(data)
-                            val choices = jsonResponse.getJSONArray("choices")
-                            if (choices.length() > 0) {
-                                val delta = choices.getJSONObject(0).optJSONObject("delta")
-                                val content = delta?.optString("content", "") ?: ""
-                                if (content.isNotEmpty() && content != "null") {
-                                    currentContent.append(content)
-                                    // 解析内容并回调
-                                    val (mainContent, thinkContent) = parseResponse(currentContent.toString())
-                                    onPartialResponse(mainContent, thinkContent)
+        try {
+            reader.useLines { lines ->
+                lines.forEach { line ->
+                    // 如果call已被取消，提前退出
+                    if (activeCall?.isCanceled() == true) {
+                        Log.d("AIService", "流式传输已被取消，提前退出处理")
+                        return@forEach
+                    }
+                    
+                    if (line.startsWith("data: ")) {
+                        val data = line.substring(6).trim()
+                        if (data != "[DONE]") {
+                            try {
+                                val jsonResponse = JSONObject(data)
+                                val choices = jsonResponse.getJSONArray("choices")
+                                if (choices.length() > 0) {
+                                    val delta = choices.getJSONObject(0).optJSONObject("delta")
+                                    val content = delta?.optString("content", "") ?: ""
+                                    if (content.isNotEmpty() && content != "null") {
+                                        // 当收到第一个有效内容时，标记不再是首次响应
+                                        if (isFirstResponse) {
+                                            isFirstResponse = false
+                                        }
+                                        
+                                        currentContent.append(content)
+                                        // 解析内容并回调
+                                        val (mainContent, thinkContent) = parseResponse(currentContent.toString())
+                                        onPartialResponse(mainContent, thinkContent)
+                                    }
                                 }
+                            } catch (e: Exception) {
+                                // 忽略解析错误，继续处理下一行
                             }
-                        } catch (e: Exception) {
-                            // 忽略解析错误，继续处理下一行
                         }
                     }
                 }
+            }
+        } catch (e: IOException) {
+            // 捕获IO异常，可能是由于取消Call导致的
+            if (activeCall?.isCanceled() == true) {
+                Log.d("AIService", "流式传输已被取消，处理IO异常")
+            } else {
+                throw e
             }
         }
         
@@ -175,7 +210,8 @@ class AIService(
         message: String,
         onPartialResponse: (content: String, thinking: String?) -> Unit,
         chatHistory: List<Pair<String, String>> = emptyList(),
-        onComplete: () -> Unit = {}
+        onComplete: () -> Unit = {},
+        onConnectionStatus: ((status: String) -> Unit)? = null
     ) = withContext(Dispatchers.IO) {
         val maxRetries = 3
         var retryCount = 0
@@ -184,28 +220,43 @@ class AIService(
         val requestBody = createRequestBody(message, chatHistory)
         val request = createRequest(requestBody)
 
+        onConnectionStatus?.invoke("准备连接到AI服务...")
         while (retryCount < maxRetries) {
             try {
-                client.newCall(request).execute().use { response ->
+                // 创建Call对象并保存到activeCall中，以便可以取消
+                val call = client.newCall(request)
+                activeCall = call
+                
+                onConnectionStatus?.invoke("正在建立连接...")
+                call.execute().use { response ->
+                    onConnectionStatus?.invoke("连接成功，等待响应...")
                     processResponse(response, onPartialResponse, onComplete)
                 }
+                
+                // 成功处理后，清空activeCall
+                activeCall = null
+                
                 // 成功处理，返回
                 return@withContext
             } catch (e: SocketTimeoutException) {
                 lastException = e
                 retryCount++
                 // 通知正在重试
+                onConnectionStatus?.invoke("连接超时，正在进行第 $retryCount 次重试...")
                 onPartialResponse("", "连接超时，正在进行第 $retryCount 次重试...")
                 // 指数退避重试
                 delay(1000L * retryCount)
             } catch (e: UnknownHostException) {
+                onConnectionStatus?.invoke("无法连接到服务器，请检查网络")
                 throw IOException("无法连接到服务器，请检查网络连接或API地址是否正确")
             } catch (e: Exception) {
+                onConnectionStatus?.invoke("连接失败: ${e.message}")
                 throw IOException("AI响应获取失败: ${e.message} ${e.stackTrace.joinToString("\n")}")
             }
         }
             
-            // 所有重试都失败
-            throw IOException("连接超时，已重试 $maxRetries 次: ${lastException?.message}")
+        onConnectionStatus?.invoke("重试失败，请检查网络连接")
+        // 所有重试都失败
+        throw IOException("连接超时，已重试 $maxRetries 次: ${lastException?.message}")
     }
 }

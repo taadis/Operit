@@ -24,6 +24,8 @@ class WebSearchTool(private val context: Context) : ToolExecutor {
         private const val BAIDU_SEARCH_URL = "https://www.baidu.com/s?wd="
         private const val SOGOU_SEARCH_URL = "https://www.sogou.com/web?query="
         private const val USER_AGENT = "Mozilla/5.0 (Linux; Android 12; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Mobile Safari/537.36"
+        private const val MAX_SUMMARY_LENGTH = 3000 // 每个搜索结果的最大内容摘要长度
+        private const val MAX_TOTAL_RESPONSE_LENGTH = 8000 // 整个搜索响应的最大长度
     }
     
     // 创建OkHttpClient实例，配置超时
@@ -36,6 +38,7 @@ class WebSearchTool(private val context: Context) : ToolExecutor {
         // 从工具参数中获取查询参数 - 支持query或search_term参数名
         val query = tool.parameters.find { it.name == "query" || it.name == "search_term" }?.value
         val numResults = tool.parameters.find { it.name == "num_results" }?.value?.toIntOrNull() ?: 3
+        val fetchContent = tool.parameters.find { it.name == "fetch_content" }?.value?.toBoolean() ?: false
         
         if (query.isNullOrBlank()) {
             return ToolResult(
@@ -48,8 +51,8 @@ class WebSearchTool(private val context: Context) : ToolExecutor {
         
         // 尝试执行搜索
         return try {
-            // 首先尝试百度搜索
-            var searchResults = searchBaidu(query, numResults)
+            // 首先尝试百度搜索 - 总是解析重定向链接
+            var searchResults = searchBaidu(query, numResults, true)
             
             // 如果百度搜索没有返回真实结果（返回了通用错误消息），尝试搜狗搜索
             if (searchResults.isNotEmpty() && searchResults[0]["title"] == "无法获取\"$query\"的搜索结果") {
@@ -65,10 +68,16 @@ class WebSearchTool(private val context: Context) : ToolExecutor {
                 }
             }
             
+            // 如果请求了获取内容，抓取页面内容
+            if (fetchContent && searchResults.isNotEmpty() && searchResults[0]["title"] != "无法获取\"$query\"的搜索结果") {
+                Log.d(TAG, "Fetching page content for search results")
+                searchResults = fetchPageContentForResults(searchResults)
+            }
+            
             ToolResult(
                 toolName = tool.name,
                 success = true,
-                result = formatSearchResults(query, searchResults)
+                result = formatSearchResults(query, searchResults, fetchContent)
             )
         } catch (e: Exception) {
             Log.e(TAG, "Error during web search", e)
@@ -395,9 +404,9 @@ class WebSearchTool(private val context: Context) : ToolExecutor {
     }
     
     /**
-     * 格式化搜索结果
+     * 格式化搜索结果为易读的文本
      */
-    private fun formatSearchResults(query: String, results: List<Map<String, String>>): String {
+    private fun formatSearchResults(query: String, results: List<Map<String, String>>, fetchedContent: Boolean = false): String {
         val sb = StringBuilder()
         val searchEngine = if (results.isNotEmpty() && results[0]["link"]?.contains("sogou.com") == true) "搜狗" else "百度"
         sb.appendLine("${searchEngine}搜索结果: \"$query\"")
@@ -420,10 +429,67 @@ class WebSearchTool(private val context: Context) : ToolExecutor {
                 sb.appendLine("4. 如果多次尝试仍然失败，可能需要更新应用以适应搜索引擎的变化")
             } else {
                 // 正常显示结果
+                sb.appendLine("已获取${results.size}个结果${if (fetchedContent) "，并自动解析了网页内容" else ""}。所有链接都已解析为实际目标URL。")
+                sb.appendLine()
+                
+                // 计算每个结果的平均可用长度，确保不超过总长度限制
+                val maxResponseLength = MAX_TOTAL_RESPONSE_LENGTH
+                
+                // 计算已经使用的长度（标题和提示信息）
+                var usedLength = sb.length
+                
+                // 计算每个结果可获得的平均内容长度（留出20%的余量）
+                val perResultMaxLength = ((maxResponseLength - usedLength) * 0.8 / results.size).toInt().coerceAtLeast(300)
+                val titleMaxLength = (perResultMaxLength * 0.15).toInt().coerceAtLeast(50)
+                val snippetMaxLength = (perResultMaxLength * 0.25).toInt().coerceAtLeast(100)
+                val contentMaxLength = if (fetchedContent) (perResultMaxLength * 0.6).toInt() else 0
+                
                 results.forEachIndexed { index, result ->
-                    sb.appendLine("${index + 1}. ${result["title"]}")
+                    // 检查是否已接近最大长度
+                    if (sb.length >= maxResponseLength * 0.95) {
+                        sb.appendLine()
+                        sb.appendLine("... 剩余结果已省略，以控制响应大小 ...")
+                        return@forEachIndexed
+                    }
+                    
+                    // 添加标题，截断过长标题
+                    val title = result["title"] ?: ""
+                    val formattedTitle = if (title.length <= titleMaxLength) {
+                        title
+                    } else {
+                        title.take(titleMaxLength - 3) + "..."
+                    }
+                    sb.appendLine("${index + 1}. $formattedTitle")
+                    
+                    // 添加链接
                     sb.appendLine("   ${result["link"]}")
-                    sb.appendLine("   ${result["snippet"]}")
+                    
+                    // 添加摘要，截断过长摘要
+                    val snippet = result["snippet"] ?: ""
+                    val formattedSnippet = if (snippet.length <= snippetMaxLength) {
+                        snippet
+                    } else {
+                        snippet.take(snippetMaxLength - 3) + "..."
+                    }
+                    sb.appendLine("   $formattedSnippet")
+                    
+                    // 如果有页面内容，添加极度简化的内容摘要
+                    if (fetchedContent && result.containsKey("content") && contentMaxLength > 100) {
+                        val content = result["content"] ?: ""
+                        if (content.isNotBlank()) {
+                            sb.appendLine()
+                            sb.appendLine("   页面内容摘要:")
+                            
+                            // 使用压缩的内容摘要，而不是完整的智能摘要
+                            val compressedContent = compressContentForSearchResult(content, contentMaxLength)
+                            val formattedContent = compressedContent
+                                .split("\n")
+                                .joinToString("\n") { "   $it" }
+                            
+                            sb.appendLine(formattedContent)
+                        }
+                    }
+                    
                     sb.appendLine()
                 }
             }
@@ -433,14 +499,78 @@ class WebSearchTool(private val context: Context) : ToolExecutor {
     }
     
     /**
+     * 为搜索结果压缩内容，比smartSummarizeContent更激进
+     */
+    private fun compressContentForSearchResult(content: String, maxLength: Int): String {
+        // 内容较短直接返回
+        if (content.length <= maxLength) return content
+        
+        // 分割成段落
+        val paragraphs = content.split("\n\n", "\r\n\r\n", "\n", "\r\n")
+            .filter { it.isNotBlank() }
+            .map { it.trim() }
+        
+        if (paragraphs.isEmpty()) return "无法获取有效内容"
+        
+        // 构建压缩后的内容
+        val sb = StringBuilder()
+        
+        // 1. 只取第一段的前半部分（通常包含最重要信息）
+        val firstPara = paragraphs.first()
+        val firstParaMaxLength = (maxLength * 0.4).toInt().coerceAtLeast(100)
+        sb.append(firstPara.take(minOf(firstPara.length, firstParaMaxLength)))
+        if (firstPara.length > firstParaMaxLength) sb.append("...")
+        sb.append("\n\n")
+        
+        // 2. 文档的中间部分只显示少量采样
+        if (paragraphs.size > 2) {
+            sb.append("... [内容摘要] ...\n\n")
+            
+            // 查找可能的中间段落
+            val midIndex = paragraphs.size / 2
+            if (midIndex < paragraphs.size && midIndex > 0) {
+                val midPara = paragraphs[midIndex]
+                val midParaMaxLength = (maxLength * 0.2).toInt().coerceAtLeast(50)
+                
+                // 只有当中间段落不太长时才添加
+                if (midPara.length > 20) {
+                    sb.append(midPara.take(minOf(midPara.length, midParaMaxLength)))
+                    if (midPara.length > midParaMaxLength) sb.append("...")
+                    sb.append("\n\n")
+                }
+            }
+        }
+        
+        // 3. 如果有空间和结尾段落，添加结尾信息
+        if (paragraphs.size > 1 && sb.length < maxLength * 0.8) {
+            val lastPara = paragraphs.last()
+            val remainingSpace = (maxLength - sb.length) * 0.9
+            
+            if (remainingSpace > 30 && lastPara.length > 20) {
+                sb.append("... [末尾摘要] ...\n\n")
+                sb.append(lastPara.take(minOf(lastPara.length, remainingSpace.toInt())))
+                if (lastPara.length > remainingSpace) sb.append("...")
+            }
+        }
+        
+        return sb.toString().trim()
+    }
+    
+    /**
      * 用于测试搜索功能的辅助方法
      * 可以在应用中直接调用此方法进行测试，不依赖于AI工具调用框架
      * @param resolveRedirects 是否解析重定向链接获取真实URL（会增加网络请求）
+     * @param fetchContent 是否获取页面内容
      */
-    fun testSearch(query: String, numResults: Int = 3, resolveRedirects: Boolean = false): String {
+    fun testSearch(query: String, numResults: Int = 3, resolveRedirects: Boolean = true, fetchContent: Boolean = false): String {
         return try {
-            val results = searchBaidu(query, numResults, resolveRedirects)
-            formatSearchResults(query, results)
+            var results = searchBaidu(query, numResults, resolveRedirects)
+            
+            if (fetchContent && results.isNotEmpty() && results[0]["title"] != "无法获取\"$query\"的搜索结果") {
+                results = fetchPageContentForResults(results)
+            }
+            
+            formatSearchResults(query, results, fetchContent)
         } catch (e: Exception) {
             Log.e(TAG, "Error in test search", e)
             "搜索出错: ${e.message}"
@@ -448,12 +578,24 @@ class WebSearchTool(private val context: Context) : ToolExecutor {
     }
     
     /**
-     * 尝试解析百度重定向链接获取真实URL
+     * 尝试解析重定向链接获取真实URL
      * 注意：此方法会进行网络请求，应在后台线程上调用
+     * 支持多级重定向和多个搜索引擎（百度、搜狗等）
      */
-    private fun tryResolveRedirectUrl(baiduUrl: String): String {
-        if (!baiduUrl.contains("www.baidu.com")) {
-            return baiduUrl // 不是百度链接，直接返回
+    private fun tryResolveRedirectUrl(url: String, maxRedirects: Int = 3): String {
+        // 如果已经是直接链接（非百度/搜狗域名），则直接返回
+        if ((!url.contains("baidu.com") && !url.contains("sogou.com")) && 
+            (url.startsWith("http://") || url.startsWith("https://"))) {
+            return url
+        }
+        
+        // 特定搜索引擎的重定向链接标识
+        val isBaiduRedirect = url.contains("baidu.com") && (url.contains("/link") || url.contains("?url="))
+        val isSogouRedirect = url.contains("sogou.com") && (url.contains("/link") || url.contains("?url="))
+        
+        // 如果不是重定向链接，直接返回
+        if (!isBaiduRedirect && !isSogouRedirect) {
+            return url
         }
         
         try {
@@ -461,27 +603,151 @@ class WebSearchTool(private val context: Context) : ToolExecutor {
             val client = OkHttpClient.Builder()
                 .followRedirects(false)
                 .followSslRedirects(false)
+                .connectTimeout(5, TimeUnit.SECONDS)
+                .readTimeout(5, TimeUnit.SECONDS)
                 .build()
                 
             val request = Request.Builder()
-                .url(baiduUrl)
+                .url(url)
                 .header("User-Agent", USER_AGENT)
                 .build()
             
             // 执行请求
             val response = client.newCall(request).execute()
             
-            // 获取重定向链接
-            val location = response.header("Location")
-            if (!location.isNullOrBlank()) {
-                return location
+            // 检查响应状态码
+            if (response.code in 300..399) {
+                // 获取重定向链接
+                val location = response.header("Location")
+                if (!location.isNullOrBlank()) {
+                    // 处理相对URL
+                    val absoluteLocation = if (!location.startsWith("http")) {
+                        val baseUrl = url.takeWhile { it != '/' }.let { 
+                            if (it.contains("://")) it else url.split("/").take(3).joinToString("/")
+                        }
+                        if (location.startsWith("/")) "$baseUrl$location" else "$baseUrl/$location"
+                    } else {
+                        location
+                    }
+                    
+                    // 递归解析多级重定向，但限制最大重定向次数
+                    return if (maxRedirects > 1) {
+                        tryResolveRedirectUrl(absoluteLocation, maxRedirects - 1)
+                    } else {
+                        absoluteLocation
+                    }
+                }
+            }
+            
+            // 对于百度的特殊情况，尝试从URL参数中提取目标链接
+            if (isBaiduRedirect && url.contains("?url=")) {
+                val urlParam = url.substringAfter("?url=").substringBefore("&")
+                if (urlParam.isNotBlank()) {
+                    try {
+                        return java.net.URLDecoder.decode(urlParam, "UTF-8")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error decoding URL parameter", e)
+                    }
+                }
+            }
+            
+            // 对于搜狗的特殊情况
+            if (isSogouRedirect && url.contains("?url=")) {
+                val urlParam = url.substringAfter("?url=").substringBefore("&")
+                if (urlParam.isNotBlank()) {
+                    try {
+                        return java.net.URLDecoder.decode(urlParam, "UTF-8")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error decoding Sogou URL parameter", e)
+                    }
+                }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error resolving redirect URL", e)
+            Log.e(TAG, "Error resolving redirect URL: ${e.message}", e)
         }
         
         // 如果解析失败，返回原始链接
-        return baiduUrl
+        return url
+    }
+    
+    /**
+     * 抓取搜索结果链接的页面内容
+     * 为每个搜索结果添加页面内容摘要
+     */
+    private fun fetchPageContentForResults(results: List<Map<String, String>>): List<Map<String, String>> {
+        return results.map { result ->
+            val updatedResult = result.toMutableMap()
+            val link = result["link"] ?: ""
+            
+            if (link.isNotBlank() && (link.startsWith("http://") || link.startsWith("https://"))) {
+                try {
+                    val content = fetchPageContent(link)
+                    if (content.isNotBlank()) {
+                        updatedResult["content"] = content
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error fetching content for $link", e)
+                }
+            }
+            
+            updatedResult
+        }
+    }
+    
+    /**
+     * 抓取指定URL的页面内容
+     * 返回智能处理后的内容摘要
+     */
+    private fun fetchPageContent(url: String, maxLength: Int = 5000): String {
+        try {
+            // 确保URL是真实目标，先解析重定向
+            val realUrl = tryResolveRedirectUrl(url)
+            
+            val request = Request.Builder()
+                .url(realUrl)
+                .header("User-Agent", USER_AGENT)
+                .header("Accept", "text/html,application/xhtml+xml,application/xml")
+                .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
+                .build()
+            
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                return ""
+            }
+            
+            val contentType = response.header("Content-Type") ?: ""
+            val body = response.body?.string() ?: return ""
+            
+            // 如果内容是HTML，提取纯文本
+            return if (contentType.contains("html", ignoreCase = true) || 
+                      body.contains("<html", ignoreCase = true)) {
+                try {
+                    val doc = Jsoup.parse(body)
+                    // 移除脚本和样式元素
+                    doc.select("script, style, meta, link, svg, iframe").remove()
+                    
+                    // 如果有主要内容区域，优先提取
+                    val mainContent = doc.select("article, main, div.content, div.main, div.article, div[class*=content], div[class*=article]").text()
+                    val rawContent = if (mainContent.isNotBlank() && mainContent.length > 200) {
+                        mainContent
+                    } else {
+                        // 获取文本内容
+                        doc.text()
+                    }
+                    
+                    // 为搜索结果使用更激进的压缩摘要
+                    compressContentForSearchResult(rawContent, maxLength)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error parsing HTML", e)
+                    compressContentForSearchResult(body, maxLength)
+                }
+            } else {
+                compressContentForSearchResult(body, maxLength)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error fetching page content: ${e.message}", e)
+            return ""
+        }
     }
     
     /**
@@ -557,6 +823,9 @@ class WebSearchTool(private val context: Context) : ToolExecutor {
                 if (!link.startsWith("http")) {
                     link = "https://www.sogou.com$link"
                 }
+                
+                // 解析重定向获取真实URL
+                link = tryResolveRedirectUrl(link)
                 
                 // 提取摘要
                 val snippetElement = element.select("div.ft, div.fz13, div.space_txt, div.text, div.d_d").first()

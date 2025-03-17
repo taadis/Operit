@@ -1,0 +1,124 @@
+package com.ai.assistance.operit.ui.features.chat.components
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.ai.assistance.operit.ui.common.animations.SimpleAnimatedVisibility
+
+@Composable
+fun ChatInputSection(
+    userMessage: String,
+    onUserMessageChange: (String) -> Unit,
+    onSendMessage: () -> Unit,
+    isLoading: Boolean,
+    isProcessingInput: Boolean,
+    inputProcessingMessage: String,
+    focusRequester: FocusRequester,
+    modifier: Modifier = Modifier
+) {
+    val modernTextStyle = TextStyle(
+        fontSize = 14.sp
+    )
+    
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 3.dp,
+        modifier = modifier.shadow(4.dp)
+    ) {
+        Column {
+            // Input processing indicator
+            SimpleAnimatedVisibility(visible = isProcessingInput) {
+                val progressColor = when {
+                    inputProcessingMessage.contains("工具执行后") -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.8f)
+                    inputProcessingMessage.contains("Connecting") || inputProcessingMessage.contains("连接") -> MaterialTheme.colorScheme.tertiary
+                    inputProcessingMessage.contains("Receiving") || inputProcessingMessage.contains("响应") -> MaterialTheme.colorScheme.secondary 
+                    else -> MaterialTheme.colorScheme.primary
+                }
+                
+                val progressValue = if (inputProcessingMessage.contains("准备")) 0.3f else if (inputProcessingMessage.contains("连接")) 0.6f else 1f
+                
+                SimpleLinearProgressIndicator(
+                    progress = progressValue,
+                    modifier = Modifier.fillMaxWidth(),
+                    color = progressColor
+                )
+                
+                if (inputProcessingMessage.isNotBlank()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = inputProcessingMessage,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+            
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = userMessage,
+                    onValueChange = onUserMessageChange,
+                    placeholder = { Text("请输入您的问题...") },
+                    modifier = Modifier
+                        .weight(1f)
+                        .focusRequester(focusRequester),
+                    textStyle = modernTextStyle,
+                    maxLines = 3,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                    keyboardActions = KeyboardActions(onSend = { onSendMessage() }),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                    ),
+                    shape = RoundedCornerShape(24.dp)
+                )
+                
+                Spacer(modifier = Modifier.width(8.dp))
+                
+                IconButton(
+                    onClick = { onSendMessage() },
+                    enabled = userMessage.isNotBlank() && !isLoading && !isProcessingInput,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(
+                            if (userMessage.isNotBlank() && !isLoading && !isProcessingInput)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                        )
+                ) {
+                    Text(
+                        text = "发送",
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+            }
+        }
+    }
+} 

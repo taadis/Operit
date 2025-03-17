@@ -1,32 +1,28 @@
-package com.ai.assistance.operit.ui.screens
+package com.ai.assistance.operit.ui.features.chat.screens
 
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.ViewModel
-import com.ai.assistance.operit.model.ToolExecutionProgress
-import com.ai.assistance.operit.model.ToolExecutionState
-import com.ai.assistance.operit.ui.components.*
 import com.ai.assistance.operit.viewmodel.ChatViewModel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.tween
+import com.ai.assistance.operit.ui.features.chat.components.ChatArea
+import com.ai.assistance.operit.ui.features.chat.components.ChatHeader
+import com.ai.assistance.operit.ui.features.chat.components.ChatHistorySelector
+import com.ai.assistance.operit.ui.features.chat.components.ChatInputSection
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

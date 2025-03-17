@@ -332,6 +332,14 @@ class AdbCommandExecutor {
             if (!hasShizukuPermission()) {
                 return@withContext CommandResult(false, "", "Shizuku permission not granted")
             }
+
+            Log.d(TAG, "Executing command: $command")
+            
+            // 检查是否包含需要shell解释的特殊操作符
+            if (command.contains("&&") || command.contains("||") || command.contains(";")) {
+                Log.d(TAG, "Command contains shell operators, executing with shell")
+                return@withContext executeWithShell(command)
+            }
             
             var process: Any? = null
             
@@ -342,8 +350,9 @@ class AdbCommandExecutor {
                     "Shizuku service not available"
                 )
                 
-                // 拆分命令行参数
-                val commandParts = command.split(" ").toTypedArray()
+                // 拆分命令行参数 - 使用更智能的解析方法
+                val commandParts = parseCommand(command)
+                Log.d(TAG, "Parsed command parts: ${commandParts.joinToString(", ", "[", "]")}")
                 
                 // 创建进程
                 process = service.newProcess(commandParts, null, null)
@@ -409,6 +418,64 @@ class AdbCommandExecutor {
         }
         
         /**
+         * 通过shell解释器执行包含特殊操作符的命令
+         */
+        private suspend fun executeWithShell(command: String): CommandResult = withContext(Dispatchers.IO) {
+            Log.d(TAG, "Executing through shell: $command")
+            
+            try {
+                val service = getShizukuService() ?: return@withContext CommandResult(
+                    false,
+                    "",
+                    "Shizuku service not available"
+                )
+                
+                // 构建shell命令
+                val shellArgs = arrayOf("sh", "-c", command)
+                Log.d(TAG, "Shell command: ${shellArgs.joinToString(", ", "[", "]")}")
+                
+                // 创建进程
+                val process = service.newProcess(shellArgs, null, null) ?: return@withContext CommandResult(
+                    false,
+                    "",
+                    "Failed to create process"
+                )
+                
+                // 处理输入输出流
+                val processClass = process::class.java
+                val inputStream = processClass.getMethod("getInputStream").invoke(process) as ParcelFileDescriptor?
+                val errorStream = processClass.getMethod("getErrorStream").invoke(process) as ParcelFileDescriptor?
+                
+                val stdout = if (inputStream != null) {
+                    val stdoutStream = FileInputStream(inputStream.fileDescriptor)
+                    BufferedReader(InputStreamReader(stdoutStream)).use { it.readText() }
+                } else ""
+                
+                val stderr = if (errorStream != null) {
+                    val stderrStream = FileInputStream(errorStream.fileDescriptor)
+                    BufferedReader(InputStreamReader(stderrStream)).use { it.readText() }
+                } else ""
+                
+                // 等待进程结束并获取退出代码
+                val exitCode = processClass.getMethod("waitFor").invoke(process) as Int
+                
+                // 关闭文件描述符
+                inputStream?.close()
+                errorStream?.close()
+                
+                return@withContext CommandResult(
+                    exitCode == 0,
+                    stdout,
+                    stderr,
+                    exitCode
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Error executing shell command", e)
+                return@withContext CommandResult(false, "", "Error: ${e.message}")
+            }
+        }
+        
+        /**
          * 获取Shizuku服务
          */
         @Throws(RemoteException::class)
@@ -460,6 +527,77 @@ class AdbCommandExecutor {
                 Log.e(TAG, "Error getting Shizuku service", e)
                 return null
             }
+        }
+        
+        /**
+         * 智能解析命令行，正确处理引号
+         * @param command 完整命令行
+         * @return 解析后的参数数组
+         */
+        private fun parseCommand(command: String): Array<String> {
+            val result = mutableListOf<String>()
+            val currentArg = StringBuilder()
+            var i = 0
+            var inSingleQuotes = false
+            var inDoubleQuotes = false
+            
+            while (i < command.length) {
+                val c = command[i]
+                
+                // 处理转义字符
+                if (i < command.length - 1 && c == '\\') {
+                    val nextChar = command[i + 1]
+                    if (nextChar == '\'' || nextChar == '"') {
+                        // 处理转义的引号
+                        currentArg.append(nextChar)
+                        i += 2
+                        continue
+                    }
+                }
+                
+                // 处理单引号 (只有当不在双引号中时才处理单引号的开始和结束)
+                if (c == '\'' && !inDoubleQuotes) {
+                    inSingleQuotes = !inSingleQuotes
+                    i++
+                    continue
+                }
+                
+                // 处理双引号 (只有当不在单引号中时才处理双引号的开始和结束)
+                if (c == '"' && !inSingleQuotes) {
+                    inDoubleQuotes = !inDoubleQuotes
+                    i++
+                    continue
+                }
+                
+                // 处理空格 (只有当不在任何引号中时才分割参数)
+                if (c == ' ' && !inSingleQuotes && !inDoubleQuotes) {
+                    if (currentArg.isNotEmpty()) {
+                        result.add(currentArg.toString())
+                        currentArg.clear()
+                    }
+                    i++
+                    continue
+                }
+                
+                // 正常字符
+                currentArg.append(c)
+                i++
+            }
+            
+            // 添加最后一个参数
+            if (currentArg.isNotEmpty()) {
+                result.add(currentArg.toString())
+            }
+            
+            // 检查未闭合的引号
+            if (inSingleQuotes || inDoubleQuotes) {
+                Log.w(TAG, "Warning: Unclosed quotes in command: $command")
+            }
+            
+            // 日志记录结果
+            Log.d(TAG, "Command parsing result: ${result.joinToString(", ", "[", "]")}")
+            
+            return result.toTypedArray()
         }
     }
     

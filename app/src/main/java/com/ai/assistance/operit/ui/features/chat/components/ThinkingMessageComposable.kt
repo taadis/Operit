@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.components
+package com.ai.assistance.operit.ui.features.chat.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
@@ -14,7 +14,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.model.ChatMessage
-import com.ai.assistance.operit.ui.components.MessageContentParser.Companion.ContentSegment
+import com.ai.assistance.operit.ui.common.displays.MessageContentParser
+import com.ai.assistance.operit.ui.common.displays.MessageContentParser.Companion.ContentSegment
 
 /**
  * A composable function for rendering thinking/processing messages in a Cursor IDE style.

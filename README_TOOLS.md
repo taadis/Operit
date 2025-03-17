@@ -10,14 +10,10 @@ The AI assistant now has the ability to use tools to provide enhanced responses.
 
 The following tools are currently available:
 
-### 1. Weather Tool
-Get current weather information.
-```
-<tool name="weather">
-</tool>
-```
+### 1. Basic Tools
+Basic utility tools for simple operations.
 
-### 2. Calculator
+#### 1.1 Calculator
 Perform basic mathematical calculations.
 ```
 <tool name="calculate">
@@ -25,34 +21,266 @@ Perform basic mathematical calculations.
 </tool>
 ```
 
-### 3. Web Search
-Search the web for information.
+#### 1.2 Sleep
+Pause execution for a specified duration in milliseconds.
+```
+<tool name="sleep">
+<param name="duration_ms">2000</param>
+</tool>
+```
+
+#### 1.3 Device Info
+Obtain basic device information for the current app session.
+```
+<tool name="device_info">
+</tool>
+```
+
+### 2. File System Tools
+The application provides several tools for file system operations:
+
+#### 2.1 List Files
+List contents of a directory.
+```
+<tool name="list_files">
+<param name="path">/sdcard/Download</param>
+</tool>
+```
+
+#### 2.2 Read File
+Read the content of a file.
+```
+<tool name="read_file">
+<param name="path">/sdcard/Download/example.txt</param>
+</tool>
+```
+
+#### 2.3 Write File
+Write content to a file.
+```
+<tool name="write_file">
+<param name="path">/sdcard/Download/example.txt</param>
+<param name="content">Hello, world!</param>
+<param name="append">false</param>
+</tool>
+```
+
+#### 2.4 Delete File
+Delete a file or directory.
+```
+<tool name="delete_file">
+<param name="path">/sdcard/Download/example.txt</param>
+<param name="recursive">false</param>
+</tool>
+```
+
+#### 2.5 File Exists
+Check if a file or directory exists.
+```
+<tool name="file_exists">
+<param name="path">/sdcard/Download/example.txt</param>
+</tool>
+```
+
+#### 2.6 Move File
+Move or rename a file or directory.
+```
+<tool name="move_file">
+<param name="source">/sdcard/Download/example.txt</param>
+<param name="destination">/sdcard/Download/new_name.txt</param>
+</tool>
+```
+
+#### 2.7 Copy File
+Copy a file or directory.
+```
+<tool name="copy_file">
+<param name="source">/sdcard/Download/example.txt</param>
+<param name="destination">/sdcard/Documents/example_copy.txt</param>
+<param name="recursive">false</param>
+</tool>
+```
+
+#### 2.8 Make Directory
+Create a directory.
+```
+<tool name="make_directory">
+<param name="path">/sdcard/MyNewFolder</param>
+<param name="create_parents">false</param>
+</tool>
+```
+
+#### 2.9 Find Files
+Search for files matching a pattern.
+```
+<tool name="find_files">
+<param name="path">/sdcard/Download</param>
+<param name="pattern">*.jpg</param>
+<param name="max_depth">2</param>
+<param name="use_path_pattern">false</param>
+<param name="case_insensitive">false</param>
+</tool>
+```
+
+**Important:** The `path` parameter MUST start with `/sdcard/` to avoid system issues. Searching from root directory is not supported and may result in errors.
+
+The `max_depth` parameter controls how deep the search will go in subdirectories:
+- If not specified, the search is fully recursive (unlimited depth)
+- Set to `0` to search only in the specified path without subdirectories
+- Set to a positive number to limit search depth (e.g., `1` for immediate subdirectories only)
+
+The `use_path_pattern` parameter (default: false) determines whether to match against the file name or the entire path.
+The `case_insensitive` parameter (default: false) controls whether the pattern matching is case-sensitive.
+
+#### 2.10 File Info
+Get information about a file or directory.
+```
+<tool name="file_info">
+<param name="path">/sdcard/Download/example.txt</param>
+</tool>
+```
+
+#### 2.11 Zip Files
+Compress files or directories.
+```
+<tool name="zip_files">
+<param name="source">/sdcard/Download/MyFolder</param>
+<param name="destination">/sdcard/Download/MyFolder.zip</param>
+</tool>
+```
+
+#### 2.12 Unzip Files
+Extract a zip file.
+```
+<tool name="unzip_files">
+<param name="source">/sdcard/Download/archive.zip</param>
+<param name="destination">/sdcard/Download/extracted</param>
+</tool>
+```
+
+#### 2.13 Open File
+Open a file with the system's default application.
+```
+<tool name="open_file">
+<param name="path">/sdcard/Download/document.pdf</param>
+</tool>
+```
+
+#### 2.14 Share File
+Share a file using the system's share interface.
+```
+<tool name="share_file">
+<param name="path">/sdcard/Download/image.jpg</param>
+<param name="title">Check out this image!</param>
+</tool>
+```
+
+#### 2.15 Download File
+Download a file from a URL to local storage.
+```
+<tool name="download_file">
+<param name="url">https://example.com/file.pdf</param>
+<param name="destination">/sdcard/Download/file.pdf</param>
+</tool>
+```
+
+### 3. HTTP Tools
+These tools provide direct access to HTTP resources, allowing the AI to directly fetch web pages and send HTTP requests.
+
+#### 3.1 Fetch Web Page
+Retrieve content from a web page.
+```
+<tool name="fetch_web_page">
+<param name="url">https://example.com</param>
+<param name="format">text</param>
+</tool>
+```
+Parameter `format` is optional and can be either "text" (default, returns plain text) or "html" (returns the raw HTML).
+
+#### 3.2 HTTP Request
+Send an HTTP request with full control over method, headers, and body.
+```
+<tool name="http_request">
+<param name="url">https://api.example.com/data</param>
+<param name="method">POST</param>
+<param name="headers">{"Content-Type": "application/json", "Authorization": "Bearer token123"}</param>
+<param name="body">{"name": "Test", "value": 123}</param>
+<param name="body_type">json</param>
+</tool>
+```
+- `method` is optional, defaults to GET (supports GET, POST, PUT, DELETE, HEAD, OPTIONS)
+- `headers` is optional, should be a JSON object
+- `body` is optional, used for POST/PUT/DELETE requests
+- `body_type` is optional, can be "json" (default), "form", or "text"
+
+#### 3.3 Web Search
+Returns pre-defined simulated search results (no actual web access).
 ```
 <tool name="web_search">
 <param name="query">Latest Android features</param>
 </tool>
 ```
 
-### 4. Blocking Sleep Tool
-Pause execution for a specified duration in milliseconds (blocks the thread).
+### 4. System Operation Tools
+These tools provide access to system-level operations. Note that these operations require user authorization.
+
+#### 4.1 Get System Setting
+Retrieve the value of a system setting.
 ```
-<tool name="blocking_sleep">
-<param name="duration_ms">2000</param>
+<tool name="get_system_setting">
+<param name="setting">screen_brightness</param>
+<param name="namespace">system</param>
 </tool>
 ```
 
-### 5. Non-Blocking Sleep Tool
-Initiate a delay without blocking execution.
+#### 4.2 Modify System Setting
+Change the value of a system setting.
 ```
-<tool name="non_blocking_sleep">
-<param name="duration_ms">2000</param>
+<tool name="modify_system_setting">
+<param name="setting">screen_brightness</param>
+<param name="value">100</param>
+<param name="namespace">system</param>
 </tool>
 ```
 
-### 6. Device Info Tool
-Obtain basic device information for the current app session.
+#### 4.3 Install App
+Install an application from an APK file.
 ```
-<tool name="device_info">
+<tool name="install_app">
+<param name="apk_path">/sdcard/Download/app.apk</param>
+</tool>
+```
+
+#### 4.4 Uninstall App
+Uninstall an application.
+```
+<tool name="uninstall_app">
+<param name="package_name">com.example.app</param>
+<param name="keep_data">false</param>
+</tool>
+```
+
+#### 4.5 List Installed Apps
+Get a list of installed applications.
+```
+<tool name="list_installed_apps">
+<param name="include_system_apps">false</param>
+</tool>
+```
+
+#### 4.6 Start App
+Launch an application.
+```
+<tool name="start_app">
+<param name="package_name">com.example.app</param>
+</tool>
+```
+
+#### 4.7 Stop App
+Force stop a running application.
+```
+<tool name="stop_app">
+<param name="package_name">com.example.app</param>
 </tool>
 ```
 
@@ -74,16 +302,19 @@ The tool functionality is implemented with the following components:
 - `EnhancedAIService.kt`: Extension of the base AIService that incorporates tool handling.
 - `ToolProgressBar.kt`: UI component for displaying tool execution progress.
 - `ReferencesDisplay.kt`: UI component for displaying reference links found in AI responses.
+- `HttpTools.kt`: Implements HTTP tools for fetching web pages and making HTTP requests.
+- `FileSystemTools.kt`: Implements file system operations.
+- `SystemOperationTools.kt`: Implements system-level operations.
 
 ## Adding Custom Tools
 
 To add a custom tool, follow these steps:
 
-1. Register your tool executor in the `EnhancedAIService`:
+1. Register your tool executor in the `AIToolHandler`:
 
 ```kotlin
 // Example of registering a custom tool
-enhancedAiService.registerTool("my_custom_tool") { tool ->
+registerTool("my_custom_tool") { tool ->
     val param1 = tool.parameters.find { it.name == "param_name" }?.value ?: ""
     
     // Process the tool parameters
@@ -98,20 +329,16 @@ enhancedAiService.registerTool("my_custom_tool") { tool ->
 }
 ```
 
-2. Update the system prompt to inform the AI about your new tool:
+2. Update the system prompt in `EnhancedAIService` to inform the AI about your new tool:
 
 ```kotlin
-private val SYSTEM_PROMPT_TOOLS = """
-    You have access to the following tools. When you want to use a tool, output it in this specific format:
-    
-    <tool name="tool_name">
-    <param name="parameter_name">parameter_value</param>
-    </tool>
+private val SYSTEM_PROMPT = """
+    You are Operit, an all-capable AI assistant, aimed at solving any task presented by the user. You have various tools at your disposal that you can call upon to efficiently complete complex requests.
     
     Available tools:
-    - weather: Get the current weather. No parameters needed.
-    - calculate: Calculate a mathematical expression. Parameters: expression (e.g. "2+2")
-    - web_search: Search the web for information. Parameters: query (the search term)
+    - calculate: Simple calculator that evaluates basic expressions locally. Parameters: expression (e.g. "2+2", "sqrt(16)")
+    - sleep: Pause execution for a specified duration in milliseconds. Parameters: duration_ms (milliseconds, default 1000, max 10000)
+    - device_info: Returns basic device identifier for the current app session only. No parameters needed.
     - my_custom_tool: Description of your custom tool. Parameters: param_name (description)
     
     Only use these tools when necessary. Use the exact format specified above.
