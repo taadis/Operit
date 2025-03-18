@@ -1,6 +1,10 @@
 package com.ai.assistance.operit.viewmodel
 
+import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
+import android.os.IBinder
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -14,6 +18,7 @@ import com.ai.assistance.operit.model.ChatMessage
 import com.ai.assistance.operit.model.ConversationMarkupManager
 import com.ai.assistance.operit.model.ToolExecutionProgress
 import com.ai.assistance.operit.model.ToolExecutionState
+import com.ai.assistance.operit.service.FloatingChatService
 import com.ai.assistance.operit.util.ChatUtils
 import com.ai.assistance.operit.util.NetworkUtils
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -119,6 +124,26 @@ class ChatViewModel(
     private val _showThinking = MutableStateFlow(ApiPreferences.DEFAULT_SHOW_THINKING)
     val showThinking: StateFlow<Boolean> = _showThinking.asStateFlow()
     
+    // State for floating window mode
+    private val _isFloatingMode = MutableStateFlow(false)
+    val isFloatingMode: StateFlow<Boolean> = _isFloatingMode.asStateFlow()
+    
+    // Add a reference to the floating service
+    private var floatingService: FloatingChatService? = null
+    private val serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            floatingService = (service as? FloatingChatService.LocalBinder)?.getService()
+            // Sync current messages when service connects
+            _chatHistory.value.let { messages ->
+                floatingService?.updateChatMessages(messages)
+            }
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            floatingService = null
+        }
+    }
+    
     init {
         // Load API settings
         viewModelScope.launch {
@@ -171,6 +196,13 @@ class ChatViewModel(
             apiPreferences.showThinkingFlow.collect { showThinkingValue ->
                 _showThinking.value = showThinkingValue
                 
+            }
+        }
+        
+        // Update floating window when chat history changes
+        viewModelScope.launch {
+            _chatHistory.collect { messages ->
+                floatingService?.updateChatMessages(messages)
             }
         }
     }
@@ -515,6 +547,10 @@ class ChatViewModel(
         _popupMessage.value = null
     }
     
+    fun popupMessage(message: String) {
+        _popupMessage.value = message
+    }
+    
     fun deleteChatHistory(chatId: String) {
         viewModelScope.launch {
             try {
@@ -682,5 +718,36 @@ class ChatViewModel(
     
     fun clearToastEvent() {
         _toastEvent.value = null
+    }
+    
+    fun toggleFloatingMode() {
+        val newMode = !_isFloatingMode.value
+        _isFloatingMode.value = newMode
+        
+        if (newMode) {
+            // Bind to the service when floating mode is enabled
+            val intent = Intent(context, FloatingChatService::class.java)
+            context.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+        } else {
+            // Unbind from service when floating mode is disabled
+            try {
+                context.unbindService(serviceConnection)
+            } catch (e: Exception) {
+                Log.e("ChatViewModel", "Error unbinding service", e)
+            }
+            floatingService = null
+        }
+    }
+    
+    override fun onCleared() {
+        super.onCleared()
+        // Ensure service is unbound when ViewModel is cleared
+        if (_isFloatingMode.value) {
+            try {
+                context.unbindService(serviceConnection)
+            } catch (e: Exception) {
+                Log.e("ChatViewModel", "Error unbinding service in onCleared", e)
+            }
+        }
     }
 } 

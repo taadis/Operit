@@ -1,6 +1,7 @@
 package com.ai.assistance.operit.data
 
 import android.content.Context
+import android.util.Log
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
 import com.ai.assistance.operit.model.ChatHistory
@@ -78,7 +79,9 @@ class ChatHistoryManager(private val context: Context) {
                 
                 // 查找是否已存在该ID的历史记录
                 val existingIndex = existingHistories.indexOfFirst { it.id == history.id }
-                
+
+                // Log.d("ChatHistoryManager", "existingIndex: $existingIndex")0
+
                 // 如果存在则更新，不存在则添加
                 if (existingIndex != -1) {
                     existingHistories[existingIndex] = history

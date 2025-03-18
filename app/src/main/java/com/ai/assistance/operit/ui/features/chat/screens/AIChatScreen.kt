@@ -1,6 +1,9 @@
 package com.ai.assistance.operit.ui.features.chat.screens
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -19,10 +22,20 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PictureInPicture
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.window.Dialog
+import com.ai.assistance.operit.model.ChatMessage
+import com.ai.assistance.operit.service.FloatingChatService
 import com.ai.assistance.operit.ui.features.chat.components.ChatArea
 import com.ai.assistance.operit.ui.features.chat.components.ChatHeader
 import com.ai.assistance.operit.ui.features.chat.components.ChatHistorySelector
 import com.ai.assistance.operit.ui.features.chat.components.ChatInputSection
+import android.util.Log
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,6 +64,10 @@ fun AIChatScreen() {
     val currentChatId by viewModel.currentChatId.collectAsState()
     val popupMessage by viewModel.popupMessage.collectAsState()
     
+    // Floating window mode state
+    val isFloatingMode by viewModel.isFloatingMode.collectAsState()
+    val canDrawOverlays = remember { mutableStateOf(Settings.canDrawOverlays(context)) }
+    
     // UI state
     val listState = rememberLazyListState()
     val focusManager = LocalFocusManager.current
@@ -75,6 +92,37 @@ fun AIChatScreen() {
                 index = chatHistory.size - 1,
                 scrollOffset = 0 // Ensure full visibility of the last item
             )
+        }
+    }
+    
+    // Launch floating window service when floating mode is enabled
+    LaunchedEffect(isFloatingMode, chatHistory.size) {
+        if (isFloatingMode && canDrawOverlays.value) {
+            try {
+                // Start floating chat service
+                val intent = Intent(context, FloatingChatService::class.java)
+                
+                // Filter out "think" messages which are not needed in the floating window
+                val filteredMessages = chatHistory.filter { it.sender != "think" }
+                
+                // Convert to array of parcelables if needed
+                val chatMessagesArray = filteredMessages.toTypedArray()
+                intent.putExtra("CHAT_MESSAGES", chatMessagesArray)
+                
+                context.startService(intent)
+                Log.d("AIChatScreen", "Started floating window service with ${filteredMessages.size} messages")
+            } catch (e: Exception) {
+                Log.e("AIChatScreen", "Error starting floating service", e)
+                viewModel.toggleFloatingMode() // Turn off floating mode if it fails
+                android.widget.Toast.makeText(
+                    context,
+                    "启动悬浮窗失败，请确保已授予悬浮窗权限",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+        } else if (!isFloatingMode) {
+            // Stop floating chat service when floating mode is disabled
+            context.stopService(Intent(context, FloatingChatService::class.java))
         }
     }
     
@@ -129,6 +177,29 @@ fun AIChatScreen() {
                     focusRequester = inputFocusRequester
                 )
             }
+        },
+        floatingActionButton = {
+            if (isConfigured) {
+                FloatingActionButton(
+                    onClick = { 
+                        if (canDrawOverlays.value) {
+                            viewModel.toggleFloatingMode()
+                        } else {
+                            // Request permission
+                            val intent = Intent(
+                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:${context.packageName}")
+                            )
+                            context.startActivity(intent)
+                        }
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PictureInPicture,
+                        contentDescription = "Toggle Floating Mode"
+                    )
+                }
+            }
         }
     ) { paddingValues ->
         if (!isConfigured) {
@@ -167,7 +238,7 @@ fun AIChatScreen() {
                             onNewChat = { viewModel.createNewChat() },
                             onSelectChat = { chatId -> viewModel.switchChat(chatId) },
                             onDeleteChat = { chatId -> viewModel.deleteChatHistory(chatId) },
-                            chatHistories = chatHistories.sortedByDescending { it.updatedAt },
+                            chatHistories = chatHistories.sortedByDescending { it.createdAt },
                             currentId = currentChatId
                         )
                     }
@@ -222,6 +293,21 @@ fun AIChatScreen() {
                 }
             }
         )
+    }
+    
+    // Check for overlay permission on resume
+    LaunchedEffect(Unit) {
+        canDrawOverlays.value = Settings.canDrawOverlays(context)
+        
+        // If floating mode is on but no permission, turn it off
+        if (isFloatingMode && !canDrawOverlays.value) {
+            viewModel.toggleFloatingMode()
+            android.widget.Toast.makeText(
+                context,
+                "未获得悬浮窗权限，已关闭悬浮窗模式",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+        }
     }
 }
 

@@ -21,6 +21,14 @@
     <string name="network_unavailable">网络连接不可用，请检查您的网络设置</string>
     <string name="network_status">网络状态: %1$s</string>
     
+    <!-- Floating Window -->
+    <string name="floating_chat_window">聊天悬浮窗</string>
+    <string name="enable_floating_mode">启用悬浮窗模式</string>
+    <string name="disable_floating_mode">关闭悬浮窗模式</string>
+    <string name="overlay_permission_required">需要悬浮窗权限</string>
+    <string name="overlay_permission_denied">未获得悬浮窗权限，无法显示悬浮窗</string>
+    <string name="close_floating_window">关闭悬浮窗</string>
+    
     <!-- AI Tools -->
     <string name="ai_tools_enabled">已启用AI工具功能</string>
     <string name="tools_extracting">正在检测工具调用...</string>

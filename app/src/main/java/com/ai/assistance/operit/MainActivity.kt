@@ -27,6 +27,9 @@ class MainActivity : ComponentActivity() {
     // 共享权限状态
     private var permissionsRequested = false
     
+    // 悬浮窗权限请求状态
+    private var overlayPermissionRequested = false
+    
     private val requiredPermissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         arrayOf(
             Manifest.permission.READ_MEDIA_IMAGES,
@@ -53,8 +56,8 @@ class MainActivity : ComponentActivity() {
             checkManageExternalStoragePermission()
         } else {
             Toast.makeText(this, "需要授予存储权限才能正常使用Shizuku功能", Toast.LENGTH_LONG).show()
-            // 尝试继续初始化，即使某些权限未授予
-            initializeShizuku()
+            // 尝试继续流程，检查存储权限
+            checkManageExternalStoragePermission()
         }
     }
     
@@ -64,14 +67,33 @@ class MainActivity : ComponentActivity() {
         Log.d(TAG, "Storage permission result: ${it.resultCode}")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (Environment.isExternalStorageManager()) {
-                // 所有权限都已授予，可以初始化Shizuku
-                initializeShizuku()
+                // 所有权限都已授予，检查悬浮窗权限
+                checkOverlayPermission()
             } else {
                 Toast.makeText(this, "未获得所有文件访问权限，某些功能可能受限", Toast.LENGTH_LONG).show()
-                // 尝试继续初始化，即使未授予存储管理权限
-                initializeShizuku()
+                // 继续检查悬浮窗权限
+                checkOverlayPermission()
             }
+        } else {
+            // 对于低版本Android，继续检查悬浮窗权限
+            checkOverlayPermission()
         }
+    }
+    
+    // 悬浮窗权限请求结果
+    private val overlayPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        Log.d(TAG, "Overlay permission result: ${it.resultCode}")
+        overlayPermissionRequested = true
+        if (Settings.canDrawOverlays(this)) {
+            Log.d(TAG, "Overlay permission granted")
+        } else {
+            Log.d(TAG, "Overlay permission denied")
+            Toast.makeText(this, "未获得悬浮窗权限，某些功能可能受限", Toast.LENGTH_LONG).show()
+        }
+        // 无论结果如何，继续初始化Shizuku
+        initializeShizuku()
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -109,6 +131,9 @@ class MainActivity : ComponentActivity() {
         // 如果还没请求过权限，在onResume中再次尝试请求
         if (!permissionsRequested) {
             requestRequiredPermissions()
+        } else if (!overlayPermissionRequested && !Settings.canDrawOverlays(this)) {
+            // 如果基本权限已请求但悬浮窗权限尚未请求
+            checkOverlayPermission()
         } else {
             // 检查Shizuku状态
             lifecycleScope.launch {
@@ -155,7 +180,7 @@ class MainActivity : ComponentActivity() {
             }
         } else {
             // 低于Android 6.0，权限在安装时已授予
-            initializeShizuku()
+            checkManageExternalStoragePermission()
         }
     }
     
@@ -179,18 +204,50 @@ class MainActivity : ComponentActivity() {
                     } catch (ex: Exception) {
                         Log.e(TAG, "Error requesting general storage permission", ex)
                         Toast.makeText(this, "无法打开存储权限设置", Toast.LENGTH_LONG).show()
-                        // 尝试继续初始化，虽然可能会失败
-                        initializeShizuku()
+                        // 检查悬浮窗权限
+                        checkOverlayPermission()
                     }
                 }
             } else {
                 Log.d(TAG, "MANAGE_EXTERNAL_STORAGE permission already granted")
-                // 已有存储管理权限
-                initializeShizuku()
+                // 已有存储管理权限，检查悬浮窗权限
+                checkOverlayPermission()
             }
         } else {
             Log.d(TAG, "MANAGE_EXTERNAL_STORAGE not needed for this Android version")
-            // Android 10及以下不需要特殊的存储管理权限
+            // Android 10及以下不需要特殊的存储管理权限，检查悬浮窗权限
+            checkOverlayPermission()
+        }
+    }
+    
+    /**
+     * 检查悬浮窗权限并请求
+     */
+    private fun checkOverlayPermission() {
+        if (!overlayPermissionRequested) {
+            Log.d(TAG, "Checking SYSTEM_ALERT_WINDOW permission")
+            if (!Settings.canDrawOverlays(this)) {
+                Log.d(TAG, "Requesting SYSTEM_ALERT_WINDOW permission")
+                try {
+                    val intent = Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:$packageName")
+                    )
+                    overlayPermissionLauncher.launch(intent)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error requesting overlay permission", e)
+                    Toast.makeText(this, "无法打开悬浮窗权限设置", Toast.LENGTH_LONG).show()
+                    // 继续初始化Shizuku
+                    initializeShizuku()
+                }
+            } else {
+                Log.d(TAG, "SYSTEM_ALERT_WINDOW permission already granted")
+                // 已有悬浮窗权限，继续初始化Shizuku
+                initializeShizuku()
+            }
+        } else {
+            Log.d(TAG, "Overlay permission already requested, continuing")
+            // 已经请求过悬浮窗权限，继续初始化Shizuku
             initializeShizuku()
         }
     }

@@ -43,7 +43,7 @@ class ConversationRoundManager {
         // Simply update the content for the current round
         val currentRound = currentResponseRound.get()
         roundContents[currentRound] = content
-        Log.d(TAG, "Updated content for round $currentRound")
+        // Log.d(TAG, "Updated content for round $currentRound")
         
         return getDisplayContent()
     }
