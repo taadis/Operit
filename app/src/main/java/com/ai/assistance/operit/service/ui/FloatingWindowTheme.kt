@@ -3,7 +3,12 @@ package com.ai.assistance.operit.service.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Typography
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 
 /**
  * 为悬浮窗提供的独立主题
@@ -49,8 +54,69 @@ fun FloatingWindowTheme(content: @Composable () -> Unit) {
         outline = Color(0xFF79747E)                 // 标准轮廓色
     )
     
+    // 创建小型化的Typography
+    val smallTypography = Typography(
+        // 正文大字号
+        bodyLarge = TextStyle(
+            fontFamily = FontFamily.Default,
+            fontWeight = FontWeight.Normal,
+            fontSize = 8.sp,
+            lineHeight = 10.sp,
+            letterSpacing = 0.5.sp
+        ),
+        // 正文中字号 
+        bodyMedium = TextStyle(
+            fontFamily = FontFamily.Default,
+            fontWeight = FontWeight.Normal,
+            fontSize = 7.sp,
+            lineHeight = 8.sp,
+            letterSpacing = 0.25.sp
+        ),
+        // 正文小字号 
+        bodySmall = TextStyle(
+            fontFamily = FontFamily.Default,
+            fontWeight = FontWeight.Normal,
+            fontSize = 6.sp,
+            lineHeight = 7.sp,
+            letterSpacing = 0.4.sp
+        ),
+        // 标签小字号
+        labelSmall = TextStyle(
+            fontFamily = FontFamily.Default,
+            fontWeight = FontWeight.Medium,
+            fontSize = 6.sp,
+            lineHeight = 7.sp,
+            letterSpacing = 0.5.sp
+        ),
+        // 标题小字号
+        titleSmall = TextStyle(
+            fontFamily = FontFamily.Default,
+            fontWeight = FontWeight.Medium,
+            fontSize = 8.sp,
+            lineHeight = 9.sp,
+            letterSpacing = 0.5.sp
+        ),
+        // 按钮文本样式
+        labelMedium = TextStyle(
+            fontFamily = FontFamily.Default,
+            fontWeight = FontWeight.Medium,
+            fontSize = 7.sp,
+            lineHeight = 8.sp,
+            letterSpacing = 0.5.sp
+        ),
+        // 按钮大文本样式
+        labelLarge = TextStyle(
+            fontFamily = FontFamily.Default,
+            fontWeight = FontWeight.Medium,
+            fontSize = 8.sp,
+            lineHeight = 10.sp,
+            letterSpacing = 0.5.sp
+        )
+    )
+    
     MaterialTheme(
         colorScheme = colorScheme,
+        typography = smallTypography,
         content = content
     )
 } 

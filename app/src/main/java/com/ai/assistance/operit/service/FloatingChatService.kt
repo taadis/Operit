@@ -339,7 +339,25 @@ class FloatingChatService : Service() {
                         messages = chatMessages.value,
                         width = windowWidth.value,
                         height = windowHeight.value,
-                        onClose = { stopSelf() },
+                        onClose = { 
+                            Log.d(TAG, "Close button clicked, stopping service")
+                            // 延迟200毫秒后关闭
+                            Handler(Looper.getMainLooper()).postDelayed({
+                                // 先移除视图，再停止服务
+                                if (isViewAdded) {
+                                    try {
+                                        composeView?.let {
+                                            windowManager.removeView(it)
+                                        }
+                                        isViewAdded = false
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "Error removing floating view", e)
+                                    }
+                                }
+                                // 停止服务 不了
+                                stopSelf()
+                            }, 200)
+                        },
                         onResize = { newWidth, newHeight ->
                             windowWidth.value = newWidth
                             windowHeight.value = newHeight
