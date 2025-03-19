@@ -373,12 +373,16 @@ class ADBUITools(private val context: Context) {
             )
         }
         
+        // Log tap attempt
+        Log.d(TAG, "Attempting to tap at coordinates: ($x, $y)")
+        
         val command = "input tap $x $y"
         
         return try {
             val result = AdbCommandExecutor.executeAdbCommand(command)
             
             if (result.success) {
+                Log.d(TAG, "Tap successful at coordinates: ($x, $y)")
                 ToolResult(
                     toolName = tool.name,
                     success = true,
@@ -386,38 +390,42 @@ class ADBUITools(private val context: Context) {
                     error = ""
                 )
             } else {
+                Log.e(TAG, "Tap failed at coordinates: ($x, $y), error: ${result.stderr}")
                 ToolResult(
                     toolName = tool.name,
                     success = false,
                     result = "",
-                    error = "Failed to tap at coordinates ($x, $y): ${result.stderr}"
+                    error = "Failed to tap at coordinates ($x, $y): ${result.stderr ?: "Unknown error"}"
                 )
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error tapping at coordinates", e)
+            Log.e(TAG, "Error tapping at coordinates ($x, $y)", e)
             ToolResult(
                 toolName = tool.name,
                 success = false,
                 result = "",
-                error = "Error tapping at coordinates: ${e.message}"
+                error = "Error tapping at coordinates: ${e.message ?: "Unknown exception"}"
             )
         }
     }
     
     /**
-     * Simulates a click on an element identified by resource ID or text
+     * Simulates a click on an element identified by resource ID, text, content description, or class name
      */
     suspend fun clickElement(tool: AITool): ToolResult {
         val resourceId = tool.parameters.find { it.name == "resourceId" }?.value
         val text = tool.parameters.find { it.name == "text" }?.value
         val contentDesc = tool.parameters.find { it.name == "contentDesc" }?.value
+        val className = tool.parameters.find { it.name == "className" }?.value
+        val index = tool.parameters.find { it.name == "index" }?.value?.toIntOrNull() ?: 0
+        val partialMatch = tool.parameters.find { it.name == "partialMatch" }?.value?.toBoolean() ?: false
         
-        if (resourceId == null && text == null && contentDesc == null) {
+        if (resourceId == null && text == null && contentDesc == null && className == null) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
                 result = "",
-                error = "Missing element identifier. Provide at least one of: 'resourceId', 'text', or 'contentDesc'."
+                error = "Missing element identifier. Provide at least one of: 'resourceId', 'text', 'contentDesc', or 'className'."
             )
         }
         
@@ -431,7 +439,7 @@ class ADBUITools(private val context: Context) {
                     toolName = tool.name,
                     success = false,
                     result = "",
-                    error = "Failed to dump UI hierarchy: ${dumpResult.stderr}"
+                    error = "Failed to dump UI hierarchy: ${dumpResult.stderr ?: "Unknown error"}"
                 )
             }
             
@@ -444,7 +452,7 @@ class ADBUITools(private val context: Context) {
                     toolName = tool.name,
                     success = false,
                     result = "",
-                    error = "Failed to read UI hierarchy: ${readResult.stderr}"
+                    error = "Failed to read UI hierarchy: ${readResult.stderr ?: "Unknown error"}"
                 )
             }
             
@@ -452,31 +460,108 @@ class ADBUITools(private val context: Context) {
             val xml = readResult.stdout
             
             // Define regex patterns for matching element attributes
-            val resourceIdPattern = "resource-id=\"${resourceId?.let { Regex.escape(it) } ?: ".*?"}\"".toRegex()
-            val textPattern = "text=\"${text?.let { Regex.escape(it) } ?: ".*?"}\"".toRegex()
-            val contentDescPattern = "content-desc=\"${contentDesc?.let { Regex.escape(it) } ?: ".*?"}\"".toRegex()
+            // For resource IDs, we need to be more precise to match complete IDs
+            val resourceIdPattern = if (resourceId != null) {
+                if (partialMatch) {
+                    "resource-id=\".*?${Regex.escape(resourceId)}.*?\"".toRegex()
+                } else {
+                    // More precise matching for exact resource IDs (must end with the ID)
+                    // This helps with cases where one ID is a subset of another
+                    "resource-id=\"(?:.*?:id/)?${Regex.escape(resourceId)}\"".toRegex()
+                }
+            } else {
+                "resource-id=\".*?\"".toRegex()
+            }
+            
+            val textPattern = if (text != null) {
+                if (partialMatch) {
+                    "text=\".*?${Regex.escape(text)}.*?\"".toRegex()
+                } else {
+                    "text=\"${Regex.escape(text)}\"".toRegex()
+                }
+            } else {
+                "text=\".*?\"".toRegex()
+            }
+            
+            val contentDescPattern = if (contentDesc != null) {
+                if (partialMatch) {
+                    "content-desc=\".*?${Regex.escape(contentDesc)}.*?\"".toRegex()
+                } else {
+                    "content-desc=\"${Regex.escape(contentDesc)}\"".toRegex()
+                }
+            } else {
+                "content-desc=\".*?\"".toRegex()
+            }
+            
+            val classNamePattern = if (className != null) {
+                "class=\".*?${Regex.escape(className)}.*?\"".toRegex()
+            } else {
+                "class=\".*?\"".toRegex()
+            }
+            
             val boundsPattern = "bounds=\"\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]\"".toRegex()
             
             // Find nodes in XML that match our criteria
-            val nodeRegex = if (resourceId != null) {
-                "<node[^>]*?$resourceIdPattern[^>]*?>".toRegex()
-            } else if (text != null) {
-                "<node[^>]*?$textPattern[^>]*?>".toRegex()
+            // First, try to build a more precise regex based on which criteria are provided
+            val matchingNodes = if (resourceId != null) {
+                // For resourceId, extract complete node elements to ensure we're matching correctly
+                val nodePattern = if (partialMatch) {
+                    "<node[^>]*?resource-id=\".*?${Regex.escape(resourceId)}.*?\"[^>]*?>".toRegex()
+                } else {
+                    // More precise matching for resourceIds
+                    "<node[^>]*?resource-id=\"(?:.*?:id/)?${Regex.escape(resourceId)}\"[^>]*?>".toRegex()
+                }
+                nodePattern.findAll(xml).toList()
             } else {
-                "<node[^>]*?$contentDescPattern[^>]*?>".toRegex()
+                // Build pattern for other criteria
+                val nodeRegexPattern = StringBuilder("<node[^>]*?")
+                
+                if (text != null) nodeRegexPattern.append(".*?$textPattern")
+                if (contentDesc != null) nodeRegexPattern.append(".*?$contentDescPattern")
+                if (className != null) nodeRegexPattern.append(".*?$classNamePattern")
+                
+                nodeRegexPattern.append("[^>]*?>")
+                
+                val nodeRegex = nodeRegexPattern.toString().toRegex()
+                nodeRegex.findAll(xml).toList()
             }
             
-            val matchingNodes = nodeRegex.findAll(xml)
-            val node = matchingNodes.firstOrNull()
-            
-            if (node == null) {
+            if (matchingNodes.isEmpty()) {
+                // If no nodes found, provide a helpful error message based on what we were searching for
+                val criteria = when {
+                    resourceId != null -> "resource ID: $resourceId"
+                    text != null -> "text: $text"
+                    contentDesc != null -> "content description: $contentDesc"
+                    else -> "class name: $className"
+                }
+                val matchType = if (partialMatch) "partial match" else "exact match"
+                
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
                     result = "",
-                    error = "No matching element found with the specified criteria."
+                    error = "No element found with $criteria ($matchType)."
                 )
             }
+            
+            // Log how many matching nodes we found
+            Log.d(TAG, "Found ${matchingNodes.size} matching elements for clickElement")
+            
+            // Check if index is within range
+            if (index < 0 || index >= matchingNodes.size) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = "",
+                    error = "Index out of range. Found ${matchingNodes.size} matching elements, but requested index $index."
+                )
+            }
+            
+            // Get the node at the specified index
+            val node = matchingNodes[index]
+            
+            // Debug log the matched node to help with troubleshooting
+            Log.d(TAG, "Selected node: ${node.value.take(200)}${if (node.value.length > 200) "..." else ""}")
             
             // Extract bounds from the matching node
             val matchResult = boundsPattern.find(node.value)
@@ -500,19 +585,31 @@ class ADBUITools(private val context: Context) {
             val centerX = (x1 + x2) / 2
             val centerY = (y1 + y2) / 2
             
+            // Log the tap coordinates
+            Log.d(TAG, "Tapping element at coordinates: ($centerX, $centerY)")
+            
             // Execute the tap command at the center point
             val tapCommand = "input tap $centerX $centerY"
             val tapResult = AdbCommandExecutor.executeAdbCommand(tapCommand)
             
             if (tapResult.success) {
+                val identifierDescription = when {
+                    resourceId != null -> " with resource ID: $resourceId"
+                    text != null -> " with text: $text"
+                    contentDesc != null -> " with content description: $contentDesc"
+                    else -> " with class name: $className"
+                }
+                
+                val matchCount = if (matchingNodes.size > 1) {
+                    " (index $index of ${matchingNodes.size} matches)"
+                } else {
+                    ""
+                }
+                
                 ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = "Successfully clicked element" + when {
-                        resourceId != null -> " with resource ID: $resourceId"
-                        text != null -> " with text: $text"
-                        else -> " with content description: $contentDesc"
-                    } + " at coordinates ($centerX, $centerY)",
+                    result = "Successfully clicked element$identifierDescription$matchCount at coordinates ($centerX, $centerY)",
                     error = ""
                 )
             } else {
@@ -520,7 +617,7 @@ class ADBUITools(private val context: Context) {
                     toolName = tool.name,
                     success = false,
                     result = "",
-                    error = "Failed to click element: ${tapResult.stderr}"
+                    error = "Failed to click element: ${tapResult.stderr ?: "Unknown error"}"
                 )
             }
         } catch (e: Exception) {
@@ -529,7 +626,7 @@ class ADBUITools(private val context: Context) {
                 toolName = tool.name,
                 success = false,
                 result = "",
-                error = "Error clicking element: ${e.message}"
+                error = "Error clicking element: ${e.message ?: "Unknown exception"}"
             )
         }
     }
@@ -538,36 +635,110 @@ class ADBUITools(private val context: Context) {
      * Sets text in an input field
      */
     suspend fun setInputText(tool: AITool): ToolResult {
-        val text = tool.parameters.find { it.name == "text" }?.value
+        val text = tool.parameters.find { it.name == "text" }?.value ?: ""
         
-        if (text == null) {
-            return ToolResult(
-                toolName = tool.name,
-                success = false,
-                result = "",
-                error = "Missing 'text' parameter."
-            )
+        // If no text parameter is provided, use an empty string but still log the issue
+        if (text.isEmpty()) {
+            Log.w(TAG, "Empty text provided to setInputText, will clear field only")
         }
         
         return try {
-            // Clear existing text first
-            val clearCommand = "input keyevent KEYCODE_CTRL_A && input keyevent KEYCODE_DEL"
-            val clearResult = AdbCommandExecutor.executeAdbCommand(clearCommand)
+            // First clear the field by sending DEL key events
+            Log.d(TAG, "Clearing text field with DEL keyevents")
             
-            if (!clearResult.success) {
+            // First try select all (CTRL+A) then delete
+            val selectAllCommand = "input keyevent KEYCODE_CTRL_A"
+            AdbCommandExecutor.executeAdbCommand(selectAllCommand)
+            
+            // Then press delete - do this a few times to ensure the field is clear
+            val deleteCommand = "input keyevent KEYCODE_DEL"
+            repeat(5) { // Send delete a few times to make sure the field is clear
+                AdbCommandExecutor.executeAdbCommand(deleteCommand)
+            }
+            
+            // Short delay before typing
+            kotlinx.coroutines.delay(300)
+            
+            // If text is empty, we're done (just wanted to clear the field)
+            if (text.isEmpty()) {
                 return ToolResult(
                     toolName = tool.name,
-                    success = false,
-                    result = "",
-                    error = "Failed to clear existing text: ${clearResult.stderr}"
+                    success = true,
+                    result = "Successfully cleared input field",
+                    error = ""
                 )
             }
             
-            // Now type the new text
-            val inputCommand = "input text '${text.replace("'", "\\'")}'"
-            val inputResult = AdbCommandExecutor.executeAdbCommand(inputCommand)
+            Log.d(TAG, "Setting text to: $text")
             
-            if (inputResult.success) {
+            // Try multiple approaches to input text
+            var success = false
+            var errorMessage = ""
+            
+            // Approach 1: Use keyevent mapping (most reliable but limited to ASCII)
+            try {
+                success = typeUsingKeyEvents(text)
+                
+                if (success) {
+                    Log.d(TAG, "Successfully input text using keyevents")
+                } else {
+                    Log.w(TAG, "Failed to input text using keyevents, will try alternative methods")
+                    errorMessage = "Failed to input text using keyevents"
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error using keyevents for text input", e)
+                errorMessage = "Error using keyevents: ${e.message ?: "Unknown error"}"
+            }
+            
+            // Approach 2: Try direct text input if keyevents failed
+            if (!success) {
+                try {
+                    // Try without any quotes or escaping first - this works in some cases
+                    val noQuotesCommand = "input text $text"
+                    val noQuotesResult = AdbCommandExecutor.executeAdbCommand(noQuotesCommand)
+                    
+                    if (noQuotesResult.success) {
+                        success = true
+                        Log.d(TAG, "Successfully input text using direct command without quotes")
+                    } else {
+                        // Try with double quotes and basic escaping
+                        val safeText = text.replace("\"", "\\\"").replace("$", "\\$")
+                        val quotedCommand = "input text \"$safeText\""
+                        val quotedResult = AdbCommandExecutor.executeAdbCommand(quotedCommand)
+                        
+                        if (quotedResult.success) {
+                            success = true
+                            Log.d(TAG, "Successfully input text using quoted command")
+                        } else {
+                            Log.w(TAG, "Failed to input text using quoted command: ${quotedResult.stderr}")
+                            errorMessage = "Failed to input text with quotes: ${quotedResult.stderr ?: "Unknown error"}"
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error with direct text input commands", e)
+                    errorMessage = "Error with direct input: ${e.message ?: "Unknown error"}"
+                }
+            }
+            
+            // Approach 3: Try character by character with fallback to keycode map
+            if (!success) {
+                try {
+                    Log.d(TAG, "Trying character-by-character with mixed strategy")
+                    success = typeCharByCharMixed(text)
+                    
+                    if (success) {
+                        Log.d(TAG, "Successfully input text using character-by-character mixed approach")
+                    } else {
+                        Log.e(TAG, "All text input methods failed")
+                        errorMessage = "All text input methods failed"
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error in character-by-character mixed approach", e)
+                    errorMessage = "Error in mixed character approach: ${e.message ?: "Unknown error"}"
+                }
+            }
+            
+            if (success) {
                 ToolResult(
                     toolName = tool.name,
                     success = true,
@@ -579,7 +750,7 @@ class ADBUITools(private val context: Context) {
                     toolName = tool.name,
                     success = false,
                     result = "",
-                    error = "Failed to set input text: ${inputResult.stderr}"
+                    error = "Failed to set input text: $errorMessage"
                 )
             }
         } catch (e: Exception) {
@@ -588,8 +759,217 @@ class ADBUITools(private val context: Context) {
                 toolName = tool.name,
                 success = false,
                 result = "",
-                error = "Error setting input text: ${e.message}"
+                error = "Error setting input text: ${e.message ?: "Unknown exception"}"
             )
+        }
+    }
+    
+    /**
+     * Types text character by character using a mix of strategies
+     * Tries different approaches for each character
+     */
+    private suspend fun typeCharByCharMixed(text: String): Boolean {
+        Log.d(TAG, "Typing text using mixed strategy: $text")
+        try {
+            for (char in text) {
+                // Try several methods for each character until one works
+                
+                // Method 1: Try input text with double quotes for this single character
+                val charCommand = "input text \"$char\""
+                val result = AdbCommandExecutor.executeAdbCommand(charCommand)
+                
+                if (result.success) {
+                    // This method worked, continue to next character
+                    kotlinx.coroutines.delay(50)
+                    continue
+                }
+                
+                // Method 2: Try input text without quotes for this character
+                val plainCommand = "input text $char"
+                val plainResult = AdbCommandExecutor.executeAdbCommand(plainCommand)
+                
+                if (plainResult.success) {
+                    // This method worked, continue to next character
+                    kotlinx.coroutines.delay(50)
+                    continue
+                }
+                
+                // Method 3: Try using keyevent for this character
+                val keycodeSuccess = typeCharUsingKeycode(char)
+                
+                if (keycodeSuccess) {
+                    // Keyevent method worked, continue to next character
+                    kotlinx.coroutines.delay(50)
+                    continue
+                }
+                
+                // If we reach here, all methods failed for this character
+                Log.e(TAG, "Failed to type character '$char' using all available methods")
+                return false
+            }
+            return true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in mixed character typing", e)
+            return false
+        }
+    }
+    
+    /**
+     * Map of characters to Android key codes for common characters
+     */
+    private val keyCodeMap = mapOf(
+        'a' to "KEYCODE_A",
+        'b' to "KEYCODE_B", 
+        'c' to "KEYCODE_C",
+        'd' to "KEYCODE_D",
+        'e' to "KEYCODE_E",
+        'f' to "KEYCODE_F",
+        'g' to "KEYCODE_G",
+        'h' to "KEYCODE_H",
+        'i' to "KEYCODE_I",
+        'j' to "KEYCODE_J",
+        'k' to "KEYCODE_K",
+        'l' to "KEYCODE_L",
+        'm' to "KEYCODE_M",
+        'n' to "KEYCODE_N",
+        'o' to "KEYCODE_O",
+        'p' to "KEYCODE_P",
+        'q' to "KEYCODE_Q",
+        'r' to "KEYCODE_R",
+        's' to "KEYCODE_S",
+        't' to "KEYCODE_T",
+        'u' to "KEYCODE_U",
+        'v' to "KEYCODE_V",
+        'w' to "KEYCODE_W",
+        'x' to "KEYCODE_X",
+        'y' to "KEYCODE_Y",
+        'z' to "KEYCODE_Z",
+        'A' to "KEYCODE_SHIFT_LEFT KEYCODE_A",
+        'B' to "KEYCODE_SHIFT_LEFT KEYCODE_B",
+        'C' to "KEYCODE_SHIFT_LEFT KEYCODE_C",
+        'D' to "KEYCODE_SHIFT_LEFT KEYCODE_D",
+        'E' to "KEYCODE_SHIFT_LEFT KEYCODE_E",
+        'F' to "KEYCODE_SHIFT_LEFT KEYCODE_F",
+        'G' to "KEYCODE_SHIFT_LEFT KEYCODE_G",
+        'H' to "KEYCODE_SHIFT_LEFT KEYCODE_H",
+        'I' to "KEYCODE_SHIFT_LEFT KEYCODE_I",
+        'J' to "KEYCODE_SHIFT_LEFT KEYCODE_J",
+        'K' to "KEYCODE_SHIFT_LEFT KEYCODE_K",
+        'L' to "KEYCODE_SHIFT_LEFT KEYCODE_L",
+        'M' to "KEYCODE_SHIFT_LEFT KEYCODE_M",
+        'N' to "KEYCODE_SHIFT_LEFT KEYCODE_N",
+        'O' to "KEYCODE_SHIFT_LEFT KEYCODE_O",
+        'P' to "KEYCODE_SHIFT_LEFT KEYCODE_P",
+        'Q' to "KEYCODE_SHIFT_LEFT KEYCODE_Q",
+        'R' to "KEYCODE_SHIFT_LEFT KEYCODE_R",
+        'S' to "KEYCODE_SHIFT_LEFT KEYCODE_S",
+        'T' to "KEYCODE_SHIFT_LEFT KEYCODE_T",
+        'U' to "KEYCODE_SHIFT_LEFT KEYCODE_U",
+        'V' to "KEYCODE_SHIFT_LEFT KEYCODE_V",
+        'W' to "KEYCODE_SHIFT_LEFT KEYCODE_W",
+        'X' to "KEYCODE_SHIFT_LEFT KEYCODE_X",
+        'Y' to "KEYCODE_SHIFT_LEFT KEYCODE_Y",
+        'Z' to "KEYCODE_SHIFT_LEFT KEYCODE_Z",
+        '0' to "KEYCODE_0",
+        '1' to "KEYCODE_1",
+        '2' to "KEYCODE_2",
+        '3' to "KEYCODE_3",
+        '4' to "KEYCODE_4",
+        '5' to "KEYCODE_5",
+        '6' to "KEYCODE_6",
+        '7' to "KEYCODE_7",
+        '8' to "KEYCODE_8",
+        '9' to "KEYCODE_9",
+        ' ' to "KEYCODE_SPACE",
+        '.' to "KEYCODE_PERIOD",
+        ',' to "KEYCODE_COMMA",
+        '\n' to "KEYCODE_ENTER",
+        '!' to "KEYCODE_SHIFT_LEFT KEYCODE_1",
+        '@' to "KEYCODE_SHIFT_LEFT KEYCODE_2",
+        '#' to "KEYCODE_SHIFT_LEFT KEYCODE_3",
+        '$' to "KEYCODE_SHIFT_LEFT KEYCODE_4",
+        '%' to "KEYCODE_SHIFT_LEFT KEYCODE_5",
+        '^' to "KEYCODE_SHIFT_LEFT KEYCODE_6",
+        '&' to "KEYCODE_SHIFT_LEFT KEYCODE_7",
+        '*' to "KEYCODE_SHIFT_LEFT KEYCODE_8",
+        '(' to "KEYCODE_SHIFT_LEFT KEYCODE_9",
+        ')' to "KEYCODE_SHIFT_LEFT KEYCODE_0",
+        '-' to "KEYCODE_MINUS",
+        '_' to "KEYCODE_SHIFT_LEFT KEYCODE_MINUS",
+        '=' to "KEYCODE_EQUALS",
+        '+' to "KEYCODE_SHIFT_LEFT KEYCODE_EQUALS",
+        '[' to "KEYCODE_LEFT_BRACKET",
+        '{' to "KEYCODE_SHIFT_LEFT KEYCODE_LEFT_BRACKET",
+        ']' to "KEYCODE_RIGHT_BRACKET",
+        '}' to "KEYCODE_SHIFT_LEFT KEYCODE_RIGHT_BRACKET",
+        ';' to "KEYCODE_SEMICOLON",
+        ':' to "KEYCODE_SHIFT_LEFT KEYCODE_SEMICOLON",
+        '\'' to "KEYCODE_APOSTROPHE",
+        '\"' to "KEYCODE_SHIFT_LEFT KEYCODE_APOSTROPHE",
+        '\\' to "KEYCODE_BACKSLASH",
+        '|' to "KEYCODE_SHIFT_LEFT KEYCODE_BACKSLASH",
+        '/' to "KEYCODE_SLASH",
+        '?' to "KEYCODE_SHIFT_LEFT KEYCODE_SLASH",
+        '<' to "KEYCODE_SHIFT_LEFT KEYCODE_COMMA",
+        '>' to "KEYCODE_SHIFT_LEFT KEYCODE_PERIOD",
+        '`' to "KEYCODE_GRAVE",
+        '~' to "KEYCODE_SHIFT_LEFT KEYCODE_GRAVE"
+    )
+    
+    /**
+     * Types a character using keyevents
+     */
+    private suspend fun typeCharUsingKeycode(char: Char): Boolean {
+        val keycode = keyCodeMap[char]
+        if (keycode == null) {
+            Log.d(TAG, "No keycode mapping found for character: $char")
+            return false
+        }
+        
+        // Handle composite keycodes (like shift + key)
+        val keycodes = keycode.split(" ")
+        
+        for (code in keycodes) {
+            val command = "input keyevent $code"
+            val result = AdbCommandExecutor.executeAdbCommand(command)
+            
+            if (!result.success) {
+                Log.e(TAG, "Failed to input keyevent $code for character $char: ${result.stderr}")
+                return false
+            }
+            
+            // Small delay between keypresses in a sequence
+            if (keycodes.size > 1) {
+                kotlinx.coroutines.delay(50)
+            }
+        }
+        
+        return true
+    }
+    
+    /**
+     * Types text entirely using keyevents
+     */
+    private suspend fun typeUsingKeyEvents(text: String): Boolean {
+        Log.d(TAG, "Typing text using keyevents: $text")
+        
+        try {
+            for (char in text) {
+                val success = typeCharUsingKeycode(char)
+                
+                if (!success) {
+                    // If we can't type this character with keyevents, inform caller
+                    // so they can try other methods
+                    return false
+                }
+                
+                // Small delay between characters
+                kotlinx.coroutines.delay(50)
+            }
+            return true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error typing using keyevents", e)
+            return false
         }
     }
     
@@ -843,24 +1223,43 @@ class ADBUITools(private val context: Context) {
                         toolName = tool.name,
                         success = false,
                         result = "",
-                        error = "Invalid click_element operation. Format: click_element type value"
+                        error = "Invalid click_element operation. Format: click_element type value [index] [partialMatch]"
                     )
                 }
                 
                 val identifierType = operationParts[1]
-                val identifierValue = operationParts.drop(2).joinToString(" ")
+                val identifierValue = operationParts[2]
                 
-                if (identifierType !in listOf("resourceId", "text", "contentDesc")) {
+                // Handle potential index parameter (optional)
+                val index = if (operationParts.size > 3 && operationParts[3].toIntOrNull() != null) {
+                    operationParts[3].toInt()
+                } else {
+                    0 // Default to first element
+                }
+                
+                // Handle potential partialMatch parameter (optional)
+                val partialMatch = if (operationParts.size > 4) {
+                    operationParts[4].toBoolean()
+                } else {
+                    false // Default to exact match
+                }
+                
+                if (identifierType !in listOf("resourceId", "text", "contentDesc", "className")) {
                     return ToolResult(
                         toolName = tool.name,
                         success = false,
                         result = "",
-                        error = "Invalid identifier type for click_element. Must be 'resourceId', 'text', or 'contentDesc'."
+                        error = "Invalid identifier type for click_element. Must be 'resourceId', 'text', 'contentDesc', or 'className'."
                     )
                 }
                 
+                // Log the click_element operation details for debugging
+                Log.d(TAG, "click_element operation: type=$identifierType, value=$identifierValue, index=$index, partialMatch=$partialMatch")
+                
                 val parameters = mutableListOf<ToolParameter>()
                 parameters.add(ToolParameter(identifierType, identifierValue))
+                parameters.add(ToolParameter("index", index.toString()))
+                parameters.add(ToolParameter("partialMatch", partialMatch.toString()))
                 
                 val clickTool = AITool(
                     name = "click_element",
@@ -986,7 +1385,19 @@ class ADBUITools(private val context: Context) {
             val operationSummary = when (operationType) {
                 "tap" -> "Tapped at (${operationParts[1]}, ${operationParts[2]})"
                 "swipe" -> "Swiped from (${operationParts[1]}, ${operationParts[2]}) to (${operationParts[3]}, ${operationParts[4]})"
-                "click_element" -> "Clicked element with ${operationParts[1]}: ${operationParts.drop(2).joinToString(" ")}"
+                "click_element" -> {
+                    val indexInfo = if (operationParts.size > 3 && operationParts[3].toIntOrNull() != null) {
+                        " at index ${operationParts[3]}"
+                    } else {
+                        ""
+                    }
+                    val partialMatchInfo = if (operationParts.size > 4 && operationParts[4] == "true") {
+                        " (partial match)"
+                    } else {
+                        ""
+                    }
+                    "Clicked element with ${operationParts[1]}: ${operationParts[2]}$indexInfo$partialMatchInfo"
+                }
                 "press_key" -> "Pressed key: ${operationParts[1]}"
                 "set_input_text" -> "Set input text to: ${operationParts.drop(1).joinToString(" ")}"
                 "launch_app" -> "Launched app: ${operationParts[1]}"

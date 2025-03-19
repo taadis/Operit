@@ -311,7 +311,7 @@ Simulate a tap/click at specific coordinates.
 ```
 
 #### 5.3 Click Element
-Simulate a click on an element identified by resource ID, text, or content description.
+Simulate a click on an element identified by resource ID, text, content description, or class name.
 ```
 <tool name="click_element">
 <param name="resourceId">com.example.app:id/button1</param>
@@ -328,7 +328,29 @@ Alternative ways to identify elements:
 <param name="contentDesc">Submit button</param>
 </tool>
 ```
-At least one of `resourceId`, `text`, or `contentDesc` must be provided.
+```
+<tool name="click_element">
+<param name="className">Button</param>
+</tool>
+```
+
+Optional parameters for greater precision (especially useful for lists where multiple elements share the same identifiers):
+```
+<tool name="click_element">
+<param name="resourceId">com.example.app:id/list_item</param>
+<param name="index">2</param>
+</tool>
+```
+```
+<tool name="click_element">
+<param name="text">View Details</param>
+<param name="partialMatch">true</param>
+</tool>
+```
+
+At least one of `resourceId`, `text`, `contentDesc`, or `className` must be provided.
+- `index`: The zero-based index of the element when multiple matches are found (default: 0, meaning the first match)
+- `partialMatch`: If true, allows partial text matching instead of exact matching (default: false)
 
 #### 5.4 Set Input Text
 Set text in an input field (the field must have focus).
@@ -402,11 +424,14 @@ Example: `swipe 500 1000 500 200 300`
 
 3. Click an element by identifier:
 ```
-click_element type value
+click_element type value [index] [partialMatch]
 ```
 Example: `click_element resourceId com.example.app:id/button1`
 Example: `click_element text Submit`
 Example: `click_element contentDesc Submit button`
+Example: `click_element className Button`
+Example: `click_element resourceId com.example.app:id/list_item 2` (clicks the 3rd item with matching resource ID)
+Example: `click_element text View 0 true` (clicks the first element containing "View" text)
 
 4. Press a key:
 ```

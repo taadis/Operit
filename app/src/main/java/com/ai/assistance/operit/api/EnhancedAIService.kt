@@ -96,12 +96,12 @@ class EnhancedAIService(
             UI Automation Tools:
             - get_page_info: 获取当前UI界面信息，包括完整的UI层次结构. Parameters: format (格式，可选: "xml"或"json"，默认"xml"), detail (详细程度, 可选: "minimal","summary"或"full", 默认"summary")
             - tap: 在指定坐标模拟点击. Parameters: x (X坐标), y (Y坐标)
-            - click_element: 通过ID或文本点击元素. Parameters: resourceId (元素资源ID，可选), text (元素文本，可选), contentDesc (元素描述，可选)，至少提供一个参数
+            - click_element: 通过ID或文本点击元素. Parameters: resourceId (元素资源ID，可选), text (元素文本，可选), contentDesc (元素描述，可选), className (元素类名，可选), index (要点击的第几个匹配元素，从0开始计数，默认0), partialMatch (是否启用部分匹配，默认false)，至少提供一个识别参数
             - set_input_text: 在输入框中设置文本. Parameters: text (要输入的文本)
             - press_key: 模拟按键. Parameters: keyCode (按键代码，例如"KEYCODE_BACK"，"KEYCODE_HOME"等)
             - swipe: 模拟滑动手势. Parameters: startX (起始X坐标), startY (起始Y坐标), endX (结束X坐标), endY (结束Y坐标), duration (持续时间，默认300毫秒)
             - launch_app: 启动应用. Parameters: packageName (应用包名)
-            - combined_operation: 执行UI操作，等待指定时间，然后返回新UI状态. Parameters: operation (要执行的操作，例如"tap 500 800"，"click_element text 提交"，"swipe 500 1000 500 200"), delayMs (等待时间，默认1000毫秒)
+            - combined_operation: 执行UI操作，等待指定时间，然后返回新UI状态. Parameters: operation (要执行的操作，例如"tap 500 800"，"click_element text 提交 [index] [partialMatch]"，"swipe 500 1000 500 200"), delayMs (等待时间，默认1000毫秒)
             
             IMPORTANT UI AUTOMATION ADVICE:
             - 当处理UI界面交互问题时，尽量优先使用combined_operation工具而不是单独的操作工具
@@ -109,6 +109,9 @@ class EnhancedAIService(
             - 对于"点击后发生了什么"、"输入文本后界面如何变化"等场景，combined_operation是最佳选择
             - 例如：使用"combined_operation"和"operation=tap 500 800"替代单独的"tap"命令加延时
             - 或者使用"combined_operation"和"operation=click_element text 提交"替代单独的"click_element"命令
+            - 在列表中需要精确点击特定项目时，使用"click_element"的index参数，例如"click_element resourceId com.example.app:id/list_item 2"点击第3个项目
+            - 当多个元素共享相同的标识时（例如列表项），可以使用"index"参数来指定要点击的特定元素
+            - 当无法通过ID或文本精确定位元素时，可以先使用"tap"工具通过坐标直接点击
             
             When you finish your task and no longer need any tools, end your response with: [TASK_COMPLETE]
             
