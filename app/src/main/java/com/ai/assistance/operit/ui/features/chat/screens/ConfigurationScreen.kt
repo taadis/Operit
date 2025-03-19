@@ -7,10 +7,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ai.assistance.operit.data.ApiPreferences
 import kotlinx.coroutines.CoroutineScope
 
 @Composable
@@ -25,6 +27,36 @@ fun ConfigurationScreen(
     onError: (String) -> Unit,
     coroutineScope: CoroutineScope
 ) {
+    val context = LocalContext.current
+    val apiPreferences = remember { ApiPreferences(context) }
+    
+    // 直接从 DataStore 读取最新设置
+    val storedApiKey = apiPreferences.apiKeyFlow.collectAsState(initial = "").value
+    val storedApiEndpoint = apiPreferences.apiEndpointFlow.collectAsState(initial = "").value
+    val storedModelName = apiPreferences.modelNameFlow.collectAsState(initial = "").value
+    
+    // 本地状态用于表单输入
+    var apiKeyInput by remember { mutableStateOf(apiKey) }
+    var apiEndpointInput by remember { mutableStateOf(apiEndpoint) }
+    var modelNameInput by remember { mutableStateOf(modelName) }
+    
+    // 当从 DataStore 读取到的值改变时，更新本地状态
+    // 但只在组件首次加载时进行更新，防止用户输入被覆盖
+    LaunchedEffect(storedApiKey, storedApiEndpoint, storedModelName) {
+        if (apiKeyInput == apiKey && apiKey.isBlank()) {
+            apiKeyInput = storedApiKey
+            onApiKeyChange(storedApiKey)
+        }
+        if (apiEndpointInput == apiEndpoint && apiEndpoint.isBlank()) {
+            apiEndpointInput = storedApiEndpoint
+            onApiEndpointChange(storedApiEndpoint)
+        }
+        if (modelNameInput == modelName && modelName.isBlank()) {
+            modelNameInput = storedModelName
+            onModelNameChange(storedModelName)
+        }
+    }
+    
     val modernTextStyle = TextStyle(
         fontSize = 14.sp
     )
@@ -58,8 +90,11 @@ fun ConfigurationScreen(
                 )
                 
                 OutlinedTextField(
-                    value = apiEndpoint,
-                    onValueChange = onApiEndpointChange,
+                    value = apiEndpointInput,
+                    onValueChange = { 
+                        apiEndpointInput = it
+                        onApiEndpointChange(it)
+                    },
                     label = { Text("API接口地址") },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -69,8 +104,11 @@ fun ConfigurationScreen(
                 )
                 
                 OutlinedTextField(
-                    value = apiKey,
-                    onValueChange = onApiKeyChange,
+                    value = apiKeyInput,
+                    onValueChange = { 
+                        apiKeyInput = it
+                        onApiKeyChange(it)
+                    },
                     label = { Text("API密钥") },
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier
@@ -81,8 +119,11 @@ fun ConfigurationScreen(
                 )
 
                 OutlinedTextField(
-                    value = modelName,
-                    onValueChange = onModelNameChange,
+                    value = modelNameInput,
+                    onValueChange = { 
+                        modelNameInput = it
+                        onModelNameChange(it)
+                    },
                     label = { Text("模型名称") },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -93,7 +134,7 @@ fun ConfigurationScreen(
                 
                 Button(
                     onClick = { 
-                        if (apiEndpoint.isNotBlank() && apiKey.isNotBlank() && modelName.isNotBlank()) {
+                        if (apiEndpointInput.isNotBlank() && apiKeyInput.isNotBlank() && modelNameInput.isNotBlank()) {
                             onSaveConfig()
                         } else {
                             onError("请输入API密钥、接口地址和模型名称")

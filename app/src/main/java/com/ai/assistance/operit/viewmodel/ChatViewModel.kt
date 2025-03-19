@@ -213,55 +213,55 @@ class ChatViewModel(
         val model = _modelName.value
         
         if (key.isNotBlank() && endpoint.isNotBlank() && model.isNotBlank()) {
-            if (enhancedAiService == null) {
-                enhancedAiService = EnhancedAIService(endpoint, key, model, context)
-                
-                // Set up tool progress collection
-                viewModelScope.launch {
-                    enhancedAiService?.getToolProgressFlow()?.collect { progress ->
-                        _toolProgress.value = progress
-                    }
+            // 始终重建服务以确保使用最新设置
+            // 之前的代码只在服务为 null 时才创建，现在我们总是重建它
+            enhancedAiService = EnhancedAIService(endpoint, key, model, context)
+            
+            // Set up tool progress collection
+            viewModelScope.launch {
+                enhancedAiService?.getToolProgressFlow()?.collect { progress ->
+                    _toolProgress.value = progress
                 }
-                
-                // Set up references collection
-                viewModelScope.launch {
-                    enhancedAiService?.references?.collect { refs ->
-                        _aiReferences.value = refs
-                    }
+            }
+            
+            // Set up references collection
+            viewModelScope.launch {
+                enhancedAiService?.references?.collect { refs ->
+                    _aiReferences.value = refs
                 }
-                
-                // Set up input processing state
-                viewModelScope.launch {
-                    enhancedAiService?.inputProcessingState?.collect { state ->
-                        when(state) {
-                            is InputProcessingState.Idle -> {
-                                _isProcessingInput.value = false
-                                _inputProcessingMessage.value = ""
-                            }
-                            is InputProcessingState.Processing -> {
-                                _isProcessingInput.value = true
-                                _inputProcessingMessage.value = state.message
-                            }
-                            is InputProcessingState.Connecting -> {
-                                _isProcessingInput.value = true
-                                _inputProcessingMessage.value = state.message
-                            }
-                            is InputProcessingState.Receiving -> {
-                                _isProcessingInput.value = true
-                                _inputProcessingMessage.value = state.message
-                            }
-                            is InputProcessingState.Completed -> {
-                                _isProcessingInput.value = false
-                            }
+            }
+            
+            // Set up input processing state
+            viewModelScope.launch {
+                enhancedAiService?.inputProcessingState?.collect { state ->
+                    when(state) {
+                        is InputProcessingState.Idle -> {
+                            _isProcessingInput.value = false
+                            _inputProcessingMessage.value = ""
+                        }
+                        is InputProcessingState.Processing -> {
+                            _isProcessingInput.value = true
+                            _inputProcessingMessage.value = state.message
+                        }
+                        is InputProcessingState.Connecting -> {
+                            _isProcessingInput.value = true
+                            _inputProcessingMessage.value = state.message
+                        }
+                        is InputProcessingState.Receiving -> {
+                            _isProcessingInput.value = true
+                            _inputProcessingMessage.value = state.message
+                        }
+                        is InputProcessingState.Completed -> {
+                            _isProcessingInput.value = false
                         }
                     }
                 }
-                
-                _isConfigured.value = true
-                
-                // 标记为已配置，然后检查是否应该创建新对话
-                checkIfShouldCreateNewChat()
             }
+            
+            _isConfigured.value = true
+            
+            // 标记为已配置，然后检查是否应该创建新对话
+            checkIfShouldCreateNewChat()
         }
     }
     

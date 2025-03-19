@@ -19,19 +19,25 @@ class AIToolHandler(private val context: Context) {
     companion object {
         private const val TAG = "AIToolHandler"
         
-        // Updated regex patterns for tool extraction
+        // Updated and more robust regex patterns for tool extraction with improved robustness
         private val TOOL_PATTERN = Pattern.compile(
-            "<tool\\s+name=\"([^\"]+)\"(?:\\s+description=\"([^\"]+)\")?[^>]*>([\\s\\S]*?)</tool>", 
+            "<tool\\s+name=\\s*\"([^\"]+)\"(?:\\s+description=\\s*\"([^\"]+)\")?[^>]*>([\\s\\S]*?)</tool>", 
             Pattern.DOTALL
         )
         
         private val TOOL_NAME_PATTERN = Pattern.compile(
-            "name=\"([^\"]+)\"", 
+            "name=\\s*\"([^\"]+)\"", 
             Pattern.DOTALL
         )
         
         private val TOOL_PARAM_PATTERN = Pattern.compile(
-            "<param\\s+name=\"([^\"]+)\">([\\s\\S]*?)</param>", 
+            "<param\\s+name=\\s*\"([^\"]+)\">([\\s\\S]*?)</param>", 
+            Pattern.DOTALL
+        )
+        
+        // Alternative pattern to match common edge cases with different spacing
+        private val ALTERNATIVE_TOOL_PATTERN = Pattern.compile(
+            "<tool[\\s\\n]+name\\s*=\\s*[\"']([^\"']+)[\"'](?:[\\s\\n]+description\\s*=\\s*[\"']([^\"']+)[\"'])?[^>]*>([\\s\\S]*?)</tool>", 
             Pattern.DOTALL
         )
     }
@@ -45,8 +51,6 @@ class AIToolHandler(private val context: Context) {
     // Available tools registry
     private val availableTools = mutableMapOf<String, ToolExecutor>()
     
-    // Track already processed tool invocations in streaming mode
-    private val processedToolInvocations = ConcurrentHashMap<String, Boolean>()
     
     // Register a tool executor
     fun registerTool(name: String, executor: ToolExecutor) {
@@ -275,6 +279,65 @@ class AIToolHandler(private val context: Context) {
                 systemOperationTools.stopApp(tool)
             }
         }
+        
+        // UI Automation Tools via ADB
+        val adbUITools = ADBUITools(context)
+        
+        // Get current page/window information
+        registerTool("get_page_info") { tool ->
+            kotlinx.coroutines.runBlocking {
+                adbUITools.getPageInfo(tool)
+            }
+        }
+        
+        // Tap at specific coordinates
+        registerTool("tap") { tool ->
+            kotlinx.coroutines.runBlocking {
+                adbUITools.tap(tool)
+            }
+        }
+        
+        // Click on element by resource ID, text or content description
+        registerTool("click_element") { tool ->
+            kotlinx.coroutines.runBlocking {
+                adbUITools.clickElement(tool)
+            }
+        }
+        
+        // Set text in input field
+        registerTool("set_input_text") { tool ->
+            kotlinx.coroutines.runBlocking {
+                adbUITools.setInputText(tool)
+            }
+        }
+        
+        // Press a specific key
+        registerTool("press_key") { tool ->
+            kotlinx.coroutines.runBlocking {
+                adbUITools.pressKey(tool)
+            }
+        }
+        
+        // Perform swipe gesture
+        registerTool("swipe") { tool ->
+            kotlinx.coroutines.runBlocking {
+                adbUITools.swipe(tool)
+            }
+        }
+        
+        // Launch an app by package name
+        registerTool("launch_app") { tool ->
+            kotlinx.coroutines.runBlocking {
+                adbUITools.launchApp(tool)
+            }
+        }
+        
+        // Perform a combined operation with delay and return the new UI state
+        registerTool("combined_operation") { tool ->
+            kotlinx.coroutines.runBlocking {
+                adbUITools.combinedOperation(tool)
+            }
+        }
     }
     
     /**
@@ -402,7 +465,6 @@ class AIToolHandler(private val context: Context) {
      */
     fun reset() {
         _toolProgress.value = ToolExecutionProgress(state = ToolExecutionState.IDLE)
-        processedToolInvocations.clear()
     }
     
     /**
@@ -419,19 +481,29 @@ class AIToolHandler(private val context: Context) {
      * Public method to be used by EnhancedAIService
      */
     fun extractToolInvocations(response: String): List<ToolInvocation> {
+        // Add more comprehensive logging for debugging
+        Log.d(TAG, "Extracting tool invocations from response of length: ${response.length}")
+        
         val invocations = extractToolInvocationsInternal(response)
+        
+        Log.d(TAG, "Found ${invocations.size} tool invocations: ${invocations.map { it.tool.name }}")
+        
         return invocations
     }
     
     /**
      * Internal implementation of tool invocation extraction
-     * Enhanced to better support streaming responses
+     * Enhanced to better support streaming responses and handle edge cases
      */
     private fun extractToolInvocationsInternal(response: String): List<ToolInvocation> {
         val invocations = mutableListOf<ToolInvocation>()
+        
+        // First try with the primary pattern
         val matcher = TOOL_PATTERN.matcher(response)
+        var matchFound = false
         
         while (matcher.find()) {
+            matchFound = true
             val rawText = matcher.group(0) ?: continue
             val toolName = matcher.group(1) ?: continue
             val toolContent = matcher.group(3) ?: continue  // Updated to use group 3 since group 2 is now the optional description
@@ -441,10 +513,9 @@ class AIToolHandler(private val context: Context) {
             // Create a unique ID for this tool invocation based on its position and content
             val invocationId = "$toolName:$start:$end"
             
-            // Skip if we've already processed this exact invocation (for streaming mode)
-            if (processedToolInvocations.containsKey(invocationId)) {
-                continue
-            }
+            Log.d(TAG, "Found tool invocation primary pattern: $toolName at position $start-$end")
+            
+            
             
             // Extract parameters
             val parameters = mutableListOf<ToolParameter>()
@@ -454,6 +525,7 @@ class AIToolHandler(private val context: Context) {
                 val paramName = paramMatcher.group(1) ?: continue
                 val paramValue = paramMatcher.group(2) ?: continue
                 parameters.add(ToolParameter(paramName, paramValue))
+                Log.d(TAG, "  Parameter: $paramName = $paramValue")
             }
             
             val tool = AITool(
@@ -470,15 +542,59 @@ class AIToolHandler(private val context: Context) {
             )
         }
         
+        // If no matches found with primary pattern, try alternative pattern
+        if (!matchFound) {
+            Log.d(TAG, "No matches with primary pattern, trying alternative pattern")
+            val altMatcher = ALTERNATIVE_TOOL_PATTERN.matcher(response)
+            
+            while (altMatcher.find()) {
+                val rawText = altMatcher.group(0) ?: continue
+                val toolName = altMatcher.group(1) ?: continue
+                val toolContent = altMatcher.group(3) ?: continue
+                val start = altMatcher.start()
+                val end = altMatcher.end()
+                
+                // Create a unique ID for this tool invocation based on its position and content
+                val invocationId = "$toolName:$start:$end"
+                
+                Log.d(TAG, "Found tool invocation with alternative pattern: $toolName at position $start-$end")
+                
+                
+                
+                // Extract parameters (using more flexible parameter pattern)
+                val parameters = mutableListOf<ToolParameter>()
+                val paramContent = toolContent.trim()
+                val paramLines = paramContent.split(Regex("\\s*<param\\s+"))
+                
+                for (line in paramLines) {
+                    if (line.isBlank() || !line.contains("name=")) continue
+                    
+                    val nameMatch = Regex("name\\s*=\\s*[\"']([^\"']+)[\"']").find(line)
+                    val name = nameMatch?.groupValues?.get(1) ?: continue
+                    
+                    val valueMatch = Regex(">([\\s\\S]*?)</param>").find(line)
+                    val value = valueMatch?.groupValues?.get(1)?.trim() ?: continue
+                    
+                    parameters.add(ToolParameter(name, value))
+                    Log.d(TAG, "  Parameter (alt): $name = $value")
+                }
+                
+                val tool = AITool(
+                    name = toolName,
+                    parameters = parameters
+                )
+                
+                invocations.add(
+                    ToolInvocation(
+                        tool = tool,
+                        rawText = rawText,
+                        responseLocation = start..end
+                    )
+                )
+            }
+        }
+        
         return invocations
-    }
-    
-    /**
-     * Mark a tool invocation as processed (for streaming mode)
-     */
-    fun markToolInvocationProcessed(invocation: ToolInvocation) {
-        val invocationId = "${invocation.tool.name}:${invocation.responseLocation.first}:${invocation.responseLocation.last}"
-        processedToolInvocations[invocationId] = true
     }
 }
 

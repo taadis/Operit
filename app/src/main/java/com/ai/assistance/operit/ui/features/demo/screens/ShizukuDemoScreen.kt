@@ -12,11 +12,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.Color
 import com.ai.assistance.operit.AdbCommandExecutor
+import com.ai.assistance.operit.ShizukuInstaller
+import com.ai.assistance.operit.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -48,6 +51,16 @@ fun ShizukuDemoScreen() {
         "service list" to "列出系统服务",
         "wm size" to "查看屏幕分辨率"
     )
+    
+    // 预加载字符串资源
+    val installFromStoreStr = stringResource(id = R.string.install_from_store)
+    val installingBundledStr = stringResource(id = R.string.installing_bundled)
+    val installFailedStr = stringResource(id = R.string.install_failed)
+    val installBundledStr = stringResource(
+        id = R.string.install_bundled, 
+        ShizukuInstaller.getBundledShizukuVersion(context)
+    )
+    val watchTutorialStr = "观看视频教程"
     
     // 刷新状态函数
     val refreshStatus = {
@@ -172,9 +185,28 @@ fun ShizukuDemoScreen() {
                                 context.startActivity(intent)
                             }
                         },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
                     ) {
-                        Text("安装 Shizuku")
+                        Text(installFromStoreStr)
+                    }
+                    
+                    // 添加从内置APK安装的选项
+                    OutlinedButton(
+                        onClick = {
+                            if (ShizukuInstaller.installBundledShizuku(context)) {
+                                Toast.makeText(context, installingBundledStr, Toast.LENGTH_LONG).show()
+                            } else {
+                                Toast.makeText(context, installFailedStr, Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Text(installBundledStr)
                     }
                 } else if (!isShizukuRunning) {
                     Row(
@@ -207,6 +239,26 @@ fun ShizukuDemoScreen() {
                         ) {
                             Text(if (showHelp) "隐藏帮助" else "显示帮助")
                         }
+                    }
+                    
+                    // 添加视频教程按钮
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = {
+                            try {
+                                val videoUrl = "https://www.bilibili.com/video/BV1B9e4enEwX"
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(videoUrl))
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "无法打开视频链接", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.secondary
+                        )
+                    ) {
+                        Text(watchTutorialStr)
                     }
                     
                     if (showHelp) {

@@ -284,6 +284,157 @@ Force stop a running application.
 </tool>
 ```
 
+### 5. UI Automation Tools
+These tools provide UI automation capabilities through ADB, allowing the AI to interact with the device interface.
+
+#### 5.1 Get Page Info
+Retrieve information about the current UI page/window, including the full UI hierarchy.
+```
+<tool name="get_page_info">
+<param name="format">xml</param>
+<param name="detail">summary</param>
+</tool>
+```
+- `format` is optional, can be "xml" (default) or "json"
+- `detail` is optional, can be "minimal", "summary" (default), or "full"
+  - `minimal`: Returns basic information about the current window and a simplified UI structure
+  - `summary`: Returns basic information plus a comprehensive list of interactive elements
+  - `full`: Returns complete information including window details and the full UI hierarchy
+
+#### 5.2 Tap
+Simulate a tap/click at specific coordinates.
+```
+<tool name="tap">
+<param name="x">500</param>
+<param name="y">800</param>
+</tool>
+```
+
+#### 5.3 Click Element
+Simulate a click on an element identified by resource ID, text, or content description.
+```
+<tool name="click_element">
+<param name="resourceId">com.example.app:id/button1</param>
+</tool>
+```
+Alternative ways to identify elements:
+```
+<tool name="click_element">
+<param name="text">Submit</param>
+</tool>
+```
+```
+<tool name="click_element">
+<param name="contentDesc">Submit button</param>
+</tool>
+```
+At least one of `resourceId`, `text`, or `contentDesc` must be provided.
+
+#### 5.4 Set Input Text
+Set text in an input field (the field must have focus).
+```
+<tool name="set_input_text">
+<param name="text">Hello, world!</param>
+</tool>
+```
+
+#### 5.5 Press Key
+Simulate pressing a specific key.
+```
+<tool name="press_key">
+<param name="keyCode">KEYCODE_BACK</param>
+</tool>
+```
+Common key codes include:
+- `KEYCODE_BACK` - Back button
+- `KEYCODE_HOME` - Home button
+- `KEYCODE_MENU` - Menu button
+- `KEYCODE_ENTER` - Enter key
+- `KEYCODE_TAB` - Tab key
+- `KEYCODE_DPAD_UP` - D-pad up
+- `KEYCODE_DPAD_DOWN` - D-pad down
+- `KEYCODE_DPAD_LEFT` - D-pad left
+- `KEYCODE_DPAD_RIGHT` - D-pad right
+
+#### 5.6 Swipe
+Perform a swipe gesture from one point to another.
+```
+<tool name="swipe">
+<param name="startX">500</param>
+<param name="startY">1000</param>
+<param name="endX">500</param>
+<param name="endY">500</param>
+<param name="duration">300</param>
+</tool>
+```
+- `duration` is optional, specifies the duration of the swipe in milliseconds (default: 300)
+
+#### 5.7 Launch App
+Launch an application by its package name.
+```
+<tool name="launch_app">
+<param name="packageName">com.example.app</param>
+</tool>
+```
+
+#### 5.8 Combined Operation
+Perform a UI operation, wait for a specified time, and then return the new UI state. This tool is particularly useful for interactive flows that require waiting for UI changes after an action.
+```
+<tool name="combined_operation">
+<param name="operation">tap 500 800</param>
+<param name="delayMs">2000</param>
+</tool>
+```
+
+The `operation` parameter uses a simple command syntax to specify which action to perform:
+
+1. Tap at coordinates:
+```
+tap x y
+```
+Example: `tap 500 800`
+
+2. Swipe from one point to another:
+```
+swipe startX startY endX endY [duration]
+```
+Example: `swipe 500 1000 500 200 300`
+
+3. Click an element by identifier:
+```
+click_element type value
+```
+Example: `click_element resourceId com.example.app:id/button1`
+Example: `click_element text Submit`
+Example: `click_element contentDesc Submit button`
+
+4. Press a key:
+```
+press_key keyCode
+```
+Example: `press_key KEYCODE_BACK`
+
+5. Set input text:
+```
+set_input_text value
+```
+Example: `set_input_text Hello, world!`
+
+6. Launch an app:
+```
+launch_app packageName
+```
+Example: `launch_app com.example.app`
+
+The `delayMs` parameter is optional and specifies how long to wait after performing the operation before retrieving the new UI state (default: 1000ms).
+
+This tool makes it much easier to handle sequences like:
+- Tap a button and see what happens
+- Enter text and see the response
+- Swipe to scroll and see new content
+
+**Important:** This tool returns both the current window information and the simplified UI hierarchy after the operation, making it perfect for user interface exploration and interaction.
+
 ## How It Works
 
 1. When you send a message to the AI, the enhanced AI service processes your request.

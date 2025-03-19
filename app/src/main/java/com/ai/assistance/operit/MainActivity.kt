@@ -18,6 +18,8 @@ import androidx.lifecycle.lifecycleScope
 import com.ai.assistance.operit.ui.theme.OperitTheme
 import com.ai.assistance.operit.ui.OperitApp
 import com.ai.assistance.operit.data.ChatHistoryManager
+import com.ai.assistance.operit.ShizukuInstaller
+import com.ai.assistance.operit.navigation.NavItem
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -29,6 +31,9 @@ class MainActivity : ComponentActivity() {
     
     // 悬浮窗权限请求状态
     private var overlayPermissionRequested = false
+    
+    // 初始化导航控制标志
+    private var navigateToShizukuScreen = false
     
     private val requiredPermissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         arrayOf(
@@ -51,8 +56,15 @@ class MainActivity : ComponentActivity() {
         val allGranted = permissions.entries.all { it.value }
         permissionsRequested = true
         
-        if (allGranted) {
-            // 基本权限授予后，检查存储管理权限
+        // 检查是否已经有管理所有文件的权限（Android 11+）
+        val hasAllFilesPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Environment.isExternalStorageManager()
+        } else {
+            false
+        }
+        
+        if (allGranted || hasAllFilesPermission) {
+            // 权限已全部授予或者已有管理所有文件权限，继续检查存储管理权限
             checkManageExternalStoragePermission()
         } else {
             Toast.makeText(this, "需要授予存储权限才能正常使用Shizuku功能", Toast.LENGTH_LONG).show()
@@ -70,7 +82,20 @@ class MainActivity : ComponentActivity() {
                 // 所有权限都已授予，检查悬浮窗权限
                 checkOverlayPermission()
             } else {
-                Toast.makeText(this, "未获得所有文件访问权限，某些功能可能受限", Toast.LENGTH_LONG).show()
+                // 检查用户是否已经授予了基本存储权限
+                val hasBasicStoragePermissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED &&
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED &&
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED
+                } else {
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED &&
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+                }
+                
+                if (!hasBasicStoragePermissions) {
+                    Toast.makeText(this, "未获得所有文件访问权限，某些功能可能受限", Toast.LENGTH_LONG).show()
+                }
+                
                 // 继续检查悬浮窗权限
                 checkOverlayPermission()
             }
@@ -115,11 +140,12 @@ class MainActivity : ComponentActivity() {
         
         // 请求必要的权限
         requestRequiredPermissions()
-
         
         setContent {
             OperitTheme {
-                OperitApp()
+                OperitApp(
+                    initialNavItem = if (navigateToShizukuScreen) NavItem.ShizukuCommands else NavItem.AiChat
+                )
             }
         }
     }
@@ -146,7 +172,26 @@ class MainActivity : ComponentActivity() {
     private fun checkShizukuStatus() {
         if (AdbCommandExecutor.isShizukuInstalled(this)) {
             val isRunning = AdbCommandExecutor.isShizukuServiceRunning()
-            Log.d(TAG, "Shizuku status: installed=${true}, running=${isRunning}")
+            val hasPermission = AdbCommandExecutor.hasShizukuPermission()
+            Log.d(TAG, "Shizuku status: installed=${true}, running=${isRunning}, permission=${hasPermission}")
+            
+            // 如果已经安装但未运行或没有权限，设置标志以便自动导航到Shizuku页面
+            if (!isRunning || !hasPermission) {
+                navigateToShizukuScreen = true
+                // 重新创建内容视图以应用导航更改
+                recreateContentView()
+            }
+        }
+    }
+    
+    private fun recreateContentView() {
+        // 重新设置内容视图以触发导航更改
+        setContent {
+            OperitTheme {
+                OperitApp(
+                    initialNavItem = if (navigateToShizukuScreen) NavItem.ShizukuCommands else NavItem.AiChat
+                )
+            }
         }
     }
     
@@ -188,30 +233,39 @@ class MainActivity : ComponentActivity() {
         // Android 11+需要特殊存储权限
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             Log.d(TAG, "Checking MANAGE_EXTERNAL_STORAGE permission")
-            if (!Environment.isExternalStorageManager()) {
-                try {
-                    Log.d(TAG, "Requesting MANAGE_EXTERNAL_STORAGE permission")
-                    val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
-                        addCategory("android.intent.category.DEFAULT")
-                        data = Uri.parse("package:$packageName")
-                    }
-                    storagePermissionLauncher.launch(intent)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error requesting app specific storage permission", e)
-                    try {
-                        val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
-                        storagePermissionLauncher.launch(intent)
-                    } catch (ex: Exception) {
-                        Log.e(TAG, "Error requesting general storage permission", ex)
-                        Toast.makeText(this, "无法打开存储权限设置", Toast.LENGTH_LONG).show()
-                        // 检查悬浮窗权限
-                        checkOverlayPermission()
-                    }
-                }
-            } else {
-                Log.d(TAG, "MANAGE_EXTERNAL_STORAGE permission already granted")
-                // 已有存储管理权限，检查悬浮窗权限
+            
+            // 检查基本存储权限是否已授予
+            val hasBasicStoragePermissions = requiredPermissions.all {
+                ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
+            }
+            
+            // 如果已经有管理所有文件权限，或已经有足够的基本权限，则跳过请求
+            if (Environment.isExternalStorageManager() || hasBasicStoragePermissions) {
+                Log.d(TAG, "MANAGE_EXTERNAL_STORAGE permission already granted or basic permissions sufficient")
+                // 已有足够的存储权限，检查悬浮窗权限
                 checkOverlayPermission()
+                return
+            }
+            
+            // 否则，请求管理所有文件权限
+            try {
+                Log.d(TAG, "Requesting MANAGE_EXTERNAL_STORAGE permission")
+                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                    addCategory("android.intent.category.DEFAULT")
+                    data = Uri.parse("package:$packageName")
+                }
+                storagePermissionLauncher.launch(intent)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error requesting app specific storage permission", e)
+                try {
+                    val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                    storagePermissionLauncher.launch(intent)
+                } catch (ex: Exception) {
+                    Log.e(TAG, "Error requesting general storage permission", ex)
+                    Toast.makeText(this, "无法打开存储权限设置", Toast.LENGTH_LONG).show()
+                    // 检查悬浮窗权限
+                    checkOverlayPermission()
+                }
             }
         } else {
             Log.d(TAG, "MANAGE_EXTERNAL_STORAGE not needed for this Android version")
@@ -257,16 +311,48 @@ class MainActivity : ComponentActivity() {
         // 初始化Shizuku绑定
         AdbCommandExecutor.initializeShizuku()
         
+        // 检查是否需要预提取内置的Shizuku APK
+        try {
+            // 如果文件不存在，预先提取以加速后续安装过程
+            if (!ShizukuInstaller.isApkExtracted(this)) {
+                lifecycleScope.launch {
+                    Log.d(TAG, "Extracting bundled Shizuku APK...")
+                    ShizukuInstaller.extractApkFromAssets(this@MainActivity)
+                    Log.d(TAG, "Bundled Shizuku APK extracted")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error preparing bundled Shizuku APK", e)
+        }
+        
         // 如果没有安装Shizuku，提示安装
         if (!AdbCommandExecutor.isShizukuInstalled(this)) {
             Log.d(TAG, "Shizuku not installed")
             Toast.makeText(this, "请先安装Shizuku应用", Toast.LENGTH_LONG).show()
+            // 设置导航标志，自动跳转到Shizuku页面
+            navigateToShizukuScreen = true
         } else {
-            // 检查服务是否运行
             val isRunning = AdbCommandExecutor.isShizukuServiceRunning()
-            Log.d(TAG, "Shizuku service running: $isRunning")
-            if (!isRunning) {
-                Toast.makeText(this, "Shizuku服务未运行，请启动服务", Toast.LENGTH_LONG).show()
+            val hasPermission = AdbCommandExecutor.hasShizukuPermission()
+            Log.d(TAG, "Shizuku service running: $isRunning, has permission: $hasPermission")
+            
+            // 如果已安装但未运行或没有权限，自动跳转到Shizuku页面
+            if (!isRunning || !hasPermission) {
+                navigateToShizukuScreen = true
+                
+                if (!isRunning) {
+                    Toast.makeText(this, "Shizuku服务未运行，请启动服务", Toast.LENGTH_LONG).show()
+                } else if (!hasPermission) {
+                    Toast.makeText(this, "请授予Shizuku权限", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+        
+        // 重新创建内容视图以应用导航更改
+        if (navigateToShizukuScreen) {
+            lifecycleScope.launch {
+                delay(500) // 延迟一下确保初始化完成
+                recreateContentView()
             }
         }
     }

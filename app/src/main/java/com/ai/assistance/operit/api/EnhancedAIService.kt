@@ -93,6 +93,23 @@ class EnhancedAIService(
             - start_app: 启动应用程序. Parameters: package_name (应用包名), activity (可选的活动名称)
             - stop_app: 停止应用程序. Parameters: package_name (应用包名)
             
+            UI Automation Tools:
+            - get_page_info: 获取当前UI界面信息，包括完整的UI层次结构. Parameters: format (格式，可选: "xml"或"json"，默认"xml"), detail (详细程度, 可选: "minimal","summary"或"full", 默认"summary")
+            - tap: 在指定坐标模拟点击. Parameters: x (X坐标), y (Y坐标)
+            - click_element: 通过ID或文本点击元素. Parameters: resourceId (元素资源ID，可选), text (元素文本，可选), contentDesc (元素描述，可选)，至少提供一个参数
+            - set_input_text: 在输入框中设置文本. Parameters: text (要输入的文本)
+            - press_key: 模拟按键. Parameters: keyCode (按键代码，例如"KEYCODE_BACK"，"KEYCODE_HOME"等)
+            - swipe: 模拟滑动手势. Parameters: startX (起始X坐标), startY (起始Y坐标), endX (结束X坐标), endY (结束Y坐标), duration (持续时间，默认300毫秒)
+            - launch_app: 启动应用. Parameters: packageName (应用包名)
+            - combined_operation: 执行UI操作，等待指定时间，然后返回新UI状态. Parameters: operation (要执行的操作，例如"tap 500 800"，"click_element text 提交"，"swipe 500 1000 500 200"), delayMs (等待时间，默认1000毫秒)
+            
+            IMPORTANT UI AUTOMATION ADVICE:
+            - 当处理UI界面交互问题时，尽量优先使用combined_operation工具而不是单独的操作工具
+            - combined_operation能自动等待UI更新并返回新状态，解决了操作后需要手动延时和获取界面的问题
+            - 对于"点击后发生了什么"、"输入文本后界面如何变化"等场景，combined_operation是最佳选择
+            - 例如：使用"combined_operation"和"operation=tap 500 800"替代单独的"tap"命令加延时
+            - 或者使用"combined_operation"和"operation=click_element text 提交"替代单独的"click_element"命令
+            
             When you finish your task and no longer need any tools, end your response with: [TASK_COMPLETE]
             
             Based on user needs, proactively select the most appropriate tool or combination of tools. For complex tasks, you can break down the problem and use different tools step by step to solve it. After using each tool, clearly explain the execution results and suggest the next steps.
@@ -416,13 +433,45 @@ class EnhancedAIService(
                     return@launch
                 }
                 
-                // 主流程：检测和处理工具调用
+                // 主流程：检测和处理工具调用 - 增强版
+                Log.d(TAG, "开始检测工具调用: 内容长度 = ${content.length}")
+                
+                // 添加更详细的日志，包括内容的前50个字符，帮助调试
+                val contentPreview = if (content.length > 50) content.substring(0, 50) + "..." else content
+                Log.d(TAG, "内容预览: $contentPreview")
+                
+                // 尝试通过两种方式检测工具调用
                 val toolInvocations = toolHandler.extractToolInvocations(content)
                 
                 if (toolInvocations.isNotEmpty() && isConversationActive.get()) {
                     // 工具调用处理流程
+                    Log.d(TAG, "找到 ${toolInvocations.size} 个工具调用: ${toolInvocations.map { it.tool.name }}")
                     handleToolInvocation(toolInvocations, displayContent, responseCallback, onComplete)
                 } else {
+                    // 进行二次检查 - 使用简单的文本匹配来确认是否可能有工具调用标记被错过
+                    val possibleToolTag = "<tool\\s+name=".toRegex().find(content)
+                    
+                    if (possibleToolTag != null) {
+                        // 可能存在工具调用但没有被正确解析，进行更宽松的检测
+                        Log.w(TAG, "发现可能的工具标签但未提取到有效工具调用，进行二次检查")
+                        
+                        // 重试工具提取 - 这次清理一下字符串，移除一些可能干扰解析的特殊字符
+                        val cleanedContent = content
+                            .replace("\r", " ")
+                            .replace(Regex("\\s{2,}"), " ")
+                        
+                        val retriedInvocations = toolHandler.extractToolInvocations(cleanedContent)
+                        
+                        if (retriedInvocations.isNotEmpty() && isConversationActive.get()) {
+                            // 第二次尝试成功提取到工具调用
+                            Log.d(TAG, "二次检查找到 ${retriedInvocations.size} 个工具调用: ${retriedInvocations.map { it.tool.name }}")
+                            handleToolInvocation(retriedInvocations, displayContent, responseCallback, onComplete)
+                            return@launch
+                        } else {
+                            Log.w(TAG, "二次检查仍未提取到有效工具调用，可能是格式不符合预期")
+                        }
+                    }
+                    
                     // 没有工具调用，标记对话回合结束
                     Log.d(TAG, "没有找到工具调用，完成当前回合")
                     _inputProcessingState.value = InputProcessingState.Completed
@@ -514,8 +563,7 @@ class EnhancedAIService(
         
         // 添加过渡状态
         _inputProcessingState.value = InputProcessingState.Processing("工具执行完成，准备进一步处理...")
-        
-        toolHandler.markToolInvocationProcessed(invocation)
+
         
         // 处理工具结果 - 直接在这里继续处理，不调用单独的方法
         // 这是整个循环的关键部分，工具结果处理后直接继续下一轮AI请求

@@ -40,11 +40,11 @@ private const val PLACEHOLDER = "Screens to be implemented"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OperitApp() {
+fun OperitApp(initialNavItem: NavItem = NavItem.AiChat) {
     // 状态定义
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-    var selectedItem by remember { mutableStateOf<NavItem>(NavItem.AiChat) }
+    var selectedItem by remember { mutableStateOf<NavItem>(initialNavItem) }
     val navItems = listOf(NavItem.AiChat, NavItem.ShizukuCommands, NavItem.Settings)
     val context = LocalContext.current
     
