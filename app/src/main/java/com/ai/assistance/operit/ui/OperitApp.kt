@@ -92,6 +92,18 @@ fun OperitApp(
     var hasPermissionRequest by remember { mutableStateOf(permissionManager?.hasActivePermissionRequest() ?: false) }
     var permissionRequest by remember { mutableStateOf(permissionManager?.getCurrentPermissionRequest()) }
     
+    // Observe permission manager directly to detect state changes
+    DisposableEffect(Unit) {
+        // Force an immediate check
+        hasPermissionRequest = permissionManager?.hasActivePermissionRequest() ?: false
+        permissionRequest = permissionManager?.getCurrentPermissionRequest()
+        
+        // Log initial state
+        Log.d("OperitApp", "Initial permission state: hasRequest=$hasPermissionRequest, request=$permissionRequest")
+        
+        onDispose { }
+    }
+    
     // 定期检查权限请求状态，确保UI正确更新
     LaunchedEffect(Unit) {
         while(true) {
@@ -99,16 +111,16 @@ fun OperitApp(
             val newRequest = permissionManager?.getCurrentPermissionRequest()
             
             if (newHasRequest != hasPermissionRequest || newRequest != permissionRequest) {
-                Log.d("OperitApp", "权限请求状态变化: $hasPermissionRequest -> $newHasRequest, req=$newRequest")
+                Log.d("OperitApp", "Permission request status changed: $hasPermissionRequest -> $newHasRequest, req=$newRequest")
                 hasPermissionRequest = newHasRequest
                 permissionRequest = newRequest
             }
             
-            delay(200) // 200毫秒检查一次
+            delay(100) // Check more frequently (100ms instead of 200ms)
         }
     }
     
-    // 权限请求对话框
+    // 权限请求对话框 - Show at the top level of the composition
     if (hasPermissionRequest && permissionRequest != null) {
         // Fix smart cast issue with explicit null check and casting
         val toolData = permissionRequest
@@ -116,17 +128,23 @@ fun OperitApp(
             val tool = toolData.first
             val description = toolData.second
             
-            Log.d("OperitApp", "显示权限对话框: 工具=${tool.name}, 描述=$description")
+            Log.d("OperitApp", "Displaying permission dialog: tool=${tool.name}, description=$description")
             
-            ToolPermissionDialog(
-                tool = tool,
-                operationDescription = description,
-                onPermissionResult = { result ->
-                    Log.d("OperitApp", "权限对话框结果: $result")
-                    // Add safe call operator to fix null safety issue
-                    permissionManager?.handlePermissionResult(result)
-                }
-            )
+            // Show the dialog in a Box that covers the entire screen to ensure visibility
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                ToolPermissionDialog(
+                    tool = tool,
+                    operationDescription = description,
+                    onPermissionResult = { result ->
+                        Log.d("OperitApp", "Permission dialog result: $result")
+                        // Add safe call operator to fix null safety issue
+                        permissionManager?.handlePermissionResult(result)
+                    }
+                )
+            }
         }
     }
 

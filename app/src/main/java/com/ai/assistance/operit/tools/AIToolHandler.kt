@@ -428,7 +428,7 @@ class AIToolHandler(private val context: Context) {
                 } else {
                     try {
                         // 添加权限检查
-                        Log.d(TAG, "开始检查工具权限: ${invocation.tool.name}")
+                        Log.d(TAG, "Starting permission check for tool: ${invocation.tool.name}")
                         
                         // 初始化权限变量
                         var permissionDenied = false
@@ -436,12 +436,12 @@ class AIToolHandler(private val context: Context) {
                         try {
                             // 执行权限检查
                             val hasPermission = toolPermissionManager.checkToolPermission(invocation.tool)
-                            Log.d(TAG, "权限检查结果: ${invocation.tool.name}, 结果: $hasPermission")
+                            Log.d(TAG, "Permission check result: ${invocation.tool.name}, result: $hasPermission")
                             
                             if (!hasPermission) {
                                 // 用户拒绝了权限
                                 val errorResult = "Permission denied: Operation '${invocation.tool.name}' was not authorized"
-                                Log.d(TAG, "权限被拒绝: ${invocation.tool.name}, 替换调用")
+                                Log.d(TAG, "Permission denied: ${invocation.tool.name}, replacing invocation")
                                 
                                 processedResponse = replaceToolInvocation(
                                     processedResponse, 
@@ -461,11 +461,11 @@ class AIToolHandler(private val context: Context) {
                                     )
                                 )
                                 
-                                // 标记权限被拒绝
+                                // Mark permission as denied due to error
                                 permissionDenied = true
                             }
                         } catch (e: Exception) {
-                            Log.e(TAG, "权限检查过程中发生错误", e)
+                            Log.e(TAG, "Error during permission check", e)
                             
                             // 处理权限检查过程中的错误
                             val errorResult = "Error during permission check: ${e.message}"
@@ -487,11 +487,11 @@ class AIToolHandler(private val context: Context) {
                                 )
                             )
                             
-                            // 标记权限被拒绝，因为发生错误
+                            // Mark permission as denied due to error
                             permissionDenied = true
                         }
                         
-                        // 如果没有被权限拒绝，则执行工具
+                        // If permission not denied, execute the tool
                         if (!permissionDenied) {
                             // Execute the tool
                             val result = executor.invoke(invocation.tool)

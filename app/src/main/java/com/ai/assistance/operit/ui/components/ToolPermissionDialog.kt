@@ -32,105 +32,99 @@ fun ToolPermissionDialog(
     onPermissionResult: (PermissionRequestResult) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    ModalBottomSheet(
+    // Using AlertDialog instead of ModalBottomSheet for better visibility and focus
+    AlertDialog(
         onDismissRequest = { onPermissionResult(PermissionRequestResult.DENY) },
-        sheetState = rememberModalBottomSheetState(),
-        modifier = modifier
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
+        title = {
             Text(
-                text = "权限请求",
+                text = "Permission Request",
                 fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 16.dp)
+                fontWeight = FontWeight.Bold
             )
-            
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = RoundedCornerShape(8.dp)
-                    )
-                    .padding(12.dp)
-            ) {
-                Column {
-                    Text(
-                        text = "AI助手请求执行以下操作:",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    Text(
-                        text = operationDescription,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    Text(
-                        text = "工具: ${tool.name}",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            Row(
+        },
+        text = {
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Button(
-                    onClick = { onPermissionResult(PermissionRequestResult.ALLOW) },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    ),
-                    modifier = Modifier.weight(1f).padding(end = 8.dp)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        .padding(12.dp)
                 ) {
-                    Text("允许")
+                    Column {
+                        Text(
+                            text = "AI Assistant needs permission to execute the following operation:",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        Text(
+                            text = operationDescription,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        Text(
+                            text = "Tool: ${tool.name}",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
                 }
                 
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Text(
+                    text = "* You can change default permissions in settings",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onPermissionResult(PermissionRequestResult.ALLOW) },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Text("Allow")
+            }
+        },
+        dismissButton = {
+            Row {
                 Button(
                     onClick = { onPermissionResult(PermissionRequestResult.DENY) },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.error
                     ),
-                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
+                    modifier = Modifier.padding(end = 8.dp)
                 ) {
-                    Text("拒绝")
+                    Text("Deny")
                 }
                 
                 Button(
                     onClick = { onPermissionResult(PermissionRequestResult.DISCONNECT) },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.tertiary
-                    ),
-                    modifier = Modifier.weight(1f).padding(start = 8.dp)
+                    )
                 ) {
-                    Text("断开")
+                    Text("Disconnect")
                 }
             }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            Text(
-                text = "* 你可以在设置中更改权限以自动允许或拒绝操作",
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
-        }
-    }
+        },
+        containerColor = MaterialTheme.colorScheme.surface,
+        modifier = modifier
+    )
 } 
