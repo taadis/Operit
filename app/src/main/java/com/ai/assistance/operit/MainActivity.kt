@@ -433,37 +433,15 @@ class MainActivity : ComponentActivity() {
      * 启动权限状态检查任务，确保权限对话框能正常显示
      */
     private fun startPermissionRefreshTask() {
-        // Start with high-frequency refresh initially
         lifecycleScope.launch {
-            // Aggressively refresh several times at startup
-            repeat(10) {
-                try {
-                    Log.d(TAG, "Initial permission check ${it+1}/10")
-                    val hasRequest = toolHandler.refreshPermissionState()
-                    if (hasRequest) {
-                        Log.d(TAG, "Found active permission request during initial check")
-                        // Force UI update by recreating the content view
-                        recreateContentView()
-                        return@repeat
-                    }
-                    delay(300)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error in initial permission refresh", e)
+            try {
+                // 一次性检查是否有权限请求
+                val hasRequest = toolHandler?.getToolPermissionManager()?.hasActivePermissionRequest() ?: false
+                if (hasRequest) {
+                    Log.d("MainActivity", "Active permission request detected")
                 }
-            }
-            
-            // Continue with regular checks
-            while (true) {
-                try {
-                    // Check for any pending permission requests frequently
-                    val hasRequest = toolHandler.refreshPermissionState()
-                    if (hasRequest) {
-                        Log.d(TAG, "Found active permission request during regular check")
-                    }
-                    delay(500) // Check every 500ms
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error in permission refresh task", e)
-                }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error in permission check", e)
             }
         }
     }

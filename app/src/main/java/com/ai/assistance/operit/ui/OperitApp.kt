@@ -35,16 +35,9 @@ import com.ai.assistance.operit.ui.features.settings.screens.ToolPermissionSetti
 import com.ai.assistance.operit.ui.features.demo.screens.ShizukuDemoScreen
 import com.ai.assistance.operit.util.NetworkUtils
 import com.ai.assistance.operit.data.ChatHistoryManager
-import com.ai.assistance.operit.model.AITool
 import com.ai.assistance.operit.tools.AIToolHandler
-import com.ai.assistance.operit.tools.ToolPermissionManager
-import com.ai.assistance.operit.ui.components.ToolPermissionDialog
-import com.ai.assistance.operit.ui.components.PermissionRequestResult
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
-
-// Reference the screen components that will be created
-private const val PLACEHOLDER = "Screens to be implemented"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,67 +77,6 @@ fun OperitApp(
             chatHistories.find { it.id == currentChatId }?.title ?: ""
         } else {
             ""
-        }
-    }
-    
-    // 权限对话框状态
-    val permissionManager = toolHandler?.getToolPermissionManager()
-    var hasPermissionRequest by remember { mutableStateOf(permissionManager?.hasActivePermissionRequest() ?: false) }
-    var permissionRequest by remember { mutableStateOf(permissionManager?.getCurrentPermissionRequest()) }
-    
-    // Observe permission manager directly to detect state changes
-    DisposableEffect(Unit) {
-        // Force an immediate check
-        hasPermissionRequest = permissionManager?.hasActivePermissionRequest() ?: false
-        permissionRequest = permissionManager?.getCurrentPermissionRequest()
-        
-        // Log initial state
-        Log.d("OperitApp", "Initial permission state: hasRequest=$hasPermissionRequest, request=$permissionRequest")
-        
-        onDispose { }
-    }
-    
-    // 定期检查权限请求状态，确保UI正确更新
-    LaunchedEffect(Unit) {
-        while(true) {
-            val newHasRequest = permissionManager?.hasActivePermissionRequest() ?: false
-            val newRequest = permissionManager?.getCurrentPermissionRequest()
-            
-            if (newHasRequest != hasPermissionRequest || newRequest != permissionRequest) {
-                Log.d("OperitApp", "Permission request status changed: $hasPermissionRequest -> $newHasRequest, req=$newRequest")
-                hasPermissionRequest = newHasRequest
-                permissionRequest = newRequest
-            }
-            
-            delay(100) // Check more frequently (100ms instead of 200ms)
-        }
-    }
-    
-    // 权限请求对话框 - Show at the top level of the composition
-    if (hasPermissionRequest && permissionRequest != null) {
-        // Fix smart cast issue with explicit null check and casting
-        val toolData = permissionRequest
-        if (toolData != null) {
-            val tool = toolData.first
-            val description = toolData.second
-            
-            Log.d("OperitApp", "Displaying permission dialog: tool=${tool.name}, description=$description")
-            
-            // Show the dialog in a Box that covers the entire screen to ensure visibility
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                ToolPermissionDialog(
-                    tool = tool,
-                    operationDescription = description,
-                    onPermissionResult = { result ->
-                        Log.d("OperitApp", "Permission dialog result: $result")
-                        // Add safe call operator to fix null safety issue
-                        permissionManager?.handlePermissionResult(result)
-                    }
-                )
-            }
         }
     }
 

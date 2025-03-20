@@ -153,16 +153,13 @@ class FileSystemTools(private val context: Context) {
         }
         
         return try {
-            // Create a temporary file with the content
-            val tempFile = File(context.cacheDir, "temp_content.txt")
-            tempFile.writeText(content)
+            // 直接使用echo命令写入内容
+            // 对内容进行base64编码，避免特殊字符问题
+            val contentBase64 = android.util.Base64.encodeToString(content.toByteArray(), android.util.Base64.NO_WRAP)
             
-            // Use the temp file to write the content to the target path
+            // 使用base64命令解码并写入文件
             val redirectOperator = if (append) ">>" else ">"
-            val result = AdbCommandExecutor.executeAdbCommand("cat ${tempFile.absolutePath} $redirectOperator $path")
-            
-            // Delete the temp file
-            tempFile.delete()
+            val result = AdbCommandExecutor.executeAdbCommand("echo '$contentBase64' | base64 -d $redirectOperator '$path'")
             
             if (result.success) {
                 return ToolResult(

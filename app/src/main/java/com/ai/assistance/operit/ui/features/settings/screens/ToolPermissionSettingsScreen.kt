@@ -64,23 +64,9 @@ fun ToolPermissionSettingsScreen(
         fileWritePermissionInput = fileWritePermission
     }
     
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("工具权限设置") },
-                navigationIcon = {
-                    IconButton(onClick = navigateBack) {
-                        // 返回图标
-                        Text("<", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            )
-        }
-    ) { paddingValues ->
-        Column(
+     Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
@@ -88,21 +74,21 @@ fun ToolPermissionSettingsScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 16.dp)
+                    .padding(bottom = 12.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp)
+                    modifier = Modifier.padding(12.dp)
                 ) {
                     Text(
                         text = "全局权限开关",
                         style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(bottom = 8.dp)
+                        modifier = Modifier.padding(bottom = 4.dp)
                     )
                     
                     Text(
-                        text = "此设置会覆盖所有单独的工具权限设置。设置为\"询问\"时，将使用各类工具的具体权限设置。",
+                        text = "此设置控制所有AI工具的权限。设置为\"询问\"时，将对所有工具进行权限询问；设置为\"允许\"时，将使用各类工具的具体权限设置。",
                         style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(bottom = 16.dp)
+                        modifier = Modifier.padding(bottom = 8.dp)
                     )
                     
                     PermissionLevelSelector(
@@ -240,7 +226,7 @@ fun ToolPermissionSettingsScreen(
             }
         }
     }
-}
+
 
 @Composable
 fun PermissionCategoryCard(
@@ -253,21 +239,21 @@ fun PermissionCategoryCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 16.dp)
+            .padding(bottom = 12.dp)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(12.dp)
         ) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(bottom = 8.dp)
+                modifier = Modifier.padding(bottom = 4.dp)
             )
             
             Text(
                 text = description,
                 style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(bottom = 16.dp)
+                modifier = Modifier.padding(bottom = 8.dp)
             )
             
             PermissionLevelSelector(
@@ -303,7 +289,7 @@ fun PermissionLevelSelector(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp),
+                    .padding(vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 RadioButton(
@@ -311,11 +297,11 @@ fun PermissionLevelSelector(
                     onClick = { onLevelSelected(level) }
                 )
                 
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(4.dp))
                 
                 Text(
                     text = levelName,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.weight(1f)
                 )
             }

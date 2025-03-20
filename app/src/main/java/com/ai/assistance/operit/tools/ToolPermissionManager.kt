@@ -1,12 +1,17 @@
 package com.ai.assistance.operit.tools
 
+import android.app.AlertDialog
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import com.ai.assistance.operit.data.PermissionLevel
 import com.ai.assistance.operit.data.ToolCategoryMapper
 import com.ai.assistance.operit.data.ToolPermissionPreferences
 import com.ai.assistance.operit.model.AITool
 import com.ai.assistance.operit.ui.components.PermissionRequestResult
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
@@ -19,10 +24,11 @@ class ToolPermissionManager(private val context: Context) {
     
     companion object {
         private const val TAG = "ToolPermissionManager"
-        private const val PERMISSION_REQUEST_TIMEOUT_MS = 60000L // Extend timeout to 60 seconds
+        private const val PERMISSION_REQUEST_TIMEOUT_MS = 60000L // 60秒权限请求超时
     }
     
     private val toolPermissionPreferences = ToolPermissionPreferences(context)
+    private val mainHandler = Handler(Looper.getMainLooper())
     
     // 当前的权限请求回调
     private var currentPermissionCallback: ((PermissionRequestResult) -> Unit)? = null
@@ -30,33 +36,33 @@ class ToolPermissionManager(private val context: Context) {
     // 需要显示的权限请求信息
     private var permissionRequestInfo: Pair<AITool, String>? = null
     
+    // 权限请求状态变化通知
+    private val _permissionRequestState = MutableStateFlow<Pair<AITool, String>?>(null)
+    val permissionRequestState = _permissionRequestState.asStateFlow()
+    
     /**
      * 检查工具是否有执行权限
      * @param tool 要执行的工具
      * @return 权限检查结果
      */
     suspend fun checkToolPermission(tool: AITool): Boolean {
-        Log.d(TAG, "Starting permission check process: ${tool.name}")
+        Log.d(TAG, "Starting permission check: ${tool.name}")
         
         // 获取全局权限开关设置
         val masterSwitch = toolPermissionPreferences.masterSwitchFlow.first()
-        Log.d(TAG, "Global permission switch: $masterSwitch")
         
         // 如果全局禁止，所有工具都不允许执行
         if (masterSwitch == PermissionLevel.FORBID) {
-            Log.d(TAG, "Global permission setting is forbidden, refusing to execute tool: ${tool.name}")
             return false
         }
         
         // 如果全局询问，则对所有工具进行询问
         if (masterSwitch == PermissionLevel.ASK) {
-            Log.d(TAG, "Global permission setting is asking, requesting user confirmation: ${tool.name}")
             return requestPermission(tool)
         }
         
-        // 获取工具类别 - 优先使用工具内置类别，如果没有则使用映射器
+        // 获取工具类别
         val toolCategory = tool.category ?: ToolCategoryMapper.getToolCategory(tool.name)
-        Log.d(TAG, "Tool category: ${tool.name} -> $toolCategory")
         
         // 根据工具类别获取对应的权限级别
         val permissionLevel = when (toolCategory) {
@@ -71,35 +77,15 @@ class ToolPermissionManager(private val context: Context) {
             com.ai.assistance.operit.data.ToolCategory.FILE_WRITE -> 
                 toolPermissionPreferences.fileWritePermissionFlow.first()
         }
-        Log.d(TAG, "Tool category permission level: $toolCategory -> $permissionLevel")
         
         return when (permissionLevel) {
-            PermissionLevel.ALLOW -> {
-                // 允许直接执行
-                Log.d(TAG, "Permission setting is allowed, executing tool directly: ${tool.name}")
-                true
-            }
+            PermissionLevel.ALLOW -> true
             PermissionLevel.CAUTION -> {
-                // 警惕模式 - 检查是否危险操作
                 val isDangerous = ToolCategoryMapper.isDangerousOperation(tool.name, tool.parameters)
-                if (isDangerous) {
-                    Log.d(TAG, "Dangerous operation in caution mode, requesting user confirmation: ${tool.name}")
-                    requestPermission(tool)
-                } else {
-                    Log.d(TAG, "Safe operation in caution mode, executing tool directly: ${tool.name}")
-                    true
-                }
+                if (isDangerous) requestPermission(tool) else true
             }
-            PermissionLevel.ASK -> {
-                // 询问用户
-                Log.d(TAG, "Permission setting is asking, requesting user confirmation: ${tool.name}")
-                requestPermission(tool)
-            }
-            PermissionLevel.FORBID -> {
-                // 禁止执行
-                Log.d(TAG, "Permission setting is forbidden, refusing to execute tool: ${tool.name}")
-                false
-            }
+            PermissionLevel.ASK -> requestPermission(tool)
+            PermissionLevel.FORBID -> false
         }
     }
     
@@ -112,68 +98,84 @@ class ToolPermissionManager(private val context: Context) {
         // 获取操作描述
         val operationDescription = ToolCategoryMapper.getOperationDescription(tool.name, tool.parameters)
         
-        Log.d(TAG, "Starting permission request: ${tool.name}, description: $operationDescription")
+        Log.d(TAG, "Requesting permission: ${tool.name}")
         
-        // Clear any existing request info first
+        // 清除现有请求
         currentPermissionCallback = null
         permissionRequestInfo = null
+        _permissionRequestState.value = null
         
-        // 设置权限请求信息，用于UI显示
-        permissionRequestInfo = Pair(tool, operationDescription)
+        // 设置新请求
+        val requestInfo = Pair(tool, operationDescription)
+        permissionRequestInfo = requestInfo
+        _permissionRequestState.value = requestInfo
         
-        // Force a check immediately to ensure the UI detects the request
-        refreshPermissionRequestState()
-        
-        // 添加额外日志，验证状态是否正确设置
-        Log.d(TAG, "Permission request state set, current state: hasRequest=${hasActivePermissionRequest()}, info=$permissionRequestInfo")
+        Log.d(TAG, "Permission request state updated: ${tool.name}")
         
         return withTimeoutOrNull(PERMISSION_REQUEST_TIMEOUT_MS) {
             suspendCancellableCoroutine { continuation ->
-                Log.d(TAG, "Permission request suspended, waiting for user response: ${tool.name}")
-                
                 // 设置回调
                 currentPermissionCallback = { result ->
-                    // 清空回调和请求信息
-                    Log.d(TAG, "User response received, clearing permission request state")
+                    Log.d(TAG, "Permission result received: $result for ${tool.name}")
+                    // 清理状态
                     currentPermissionCallback = null
                     permissionRequestInfo = null
+                    _permissionRequestState.value = null
                     
-                    Log.d(TAG, "User responded to permission request: ${tool.name}, result: $result")
-                    
-                    // 根据用户选择继续协程
+                    // 处理结果
                     when (result) {
                         PermissionRequestResult.ALLOW -> continuation.resume(true)
                         PermissionRequestResult.DENY -> continuation.resume(false)
                         PermissionRequestResult.DISCONNECT -> {
-                            // 断开连接 - 取消当前请求
                             if (continuation.isActive) continuation.cancel()
                             continuation.resume(false)
                         }
                     }
                 }
                 
-                // Check state again after setting callback to ensure UI is updated
-                refreshPermissionRequestState()
-                
-                // 请求超时时自动取消
-                continuation.invokeOnCancellation {
-                    Log.d(TAG, "Permission request cancelled: ${tool.name}")
-                    currentPermissionCallback = null
-                    permissionRequestInfo = null
+                // 在主线程中创建和显示对话框
+                mainHandler.post {
+                    val dialog = AlertDialog.Builder(context)
+                        .setTitle("Permission Request")
+                        .setMessage("Tool '${tool.name}' needs permission to: $operationDescription")
+                        .setPositiveButton("Allow") { _, _ ->
+                            Log.d(TAG, "Permission granted for ${tool.name}")
+                            handlePermissionResult(PermissionRequestResult.ALLOW)
+                        }
+                        .setNegativeButton("Deny") { _, _ ->
+                            Log.d(TAG, "Permission denied for ${tool.name}")
+                            handlePermissionResult(PermissionRequestResult.DENY)
+                        }
+                        .setOnDismissListener {
+                            Log.d(TAG, "Permission dialog dismissed for ${tool.name}")
+                            handlePermissionResult(PermissionRequestResult.DENY)
+                        }
+                        .create()
+                    
+                    dialog.show()
+                    
+                    // 取消处理
+                    continuation.invokeOnCancellation {
+                        Log.d(TAG, "Permission request cancelled for ${tool.name}")
+                        currentPermissionCallback = null
+                        permissionRequestInfo = null
+                        _permissionRequestState.value = null
+                        dialog.dismiss()
+                    }
                 }
             }
         } ?: run {
-            Log.d(TAG, "Permission request timed out for: ${tool.name}")
-            // Clean up resources
+            // 超时处理
+            Log.d(TAG, "Permission request timed out: ${tool.name}")
             currentPermissionCallback = null
             permissionRequestInfo = null
-            false // timeout default deny
+            _permissionRequestState.value = null
+            false
         }
     }
     
     /**
      * 处理权限请求结果
-     * @param result 权限请求结果
      */
     fun handlePermissionResult(result: PermissionRequestResult) {
         currentPermissionCallback?.invoke(result)
@@ -181,7 +183,6 @@ class ToolPermissionManager(private val context: Context) {
     
     /**
      * 获取当前权限请求信息
-     * @return 当前权限请求信息（工具和操作描述），如果没有则返回null
      */
     fun getCurrentPermissionRequest(): Pair<AITool, String>? {
         return permissionRequestInfo
@@ -189,21 +190,16 @@ class ToolPermissionManager(private val context: Context) {
     
     /**
      * 检查是否有待处理的权限请求
-     * @return 是否有待处理的权限请求
      */
     fun hasActivePermissionRequest(): Boolean {
         val hasRequest = permissionRequestInfo != null && currentPermissionCallback != null
-        Log.d(TAG, "Checking for active permission request: $hasRequest (info=${permissionRequestInfo != null}, callback=${currentPermissionCallback != null})")
         return hasRequest
     }
     
     /**
-     * 强制刷新当前的权限请求状态
-     * 如果权限对话框未显示但存在有效请求，可调用此方法
+     * 刷新权限请求状态
      */
     fun refreshPermissionRequestState(): Boolean {
-        val hasActiveRequest = hasActivePermissionRequest()
-        Log.d(TAG, "Forced refresh of permission request state, active request: $hasActiveRequest")
-        return hasActiveRequest
+        return hasActivePermissionRequest()
     }
 } 
