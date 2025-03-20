@@ -2,6 +2,7 @@ package com.ai.assistance.operit.model
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Contextual
+import com.ai.assistance.operit.data.ToolCategory
 
 /**
  * Represents a tool parameter in an AI tool
@@ -19,7 +20,8 @@ data class ToolParameter(
 data class AITool(
     val name: String,
     val parameters: List<ToolParameter> = emptyList(),
-    val description: String = ""
+    val description: String = "",
+    val category: ToolCategory? = null
 )
 
 /**

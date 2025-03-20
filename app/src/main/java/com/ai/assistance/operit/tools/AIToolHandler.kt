@@ -51,22 +51,63 @@ class AIToolHandler(private val context: Context) {
     // Available tools registry
     private val availableTools = mutableMapOf<String, ToolExecutor>()
     
+    // 工具权限管理器
+    private val toolPermissionManager = ToolPermissionManager(context)
+    
+    /**
+     * 获取工具权限管理器 - 供UI层使用
+     */
+    fun getToolPermissionManager(): ToolPermissionManager {
+        return toolPermissionManager
+    }
+    
+    /**
+     * 强制刷新权限请求状态
+     * 如果权限对话框未显示，可调用此方法
+     */
+    fun refreshPermissionState(): Boolean {
+        return toolPermissionManager.refreshPermissionRequestState()
+    }
     
     // Register a tool executor
     fun registerTool(name: String, executor: ToolExecutor) {
         availableTools[name] = executor
     }
     
+    // Register a tool executor with category
+    fun registerTool(name: String, category: com.ai.assistance.operit.data.ToolCategory, executor: ToolExecutor) {
+        val wrappedExecutor = object : ToolExecutor {
+            override fun invoke(tool: AITool): ToolResult {
+                // 创建一个包含类别的新工具实例
+                val toolWithCategory = if (tool.category == null) {
+                    tool.copy(category = category)
+                } else {
+                    tool
+                }
+                return executor.invoke(toolWithCategory)
+            }
+            
+            override fun validateParameters(tool: AITool): ToolValidationResult {
+                return executor.validateParameters(tool)
+            }
+            
+            override fun getCategory(): com.ai.assistance.operit.data.ToolCategory {
+                return category
+            }
+        }
+        availableTools[name] = wrappedExecutor
+    }
+    
     // Register all default tools
     fun registerDefaultTools() {
         // Weather Tool
-        registerTool("weather") { tool ->
+        registerTool("weather", com.ai.assistance.operit.data.ToolCategory.NETWORK) { tool ->
             val weatherTool = WeatherTool(context)
             weatherTool.invoke(tool)
         }
         
         // Demo calculator tool
-        registerTool("calculate") { tool ->
+        registerTool("calculate", com.ai.assistance.operit.data.ToolCategory.FILE_READ) { tool ->
             val expression = tool.parameters.find { it.name == "expression" }?.value ?: ""
             try {
                 val result = Calculator.evalExpression(expression)
@@ -86,19 +127,19 @@ class AIToolHandler(private val context: Context) {
         }
         
         // Web Search Tool
-        registerTool("web_search") { tool ->
+        registerTool("web_search", com.ai.assistance.operit.data.ToolCategory.NETWORK) { tool ->
             val webSearchTool = WebSearchTool(context)
             webSearchTool.invoke(tool)
         }
         
         // Sleep tool
-        registerTool("sleep") { tool ->
+        registerTool("sleep", com.ai.assistance.operit.data.ToolCategory.FILE_READ) { tool ->
             val sleepExecutor = BlockingSleepToolExecutor()
             sleepExecutor.invoke(tool)
         }
         
         // Simulated connection ID tool
-        registerTool("device_info") { tool ->
+        registerTool("device_info", com.ai.assistance.operit.data.ToolCategory.FILE_READ) { tool ->
             val deviceInfoExecutor = ConnectionToolExecutor()
             deviceInfoExecutor.invoke(tool)
         }
@@ -107,105 +148,105 @@ class AIToolHandler(private val context: Context) {
         val fileSystemTools = FileSystemTools(context)
         
         // List directory contents
-        registerTool("list_files") { tool ->
+        registerTool("list_files", com.ai.assistance.operit.data.ToolCategory.FILE_READ) { tool ->
             kotlinx.coroutines.runBlocking {
                 fileSystemTools.listFiles(tool)
             }
         }
         
         // Read file content
-        registerTool("read_file") { tool ->
+        registerTool("read_file", com.ai.assistance.operit.data.ToolCategory.FILE_READ) { tool ->
             kotlinx.coroutines.runBlocking {
                 fileSystemTools.readFile(tool)
             }
         }
         
         // Write to file
-        registerTool("write_file") { tool ->
+        registerTool("write_file", com.ai.assistance.operit.data.ToolCategory.FILE_WRITE) { tool ->
             kotlinx.coroutines.runBlocking {
                 fileSystemTools.writeFile(tool)
             }
         }
         
         // Delete file/directory
-        registerTool("delete_file") { tool ->
+        registerTool("delete_file", com.ai.assistance.operit.data.ToolCategory.FILE_WRITE) { tool ->
             kotlinx.coroutines.runBlocking {
                 fileSystemTools.deleteFile(tool)
             }
         }
         
         // Check if file exists
-        registerTool("file_exists") { tool ->
+        registerTool("file_exists", com.ai.assistance.operit.data.ToolCategory.FILE_READ) { tool ->
             kotlinx.coroutines.runBlocking {
                 fileSystemTools.fileExists(tool)
             }
         }
         
         // Move/rename file or directory
-        registerTool("move_file") { tool ->
+        registerTool("move_file", com.ai.assistance.operit.data.ToolCategory.FILE_WRITE) { tool ->
             kotlinx.coroutines.runBlocking {
                 fileSystemTools.moveFile(tool)
             }
         }
         
         // Copy file or directory
-        registerTool("copy_file") { tool ->
+        registerTool("copy_file", com.ai.assistance.operit.data.ToolCategory.FILE_WRITE) { tool ->
             kotlinx.coroutines.runBlocking {
                 fileSystemTools.copyFile(tool)
             }
         }
         
         // Create directory
-        registerTool("make_directory") { tool ->
+        registerTool("make_directory", com.ai.assistance.operit.data.ToolCategory.FILE_WRITE) { tool ->
             kotlinx.coroutines.runBlocking {
                 fileSystemTools.makeDirectory(tool)
             }
         }
         
         // Search for files
-        registerTool("find_files") { tool ->
+        registerTool("find_files", com.ai.assistance.operit.data.ToolCategory.FILE_READ) { tool ->
             kotlinx.coroutines.runBlocking {
                 fileSystemTools.findFiles(tool)
             }
         }
         
         // Get file information
-        registerTool("file_info") { tool ->
+        registerTool("file_info", com.ai.assistance.operit.data.ToolCategory.FILE_READ) { tool ->
             kotlinx.coroutines.runBlocking {
                 fileSystemTools.fileInfo(tool)
             }
         }
         
         // Compress files/directories
-        registerTool("zip_files") { tool ->
+        registerTool("zip_files", com.ai.assistance.operit.data.ToolCategory.FILE_WRITE) { tool ->
             kotlinx.coroutines.runBlocking {
                 fileSystemTools.zipFiles(tool)
             }
         }
         
         // Extract zip files
-        registerTool("unzip_files") { tool ->
+        registerTool("unzip_files", com.ai.assistance.operit.data.ToolCategory.FILE_WRITE) { tool ->
             kotlinx.coroutines.runBlocking {
                 fileSystemTools.unzipFiles(tool)
             }
         }
         
         // 打开文件
-        registerTool("open_file") { tool ->
+        registerTool("open_file", com.ai.assistance.operit.data.ToolCategory.FILE_READ) { tool ->
             kotlinx.coroutines.runBlocking {
                 fileSystemTools.openFile(tool)
             }
         }
         
         // 分享文件
-        registerTool("share_file") { tool ->
+        registerTool("share_file", com.ai.assistance.operit.data.ToolCategory.FILE_WRITE) { tool ->
             kotlinx.coroutines.runBlocking {
                 fileSystemTools.shareFile(tool)
             }
         }
         
         // 下载文件
-        registerTool("download_file") { tool ->
+        registerTool("download_file", com.ai.assistance.operit.data.ToolCategory.NETWORK) { tool ->
             kotlinx.coroutines.runBlocking {
                 fileSystemTools.downloadFile(tool)
             }
@@ -215,14 +256,14 @@ class AIToolHandler(private val context: Context) {
         val httpTools = HttpTools(context)
         
         // 获取网页内容
-        registerTool("fetch_web_page") { tool ->
+        registerTool("fetch_web_page", com.ai.assistance.operit.data.ToolCategory.NETWORK) { tool ->
             kotlinx.coroutines.runBlocking {
                 httpTools.fetchWebPage(tool)
             }
         }
         
         // 发送HTTP请求
-        registerTool("http_request") { tool ->
+        registerTool("http_request", com.ai.assistance.operit.data.ToolCategory.NETWORK) { tool ->
             kotlinx.coroutines.runBlocking {
                 httpTools.httpRequest(tool)
             }
@@ -232,49 +273,49 @@ class AIToolHandler(private val context: Context) {
         val systemOperationTools = SystemOperationTools(context)
         
         // 修改系统设置
-        registerTool("modify_system_setting") { tool ->
+        registerTool("modify_system_setting", com.ai.assistance.operit.data.ToolCategory.SYSTEM_OPERATION) { tool ->
             kotlinx.coroutines.runBlocking {
                 systemOperationTools.modifySystemSetting(tool)
             }
         }
         
         // 获取系统设置
-        registerTool("get_system_setting") { tool ->
+        registerTool("get_system_setting", com.ai.assistance.operit.data.ToolCategory.SYSTEM_OPERATION) { tool ->
             kotlinx.coroutines.runBlocking {
                 systemOperationTools.getSystemSetting(tool)
             }
         }
         
         // 安装应用
-        registerTool("install_app") { tool ->
+        registerTool("install_app", com.ai.assistance.operit.data.ToolCategory.SYSTEM_OPERATION) { tool ->
             kotlinx.coroutines.runBlocking {
                 systemOperationTools.installApp(tool)
             }
         }
         
         // 卸载应用
-        registerTool("uninstall_app") { tool ->
+        registerTool("uninstall_app", com.ai.assistance.operit.data.ToolCategory.SYSTEM_OPERATION) { tool ->
             kotlinx.coroutines.runBlocking {
                 systemOperationTools.uninstallApp(tool)
             }
         }
         
         // 获取已安装应用列表
-        registerTool("list_installed_apps") { tool ->
+        registerTool("list_installed_apps", com.ai.assistance.operit.data.ToolCategory.SYSTEM_OPERATION) { tool ->
             kotlinx.coroutines.runBlocking {
                 systemOperationTools.listInstalledApps(tool)
             }
         }
         
         // 启动应用
-        registerTool("start_app") { tool ->
+        registerTool("start_app", com.ai.assistance.operit.data.ToolCategory.SYSTEM_OPERATION) { tool ->
             kotlinx.coroutines.runBlocking {
                 systemOperationTools.startApp(tool)
             }
         }
         
         // 停止应用
-        registerTool("stop_app") { tool ->
+        registerTool("stop_app", com.ai.assistance.operit.data.ToolCategory.SYSTEM_OPERATION) { tool ->
             kotlinx.coroutines.runBlocking {
                 systemOperationTools.stopApp(tool)
             }
@@ -284,56 +325,56 @@ class AIToolHandler(private val context: Context) {
         val adbUITools = ADBUITools(context)
         
         // Get current page/window information
-        registerTool("get_page_info") { tool ->
+        registerTool("get_page_info", com.ai.assistance.operit.data.ToolCategory.UI_AUTOMATION) { tool ->
             kotlinx.coroutines.runBlocking {
                 adbUITools.getPageInfo(tool)
             }
         }
         
         // Tap at specific coordinates
-        registerTool("tap") { tool ->
+        registerTool("tap", com.ai.assistance.operit.data.ToolCategory.UI_AUTOMATION) { tool ->
             kotlinx.coroutines.runBlocking {
                 adbUITools.tap(tool)
             }
         }
         
-        // Click on element by resource ID, text or content description
-        registerTool("click_element") { tool ->
+        // Click on element by resource ID or class name
+        registerTool("click_element", com.ai.assistance.operit.data.ToolCategory.UI_AUTOMATION) { tool ->
             kotlinx.coroutines.runBlocking {
                 adbUITools.clickElement(tool)
             }
         }
         
         // Set text in input field
-        registerTool("set_input_text") { tool ->
+        registerTool("set_input_text", com.ai.assistance.operit.data.ToolCategory.UI_AUTOMATION) { tool ->
             kotlinx.coroutines.runBlocking {
                 adbUITools.setInputText(tool)
             }
         }
         
         // Press a specific key
-        registerTool("press_key") { tool ->
+        registerTool("press_key", com.ai.assistance.operit.data.ToolCategory.UI_AUTOMATION) { tool ->
             kotlinx.coroutines.runBlocking {
                 adbUITools.pressKey(tool)
             }
         }
         
         // Perform swipe gesture
-        registerTool("swipe") { tool ->
+        registerTool("swipe", com.ai.assistance.operit.data.ToolCategory.UI_AUTOMATION) { tool ->
             kotlinx.coroutines.runBlocking {
                 adbUITools.swipe(tool)
             }
         }
         
         // Launch an app by package name
-        registerTool("launch_app") { tool ->
+        registerTool("launch_app", com.ai.assistance.operit.data.ToolCategory.UI_AUTOMATION) { tool ->
             kotlinx.coroutines.runBlocking {
                 adbUITools.launchApp(tool)
             }
         }
         
         // Perform a combined operation with delay and return the new UI state
-        registerTool("combined_operation") { tool ->
+        registerTool("combined_operation", com.ai.assistance.operit.data.ToolCategory.UI_AUTOMATION) { tool ->
             kotlinx.coroutines.runBlocking {
                 adbUITools.combinedOperation(tool)
             }
@@ -386,23 +427,90 @@ class AIToolHandler(private val context: Context) {
                     )
                 } else {
                     try {
-                        // Execute the tool
-                        val result = executor.invoke(invocation.tool)
+                        // 添加权限检查
+                        Log.d(TAG, "开始检查工具权限: ${invocation.tool.name}")
                         
-                        // Replace the tool invocation with the result
-                        processedResponse = replaceToolInvocation(
-                            processedResponse, 
-                            invocation, 
-                            if (result.success) result.result else "Tool execution failed: ${result.error}"
-                        )
+                        // 初始化权限变量
+                        var permissionDenied = false
                         
-                        _toolProgress.value = ToolExecutionProgress(
-                            state = ToolExecutionState.COMPLETED,
-                            tool = invocation.tool,
-                            progress = (index + 1).toFloat() / toolInvocations.size,
-                            message = "Tool executed: ${invocation.tool.name}",
-                            result = result
-                        )
+                        try {
+                            // 执行权限检查
+                            val hasPermission = toolPermissionManager.checkToolPermission(invocation.tool)
+                            Log.d(TAG, "权限检查结果: ${invocation.tool.name}, 结果: $hasPermission")
+                            
+                            if (!hasPermission) {
+                                // 用户拒绝了权限
+                                val errorResult = "Permission denied: Operation '${invocation.tool.name}' was not authorized"
+                                Log.d(TAG, "权限被拒绝: ${invocation.tool.name}, 替换调用")
+                                
+                                processedResponse = replaceToolInvocation(
+                                    processedResponse, 
+                                    invocation, 
+                                    errorResult
+                                )
+                                
+                                _toolProgress.value = ToolExecutionProgress(
+                                    state = ToolExecutionState.FAILED,
+                                    tool = invocation.tool,
+                                    message = "Permission denied for tool: ${invocation.tool.name}",
+                                    result = ToolResult(
+                                        toolName = invocation.tool.name,
+                                        success = false,
+                                        result = "",
+                                        error = "Permission denied"
+                                    )
+                                )
+                                
+                                // 标记权限被拒绝
+                                permissionDenied = true
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "权限检查过程中发生错误", e)
+                            
+                            // 处理权限检查过程中的错误
+                            val errorResult = "Error during permission check: ${e.message}"
+                            processedResponse = replaceToolInvocation(
+                                processedResponse, 
+                                invocation, 
+                                errorResult
+                            )
+                            
+                            _toolProgress.value = ToolExecutionProgress(
+                                state = ToolExecutionState.FAILED,
+                                tool = invocation.tool,
+                                message = "Permission check failed: ${e.message}",
+                                result = ToolResult(
+                                    toolName = invocation.tool.name,
+                                    success = false,
+                                    result = "",
+                                    error = "Permission check error: ${e.message}"
+                                )
+                            )
+                            
+                            // 标记权限被拒绝，因为发生错误
+                            permissionDenied = true
+                        }
+                        
+                        // 如果没有被权限拒绝，则执行工具
+                        if (!permissionDenied) {
+                            // Execute the tool
+                            val result = executor.invoke(invocation.tool)
+                            
+                            // Replace the tool invocation with the result
+                            processedResponse = replaceToolInvocation(
+                                processedResponse, 
+                                invocation, 
+                                result.result
+                            )
+                            
+                            _toolProgress.value = ToolExecutionProgress(
+                                state = ToolExecutionState.COMPLETED,
+                                tool = invocation.tool,
+                                progress = (index + 1).toFloat() / toolInvocations.size,
+                                message = "Tool executed: ${invocation.tool.name}",
+                                result = result
+                            )
+                        }
                     } catch (e: Exception) {
                         Log.e(TAG, "Error executing tool: ${invocation.tool.name}", e)
                         
@@ -610,5 +718,12 @@ fun interface ToolExecutor {
      */
     fun validateParameters(tool: AITool): ToolValidationResult {
         return ToolValidationResult(valid = true)
+    }
+    
+    /**
+     * 获取工具的类别，默认返回UI_AUTOMATION作为最高安全级别
+     */
+    fun getCategory(): com.ai.assistance.operit.data.ToolCategory {
+        return com.ai.assistance.operit.data.ToolCategory.UI_AUTOMATION
     }
 } 

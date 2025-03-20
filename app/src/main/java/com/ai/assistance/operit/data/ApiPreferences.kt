@@ -23,9 +23,11 @@ class ApiPreferences(private val context: Context) {
         val SHOW_THINKING = booleanPreferencesKey("show_thinking")
         
         // Default values
-        const val DEFAULT_API_ENDPOINT = "https://api.deepseek.com/v1/chat/completions"
-        const val DEFAULT_MODEL_NAME = "deepseek-reasoner"
-        const val DEFAULT_API_KEY = "sk-e565390c164c4cfa8820624ef47d68bf"
+        // const val DEFAULT_API_ENDPOINT = "https://api.deepseek.com/v1/chat/completions"
+        const val DEFAULT_API_ENDPOINT = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+        const val DEFAULT_MODEL_NAME = "qwq-plus"
+        // const val DEFAULT_API_KEY = "sk-e565390c164c4cfa8820624ef47d68bf"
+        const val DEFAULT_API_KEY = "sk-bcf2cbfa8c9144119de247db8fdb7af5"
         const val DEFAULT_SHOW_THINKING = true
     }
     

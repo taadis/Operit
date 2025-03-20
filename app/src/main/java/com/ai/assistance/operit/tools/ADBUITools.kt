@@ -410,22 +410,20 @@ class ADBUITools(private val context: Context) {
     }
     
     /**
-     * Simulates a click on an element identified by resource ID, text, content description, or class name
+     * Simulates a click on an element identified by resource ID or class name
      */
     suspend fun clickElement(tool: AITool): ToolResult {
         val resourceId = tool.parameters.find { it.name == "resourceId" }?.value
-        val text = tool.parameters.find { it.name == "text" }?.value
-        val contentDesc = tool.parameters.find { it.name == "contentDesc" }?.value
         val className = tool.parameters.find { it.name == "className" }?.value
         val index = tool.parameters.find { it.name == "index" }?.value?.toIntOrNull() ?: 0
         val partialMatch = tool.parameters.find { it.name == "partialMatch" }?.value?.toBoolean() ?: false
         
-        if (resourceId == null && text == null && contentDesc == null && className == null) {
+        if (resourceId == null && className == null) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
                 result = "",
-                error = "Missing element identifier. Provide at least one of: 'resourceId', 'text', 'contentDesc', or 'className'."
+                error = "Missing element identifier. Provide at least one of: 'resourceId' or 'className'."
             )
         }
         
@@ -473,26 +471,6 @@ class ADBUITools(private val context: Context) {
                 "resource-id=\".*?\"".toRegex()
             }
             
-            val textPattern = if (text != null) {
-                if (partialMatch) {
-                    "text=\".*?${Regex.escape(text)}.*?\"".toRegex()
-                } else {
-                    "text=\"${Regex.escape(text)}\"".toRegex()
-                }
-            } else {
-                "text=\".*?\"".toRegex()
-            }
-            
-            val contentDescPattern = if (contentDesc != null) {
-                if (partialMatch) {
-                    "content-desc=\".*?${Regex.escape(contentDesc)}.*?\"".toRegex()
-                } else {
-                    "content-desc=\"${Regex.escape(contentDesc)}\"".toRegex()
-                }
-            } else {
-                "content-desc=\".*?\"".toRegex()
-            }
-            
             val classNamePattern = if (className != null) {
                 "class=\".*?${Regex.escape(className)}.*?\"".toRegex()
             } else {
@@ -507,17 +485,15 @@ class ADBUITools(private val context: Context) {
                 // For resourceId, extract complete node elements to ensure we're matching correctly
                 val nodePattern = if (partialMatch) {
                     "<node[^>]*?resource-id=\".*?${Regex.escape(resourceId)}.*?\"[^>]*?>".toRegex()
-                } else {
+            } else {
                     // More precise matching for resourceIds
                     "<node[^>]*?resource-id=\"(?:.*?:id/)?${Regex.escape(resourceId)}\"[^>]*?>".toRegex()
                 }
                 nodePattern.findAll(xml).toList()
             } else {
-                // Build pattern for other criteria
+                // Build pattern for class name
                 val nodeRegexPattern = StringBuilder("<node[^>]*?")
                 
-                if (text != null) nodeRegexPattern.append(".*?$textPattern")
-                if (contentDesc != null) nodeRegexPattern.append(".*?$contentDescPattern")
                 if (className != null) nodeRegexPattern.append(".*?$classNamePattern")
                 
                 nodeRegexPattern.append("[^>]*?>")
@@ -530,8 +506,6 @@ class ADBUITools(private val context: Context) {
                 // If no nodes found, provide a helpful error message based on what we were searching for
                 val criteria = when {
                     resourceId != null -> "resource ID: $resourceId"
-                    text != null -> "text: $text"
-                    contentDesc != null -> "content description: $contentDesc"
                     else -> "class name: $className"
                 }
                 val matchType = if (partialMatch) "partial match" else "exact match"
@@ -595,8 +569,6 @@ class ADBUITools(private val context: Context) {
             if (tapResult.success) {
                 val identifierDescription = when {
                     resourceId != null -> " with resource ID: $resourceId"
-                    text != null -> " with text: $text"
-                    contentDesc != null -> " with content description: $contentDesc"
                     else -> " with class name: $className"
                 }
                 
@@ -671,27 +643,26 @@ class ADBUITools(private val context: Context) {
             
             Log.d(TAG, "Setting text to: $text")
             
-            // Try multiple approaches to input text
+            // Try clipboard method for all texts
             var success = false
             var errorMessage = ""
             
-            // Approach 1: Use keyevent mapping (most reliable but limited to ASCII)
             try {
-                success = typeUsingKeyEvents(text)
+                success = setTextViaClipboard(text)
                 
                 if (success) {
-                    Log.d(TAG, "Successfully input text using keyevents")
+                    Log.d(TAG, "Successfully input text using clipboard method")
                 } else {
-                    Log.w(TAG, "Failed to input text using keyevents, will try alternative methods")
-                    errorMessage = "Failed to input text using keyevents"
+                    Log.w(TAG, "Failed to input text using clipboard method")
+                    errorMessage = "Failed to input text using clipboard method"
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Error using keyevents for text input", e)
-                errorMessage = "Error using keyevents: ${e.message ?: "Unknown error"}"
+                Log.e(TAG, "Error using clipboard for text input", e)
+                errorMessage = "Error using clipboard: ${e.message ?: "Unknown error"}"
             }
             
-            // Approach 2: Try direct text input if keyevents failed
-            if (!success) {
+            // For ASCII text, also try basic input text command as fallback
+            if (!success && !text.any { it.code > 127 }) {
                 try {
                     // Try without any quotes or escaping first - this works in some cases
                     val noQuotesCommand = "input text $text"
@@ -717,24 +688,6 @@ class ADBUITools(private val context: Context) {
                 } catch (e: Exception) {
                     Log.e(TAG, "Error with direct text input commands", e)
                     errorMessage = "Error with direct input: ${e.message ?: "Unknown error"}"
-                }
-            }
-            
-            // Approach 3: Try character by character with fallback to keycode map
-            if (!success) {
-                try {
-                    Log.d(TAG, "Trying character-by-character with mixed strategy")
-                    success = typeCharByCharMixed(text)
-                    
-                    if (success) {
-                        Log.d(TAG, "Successfully input text using character-by-character mixed approach")
-                    } else {
-                        Log.e(TAG, "All text input methods failed")
-                        errorMessage = "All text input methods failed"
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error in character-by-character mixed approach", e)
-                    errorMessage = "Error in mixed character approach: ${e.message ?: "Unknown error"}"
                 }
             }
             
@@ -765,210 +718,206 @@ class ADBUITools(private val context: Context) {
     }
     
     /**
-     * Types text character by character using a mix of strategies
-     * Tries different approaches for each character
+     * Sets text via clipboard and paste operation
+     * This method is particularly useful for non-ASCII text like Chinese
      */
-    private suspend fun typeCharByCharMixed(text: String): Boolean {
-        Log.d(TAG, "Typing text using mixed strategy: $text")
+    private suspend fun setTextViaClipboard(text: String): Boolean {
         try {
-            for (char in text) {
-                // Try several methods for each character until one works
-                
-                // Method 1: Try input text with double quotes for this single character
-                val charCommand = "input text \"$char\""
-                val result = AdbCommandExecutor.executeAdbCommand(charCommand)
-                
-                if (result.success) {
-                    // This method worked, continue to next character
-                    kotlinx.coroutines.delay(50)
-                    continue
-                }
-                
-                // Method 2: Try input text without quotes for this character
-                val plainCommand = "input text $char"
-                val plainResult = AdbCommandExecutor.executeAdbCommand(plainCommand)
-                
-                if (plainResult.success) {
-                    // This method worked, continue to next character
-                    kotlinx.coroutines.delay(50)
-                    continue
-                }
-                
-                // Method 3: Try using keyevent for this character
-                val keycodeSuccess = typeCharUsingKeycode(char)
-                
-                if (keycodeSuccess) {
-                    // Keyevent method worked, continue to next character
-                    kotlinx.coroutines.delay(50)
-                    continue
-                }
-                
-                // If we reach here, all methods failed for this character
-                Log.e(TAG, "Failed to type character '$char' using all available methods")
-                return false
-            }
-            return true
-        } catch (e: Exception) {
-            Log.e(TAG, "Error in mixed character typing", e)
-            return false
-        }
-    }
-    
-    /**
-     * Map of characters to Android key codes for common characters
-     */
-    private val keyCodeMap = mapOf(
-        'a' to "KEYCODE_A",
-        'b' to "KEYCODE_B", 
-        'c' to "KEYCODE_C",
-        'd' to "KEYCODE_D",
-        'e' to "KEYCODE_E",
-        'f' to "KEYCODE_F",
-        'g' to "KEYCODE_G",
-        'h' to "KEYCODE_H",
-        'i' to "KEYCODE_I",
-        'j' to "KEYCODE_J",
-        'k' to "KEYCODE_K",
-        'l' to "KEYCODE_L",
-        'm' to "KEYCODE_M",
-        'n' to "KEYCODE_N",
-        'o' to "KEYCODE_O",
-        'p' to "KEYCODE_P",
-        'q' to "KEYCODE_Q",
-        'r' to "KEYCODE_R",
-        's' to "KEYCODE_S",
-        't' to "KEYCODE_T",
-        'u' to "KEYCODE_U",
-        'v' to "KEYCODE_V",
-        'w' to "KEYCODE_W",
-        'x' to "KEYCODE_X",
-        'y' to "KEYCODE_Y",
-        'z' to "KEYCODE_Z",
-        'A' to "KEYCODE_SHIFT_LEFT KEYCODE_A",
-        'B' to "KEYCODE_SHIFT_LEFT KEYCODE_B",
-        'C' to "KEYCODE_SHIFT_LEFT KEYCODE_C",
-        'D' to "KEYCODE_SHIFT_LEFT KEYCODE_D",
-        'E' to "KEYCODE_SHIFT_LEFT KEYCODE_E",
-        'F' to "KEYCODE_SHIFT_LEFT KEYCODE_F",
-        'G' to "KEYCODE_SHIFT_LEFT KEYCODE_G",
-        'H' to "KEYCODE_SHIFT_LEFT KEYCODE_H",
-        'I' to "KEYCODE_SHIFT_LEFT KEYCODE_I",
-        'J' to "KEYCODE_SHIFT_LEFT KEYCODE_J",
-        'K' to "KEYCODE_SHIFT_LEFT KEYCODE_K",
-        'L' to "KEYCODE_SHIFT_LEFT KEYCODE_L",
-        'M' to "KEYCODE_SHIFT_LEFT KEYCODE_M",
-        'N' to "KEYCODE_SHIFT_LEFT KEYCODE_N",
-        'O' to "KEYCODE_SHIFT_LEFT KEYCODE_O",
-        'P' to "KEYCODE_SHIFT_LEFT KEYCODE_P",
-        'Q' to "KEYCODE_SHIFT_LEFT KEYCODE_Q",
-        'R' to "KEYCODE_SHIFT_LEFT KEYCODE_R",
-        'S' to "KEYCODE_SHIFT_LEFT KEYCODE_S",
-        'T' to "KEYCODE_SHIFT_LEFT KEYCODE_T",
-        'U' to "KEYCODE_SHIFT_LEFT KEYCODE_U",
-        'V' to "KEYCODE_SHIFT_LEFT KEYCODE_V",
-        'W' to "KEYCODE_SHIFT_LEFT KEYCODE_W",
-        'X' to "KEYCODE_SHIFT_LEFT KEYCODE_X",
-        'Y' to "KEYCODE_SHIFT_LEFT KEYCODE_Y",
-        'Z' to "KEYCODE_SHIFT_LEFT KEYCODE_Z",
-        '0' to "KEYCODE_0",
-        '1' to "KEYCODE_1",
-        '2' to "KEYCODE_2",
-        '3' to "KEYCODE_3",
-        '4' to "KEYCODE_4",
-        '5' to "KEYCODE_5",
-        '6' to "KEYCODE_6",
-        '7' to "KEYCODE_7",
-        '8' to "KEYCODE_8",
-        '9' to "KEYCODE_9",
-        ' ' to "KEYCODE_SPACE",
-        '.' to "KEYCODE_PERIOD",
-        ',' to "KEYCODE_COMMA",
-        '\n' to "KEYCODE_ENTER",
-        '!' to "KEYCODE_SHIFT_LEFT KEYCODE_1",
-        '@' to "KEYCODE_SHIFT_LEFT KEYCODE_2",
-        '#' to "KEYCODE_SHIFT_LEFT KEYCODE_3",
-        '$' to "KEYCODE_SHIFT_LEFT KEYCODE_4",
-        '%' to "KEYCODE_SHIFT_LEFT KEYCODE_5",
-        '^' to "KEYCODE_SHIFT_LEFT KEYCODE_6",
-        '&' to "KEYCODE_SHIFT_LEFT KEYCODE_7",
-        '*' to "KEYCODE_SHIFT_LEFT KEYCODE_8",
-        '(' to "KEYCODE_SHIFT_LEFT KEYCODE_9",
-        ')' to "KEYCODE_SHIFT_LEFT KEYCODE_0",
-        '-' to "KEYCODE_MINUS",
-        '_' to "KEYCODE_SHIFT_LEFT KEYCODE_MINUS",
-        '=' to "KEYCODE_EQUALS",
-        '+' to "KEYCODE_SHIFT_LEFT KEYCODE_EQUALS",
-        '[' to "KEYCODE_LEFT_BRACKET",
-        '{' to "KEYCODE_SHIFT_LEFT KEYCODE_LEFT_BRACKET",
-        ']' to "KEYCODE_RIGHT_BRACKET",
-        '}' to "KEYCODE_SHIFT_LEFT KEYCODE_RIGHT_BRACKET",
-        ';' to "KEYCODE_SEMICOLON",
-        ':' to "KEYCODE_SHIFT_LEFT KEYCODE_SEMICOLON",
-        '\'' to "KEYCODE_APOSTROPHE",
-        '\"' to "KEYCODE_SHIFT_LEFT KEYCODE_APOSTROPHE",
-        '\\' to "KEYCODE_BACKSLASH",
-        '|' to "KEYCODE_SHIFT_LEFT KEYCODE_BACKSLASH",
-        '/' to "KEYCODE_SLASH",
-        '?' to "KEYCODE_SHIFT_LEFT KEYCODE_SLASH",
-        '<' to "KEYCODE_SHIFT_LEFT KEYCODE_COMMA",
-        '>' to "KEYCODE_SHIFT_LEFT KEYCODE_PERIOD",
-        '`' to "KEYCODE_GRAVE",
-        '~' to "KEYCODE_SHIFT_LEFT KEYCODE_GRAVE"
-    )
-    
-    /**
-     * Types a character using keyevents
-     */
-    private suspend fun typeCharUsingKeycode(char: Char): Boolean {
-        val keycode = keyCodeMap[char]
-        if (keycode == null) {
-            Log.d(TAG, "No keycode mapping found for character: $char")
-            return false
-        }
-        
-        // Handle composite keycodes (like shift + key)
-        val keycodes = keycode.split(" ")
-        
-        for (code in keycodes) {
-            val command = "input keyevent $code"
-            val result = AdbCommandExecutor.executeAdbCommand(command)
+            Log.d(TAG, "Setting clipboard text: $text")
             
-            if (!result.success) {
-                Log.e(TAG, "Failed to input keyevent $code for character $char: ${result.stderr}")
+            // Try multiple approaches to set clipboard text
+            var clipboardSet = false
+            
+            // Method 0: Most direct approach for Android 10+ using cmd content
+            if (!clipboardSet) {
+                try {
+                    val escapedText = text.replace("'", "\\'")
+                    val cmdCommand = "cmd content insert --uri content://clipboard --user 0 --clip text/plain '$escapedText'"
+                    val cmdResult = AdbCommandExecutor.executeAdbCommand(cmdCommand)
+                    
+                    if (cmdResult.success) {
+                        clipboardSet = true
+                        Log.d(TAG, "Set clipboard using cmd content method (Android 10+)")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error setting clipboard using cmd content", e)
+                }
+            }
+            
+            // Method 1: Create a temporary file with the text and use it to set clipboard
+            if (!clipboardSet) {
+                try {
+                    // Direct echo to file without base64 - simpler approach first
+                    val tempFileName = "/sdcard/temp_clipboard_${System.currentTimeMillis()}.txt"
+                    val escapeForEcho = text.replace("'", "'\\''").replace("\"", "\\\"")
+                    val writeCommand = "echo -n '$escapeForEcho' > $tempFileName"
+                    val writeResult = AdbCommandExecutor.executeAdbCommand(writeCommand)
+                    
+                    if (writeResult.success) {
+                        // Try to use clipboard manager directly
+                        val clipCommand = "am broadcast -a android.intent.action.PASTE -e text \"$(cat $tempFileName)\""
+                        AdbCommandExecutor.executeAdbCommand(clipCommand)
+                        
+                        // Clean up
+                        AdbCommandExecutor.executeAdbCommand("rm $tempFileName")
+                        clipboardSet = true
+                        Log.d(TAG, "Set clipboard using file method")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error using simple file for clipboard", e)
+                }
+            }
+            
+            // Method 2: Try base64 encoding approach for more complex text
+            if (!clipboardSet) {
+                try {
+                    // Create a temporary file
+                    val tempFileName = "/sdcard/temp_clipboard_${System.currentTimeMillis()}.txt"
+                    
+                    // Write the text to the temporary file - use base64 encoding to handle special characters
+                    val textBase64 = android.util.Base64.encodeToString(text.toByteArray(), android.util.Base64.DEFAULT)
+                    val encodeCommand = "echo '$textBase64' > $tempFileName.b64"
+                    val encodeResult = AdbCommandExecutor.executeAdbCommand(encodeCommand)
+                    
+                    if (encodeResult.success) {
+                        // Try different decode commands depending on what's available
+                        val decodeCommands = listOf(
+                            "base64 -d $tempFileName.b64 > $tempFileName",
+                            "cat $tempFileName.b64 | base64 -d > $tempFileName",
+                            "openssl base64 -d -in $tempFileName.b64 -out $tempFileName"
+                        )
+                        
+                        var decoded = false
+                        for (cmd in decodeCommands) {
+                            val decodeResult = AdbCommandExecutor.executeAdbCommand(cmd)
+                            if (decodeResult.success) {
+                                decoded = true
+                                break
+                            }
+                        }
+                        
+                        if (decoded) {
+                            // Use the am broadcast command to set clipboard
+                            val amCommand = "am broadcast -a android.intent.action.PASTE -e text \"$(cat $tempFileName)\""
+                            AdbCommandExecutor.executeAdbCommand(amCommand)
+                            
+                            // Clean up temp files
+                            AdbCommandExecutor.executeAdbCommand("rm $tempFileName $tempFileName.b64")
+                            clipboardSet = true
+                            Log.d(TAG, "Set clipboard using base64 method")
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error using base64 file for clipboard", e)
+                }
+            }
+            
+            // Method 3: Use broadcast intent as a fallback
+            if (!clipboardSet) {
+                try {
+                    val escapedText = text.replace("'", "\\'").replace("\"", "\\\"")
+                    // Try different intent actions that might work on different devices
+                    val clipCommands = listOf(
+                        "am broadcast -a clipboardtext --es text \"$escapedText\"",
+                        "am broadcast -a android.intent.action.CLIPBOARD_TEXT --es text \"$escapedText\"",
+                        "am broadcast -a android.intent.action.PASTE --es text \"$escapedText\""
+                    )
+                    
+                    for (cmd in clipCommands) {
+                        val clipResult = AdbCommandExecutor.executeAdbCommand(cmd)
+                        if (clipResult.success) {
+                            clipboardSet = true
+                            Log.d(TAG, "Set clipboard using broadcast method")
+                            break
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error setting clipboard using broadcast", e)
+                }
+            }
+            
+            // Method 4: Try using service call as a last resort
+            if (!clipboardSet) {
+                try {
+                    val escapedText = text.replace("\"", "\\\"")
+                    val serviceCommand = "service call clipboard 2 i32 1 i32 0 s16 \"$escapedText\""
+                    val serviceResult = AdbCommandExecutor.executeAdbCommand(serviceCommand)
+                    
+                    if (serviceResult.success) {
+                        clipboardSet = true
+                        Log.d(TAG, "Set clipboard using service call method")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error setting clipboard using service call", e)
+                }
+            }
+            
+            // If we couldn't set the clipboard, return false
+            if (!clipboardSet) {
+                Log.e(TAG, "All clipboard setting methods failed")
                 return false
             }
             
-            // Small delay between keypresses in a sequence
-            if (keycodes.size > 1) {
-                kotlinx.coroutines.delay(50)
+            // Give the system time to update the clipboard
+            kotlinx.coroutines.delay(500)
+            
+            // Try various paste methods
+            
+            // Method 1: Using numeric keycodes
+            val pasteCommand = "input keyevent 279 47"  // KEYCODE_CTRL_LEFT KEYCODE_V
+            val pasteResult = AdbCommandExecutor.executeAdbCommand(pasteCommand)
+            
+            if (pasteResult.success) {
+                Log.d(TAG, "Pasted text using numeric keyevent method")
+                return true
             }
-        }
-        
-        return true
-    }
-    
-    /**
-     * Types text entirely using keyevents
-     */
-    private suspend fun typeUsingKeyEvents(text: String): Boolean {
-        Log.d(TAG, "Typing text using keyevents: $text")
-        
-        try {
-            for (char in text) {
-                val success = typeCharUsingKeycode(char)
-                
-                if (!success) {
-                    // If we can't type this character with keyevents, inform caller
-                    // so they can try other methods
-                    return false
-                }
-                
-                // Small delay between characters
-                kotlinx.coroutines.delay(50)
+            
+            // Method 2: Using named keycodes
+            val namedPasteCommand = "input keyevent KEYCODE_CTRL_LEFT KEYCODE_V"
+            val namedPasteResult = AdbCommandExecutor.executeAdbCommand(namedPasteCommand)
+            
+            if (namedPasteResult.success) {
+                Log.d(TAG, "Pasted text using named keyevent method")
+                return true
             }
-            return true
+            
+            // Method 3: Try simulating key press and release separately
+            try {
+                // Press Ctrl
+                AdbCommandExecutor.executeAdbCommand("input keyevent --longpress 279")  // KEYCODE_CTRL_LEFT
+                // Press V while Ctrl is held
+                AdbCommandExecutor.executeAdbCommand("input keyevent 47")  // KEYCODE_V
+                
+                Log.d(TAG, "Attempted paste using longpress method")
+                kotlinx.coroutines.delay(300)
+                return true
+            } catch (e: Exception) {
+                Log.e(TAG, "Error attempting longpress paste", e)
+            }
+            
+            // Method 4: Fallback to long press and select Paste from context menu if available
+            try {
+                // Long press to bring up context menu
+                val longPressCommand = "input swipe 250 250 250 250 1000"
+                AdbCommandExecutor.executeAdbCommand(longPressCommand)
+                
+                // Wait for menu to appear
+                kotlinx.coroutines.delay(300)
+                
+                // Try to click on "Paste" option (approximate position - may need adjustment)
+                val clickPasteCommand = "input tap 250 300"
+                AdbCommandExecutor.executeAdbCommand(clickPasteCommand)
+                
+                Log.d(TAG, "Attempted paste using context menu")
+                return true
+            } catch (e: Exception) {
+                Log.e(TAG, "Error attempting context menu paste", e)
+            }
+            
+            // If we reach here, all paste methods failed
+            return false
         } catch (e: Exception) {
-            Log.e(TAG, "Error typing using keyevents", e)
+            Log.e(TAG, "Error setting text via clipboard", e)
             return false
         }
     }
@@ -1244,12 +1193,12 @@ class ADBUITools(private val context: Context) {
                     false // Default to exact match
                 }
                 
-                if (identifierType !in listOf("resourceId", "text", "contentDesc", "className")) {
+                if (identifierType !in listOf("resourceId", "className")) {
                     return ToolResult(
                         toolName = tool.name,
                         success = false,
                         result = "",
-                        error = "Invalid identifier type for click_element. Must be 'resourceId', 'text', 'contentDesc', or 'className'."
+                        error = "Invalid identifier type for click_element. Must be 'resourceId' or 'className'."
                     )
                 }
                 

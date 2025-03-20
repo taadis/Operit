@@ -20,6 +20,8 @@ import com.ai.assistance.operit.ui.OperitApp
 import com.ai.assistance.operit.data.ChatHistoryManager
 import com.ai.assistance.operit.ShizukuInstaller
 import com.ai.assistance.operit.navigation.NavItem
+import com.ai.assistance.operit.api.EnhancedAIService
+import com.ai.assistance.operit.tools.AIToolHandler
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -34,6 +36,9 @@ class MainActivity : ComponentActivity() {
     
     // 初始化导航控制标志
     private var navigateToShizukuScreen = false
+    
+    // 工具处理器
+    private lateinit var toolHandler: AIToolHandler
     
     private val requiredPermissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         arrayOf(
@@ -125,6 +130,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate: Android SDK version: ${Build.VERSION.SDK_INT}")
         
+        // 初始化工具处理器
+        toolHandler = AIToolHandler(this)
+        toolHandler.registerDefaultTools()
+        
+        // 启动权限状态检查任务
+        startPermissionRefreshTask()
+        
         // Enable high FPS rendering
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             window.attributes.preferredDisplayModeId = getHighestRefreshRate()
@@ -144,7 +156,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             OperitTheme {
                 OperitApp(
-                    initialNavItem = if (navigateToShizukuScreen) NavItem.ShizukuCommands else NavItem.AiChat
+                    initialNavItem = if (navigateToShizukuScreen) NavItem.ShizukuCommands else NavItem.AiChat,
+                    toolHandler = toolHandler
                 )
             }
         }
@@ -189,7 +202,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             OperitTheme {
                 OperitApp(
-                    initialNavItem = if (navigateToShizukuScreen) NavItem.ShizukuCommands else NavItem.AiChat
+                    initialNavItem = if (navigateToShizukuScreen) NavItem.ShizukuCommands else NavItem.AiChat,
+                    toolHandler = toolHandler
                 )
             }
         }
@@ -413,5 +427,22 @@ class MainActivity : ComponentActivity() {
         
         Log.d(TAG, "Selected refresh rate: $refreshRate Hz")
         return refreshRate
+    }
+    
+    /**
+     * 启动权限状态检查任务，确保权限对话框能正常显示
+     */
+    private fun startPermissionRefreshTask() {
+        lifecycleScope.launch {
+            while (true) {
+                try {
+                    // 每秒检查一次是否有未显示的权限请求
+                    toolHandler.refreshPermissionState()
+                    delay(1000)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error in permission refresh task", e)
+                }
+            }
+        }
     }
 }

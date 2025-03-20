@@ -5,7 +5,12 @@
     <string name="nav_ai_chat">AI 对话</string>
     <string name="nav_adb_commands">ADB 命令执行</string>
     <string name="nav_settings">设置</string>
+    <string name="nav_tool_permissions">工具权限</string>
     <string name="menu">菜单</string>
+    
+    <!-- 用于NavItem类的标识符 -->
+    <string name="shizuku_commands">ADB 命令执行</string>
+    <string name="tool_permissions">工具权限设置</string>
     
     <!-- AI Chat Screen -->
     <string name="configure_ai">配置 AI 接口</string>

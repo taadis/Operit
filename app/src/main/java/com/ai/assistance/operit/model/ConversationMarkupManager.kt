@@ -148,5 +148,17 @@ class ConversationMarkupManager {
         fun containsTaskCompletion(content: String): Boolean {
             return content.contains("[TASK_COMPLETE]")
         }
+        
+        /**
+         * 创建通用错误状态
+         */
+        fun createErrorStatus(title: String, message: String): String {
+            return """
+                <div class="error-box">
+                    <div class="error-title">❌ $title</div>
+                    <div class="error-message">$message</div>
+                </div>
+            """.trimIndent()
+        }
     }
 } 

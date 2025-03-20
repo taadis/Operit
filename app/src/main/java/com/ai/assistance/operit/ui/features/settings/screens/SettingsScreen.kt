@@ -20,7 +20,9 @@ import androidx.compose.ui.graphics.Color
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(
+    navigateToToolPermissions: () -> Unit
+) {
     val context = LocalContext.current
     val apiPreferences = remember { ApiPreferences(context) }
     val scope = rememberCoroutineScope()
@@ -173,6 +175,36 @@ fun SettingsScreen() {
                             }
                         }
                     )
+                }
+            }
+        }
+        
+        // 工具权限设置卡片
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    text = "工具权限设置",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                
+                Text(
+                    text = "配置AI助手工具的权限级别，可以设置为自动允许、询问或禁止",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                
+                Button(
+                    onClick = navigateToToolPermissions,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text("管理工具权限")
                 }
             }
         }

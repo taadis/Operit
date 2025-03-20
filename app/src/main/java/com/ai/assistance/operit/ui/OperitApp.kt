@@ -1,5 +1,6 @@
 package com.ai.assistance.operit.ui
 
+import android.util.Log
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -14,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.WifiOff
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,9 +31,15 @@ import com.ai.assistance.operit.R
 import com.ai.assistance.operit.navigation.NavItem
 import com.ai.assistance.operit.ui.features.chat.screens.AIChatScreen
 import com.ai.assistance.operit.ui.features.settings.screens.SettingsScreen
+import com.ai.assistance.operit.ui.features.settings.screens.ToolPermissionSettingsScreen
 import com.ai.assistance.operit.ui.features.demo.screens.ShizukuDemoScreen
 import com.ai.assistance.operit.util.NetworkUtils
 import com.ai.assistance.operit.data.ChatHistoryManager
+import com.ai.assistance.operit.model.AITool
+import com.ai.assistance.operit.tools.AIToolHandler
+import com.ai.assistance.operit.tools.ToolPermissionManager
+import com.ai.assistance.operit.ui.components.ToolPermissionDialog
+import com.ai.assistance.operit.ui.components.PermissionRequestResult
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 
@@ -40,12 +48,16 @@ private const val PLACEHOLDER = "Screens to be implemented"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OperitApp(initialNavItem: NavItem = NavItem.AiChat) {
+fun OperitApp(
+    initialNavItem: NavItem = NavItem.AiChat,
+    toolHandler: AIToolHandler? = null
+) {
     // 状态定义
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var selectedItem by remember { mutableStateOf<NavItem>(initialNavItem) }
-    val navItems = listOf(NavItem.AiChat, NavItem.ShizukuCommands, NavItem.Settings)
+    var isToolPermissionScreen by remember { mutableStateOf(false) }
+    val navItems = listOf(NavItem.AiChat, NavItem.ShizukuCommands, NavItem.Settings, NavItem.ToolPermissions)
     val context = LocalContext.current
     
     // 网络状态 - 使用remember记住状态，避免每次重组时重新获取
@@ -72,6 +84,49 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat) {
             chatHistories.find { it.id == currentChatId }?.title ?: ""
         } else {
             ""
+        }
+    }
+    
+    // 权限对话框状态
+    val permissionManager = toolHandler?.getToolPermissionManager()
+    var hasPermissionRequest by remember { mutableStateOf(permissionManager?.hasActivePermissionRequest() ?: false) }
+    var permissionRequest by remember { mutableStateOf(permissionManager?.getCurrentPermissionRequest()) }
+    
+    // 定期检查权限请求状态，确保UI正确更新
+    LaunchedEffect(Unit) {
+        while(true) {
+            val newHasRequest = permissionManager?.hasActivePermissionRequest() ?: false
+            val newRequest = permissionManager?.getCurrentPermissionRequest()
+            
+            if (newHasRequest != hasPermissionRequest || newRequest != permissionRequest) {
+                Log.d("OperitApp", "权限请求状态变化: $hasPermissionRequest -> $newHasRequest, req=$newRequest")
+                hasPermissionRequest = newHasRequest
+                permissionRequest = newRequest
+            }
+            
+            delay(200) // 200毫秒检查一次
+        }
+    }
+    
+    // 权限请求对话框
+    if (hasPermissionRequest && permissionRequest != null) {
+        // Fix smart cast issue with explicit null check and casting
+        val toolData = permissionRequest
+        if (toolData != null) {
+            val tool = toolData.first
+            val description = toolData.second
+            
+            Log.d("OperitApp", "显示权限对话框: 工具=${tool.name}, 描述=$description")
+            
+            ToolPermissionDialog(
+                tool = tool,
+                operationDescription = description,
+                onPermissionResult = { result ->
+                    Log.d("OperitApp", "权限对话框结果: $result")
+                    // Add safe call operator to fix null safety issue
+                    permissionManager?.handlePermissionResult(result)
+                }
+            )
         }
     }
 
@@ -120,7 +175,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat) {
                                 Icon(
                                     navItem.icon, 
                                     contentDescription = null,
-                                    tint = if (navItem == selectedItem) 
+                                    tint = if (navItem == selectedItem && !isToolPermissionScreen) 
                                         MaterialTheme.colorScheme.primary 
                                     else 
                                         MaterialTheme.colorScheme.onSurfaceVariant
@@ -129,12 +184,16 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat) {
                             label = { 
                                 Text(
                                     stringResource(id = navItem.titleResId),
-                                    fontWeight = if (navItem == selectedItem) FontWeight.Bold else FontWeight.Normal
+                                    fontWeight = if (navItem == selectedItem && !isToolPermissionScreen) 
+                                        FontWeight.Bold 
+                                    else 
+                                        FontWeight.Normal
                                 ) 
                             },
-                            selected = navItem == selectedItem,
+                            selected = navItem == selectedItem && !isToolPermissionScreen,
                             onClick = {
                                 selectedItem = navItem
+                                isToolPermissionScreen = navItem == NavItem.ToolPermissions
                                 scope.launch { drawerState.close() }
                             },
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -154,14 +213,18 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat) {
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Text(
-                                stringResource(id = selectedItem.titleResId),
+                                if (isToolPermissionScreen) {
+                                    stringResource(id = R.string.tool_permissions)
+                                } else {
+                                    stringResource(id = selectedItem.titleResId)
+                                },
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 14.sp,
                                 color = Color.White
                             )
                             
-                            // 显示当前聊天标题（仅在AI对话页面）
-                            if (selectedItem == NavItem.AiChat && currentChatTitle.isNotBlank()) {
+                            // 显示当前聊天标题（仅在AI对话页面且不在工具权限设置页面）
+                            if (selectedItem == NavItem.AiChat && !isToolPermissionScreen && currentChatTitle.isNotBlank()) {
                                 Text(
                                     text = "- $currentChatTitle",
                                     style = MaterialTheme.typography.bodySmall,
@@ -174,11 +237,20 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat) {
                     },
                     navigationIcon = {
                         IconButton(
-                            onClick = { scope.launch { drawerState.open() } }
+                            onClick = { 
+                                if (isToolPermissionScreen) {
+                                    // 如果在工具权限设置页面，点击返回按钮返回到设置页面
+                                    isToolPermissionScreen = false
+                                    selectedItem = NavItem.Settings
+                                } else {
+                                    // 否则打开导航抽屉
+                                    scope.launch { drawerState.open() }
+                                }
+                            }
                         ) {
                             Icon(
-                                Icons.Default.Menu, 
-                                contentDescription = stringResource(id = R.string.menu),
+                                if (isToolPermissionScreen) Icons.Default.ArrowBack else Icons.Default.Menu,
+                                contentDescription = if (isToolPermissionScreen) stringResource(id = R.string.nav_settings) else stringResource(id = R.string.menu),
                                 tint = Color.White
                             )
                         }
@@ -194,10 +266,35 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat) {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    when (selectedItem) {
-                        NavItem.AiChat -> AIChatScreen()
-                        NavItem.ShizukuCommands -> ShizukuDemoScreen()
-                        NavItem.Settings -> SettingsScreen()
+                    if (isToolPermissionScreen) {
+                        // 工具权限设置页面
+                        ToolPermissionSettingsScreen(
+                            navigateBack = { 
+                                isToolPermissionScreen = false
+                                selectedItem = NavItem.Settings
+                            }
+                        )
+                    } else {
+                        // 主导航页面
+                        when (selectedItem) {
+                            NavItem.AiChat -> AIChatScreen()
+                            NavItem.ShizukuCommands -> ShizukuDemoScreen()
+                            NavItem.Settings -> SettingsScreen(
+                                navigateToToolPermissions = { 
+                                    isToolPermissionScreen = true 
+                                }
+                            )
+                            NavItem.ToolPermissions -> {
+                                // 直接显示工具权限设置页面
+                                isToolPermissionScreen = true
+                                ToolPermissionSettingsScreen(
+                                    navigateBack = { 
+                                        isToolPermissionScreen = false
+                                        selectedItem = NavItem.Settings
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
             }
