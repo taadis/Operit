@@ -96,4 +96,21 @@
     <string name="install_bundled">安装内置版本 (v%1$s)</string>
     <string name="installing_bundled">正在安装内置的Shizuku，请授予安装权限</string>
     <string name="install_failed">安装内置Shizuku失败，请尝试从应用商店安装</string>
+    
+    <!-- 用户偏好 -->
+    <string name="user_preferences_guide">个性化设置</string>
+    <string name="user_preferences">用户偏好设置</string>
+    <string name="custom_description">自定义介绍</string>
+    <string name="preferences_hint">请输入您的个人介绍（最多100字）</string>
+    <string name="enter_preferences">在此输入您的个人介绍...</string>
+    <string name="save">保存</string>
+    <string name="reset_preferences">重置偏好设置</string>
+    <string name="set_preferences">设置偏好</string>
+    <string name="no_preferences">暂无偏好信息</string>
+    <string name="gender">性别</string>
+    <string name="occupation">职业</string>
+    <string name="age">年龄</string>
+    <string name="enter_age">请输入年龄</string>
+    <string name="complete">完成</string>
+    <string name="preferences_guide_title">为了更好地为您服务，请完成以下设置</string>
 </resources>

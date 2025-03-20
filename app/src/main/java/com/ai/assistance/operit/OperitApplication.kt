@@ -4,6 +4,7 @@ import android.app.Application
 import com.ai.assistance.operit.util.SerializationSetup
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.modules.SerializersModule
+import com.ai.assistance.operit.data.initUserPreferencesManager
 
 /**
  * Application class for Operit
@@ -29,5 +30,8 @@ class OperitApplication : Application() {
             prettyPrint = false
             encodeDefaults = true
         }
+        
+        // 初始化用户偏好管理器
+        initUserPreferencesManager(applicationContext)
     }
 } 

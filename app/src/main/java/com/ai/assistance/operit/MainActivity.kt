@@ -18,6 +18,7 @@ import androidx.lifecycle.lifecycleScope
 import com.ai.assistance.operit.ui.theme.OperitTheme
 import com.ai.assistance.operit.ui.OperitApp
 import com.ai.assistance.operit.data.ChatHistoryManager
+import com.ai.assistance.operit.data.UserPreferencesManager
 import com.ai.assistance.operit.ShizukuInstaller
 import com.ai.assistance.operit.navigation.NavItem
 import com.ai.assistance.operit.api.EnhancedAIService
@@ -37,8 +38,14 @@ class MainActivity : ComponentActivity() {
     // 初始化导航控制标志
     private var navigateToShizukuScreen = false
     
+    // 偏好设置引导标志
+    private var showPreferencesGuide = false
+    
     // 工具处理器
     private lateinit var toolHandler: AIToolHandler
+    
+    // 用户偏好管理器
+    private lateinit var preferencesManager: UserPreferencesManager
     
     private val requiredPermissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         arrayOf(
@@ -134,6 +141,24 @@ class MainActivity : ComponentActivity() {
         toolHandler = AIToolHandler(this)
         toolHandler.registerDefaultTools()
         
+        // 初始化用户偏好管理器并直接检查初始化状态
+        preferencesManager = UserPreferencesManager(this)
+        showPreferencesGuide = !preferencesManager.isPreferencesInitialized()
+        Log.d(TAG, "初始化检查: 用户偏好已初始化=${!showPreferencesGuide}，将${if(showPreferencesGuide) "" else "不"}显示引导界面")
+        
+        // 监听偏好变化
+        lifecycleScope.launch {
+            preferencesManager.userPreferencesFlow.collect { preferences ->
+                // 只有当状态变化时才更新UI
+                val newValue = !preferences.isInitialized
+                if (showPreferencesGuide != newValue) {
+                    Log.d(TAG, "偏好变更: 从 $showPreferencesGuide 变为 $newValue")
+                    showPreferencesGuide = newValue
+                    recreateContentView()
+                }
+            }
+        }
+        
         // 启动权限状态检查任务
         startPermissionRefreshTask()
         
@@ -156,7 +181,11 @@ class MainActivity : ComponentActivity() {
         setContent {
             OperitTheme {
                 OperitApp(
-                    initialNavItem = if (navigateToShizukuScreen) NavItem.ShizukuCommands else NavItem.AiChat,
+                    initialNavItem = when {
+                        showPreferencesGuide -> NavItem.UserPreferencesGuide
+                        navigateToShizukuScreen -> NavItem.ShizukuCommands
+                        else -> NavItem.AiChat
+                    },
                     toolHandler = toolHandler
                 )
             }
@@ -202,7 +231,11 @@ class MainActivity : ComponentActivity() {
         setContent {
             OperitTheme {
                 OperitApp(
-                    initialNavItem = if (navigateToShizukuScreen) NavItem.ShizukuCommands else NavItem.AiChat,
+                    initialNavItem = when {
+                        showPreferencesGuide -> NavItem.UserPreferencesGuide
+                        navigateToShizukuScreen -> NavItem.ShizukuCommands
+                        else -> NavItem.AiChat
+                    },
                     toolHandler = toolHandler
                 )
             }

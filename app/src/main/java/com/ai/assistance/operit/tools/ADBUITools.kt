@@ -485,7 +485,7 @@ class ADBUITools(private val context: Context) {
                 // For resourceId, extract complete node elements to ensure we're matching correctly
                 val nodePattern = if (partialMatch) {
                     "<node[^>]*?resource-id=\".*?${Regex.escape(resourceId)}.*?\"[^>]*?>".toRegex()
-            } else {
+                } else {
                     // More precise matching for resourceIds
                     "<node[^>]*?resource-id=\"(?:.*?:id/)?${Regex.escape(resourceId)}\"[^>]*?>".toRegex()
                 }
@@ -692,14 +692,14 @@ class ADBUITools(private val context: Context) {
             }
             
             if (success) {
-                ToolResult(
+                return ToolResult(
                     toolName = tool.name,
                     success = true,
                     result = "Successfully set input text to: $text",
                     error = ""
                 )
             } else {
-                ToolResult(
+                return ToolResult(
                     toolName = tool.name,
                     success = false,
                     result = "",

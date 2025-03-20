@@ -32,6 +32,7 @@ import com.ai.assistance.operit.navigation.NavItem
 import com.ai.assistance.operit.ui.features.chat.screens.AIChatScreen
 import com.ai.assistance.operit.ui.features.settings.screens.SettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ToolPermissionSettingsScreen
+import com.ai.assistance.operit.ui.features.settings.screens.UserPreferencesGuideScreen
 import com.ai.assistance.operit.ui.features.demo.screens.ShizukuDemoScreen
 import com.ai.assistance.operit.util.NetworkUtils
 import com.ai.assistance.operit.data.ChatHistoryManager
@@ -50,6 +51,7 @@ fun OperitApp(
     val scope = rememberCoroutineScope()
     var selectedItem by remember { mutableStateOf<NavItem>(initialNavItem) }
     var isToolPermissionScreen by remember { mutableStateOf(false) }
+    var isUserPreferencesGuideScreen by remember { mutableStateOf(initialNavItem == NavItem.UserPreferencesGuide) }
     val navItems = listOf(NavItem.AiChat, NavItem.ShizukuCommands, NavItem.Settings, NavItem.ToolPermissions)
     val context = LocalContext.current
     
@@ -163,10 +165,10 @@ fun OperitApp(
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Text(
-                                if (isToolPermissionScreen) {
-                                    stringResource(id = R.string.tool_permissions)
-                                } else {
-                                    stringResource(id = selectedItem.titleResId)
+                                when {
+                                    isToolPermissionScreen -> stringResource(id = R.string.tool_permissions)
+                                    isUserPreferencesGuideScreen -> stringResource(id = R.string.user_preferences_guide)
+                                    else -> stringResource(id = selectedItem.titleResId)
                                 },
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 14.sp,
@@ -174,7 +176,7 @@ fun OperitApp(
                             )
                             
                             // 显示当前聊天标题（仅在AI对话页面且不在工具权限设置页面）
-                            if (selectedItem == NavItem.AiChat && !isToolPermissionScreen && currentChatTitle.isNotBlank()) {
+                            if (selectedItem == NavItem.AiChat && !isToolPermissionScreen && !isUserPreferencesGuideScreen && currentChatTitle.isNotBlank()) {
                                 Text(
                                     text = "- $currentChatTitle",
                                     style = MaterialTheme.typography.bodySmall,
@@ -188,19 +190,31 @@ fun OperitApp(
                     navigationIcon = {
                         IconButton(
                             onClick = { 
-                                if (isToolPermissionScreen) {
-                                    // 如果在工具权限设置页面，点击返回按钮返回到设置页面
-                                    isToolPermissionScreen = false
-                                    selectedItem = NavItem.Settings
-                                } else {
-                                    // 否则打开导航抽屉
-                                    scope.launch { drawerState.open() }
+                                when {
+                                    isToolPermissionScreen -> {
+                                        // 如果在工具权限设置页面，点击返回按钮返回到设置页面
+                                        isToolPermissionScreen = false
+                                        selectedItem = NavItem.Settings
+                                    }
+                                    isUserPreferencesGuideScreen -> {
+                                        // 如果在用户偏好引导页面，点击返回按钮返回到设置页面
+                                        isUserPreferencesGuideScreen = false
+                                        selectedItem = NavItem.Settings
+                                    }
+                                    else -> {
+                                        // 否则打开导航抽屉
+                                        scope.launch { drawerState.open() }
+                                    }
                                 }
                             }
                         ) {
                             Icon(
-                                if (isToolPermissionScreen) Icons.Default.ArrowBack else Icons.Default.Menu,
-                                contentDescription = if (isToolPermissionScreen) stringResource(id = R.string.nav_settings) else stringResource(id = R.string.menu),
+                                if (isToolPermissionScreen || isUserPreferencesGuideScreen) Icons.Default.ArrowBack else Icons.Default.Menu,
+                                contentDescription = when {
+                                    isToolPermissionScreen -> stringResource(id = R.string.nav_settings)
+                                    isUserPreferencesGuideScreen -> stringResource(id = R.string.nav_settings)
+                                    else -> stringResource(id = R.string.menu)
+                                },
                                 tint = Color.White
                             )
                         }
@@ -216,33 +230,46 @@ fun OperitApp(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    if (isToolPermissionScreen) {
-                        // 工具权限设置页面
-                        ToolPermissionSettingsScreen(
-                            navigateBack = { 
-                                isToolPermissionScreen = false
-                                selectedItem = NavItem.Settings
-                            }
-                        )
-                    } else {
-                        // 主导航页面
-                        when (selectedItem) {
-                            NavItem.AiChat -> AIChatScreen()
-                            NavItem.ShizukuCommands -> ShizukuDemoScreen()
-                            NavItem.Settings -> SettingsScreen(
-                                navigateToToolPermissions = { 
-                                    isToolPermissionScreen = true 
+                    when {
+                        isToolPermissionScreen -> {
+                            // 工具权限设置页面
+                            ToolPermissionSettingsScreen(
+                                navigateBack = { 
+                                    isToolPermissionScreen = false
+                                    selectedItem = NavItem.Settings
                                 }
                             )
-                            NavItem.ToolPermissions -> {
-                                // 直接显示工具权限设置页面
-                                isToolPermissionScreen = true
-                                ToolPermissionSettingsScreen(
-                                    navigateBack = { 
-                                        isToolPermissionScreen = false
-                                        selectedItem = NavItem.Settings
+                        }
+                        isUserPreferencesGuideScreen -> {
+                            // 用户偏好引导页面
+                            UserPreferencesGuideScreen(
+                                onComplete = {
+                                    isUserPreferencesGuideScreen = false
+                                    selectedItem = NavItem.Settings
+                                }
+                            )
+                        }
+                        else -> {
+                            // 主导航页面
+                            when (selectedItem) {
+                                NavItem.AiChat -> AIChatScreen()
+                                NavItem.ShizukuCommands -> ShizukuDemoScreen()
+                                NavItem.Settings -> SettingsScreen(
+                                    navigateToToolPermissions = { 
+                                        isToolPermissionScreen = true 
+                                    },
+                                    onNavigateToUserPreferences = {
+                                        isUserPreferencesGuideScreen = true
                                     }
                                 )
+                                NavItem.ToolPermissions -> {
+                                    // 不应该直接导航到这里
+                                    selectedItem = NavItem.Settings
+                                }
+                                NavItem.UserPreferencesGuide -> {
+                                    // 不应该直接导航到这里
+                                    selectedItem = NavItem.Settings
+                                }
                             }
                         }
                     }

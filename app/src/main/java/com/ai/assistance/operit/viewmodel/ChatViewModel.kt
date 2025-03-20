@@ -21,6 +21,7 @@ import com.ai.assistance.operit.model.ToolExecutionState
 import com.ai.assistance.operit.service.FloatingChatService
 import com.ai.assistance.operit.util.ChatUtils
 import com.ai.assistance.operit.util.NetworkUtils
+import com.ai.assistance.operit.util.UserPreferenceAnalyzer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -413,6 +414,9 @@ class ChatViewModel(
                         
                         // 保存当前对话
                         saveCurrentChat()
+                        
+                        // 分析用户偏好
+                        UserPreferenceAnalyzer.analyzeWithAI(_chatHistory.value, service)
                     }
                 )
             } catch (e: Exception) {
@@ -420,12 +424,6 @@ class ChatViewModel(
                     // 处理异常
                     _errorMessage.value = "发送消息失败: ${e.message}"
                     _isLoading.value = false
-                    
-                    // 添加系统错误消息到历史
-                    // _chatHistory.value = _chatHistory.value + ChatMessage(
-                    //     sender = "system",
-                    //     content = "发送消息失败: ${e.message}"
-                    // )
                     
                     Log.e("ChatViewModel", "发送消息失败", e)
                 }
@@ -685,6 +683,9 @@ class ChatViewModel(
         
         // 标记为加载状态
         _isLoading.value = true
+        
+        // 分析用户偏好（在后台静默执行，不影响主流程）
+        UserPreferenceAnalyzer.analyzeUserInput(message)
         
         // 先添加用户消息
         _chatHistory.value = _chatHistory.value + ChatMessage("user", message)

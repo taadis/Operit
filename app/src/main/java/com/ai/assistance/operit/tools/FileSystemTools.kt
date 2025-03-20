@@ -178,11 +178,25 @@ class FileSystemTools(private val context: Context) {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error writing to file", e)
+            
+            // 提供更具体的错误信息
+            val errorMessage = when {
+                e is InterruptedException || e.message?.contains("interrupted", ignoreCase = true) == true -> 
+                    "ADB连接被中断，可能是网络不稳定导致。请检查ADB连接并重试。错误详情: ${e.message}"
+                e is java.net.SocketException || e.message?.contains("socket", ignoreCase = true) == true -> 
+                    "ADB网络连接异常，请检查设备是否仍然连接并重试。错误详情: ${e.message}"
+                e is java.io.IOException -> 
+                    "文件IO错误: ${e.message}。请检查文件路径是否有写入权限。"
+                e.message?.contains("permission", ignoreCase = true) == true ->
+                    "权限拒绝，无法写入文件: ${e.message}。请检查应用是否有适当的权限。"
+                else -> "写入文件时出错: ${e.message}"
+            }
+            
             return ToolResult(
                 toolName = tool.name,
                 success = false,
                 result = "",
-                error = "Error writing to file: ${e.message}"
+                error = errorMessage
             )
         }
     }
@@ -235,11 +249,23 @@ class FileSystemTools(private val context: Context) {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error deleting file/directory", e)
+            
+            // 提供更具体的错误信息
+            val errorMessage = when {
+                e is InterruptedException || e.message?.contains("interrupted", ignoreCase = true) == true -> 
+                    "ADB连接被中断，可能是网络不稳定导致。请检查ADB连接并重试。错误详情: ${e.message}"
+                e is java.net.SocketException || e.message?.contains("socket", ignoreCase = true) == true -> 
+                    "ADB网络连接异常，请检查设备是否仍然连接并重试。错误详情: ${e.message}"
+                e.message?.contains("permission", ignoreCase = true) == true ->
+                    "权限拒绝，无法删除文件: ${e.message}。请检查应用是否有适当的权限。"
+                else -> "删除文件/目录时出错: ${e.message}"
+            }
+            
             return ToolResult(
                 toolName = tool.name,
                 success = false,
                 result = "",
-                error = "Error deleting file/directory: ${e.message}"
+                error = errorMessage
             )
         }
     }

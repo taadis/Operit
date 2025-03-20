@@ -1,6 +1,5 @@
 package com.ai.assistance.operit.tools
 
-import android.app.AlertDialog
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
@@ -10,6 +9,7 @@ import com.ai.assistance.operit.data.ToolCategoryMapper
 import com.ai.assistance.operit.data.ToolPermissionPreferences
 import com.ai.assistance.operit.model.AITool
 import com.ai.assistance.operit.ui.components.PermissionRequestResult
+import com.ai.assistance.operit.ui.features.permission.PermissionRequestOverlay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
@@ -29,6 +29,7 @@ class ToolPermissionManager(private val context: Context) {
     
     private val toolPermissionPreferences = ToolPermissionPreferences(context)
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val permissionOverlay = PermissionRequestOverlay(context)
     
     // 当前的权限请求回调
     private var currentPermissionCallback: ((PermissionRequestResult) -> Unit)? = null
@@ -124,43 +125,32 @@ class ToolPermissionManager(private val context: Context) {
                     
                     // 处理结果
                     when (result) {
-                        PermissionRequestResult.ALLOW -> continuation.resume(true)
-                        PermissionRequestResult.DENY -> continuation.resume(false)
+                        PermissionRequestResult.ALLOW -> {
+                            Log.d(TAG, "Permission granted for ${tool.name}")
+                            continuation.resume(true)
+                        }
+                        PermissionRequestResult.DENY -> {
+                            Log.d(TAG, "Permission denied for ${tool.name}")
+                            continuation.resume(false)
+                        }
                         PermissionRequestResult.DISCONNECT -> {
+                            Log.d(TAG, "Permission request disconnected for ${tool.name}")
                             if (continuation.isActive) continuation.cancel()
                             continuation.resume(false)
                         }
                     }
                 }
                 
-                // 在主线程中创建和显示对话框
+                // 在主线程中显示权限请求悬浮窗
                 mainHandler.post {
-                    val dialog = AlertDialog.Builder(context)
-                        .setTitle("Permission Request")
-                        .setMessage("Tool '${tool.name}' needs permission to: $operationDescription")
-                        .setPositiveButton("Allow") { _, _ ->
-                            Log.d(TAG, "Permission granted for ${tool.name}")
-                            handlePermissionResult(PermissionRequestResult.ALLOW)
+                    try {
+                        permissionOverlay.show(tool, operationDescription) { result ->
+                            currentPermissionCallback?.invoke(result)
                         }
-                        .setNegativeButton("Deny") { _, _ ->
-                            Log.d(TAG, "Permission denied for ${tool.name}")
-                            handlePermissionResult(PermissionRequestResult.DENY)
-                        }
-                        .setOnDismissListener {
-                            Log.d(TAG, "Permission dialog dismissed for ${tool.name}")
-                            handlePermissionResult(PermissionRequestResult.DENY)
-                        }
-                        .create()
-                    
-                    dialog.show()
-                    
-                    // 取消处理
-                    continuation.invokeOnCancellation {
-                        Log.d(TAG, "Permission request cancelled for ${tool.name}")
-                        currentPermissionCallback = null
-                        permissionRequestInfo = null
-                        _permissionRequestState.value = null
-                        dialog.dismiss()
+                        Log.d(TAG, "Started permission request overlay for ${tool.name}")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error showing permission request overlay", e)
+                        continuation.resume(false)
                     }
                 }
             }
