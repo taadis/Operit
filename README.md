@@ -42,6 +42,18 @@ Operit is a cutting-edge Android AI agent built on state-of-the-art technology s
 - Vectorized storage and retrieval of conversation content
 - Adaptive memory management mechanism
 
+## 📚 文档目录 | Documentation
+
+项目提供了以下详细文档，帮助您更好地理解、使用和扩展 Operit 智能助手：
+
+The project provides the following detailed documentation to help you better understand, use, and extend the Operit AI assistant:
+
+1. **[主项目说明 | Main README](README.md)** - 项目概览与基本信息 (Project overview and basic information)
+2. **[开发者文档 | Developer Guide](README_DEVELOPER.md)** - 面向开发者的技术详解与架构说明 (Technical details and architecture guide for developers)
+3. **[AI 工具功能 | AI Tools Documentation](README_TOOLS.md)** - AI 助手可用工具的完整列表与使用说明 (Complete list and usage instructions for AI assistant tools)
+4. **[内置组件说明 | UI Components Guide](app/src/main/java/com/ai/assistance/operit/ui/common/README.md)** - UI 组件库使用指南 (Usage guide for UI component library)
+5. **[示例功能说明 | Demo Components Guide](app/src/main/java/com/ai/assistance/operit/ui/features/demo/components/README.md)** - 演示功能组件说明 (Description of demo feature components)
+
 ## 💻 技术栈 | Technology Stack
 
 - **编程语言 | Language**: Kotlin

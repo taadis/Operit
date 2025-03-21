@@ -7,11 +7,22 @@
     <string name="nav_adb_commands">权限授予</string>
     <string name="nav_settings">设置</string>
     <string name="nav_tool_permissions">工具权限</string>
+    <string name="nav_about">关于</string>
     <string name="menu">菜单</string>
     
     <!-- 用于NavItem类的标识符 -->
     <string name="shizuku_commands">权限授予</string>
     <string name="tool_permissions">工具权限设置</string>
+    <string name="about">关于</string>
+    
+    <!-- About Screen -->
+    <string name="about_title">关于 Operit AI</string>
+    <string name="about_version">版本: %1$s</string>
+    <string name="about_description">Operit AI是一个智能助手应用，能够帮助用户更高效地使用设备，提供界面分析、聊天对话等功能。</string>
+    <string name="about_developer">开发者: Operit团队</string>
+    <string name="about_contact">联系我们: support@operit.ai</string>
+    <string name="about_website">官方网站: www.operit.ai</string>
+    <string name="about_copyright">© 2023-2024 Operit. 保留所有权利。</string>
     
     <!-- AI Chat Screen -->
     <string name="configure_ai">配置 AI 接口</string>

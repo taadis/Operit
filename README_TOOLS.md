@@ -1,62 +1,244 @@
-# AI Assistant Tool Capabilities
+# Operit AI Assistant Tool Capabilities
 
-This document explains how to use and extend the AI tools functionality in the application.
+This document provides comprehensive documentation for all the tools available to the Operit AI assistant. These tools enable the AI to perform a wide range of operations from simple calculations to complex system interactions.
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Tool Usage](#tool-usage)
+- [Basic Tools](#basic-tools)
+  - [Calculator](#calculator)
+  - [Sleep](#sleep)
+  - [Device Info](#device-info)
+- [File System Tools](#file-system-tools)
+- [HTTP Tools](#http-tools)
+- [System Operation Tools](#system-operation-tools)
+- [UI Automation Tools](#ui-automation-tools)
+- [Extending the Tool Framework](#extending-the-tool-framework)
+- [Architecture](#architecture)
+- [Troubleshooting](#troubleshooting)
 
 ## Overview
 
-The AI assistant now has the ability to use tools to provide enhanced responses. When the AI detects that a tool would be helpful to answer your question, it can automatically invoke the tool and incorporate the results into its response.
+The Operit AI assistant can invoke specialized tools to complete tasks that require system capabilities or complex computations. When you ask a question that could benefit from a tool, the AI will automatically use the appropriate tool and incorporate the results into its response.
 
-## Available Tools
+## Tool Usage
 
-The following tools are currently available:
+Tools are invoked using a standardized XML-like syntax. The AI handles this formatting automatically. The general structure is:
 
-### 1. Basic Tools
-Basic utility tools for simple operations.
+```
+<tool name="tool_name">
+<param name="parameter_name">parameter_value</param>
+</tool>
+```
 
-#### 1.1 Calculator
-Perform basic mathematical calculations.
+## Basic Tools
+
+### Calculator
+
+The Calculator tool provides an enhanced mathematical evaluation engine that supports various operations from basic arithmetic to advanced calculations including date operations, unit conversions, and more.
+
+#### Basic Usage
+
 ```
 <tool name="calculate">
 <param name="expression">2+2</param>
 </tool>
 ```
 
-#### 1.2 Sleep
-Pause execution for a specified duration in milliseconds.
+#### Supported Features
+
+##### 1. Arithmetic Operations
+
+- **Basic Math**: `2+3*4/2`
+- **Parentheses**: `(2+3)*4`
+- **Exponentiation**: `2^3` (2 raised to power 3)
+- **Percentage**: `50%` (returns 0.5)
+
+##### 2. Mathematical Functions
+
+- **Square Root**: `sqrt(16)`
+- **Trigonometric**: `sin(30)`, `cos(45)`, `tan(60)` (angles in degrees)
+- **Logarithmic**: `log(100)` (base 10), `ln(10)` (natural log)
+- **Rounding**: `round(3.7)`, `floor(3.7)`, `ceil(3.6)`
+- **Comparison**: `max(5,10)`, `min(5,10)`
+- **Absolute Value**: `abs(-5)`
+- **Factorial**: `fact(5)` (5! = 120)
+- **Random Number**: `rand()` (returns a random value between 0 and 1)
+
+##### 3. Constants
+
+- **Pi**: `pi` (3.14159...)
+- **Euler's Number**: `e` (2.71828...)
+
+##### 4. Variables
+
+You can store and retrieve values using variables:
+
+```
+<tool name="calculate">
+<param name="expression">x=10</param>
+</tool>
+
+<tool name="calculate">
+<param name="expression">y=20</param>
+</tool>
+
+<tool name="calculate">
+<param name="expression">x+y</param>
+</tool>
+```
+
+Variables persist throughout the conversation until explicitly cleared.
+
+##### 5. Date Calculations
+
+- **Current Date**: `today()`
+- **Current Time**: `now()` (milliseconds since epoch)
+- **Parse Date**: `date(2023-01-01)`
+- **Date Difference**: `date_diff(2023-01-01, today())` (days between dates)
+- **Add Days**: `date_add(today(), 7)` (add 7 days to today)
+- **Date Components**:
+  - `weekday(today())` (day of week, 1-7 where 1 is Sunday)
+  - `month(today())` (month number, 1-12)
+  - `year(today())` (year)
+  - `day(today())` (day of month)
+
+##### 6. Unit Conversions
+
+Convert between different units of measurement:
+
+```
+<tool name="calculate">
+<param name="expression">convert(32, f, c)</param>
+</tool>
+```
+
+Supported unit conversions:
+
+- **Temperature**: c (Celsius), f (Fahrenheit), k (Kelvin)
+- **Length**: km (kilometers), mi (miles), m (meters), ft (feet), cm (centimeters), in (inches)
+- **Weight**: kg (kilograms), lb (pounds), g (grams), oz (ounces)
+- **Volume**: l (liters), gal (gallons), ml (milliliters), oz (fluid ounces)
+- **Speed**: kph (kilometers per hour), mph (miles per hour)
+
+##### 7. Statistical Functions
+
+Perform statistical operations on sets of values:
+
+```
+<tool name="calculate">
+<param name="expression">stats.mean(1,2,3,4,5)</param>
+</tool>
+```
+
+Available statistical functions:
+
+- **Mean**: `stats.mean(values...)` - Calculate average
+- **Median**: `stats.median(values...)` - Find middle value
+- **Minimum**: `stats.min(values...)` - Find minimum value
+- **Maximum**: `stats.max(values...)` - Find maximum value
+- **Sum**: `stats.sum(values...)` - Sum values
+- **Standard Deviation**: `stats.stdev(values...)` - Calculate standard deviation
+
+##### 8. Conditional Logic
+
+Perform conditional evaluations:
+
+```
+<tool name="calculate">
+<param name="expression">if(x>5)then(10)else(20)</param>
+</tool>
+```
+
+- **Comparison Operators**: `==`, `!=`, `>`, `<`, `>=`, `<=`
+- **Logical Operators**: `&&` (AND), `||` (OR)
+
+#### Examples
+
+```
+# Temperature conversion from Fahrenheit to Celsius
+<tool name="calculate">
+<param name="expression">convert(98.6, f, c)</param>
+</tool>
+
+# How many days until next Christmas?
+<tool name="calculate">
+<param name="expression">date_diff(today(), date(2023-12-25))</param>
+</tool>
+
+# Find the average, minimum and maximum of a set of values
+<tool name="calculate">
+<param name="expression">stats.mean(12, 34, 56, 78, 90)</param>
+</tool>
+
+<tool name="calculate">
+<param name="expression">stats.min(12, 34, 56, 78, 90)</param>
+</tool>
+
+<tool name="calculate">
+<param name="expression">stats.max(12, 34, 56, 78, 90)</param>
+</tool>
+
+# Apply a tax rate to a price
+<tool name="calculate">
+<param name="expression">price=100; tax=0.08; price*(1+tax)</param>
+</tool>
+```
+
+### Sleep
+
+The Sleep tool pauses execution for a specified amount of time. This is primarily useful for demonstration purposes or when timing operations.
+
 ```
 <tool name="sleep">
 <param name="duration_ms">2000</param>
 </tool>
 ```
 
-#### 1.3 Device Info
-Obtain basic device information for the current app session.
+The `duration_ms` parameter specifies the sleep duration in milliseconds (default: 1000, maximum: 10000).
+
+### Device Info
+
+The Device Info tool returns basic information about the current device session.
+
 ```
 <tool name="device_info">
 </tool>
 ```
 
-### 2. File System Tools
-The application provides several tools for file system operations:
+This tool doesn't require any parameters and returns information like device ID, OS version, and app session identifier.
 
-#### 2.1 List Files
-List contents of a directory.
+## File System Tools
+
+These tools provide access to the device's file system for reading, writing, and managing files.
+
+> **Security Note**: All file paths must begin with `/sdcard/` for security reasons. Access to other parts of the file system is restricted.
+
+### List Files
+
+List files and directories in a specified directory.
+
 ```
 <tool name="list_files">
 <param name="path">/sdcard/Download</param>
 </tool>
 ```
 
-#### 2.2 Read File
-Read the content of a file.
+### Read File
+
+Read the content of a text file.
+
 ```
 <tool name="read_file">
 <param name="path">/sdcard/Download/example.txt</param>
 </tool>
 ```
 
-#### 2.3 Write File
-Write content to a file.
+### Write File
+
+Write or append text to a file.
+
 ```
 <tool name="write_file">
 <param name="path">/sdcard/Download/example.txt</param>
@@ -65,8 +247,12 @@ Write content to a file.
 </tool>
 ```
 
-#### 2.4 Delete File
+The `append` parameter (default: false) controls whether to overwrite the file or append to it.
+
+### Delete File
+
 Delete a file or directory.
+
 ```
 <tool name="delete_file">
 <param name="path">/sdcard/Download/example.txt</param>
@@ -74,16 +260,22 @@ Delete a file or directory.
 </tool>
 ```
 
-#### 2.5 File Exists
+Set `recursive` to true to delete directories and their contents.
+
+### File Exists
+
 Check if a file or directory exists.
+
 ```
 <tool name="file_exists">
 <param name="path">/sdcard/Download/example.txt</param>
 </tool>
 ```
 
-#### 2.6 Move File
+### Move File
+
 Move or rename a file or directory.
+
 ```
 <tool name="move_file">
 <param name="source">/sdcard/Download/example.txt</param>
@@ -91,8 +283,10 @@ Move or rename a file or directory.
 </tool>
 ```
 
-#### 2.7 Copy File
+### Copy File
+
 Copy a file or directory.
+
 ```
 <tool name="copy_file">
 <param name="source">/sdcard/Download/example.txt</param>
@@ -101,8 +295,12 @@ Copy a file or directory.
 </tool>
 ```
 
-#### 2.8 Make Directory
-Create a directory.
+Set `recursive` to true to copy directories and their contents.
+
+### Make Directory
+
+Create a new directory.
+
 ```
 <tool name="make_directory">
 <param name="path">/sdcard/MyNewFolder</param>
@@ -110,8 +308,12 @@ Create a directory.
 </tool>
 ```
 
-#### 2.9 Find Files
+Set `create_parents` to true to create any missing parent directories.
+
+### Find Files
+
 Search for files matching a pattern.
+
 ```
 <tool name="find_files">
 <param name="path">/sdcard/Download</param>
@@ -122,26 +324,28 @@ Search for files matching a pattern.
 </tool>
 ```
 
-**Important:** The `path` parameter MUST start with `/sdcard/` to avoid system issues. Searching from root directory is not supported and may result in errors.
+Parameters:
+- `pattern`: A glob pattern to match files (e.g., `*.jpg`, `document*.pdf`)
+- `max_depth`: How deep to search in subdirectories (default: -1 for unlimited)
+- `use_path_pattern`: Whether to match against full path or just filename (default: false)
+- `case_insensitive`: Whether to ignore case when matching (default: false)
 
-The `max_depth` parameter controls how deep the search will go in subdirectories:
-- If not specified, the search is fully recursive (unlimited depth)
-- Set to `0` to search only in the specified path without subdirectories
-- Set to a positive number to limit search depth (e.g., `1` for immediate subdirectories only)
+### File Info
 
-The `use_path_pattern` parameter (default: false) determines whether to match against the file name or the entire path.
-The `case_insensitive` parameter (default: false) controls whether the pattern matching is case-sensitive.
+Get detailed information about a file or directory.
 
-#### 2.10 File Info
-Get information about a file or directory.
 ```
 <tool name="file_info">
 <param name="path">/sdcard/Download/example.txt</param>
 </tool>
 ```
 
-#### 2.11 Zip Files
-Compress files or directories.
+Returns information like size, modification date, and file type.
+
+### Zip Files
+
+Compress files or directories into a ZIP archive.
+
 ```
 <tool name="zip_files">
 <param name="source">/sdcard/Download/MyFolder</param>
@@ -149,8 +353,10 @@ Compress files or directories.
 </tool>
 ```
 
-#### 2.12 Unzip Files
-Extract a zip file.
+### Unzip Files
+
+Extract a ZIP archive.
+
 ```
 <tool name="unzip_files">
 <param name="source">/sdcard/Download/archive.zip</param>
@@ -158,16 +364,20 @@ Extract a zip file.
 </tool>
 ```
 
-#### 2.13 Open File
+### Open File
+
 Open a file with the system's default application.
+
 ```
 <tool name="open_file">
 <param name="path">/sdcard/Download/document.pdf</param>
 </tool>
 ```
 
-#### 2.14 Share File
+### Share File
+
 Share a file using the system's share interface.
+
 ```
 <tool name="share_file">
 <param name="path">/sdcard/Download/image.jpg</param>
@@ -175,8 +385,12 @@ Share a file using the system's share interface.
 </tool>
 ```
 
-#### 2.15 Download File
+The `title` parameter (default: "Share File") sets the title for the share dialog.
+
+### Download File
+
 Download a file from a URL to local storage.
+
 ```
 <tool name="download_file">
 <param name="url">https://example.com/file.pdf</param>
@@ -184,21 +398,29 @@ Download a file from a URL to local storage.
 </tool>
 ```
 
-### 3. HTTP Tools
-These tools provide direct access to HTTP resources, allowing the AI to directly fetch web pages and send HTTP requests.
+## HTTP Tools
 
-#### 3.1 Fetch Web Page
+These tools enable the AI to interact with web resources.
+
+### Fetch Web Page
+
 Retrieve content from a web page.
+
 ```
 <tool name="fetch_web_page">
 <param name="url">https://example.com</param>
 <param name="format">text</param>
 </tool>
 ```
-Parameter `format` is optional and can be either "text" (default, returns plain text) or "html" (returns the raw HTML).
 
-#### 3.2 HTTP Request
-Send an HTTP request with full control over method, headers, and body.
+The `format` parameter (default: "text") can be:
+- `text`: Returns the page content as plain text
+- `html`: Returns the raw HTML content
+
+### HTTP Request
+
+Send custom HTTP requests with full control over method, headers, and body.
+
 ```
 <tool name="http_request">
 <param name="url">https://api.example.com/data</param>
@@ -208,24 +430,33 @@ Send an HTTP request with full control over method, headers, and body.
 <param name="body_type">json</param>
 </tool>
 ```
-- `method` is optional, defaults to GET (supports GET, POST, PUT, DELETE, HEAD, OPTIONS)
-- `headers` is optional, should be a JSON object
-- `body` is optional, used for POST/PUT/DELETE requests
-- `body_type` is optional, can be "json" (default), "form", or "text"
 
-#### 3.3 Web Search
-Returns pre-defined simulated search results (no actual web access).
+Parameters:
+- `method`: HTTP method (default: GET, supports GET, POST, PUT, DELETE, HEAD, OPTIONS)
+- `headers`: HTTP headers as a JSON object (optional)
+- `body`: Request body (optional, for POST/PUT/DELETE)
+- `body_type`: Body content type (default: "json", supports "json", "form", "text")
+
+### Web Search
+
+Perform web searches and get results.
+
 ```
 <tool name="web_search">
 <param name="query">Latest Android features</param>
 </tool>
 ```
 
-### 4. System Operation Tools
-These tools provide access to system-level operations. Note that these operations require user authorization.
+Returns search results including titles, snippets, and URLs.
 
-#### 4.1 Get System Setting
+## System Operation Tools
+
+These tools provide access to system-level operations. They require user authorization.
+
+### Get System Setting
+
 Retrieve the value of a system setting.
+
 ```
 <tool name="get_system_setting">
 <param name="setting">screen_brightness</param>
@@ -233,8 +464,12 @@ Retrieve the value of a system setting.
 </tool>
 ```
 
-#### 4.2 Modify System Setting
+The `namespace` parameter (default: "system") can be "system", "secure", or "global".
+
+### Modify System Setting
+
 Change the value of a system setting.
+
 ```
 <tool name="modify_system_setting">
 <param name="setting">screen_brightness</param>
@@ -243,16 +478,20 @@ Change the value of a system setting.
 </tool>
 ```
 
-#### 4.3 Install App
+### Install App
+
 Install an application from an APK file.
+
 ```
 <tool name="install_app">
 <param name="apk_path">/sdcard/Download/app.apk</param>
 </tool>
 ```
 
-#### 4.4 Uninstall App
+### Uninstall App
+
 Uninstall an application.
+
 ```
 <tool name="uninstall_app">
 <param name="package_name">com.example.app</param>
@@ -260,49 +499,66 @@ Uninstall an application.
 </tool>
 ```
 
-#### 4.5 List Installed Apps
+The `keep_data` parameter (default: false) controls whether to preserve app data.
+
+### List Installed Apps
+
 Get a list of installed applications.
+
 ```
 <tool name="list_installed_apps">
 <param name="include_system_apps">false</param>
 </tool>
 ```
 
-#### 4.6 Start App
+Set `include_system_apps` to true to include system applications.
+
+### Start App
+
 Launch an application.
+
 ```
 <tool name="start_app">
 <param name="package_name">com.example.app</param>
+<param name="activity">com.example.app.MainActivity</param>
 </tool>
 ```
 
-#### 4.7 Stop App
-Force stop a running application.
+The `activity` parameter (optional) specifies a specific activity to launch.
+
+### Stop App
+
+Stop a running application.
+
 ```
 <tool name="stop_app">
 <param name="package_name">com.example.app</param>
 </tool>
 ```
 
-### 5. UI Automation Tools
-These tools provide UI automation capabilities through ADB, allowing the AI to interact with the device interface.
+## UI Automation Tools
 
-#### 5.1 Get Page Info
-Retrieve information about the current UI page/window, including the full UI hierarchy.
+These tools enable the AI to interact with the device's user interface through accessibility services.
+
+### Get Page Info
+
+Get information about the current UI screen.
+
 ```
 <tool name="get_page_info">
 <param name="format">xml</param>
 <param name="detail">summary</param>
 </tool>
 ```
-- `format` is optional, can be "xml" (default) or "json"
-- `detail` is optional, can be "minimal", "summary" (default), or "full"
-  - `minimal`: Returns basic information about the current window and a simplified UI structure
-  - `summary`: Returns basic information plus a comprehensive list of interactive elements
-  - `full`: Returns complete information including window details and the full UI hierarchy
 
-#### 5.2 Tap
-Simulate a tap/click at specific coordinates.
+Parameters:
+- `format`: Output format (default: "xml", supports "xml", "json")
+- `detail`: Level of detail (default: "summary", supports "minimal", "summary", "full")
+
+### Tap
+
+Simulate a tap at specific coordinates.
+
 ```
 <tool name="tap">
 <param name="x">500</param>
@@ -310,230 +566,194 @@ Simulate a tap/click at specific coordinates.
 </tool>
 ```
 
-#### 5.3 Click Element
-Simulate a click on an element identified by resource ID or class name.
-```
-<tool name="click_element">
-<param name="resourceId">com.example.app:id/button1</param>
-</tool>
-```
-Alternative way to identify elements:
-```
-<tool name="click_element">
-<param name="className">Button</param>
-</tool>
-```
+### Click Element
 
-Optional parameters for greater precision (especially useful for lists where multiple elements share the same identifiers):
+Click an element identified by resource ID or class name.
+
 ```
 <tool name="click_element">
-<param name="resourceId">com.example.app:id/list_item</param>
-<param name="index">2</param>
+<param name="resourceId">com.example.app:id/button</param>
+<param name="className">android.widget.Button</param>
+<param name="index">0</param>
+<param name="partialMatch">false</param>
 </tool>
 ```
 
-At least one of `resourceId` or `className` must be provided.
-- `index`: The zero-based index of the element when multiple matches are found (default: 0, meaning the first match)
-- `partialMatch`: If true, allows partial matching instead of exact matching (default: false)
+Parameters:
+- `resourceId`: Element's resource ID (optional if className is provided)
+- `className`: Element's class name (optional if resourceId is provided)
+- `index`: Which matching element to click (default: 0, for multiple matches)
+- `partialMatch`: Whether to allow partial ID matching (default: false)
 
-#### 5.4 Set Input Text
-Set text in an input field (the field must have focus).
+### Set Input Text
+
+Set text in an input field.
+
 ```
 <tool name="set_input_text">
 <param name="text">Hello, world!</param>
 </tool>
 ```
 
-#### 5.5 Press Key
-Simulate pressing a specific key.
+### Press Key
+
+Simulate a key press.
+
 ```
 <tool name="press_key">
 <param name="keyCode">KEYCODE_BACK</param>
 </tool>
 ```
-Common key codes include:
-- `KEYCODE_BACK` - Back button
-- `KEYCODE_HOME` - Home button
-- `KEYCODE_MENU` - Menu button
-- `KEYCODE_ENTER` - Enter key
-- `KEYCODE_TAB` - Tab key
-- `KEYCODE_DPAD_UP` - D-pad up
-- `KEYCODE_DPAD_DOWN` - D-pad down
-- `KEYCODE_DPAD_LEFT` - D-pad left
-- `KEYCODE_DPAD_RIGHT` - D-pad right
 
-#### 5.6 Swipe
-Perform a swipe gesture from one point to another.
+Common key codes: KEYCODE_BACK, KEYCODE_HOME, KEYCODE_MENU, KEYCODE_SEARCH.
+
+### Swipe
+
+Simulate a swipe gesture.
+
 ```
 <tool name="swipe">
 <param name="startX">500</param>
 <param name="startY">1000</param>
 <param name="endX">500</param>
-<param name="endY">500</param>
+<param name="endY">200</param>
 <param name="duration">300</param>
 </tool>
 ```
-- `duration` is optional, specifies the duration of the swipe in milliseconds (default: 300)
 
-#### 5.7 Launch App
-Launch an application by its package name.
+The `duration` parameter (default: 300) specifies the gesture duration in milliseconds.
+
+### Launch App
+
+Launch an application using accessibility services.
+
 ```
 <tool name="launch_app">
 <param name="packageName">com.example.app</param>
 </tool>
 ```
 
-#### 5.8 Combined Operation
-Perform a UI operation, wait for a specified time, and then return the new UI state. This tool is particularly useful for interactive flows that require waiting for UI changes after an action.
+### Combined Operation
+
+Execute a UI operation, wait, and return the new UI state.
+
 ```
 <tool name="combined_operation">
 <param name="operation">tap 500 800</param>
-<param name="delayMs">2000</param>
+<param name="delayMs">1000</param>
 </tool>
 ```
 
-The `operation` parameter uses a simple command syntax to specify which action to perform:
+Parameters:
+- `operation`: The UI operation to perform (e.g., "tap 500 800", "click_element resourceId buttonId")
+- `delayMs`: The delay before capturing the new UI state (default: 1000)
 
-1. Tap at coordinates:
-```
-tap x y
-```
-Example: `tap 500 800`
+### Best Practices for UI Automation
 
-2. Swipe from one point to another:
-```
-swipe startX startY endX endY [duration]
-```
-Example: `swipe 500 1000 500 200 300`
+1. **First Check UI State**: Always get the current UI state with `get_page_info` before attempting interactions.
 
-3. Click an element by identifier:
-```
-click_element type value [index] [partialMatch]
-```
-Example: `click_element resourceId com.example.app:id/button1`
-Example: `click_element className Button`
-Example: `click_element resourceId com.example.app:id/list_item 2` (clicks the 3rd item with matching resource ID)
+2. **Use Combined Operation**: Whenever possible, use `combined_operation` instead of individual operations, as it handles waiting and returns the new UI state automatically.
 
-4. Press a key:
-```
-press_key keyCode
-```
-Example: `press_key KEYCODE_BACK`
+3. **Handle Various UI Elements**:
+   - For lists: Use the `index` parameter to click specific items
+   - For ambiguous elements: Use more specific identifiers or coordinates
+   - For complex flows: Chain operations with appropriate delays
 
-5. Set input text:
-```
-set_input_text value
-```
-Example: `set_input_text Hello, world!`
+4. **Fallback Approaches**:
+   - When elements can't be identified by ID or class, use coordinate-based interactions
+   - When elements are dynamically generated, use partial matching
 
-6. Launch an app:
-```
-launch_app packageName
-```
-Example: `launch_app com.example.app`
+5. **App Launch Best Practice**: When launching apps, use `combined_operation` to immediately capture the UI state after launch.
 
-The `delayMs` parameter is optional and specifies how long to wait after performing the operation before retrieving the new UI state (default: 1000ms).
+## Extending the Tool Framework
 
-This tool makes it much easier to handle sequences like:
-- Tap a button and see what happens
-- Enter text and see the response
-- Swipe to scroll and see new content
+### Adding Custom Tools
 
-**Important:** This tool returns both the current window information and the simplified UI hierarchy after the operation, making it perfect for user interface exploration and interaction.
+To add a custom tool to the framework:
 
-## How It Works
-
-1. When you send a message to the AI, the enhanced AI service processes your request.
-2. If the AI decides a tool would be helpful, it will include a tool invocation in its response.
-3. The application detects the tool syntax, extracts the tool name and parameters.
-4. The appropriate tool executor is invoked with the provided parameters.
-5. The tool result is inserted back into the AI's response.
-6. Progress is displayed to the user during this process.
-
-## Architecture
-
-The tool functionality is implemented with the following components:
-
-- `AITool.kt`: Contains data models for tools, parameters, invocations, and results.
-- `AIToolHandler.kt`: Core class that extracts and processes tool invocations.
-- `EnhancedAIService.kt`: Extension of the base AIService that incorporates tool handling.
-- `ToolProgressBar.kt`: UI component for displaying tool execution progress.
-- `ReferencesDisplay.kt`: UI component for displaying reference links found in AI responses.
-- `HttpTools.kt`: Implements HTTP tools for fetching web pages and making HTTP requests.
-- `FileSystemTools.kt`: Implements file system operations.
-- `SystemOperationTools.kt`: Implements system-level operations.
-
-## Adding Custom Tools
-
-To add a custom tool, follow these steps:
-
-1. Register your tool executor in the `AIToolHandler`:
+1. Implement your tool executor in `AIToolHandler`:
 
 ```kotlin
-// Example of registering a custom tool
 registerTool("my_custom_tool") { tool ->
-    val param1 = tool.parameters.find { it.name == "param_name" }?.value ?: ""
+    val param1 = tool.parameters.find { it.name == "param1" }?.value ?: ""
     
-    // Process the tool parameters
-    val result = processCustomTool(param1)
+    // Your tool implementation
+    val result = performCustomOperation(param1)
     
-    // Return a tool result
     ToolResult(
         toolName = tool.name,
         success = true,
-        result = "Custom tool result: $result"
+        result = result
     )
 }
 ```
 
-2. Update the system prompt in `EnhancedAIService` to inform the AI about your new tool:
+2. Update the system prompt in `EnhancedAIService` to document your tool:
 
 ```kotlin
 private val SYSTEM_PROMPT = """
-    You are Operit, an all-capable AI assistant, aimed at solving any task presented by the user. You have various tools at your disposal that you can call upon to efficiently complete complex requests.
+    ...existing prompt...
     
     Available tools:
-    - calculate: Simple calculator that evaluates basic expressions locally. Parameters: expression (e.g. "2+2", "sqrt(16)")
-    - sleep: Pause execution for a specified duration in milliseconds. Parameters: duration_ms (milliseconds, default 1000, max 10000)
-    - device_info: Returns basic device identifier for the current app session only. No parameters needed.
-    - my_custom_tool: Description of your custom tool. Parameters: param_name (description)
+    ...existing tools...
+    - my_custom_tool: Description of your custom tool. Parameters: param1 (description)
     
-    Only use these tools when necessary. Use the exact format specified above.
+    ...rest of prompt...
 """.trimIndent()
 ```
 
-## Tool Execution Flow
+## Architecture
 
-1. User sends a message.
-2. Input is preprocessed (optional).
-3. Message is sent to the AI model with tool instructions.
-4. AI response is received and monitored for tool invocations.
-5. When a tool invocation is detected, execution is paused to process the tool.
-6. Tool results are incorporated into the response.
-7. Processing continues until complete.
-8. References are extracted from the final response.
+The tool functionality is implemented through several key components:
 
-## UI Components
+### Core Components
 
-- **Tool Progress Bar**: Shows the current state and progress of tool execution.
-- **References Display**: Shows clickable references extracted from AI responses.
-- **Input Processing Indicator**: Shows when user input is being preprocessed.
+- **AITool.kt**: Data models for tools, parameters, invocations, and results
+- **AIToolHandler.kt**: Core class for tool extraction and execution
+- **EnhancedAIService.kt**: Main service integrating AI capabilities with tools
 
-## Customizing UI
+### UI Components
 
-You can customize the appearance of the tool components by modifying the following files:
-- `ToolProgressBar.kt`: Customize the progress bar appearance.
-- `ReferencesDisplay.kt`: Customize how references are displayed.
+- **ToolProgressBar.kt**: Shows tool execution progress
+- **ReferencesDisplay.kt**: Displays references from AI responses
+
+### Specialized Tool Implementations
+
+- **Calculator.kt**: Mathematical and date calculation engine
+- **FileSystemTools.kt**: File operations
+- **HttpTools.kt**: Web interactions
+- **SystemOperationTools.kt**: System-level operations
+
+### Execution Flow
+
+1. User sends a request to the AI
+2. AI identifies a need for a tool and invokes it
+3. Tool handler extracts and validates the tool invocation
+4. Tool executor performs the operation
+5. Result is returned to the AI
+6. AI incorporates the result into its response
 
 ## Troubleshooting
 
-If you encounter issues with the tool functionality:
+### Common Issues
 
-1. Check that the tool syntax is correctly formatted.
-2. Verify that the tool name is registered with an executor.
-3. Look for log messages with the tag "AIToolHandler" or "EnhancedAIService".
-4. Ensure the AI system prompt includes instructions for the tool.
+1. **Tool Not Found**: Ensure the tool name is correct and registered in `AIToolHandler`.
+
+2. **Parameter Errors**: Check that all required parameters are provided with correct values.
+
+3. **Permission Issues**: Many tools require specific permissions. Check that the app has the necessary permissions and the user has granted them.
+
+4. **File Path Issues**: All file paths must begin with `/sdcard/`. Trying to access other paths will fail.
+
+5. **UI Automation Failures**: UI elements may change between app versions. Verify element IDs and try using more generic approaches like coordinate-based tapping.
+
+### Debugging
+
+For detailed logging, check logcat with these tags:
+- `AIToolHandler`: Tool extraction and execution
+- `EnhancedAIService`: Overall service operation
+- Specific tool tags like `Calculator`, `FileSystemTools`, etc.
 
 ---
 
-For more information, please refer to the source code or contact the development team. 
+For further assistance or to report issues, please contact the development team. 

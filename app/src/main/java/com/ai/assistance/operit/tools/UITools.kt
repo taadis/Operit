@@ -6,11 +6,6 @@ import com.ai.assistance.operit.AdbCommandExecutor
 import com.ai.assistance.operit.model.AITool
 import com.ai.assistance.operit.model.ToolParameter
 import com.ai.assistance.operit.model.ToolResult
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.util.concurrent.TimeUnit
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
 import java.io.StringReader
@@ -18,10 +13,10 @@ import java.io.StringReader
 /**
  * Tools for UI automation via ADB shell commands
  */
-class ADBUITools(private val context: Context) {
+class UITools(private val context: Context) {
     
     companion object {
-        private const val TAG = "ADBUITools"
+        private const val TAG = "UITools"
         private const val COMMAND_TIMEOUT_SECONDS = 10L
     }
     

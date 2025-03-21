@@ -64,7 +64,7 @@ class EnhancedAIService(
             </tool>
             
             Available tools:
-            - calculate: Simple calculator that evaluates basic expressions locally. Parameters: expression (e.g. "2+2", "sqrt(16)")
+            - calculate: Enhanced calculator that supports complex expressions, variables, date calculations, unit conversions, and statistical functions. Parameters: expression (e.g., "2+2", "date_diff(2023-01-01, today())", "convert(32, f, c)", "stats.mean(1,2,3,4,5)", "if(x>5)then(10)else(20)")
             - sleep: Demonstration tool that pauses briefly. Parameters: duration_ms (milliseconds, default 1000, max 10000)
             - device_info: Returns basic device identifier for the current app session only. No parameters needed.
             
@@ -81,44 +81,44 @@ class EnhancedAIService(
             - file_info: Get information about a file or directory. Parameters: path (target path)
             - zip_files: Compress files or directories. Parameters: source (path to compress), destination (output zip file)
             - unzip_files: Extract a zip file. Parameters: source (zip file path), destination (extract path)
-            - open_file: 使用系统默认应用打开文件. Parameters: path (文件路径)
-            - share_file: 分享文件. Parameters: path (文件路径), title (分享标题，可选，默认为"分享文件")
-            - download_file: 从网络下载文件. Parameters: url (文件URL), destination (保存路径)
+            - open_file: Open a file using the system's default application. Parameters: path (file path)
+            - share_file: Share a file with other applications. Parameters: path (file path), title (optional share title, default "Share File")
+            - download_file: Download a file from the internet. Parameters: url (file URL), destination (save path)
             
             HTTP Tools:
-            - fetch_web_page: 获取网页内容. Parameters: url (网页URL), format (返回格式，可选: "text"或"html"，默认为"text")
-            - http_request: 发送HTTP请求. Parameters: url (请求URL), method (请求方法，可选: GET/POST/PUT/DELETE，默认GET), headers (请求头，JSON格式，可选), body (请求体，可选), body_type (请求体类型，可选: "json"/"form"/"text"，默认"json")
-            - web_search: Returns baidu search results. Parameters: query (the search term)
+            - fetch_web_page: Retrieve web page content. Parameters: url (web page URL), format (return format, optional: "text" or "html", default "text")
+            - http_request: Send an HTTP request. Parameters: url (request URL), method (request method, optional: GET/POST/PUT/DELETE, default GET), headers (request headers in JSON format, optional), body (request body, optional), body_type (request body type, optional: "json"/"form"/"text", default "json")
+            - web_search: Returns search results for a query. Parameters: query (the search term)
             
-
-            System Operation Tools (这些工具需要用户授权):
-            - get_system_setting: 获取系统设置的值. Parameters: setting (设置名称), namespace (命名空间: system/secure/global, 默认system)
-            - modify_system_setting: 修改系统设置的值. Parameters: setting (设置名称), value (设置值), namespace (命名空间: system/secure/global, 默认system)
-            - install_app: 安装应用程序. Parameters: apk_path (APK文件路径)
-            - uninstall_app: 卸载应用程序. Parameters: package_name (应用包名), keep_data (是否保留数据, 默认false)
-            - list_installed_apps: 获取已安装应用列表. Parameters: include_system_apps (是否包含系统应用, 默认false)
-            - start_app: 启动应用程序. Parameters: package_name (应用包名), activity (可选的活动名称)
-            - stop_app: 停止应用程序. Parameters: package_name (应用包名)
+            System Operation Tools (these tools require user authorization):
+            - get_system_setting: Get the value of a system setting. Parameters: setting (setting name), namespace (namespace: system/secure/global, default system)
+            - modify_system_setting: Modify the value of a system setting. Parameters: setting (setting name), value (setting value), namespace (namespace: system/secure/global, default system)
+            - install_app: Install an application. Parameters: apk_path (APK file path)
+            - uninstall_app: Uninstall an application. Parameters: package_name (app package name), keep_data (whether to keep data, default false)
+            - list_installed_apps: Get a list of installed applications. Parameters: include_system_apps (whether to include system apps, default false)
+            - start_app: Launch an application. Parameters: package_name (app package name), activity (optional activity name)
+            - stop_app: Stop a running application. Parameters: package_name (app package name)
             
             UI Automation Tools:
-            - get_page_info: 获取当前UI界面信息，包括完整的UI层次结构. Parameters: format (格式，可选: "xml"或"json"，默认"xml"), detail (详细程度, 可选: "minimal","summary"或"full", 默认"summary")
-            - tap: 在指定坐标模拟点击. Parameters: x (X坐标), y (Y坐标)
-            - click_element: 通过ID或类名点击元素. Parameters: resourceId (元素资源ID，可选), className (元素类名，可选), index (要点击的第几个匹配元素，从0开始计数，默认0), partialMatch (是否启用部分匹配，默认false)，至少提供一个识别参数
-            - set_input_text: 在输入框中设置文本. Parameters: text (要输入的文本)
-            - press_key: 模拟按键. Parameters: keyCode (按键代码，例如"KEYCODE_BACK"，"KEYCODE_HOME"等)
-            - swipe: 模拟滑动手势. Parameters: startX (起始X坐标), startY (起始Y坐标), endX (结束X坐标), endY (结束Y坐标), duration (持续时间，默认300毫秒)
-            - launch_app: 启动应用. Parameters: packageName (应用包名)
-            - combined_operation: 执行UI操作，等待指定时间，然后返回新UI状态. Parameters: operation (要执行的操作，例如"tap 500 800"，"click_element resourceId 按钮ID [index] [partialMatch]"，"swipe 500 1000 500 200"), delayMs (等待时间，默认1000毫秒)
+            - get_page_info: Get information about the current UI screen, including the complete UI hierarchy. Parameters: format (format, optional: "xml" or "json", default "xml"), detail (detail level, optional: "minimal", "summary", or "full", default "summary")
+            - tap: Simulate a tap at specific coordinates. Parameters: x (X coordinate), y (Y coordinate)
+            - click_element: Click an element identified by resource ID or class name. Parameters: resourceId (element resource ID, optional), className (element class name, optional), index (which matching element to click, 0-based counting, default 0), partialMatch (whether to enable partial matching, default false), at least one identification parameter must be provided
+            - set_input_text: Set text in an input field. Parameters: text (text to input)
+            - press_key: Simulate a key press. Parameters: keyCode (key code, e.g., "KEYCODE_BACK", "KEYCODE_HOME", etc.)
+            - swipe: Simulate a swipe gesture. Parameters: startX (start X coordinate), startY (start Y coordinate), endX (end X coordinate), endY (end Y coordinate), duration (duration in milliseconds, default 300)
+            - launch_app: Launch an application. Parameters: packageName (app package name)
+            - combined_operation: Execute a UI operation, wait for a specified time, then return the new UI state. Parameters: operation (operation to execute, e.g., "tap 500 800", "click_element resourceId buttonID [index] [partialMatch]", "swipe 500 1000 500 200"), delayMs (wait time in milliseconds, default 1000)
             
             IMPORTANT UI AUTOMATION ADVICE:
-            - 当处理UI界面交互问题时，尽量优先使用combined_operation工具而不是单独的操作工具
-            - combined_operation能自动等待UI更新并返回新状态，解决了操作后需要手动延时和获取界面的问题
-            - 对于"点击后发生了什么"、"输入文本后界面如何变化"等场景，combined_operation是最佳选择
-            - 例如：使用"combined_operation"和"operation=tap 500 800"替代单独的"tap"命令加延时
-            - 或者使用"combined_operation"和"operation=click_element resourceId 按钮ID"替代单独的"click_element"命令
-            - 在列表中需要精确点击特定项目时，使用"click_element"的index参数，例如"click_element resourceId com.example.app:id/list_item 2"点击第3个项目
-            - 当多个元素共享相同的标识时（例如列表项），可以使用"index"参数来指定要点击的特定元素
-            - 当无法通过ID精确定位元素时，可以先使用"tap"工具通过坐标直接点击
+            - When dealing with UI interaction issues, prioritize using the combined_operation tool over individual operation tools
+            - The combined_operation tool automatically waits for UI updates and returns the new state, solving the problem of needing manual delays and fetching the interface after operations
+            - For scenarios like "what happens after clicking" or "how does the interface change after text input", combined_operation is the best choice
+            - For example: use "combined_operation" with "operation=tap 500 800" instead of a standalone "tap" command plus delay
+            - Or use "combined_operation" with "operation=click_element resourceId buttonID" instead of a standalone "click_element" command
+            - When needing to click a specific item in a list, use the index parameter of "click_element", e.g., "click_element resourceId com.example.app:id/list_item 2" to click the 3rd item
+            - When multiple elements share the same identifier (such as list items), you can use the "index" parameter to specify which specific element to click
+            - When elements cannot be precisely located by ID, you can first use the "tap" tool to click directly using coordinates
+            - When launching apps, prioritize using "combined_operation" as this allows you to immediately get interface information
             
             When you finish your task and no longer need any tools, end your response with: [TASK_COMPLETE]
             
@@ -271,7 +271,7 @@ class EnhancedAIService(
                 
                 val userPreferences = preferencesManager.userPreferencesFlow.first()
                 if (userPreferences.preferences.isNotEmpty()) {
-                    systemPrompt += "\n\n用户偏好描述：${userPreferences.preferences}"
+                    systemPrompt += "\n\nUser preference description: ${userPreferences.preferences}"
                 }
                 
                 enhancedChatHistory.add(Pair("system", systemPrompt))
@@ -290,7 +290,7 @@ class EnhancedAIService(
                     // 添加用户偏好描述
                     val userPreferences = preferencesManager.userPreferencesFlow.first()
                     if (userPreferences.preferences.isNotEmpty()) {
-                        enhancedChatHistory.add(1, Pair("system", "用户偏好描述：${userPreferences.preferences}"))
+                        enhancedChatHistory.add(1, Pair("system", "User preference description: ${userPreferences.preferences}"))
                     }
                 }
                 

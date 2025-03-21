@@ -7,8 +7,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.regex.Pattern
-import java.util.concurrent.ConcurrentHashMap
-import kotlinx.coroutines.runBlocking
 
 /**
  * Handles the extraction and execution of AI tools from responses
@@ -322,7 +320,7 @@ class AIToolHandler(private val context: Context) {
         }
         
         // UI Automation Tools via ADB
-        val adbUITools = ADBUITools(context)
+        val adbUITools = UITools(context)
         
         // Get current page/window information
         registerTool("get_page_info", com.ai.assistance.operit.data.ToolCategory.UI_AUTOMATION) { tool ->
