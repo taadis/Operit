@@ -246,6 +246,10 @@ fun OperitApp(
                                 onComplete = {
                                     isUserPreferencesGuideScreen = false
                                     selectedItem = NavItem.Settings
+                                },
+                                navigateToPermissions = {
+                                    isUserPreferencesGuideScreen = false
+                                    selectedItem = NavItem.ShizukuCommands  // 直接跳转到权限授予界面
                                 }
                             )
                         }

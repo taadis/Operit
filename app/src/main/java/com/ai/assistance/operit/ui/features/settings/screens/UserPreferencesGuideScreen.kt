@@ -68,7 +68,8 @@ private fun generatePreferencesDescription(gender: String, occupation: String, a
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UserPreferencesGuideScreen(
-    onComplete: () -> Unit
+    onComplete: () -> Unit,
+    navigateToPermissions: () -> Unit = onComplete
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -158,7 +159,7 @@ fun UserPreferencesGuideScreen(
                             age = ageInt,
                             isInitialized = true
                         )
-                        onComplete()
+                        navigateToPermissions()
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
