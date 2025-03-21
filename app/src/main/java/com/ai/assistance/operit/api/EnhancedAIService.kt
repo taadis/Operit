@@ -64,7 +64,24 @@ class EnhancedAIService(
             </tool>
             
             Available tools:
-            - calculate: Enhanced calculator that supports complex expressions, variables, date calculations, unit conversions, and statistical functions. Parameters: expression (e.g., "2+2", "date_diff(2023-01-01, today())", "convert(32, f, c)", "stats.mean(1,2,3,4,5)", "if(x>5)then(10)else(20)")
+            - calculate: Enhanced calculator for mathematical and data processing. Use this for:
+              * Math operations (e.g., "2+2", "sqrt(16)", "sin(30)", "round(3.7)")
+              * Date calculations supporting multiple formats:
+                - ISO format: date("2023-01-01")
+                - Slash format: date("2023/01/01")
+                - US format: date("01/01/2023")
+                - European format: date("01.01.2023")
+                - With time: date("2023-01-01 12:30:45")
+                Examples: 
+                - "date_diff(date(\"2023-01-01\"), today())" - days between dates
+                - "weekday(date(\"01/15/2023\"))" - get day of week (1=Sunday)
+                - "month(date(\"2023.03.15\"))" - get month (3=March)
+                - "date_add(today(), 30)" - date 30 days from today
+              * Unit conversions (e.g., "convert(32, f, c)", "convert(150, km, mi)")
+              * Statistical analysis (e.g., "stats.mean(1,2,3,4,5)", "stats.stdev(10,12,15,18)")
+              * Variables and conditional logic (e.g., "x=10; y=20; if(x>y)then(x)else(y)")
+              * Financial calculations (e.g., "principal=1000; rate=0.05; principal*(1+rate)^5")
+              When users ask about calculations, dates, measurements, or need data processing, PRIORITIZE using this tool instead of explaining steps. It's a safe alternative to eval() with more capabilities.
             - sleep: Demonstration tool that pauses briefly. Parameters: duration_ms (milliseconds, default 1000, max 10000)
             - device_info: Returns basic device identifier for the current app session only. No parameters needed.
             

@@ -182,16 +182,23 @@ fun AIChatScreen() {
             if (isConfigured) {
                 FloatingActionButton(
                     onClick = { 
-                        if (canDrawOverlays.value) {
-                            viewModel.toggleFloatingMode()
-                        } else {
-                            // Request permission
-                            val intent = Intent(
-                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                Uri.parse("package:${context.packageName}")
-                            )
-                            context.startActivity(intent)
-                        }
+                        // Show reminder about system's small window feature
+                        android.widget.Toast.makeText(
+                            context,
+                            "提示：您也可以使用系统自带的小窗功能，体验可能更佳。长按应用切换按钮或从最近任务中拖动可开启小窗模式。",
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                        
+                        // if (canDrawOverlays.value) {
+                        //     viewModel.toggleFloatingMode()
+                        // } else {
+                        //     // Request permission
+                        //     val intent = Intent(
+                        //         Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        //         Uri.parse("package:${context.packageName}")
+                        //     )
+                        //     context.startActivity(intent)
+                        // }
                     }
                 ) {
                     Icon(

@@ -22,6 +22,22 @@ This document provides comprehensive documentation for all the tools available t
 
 The Operit AI assistant can invoke specialized tools to complete tasks that require system capabilities or complex computations. When you ask a question that could benefit from a tool, the AI will automatically use the appropriate tool and incorporate the results into its response.
 
+### How to Get the Most from the Calculator Tool
+
+To encourage the AI to use the Calculator's advanced features, try these approaches:
+
+1. **Be specific about calculations**: Instead of asking "What's the temperature in Celsius if it's 98.6°F?", try "Convert 98.6 Fahrenheit to Celsius."
+
+2. **Mention key terms**: Including terms like "calculate", "convert", "days between", or "statistics" helps the AI recognize when to use the calculator.
+
+3. **For date calculations**: Specify your dates clearly, for example: "How many days between January 1, 2023 and today?" or "What day of the week is December 25, 2023?"
+
+4. **For unit conversions**: Clearly mention both units, like "Convert 150 kilometers to miles" or "What's 32°F in Celsius?"
+
+5. **For statistical functions**: Provide the data set directly, such as "Calculate the average of 10, 15, 20, 25, and 30" or "What's the standard deviation of 5, 7, 9, 11, 13?"
+
+The calculator is particularly useful for financial calculations, date manipulations, unit conversions, and any scenario where you need precise numerical results rather than explanations.
+
 ## Tool Usage
 
 Tools are invoked using a standardized XML-like syntax. The AI handles this formatting automatically. The general structure is:
@@ -36,7 +52,19 @@ Tools are invoked using a standardized XML-like syntax. The AI handles this form
 
 ### Calculator
 
-The Calculator tool provides an enhanced mathematical evaluation engine that supports various operations from basic arithmetic to advanced calculations including date operations, unit conversions, and more.
+The Calculator tool provides an enhanced mathematical evaluation engine that supports various operations from basic arithmetic to advanced calculations. It serves as a safe and powerful alternative to `eval()` with extensive capabilities for date operations, unit conversions, statistical functions, and more.
+
+#### When to Use the Calculator
+
+The calculator is ideal for:
+- **Mathematical calculations**: From basic arithmetic to complex formulas
+- **Date and time operations**: Finding differences between dates, adding days, determining weekdays
+- **Unit conversions**: Converting between different systems of measurement
+- **Statistical analysis**: Computing means, medians, standard deviations
+- **Financial calculations**: Interest, discount, compound growth formulas
+- **Conditional processing**: Using if-then-else logic for decision-making
+
+When users ask questions involving any of these elements, the Calculator tool can provide precise numerical answers rather than just explaining the process.
 
 #### Basic Usage
 
@@ -93,16 +121,62 @@ Variables persist throughout the conversation until explicitly cleared.
 
 ##### 5. Date Calculations
 
-- **Current Date**: `today()`
-- **Current Time**: `now()` (milliseconds since epoch)
-- **Parse Date**: `date(2023-01-01)`
-- **Date Difference**: `date_diff(2023-01-01, today())` (days between dates)
-- **Add Days**: `date_add(today(), 7)` (add 7 days to today)
-- **Date Components**:
-  - `weekday(today())` (day of week, 1-7 where 1 is Sunday)
-  - `month(today())` (month number, 1-12)
-  - `year(today())` (year)
-  - `day(today())` (day of month)
+The Calculator supports the following date-related operations and functions:
+
+- **Current Date**: `today()` - Returns the number of days since epoch (1970-01-01)
+- **Current Timestamp**: `now()` - Returns the current time in milliseconds
+- **Parse Date**: `date("2023-01-01")` - Parses a date string into days since epoch
+- **Date Difference**: `date_diff(date1, date2)` - Calculates days between two dates
+- **Date Addition**: `date_add(date, days)` - Adds or subtracts days from a date
+- **Get Weekday**: `weekday(date)` - Gets the day of week (1-7, where 1 is Sunday)
+- **Get Month**: `month(date)` - Gets the month of the date (1-12)
+- **Get Year**: `year(date)` - Gets the year of the date
+- **Get Day**: `day(date)` - Gets the day of month
+
+All functions accept dates as parameters, which can be the result of `today()`, `date("2023-01-01")`, or days since epoch.
+The calculator supports multiple common date formats, including:
+- yyyy-MM-dd (e.g., 2023-01-01)
+- yyyy/MM/dd (e.g., 2023/01/01)
+- MM/dd/yyyy (e.g., 01/01/2023)
+- dd/MM/yyyy (e.g., 01/01/2023)
+- yyyy-MM-dd HH:mm:ss (e.g., 2023-01-01 12:30:45)
+- yyyy/MM/dd HH:mm:ss (e.g., 2023/01/01 12:30:45)
+
+**Note**: All date calculation operations return numeric results (days or timestamps), not formatted date strings.
+
+**Practical Examples**:
+
+```
+# Calculate days between two dates
+<tool name="calculate">
+<param name="expression">date_diff(date("2023-01-01"), today())</param>
+</tool>
+
+# Calculate date 30 days from now (returns days since epoch)
+<tool name="calculate">
+<param name="expression">date_add(today(), 30)</param>
+</tool>
+
+# Check what day of week today is (1=Sunday, 2=Monday, etc.)
+<tool name="calculate">
+<param name="expression">weekday(today())</param>
+</tool>
+
+# Get the month of a specific date
+<tool name="calculate">
+<param name="expression">month(date("2023-12-25"))</param>
+</tool>
+
+# Calculate how many days are left in the current year
+<tool name="calculate">
+<param name="expression">date_diff(today(), date_add(date(year(today()) + "-12-31"), 1))</param>
+</tool>
+
+# Check if a date is in the future
+<tool name="calculate">
+<param name="expression">if(date_diff(today(), date("2024-01-01"))>0)then(1)else(0)</param>
+</tool>
+```
 
 ##### 6. Unit Conversions
 
@@ -143,7 +217,7 @@ Available statistical functions:
 
 ##### 8. Conditional Logic
 
-Perform conditional evaluations:
+The calculator supports conditional expressions with an if-then-else syntax:
 
 ```
 <tool name="calculate">
@@ -151,38 +225,77 @@ Perform conditional evaluations:
 </tool>
 ```
 
-- **Comparison Operators**: `==`, `!=`, `>`, `<`, `>=`, `<=`
-- **Logical Operators**: `&&` (AND), `||` (OR)
+**Comparison Operators**:
+- Equality: `==` (e.g., `x == 10`)
+- Inequality: `!=` (e.g., `x != 0`)
+- Greater than: `>` (e.g., `x > 5`)
+- Less than: `<` (e.g., `x < 10`)
+- Greater than or equal: `>=` (e.g., `x >= 100`)
+- Less than or equal: `<=` (e.g., `x <= 50`)
 
-#### Examples
+**Logical Operators**:
+- AND: `&&` (e.g., `x > 5 && y < 10`)
+- OR: `||` (e.g., `x == 0 || y == 0`)
+
+**Examples**:
 
 ```
-# Temperature conversion from Fahrenheit to Celsius
+# Basic if-then-else with a comparison
 <tool name="calculate">
-<param name="expression">convert(98.6, f, c)</param>
+<param name="expression">if(10>5)then(1)else(0)</param>
 </tool>
 
-# How many days until next Christmas?
+# Using variables in conditions
 <tool name="calculate">
-<param name="expression">date_diff(today(), date(2023-12-25))</param>
+<param name="expression">x=15; if(x>10)then(x*2)else(x/2)</param>
 </tool>
 
-# Find the average, minimum and maximum of a set of values
+# Compound conditions with logical operators
 <tool name="calculate">
-<param name="expression">stats.mean(12, 34, 56, 78, 90)</param>
+<param name="expression">x=5; y=10; if(x<10 && y>5)then(x+y)else(x-y)</param>
 </tool>
 
+# Nested expressions in conditions
 <tool name="calculate">
-<param name="expression">stats.min(12, 34, 56, 78, 90)</param>
+<param name="expression">if(sqrt(16)==4)then(1)else(0)</param>
 </tool>
 
+# Conditional based on date comparison
 <tool name="calculate">
-<param name="expression">stats.max(12, 34, 56, 78, 90)</param>
+<param name="expression">if(year(today())==2023)then("Current year")else("Different year")</param>
+</tool>
+```
+
+The conditional expressions are evaluated strictly as numeric results: any non-zero result in a condition is considered `true`, while zero is considered `false`.
+
+#### Overall Examples
+
+Here are some comprehensive examples combining multiple features of the calculator:
+
+```
+# Temperature conversion with rounding
+<tool name="calculate">
+<param name="expression">round(convert(98.6, f, c))</param>
 </tool>
 
-# Apply a tax rate to a price
+# Calculating discount with variables and percentages
 <tool name="calculate">
-<param name="expression">price=100; tax=0.08; price*(1+tax)</param>
+<param name="expression">price=100; discount=15%; price*(1-discount)</param>
+</tool>
+
+# Calculating average speed for a trip
+<tool name="calculate">
+<param name="expression">distance=150; time=2.5; convert(distance/time, kph, mph)</param>
+</tool>
+
+# Financial calculation: compound interest
+<tool name="calculate">
+<param name="expression">principal=1000; rate=0.05; years=5; principal*(1+rate)^years</param>
+</tool>
+
+# Using today's date with conditional logic
+<tool name="calculate">
+<param name="expression">day_of_week=weekday(today()); if(day_of_week>5)then("Weekend")else("Weekday")</param>
 </tool>
 ```
 
@@ -756,4 +869,47 @@ For detailed logging, check logcat with these tags:
 
 ---
 
-For further assistance or to report issues, please contact the development team. 
+For further assistance or to report issues, please contact the development team.
+
+## Appendix: Example Interactions
+
+### Calculator Tool Usage Examples
+
+Here are some example user queries that effectively trigger the calculator tool:
+
+#### Mathematical Calculations
+**User**: "What is the square root of 169 multiplied by 3?"  
+**AI uses**: `calculate` with expression `sqrt(169)*3`
+
+#### Date Calculations
+**User**: "How many days are there between March 15, 2023 and November 28, 2023?"  
+**AI uses**: `calculate` with expression `date_diff(date("2023-03-15"), date("2023-11-28"))`
+
+**User**: "What day of the week will Christmas be this year?"  
+**AI uses**: `calculate` with expression `weekday(date("2023-12-25"))`
+
+#### Unit Conversions
+**User**: "I need to convert 26.2 miles to kilometers for my marathon training."  
+**AI uses**: `calculate` with expression `convert(26.2, mi, km)`
+
+**User**: "What's 350 degrees Fahrenheit in Celsius for my baking recipe?"  
+**AI uses**: `calculate` with expression `convert(350, f, c)`
+
+#### Statistical Analysis
+**User**: "Calculate the average and standard deviation of these test scores: 85, 92, 78, 90, 88."  
+**AI uses**:  
+- `calculate` with expression `stats.mean(85,92,78,90,88)`
+- `calculate` with expression `stats.stdev(85,92,78,90,88)`
+
+#### Financial Calculations
+**User**: "If I invest $10,000 at 7% annual interest compounded annually, how much will I have after 10 years?"  
+**AI uses**: `calculate` with expression `10000*(1+0.07)^10`
+
+**User**: "Calculate a 15% discount on a $120 purchase."  
+**AI uses**: `calculate` with expression `120*(1-0.15)` or `120-120*0.15`
+
+#### Conditional Logic
+**User**: "Is 42.5 closer to 40 or to 50?"  
+**AI uses**: `calculate` with expression `if(abs(42.5-40)<abs(42.5-50))then("40")else("50")`
+
+These examples demonstrate how specific, clear questions about calculations naturally lead the AI to use the calculator tool rather than explaining steps or using approximate answers. 
