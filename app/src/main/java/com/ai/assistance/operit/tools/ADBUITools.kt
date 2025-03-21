@@ -113,6 +113,25 @@ class ADBUITools(private val context: Context) {
      */
     private suspend fun getUIData(): UIData? {
         try {
+            // 1. 首先尝试使用无障碍服务获取UI层次结构
+            val uiXml = com.ai.assistance.operit.data.UIHierarchyManager.getUIHierarchy(context)
+            
+            // 如果成功获取到UI层次结构
+            if (uiXml.isNotEmpty()) {
+                Log.d(TAG, "使用无障碍服务获取UI层次结构成功")
+                
+                // 仍然需要获取窗口信息（使用ADB命令）
+                val windowCommand = "dumpsys window windows | grep -E 'mCurrentFocus|mFocusedApp'"
+                val windowResult = AdbCommandExecutor.executeAdbCommand(windowCommand)
+                
+                if (windowResult.success) {
+                    return UIData(uiXml, windowResult.stdout)
+                }
+            }
+            
+            // 2. 如果无障碍服务获取失败，回退到使用ADB命令
+            Log.d(TAG, "回退到使用ADB命令获取UI数据")
+            
             // 执行UI dump命令
             val dumpCommand = "uiautomator dump /sdcard/window_dump.xml"
             val dumpResult = AdbCommandExecutor.executeAdbCommand(dumpCommand)
@@ -428,6 +447,25 @@ class ADBUITools(private val context: Context) {
         }
         
         return try {
+            // 优先使用无障碍服务尝试点击元素
+            val uiXml = com.ai.assistance.operit.data.UIHierarchyManager.getUIHierarchy(context)
+            if (uiXml.isNotEmpty()) {
+                // 如果通过无障碍服务获取到了UI层次结构，则尝试直接使用这个数据而不再调用ADB dump
+                Log.d(TAG, "使用无障碍服务获取的UI层次结构")
+                
+                // 使用已经获取的UI XML数据处理点击
+                // 解析XML，定位元素并获取坐标
+                val matchingNodes = findMatchingNodesInXml(uiXml, resourceId, className, partialMatch)
+                
+                if (matchingNodes.isNotEmpty()) {
+                    // 处理点击
+                    return processClickOnFoundNodes(matchingNodes, index, tool, resourceId, className)
+                }
+            }
+            
+            // 如果无障碍服务不可用或未找到匹配元素，回退到使用ADB命令
+            Log.d(TAG, "回退到使用ADB命令获取UI数据和点击元素")
+            
             // First, dump the UI hierarchy
             val dumpCommand = "uiautomator dump /sdcard/window_dump.xml"
             val dumpResult = AdbCommandExecutor.executeAdbCommand(dumpCommand)
@@ -643,52 +681,22 @@ class ADBUITools(private val context: Context) {
             
             Log.d(TAG, "Setting text to: $text")
             
-            // Try clipboard method for all texts
+            // First try to set text using accessibility service
             var success = false
-            var errorMessage = ""
             
-            try {
-                success = setTextViaClipboard(text)
-                
+            // Try to use accessibility service first
+            if (com.ai.assistance.operit.service.UIAccessibilityService.isRunning()) {
+                success = setTextWithAccessibility(text)
                 if (success) {
-                    Log.d(TAG, "Successfully input text using clipboard method")
+                    Log.d(TAG, "Successfully set text using accessibility service")
                 } else {
-                    Log.w(TAG, "Failed to input text using clipboard method")
-                    errorMessage = "Failed to input text using clipboard method"
+                    Log.w(TAG, "Failed to set text using accessibility service, falling back to clipboard method")
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error using clipboard for text input", e)
-                errorMessage = "Error using clipboard: ${e.message ?: "Unknown error"}"
             }
             
-            // For ASCII text, also try basic input text command as fallback
-            if (!success && !text.any { it.code > 127 }) {
-                try {
-                    // Try without any quotes or escaping first - this works in some cases
-                    val noQuotesCommand = "input text $text"
-                    val noQuotesResult = AdbCommandExecutor.executeAdbCommand(noQuotesCommand)
-                    
-                    if (noQuotesResult.success) {
-                        success = true
-                        Log.d(TAG, "Successfully input text using direct command without quotes")
-                    } else {
-                        // Try with double quotes and basic escaping
-                        val safeText = text.replace("\"", "\\\"").replace("$", "\\$")
-                        val quotedCommand = "input text \"$safeText\""
-                        val quotedResult = AdbCommandExecutor.executeAdbCommand(quotedCommand)
-                        
-                        if (quotedResult.success) {
-                            success = true
-                            Log.d(TAG, "Successfully input text using quoted command")
-                        } else {
-                            Log.w(TAG, "Failed to input text using quoted command: ${quotedResult.stderr}")
-                            errorMessage = "Failed to input text with quotes: ${quotedResult.stderr ?: "Unknown error"}"
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error with direct text input commands", e)
-                    errorMessage = "Error with direct input: ${e.message ?: "Unknown error"}"
-                }
+            // If accessibility method failed or isn't available, use clipboard method as fallback
+            if (!success) {
+                success = setTextViaClipboard(text)
             }
             
             if (success) {
@@ -703,7 +711,7 @@ class ADBUITools(private val context: Context) {
                     toolName = tool.name,
                     success = false,
                     result = "",
-                    error = "Failed to set input text: $errorMessage"
+                    error = "Failed to set input text via all available methods"
                 )
             }
         } catch (e: Exception) {
@@ -718,263 +726,126 @@ class ADBUITools(private val context: Context) {
     }
     
     /**
+     * Sets text using the accessibility service
+     * This is the preferred method when accessible
+     */
+    private fun setTextWithAccessibility(text: String): Boolean {
+        try {
+            val service = com.ai.assistance.operit.service.UIAccessibilityService.getInstance() ?: return false
+            
+            // Get the root node
+            val rootNode = service.rootInActiveWindow ?: return false
+            
+            // Find the focused node, which is likely the input field
+            val focusedNode = findFocusedEditableNode(rootNode)
+            if (focusedNode == null) {
+                Log.w(TAG, "No focused editable node found for text input")
+                return false
+            }
+            
+            // Create a bundle with the text to set
+            val arguments = android.os.Bundle()
+            arguments.putCharSequence(android.view.accessibility.AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+            
+            // Perform the action to set the text
+            val result = focusedNode.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)
+            
+            // Clean up
+            focusedNode.recycle()
+            rootNode.recycle()
+            
+            return result
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting text with accessibility service", e)
+            return false
+        }
+    }
+    
+    /**
+     * Finds a focused node that can accept text input
+     */
+    private fun findFocusedEditableNode(rootNode: android.view.accessibility.AccessibilityNodeInfo): android.view.accessibility.AccessibilityNodeInfo? {
+        // First check if the root node itself is focused and editable
+        if (rootNode.isFocused && rootNode.isEditable) {
+            return rootNode
+        }
+        
+        // Check if we can find a focused node
+        val focusedNode = rootNode.findFocus(android.view.accessibility.AccessibilityNodeInfo.FOCUS_INPUT)
+        if (focusedNode != null && focusedNode.isEditable) {
+            return focusedNode
+        }
+        
+        // If no focused node, try to find any editable field
+        val editableNodes = ArrayList<android.view.accessibility.AccessibilityNodeInfo>()
+        findEditableNodes(rootNode, editableNodes)
+        
+        if (editableNodes.isNotEmpty()) {
+            // Return the first editable node
+            val result = editableNodes[0]
+            // Clean up the other nodes
+            for (i in 1 until editableNodes.size) {
+                editableNodes[i].recycle()
+            }
+            return result
+        }
+        
+        return null
+    }
+    
+    /**
+     * Recursively finds all editable nodes in the hierarchy
+     */
+    private fun findEditableNodes(node: android.view.accessibility.AccessibilityNodeInfo, result: ArrayList<android.view.accessibility.AccessibilityNodeInfo>) {
+        if (node.isEditable) {
+            // Make a copy of the node to add to our result list
+            result.add(android.view.accessibility.AccessibilityNodeInfo.obtain(node))
+        }
+        
+        // Recursively check children
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            findEditableNodes(child, result)
+            child.recycle()
+        }
+    }
+    
+    /**
      * Sets text via clipboard and paste operation
-     * This method is particularly useful for non-ASCII text like Chinese
+     * This method is used as a fallback when accessibility method isn't available
      */
     private suspend fun setTextViaClipboard(text: String): Boolean {
         try {
             Log.d(TAG, "Setting clipboard text: $text")
             
-            // 尝试使用Android的原生API设置剪贴板
-            if (setClipboardNatively(text)) {
-                Log.d(TAG, "Set clipboard using native Android API")
-                
-                // 执行粘贴操作
-                val pasteCommand = "input keyevent 279 47"  // KEYCODE_CTRL_LEFT KEYCODE_V
-                val pasteResult = AdbCommandExecutor.executeAdbCommand(pasteCommand)
-                
-                if (pasteResult.success) {
-                    Log.d(TAG, "Pasted text using numeric keyevent method after native clipboard set")
-                    return true
-                }
-                
-                // 如果第一种粘贴方法失败，尝试其他方法
-                val namedPasteCommand = "input keyevent KEYCODE_CTRL_LEFT KEYCODE_V"
-                val namedPasteResult = AdbCommandExecutor.executeAdbCommand(namedPasteCommand)
-                
-                if (namedPasteResult.success) {
-                    Log.d(TAG, "Pasted text using named keyevent method after native clipboard set")
-                    return true
-                }
-                
-                // 长按方法
-                try {
-                    AdbCommandExecutor.executeAdbCommand("input keyevent --longpress 279")
-                    AdbCommandExecutor.executeAdbCommand("input keyevent 47")
-                    Log.d(TAG, "Attempted paste using longpress method after native clipboard set")
-                    return true
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error with longpress paste after native clipboard set", e)
-                }
-                
-                // 上下文菜单方法
-                try {
-                    val longPressCommand = "input swipe 250 250 250 250 1000"
-                    AdbCommandExecutor.executeAdbCommand(longPressCommand)
-                    kotlinx.coroutines.delay(300)
-                    val clickPasteCommand = "input tap 250 300"
-                    AdbCommandExecutor.executeAdbCommand(clickPasteCommand)
-                    Log.d(TAG, "Attempted paste using context menu after native clipboard set")
-                    return true
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error with context menu paste after native clipboard set", e)
-                }
-            }
-            
-            // 如果原生API失败，回退到使用ADB命令的方法
-            // Try multiple approaches to set clipboard text
-            var clipboardSet = false
-            
-            // Method 0: Most direct approach using Android's clipboard content provider
-            if (!clipboardSet) {
-                try {
-                    // Improved approach using Android's clipboard content provider
-                    val escapedText = text.replace("\"", "\\\"")
-                    // Using direct content provider approach without appending 's'
-                    val cmdCommand = "am broadcast -a android.intent.action.CLIPBOARD_TEXT --es android.intent.extra.TEXT \"$escapedText\""
-                    val cmdResult = AdbCommandExecutor.executeAdbCommand(cmdCommand)
-                    
-                    if (cmdResult.success) {
-                        clipboardSet = true
-                        Log.d(TAG, "Set clipboard using content provider method")
-                    } else {
-                        // Try the alternative approach for Android 10+
-                        val altCommand = "cmd content insert --uri content://clipboard/raw --user 0 --arg text --arg \"$escapedText\""
-                        val altResult = AdbCommandExecutor.executeAdbCommand(altCommand)
-                        
-                        if (altResult.success) {
-                            clipboardSet = true
-                            Log.d(TAG, "Set clipboard using alt content provider method")
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error setting clipboard using content provider", e)
-                }
-            }
-            
-            // Method 0.5: Try using service call clipboardservice approach
-            if (!clipboardSet) {
-                try {
-                    val escapedText = text.replace("\"", "\\\"")
-                    // Using the ClipboardService directly
-                    val serviceCommand = "service call clipboard 1 s16 \"$escapedText\" i32 0"
-                    val serviceResult = AdbCommandExecutor.executeAdbCommand(serviceCommand)
-                    
-                    if (serviceResult.success) {
-                        clipboardSet = true
-                        Log.d(TAG, "Set clipboard using clipboard service method")
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error setting clipboard using clipboard service", e)
-                }
-            }
-            
-            // Method 1: Create a temporary file with the text and use it to set clipboard
-            if (!clipboardSet) {
-                try {
-                    // Direct echo to file without base64 - simpler approach first
-                    val tempFileName = "/sdcard/temp_clipboard_${System.currentTimeMillis()}.txt"
-                    val escapeForEcho = text.replace("'", "'\\''").replace("\"", "\\\"")
-                    val writeCommand = "echo -n '$escapeForEcho' > $tempFileName"
-                    val writeResult = AdbCommandExecutor.executeAdbCommand(writeCommand)
-                    
-                    if (writeResult.success) {
-                        // Try to use clipboard manager directly
-                        val clipCommand = "am broadcast -a android.intent.action.PASTE -e android.intent.extra.TEXT \"$(cat $tempFileName)\""
-                        AdbCommandExecutor.executeAdbCommand(clipCommand)
-                        
-                        // Clean up
-                        AdbCommandExecutor.executeAdbCommand("rm $tempFileName")
-                        clipboardSet = true
-                        Log.d(TAG, "Set clipboard using file method")
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error using simple file for clipboard", e)
-                }
-            }
-            
-            // Method 2: Try base64 encoding approach for more complex text
-            if (!clipboardSet) {
-                try {
-                    // Create a temporary file
-                    val tempFileName = "/sdcard/temp_clipboard_${System.currentTimeMillis()}.txt"
-                    
-                    // Write the text to the temporary file - use base64 encoding to handle special characters
-                    val textBase64 = android.util.Base64.encodeToString(text.toByteArray(), android.util.Base64.DEFAULT)
-                    val encodeCommand = "echo '$textBase64' > $tempFileName.b64"
-                    val encodeResult = AdbCommandExecutor.executeAdbCommand(encodeCommand)
-                    
-                    if (encodeResult.success) {
-                        // Try different decode commands depending on what's available
-                        val decodeCommands = listOf(
-                            "base64 -d $tempFileName.b64 > $tempFileName",
-                            "cat $tempFileName.b64 | base64 -d > $tempFileName",
-                            "openssl base64 -d -in $tempFileName.b64 -out $tempFileName"
-                        )
-                        
-                        var decoded = false
-                        for (cmd in decodeCommands) {
-                            val decodeResult = AdbCommandExecutor.executeAdbCommand(cmd)
-                            if (decodeResult.success) {
-                                decoded = true
-                                break
-                            }
-                        }
-                        
-                        if (decoded) {
-                            // Use the am broadcast command to set clipboard
-                            val amCommand = "am broadcast -a android.intent.action.PASTE -e android.intent.extra.TEXT \"$(cat $tempFileName)\""
-                            AdbCommandExecutor.executeAdbCommand(amCommand)
-                            
-                            // Clean up temp files
-                            AdbCommandExecutor.executeAdbCommand("rm $tempFileName $tempFileName.b64")
-                            clipboardSet = true
-                            Log.d(TAG, "Set clipboard using base64 method")
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error using base64 file for clipboard", e)
-                }
-            }
-            
-            // Method 3: Use broadcast intent as a fallback
-            if (!clipboardSet) {
-                try {
-                    val escapedText = text.replace("'", "\\'").replace("\"", "\\\"")
-                    // Try different intent actions that might work on different devices
-                    val clipCommands = listOf(
-                        // Use correct extra key for clipboard text
-                        "am broadcast -a clipboardtext --es android.intent.extra.TEXT \"$escapedText\"",
-                        "am broadcast -a android.intent.action.CLIPBOARD_TEXT --es android.intent.extra.TEXT \"$escapedText\"",
-                        "am broadcast -a android.intent.action.PASTE --es android.intent.extra.TEXT \"$escapedText\""
-                    )
-                    
-                    for (cmd in clipCommands) {
-                        val clipResult = AdbCommandExecutor.executeAdbCommand(cmd)
-                        if (clipResult.success) {
-                            clipboardSet = true
-                            Log.d(TAG, "Set clipboard using broadcast method")
-                            break
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error setting clipboard using broadcast", e)
-                }
-            }
-            
-            // If we couldn't set the clipboard, return false
-            if (!clipboardSet) {
-                Log.e(TAG, "All clipboard setting methods failed")
+            // Set clipboard text using native Android API
+            if (!setClipboardNatively(text)) {
+                Log.e(TAG, "Failed to set clipboard using native Android API")
                 return false
             }
             
             // Give the system time to update the clipboard
-            kotlinx.coroutines.delay(500)
+            kotlinx.coroutines.delay(300)
             
-            // Try various paste methods
-            
-            // Method 1: Using numeric keycodes
+            // Try to paste the text using CTRL+V
             val pasteCommand = "input keyevent 279 47"  // KEYCODE_CTRL_LEFT KEYCODE_V
             val pasteResult = AdbCommandExecutor.executeAdbCommand(pasteCommand)
             
             if (pasteResult.success) {
-                Log.d(TAG, "Pasted text using numeric keyevent method")
+                Log.d(TAG, "Pasted text using CTRL+V method")
                 return true
             }
             
-            // Method 2: Using named keycodes
+            // If that fails, try the named keycode version
             val namedPasteCommand = "input keyevent KEYCODE_CTRL_LEFT KEYCODE_V"
             val namedPasteResult = AdbCommandExecutor.executeAdbCommand(namedPasteCommand)
             
             if (namedPasteResult.success) {
-                Log.d(TAG, "Pasted text using named keyevent method")
+                Log.d(TAG, "Pasted text using named keycode method")
                 return true
             }
             
-            // Method 3: Try simulating key press and release separately
-            try {
-                // Press Ctrl
-                AdbCommandExecutor.executeAdbCommand("input keyevent --longpress 279")  // KEYCODE_CTRL_LEFT
-                // Press V while Ctrl is held
-                AdbCommandExecutor.executeAdbCommand("input keyevent 47")  // KEYCODE_V
-                
-                Log.d(TAG, "Attempted paste using longpress method")
-                kotlinx.coroutines.delay(300)
-                return true
-            } catch (e: Exception) {
-                Log.e(TAG, "Error attempting longpress paste", e)
-            }
-            
-            // Method 4: Fallback to long press and select Paste from context menu if available
-            try {
-                // Long press to bring up context menu
-                val longPressCommand = "input swipe 250 250 250 250 1000"
-                AdbCommandExecutor.executeAdbCommand(longPressCommand)
-                
-                // Wait for menu to appear
-                kotlinx.coroutines.delay(300)
-                
-                // Try to click on "Paste" option (approximate position - may need adjustment)
-                val clickPasteCommand = "input tap 250 300"
-                AdbCommandExecutor.executeAdbCommand(clickPasteCommand)
-                
-                Log.d(TAG, "Attempted paste using context menu")
-                return true
-            } catch (e: Exception) {
-                Log.e(TAG, "Error attempting context menu paste", e)
-            }
-            
-            // If we reach here, all paste methods failed
+            Log.e(TAG, "All paste methods failed")
             return false
         } catch (e: Exception) {
             Log.e(TAG, "Error setting text via clipboard", e)
@@ -1452,6 +1323,147 @@ class ADBUITools(private val context: Context) {
                 success = false,
                 result = "Operation was successful but failed to get new UI state: ${e.message}",
                 error = "Error getting UI state after operation: ${e.message}"
+            )
+        }
+    }
+    
+    /**
+     * 从XML字符串中查找匹配的节点
+     */
+    private fun findMatchingNodesInXml(xml: String, resourceId: String?, className: String?, partialMatch: Boolean): List<Pair<String, List<String>>> {
+        val matchingNodes = mutableListOf<Pair<String, List<String>>>()
+        
+        // 定义regex模式以匹配节点属性
+        val resourceIdPattern = if (resourceId != null) {
+            if (partialMatch) {
+                "resource-id=\".*?${Regex.escape(resourceId)}.*?\"".toRegex()
+            } else {
+                "resource-id=\"(?:.*?:id/)?${Regex.escape(resourceId)}\"".toRegex()
+            }
+        } else {
+            "resource-id=\".*?\"".toRegex()
+        }
+        
+        val classNamePattern = if (className != null) {
+            "class=\".*?${Regex.escape(className)}.*?\"".toRegex()
+        } else {
+            "class=\".*?\"".toRegex()
+        }
+        
+        // 找到XML中匹配条件的节点
+        if (resourceId != null) {
+            val nodePattern = if (partialMatch) {
+                "<node[^>]*?resource-id=\".*?${Regex.escape(resourceId)}.*?\"[^>]*?>".toRegex()
+            } else {
+                "<node[^>]*?resource-id=\"(?:.*?:id/)?${Regex.escape(resourceId)}\"[^>]*?>".toRegex()
+            }
+            nodePattern.findAll(xml).forEach { match ->
+                // 提取bounds和其他需要的属性
+                val nodeText = match.value
+                val bounds = extractBounds(nodeText)
+                if (bounds.isNotEmpty()) {
+                    matchingNodes.add(Pair(nodeText, bounds))
+                }
+            }
+        } else if (className != null) {
+            val nodePattern = "<node[^>]*?class=\".*?${Regex.escape(className)}.*?\"[^>]*?>".toRegex()
+            nodePattern.findAll(xml).forEach { match ->
+                val nodeText = match.value
+                val bounds = extractBounds(nodeText)
+                if (bounds.isNotEmpty()) {
+                    matchingNodes.add(Pair(nodeText, bounds))
+                }
+            }
+        }
+        
+        return matchingNodes
+    }
+    
+    /**
+     * 从节点文本中提取bounds坐标
+     */
+    private fun extractBounds(nodeText: String): List<String> {
+        val boundsPattern = "bounds=\"\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]\"".toRegex()
+        val matchResult = boundsPattern.find(nodeText) ?: return emptyList()
+        
+        if (matchResult.groupValues.size < 5) return emptyList()
+        
+        return matchResult.groupValues.drop(1) // 返回四个坐标值
+    }
+    
+    /**
+     * 处理找到的节点并执行点击
+     */
+    private suspend fun processClickOnFoundNodes(
+        matchingNodes: List<Pair<String, List<String>>>,
+        index: Int,
+        tool: AITool,
+        resourceId: String?,
+        className: String?
+    ): ToolResult {
+        // 检查索引是否在范围内
+        if (index < 0 || index >= matchingNodes.size) {
+            return ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = "",
+                error = "索引超出范围。找到${matchingNodes.size}个匹配元素，但请求的索引为$index。"
+            )
+        }
+        
+        // 获取指定索引的节点
+        val (nodeText, boundsValues) = matchingNodes[index]
+        
+        if (boundsValues.size < 4) {
+            return ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = "",
+                error = "无法从元素中提取边界坐标。"
+            )
+        }
+        
+        // 提取坐标并计算中心点
+        val x1 = boundsValues[0].toInt()
+        val y1 = boundsValues[1].toInt()
+        val x2 = boundsValues[2].toInt()
+        val y2 = boundsValues[3].toInt()
+        
+        // 计算中心点坐标
+        val centerX = (x1 + x2) / 2
+        val centerY = (y1 + y2) / 2
+        
+        // 记录点击坐标
+        Log.d(TAG, "点击元素坐标: ($centerX, $centerY)")
+        
+        // 执行点击命令
+        val tapCommand = "input tap $centerX $centerY"
+        val tapResult = AdbCommandExecutor.executeAdbCommand(tapCommand)
+        
+        if (tapResult.success) {
+            val identifierDescription = when {
+                resourceId != null -> " with resource ID: $resourceId"
+                else -> " with class name: $className"
+            }
+            
+            val matchCount = if (matchingNodes.size > 1) {
+                " (index $index of ${matchingNodes.size} matches)"
+            } else {
+                ""
+            }
+            
+            return ToolResult(
+                toolName = tool.name,
+                success = true,
+                result = "Successfully clicked element$identifierDescription$matchCount at coordinates ($centerX, $centerY)",
+                error = ""
+            )
+        } else {
+            return ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = "",
+                error = "Failed to click element: ${tapResult.stderr ?: "Unknown error"}"
             )
         }
     }

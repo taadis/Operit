@@ -315,8 +315,8 @@ class AdbCommandExecutor {
                    "1. 确保已安装Shizuku应用\n" +
                    "2. 使用ADB命令启动Shizuku:\n" +
                    "   adb shell sh /sdcard/Android/data/moe.shizuku.privileged.api/start.sh\n" +
-                   "或者\n" + 
-                   "3. 打开Shizuku应用并按照屏幕上的说明操作"
+                   "或者\n\n" + 
+                   "2. 打开Shizuku应用并按照屏幕上的说明操作"
         }
         
         /**

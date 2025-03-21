@@ -1,15 +1,16 @@
 <resources>
     <string name="app_name">Operit</string>
+    <string name="accessibility_service_description">用于获取UI层次结构，为AI助手提供更快速的界面分析能力，不会收集或存储任何个人信息。</string>
     
     <!-- Navigation -->
     <string name="nav_ai_chat">AI 对话</string>
-    <string name="nav_adb_commands">ADB 命令执行</string>
+    <string name="nav_adb_commands">权限授予</string>
     <string name="nav_settings">设置</string>
     <string name="nav_tool_permissions">工具权限</string>
     <string name="menu">菜单</string>
     
     <!-- 用于NavItem类的标识符 -->
-    <string name="shizuku_commands">ADB 命令执行</string>
+    <string name="shizuku_commands">权限授予</string>
     <string name="tool_permissions">工具权限设置</string>
     
     <!-- AI Chat Screen -->

@@ -39,6 +39,9 @@ class MainActivity : ComponentActivity() {
     // 电池优化豁免请求状态
     private var batteryOptimizationExemptionRequested = false
     
+    // 无障碍服务请求状态
+    private var accessibilityServiceRequested = false
+    
     // 初始化导航控制标志
     private var navigateToShizukuScreen = false
     
@@ -168,6 +171,9 @@ class MainActivity : ComponentActivity() {
         preferencesManager = UserPreferencesManager(this)
         showPreferencesGuide = !preferencesManager.isPreferencesInitialized()
         Log.d(TAG, "初始化检查: 用户偏好已初始化=${!showPreferencesGuide}，将${if(showPreferencesGuide) "" else "不"}显示引导界面")
+        
+        // 检查无障碍服务是否已启用
+        checkAccessibilityServiceEnabled()
         
         // 监听偏好变化
         lifecycleScope.launch {
@@ -502,6 +508,30 @@ class MainActivity : ComponentActivity() {
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error in permission check", e)
             }
+        }
+    }
+    
+    /**
+     * 检查无障碍服务是否已启用，只在未请求过的情况下显示对话框
+     */
+    private fun checkAccessibilityServiceEnabled() {
+        // 如果服务未启用且未请求过，则显示对话框
+        if (!com.ai.assistance.operit.data.UIHierarchyManager.isAccessibilityServiceEnabled(this) && !accessibilityServiceRequested) {
+            // 设置标志，表示已经请求过
+            accessibilityServiceRequested = true
+            
+            // 显示对话框提示用户启用无障碍服务
+            android.app.AlertDialog.Builder(this)
+                .setTitle("需要无障碍服务权限")
+                .setMessage("为了提供更快速的UI分析能力，请在设置中启用无障碍服务。这将使AI助手能够更高效地获取屏幕信息，节省您的等待时间。")
+                .setPositiveButton("去设置") { _, _ ->
+                    com.ai.assistance.operit.data.UIHierarchyManager.openAccessibilitySettings(this)
+                }
+                .setNegativeButton("稍后再说") { dialog, _ ->
+                    dialog.dismiss()
+                }
+                .setCancelable(false)
+                .show()
         }
     }
     
