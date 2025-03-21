@@ -26,82 +26,6 @@ object UserPreferenceAnalyzer {
     )
     
     /**
-     * 记录并分析用户输入
-     * @param input 用户输入的文本
-     */
-    fun analyzeUserInput(input: String) {
-        // 添加到历史记录
-        userInputHistory.add(input)
-        
-        // 如果历史记录太大，移除最早的记录
-        if (userInputHistory.size > 100) {
-            userInputHistory.removeAt(0)
-        }
-        
-        // 异步分析并更新用户偏好
-        CoroutineScope(Dispatchers.IO).launch {
-            val preferences = analyzePreferences()
-            updateUserPreferences(preferences)
-        }
-    }
-    
-    /**
-     * 分析用户输入历史，生成用户偏好描述
-     * @return 用户偏好描述（不超过100字）
-     */
-    private fun analyzePreferences(): String {
-        // 如果历史记录太少，返回空
-        if (userInputHistory.size < 5) return ""
-        
-        val allText = userInputHistory.joinToString(" ")
-        val preferences = mutableMapOf<String, MutableList<String>>()
-        
-        // 对每个类别进行关键词匹配
-        preferenceKeywords.forEach { (category, keywords) ->
-            val categoryPreferences = mutableListOf<String>()
-            
-            keywords.forEach { keyword ->
-                // 简单的关键词匹配，实际应用中可以使用更复杂的算法
-                if (allText.contains(keyword, ignoreCase = true)) {
-                    categoryPreferences.add(keyword)
-                }
-            }
-            
-            if (categoryPreferences.isNotEmpty()) {
-                preferences[category] = categoryPreferences
-            }
-        }
-        
-        // 生成偏好描述
-        return generatePreferencesDescription(preferences)
-    }
-    
-    /**
-     * 根据匹配的偏好生成描述
-     * @param preferences 各类别匹配到的偏好关键词
-     * @return 用户偏好描述（不超过100字）
-     */
-    private fun generatePreferencesDescription(preferences: Map<String, List<String>>): String {
-        if (preferences.isEmpty()) return ""
-        
-        val description = StringBuilder()
-        
-        preferences.forEach { (category, keywords) ->
-            if (keywords.isNotEmpty()) {
-                description.append("$category: ${keywords.joinToString(", ")}. ")
-            }
-        }
-        
-        // 确保不超过100字
-        var result = description.toString()
-        if (result.length > 100) {
-            result = result.substring(0, 97) + "..."
-        }
-        
-        return result
-    }
-    
-    /**
      * 更新用户偏好设置
      * @param preferences 用户偏好描述
      */
@@ -123,8 +47,13 @@ object UserPreferenceAnalyzer {
         
         CoroutineScope(Dispatchers.IO).launch {
             try {
+                // 过滤掉包含工具结果的用户消息
+                val filteredInteractions = interactions.filter { 
+                    !(it.sender == "user" && it.content.contains("**Tool Result"))
+                }
+                
                 // 将交互信息转换为适用于API的格式
-                val apiFormatInteractions = interactions.map { 
+                val apiFormatInteractions = filteredInteractions.map { 
                     when (it.sender) {
                         "user" -> "user" to it.content
                         "ai" -> "assistant" to it.content
@@ -150,25 +79,5 @@ object UserPreferenceAnalyzer {
                 android.util.Log.e("UserPreferenceAnalyzer", "AI分析失败: ${e.message}", e)
             }
         }
-    }
-    
-    /**
-     * 构建用于AI分析的提示
-     * @param interactions 用户与AI的交互消息列表
-     * @return 分析提示
-     */
-    private fun buildAnalysisPrompt(interactions: List<ChatMessage>): String {
-        val userMessages = interactions.filter { it.sender == "user" }
-            .map { it.content }
-            .joinToString("\n\n- ")
-        
-        return """
-            你是一个用户偏好分析专家。基于以下用户的交互记录，请分析用户的偏好，包括问答风格、身份信息、家庭情况、社交信息和购物习惯等方面。
-            
-            用户的交互记录：
-            - $userMessages
-            
-            请自然地总结用户的个性化偏好，不超过100字。
-        """.trimIndent()
     }
 }

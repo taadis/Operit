@@ -255,11 +255,69 @@ fun SettingsScreen(
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
                         
-                        Text(
-                            text = userPreferences.preferences,
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
+                        // 添加偏好文本编辑功能
+                        var isEditingPreferences by remember { mutableStateOf(false) }
+                        var editedPreferences by remember { mutableStateOf(userPreferences.preferences) }
+                        
+                        if (isEditingPreferences) {
+                            // 编辑模式
+                            OutlinedTextField(
+                                value = editedPreferences,
+                                onValueChange = { editedPreferences = it },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 8.dp)
+                                    .height(120.dp),
+                                label = { Text(stringResource(id = R.string.edit_preferences)) }
+                            )
+                            
+                            // 保存和取消按钮
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
+                            ) {
+                                TextButton(
+                                    onClick = { 
+                                        isEditingPreferences = false 
+                                        editedPreferences = userPreferences.preferences
+                                    }
+                                ) {
+                                    Text(stringResource(id = R.string.cancel))
+                                }
+                                
+                                Button(
+                                    onClick = {
+                                        scope.launch {
+                                            preferencesManager.updatePreferencesText(editedPreferences)
+                                            isEditingPreferences = false
+                                        }
+                                    }
+                                ) {
+                                    Text(stringResource(id = R.string.save))
+                                }
+                            }
+                        } else {
+                            // 显示模式
+                            Text(
+                                text = userPreferences.preferences,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            
+                            // 编辑按钮
+                            IconButton(
+                                onClick = { 
+                                    isEditingPreferences = true 
+                                    editedPreferences = userPreferences.preferences
+                                },
+                                modifier = Modifier.align(Alignment.End)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = stringResource(id = R.string.edit_preferences)
+                                )
+                            }
+                        }
                         
                         // 用户信息摘要
                         Row(

@@ -88,7 +88,7 @@ class EnhancedAIService(
             HTTP Tools:
             - fetch_web_page: 获取网页内容. Parameters: url (网页URL), format (返回格式，可选: "text"或"html"，默认为"text")
             - http_request: 发送HTTP请求. Parameters: url (请求URL), method (请求方法，可选: GET/POST/PUT/DELETE，默认GET), headers (请求头，JSON格式，可选), body (请求体，可选), body_type (请求体类型，可选: "json"/"form"/"text"，默认"json")
-            - web_search: Returns pre-defined simulated search results (no actual web access). Parameters: query (the search term)
+            - web_search: Returns baidu search results. Parameters: query (the search term)
             
 
             System Operation Tools (这些工具需要用户授权):
@@ -764,6 +764,7 @@ class EnhancedAIService(
     private fun cancelAllToolExecutions() {
         toolProcessingScope.coroutineContext.cancelChildren()
     }
+    
     /**
      * 直接分析用户偏好，不通过 sendMessage，不显示在聊天界面
      * @param conversationHistory 用户的对话历史

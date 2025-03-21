@@ -15,6 +15,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
@@ -59,6 +60,9 @@ class FloatingChatService : Service() {
     // 保存服务状态的SharedPreferences
     private lateinit var prefs: SharedPreferences
     
+    // WakeLock实例，用于保持CPU运行
+    private var wakeLock: PowerManager.WakeLock? = null
+    
     // 在60秒超时前切换到普通服务的Handler
     private val serviceTimeoutHandler = Handler(Looper.getMainLooper())
     private val serviceTimeoutRunnable = Runnable {
@@ -90,6 +94,10 @@ class FloatingChatService : Service() {
     private val isResizing = mutableStateOf(false)
     private var initialWidth: Int = 0
     private var initialHeight: Int = 0
+    
+    // 添加悬浮球模式相关状态
+    private val isBallMode = mutableStateOf(false)
+    private val ballSize = mutableStateOf(56.dp) // 悬浮球的默认大小
     
     // 崩溃恢复
     private var lastCrashTime = 0L
@@ -169,6 +177,9 @@ class FloatingChatService : Service() {
         }
         
         try {
+            // 初始化WakeLock
+            acquireWakeLock()
+            
             // 初始化WindowManager
             windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
             // 初始化生命周期所有者
@@ -190,6 +201,43 @@ class FloatingChatService : Service() {
         } catch (e: Exception) {
             Log.e(TAG, "Error in onCreate", e)
             stopSelf()
+        }
+    }
+    
+    /**
+     * 获取WakeLock，保持CPU运行
+     */
+    private fun acquireWakeLock() {
+        try {
+            if (wakeLock == null) {
+                val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+                wakeLock = powerManager.newWakeLock(
+                    PowerManager.PARTIAL_WAKE_LOCK,
+                    "OperitApp:FloatingChatServiceWakeLock"
+                )
+                wakeLock?.setReferenceCounted(false)
+            }
+            
+            if (wakeLock?.isHeld == false) {
+                wakeLock?.acquire(10*60*1000L) // 10分钟超时
+                Log.d(TAG, "WakeLock acquired")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error acquiring WakeLock", e)
+        }
+    }
+    
+    /**
+     * 释放WakeLock
+     */
+    private fun releaseWakeLock() {
+        try {
+            if (wakeLock?.isHeld == true) {
+                wakeLock?.release()
+                Log.d(TAG, "WakeLock released")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error releasing WakeLock", e)
         }
     }
     
@@ -239,6 +287,8 @@ class FloatingChatService : Service() {
             putInt("window_y", initialY)
             putFloat("window_width", windowWidth.value.value)
             putFloat("window_height", windowHeight.value.value)
+            putBoolean("is_ball_mode", isBallMode.value)
+            putFloat("ball_size", ballSize.value.value)
             apply()
         }
     }
@@ -249,6 +299,8 @@ class FloatingChatService : Service() {
         initialY = prefs.getInt("window_y", 100)
         windowWidth.value = Dp(prefs.getFloat("window_width", 300f))
         windowHeight.value = Dp(prefs.getFloat("window_height", 400f))
+        isBallMode.value = prefs.getBoolean("is_ball_mode", false)
+        ballSize.value = Dp(prefs.getFloat("ball_size", 56f))
     }
     
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -257,6 +309,9 @@ class FloatingChatService : Service() {
         lifecycleOwner.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
         
         try {
+            // 确保WakeLock处于活动状态
+            acquireWakeLock()
+            
             // 从Intent获取聊天消息
             if (intent?.hasExtra("CHAT_MESSAGES") == true) {
                 val messagesArray = intent.getParcelableArrayExtra("CHAT_MESSAGES")
@@ -361,6 +416,18 @@ class FloatingChatService : Service() {
                         onResize = { newWidth, newHeight ->
                             windowWidth.value = newWidth
                             windowHeight.value = newHeight
+                            
+                            // 更新窗口大小
+                            val params = view.layoutParams as WindowManager.LayoutParams
+                            params.width = WindowManager.LayoutParams.WRAP_CONTENT
+                            params.height = WindowManager.LayoutParams.WRAP_CONTENT
+                            windowManager.updateViewLayout(view, params)
+                        },
+                        isBallMode = isBallMode.value,
+                        ballSize = ballSize.value,
+                        onToggleBallMode = { 
+                            isBallMode.value = !isBallMode.value
+                            saveWindowState()
                             
                             // 更新窗口大小
                             val params = view.layoutParams as WindowManager.LayoutParams
@@ -478,6 +545,9 @@ class FloatingChatService : Service() {
     
     override fun onDestroy() {
         try {
+            // 释放WakeLock
+            releaseWakeLock()
+            
             // Cancel all coroutines when service is destroyed
             serviceScope.cancel()
             

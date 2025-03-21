@@ -684,9 +684,6 @@ class ChatViewModel(
         // 标记为加载状态
         _isLoading.value = true
         
-        // 分析用户偏好（在后台静默执行，不影响主流程）
-        UserPreferenceAnalyzer.analyzeUserInput(message)
-        
         // 先添加用户消息
         _chatHistory.value = _chatHistory.value + ChatMessage("user", message)
         

@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.os.PowerManager
 import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
@@ -34,6 +35,9 @@ class MainActivity : ComponentActivity() {
     
     // 悬浮窗权限请求状态
     private var overlayPermissionRequested = false
+    
+    // 电池优化豁免请求状态
+    private var batteryOptimizationExemptionRequested = false
     
     // 初始化导航控制标志
     private var navigateToShizukuScreen = false
@@ -133,6 +137,25 @@ class MainActivity : ComponentActivity() {
         initializeShizuku()
     }
     
+    // 忽略电池优化权限请求结果
+    private val batteryOptimizationLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        Log.d(TAG, "Battery optimization exemption result: ${it.resultCode}")
+        batteryOptimizationExemptionRequested = true
+        
+        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+        val packageName = packageName
+        
+        if (powerManager.isIgnoringBatteryOptimizations(packageName)) {
+            Log.d(TAG, "Battery optimization exemption granted")
+            Toast.makeText(this, "已获得电池优化豁免权限", Toast.LENGTH_SHORT).show()
+        } else {
+            Log.d(TAG, "Battery optimization exemption denied")
+            Toast.makeText(this, "未获得电池优化豁免权限，后台运行可能受限", Toast.LENGTH_LONG).show()
+        }
+    }
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate: Android SDK version: ${Build.VERSION.SDK_INT}")
@@ -202,6 +225,9 @@ class MainActivity : ComponentActivity() {
         } else if (!overlayPermissionRequested && !Settings.canDrawOverlays(this)) {
             // 如果基本权限已请求但悬浮窗权限尚未请求
             checkOverlayPermission()
+        } else if (!batteryOptimizationExemptionRequested) {
+            // 检查电池优化豁免
+            checkBatteryOptimizationExemption()
         } else {
             // 检查Shizuku状态
             lifecycleScope.launch {
@@ -475,6 +501,68 @@ class MainActivity : ComponentActivity() {
                 }
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error in permission check", e)
+            }
+        }
+    }
+    
+    /**
+     * 检查并请求电池优化豁免
+     */
+    private fun checkBatteryOptimizationExemption() {
+        Log.d(TAG, "Checking battery optimization exemption")
+        
+        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+        val packageName = packageName
+        
+        if (!powerManager.isIgnoringBatteryOptimizations(packageName)) {
+            Log.d(TAG, "Requesting battery optimization exemption")
+            try {
+                // 创建请求忽略电池优化的Intent
+                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = Uri.parse("package:$packageName")
+                }
+                
+                // 检查Intent是否可以被处理
+                if (intent.resolveActivity(packageManager) != null) {
+                    batteryOptimizationLauncher.launch(intent)
+                } else {
+                    Log.e(TAG, "Device does not support ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS")
+                    Toast.makeText(
+                        this,
+                        "您的设备不支持请求电池优化豁免，后台运行可能受限",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    batteryOptimizationExemptionRequested = true
+                    
+                    // 继续检查Shizuku状态
+                    lifecycleScope.launch {
+                        delay(500)
+                        checkShizukuStatus()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error requesting battery optimization exemption", e)
+                Toast.makeText(
+                    this,
+                    "请求电池优化豁免时出错: ${e.message}",
+                    Toast.LENGTH_LONG
+                ).show()
+                batteryOptimizationExemptionRequested = true
+                
+                // 继续检查Shizuku状态
+                lifecycleScope.launch {
+                    delay(500)
+                    checkShizukuStatus()
+                }
+            }
+        } else {
+            Log.d(TAG, "Battery optimization already ignored for this app")
+            batteryOptimizationExemptionRequested = true
+            
+            // 已获得豁免，继续检查Shizuku状态
+            lifecycleScope.launch {
+                delay(500)
+                checkShizukuStatus()
             }
         }
     }

@@ -104,6 +104,8 @@
     <string name="preferences_hint">请输入您的个人介绍（最多100字）</string>
     <string name="enter_preferences">在此输入您的个人介绍...</string>
     <string name="save">保存</string>
+    <string name="cancel">取消</string>
+    <string name="edit_preferences">编辑偏好介绍</string>
     <string name="reset_preferences">重置偏好设置</string>
     <string name="set_preferences">设置偏好</string>
     <string name="no_preferences">暂无偏好信息</string>

@@ -1,6 +1,8 @@
 package com.ai.assistance.operit.tools
 
+import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -29,7 +31,7 @@ class ToolPermissionManager(private val context: Context) {
     
     private val toolPermissionPreferences = ToolPermissionPreferences(context)
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val permissionOverlay = PermissionRequestOverlay(context)
+    private val permissionRequestOverlay = PermissionRequestOverlay(context)
     
     // 当前的权限请求回调
     private var currentPermissionCallback: ((PermissionRequestResult) -> Unit)? = null
@@ -125,32 +127,26 @@ class ToolPermissionManager(private val context: Context) {
                     
                     // 处理结果
                     when (result) {
-                        PermissionRequestResult.ALLOW -> {
-                            Log.d(TAG, "Permission granted for ${tool.name}")
-                            continuation.resume(true)
-                        }
-                        PermissionRequestResult.DENY -> {
-                            Log.d(TAG, "Permission denied for ${tool.name}")
-                            continuation.resume(false)
-                        }
+                        PermissionRequestResult.ALLOW -> continuation.resume(true)
+                        PermissionRequestResult.DENY -> continuation.resume(false)
                         PermissionRequestResult.DISCONNECT -> {
-                            Log.d(TAG, "Permission request disconnected for ${tool.name}")
                             if (continuation.isActive) continuation.cancel()
                             continuation.resume(false)
                         }
                     }
                 }
                 
-                // 在主线程中显示权限请求悬浮窗
+                // 在主线程中启动权限请求Activity
                 mainHandler.post {
-                    try {
-                        permissionOverlay.show(tool, operationDescription) { result ->
-                            currentPermissionCallback?.invoke(result)
+                    // 使用悬浮窗显示权限请求
+                    if (!permissionRequestOverlay.hasOverlayPermission()) {
+                        Log.w(TAG, "No overlay permission, requesting...")
+                        permissionRequestOverlay.requestOverlayPermission()
+                        currentPermissionCallback?.invoke(PermissionRequestResult.DENY)
+                    } else {
+                        permissionRequestOverlay.show(tool, operationDescription) { result ->
+                            handlePermissionResult(result)
                         }
-                        Log.d(TAG, "Started permission request overlay for ${tool.name}")
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error showing permission request overlay", e)
-                        continuation.resume(false)
                     }
                 }
             }
@@ -192,4 +188,4 @@ class ToolPermissionManager(private val context: Context) {
     fun refreshPermissionRequestState(): Boolean {
         return hasActivePermissionRequest()
     }
-} 
+}

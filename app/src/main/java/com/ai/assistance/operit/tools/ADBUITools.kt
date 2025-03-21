@@ -725,22 +725,97 @@ class ADBUITools(private val context: Context) {
         try {
             Log.d(TAG, "Setting clipboard text: $text")
             
+            // 尝试使用Android的原生API设置剪贴板
+            if (setClipboardNatively(text)) {
+                Log.d(TAG, "Set clipboard using native Android API")
+                
+                // 执行粘贴操作
+                val pasteCommand = "input keyevent 279 47"  // KEYCODE_CTRL_LEFT KEYCODE_V
+                val pasteResult = AdbCommandExecutor.executeAdbCommand(pasteCommand)
+                
+                if (pasteResult.success) {
+                    Log.d(TAG, "Pasted text using numeric keyevent method after native clipboard set")
+                    return true
+                }
+                
+                // 如果第一种粘贴方法失败，尝试其他方法
+                val namedPasteCommand = "input keyevent KEYCODE_CTRL_LEFT KEYCODE_V"
+                val namedPasteResult = AdbCommandExecutor.executeAdbCommand(namedPasteCommand)
+                
+                if (namedPasteResult.success) {
+                    Log.d(TAG, "Pasted text using named keyevent method after native clipboard set")
+                    return true
+                }
+                
+                // 长按方法
+                try {
+                    AdbCommandExecutor.executeAdbCommand("input keyevent --longpress 279")
+                    AdbCommandExecutor.executeAdbCommand("input keyevent 47")
+                    Log.d(TAG, "Attempted paste using longpress method after native clipboard set")
+                    return true
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error with longpress paste after native clipboard set", e)
+                }
+                
+                // 上下文菜单方法
+                try {
+                    val longPressCommand = "input swipe 250 250 250 250 1000"
+                    AdbCommandExecutor.executeAdbCommand(longPressCommand)
+                    kotlinx.coroutines.delay(300)
+                    val clickPasteCommand = "input tap 250 300"
+                    AdbCommandExecutor.executeAdbCommand(clickPasteCommand)
+                    Log.d(TAG, "Attempted paste using context menu after native clipboard set")
+                    return true
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error with context menu paste after native clipboard set", e)
+                }
+            }
+            
+            // 如果原生API失败，回退到使用ADB命令的方法
             // Try multiple approaches to set clipboard text
             var clipboardSet = false
             
-            // Method 0: Most direct approach for Android 10+ using cmd content
+            // Method 0: Most direct approach using Android's clipboard content provider
             if (!clipboardSet) {
                 try {
-                    val escapedText = text.replace("'", "\\'")
-                    val cmdCommand = "cmd content insert --uri content://clipboard --user 0 --clip text/plain '$escapedText'"
+                    // Improved approach using Android's clipboard content provider
+                    val escapedText = text.replace("\"", "\\\"")
+                    // Using direct content provider approach without appending 's'
+                    val cmdCommand = "am broadcast -a android.intent.action.CLIPBOARD_TEXT --es android.intent.extra.TEXT \"$escapedText\""
                     val cmdResult = AdbCommandExecutor.executeAdbCommand(cmdCommand)
                     
                     if (cmdResult.success) {
                         clipboardSet = true
-                        Log.d(TAG, "Set clipboard using cmd content method (Android 10+)")
+                        Log.d(TAG, "Set clipboard using content provider method")
+                    } else {
+                        // Try the alternative approach for Android 10+
+                        val altCommand = "cmd content insert --uri content://clipboard/raw --user 0 --arg text --arg \"$escapedText\""
+                        val altResult = AdbCommandExecutor.executeAdbCommand(altCommand)
+                        
+                        if (altResult.success) {
+                            clipboardSet = true
+                            Log.d(TAG, "Set clipboard using alt content provider method")
+                        }
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error setting clipboard using cmd content", e)
+                    Log.e(TAG, "Error setting clipboard using content provider", e)
+                }
+            }
+            
+            // Method 0.5: Try using service call clipboardservice approach
+            if (!clipboardSet) {
+                try {
+                    val escapedText = text.replace("\"", "\\\"")
+                    // Using the ClipboardService directly
+                    val serviceCommand = "service call clipboard 1 s16 \"$escapedText\" i32 0"
+                    val serviceResult = AdbCommandExecutor.executeAdbCommand(serviceCommand)
+                    
+                    if (serviceResult.success) {
+                        clipboardSet = true
+                        Log.d(TAG, "Set clipboard using clipboard service method")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error setting clipboard using clipboard service", e)
                 }
             }
             
@@ -755,7 +830,7 @@ class ADBUITools(private val context: Context) {
                     
                     if (writeResult.success) {
                         // Try to use clipboard manager directly
-                        val clipCommand = "am broadcast -a android.intent.action.PASTE -e text \"$(cat $tempFileName)\""
+                        val clipCommand = "am broadcast -a android.intent.action.PASTE -e android.intent.extra.TEXT \"$(cat $tempFileName)\""
                         AdbCommandExecutor.executeAdbCommand(clipCommand)
                         
                         // Clean up
@@ -798,7 +873,7 @@ class ADBUITools(private val context: Context) {
                         
                         if (decoded) {
                             // Use the am broadcast command to set clipboard
-                            val amCommand = "am broadcast -a android.intent.action.PASTE -e text \"$(cat $tempFileName)\""
+                            val amCommand = "am broadcast -a android.intent.action.PASTE -e android.intent.extra.TEXT \"$(cat $tempFileName)\""
                             AdbCommandExecutor.executeAdbCommand(amCommand)
                             
                             // Clean up temp files
@@ -818,9 +893,10 @@ class ADBUITools(private val context: Context) {
                     val escapedText = text.replace("'", "\\'").replace("\"", "\\\"")
                     // Try different intent actions that might work on different devices
                     val clipCommands = listOf(
-                        "am broadcast -a clipboardtext --es text \"$escapedText\"",
-                        "am broadcast -a android.intent.action.CLIPBOARD_TEXT --es text \"$escapedText\"",
-                        "am broadcast -a android.intent.action.PASTE --es text \"$escapedText\""
+                        // Use correct extra key for clipboard text
+                        "am broadcast -a clipboardtext --es android.intent.extra.TEXT \"$escapedText\"",
+                        "am broadcast -a android.intent.action.CLIPBOARD_TEXT --es android.intent.extra.TEXT \"$escapedText\"",
+                        "am broadcast -a android.intent.action.PASTE --es android.intent.extra.TEXT \"$escapedText\""
                     )
                     
                     for (cmd in clipCommands) {
@@ -833,22 +909,6 @@ class ADBUITools(private val context: Context) {
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Error setting clipboard using broadcast", e)
-                }
-            }
-            
-            // Method 4: Try using service call as a last resort
-            if (!clipboardSet) {
-                try {
-                    val escapedText = text.replace("\"", "\\\"")
-                    val serviceCommand = "service call clipboard 2 i32 1 i32 0 s16 \"$escapedText\""
-                    val serviceResult = AdbCommandExecutor.executeAdbCommand(serviceCommand)
-                    
-                    if (serviceResult.success) {
-                        clipboardSet = true
-                        Log.d(TAG, "Set clipboard using service call method")
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error setting clipboard using service call", e)
                 }
             }
             
@@ -919,6 +979,30 @@ class ADBUITools(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "Error setting text via clipboard", e)
             return false
+        }
+    }
+    
+    /**
+     * 使用Android原生API设置剪贴板
+     */
+    private fun setClipboardNatively(text: String): Boolean {
+        return try {
+            // 获取剪贴板管理器服务
+            val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            
+            // 创建一个新的剪贴板数据
+            val clipData = android.content.ClipData.newPlainText("text", text)
+            
+            // 设置剪贴板内容
+            clipboardManager.setPrimaryClip(clipData)
+            
+            // 给系统一点时间更新剪贴板
+            Thread.sleep(200)
+            
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting clipboard using native API", e)
+            false
         }
     }
     
