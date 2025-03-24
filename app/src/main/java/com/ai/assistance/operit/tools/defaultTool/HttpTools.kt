@@ -172,7 +172,12 @@ class HttpTools(private val context: Context) {
         return try {
             // 解析请求头
             val headers = parseHeaders(headersParam)
-            
+
+            Log.d(TAG, "url: $url")
+            Log.d(TAG, "method: $method")
+            Log.d(TAG, "headers: $headers")
+            Log.d(TAG, "bodyParam: $bodyParam")
+            Log.d(TAG, "bodyType: $bodyType")
             // 构建请求
             val requestBuilder = Request.Builder()
                 .url(url)
@@ -276,7 +281,7 @@ class HttpTools(private val context: Context) {
                 toolName = tool.name,
                 success = false,
                 result = "",
-                error = "发送HTTP请求时出错: ${e.message}"
+                error = "发送HTTP请求时出错: ${e.cause}"
             )
         }
     }
