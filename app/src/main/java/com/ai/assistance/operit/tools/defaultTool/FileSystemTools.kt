@@ -1,12 +1,10 @@
-package com.ai.assistance.operit.tools
+package com.ai.assistance.operit.tools.defaultTool
 
 import android.content.Context
 import android.util.Log
 import com.ai.assistance.operit.AdbCommandExecutor
 import com.ai.assistance.operit.model.AITool
 import com.ai.assistance.operit.model.ToolResult
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.io.File
 
 /**

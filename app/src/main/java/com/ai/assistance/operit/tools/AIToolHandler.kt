@@ -3,6 +3,15 @@ package com.ai.assistance.operit.tools
 import android.content.Context
 import android.util.Log
 import com.ai.assistance.operit.model.*
+import com.ai.assistance.operit.tools.defaultTool.BlockingSleepToolExecutor
+import com.ai.assistance.operit.tools.defaultTool.Calculator
+import com.ai.assistance.operit.tools.defaultTool.ConnectionToolExecutor
+import com.ai.assistance.operit.tools.defaultTool.FileSystemTools
+import com.ai.assistance.operit.tools.defaultTool.HttpTools
+import com.ai.assistance.operit.tools.defaultTool.SystemOperationTools
+import com.ai.assistance.operit.tools.defaultTool.UITools
+import com.ai.assistance.operit.tools.defaultTool.WebSearchTool
+import com.ai.assistance.operit.tools.packTool.PackageManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -12,10 +21,21 @@ import java.util.regex.Pattern
  * Handles the extraction and execution of AI tools from responses
  * Supports real-time streaming extraction and execution of tools
  */
-class AIToolHandler(private val context: Context) {
+class AIToolHandler private constructor(
+    private val context: Context
+) {
     
     companion object {
         private const val TAG = "AIToolHandler"
+        
+        @Volatile
+        private var INSTANCE: AIToolHandler? = null
+        
+        fun getInstance(context: Context): AIToolHandler {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: AIToolHandler(context.applicationContext).also { INSTANCE = it }
+            }
+        }
         
         // Updated and more robust regex patterns for tool extraction with improved robustness
         private val TOOL_PATTERN = Pattern.compile(
@@ -98,12 +118,16 @@ class AIToolHandler(private val context: Context) {
     
     // Register all default tools
     fun registerDefaultTools() {
-        // Weather Tool
-        registerTool("weather", com.ai.assistance.operit.data.ToolCategory.NETWORK) { tool ->
-            val weatherTool = WeatherTool(context)
-            weatherTool.invoke(tool)
+        // Register the use_package tool
+        registerTool("use_package", com.ai.assistance.operit.data.ToolCategory.SYSTEM_OPERATION) { tool ->
+            val packageName = tool.parameters.find { it.name == "package_name" }?.value ?: ""
+            val result = getOrCreatePackageManager().usePackage(packageName)
+            ToolResult(
+                toolName = tool.name,
+                success = true,
+                result = result
+            )
         }
-        
         // Demo calculator tool
         registerTool("calculate", com.ai.assistance.operit.data.ToolCategory.FILE_READ) { tool ->
             val expression = tool.parameters.find { it.name == "expression" }?.value ?: ""
@@ -131,15 +155,31 @@ class AIToolHandler(private val context: Context) {
         }
         
         // Sleep tool
-        registerTool("sleep", com.ai.assistance.operit.data.ToolCategory.FILE_READ) { tool ->
-            val sleepExecutor = BlockingSleepToolExecutor()
-            sleepExecutor.invoke(tool)
+        registerTool("sleep", com.ai.assistance.operit.data.ToolCategory.SYSTEM_OPERATION) { tool ->
+            val durationMs = tool.parameters.find { it.name == "duration_ms" }?.value?.toIntOrNull() ?: 1000
+            val limitedDuration = durationMs.coerceIn(0, 10000) // Limit to max 10 seconds
+            
+            Thread.sleep(limitedDuration.toLong())
+            
+            ToolResult(
+                toolName = tool.name,
+                success = true,
+                result = "Slept for ${limitedDuration}ms"
+            )
         }
         
-        // Simulated connection ID tool
-        registerTool("device_info", com.ai.assistance.operit.data.ToolCategory.FILE_READ) { tool ->
-            val deviceInfoExecutor = ConnectionToolExecutor()
-            deviceInfoExecutor.invoke(tool)
+        // Device info - returns basic device identifier
+        registerTool("device_info", com.ai.assistance.operit.data.ToolCategory.SYSTEM_OPERATION) { tool ->
+            val deviceId = android.provider.Settings.Secure.getString(
+                context.contentResolver,
+                android.provider.Settings.Secure.ANDROID_ID
+            )
+            
+            ToolResult(
+                toolName = tool.name,
+                success = true,
+                result = "Device ID: $deviceId"
+            )
         }
         
         // File System Tools
@@ -250,7 +290,7 @@ class AIToolHandler(private val context: Context) {
             }
         }
         
-        // HTTP网络请求工具
+        // HTTP network request tool
         val httpTools = HttpTools(context)
         
         // 获取网页内容
@@ -376,6 +416,20 @@ class AIToolHandler(private val context: Context) {
             kotlinx.coroutines.runBlocking {
                 adbUITools.combinedOperation(tool)
             }
+        }
+        
+    }
+    
+    // Package manager instance (lazy initialized)
+    private var packageManagerInstance: PackageManager? = null
+    
+    /**
+     * Gets or creates the package manager instance
+     */
+    private fun getOrCreatePackageManager(): PackageManager {
+        return packageManagerInstance ?: run {
+            packageManagerInstance = PackageManager.getInstance(context, this)
+            packageManagerInstance!!
         }
     }
     
@@ -701,6 +755,36 @@ class AIToolHandler(private val context: Context) {
         }
         
         return invocations
+    }
+    
+    /**
+     * Executes a tool directly
+     */
+    fun executeTool(tool: AITool): ToolResult {
+        val executor = availableTools[tool.name]
+        
+        if (executor == null) {
+            return ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = "",
+                error = "Tool not found: ${tool.name}"
+            )
+        }
+        
+        // Validate parameters
+        val validationResult = executor.validateParameters(tool)
+        if (!validationResult.valid) {
+            return ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = "",
+                error = validationResult.errorMessage
+            )
+        }
+        
+        // Execute the tool
+        return executor.invoke(tool)
     }
 }
 

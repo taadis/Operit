@@ -7,6 +7,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Extension
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.ai.assistance.operit.R
 
@@ -17,5 +18,6 @@ sealed class NavItem(val route: String, val titleResId: Int, val icon: ImageVect
     object Settings : NavItem("settings", R.string.nav_settings, Icons.Default.Settings)
     object ToolPermissions : NavItem("tool_permissions", R.string.tool_permissions, Icons.Default.Security)
     object UserPreferencesGuide : NavItem("user_preferences_guide", R.string.user_preferences_guide, Icons.Default.Person)
+    object Packages : NavItem("packages", R.string.nav_packages, Icons.Default.Extension)
     object About : NavItem("about", R.string.nav_about, Icons.Default.Info)
 } 

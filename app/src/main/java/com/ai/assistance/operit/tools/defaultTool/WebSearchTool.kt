@@ -1,16 +1,16 @@
-package com.ai.assistance.operit.tools
+package com.ai.assistance.operit.tools.defaultTool
 
 import android.content.Context
 import android.util.Log
 import com.ai.assistance.operit.model.AITool
 import com.ai.assistance.operit.model.ToolResult
 import com.ai.assistance.operit.model.ToolValidationResult
+import com.ai.assistance.operit.tools.ToolExecutor
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import java.net.URLEncoder
-import java.util.*
 import java.util.concurrent.TimeUnit
 
 /**

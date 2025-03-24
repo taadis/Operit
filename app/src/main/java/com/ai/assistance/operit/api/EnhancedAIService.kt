@@ -3,8 +3,6 @@ package com.ai.assistance.operit.api
 import android.content.Context
 import android.util.Log
 import com.ai.assistance.operit.tools.AIToolHandler
-import com.ai.assistance.operit.model.ToolExecutionState
-import com.ai.assistance.operit.model.AITool
 import com.ai.assistance.operit.model.ToolResult
 import com.ai.assistance.operit.model.ToolInvocation
 import com.ai.assistance.operit.model.ConversationRoundManager
@@ -12,7 +10,6 @@ import com.ai.assistance.operit.model.ConversationMarkupManager
 import com.ai.assistance.operit.util.ChatUtils
 import com.ai.assistance.operit.data.preferencesManager
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -26,7 +23,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicInteger
+import com.ai.assistance.operit.tools.packTool.PackageManager
 
 data class ChatMessage(
     val role: String,
@@ -41,14 +38,13 @@ class EnhancedAIService(
 ) {
     companion object {
         private const val TAG = "EnhancedAIService"
-        private val SYSTEM_PROMPT = """
+        private val SYSTEM_PROMPT_TEMPLATE = """
             You are Operit, an all-capable AI assistant, aimed at solving any task presented by the user. You have various tools at your disposal that you can call upon to efficiently complete complex requests. 
             
             When calling a tool, the user will see your response, and then will automatically send the tool results back to you in a follow-up message.
             
             CRITICAL TOOL USAGE RESTRICTION
             - YOU MUST ONLY INVOKE ONE TOOL AT A TIME. This is absolutely critical.
-            - NEVER include more than one tool invocation in a single response. The system can only handle one at a time.
             - only call the tool at the end of your response.
             - Keep your responses concise and to the point. Avoid lengthy explanations unless specifically requested.
             - Please stop content output immediately after calling the tool
@@ -57,6 +53,17 @@ class EnhancedAIService(
             - Do NOT predict or generate content beyond what is explicitly requested by the user.
             - Focus only on addressing the current request without speculating about future interactions.
             
+            PACKAGE SYSTEM
+            - Some additional functionality is available through packages
+            - To use a package, simply activate it with:
+              <tool name="use_package">
+              <param name="package_name">package_name_here</param>
+              </tool>
+            - This will show you all the tools in the package and how to use them
+            - After activating a package, you can use its tools directly
+            
+            ACTIVE_PACKAGES_SECTION
+            
             To use a tool, use this format in your response:
             
             <tool name="tool_name">
@@ -64,27 +71,11 @@ class EnhancedAIService(
             </tool>
             
             Available tools:
-            - calculate: Enhanced calculator for mathematical and data processing. Use this for:
-              * Math operations (e.g., "2+2", "sqrt(16)", "sin(30)", "round(3.7)")
-              * Date calculations supporting multiple formats:
-                - ISO format: date("2023-01-01")
-                - Slash format: date("2023/01/01")
-                - US format: date("01/01/2023")
-                - European format: date("01.01.2023")
-                - With time: date("2023-01-01 12:30:45")
-                Examples: 
-                - "date_diff(date(\"2023-01-01\"), today())" - days between dates
-                - "weekday(date(\"01/15/2023\"))" - get day of week (1=Sunday)
-                - "month(date(\"2023.03.15\"))" - get month (3=March)
-                - "date_add(today(), 30)" - date 30 days from today
-              * Unit conversions (e.g., "convert(32, f, c)", "convert(150, km, mi)")
-              * Statistical analysis (e.g., "stats.mean(1,2,3,4,5)", "stats.stdev(10,12,15,18)")
-              * Variables and conditional logic (e.g., "x=10; y=20; if(x>y)then(x)else(y)")
-              * Financial calculations (e.g., "principal=1000; rate=0.05; principal*(1+rate)^5")
-              When users ask about calculations, dates, measurements, or need data processing, PRIORITIZE using this tool instead of explaining steps. It's a safe alternative to eval() with more capabilities.
             - sleep: Demonstration tool that pauses briefly. Parameters: duration_ms (milliseconds, default 1000, max 10000)
             - device_info: Returns basic device identifier for the current app session only. No parameters needed.
-            
+            - use_package: Activate a package for use in the current session. Parameters: package_name (name of the package to activate)
+
+
             File System Tools:
             - list_files: List files in a directory. Parameters: path (e.g. "/sdcard/Download")
             - read_file: Read the content of a file. Parameters: path (file path)
@@ -145,8 +136,10 @@ class EnhancedAIService(
         """.trimIndent()
     }
     
+    // Use composition instead of inheritance
     private val aiService = AIService(apiEndpoint, apiKey, modelName)
-    private val toolHandler = AIToolHandler(context)
+    
+    private val toolHandler = AIToolHandler.getInstance(context)
     
     private val _inputProcessingState = MutableStateFlow<InputProcessingState>(InputProcessingState.Idle)
     val inputProcessingState = _inputProcessingState.asStateFlow()
@@ -166,8 +159,42 @@ class EnhancedAIService(
     private var currentResponseCallback: ((content: String, thinking: String?) -> Unit)? = null
     private var currentCompleteCallback: (() -> Unit)? = null
     
+    // Package manager for handling tool packages
+    private val packageManager = PackageManager.getInstance(context, toolHandler)
+    
     init {
         toolHandler.registerDefaultTools()
+    }
+    
+    
+    /**
+     * Generates the system prompt with dynamic package information
+     * Instead of hardcoding package descriptions, this method dynamically builds the package section
+     * based on available and imported packages from the PackageManager.
+     */
+    private fun getSystemPrompt(): String {
+        val importedPackages = packageManager.getImportedPackages()
+        
+        // Build the available packages section
+        val packagesSection = StringBuilder()
+        
+        // List available packages without details
+        if (importedPackages.isNotEmpty()) {
+            packagesSection.appendLine("Available packages:")
+            for (packageName in importedPackages) {
+                packagesSection.appendLine("- $packageName : ${packageManager.getPackageTools(packageName)?.description}")
+            }
+        } else {
+            packagesSection.appendLine("No packages are currently available.")
+        }
+        
+        // Information about using packages
+        packagesSection.appendLine()
+        packagesSection.appendLine("To use a package:")
+        packagesSection.appendLine("<tool name=\"use_package\"><param name=\"package_name\">package_name_here</param></tool>")
+        
+        // Replace the placeholder with the actual packages section
+        return SYSTEM_PROMPT_TEMPLATE.replace("ACTIVE_PACKAGES_SECTION", packagesSection.toString())
     }
     
     fun getToolProgressFlow(): StateFlow<com.ai.assistance.operit.model.ToolExecutionProgress> {
@@ -282,7 +309,7 @@ class EnhancedAIService(
         conversationMutex.withLock {
             if (chatHistory.isEmpty() && conversationHistory.isEmpty()) {
                 // 添加系统提示词
-                var systemPrompt = SYSTEM_PROMPT
+                var systemPrompt = getSystemPrompt()
 
 
                 
@@ -302,7 +329,7 @@ class EnhancedAIService(
                 
                 if (!enhancedChatHistory.any { it.first == "system" }) {
                     // 添加系统提示词
-                    enhancedChatHistory.add(0, Pair("system", SYSTEM_PROMPT))
+                    enhancedChatHistory.add(0, Pair("system", getSystemPrompt()))
                     
                     // 添加用户偏好描述
                     val userPreferences = preferencesManager.userPreferencesFlow.first()

@@ -1,7 +1,8 @@
-package com.ai.assistance.operit.tools
+package com.ai.assistance.operit.tools.defaultTool
 
 import com.ai.assistance.operit.model.AITool
 import com.ai.assistance.operit.model.ToolResult
+import com.ai.assistance.operit.tools.ToolExecutor
 
 /**
  * Simulated connection tool that returns a sample connection identifier

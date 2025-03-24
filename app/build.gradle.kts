@@ -59,6 +59,9 @@ dependencies {
     // Kotlin Serialization
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.2")
 
+    // HJSON dependency for human-friendly JSON parsing
+    implementation("org.hjson:hjson:3.0.0")
+
     // Compose dependencies - use BOM for version consistency
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)

@@ -35,6 +35,7 @@ import com.ai.assistance.operit.ui.features.settings.screens.ToolPermissionSetti
 import com.ai.assistance.operit.ui.features.settings.screens.UserPreferencesGuideScreen
 import com.ai.assistance.operit.ui.features.demo.screens.ShizukuDemoScreen
 import com.ai.assistance.operit.ui.features.about.screens.AboutScreen
+import com.ai.assistance.operit.ui.features.packages.screens.PackageManagerScreen
 import com.ai.assistance.operit.util.NetworkUtils
 import com.ai.assistance.operit.data.ChatHistoryManager
 import com.ai.assistance.operit.tools.AIToolHandler
@@ -53,7 +54,7 @@ fun OperitApp(
     var selectedItem by remember { mutableStateOf<NavItem>(initialNavItem) }
     var isToolPermissionScreen by remember { mutableStateOf(false) }
     var isUserPreferencesGuideScreen by remember { mutableStateOf(initialNavItem == NavItem.UserPreferencesGuide) }
-    val navItems = listOf(NavItem.AiChat, NavItem.ShizukuCommands, NavItem.Settings, NavItem.ToolPermissions, NavItem.About)
+    val navItems = listOf(NavItem.AiChat, NavItem.ShizukuCommands, NavItem.Settings, NavItem.Packages, NavItem.About)
     val context = LocalContext.current
     
     // 网络状态 - 使用remember记住状态，避免每次重组时重新获取
@@ -267,6 +268,7 @@ fun OperitApp(
                                         isUserPreferencesGuideScreen = true
                                     }
                                 )
+                                NavItem.Packages -> PackageManagerScreen()
                                 NavItem.ToolPermissions -> {
                                     // 不应该直接导航到这里
                                     selectedItem = NavItem.Settings

@@ -164,7 +164,7 @@ class MainActivity : ComponentActivity() {
         Log.d(TAG, "onCreate: Android SDK version: ${Build.VERSION.SDK_INT}")
         
         // 初始化工具处理器
-        toolHandler = AIToolHandler(this)
+        toolHandler = AIToolHandler.getInstance(this)
         toolHandler.registerDefaultTools()
         
         // 初始化用户偏好管理器并直接检查初始化状态
