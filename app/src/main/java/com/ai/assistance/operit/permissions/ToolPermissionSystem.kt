@@ -1,8 +1,6 @@
 package com.ai.assistance.operit.permissions
 
-import android.app.Activity
 import android.content.Context
-import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -12,12 +10,10 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.ai.assistance.operit.model.AITool
-import com.ai.assistance.operit.model.ToolParameter
 import com.ai.assistance.operit.ui.components.PermissionRequestResult
-import com.ai.assistance.operit.ui.features.permission.PermissionRequestOverlay
+import com.ai.assistance.operit.api.enhanced.models.permission.PermissionRequestOverlay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map

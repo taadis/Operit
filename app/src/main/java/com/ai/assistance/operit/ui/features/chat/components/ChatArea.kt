@@ -10,7 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.ai.assistance.operit.api.AiReference
+import com.ai.assistance.operit.model.AiReference
 import com.ai.assistance.operit.model.ChatMessage
 import com.ai.assistance.operit.model.ToolExecutionProgress
 

@@ -1,4 +1,6 @@
-package com.ai.assistance.operit.model
+package com.ai.assistance.operit.api.enhanced.models
+
+import com.ai.assistance.operit.model.ToolResult
 
 /**
  * Manages the markup elements used in conversations with the AI assistant.
@@ -92,7 +94,7 @@ class ConversationMarkupManager {
                 <tool_result name="${result.toolName}" status="error">
                 <error>${result.error ?: "Unknown error"}</error>
                 </tool_result>
-                """.trimIndent()
+            """.trimIndent()
             }
         }
         
@@ -103,7 +105,7 @@ class ConversationMarkupManager {
          * @return The formatted warning message
          */
         fun createMultipleToolsWarning(toolName: String): String {
-            return createWarningStatus("多个工具被同时调用，系统只能处理一个。现在仅处理: $toolName")
+            return createWarningStatus("Multiple tool invocations found. Only the tool `$toolName` will be executed.")
         }
         
         /**
@@ -113,7 +115,7 @@ class ConversationMarkupManager {
          * @return The formatted error message
          */
         fun createToolNotAvailableError(toolName: String): String {
-            return createToolErrorStatus(toolName, "无法找到工具: $toolName")
+            return createToolErrorStatus(toolName, "The tool `$toolName` is not available.")
         }
         
         /**
@@ -153,12 +155,48 @@ class ConversationMarkupManager {
          * 创建通用错误状态
          */
         fun createErrorStatus(title: String, message: String): String {
-            return """
-                <div class="error-box">
-                    <div class="error-title">❌ $title</div>
-                    <div class="error-message">$message</div>
-                </div>
-            """.trimIndent()
+            return "<status type=\"error\"><title>$title</title><message>$message</message></status>"
+        }
+        
+        /**
+         * Creates sequence tool execution status markup
+         */
+        fun createExecutingSequenceStatus(uuid: String): String {
+            return "<status type=\"executing\" tool=\"sequence\" uuid=\"$uuid\" title=\"执行序列任务\" subtitle=\"正在执行自动化任务序列\"></status>"
+        }
+        
+        /**
+         * Creates sequence result status markup
+         */
+        fun createSequenceResultStatus(uuid: String, results: String): String {
+            // Format the results to be more readable
+            val formattedResults = results
+                .replace("Step ", "\n步骤 ")
+                .replace("success", "成功")
+                .replace("Sequence execution completed:", "序列执行完成：")
+                .replace("Total steps:", "总步骤：")
+                .replace("Successful steps:", "成功步骤：")
+                .replace("Failed steps:", "失败步骤：")
+                .replace("Detailed results:", "详细结果：")
+                
+            return "<status type=\"result\" tool=\"sequence\" uuid=\"$uuid\" title=\"序列执行结果\" success=\"true\">\n$formattedResults\n</status>"
+        }
+        
+        /**
+         * Creates sequence completion status markup - used for direct completion of sequence without AI interaction
+         */
+        fun createSequenceCompletionStatus(success: Boolean, results: String): String {
+            // Format the results to be more readable
+            val formattedResults = results
+                .replace("Step ", "\n步骤 ")
+                .replace("success", "成功")
+                .replace("Sequence execution completed:", "序列执行完成：")
+                .replace("Total steps:", "总步骤：")
+                .replace("Successful steps:", "成功步骤：")
+                .replace("Failed steps:", "失败步骤：")
+                .replace("Detailed results:", "详细结果：")
+                
+            return "<status type=\"completion\" tool=\"sequence\" success=\"$success\" title=\"序列执行完成\">\n$formattedResults\n</status>"
         }
     }
 } 

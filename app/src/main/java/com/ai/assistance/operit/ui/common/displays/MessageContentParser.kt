@@ -7,7 +7,7 @@ package com.ai.assistance.operit.ui.common.displays
 class MessageContentParser {
     companion object {
         // XML markup patterns
-        private val xmlStatusPattern = Regex("<status\\s+type=\"([^\"]+)\"(?:\\s+tool=\"([^\"]+)\")?(?:\\s+success=\"([^\"]+)\")?>([\\s\\S]*?)</status>")
+        private val xmlStatusPattern = Regex("<status\\s+type=\"([^\"]+)\"(?:\\s+tool=\"([^\"]+)\")?(?:\\s+uuid=\"([^\"]+)\")?(?:\\s+success=\"([^\"]+)\")?(?:\\s+title=\"([^\"]+)\")?(?:\\s+subtitle=\"([^\"]+)\")?>([\\s\\S]*?)</status>")
         private val xmlToolResultPattern = Regex("<tool_result\\s+name=\"([^\"]+)\"\\s+status=\"([^\"]+)\">\\s*<content>([\\s\\S]*?)</content>\\s*</tool_result>")
         private val xmlToolErrorPattern = Regex("<tool_result\\s+name=\"([^\"]+)\"\\s+status=\"error\">\\s*<e>([\\s\\S]*?)</e>\\s*</tool_result>")
         private val xmlToolRequestPattern = Regex("<tool\\s+name=\"([^\"]+)\"(?:\\s+description=\"([^\"]+)\")?>([\\s\\S]*?)</tool>")
@@ -26,7 +26,15 @@ class MessageContentParser {
             data class ToolRequest(val name: String, val description: String, val params: String) : ContentSegment()
             data class ToolExecution(val name: String) : ContentSegment()
             data class ToolResult(val name: String, val content: String, val isError: Boolean) : ContentSegment()
-            data class Status(val type: String, val toolName: String, val content: String, val success: Boolean) : ContentSegment()
+            data class Status(
+                val type: String, 
+                val toolName: String, 
+                val uuid: String, 
+                val content: String, 
+                val success: Boolean,
+                val title: String,
+                val subtitle: String
+            ) : ContentSegment()
         }
         
         /**
@@ -103,9 +111,30 @@ class MessageContentParser {
             if (match != null) {
                 val statusType = match.groupValues[1]
                 val toolName = match.groupValues[2]
-                val success = match.groupValues[3].toBoolean()
-                val content = match.groupValues[4]
-                segments.add(ContentSegment.Status(statusType, toolName, content, success))
+                val uuid = match.groupValues[3]
+                val successString = match.groupValues[4]
+                val title = match.groupValues[5]
+                val subtitle = match.groupValues[6]
+                val content = match.groupValues[7]
+                
+                // Default success to true if not specified and not an error
+                val success = if (successString.isEmpty()) {
+                    statusType != "error"
+                } else {
+                    successString.toBoolean()
+                }
+                
+                segments.add(
+                    ContentSegment.Status(
+                        type = statusType, 
+                        toolName = toolName, 
+                        uuid = uuid,
+                        content = content, 
+                        success = success,
+                        title = title,
+                        subtitle = subtitle
+                    )
+                )
             }
         }
         

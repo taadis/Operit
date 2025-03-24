@@ -23,6 +23,13 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.text.selection.SelectionContainer
 import com.ai.assistance.operit.ui.common.displays.MessageContentParser
 import com.ai.assistance.operit.ui.common.displays.TextWithCodeBlocksComposable
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Autorenew
+import com.ai.assistance.operit.ui.features.chat.components.SimpleLinearProgressIndicator
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.rotate
 
 /**
  * A composable function for rendering AI response messages in a Cursor IDE style.
@@ -179,26 +186,118 @@ fun AiMessageComposable(
                             "executing" -> {
                                 // Tool execution status
                                 if (segment.toolName.isNotBlank()) {
-                                    ToolExecutionBox(
-                                        toolName = segment.toolName,
-                                        isProcessing = true,
-                                        result = null,
-                                        isError = false,
-                                        enableCopy = true,  // Enable copy functionality
-                                        hideToolRequest = true  // Hide tool request
-                                    )
+                                    if (segment.toolName == "sequence") {
+                                        // Create a specialized sequence execution box
+                                        Card(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 4.dp),
+                                            colors = CardDefaults.cardColors(
+                                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                            ),
+                                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+                                        ) {
+                                            Column(modifier = Modifier.padding(12.dp)) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier.fillMaxWidth()
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Autorenew,
+                                                        contentDescription = "执行中",
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier
+                                                            .size(18.dp)
+                                                            .rotate(
+                                                                animateFloatAsState(
+                                                                    targetValue = (System.currentTimeMillis() / 10 % 360).toFloat(),
+                                                                    animationSpec = tween(0),
+                                                                    label = "loading"
+                                                                ).value
+                                                            )
+                                                    )
+                                                    
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    
+                                                    Text(
+                                                        text = segment.title.ifBlank { "执行自动化序列" },
+                                                        style = MaterialTheme.typography.titleSmall,
+                                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                    )
+                                                }
+                                                
+                                                if (segment.subtitle.isNotBlank()) {
+                                                    Text(
+                                                        text = segment.subtitle,
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                                                        modifier = Modifier.padding(top = 4.dp, start = 26.dp)
+                                                    )
+                                                }
+                                                
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                                
+                                                SimpleLinearProgressIndicator(
+                                                    progress = 1f,
+                                                    modifier = Modifier.fillMaxWidth()
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        // Regular tool execution
+                                        ToolExecutionBox(
+                                            toolName = segment.toolName,
+                                            isProcessing = true,
+                                            result = null,
+                                            isError = false,
+                                            enableCopy = true,
+                                            hideToolRequest = true
+                                        )
+                                    }
                                 }
                             }
                             "result" -> {
                                 // Tool result status
                                 if (segment.toolName.isNotBlank()) {
-                                    ToolExecutionBox(
-                                        toolName = segment.toolName,
-                                        isProcessing = false,
-                                        result = segment.content,
-                                        isError = !segment.success,
-                                        enableCopy = true,  // Enable copy functionality
-                                        hideToolRequest = false  // Show tool result
+                                    if (segment.toolName == "sequence") {
+                                        // Create a specialized sequence result box
+                                        val sequenceTitle = segment.title.ifBlank { "序列执行结果" }
+                                        
+                                        // Specialized sequence result box
+                                        SequenceResultBox(
+                                            uuid = segment.uuid,
+                                            title = sequenceTitle,
+                                            content = segment.content,
+                                            isSuccess = segment.success,
+                                            enableCopy = true
+                                        )
+                                    } else {
+                                        // Regular tool result
+                                        ToolExecutionBox(
+                                            toolName = segment.toolName,
+                                            isProcessing = false,
+                                            result = segment.content,
+                                            isError = !segment.success,
+                                            enableCopy = true,
+                                            hideToolRequest = false
+                                        )
+                                    }
+                                }
+                            }
+                            "completion" -> {
+                                // Sequence tool completion status - similar to result but with different style
+                                if (segment.toolName == "sequence") {
+                                    // Create a specialized sequence completion box
+                                    val sequenceTitle = segment.title.ifBlank { "序列执行完成" }
+                                    
+                                    // Specialized sequence completion box
+                                    SequenceResultBox(
+                                        uuid = segment.uuid,
+                                        title = sequenceTitle,
+                                        content = segment.content,
+                                        isSuccess = segment.success,
+                                        enableCopy = true,
+                                        isCompletion = true
                                     )
                                 }
                             }

@@ -33,7 +33,7 @@ import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
-import com.ai.assistance.operit.api.AiReference
+import com.ai.assistance.operit.model. AiReference
 import com.ai.assistance.operit.model.ChatMessage
 import com.ai.assistance.operit.model.ToolExecutionProgress
 import com.ai.assistance.operit.model.ToolExecutionState

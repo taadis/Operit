@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.model
+package com.ai.assistance.operit.api.enhanced.models
 
 import android.util.Log
 import java.util.concurrent.atomic.AtomicInteger

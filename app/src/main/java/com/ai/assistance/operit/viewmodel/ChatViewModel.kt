@@ -8,14 +8,14 @@ import android.os.IBinder
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.ai.assistance.operit.api.AiReference
+import com.ai.assistance.operit.model.AiReference
 import com.ai.assistance.operit.api.EnhancedAIService
-import com.ai.assistance.operit.api.InputProcessingState
+import com.ai.assistance.operit.model.InputProcessingState
 import com.ai.assistance.operit.data.ApiPreferences
 import com.ai.assistance.operit.data.ChatHistoryManager
 import com.ai.assistance.operit.model.ChatHistory
 import com.ai.assistance.operit.model.ChatMessage
-import com.ai.assistance.operit.model.ConversationMarkupManager
+import com.ai.assistance.operit.api.enhanced.models.ConversationMarkupManager
 import com.ai.assistance.operit.model.ToolExecutionProgress
 import com.ai.assistance.operit.model.ToolExecutionState
 import com.ai.assistance.operit.service.FloatingChatService
@@ -25,9 +25,6 @@ import com.ai.assistance.operit.util.UserPreferenceAnalyzer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -236,7 +233,7 @@ class ChatViewModel(
             viewModelScope.launch {
                 enhancedAiService?.inputProcessingState?.collect { state ->
                     when(state) {
-                        is InputProcessingState.Idle -> {
+                        InputProcessingState.Idle -> {
                             _isProcessingInput.value = false
                             _inputProcessingMessage.value = ""
                         }
@@ -252,7 +249,7 @@ class ChatViewModel(
                             _isProcessingInput.value = true
                             _inputProcessingMessage.value = state.message
                         }
-                        is InputProcessingState.Completed -> {
+                        InputProcessingState.Completed -> {
                             _isProcessingInput.value = false
                         }
                     }
@@ -310,7 +307,7 @@ class ChatViewModel(
             viewModelScope.launch {
                 enhancedAiService?.inputProcessingState?.collect { state ->
                     when(state) {
-                        is InputProcessingState.Idle -> {
+                        InputProcessingState.Idle -> {
                             _isProcessingInput.value = false
                             _inputProcessingMessage.value = ""
                         }
@@ -326,7 +323,7 @@ class ChatViewModel(
                             _isProcessingInput.value = true
                             _inputProcessingMessage.value = state.message
                         }
-                        is InputProcessingState.Completed -> {
+                        InputProcessingState.Completed -> {
                             _isProcessingInput.value = false
                         }
                     }
