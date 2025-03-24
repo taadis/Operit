@@ -500,10 +500,11 @@ class MainActivity : ComponentActivity() {
     private fun startPermissionRefreshTask() {
         lifecycleScope.launch {
             try {
-                // 一次性检查是否有权限请求
-                val hasRequest = toolHandler?.getToolPermissionManager()?.hasActivePermissionRequest() ?: false
+                // 检查是否有待处理的权限请求
+                val hasRequest = toolHandler?.getToolPermissionSystem()?.hasActivePermissionRequest() ?: false
+                Log.d("MainActivity", "Permission check: hasRequest=$hasRequest")
                 if (hasRequest) {
-                    Log.d("MainActivity", "Active permission request detected")
+                    return@launch
                 }
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error in permission check", e)

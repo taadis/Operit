@@ -3,7 +3,7 @@ package com.ai.assistance.operit.tools.packTool
 import android.content.Context
 import android.content.res.AssetManager
 import android.util.Log
-import com.ai.assistance.operit.data.ToolCategory
+import com.ai.assistance.operit.permissions.ToolCategory
 import com.ai.assistance.operit.model.AITool
 import com.ai.assistance.operit.model.ToolResult
 import com.ai.assistance.operit.tools.AIToolHandler

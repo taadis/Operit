@@ -9,6 +9,7 @@ import com.ai.assistance.operit.model.ConversationRoundManager
 import com.ai.assistance.operit.model.ConversationMarkupManager
 import com.ai.assistance.operit.util.ChatUtils
 import com.ai.assistance.operit.data.preferencesManager
+import com.ai.assistance.operit.permissions.ToolCategory
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.CoroutineScope
@@ -24,6 +25,7 @@ import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import com.ai.assistance.operit.tools.packTool.PackageManager
+import kotlinx.coroutines.delay
 
 data class ChatMessage(
     val role: String,
@@ -202,14 +204,19 @@ class EnhancedAIService(
     }
     
     fun registerTool(name: String, executor: com.ai.assistance.operit.tools.ToolExecutor) {
-        toolHandler.registerTool(name, executor)
+        // 使用默认类别注册工具(选择UI_AUTOMATION作为最高安全级别的默认类别)
+        toolHandler.registerTool(
+            name = name, 
+            category = ToolCategory.UI_AUTOMATION,
+            executor = executor
+        )
     }
     
     suspend fun processUserInput(input: String): String {
         _inputProcessingState.value = InputProcessingState.Processing("Processing input...")
         
         withContext(Dispatchers.IO) {
-            kotlinx.coroutines.delay(300)
+            delay(300)
         }
         
         _inputProcessingState.value = InputProcessingState.Completed
@@ -273,6 +280,7 @@ class EnhancedAIService(
                         _inputProcessingState.value = InputProcessingState.Receiving("Receiving AI response...")
                     }
                     
+                    // 这里onPartialResponse是非空的，因为它是方法参数
                     processContent(
                         content,
                         thinking,
@@ -429,8 +437,11 @@ class EnhancedAIService(
                 return
             }
             
-            // 更新UI显示
-            onPartialResponse(displayContent, thinking)
+            // 确保回调非空才执行
+            if (onPartialResponse != null) {
+                // 更新UI显示
+                onPartialResponse(displayContent, thinking)
+            }
         } catch (e: Exception) {
             Log.e(TAG, "处理内容时出错", e)
             // 即使出错也不中断流程
@@ -620,116 +631,50 @@ class EnhancedAIService(
             )
         } else {
             // 执行前检查权限
-            val toolPermissionManager = toolHandler.getToolPermissionManager()
-            val hasPermission = toolPermissionManager.checkToolPermission(invocation.tool)
+            val hasPromptForPermission = !invocation.rawText.contains("deny_tool")
             
-            if (!hasPermission) {
-                // 用户拒绝了权限
-                Log.w(TAG, "工具权限被拒绝: ${invocation.tool.name}")
+            if (hasPromptForPermission) {
+                // 检查权限，如果需要则弹出权限请求界面
+                val toolPermissionSystem = toolHandler.getToolPermissionSystem()
+                val hasPermission = toolPermissionSystem.checkToolPermission(invocation.tool)
                 
-                val errorDisplayContent = roundManager.appendContent(
-                    ConversationMarkupManager.createErrorStatus("权限被拒绝", "操作 '${invocation.tool.name}' 未获得授权")
-                )
-                responseCallback(errorDisplayContent, null)
-                
-                // 创建权限拒绝结果
-                result = ToolResult(
-                    toolName = invocation.tool.name,
-                    success = false,
-                    result = "",
-                    error = "Permission denied: Operation was not authorized"
-                )
-            } else {
-                // 执行工具
-                result = executeToolSafely(invocation, executor)
-                
-                // 显示工具执行结果
-                val toolResultString = if (result.success) result.result else "${result.error}"
-                val resultDisplayContent = roundManager.appendContent(
-                    ConversationMarkupManager.createToolResultStatus(
-                        invocation.tool.name, 
-                        result.success, 
-                        toolResultString
+                // 如果权限被拒绝，添加结果并退出函数
+                if (!hasPermission) {
+                    val errorDisplayContent = roundManager.appendContent(
+                        ConversationMarkupManager.createErrorStatus("权限被拒绝", "操作 '${invocation.tool.name}' 未获得授权")
                     )
-                )
-                responseCallback(resultDisplayContent, null)
-            }
-        }
-        
-        // 添加过渡状态
-        _inputProcessingState.value = InputProcessingState.Processing("工具执行完成，准备进一步处理...")
-
-        
-        // 处理工具结果 - 直接在这里继续处理，不调用单独的方法
-        // 这是整个循环的关键部分，工具结果处理后直接继续下一轮AI请求
-        if (!isConversationActive.get()) {
-            Log.d(TAG, "对话不再活跃，不处理工具结果")
-            onComplete()
-            return
-        }
-        
-        // 工具结果处理和后续AI请求 - 全都在complete回调的流程中
-        val toolResultMessage = ConversationMarkupManager.formatToolResultForMessage(result)
-        
-        // 添加工具结果到对话历史
-        conversationMutex.withLock {
-            conversationHistory.add(Pair("user", toolResultMessage))
-        }
-        
-        // 获取当前对话历史
-        val currentChatHistory = conversationMutex.withLock {
-            ChatUtils.mapChatHistoryToStandardRoles(conversationHistory)
-        }
-        
-        // 更新UI显示AI思考状态
-        val currentDisplay = currentChatHistory.lastOrNull { it.first == "assistant" }?.second ?: ""
-        if (currentDisplay.isNotEmpty()) {
-            val updatedContent = ConversationMarkupManager.appendThinkingStatus(currentDisplay)
-            responseCallback(updatedContent, null)
-        }
-        
-        // 开始新回合 - 确保处理工具执行后的回复会在新消息中显示
-        roundManager.startNewRound()
-        streamBuffer.clear() // 清空buffer，确保将创建新的消息
-        Log.d(TAG, "开始AI响应工具结果回合")
-        
-        // 明确显示我们正在准备发送工具结果给AI
-        _inputProcessingState.value = InputProcessingState.Processing("正在准备处理工具执行结果...")
-        
-        // 添加短暂延迟使状态变化更加明显
-        kotlinx.coroutines.delay(300)
-        
-        // 直接在当前流程中请求AI响应，保持在complete的主循环中
-        withContext(Dispatchers.IO) {
-            aiService.sendMessage(
-                message = toolResultMessage,
-                onPartialResponse = { content, thinking ->
-                    // 只处理显示，不执行任何工具逻辑
-                    // 使用新的处理方式，确保这是一个新消息
-                    // 注意清空buffer，使得processContent认为这是一个新的消息
-                    // 注意清空buffer，使得processContent认为这是一个新的消息
-                    processContent(content, thinking, responseCallback, currentChatHistory, isFollowUp = true)
-                },
-                chatHistory = currentChatHistory,
-                onComplete = {
-                    handleStreamingComplete {
-                        if (!isConversationActive.get()) {
-                            currentCompleteCallback?.invoke()
-                        }
-                    }
-                },
-                onConnectionStatus = { status ->
-                    // 更新工具执行后请求的连接状态
-                    when {
-                        status.contains("准备连接") || status.contains("正在建立连接") -> 
-                            _inputProcessingState.value = InputProcessingState.Connecting(status + " (工具执行后)")
-                        status.contains("连接成功") ->
-                            _inputProcessingState.value = InputProcessingState.Receiving(status + " (工具执行后)")
-                        status.contains("超时") || status.contains("失败") -> 
-                            _inputProcessingState.value = InputProcessingState.Processing(status + " (工具执行后)")
-                    }
+                    responseCallback(errorDisplayContent, null)
+                    
+                    // 创建错误结果
+                    val errorResult = ToolResult(
+                        toolName = invocation.tool.name,
+                        success = false,
+                        result = "",
+                        error = "Permission denied: Operation was not authorized"
+                    )
+                    
+                    // 处理工具结果并退出
+                    processToolResult(errorResult, onComplete)
+                    return
                 }
+            }
+            
+            // 执行工具
+            val result = executeToolSafely(invocation, executor)
+            
+            // 显示工具执行结果
+            val toolResultString = if (result.success) result.result else "${result.error}"
+            val resultDisplayContent = roundManager.appendContent(
+                ConversationMarkupManager.createToolResultStatus(
+                    invocation.tool.name, 
+                    result.success, 
+                    toolResultString
+                )
             )
+            responseCallback(resultDisplayContent, null)
+            
+            // 处理工具结果
+            processToolResult(result, onComplete)
         }
     }
     
@@ -883,6 +828,89 @@ class EnhancedAIService(
             Log.e(TAG, "用户偏好分析失败", e)
             // 出错时返回空结果
             onResult("")
+        }
+    }
+    
+    /**
+     * 处理工具执行结果并继续对话
+     */
+    private suspend fun processToolResult(result: ToolResult, onComplete: () -> Unit) {
+        // 添加过渡状态
+        _inputProcessingState.value = InputProcessingState.Processing("工具执行完成，准备进一步处理...")
+
+        
+        // 检查对话是否仍然活跃
+        if (!isConversationActive.get()) {
+            Log.d(TAG, "对话不再活跃，不处理工具结果")
+            onComplete()
+            return
+        }
+        
+        // 工具结果处理和后续AI请求
+        val toolResultMessage = ConversationMarkupManager.formatToolResultForMessage(result)
+        
+        // 添加工具结果到对话历史
+        conversationMutex.withLock {
+            conversationHistory.add(Pair("user", toolResultMessage))
+        }
+        
+        // 获取当前对话历史
+        val currentChatHistory = conversationMutex.withLock {
+            ChatUtils.mapChatHistoryToStandardRoles(conversationHistory)
+        }
+        
+        // 保存回调到局部变量
+        val responseCallback = currentResponseCallback
+        
+        // 更新UI显示AI思考状态
+        val currentDisplay = currentChatHistory.lastOrNull { it.first == "assistant" }?.second ?: ""
+        if (currentDisplay.isNotEmpty() && responseCallback != null) {
+            val updatedContent = ConversationMarkupManager.appendThinkingStatus(currentDisplay)
+            responseCallback.invoke(updatedContent, null)
+        }
+        
+        // 开始新回合 - 确保处理工具执行后的回复会在新消息中显示
+        roundManager.startNewRound()
+        streamBuffer.clear() // 清空buffer，确保将创建新的消息
+        Log.d(TAG, "开始AI响应工具结果回合")
+        
+        // 明确显示我们正在准备发送工具结果给AI
+        _inputProcessingState.value = InputProcessingState.Processing("正在准备处理工具执行结果...")
+        
+        // 添加短暂延迟使状态变化更加明显
+        delay(300)
+        
+        // 直接在当前流程中请求AI响应，保持在complete的主循环中
+        withContext(Dispatchers.IO) {
+            aiService.sendMessage(
+                message = toolResultMessage,
+                onPartialResponse = { content, thinking ->
+                    // 只处理显示，不执行任何工具逻辑
+                    // 使用新的处理方式，确保这是一个新消息
+                    if (responseCallback != null) {
+                        processContent(content, thinking, responseCallback, currentChatHistory, isFollowUp = true)
+                    }
+                },
+                chatHistory = currentChatHistory,
+                onComplete = {
+                    handleStreamingComplete {
+                        if (!isConversationActive.get()) {
+                            currentCompleteCallback?.invoke()
+                        }
+                    }
+                },
+                onConnectionStatus = { status ->
+                    // 更新工具执行后请求的连接状态
+                    when {
+                        status.contains("准备连接") || status.contains("正在建立连接") -> 
+                            _inputProcessingState.value = InputProcessingState.Connecting(status + " (工具执行后)")
+                        status.contains("连接成功") ->
+                            _inputProcessingState.value = InputProcessingState.Receiving(status + " (工具执行后)")
+                        status.contains("超时") || status.contains("失败") -> 
+                            _inputProcessingState.value = InputProcessingState.Processing(status + " (工具执行后)")
+                    }
+                }
+            )
         }
     }
 }

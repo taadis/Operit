@@ -355,7 +355,6 @@ fun PackageDetailsDialog(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 
-                Log.d("PackageDetailsDialog", "Tool package: ${toolPackage?.tools}")
 
                 if (toolPackage?.tools == null || toolPackage.tools.isEmpty()) {
                     Text(

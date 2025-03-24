@@ -1,7 +1,6 @@
 package com.ai.assistance.operit.tools
 
 import android.content.Context
-import com.ai.assistance.operit.data.ToolCategory
 import com.ai.assistance.operit.model.AITool
 import com.ai.assistance.operit.model.ToolParameter
 import com.ai.assistance.operit.model.ToolResult
@@ -10,6 +9,7 @@ import com.ai.assistance.operit.tools.javascript.JsToolManager
 import com.ai.assistance.operit.tools.packTool.PackageManager
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
+import com.ai.assistance.operit.permissions.ToolCategory
 
 /**
  * Represents a package of tools that can be imported by the AI

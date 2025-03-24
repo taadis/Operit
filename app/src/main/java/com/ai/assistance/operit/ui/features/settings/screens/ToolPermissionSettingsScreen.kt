@@ -11,9 +11,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ai.assistance.operit.data.PermissionLevel
-import com.ai.assistance.operit.data.ToolCategory
-import com.ai.assistance.operit.data.ToolPermissionPreferences
+import com.ai.assistance.operit.permissions.PermissionLevel
+import com.ai.assistance.operit.permissions.ToolCategory
+import com.ai.assistance.operit.permissions.ToolPermissionSystem
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -22,24 +22,24 @@ fun ToolPermissionSettingsScreen(
     navigateBack: () -> Unit
 ) {
     val context = LocalContext.current
-    val toolPermissionPreferences = remember { ToolPermissionPreferences(context) }
+    val toolPermissionSystem = remember { ToolPermissionSystem.getInstance(context) }
     val scope = rememberCoroutineScope()
     
     // 收集工具权限设置
-    val masterSwitch = toolPermissionPreferences.masterSwitchFlow.collectAsState(initial = PermissionLevel.ASK).value
-    val systemOperationPermission = toolPermissionPreferences.systemOperationPermissionFlow.collectAsState(
+    val masterSwitch = toolPermissionSystem.masterSwitchFlow.collectAsState(initial = PermissionLevel.ASK).value
+    val systemOperationPermission = toolPermissionSystem.systemOperationPermissionFlow.collectAsState(
         initial = ToolCategory.getDefaultPermissionLevel(ToolCategory.SYSTEM_OPERATION)
     ).value
-    val networkPermission = toolPermissionPreferences.networkPermissionFlow.collectAsState(
+    val networkPermission = toolPermissionSystem.networkPermissionFlow.collectAsState(
         initial = ToolCategory.getDefaultPermissionLevel(ToolCategory.NETWORK)
     ).value
-    val uiAutomationPermission = toolPermissionPreferences.uiAutomationPermissionFlow.collectAsState(
+    val uiAutomationPermission = toolPermissionSystem.uiAutomationPermissionFlow.collectAsState(
         initial = ToolCategory.getDefaultPermissionLevel(ToolCategory.UI_AUTOMATION)
     ).value
-    val fileReadPermission = toolPermissionPreferences.fileReadPermissionFlow.collectAsState(
+    val fileReadPermission = toolPermissionSystem.fileReadPermissionFlow.collectAsState(
         initial = ToolCategory.getDefaultPermissionLevel(ToolCategory.FILE_READ)
     ).value
-    val fileWritePermission = toolPermissionPreferences.fileWritePermissionFlow.collectAsState(
+    val fileWritePermission = toolPermissionSystem.fileWritePermissionFlow.collectAsState(
         initial = ToolCategory.getDefaultPermissionLevel(ToolCategory.FILE_WRITE)
     ).value
     
@@ -93,12 +93,13 @@ fun ToolPermissionSettingsScreen(
                     
                     PermissionLevelSelector(
                         selectedLevel = masterSwitchInput,
+                        showCautionOption = true,
                         onLevelSelected = { level ->
                             masterSwitchInput = level
                             
                             // 保存设置
                             scope.launch {
-                                toolPermissionPreferences.saveMasterSwitch(level)
+                                toolPermissionSystem.saveMasterSwitch(level)
                                 showSaveSuccessMessage = true
                             }
                         }
@@ -111,12 +112,13 @@ fun ToolPermissionSettingsScreen(
                 title = "系统操作权限",
                 description = "系统设置修改、应用安装/卸载、启动/停止应用等",
                 currentLevel = systemOperationPermissionInput,
+                showCautionOption = true,
                 onLevelSelected = { level ->
                     systemOperationPermissionInput = level
                     
                     // 保存设置
                     scope.launch {
-                        toolPermissionPreferences.saveSystemOperationPermission(level)
+                        toolPermissionSystem.saveSystemOperationPermission(level)
                         showSaveSuccessMessage = true
                     }
                 }
@@ -127,12 +129,13 @@ fun ToolPermissionSettingsScreen(
                 title = "网络访问权限",
                 description = "网页获取、HTTP请求、网络搜索、文件下载等",
                 currentLevel = networkPermissionInput,
+                showCautionOption = true,
                 onLevelSelected = { level ->
                     networkPermissionInput = level
                     
                     // 保存设置
                     scope.launch {
-                        toolPermissionPreferences.saveNetworkPermission(level)
+                        toolPermissionSystem.saveNetworkPermission(level)
                         showSaveSuccessMessage = true
                     }
                 }
@@ -149,7 +152,7 @@ fun ToolPermissionSettingsScreen(
                     
                     // 保存设置
                     scope.launch {
-                        toolPermissionPreferences.saveUIAutomationPermission(level)
+                        toolPermissionSystem.saveUIAutomationPermission(level)
                         showSaveSuccessMessage = true
                     }
                 }
@@ -160,12 +163,13 @@ fun ToolPermissionSettingsScreen(
                 title = "文件读取权限",
                 description = "列出文件、读取文件内容、文件信息获取等",
                 currentLevel = fileReadPermissionInput,
+                showCautionOption = true,
                 onLevelSelected = { level ->
                     fileReadPermissionInput = level
                     
                     // 保存设置
                     scope.launch {
-                        toolPermissionPreferences.saveFileReadPermission(level)
+                        toolPermissionSystem.saveFileReadPermission(level)
                         showSaveSuccessMessage = true
                     }
                 }
@@ -176,12 +180,13 @@ fun ToolPermissionSettingsScreen(
                 title = "文件写入权限",
                 description = "文件写入、删除、移动、压缩/解压等",
                 currentLevel = fileWritePermissionInput,
+                showCautionOption = true,
                 onLevelSelected = { level ->
                     fileWritePermissionInput = level
                     
                     // 保存设置
                     scope.launch {
-                        toolPermissionPreferences.saveFileWritePermission(level)
+                        toolPermissionSystem.saveFileWritePermission(level)
                         showSaveSuccessMessage = true
                     }
                 }
@@ -191,7 +196,7 @@ fun ToolPermissionSettingsScreen(
             Button(
                 onClick = {
                     scope.launch {
-                        toolPermissionPreferences.saveAllPermissions(
+                        toolPermissionSystem.saveAllPermissions(
                             masterSwitchInput,
                             systemOperationPermissionInput,
                             networkPermissionInput,
@@ -225,15 +230,14 @@ fun ToolPermissionSettingsScreen(
                 )
             }
         }
-    }
-
+}
 
 @Composable
 fun PermissionCategoryCard(
     title: String,
     description: String,
     currentLevel: PermissionLevel,
-    showCautionOption: Boolean = false,
+    showCautionOption: Boolean = true,
     onLevelSelected: (PermissionLevel) -> Unit
 ) {
     Card(
@@ -268,7 +272,7 @@ fun PermissionCategoryCard(
 @Composable
 fun PermissionLevelSelector(
     selectedLevel: PermissionLevel,
-    showCautionOption: Boolean = false,
+    showCautionOption: Boolean = true,
     onLevelSelected: (PermissionLevel) -> Unit
 ) {
     val options = if (showCautionOption) {

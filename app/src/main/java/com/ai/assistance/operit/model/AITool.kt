@@ -2,7 +2,7 @@ package com.ai.assistance.operit.model
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Contextual
-import com.ai.assistance.operit.data.ToolCategory
+import com.ai.assistance.operit.permissions.ToolCategory
 
 /**
  * Represents a tool parameter in an AI tool
