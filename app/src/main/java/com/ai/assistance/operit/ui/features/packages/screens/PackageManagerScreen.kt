@@ -642,7 +642,9 @@ fun ScriptExecutionDialog(
                                         // Create a new interpreter instance
                                         val interpreter = JsToolManager.getInstance(context, packageManager)
                                         
-                                        // Execute the script
+                                        // Execute the script - directly call the suspending function
+                                        // Since we're already in a coroutine context with Dispatchers.IO,
+                                        // we can just call the suspending function directly
                                         val result = interpreter.executeScript(scriptText, aiTool)
                                         
                                         // 切换回主线程更新UI

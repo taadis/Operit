@@ -54,6 +54,20 @@
       '''
     },
     {
+      name: native_http_test
+      description: 使用 JavaScript 调用原生 HTTP 请求工具
+      parameters: []
+      script: '''
+
+          console.log("调用 fetch_web_page 工具...");
+          const fetchResult = toolCall("fetch_web_page", { 
+            url: "https://baidu.com",
+            format: "text"
+          });
+          complete({"results":fetchResult})
+      '''
+    },
+    {
       name: custom_script
       description: 运行自定义 JavaScript 脚本
       // This tool takes parameters

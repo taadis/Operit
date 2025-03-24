@@ -8,6 +8,7 @@ import com.ai.assistance.operit.model.ToolResult
 import com.ai.assistance.operit.model.ToolValidationResult
 import com.ai.assistance.operit.tools.javascript.JsToolManager
 import com.ai.assistance.operit.tools.packTool.PackageManager
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
 
 /**
@@ -88,8 +89,11 @@ class PackageToolExecutor(
                 error = "Tool '$toolName' not found in package '${toolPackage.name}'"
             )
         
-        // Execute the script
-        return jsToolManager.executeScript(packageTool.script, tool)
+        // Execute the script using runBlocking since we can't make this a suspending function
+        // without changing the interface
+        return runBlocking {
+            jsToolManager.executeScript(packageTool.script, tool)
+        }
     }
     
     override fun validateParameters(tool: AITool): ToolValidationResult {

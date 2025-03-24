@@ -42,7 +42,8 @@ import java.util.concurrent.TimeUnit
 class JsEngine(private val context: Context) {
     companion object {
         private const val TAG = "JsEngine"
-        private const val TIMEOUT_SECONDS = 30L
+        private const val TIMEOUT_SECONDS = 60L  // 增加超时时间到60秒
+        private const val PRE_TIMEOUT_SECONDS = 55L  // 提前5秒触发JavaScript端的超时保护
     }
     
     // WebView 实例用于执行 JavaScript
@@ -86,6 +87,9 @@ class JsEngine(private val context: Context) {
      * @return 脚本执行结果
      */
     fun executeScript(script: String, params: Map<String, String>): Any? {
+        // Reset any previous state
+        resetState()
+        
         initWebView()
         
         val future = CompletableFuture<Any?>()
@@ -98,6 +102,32 @@ class JsEngine(private val context: Context) {
         val wrappedScript = """
             // 设置参数
             var params = $paramsJson;
+            
+            // 简单的清理 - 仅清理定时器
+            (function() {
+                try {
+                    var highestTimeoutId = setTimeout(";");
+                    for (var i = 0 ; i < highestTimeoutId ; i++) {
+                        clearTimeout(i);
+                        clearInterval(i);
+                    }
+                } catch(e) {}
+            })();
+            
+            // 安全超时机制 - 更保守的实现
+            var _hasCompleted = false;
+            var _safetyTimeout = setTimeout(function() {
+                if (!_hasCompleted) {
+                    console.log("Safety timeout warning at " + (${TIMEOUT_SECONDS-5}) + " seconds");
+                    // 不立即结束，而是添加另一个最终超时
+                    setTimeout(function() {
+                        if (!_hasCompleted) {
+                            _hasCompleted = true;
+                            NativeInterface.setResult("Script execution timed out after ${TIMEOUT_SECONDS} seconds");
+                        }
+                    }, 5000); // 再等5秒
+                }
+            }, ${(TIMEOUT_SECONDS-5) * 1000});
             
             // 定义 toolCall 函数 - 支持多种参数传递方式
             function toolCall(toolType, toolName, toolParams) {
@@ -127,7 +157,7 @@ class JsEngine(private val context: Context) {
             }
             
             // 工具调用的便捷方法
-            const Tools = {
+            var Tools = {
                 // 文件系统操作
                 Files: {
                     list: (path) => toolCall("list_files", { path }),
@@ -161,7 +191,11 @@ class JsEngine(private val context: Context) {
             
             // 定义完成回调
             function complete(result) {
-                NativeInterface.setResult(JSON.stringify(result));
+                if (!_hasCompleted) {
+                    _hasCompleted = true;
+                    clearTimeout(_safetyTimeout);
+                    NativeInterface.setResult(JSON.stringify(result));
+                }
             }
             
             // 添加第三方库支持
@@ -187,10 +221,82 @@ class JsEngine(private val context: Context) {
         
         // 等待结果或超时
         return try {
-            future.get(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            // 创建一个定时器，在超时前提醒JavaScript
+            val preTimeoutTimer = java.util.Timer()
+            
+            // 只在较长的脚本执行中使用超时预警
+            preTimeoutTimer.schedule(object : java.util.TimerTask() {
+                override fun run() {
+                    try {
+                        // 如果还没完成，尝试提前触发完成
+                        if (!future.isDone) {
+                            Log.d(TAG, "Pre-timeout warning triggered")
+                            ContextCompat.getMainExecutor(context).execute {
+                                webView?.evaluateJavascript("""
+                                    if (typeof complete === 'function' && !_hasCompleted) {
+                                        console.log("Script execution approaching timeout");
+                                        // 不强制完成，只记录警告
+                                    }
+                                """, null)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error in pre-timeout handler: ${e.message}", e)
+                    }
+                }
+            }, PRE_TIMEOUT_SECONDS * 1000)
+            
+            try {
+                val result = future.get(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                preTimeoutTimer.cancel()
+                result
+            } catch (e: Exception) {
+                preTimeoutTimer.cancel()
+                throw e
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Script execution timed out or failed: ${e.message}", e)
+            // 确保WebView的JavaScript不再继续执行
+            ContextCompat.getMainExecutor(context).execute {
+                webView?.evaluateJavascript("_hasCompleted = true; clearTimeout(_safetyTimeout);", null)
+            }
             "Error: ${e.message}"
+        }
+    }
+    
+    /**
+     * 重置引擎状态，避免多次调用时的状态干扰
+     */
+    private fun resetState() {
+        // 只有当之前的回调存在时才需要完成它
+        if (resultCallback != null && !resultCallback!!.isDone) {
+            try {
+                resultCallback?.complete("Execution canceled: new execution started")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error completing previous callback: ${e.message}", e)
+            }
+            resultCallback = null
+        }
+        
+        // 如果WebView已经存在，执行轻量级清理
+        if (webView != null) {
+            ContextCompat.getMainExecutor(context).execute {
+                try {
+                    // 使用更简单、更安全的清理代码
+                    webView?.evaluateJavascript("""
+                        // 清理所有定时器
+                        (function() {
+                            var highestTimeoutId = setTimeout(";");
+                            for (var i = 0 ; i < highestTimeoutId ; i++) {
+                                clearTimeout(i);
+                                clearInterval(i);
+                            }
+                        })();
+                    """, null)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error in WebView cleanup: ${e.message}", e)
+                }
+            }
         }
     }
     
@@ -201,7 +307,7 @@ class JsEngine(private val context: Context) {
     private val THIRD_PARTY_LIBS = """
         // Lodash 核心功能
         // 轻量级版本，包含最常用的工具函数
-        const _ = (function() {
+        var _ = (function() {
             // 简单的 Lodash 核心实现
             return {
                 isEmpty: function(value) {
@@ -257,7 +363,7 @@ class JsEngine(private val context: Context) {
         })();
         
         // 简单的数据处理库
-        const dataUtils = {
+        var dataUtils = {
             parseJson: function(jsonString) {
                 try {
                     return JSON.parse(jsonString);
@@ -368,6 +474,99 @@ class JsEngine(private val context: Context) {
         fun setError(error: String) {
             // 返回错误结果
             resultCallback?.complete("Error: $error")
+        }
+    }
+    
+    /**
+     * 销毁引擎资源
+     */
+    fun destroy() {
+        try {
+            // 确保任何挂起的回调被完成
+            resultCallback?.complete("Engine destroyed")
+            resultCallback = null
+            
+            // 在主线程中销毁 WebView
+            ContextCompat.getMainExecutor(context).execute {
+                try {
+                    webView?.apply {
+                        removeJavascriptInterface("NativeInterface")
+                        loadUrl("about:blank")
+                        clearHistory()
+                        clearCache(true)
+                        destroy()
+                    }
+                    webView = null
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error destroying WebView: ${e.message}", e)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error during JsEngine destruction: ${e.message}", e)
+        }
+    }
+    
+    /**
+     * 处理引擎异常
+     */
+    private fun handleException(e: Exception): String {
+        Log.e(TAG, "JsEngine exception: ${e.message}", e)
+        
+        // 尝试重置当前状态
+        try {
+            resetState()
+        } catch (resetEx: Exception) {
+            Log.e(TAG, "Failed to reset state after exception: ${resetEx.message}", resetEx)
+        }
+        
+        return "Error: ${e.message}"
+    }
+    
+    /**
+     * 诊断引擎状态
+     * 用于调试目的，记录当前状态信息
+     */
+    fun diagnose() {
+        try {
+            Log.d(TAG, "=== JsEngine Diagnostics ===")
+            Log.d(TAG, "WebView initialized: ${webView != null}")
+            Log.d(TAG, "Result callback: ${resultCallback?.isDone ?: "null"}")
+            
+            // 检查WebView状态
+            if (webView != null) {
+                ContextCompat.getMainExecutor(context).execute {
+                    webView?.evaluateJavascript("""
+                        (function() {
+                            var result = {
+                                memory: (window.performance && window.performance.memory) 
+                                    ? {
+                                        totalJSHeapSize: window.performance.memory.totalJSHeapSize,
+                                        usedJSHeapSize: window.performance.memory.usedJSHeapSize,
+                                        jsHeapSizeLimit: window.performance.memory.jsHeapSizeLimit
+                                      } 
+                                    : "Not available",
+                                timers: "Unable to count"
+                            };
+                            
+                            // 尝试估计定时器数量
+                            try {
+                                var count = 0;
+                                var id = setTimeout(function(){}, 0);
+                                clearTimeout(id);
+                                result.timers = id;
+                            } catch(e) {}
+                            
+                            return JSON.stringify(result);
+                        })();
+                    """) { diagResult ->
+                        Log.d(TAG, "WebView diagnostics: $diagResult")
+                    }
+                }
+            }
+            
+            Log.d(TAG, "=========================")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error during diagnostics: ${e.message}", e)
         }
     }
 } 

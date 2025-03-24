@@ -197,28 +197,7 @@ class PackageManager private constructor(
         
         return sb.toString()
     }
-    
-    /**
-     * Executes a tool from any loaded package
-     */
-    fun executeTool(tool: AITool): ToolResult {
-        // Check if this is a package tool (with format packageName:toolName)
-        val parts = tool.name.split(":")
-        if (parts.size != 2) {
-            return ToolResult(
-                toolName = tool.name,
-                success = false,
-                result = "",
-                error = "Invalid tool name format. Expected 'packageName:toolName'"
-            )
-        }
-        
-        val packageName = parts[0]
-        
-        
-        // Execute the tool using AIToolHandler
-        return aiToolHandler.executeTool(tool)
-    }
+
     
     /**
      * Gets a list of all available packages for discovery (the "market")
