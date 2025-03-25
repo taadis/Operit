@@ -8,7 +8,6 @@ import com.ai.assistance.operit.api.enhanced.utils.InputProcessor
 import com.ai.assistance.operit.api.enhanced.utils.ProblemLibraryManager
 import com.ai.assistance.operit.api.enhanced.utils.ReferenceManager
 import com.ai.assistance.operit.api.enhanced.utils.ToolExecutionManager
-import com.ai.assistance.operit.api.enhanced.utils.UserPreferenceAnalyzer
 import com.ai.assistance.operit.data.preferencesManager
 import com.ai.assistance.operit.model.AiReference
 import com.ai.assistance.operit.api.enhanced.models.ConversationMarkupManager
@@ -18,7 +17,6 @@ import com.ai.assistance.operit.model.ToolInvocation
 import com.ai.assistance.operit.model.ToolResult
 import com.ai.assistance.operit.tools.AIToolHandler
 import com.ai.assistance.operit.tools.packTool.PackageManager
-import com.ai.assistance.operit.util.ChatUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -145,7 +143,9 @@ class EnhancedAIService(
 
         // Show processing input feedback
         val processedInput = processUserInput(message)
-        val enhancedChatHistory = prepareConversationHistory(chatHistory, processedInput)
+        prepareConversationHistory(chatHistory, processedInput)
+
+        Log.d(TAG, "Conversation history: ${conversationHistory.map { it.first }}")
 
         // Show connecting to AI feedback
         _inputProcessingState.value = InputProcessingState.Connecting("Connecting to AI service...")
@@ -163,11 +163,11 @@ class EnhancedAIService(
                         content,
                         thinking,
                         onPartialResponse,
-                        enhancedChatHistory,
+                        conversationHistory,
                         isFollowUp = false
                     )
                 },
-                chatHistory = enhancedChatHistory,
+                chatHistory = conversationHistory,
                 onComplete = {
                     handleStreamingComplete(onComplete)
                 },
@@ -193,46 +193,19 @@ class EnhancedAIService(
         chatHistory: List<Pair<String, String>>,
         processedInput: String
     ): MutableList<Pair<String, String>> {
-        val enhancedChatHistory = mutableListOf<Pair<String, String>>()
-
         conversationMutex.withLock {
-            if (chatHistory.isEmpty() && conversationHistory.isEmpty()) {
-                // Add system prompt
-                var systemPrompt = SystemPromptConfig.getSystemPrompt(packageManager)
-
+            conversationHistory.clear()
+            conversationHistory.addAll(chatHistory)
+            if (!conversationHistory.any { it.first == "system" }) {
                 val userPreferences = preferencesManager.userPreferencesFlow.first()
                 if (userPreferences.preferences.isNotEmpty()) {
-                    systemPrompt += "\n\nUser preference description: ${userPreferences.preferences}"
+                    conversationHistory.add(0, Pair("system", "${SystemPromptConfig.getSystemPrompt(packageManager)}\n\nUser preference description: ${userPreferences.preferences}"))
+                }else{
+                    conversationHistory.add(0, Pair("system", SystemPromptConfig.getSystemPrompt(packageManager)))
                 }
-
-                enhancedChatHistory.add(Pair("system", systemPrompt))
-
-                conversationHistory.clear()
-                conversationHistory.addAll(enhancedChatHistory)
-            } else if (chatHistory.isNotEmpty()) {
-                // Process incoming chat history, ensuring roles are correctly mapped
-                enhancedChatHistory.addAll(ChatUtils.mapChatHistoryToStandardRoles(chatHistory))
-
-                if (!enhancedChatHistory.any { it.first == "system" }) {
-                    // Add system prompt
-                    enhancedChatHistory.add(0, Pair("system", SystemPromptConfig.getSystemPrompt(packageManager)))
-
-                    // Add user preference description
-                    val userPreferences = preferencesManager.userPreferencesFlow.first()
-                    if (userPreferences.preferences.isNotEmpty()) {
-                        enhancedChatHistory.add(1, Pair("system", "User preference description: ${userPreferences.preferences}"))
-                    }
-                }
-
-                conversationHistory.clear()
-                conversationHistory.addAll(enhancedChatHistory)
-            } else {
-                enhancedChatHistory.addAll(conversationHistory)
             }
-
-            conversationHistory.add(Pair("user", processedInput))
         }
-        return enhancedChatHistory
+        return conversationHistory
     }
 
     /**
@@ -368,16 +341,6 @@ class EnhancedAIService(
                     // Ensure state is properly reset after task completion
                     _inputProcessingState.value = InputProcessingState.Completed
 
-                    // Save problem record to library
-                    toolProcessingScope.launch {
-                        ProblemLibraryManager.saveProblemToLibrary(
-                            toolHandler,
-                            conversationHistory,
-                            displayContent,
-                            aiService
-                        )
-                    }
-
                     onComplete()
                     return@launch
                 }
@@ -450,7 +413,11 @@ class EnhancedAIService(
 
                     // No tool invocations, mark conversation round as completed
                     Log.d(TAG, "No tool invocations found, completing current round")
+
+                    // I dont know this will work or not
+                    handleTaskCompletion(displayContent, null, responseCallback)
                     _inputProcessingState.value = InputProcessingState.Completed
+
 
                     if (isConversationActive.get()) {
                         markConversationCompleted()
@@ -571,6 +538,7 @@ class EnhancedAIService(
         // Clean up task completion marker
         val cleanedContent = ConversationMarkupManager.createTaskCompletionContent(content)
 
+        val displayContent = roundManager.getDisplayContent()
         // Clear content pool
         roundManager.clearContent()
 
@@ -584,18 +552,20 @@ class EnhancedAIService(
 
         // Update conversation history
         toolProcessingScope.launch {
-            conversationMutex.withLock {
-                conversationHistory.add(Pair("assistant", cleanedContent))
-            }
-
             // Call completion callback
             currentCompleteCallback?.invoke()
 
-            // Analyze and save user preferences
-            UserPreferenceAnalyzer.analyzeAndSaveUserPreferences(
-                aiService,
-                conversationHistory
-            )
+            // Save problem record to library
+            toolProcessingScope.launch {
+                ProblemLibraryManager.saveProblemToLibrary(
+                    toolHandler,
+                    conversationHistory,
+                    displayContent,
+                    aiService
+                )
+            }
+
+            
         }
     }
 
@@ -635,12 +605,12 @@ class EnhancedAIService(
 
         // Add tool result to conversation history
         conversationMutex.withLock {
-            conversationHistory.add(Pair("user", toolResultMessage))
+            conversationHistory.add(Pair("tool", toolResultMessage))
         }
 
         // Get current conversation history
         val currentChatHistory = conversationMutex.withLock {
-            ChatUtils.mapChatHistoryToStandardRoles(conversationHistory)
+            conversationHistory
         }
 
         // Save callback to local variable
@@ -697,18 +667,5 @@ class EnhancedAIService(
             )
         }
     }
-    
-    /**
-     * Analyze user preferences directly (not through sendMessage, not shown in chat UI)
-     */
-    suspend fun analyzeUserPreferences(
-        conversationHistory: List<Pair<String, String>>,
-        onResult: (String) -> Unit
-    ) {
-        UserPreferenceAnalyzer.analyzeUserPreferences(
-            aiService,
-            conversationHistory,
-            onResult
-        )
-    }
+
 } 

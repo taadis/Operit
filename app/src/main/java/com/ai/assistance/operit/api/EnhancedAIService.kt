@@ -61,14 +61,5 @@ class EnhancedAIService(
     fun cancelConversation() {
         implementation.cancelConversation()
     }
-    
-    /**
-     * Analyze user preferences
-     */
-    suspend fun analyzeUserPreferences(
-        conversationHistory: List<Pair<String, String>>,
-        onResult: (String) -> Unit
-    ) {
-        implementation.analyzeUserPreferences(conversationHistory, onResult)
-    }
+
 }

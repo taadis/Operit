@@ -429,7 +429,7 @@ class WebSearchTool(private val context: Context) : ToolExecutor {
                 sb.appendLine("4. 如果多次尝试仍然失败，可能需要更新应用以适应搜索引擎的变化")
             } else {
                 // 正常显示结果
-                sb.appendLine("已获取${results.size}个结果${if (fetchedContent) "，并自动解析了网页内容" else ""}。所有链接都已解析为实际目标URL。")
+                sb.appendLine("已获取${results.size}个结果${if (fetchedContent) "，并自动解析了网页内容" else ""}。")
                 sb.appendLine()
                 
                 // 计算每个结果的平均可用长度，确保不超过总长度限制
@@ -441,8 +441,9 @@ class WebSearchTool(private val context: Context) : ToolExecutor {
                 // 计算每个结果可获得的平均内容长度（留出20%的余量）
                 val perResultMaxLength = ((maxResponseLength - usedLength) * 0.8 / results.size).toInt().coerceAtLeast(300)
                 val titleMaxLength = (perResultMaxLength * 0.15).toInt().coerceAtLeast(50)
-                val snippetMaxLength = (perResultMaxLength * 0.25).toInt().coerceAtLeast(100)
-                val contentMaxLength = if (fetchedContent) (perResultMaxLength * 0.6).toInt() else 0
+                val snippetMaxLength = (perResultMaxLength * 0.25).toInt().coerceAtLeast(150)
+                // 增加内容部分的长度比例，因为我们不再显示链接
+                val contentMaxLength = if (fetchedContent) (perResultMaxLength * 0.8).toInt() else 0
                 
                 results.forEachIndexed { index, result ->
                     // 检查是否已接近最大长度
@@ -461,10 +462,10 @@ class WebSearchTool(private val context: Context) : ToolExecutor {
                     }
                     sb.appendLine("${index + 1}. $formattedTitle")
                     
-                    // 添加链接
-                    sb.appendLine("   ${result["link"]}")
+                    // 链接不再显示
+                    // sb.appendLine("   ${result["link"]}")
                     
-                    // 添加摘要，截断过长摘要
+                    // 添加摘要，增加摘要长度
                     val snippet = result["snippet"] ?: ""
                     val formattedSnippet = if (snippet.length <= snippetMaxLength) {
                         snippet
@@ -473,14 +474,14 @@ class WebSearchTool(private val context: Context) : ToolExecutor {
                     }
                     sb.appendLine("   $formattedSnippet")
                     
-                    // 如果有页面内容，添加极度简化的内容摘要
+                    // 如果有页面内容，添加更多的内容摘要
                     if (fetchedContent && result.containsKey("content") && contentMaxLength > 100) {
                         val content = result["content"] ?: ""
                         if (content.isNotBlank()) {
                             sb.appendLine()
-                            sb.appendLine("   页面内容摘要:")
+                            sb.appendLine("   页面内容:")
                             
-                            // 使用压缩的内容摘要，而不是完整的智能摘要
+                            // 使用更多的空间来展示内容
                             val compressedContent = compressContentForSearchResult(content, contentMaxLength)
                             val formattedContent = compressedContent
                                 .split("\n")
@@ -515,24 +516,30 @@ class WebSearchTool(private val context: Context) : ToolExecutor {
         // 构建压缩后的内容
         val sb = StringBuilder()
         
-        // 1. 只取第一段的前半部分（通常包含最重要信息）
+        // 1. 保留第一段的更多内容（通常包含最重要信息）
         val firstPara = paragraphs.first()
-        val firstParaMaxLength = (maxLength * 0.4).toInt().coerceAtLeast(100)
+        val firstParaMaxLength = (maxLength * 0.5).toInt().coerceAtLeast(150)
         sb.append(firstPara.take(minOf(firstPara.length, firstParaMaxLength)))
         if (firstPara.length > firstParaMaxLength) sb.append("...")
         sb.append("\n\n")
         
-        // 2. 文档的中间部分只显示少量采样
+        // 2. 从文档中选取更多的段落样本
         if (paragraphs.size > 2) {
-            sb.append("... [内容摘要] ...\n\n")
+            sb.append("... [内容概要] ...\n\n")
             
-            // 查找可能的中间段落
-            val midIndex = paragraphs.size / 2
-            if (midIndex < paragraphs.size && midIndex > 0) {
+            // 增加中间部分段落数量
+            val midIndexes = listOf(
+                paragraphs.size / 3,  // 三分之一处
+                paragraphs.size / 2,  // 中间
+                paragraphs.size * 2 / 3  // 三分之二处
+            ).distinct().filter { it > 0 && it < paragraphs.size - 1 }
+            
+            val midParaMaxLength = (maxLength * 0.3 / midIndexes.size).toInt().coerceAtLeast(80)
+            
+            midIndexes.forEach { midIndex ->
                 val midPara = paragraphs[midIndex]
-                val midParaMaxLength = (maxLength * 0.2).toInt().coerceAtLeast(50)
                 
-                // 只有当中间段落不太长时才添加
+                // 只有当中间段落不太短时才添加
                 if (midPara.length > 20) {
                     sb.append(midPara.take(minOf(midPara.length, midParaMaxLength)))
                     if (midPara.length > midParaMaxLength) sb.append("...")
@@ -547,7 +554,7 @@ class WebSearchTool(private val context: Context) : ToolExecutor {
             val remainingSpace = (maxLength - sb.length) * 0.9
             
             if (remainingSpace > 30 && lastPara.length > 20) {
-                sb.append("... [末尾摘要] ...\n\n")
+                sb.append("... [末尾概要] ...\n\n")
                 sb.append(lastPara.take(minOf(lastPara.length, remainingSpace.toInt())))
                 if (lastPara.length > remainingSpace) sb.append("...")
             }

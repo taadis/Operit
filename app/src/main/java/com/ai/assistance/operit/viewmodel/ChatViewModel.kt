@@ -21,7 +21,6 @@ import com.ai.assistance.operit.model.ToolExecutionState
 import com.ai.assistance.operit.service.FloatingChatService
 import com.ai.assistance.operit.util.ChatUtils
 import com.ai.assistance.operit.util.NetworkUtils
-import com.ai.assistance.operit.util.UserPreferenceAnalyzer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -412,8 +411,8 @@ class ChatViewModel(
                         // 保存当前对话
                         saveCurrentChat()
                         
-                        // 分析用户偏好
-                        UserPreferenceAnalyzer.analyzeWithAI(_chatHistory.value, service)
+                        // 用户偏好分析已集成到问题库保存流程中，此处不再单独调用
+                        // UserPreferenceAnalyzer.analyzeWithAI(_chatHistory.value, service)
                     }
                 )
             } catch (e: Exception) {
@@ -656,9 +655,8 @@ class ChatViewModel(
      * 准备聊天历史供API使用
      */
     private fun prepareChatHistory(): List<Pair<String, String>> {
-        return ChatUtils.prepareMessagesForApi(
+        return ChatUtils.prepareMessagesForToolServer(
             _chatHistory.value,
-            setOf("user", "ai", "system")
         )
     }
     

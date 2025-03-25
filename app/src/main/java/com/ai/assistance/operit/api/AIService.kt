@@ -31,6 +31,30 @@ class AIService(
     // 当前活跃的Call对象，用于取消流式传输
     private var activeCall: Call? = null
     
+    // 工具函数：分块打印大型文本日志
+    private fun logLargeString(tag: String, message: String, prefix: String = "") {
+        // 设置单次日志输出的最大长度（Android日志上限约为4000字符）
+        val maxLogSize = 3000 
+        
+        // 如果消息长度超过限制，分块打印
+        if (message.length > maxLogSize) {
+            // 计算需要分多少块打印
+            val chunkCount = message.length / maxLogSize + 1
+            
+            for (i in 0 until chunkCount) {
+                val start = i * maxLogSize
+                val end = minOf((i + 1) * maxLogSize, message.length)
+                val chunkMessage = message.substring(start, end)
+                
+                // 打印带有编号的日志
+                Log.d(tag, "$prefix Part ${i+1}/$chunkCount: $chunkMessage")
+            }
+        } else {
+            // 消息长度在限制之内，直接打印
+            Log.d(tag, "$prefix$message")
+        }
+    }
+    
     // 取消当前流式传输
     fun cancelStreaming() {
         activeCall?.let {
@@ -76,7 +100,9 @@ class AIService(
         if (chatHistory.isNotEmpty()) {
             
             // 添加历史消息 - 使用工具函数统一转换角色格式，并确保没有连续的相同角色
-            val standardizedHistory = ChatUtils.mapChatHistoryToStandardRoles(chatHistory)
+            val standardizedHistory = ChatUtils.mapChatHistoryToStandardRoles(
+                chatHistory
+            )
             
             // 防止连续相同角色消息
             val filteredHistory = mutableListOf<Pair<String, String>>()
@@ -116,12 +142,16 @@ class AIService(
             // 如果上一条消息也是用户，将当前消息与上一条合并
             Log.d("AIService", "合并连续的用户消息")
             val lastMessage = messagesArray.getJSONObject(messagesArray.length() - 1)
-            val combinedContent = lastMessage.getString("content") + "\n" + message
-            lastMessage.put("content", combinedContent)
+            if(lastMessage.getString("content") != message){
+                val combinedContent = lastMessage.getString("content") + "\n" + message
+                lastMessage.put("content", combinedContent)
+            }
         }
         
         jsonObject.put("messages", messagesArray)
-        Log.d("AIService", "请求体: $jsonObject")
+        
+        // 使用分块日志函数记录完整的请求体
+        logLargeString("AIService", jsonObject.toString(4), "请求体: ")
         return jsonObject.toString().toRequestBody(JSON)
     }
     
@@ -280,8 +310,9 @@ class AIService(
         val maxRetries = 3
         var retryCount = 0
         var lastException: Exception? = null
-        
-        val requestBody = createRequestBody(message, chatHistory)
+
+        val standardizedHistory = ChatUtils.mapChatHistoryToStandardRoles(chatHistory)
+        val requestBody = createRequestBody(message, standardizedHistory)
         val request = createRequest(requestBody)
 
         onConnectionStatus?.invoke("准备连接到AI服务...")
