@@ -337,10 +337,6 @@ class EnhancedAIService(
                 // Handle task completion marker
                 if (ConversationMarkupManager.containsTaskCompletion(content)) {
                     handleTaskCompletion(displayContent, null, responseCallback)
-
-                    // Ensure state is properly reset after task completion
-                    _inputProcessingState.value = InputProcessingState.Completed
-
                     onComplete()
                     return@launch
                 }
@@ -416,12 +412,11 @@ class EnhancedAIService(
 
                     // I dont know this will work or not
                     handleTaskCompletion(displayContent, null, responseCallback)
-                    _inputProcessingState.value = InputProcessingState.Completed
 
-
-                    if (isConversationActive.get()) {
-                        markConversationCompleted()
-                    }
+                    // if the handleTaskCompletion is need to be here, I think it should be here
+                    // if (isConversationActive.get()) {
+                    //     markConversationCompleted()
+                    // }
 
                     onComplete()
                 }

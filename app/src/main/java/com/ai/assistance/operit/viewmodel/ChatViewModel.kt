@@ -621,11 +621,7 @@ class ChatViewModel(
                     val lastAiIndex = _chatHistory.value.indexOfLast { it.sender == "ai" }
                     
                     // 处理任务完成标记
-                    val finalContent = if (ConversationMarkupManager.containsTaskCompletion(trimmedContent)) {
-                        ConversationMarkupManager.createTaskCompletionContent(trimmedContent)
-                    } else {
-                        trimmedContent
-                    }
+                    val finalContent = trimmedContent
                     
                     try {
                         // 只有当这是当前用户消息的第一个AI回复时才更新现有消息，否则创建新消息
