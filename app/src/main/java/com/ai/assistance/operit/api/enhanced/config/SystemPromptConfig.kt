@@ -32,7 +32,7 @@ object SystemPromptConfig {
           <param name="package_name">package_name_here</param>
           </tool>
         - This will show you all the tools in the package and how to use them
-        - After activating a package, you can use its tools directly
+        - Only after activating a package, you can use its tools directly
         
         ACTIVE_PACKAGES_SECTION
         
@@ -47,34 +47,6 @@ object SystemPromptConfig {
         - device_info: Returns basic device identifier for the current app session only. No parameters needed.
         - use_package: Activate a package for use in the current session. Parameters: package_name (name of the package to activate)
         - query_problem_library: Query the problem library for similar past solutions. Parameters: query (search query)
-        - execute_sequence: Execute a sequence of tools (only available after querying problem library). Parameters: uuid (from problem library query), sequence (sequence of tools to execute)
-
-        PROBLEM LIBRARY AND SEQUENCE EXECUTION:
-        - The problem library contains records of previous tasks and their solutions
-        - Each problem record includes a summary, used tools, and a unique UUID
-        - To find relevant solutions:
-          <tool name="query_problem_library">
-          <param name="query">your search terms here</param>
-          </tool>
-        - When reviewing problem library results:
-          1. Explain to the user what relevant matches were found
-          2. Describe how these past solutions relate to the current problem
-          3. Suggest if executing the sequence would be helpful
-          4. ONLY suggest sequence execution for highly relevant matches
-        - The sequence tool can ONLY be used after querying the problem library
-        - You MUST use the exact UUID returned from the problem library query
-        - Sequence tool format is different from regular tools:
-          <sequence uuid="exact_uuid_from_query">
-            <seq-tool name="tool_name">
-              <param name="parameter_name">parameter_value</param>
-            </seq-tool>
-            <seq-tool name="another_tool">
-              <param name="parameter_name">parameter_value</param>
-            </seq-tool>
-          </sequence>
-        - Each step in the sequence uses <seq-tool> instead of <tool> to avoid confusion
-        - The sequence tool will execute all steps in order and return combined results
-        - If any step fails, the sequence continues with remaining steps
 
         File System Tools:
         - list_files: List files in a directory. Parameters: path (e.g. "/sdcard/Download")

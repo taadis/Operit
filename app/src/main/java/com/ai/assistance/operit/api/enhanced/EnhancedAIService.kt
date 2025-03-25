@@ -495,22 +495,6 @@ class EnhancedAIService(
             "Executing tool: ${invocation.tool.name}"
         )
 
-        // Special handling for sequence tool execution
-        if (invocation.tool.name == "execute_sequence") {
-            val executor = toolHandler.getToolExecutor(invocation.tool.name)
-            val result = ToolExecutionManager.handleSequenceTool(
-                invocation,
-                executor
-            ) { statusUpdate ->
-                val updatedContent = roundManager.appendContent(statusUpdate)
-                responseCallback(updatedContent, null)
-            }
-
-            // Process the tool result
-            processToolResult(result, onComplete)
-            return
-        }
-
         // Update UI to show tool execution status
         val updatedDisplayContent = roundManager.appendContent(
             ConversationMarkupManager.createExecutingToolStatus(invocation.tool.name)

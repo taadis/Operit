@@ -9,6 +9,7 @@
     <string name="nav_tool_permissions">工具权限</string>
     <string name="nav_about">关于</string>
     <string name="nav_packages">包管理</string>
+    <string name="nav_problem_library">问题库</string>
     <string name="menu">菜单</string>
     
     <!-- 用于NavItem类的标识符 -->
@@ -156,4 +157,18 @@
     <string name="script_execution_success">脚本执行成功</string>
     <string name="script_execution_error">脚本执行错误: %1$s</string>
     <string name="missing_parameters">缺少必要参数: %1$s</string>
+    
+    <!-- Problem Library Screen -->
+    <string name="problem_library">问题库</string>
+    <string name="search_problems">搜索问题</string>
+    <string name="problem_details">问题详情</string>
+    <string name="edit_problem">编辑问题</string>
+    <string name="delete_problem">删除问题</string>
+    <string name="empty_problem_library">问题库为空</string>
+    <string name="problem_summary">问题摘要</string>
+    <string name="problem_solution">解决方案</string>
+    <string name="problem_tools">使用工具</string>
+    <string name="problem_time">创建时间</string>
+    <string name="save_changes">保存更改</string>
+    <string name="back_to_list">返回列表</string>
 </resources>

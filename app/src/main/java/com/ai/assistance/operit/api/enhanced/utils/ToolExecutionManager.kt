@@ -46,48 +46,7 @@ object ToolExecutionManager {
         }
     }
     
-    /**
-     * Handle a sequence tool execution
-     * 
-     * @param invocation The sequence tool invocation
-     * @param executor The sequence tool executor
-     * @param onStatusUpdate Callback function that receives status updates
-     * @return The result of the sequence execution
-     */
-    suspend fun handleSequenceTool(
-        invocation: ToolInvocation,
-        executor: com.ai.assistance.operit.tools.ToolExecutor?,
-        onStatusUpdate: (String) -> Unit
-    ): ToolResult {
-        // 提取UUID
-        val uuid = invocation.tool.parameters.find { it.name == "uuid" }?.value ?: ""
-        
-        // 显示序列执行状态
-        onStatusUpdate(ConversationMarkupManager.createExecutingSequenceStatus(uuid))
-        
-        // 如果执行器为空，返回错误
-        if (executor == null) {
-            onStatusUpdate(ConversationMarkupManager.createErrorStatus("序列执行失败", "序列执行工具不可用"))
-            
-            // 创建错误结果并返回
-            return ToolResult(
-                toolName = "execute_sequence",
-                success = false,
-                result = "",
-                error = "序列执行工具不可用"
-            )
-        }
-        
-        // 执行序列工具
-        val result = executor.invoke(invocation.tool)
-        
-        // 显示序列执行结果
-        onStatusUpdate(ConversationMarkupManager.createSequenceResultStatus(uuid, result.result))
-        
-        // 返回结果
-        return result
-    }
-    
+
     /**
      * Check if a tool requires permission and verify if it has permission
      * 

@@ -60,18 +60,6 @@ class AIToolHandler private constructor(
             "<tool[\\s\\n]+name\\s*=\\s*[\"']([^\"']+)[\"'](?:[\\s\\n]+description\\s*=\\s*[\"']([^\"']+)[\"'])?[^>]*>([\\s\\S]*?)</tool>", 
             Pattern.DOTALL
         )
-
-        // Pattern for sequence tool execution
-        private val SEQUENCE_TOOL_PATTERN = Pattern.compile(
-            "<sequence\\s+uuid=\\s*\"([^\"]+)\"[^>]*>([\\s\\S]*?)</sequence>",
-            Pattern.DOTALL
-        )
-
-        // Pattern for sequence tool steps
-        private val SEQUENCE_STEP_PATTERN = Pattern.compile(
-            "<seq-tool\\s+name=\\s*\"([^\"]+)\"[^>]*>([\\s\\S]*?)</seq-tool>",
-            Pattern.DOTALL
-        )
     }
     
     // Tool execution state
@@ -171,8 +159,7 @@ class AIToolHandler private constructor(
     }
     
     /**
-     * Register all tools with a unified method
-     * This method ensures all tools are registered with their categories, danger checks and descriptions
+     * Register all available tools
      */
     private fun registerTools() {
         // Problem Library Query Tool
@@ -191,22 +178,6 @@ class AIToolHandler private constructor(
                     success = true,
                     result = result
                 )
-            }
-        )
-
-        // Sequence Execution Tool
-        registerTool(
-            name = "execute_sequence",
-            category = ToolCategory.SYSTEM_OPERATION,
-            dangerCheck = { true },
-            descriptionGenerator = { tool ->
-                val uuid = tool.parameters.find { it.name == "uuid" }?.value ?: ""
-                "执行序列: $uuid"
-            },
-            executor = { tool ->
-                val uuid = tool.parameters.find { it.name == "uuid" }?.value ?: ""
-                val sequenceContent = tool.parameters.find { it.name == "sequence" }?.value ?: ""
-                executeSequence(uuid, sequenceContent)
             }
         )
         
@@ -1076,54 +1047,10 @@ class AIToolHandler private constructor(
         // Add more comprehensive logging for debugging
         Log.d(TAG, "Extracting tool invocations from response of length: ${response.length}")
         
-        // First check for sequence tool (which has a different format)
-        val sequenceInvocations = extractSequenceToolInvocations(response)
-        if (sequenceInvocations.isNotEmpty()) {
-            Log.d(TAG, "Found sequence tool invocation")
-            return sequenceInvocations
-        }
-        
         // Then check for regular tools
         val invocations = extractToolInvocationsInternal(response)
         
         Log.d(TAG, "Found ${invocations.size} tool invocations: ${invocations.map { it.tool.name }}")
-        
-        return invocations
-    }
-    
-    /**
-     * Extract sequence tool invocations
-     */
-    private fun extractSequenceToolInvocations(response: String): List<ToolInvocation> {
-        val invocations = mutableListOf<ToolInvocation>()
-        val matcher = SEQUENCE_TOOL_PATTERN.matcher(response)
-        
-        if (matcher.find()) {
-            val rawText = matcher.group(0) ?: return emptyList()
-            val uuid = matcher.group(1) ?: return emptyList()
-            val sequenceContent = matcher.group(2) ?: return emptyList()
-            val start = matcher.start()
-            val end = matcher.end()
-            
-            Log.d(TAG, "Found sequence tool with UUID: $uuid")
-            
-            // Create the sequence tool with the extracted data
-            val tool = AITool(
-                name = "execute_sequence",
-                parameters = listOf(
-                    ToolParameter("uuid", uuid),
-                    ToolParameter("sequence", sequenceContent)
-                )
-            )
-            
-            invocations.add(
-                ToolInvocation(
-                    tool = tool,
-                    rawText = rawText,
-                    responseLocation = start..end
-                )
-            )
-        }
         
         return invocations
     }
@@ -1418,125 +1345,70 @@ class AIToolHandler private constructor(
 
         return result.toString()
     }
-
-    private fun executeSequence(uuid: String, sequenceContent: String): ToolResult {
-        // Verify UUID matches a problem record
-        val record = problemLibrary[uuid] ?: return ToolResult(
-            toolName = "execute_sequence",
-            success = false,
-            result = "",
-            error = "Invalid UUID or sequence not found"
-        )
-
-        // Validate sequence content format
-        if (!isValidSequenceFormat(sequenceContent)) {
-            return ToolResult(
-                toolName = "execute_sequence",
-                success = false,
-                result = "",
-                error = "Invalid sequence format"
-            )
-        }
-
-        val results = mutableListOf<String>()
-        val matcher = SEQUENCE_STEP_PATTERN.matcher(sequenceContent)
-        var stepCount = 0
-        var successCount = 0
-
-        while (matcher.find()) {
-            stepCount++
-            val toolName = matcher.group(1) ?: continue
-            val toolContent = matcher.group(2) ?: continue
-
-            // Extract parameters for this step
-            val parameters = mutableListOf<ToolParameter>()
-            val paramMatcher = TOOL_PARAM_PATTERN.matcher(toolContent)
-            
-            while (paramMatcher.find()) {
-                val paramName = paramMatcher.group(1) ?: continue
-                val paramValue = paramMatcher.group(2) ?: continue
-                parameters.add(ToolParameter(paramName, paramValue))
-            }
-
-            val tool = AITool(name = toolName, parameters = parameters)
-            val executor = availableTools[toolName]
-
-            if (executor == null) {
-                results.add("Step $stepCount: Error - Tool '$toolName' not found")
-                continue
-            }
-
-            try {
-                // Validate parameters before execution
-                val validationResult = executor.validateParameters(tool)
-                if (!validationResult.valid) {
-                    results.add("Step $stepCount: Error - Invalid parameters: ${validationResult.errorMessage}")
-                    continue
-                }
-
-                // Check permission for the tool
-                val hasPermission = kotlinx.coroutines.runBlocking {
-                    toolPermissionSystem.checkToolPermission(tool)
-                }
-                if (!hasPermission) {
-                    results.add("Step $stepCount: Error - Permission denied for tool '$toolName'")
-                    continue
-                }
-
-                val result = executor.invoke(tool)
-                if (result.success) {
-                    successCount++
-                    results.add("Step $stepCount: Success - ${result.result}")
-                } else {
-                    results.add("Step $stepCount: Failed - ${result.error}")
-                }
-            } catch (e: Exception) {
-                results.add("Step $stepCount: Error - ${e.message}")
-            }
-        }
-
-        // Format the final result
-        val summary = StringBuilder()
-        summary.appendLine("Sequence execution completed:")
-        summary.appendLine("Total steps: $stepCount")
-        summary.appendLine("Successful steps: $successCount")
-        summary.appendLine("Failed steps: ${stepCount - successCount}")
-        summary.appendLine("\nDetailed results:")
-        results.forEach { summary.appendLine(it) }
-
-        return ToolResult(
-            toolName = "execute_sequence",
-            success = successCount > 0, // Consider sequence successful if at least one step succeeded
-            result = summary.toString()
-        )
-    }
-
+    
     /**
-     * Validates the sequence format
+     * 获取所有问题记录
+     * @return 问题记录列表
      */
-    private fun isValidSequenceFormat(sequenceContent: String): Boolean {
-        // Check if the content contains at least one sequence step
-        if (!sequenceContent.contains("<seq-tool")) {
-            return false
+    fun getAllProblemRecords(): List<ProblemRecord> {
+        return problemLibrary.values.toList()
+    }
+    
+    /**
+     * 搜索问题库
+     * @param query 搜索关键词
+     * @return 匹配的问题记录列表
+     */
+    fun searchProblemLibrary(query: String): List<ProblemRecord> {
+        if (problemLibrary.isEmpty()) {
+            return emptyList()
         }
 
-        // Check if all sequence steps are properly closed
-        val openTags = sequenceContent.count { it == '<' }
-        val closeTags = sequenceContent.count { it == '>' }
-        if (openTags != closeTags) {
-            return false
+        // 提取查询关键词
+        val keywords = query.split(Regex("\\s+|,|，|\\.|。"))
+            .filter { it.length > 1 }
+            .map { it.lowercase() }
+
+        // 如果没有有效关键词，返回所有记录
+        if (keywords.isEmpty()) {
+            return problemLibrary.values.toList()
         }
 
-        // Check if all sequence steps have a name parameter
-        val matcher = SEQUENCE_STEP_PATTERN.matcher(sequenceContent)
-        while (matcher.find()) {
-            val toolName = matcher.group(1)
-            if (toolName.isNullOrEmpty()) {
-                return false
+        // 按相关性排序的记录
+        return problemLibrary.values.map { record ->
+            // 计算记录的相关性分数
+            val queryScore = keywords.count { keyword ->
+                record.query.lowercase().contains(keyword)
             }
+            val summaryScore = keywords.count { keyword ->
+                record.summary.lowercase().contains(keyword)
+            }
+            val toolsScore = keywords.count { keyword ->
+                record.tools.any { tool -> tool.lowercase().contains(keyword) }
+            }
+            
+            // 总分 = 查询分 * 2 + 摘要分 * 1.5 + 工具分 * 1
+            val totalScore = queryScore * 2.0 + summaryScore * 1.5 + toolsScore
+            
+            Pair(record, totalScore)
         }
-
-        return true
+        .filter { it.second > 0 } // 只返回有相关性的记录
+        .sortedByDescending { it.second } // 按相关性排序
+        .map { it.first }
+    }
+    
+    /**
+     * 删除问题记录
+     * @param uuid 问题记录的UUID
+     * @return 是否删除成功
+     */
+    fun deleteProblemRecord(uuid: String): Boolean {
+        val removed = problemLibrary.remove(uuid) != null
+        if (removed) {
+            saveProblemLibraryToFile()
+            Log.d(TAG, "Problem record deleted: $uuid")
+        }
+        return removed
     }
 }
 
