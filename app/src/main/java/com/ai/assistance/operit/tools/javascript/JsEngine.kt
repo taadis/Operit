@@ -8,6 +8,7 @@ import androidx.annotation.Keep
 import androidx.core.content.ContextCompat
 import com.ai.assistance.operit.model.AITool
 import com.ai.assistance.operit.model.ToolParameter
+import com.ai.assistance.operit.model.ToolResult
 import com.ai.assistance.operit.tools.AIToolHandler
 import com.ai.assistance.operit.tools.packTool.PackageManager
 import org.json.JSONObject
@@ -58,6 +59,12 @@ class JsEngine(private val context: Context) {
     // 结果回调
     private var resultCallback: CompletableFuture<Any?>? = null
     
+    // 用于生成唯一ID的计数器
+    private var callbackCounter = 0
+    
+    // 用于存储工具调用的回调
+    private val toolCallbacks = mutableMapOf<String, CompletableFuture<String>>()
+    
     // 初始化 WebView
     private fun initWebView() {
         if (webView == null) {
@@ -79,14 +86,15 @@ class JsEngine(private val context: Context) {
             latch.await(5, TimeUnit.SECONDS)
         }
     }
-    
+
     /**
-     * 执行 JavaScript 脚本
-     * @param script JavaScript 脚本内容
-     * @param params 脚本参数
-     * @return 脚本执行结果
+     * 执行 JavaScript 脚本并调用其中的特定函数
+     * @param script 完整的JavaScript脚本内容
+     * @param functionName 要调用的函数名称
+     * @param params 要传递给函数的参数
+     * @return 函数执行结果
      */
-    fun executeScript(script: String, params: Map<String, String>): Any? {
+    fun executeScriptFunction(script: String, functionName: String, params: Map<String, String>): Any? {
         // Reset any previous state
         resetState()
         
@@ -98,10 +106,91 @@ class JsEngine(private val context: Context) {
         // 将参数转换为 JSON 对象
         val paramsJson = JSONObject(params).toString()
         
-        // 包装脚本，添加工具调用函数和参数
+        // 包装脚本，添加工具调用函数和参数，并调用指定的函数
         val wrappedScript = """
             // 设置参数
             var params = $paramsJson;
+            
+            // 添加全局错误处理器，捕获所有未处理的错误
+            window.onerror = function(message, source, lineno, colno, error) {
+                try {
+                    // 构建完整的错误信息
+                    var errorInfo = {
+                        message: message,
+                        source: source,
+                        line: lineno,
+                        column: colno,
+                        stack: error && error.stack ? error.stack : "No stack trace available"
+                    };
+                    
+                    // 记录详细的错误信息到控制台
+                    console.error("GLOBAL ERROR CAUGHT:", JSON.stringify(errorInfo));
+                    
+                    // 如果尚未完成执行，报告错误
+                    if (!window._hasCompleted) {
+                        NativeInterface.setError("JavaScript Error: " + message + " at line " + lineno + 
+                                               ", column " + colno + " in " + (source || "unknown") + 
+                                               "\nStack: " + (error && error.stack ? error.stack : "No stack trace"));
+                        window._hasCompleted = true;
+                    }
+                    
+                    // 返回true表示我们已经处理了错误
+                    return true;
+                } catch(e) {
+                    // 确保错误处理器本身不会抛出错误
+                    console.error("Error in error handler:", e);
+                    return false;
+                }
+            };
+            
+            // 增强console功能，将所有控制台输出发送到Android
+            (function() {
+                var originalConsole = {
+                    log: console.log,
+                    error: console.error,
+                    warn: console.warn,
+                    info: console.info
+                };
+                
+                // 重写控制台方法
+                console.log = function() {
+                    try {
+                        var args = Array.prototype.slice.call(arguments);
+                        var message = args.map(function(arg) {
+                            return typeof arg === 'object' ? JSON.stringify(arg) : String(arg);
+                        }).join(' ');
+                        
+                        // 调用原始方法
+                        originalConsole.log.apply(console, arguments);
+                        
+                        // 向Android报告日志
+                        if (typeof NativeInterface !== 'undefined' && NativeInterface.logInfo) {
+                            NativeInterface.logInfo("LOG: " + message);
+                        }
+                    } catch(e) {
+                        originalConsole.error("Error in console.log:", e);
+                    }
+                };
+                
+                console.error = function() {
+                    try {
+                        var args = Array.prototype.slice.call(arguments);
+                        var message = args.map(function(arg) {
+                            return typeof arg === 'object' ? JSON.stringify(arg) : String(arg);
+                        }).join(' ');
+                        
+                        // 调用原始方法
+                        originalConsole.error.apply(console, arguments);
+                        
+                        // 向Android报告错误
+                        if (typeof NativeInterface !== 'undefined' && NativeInterface.logError) {
+                            NativeInterface.logError("ERROR: " + message);
+                        }
+                    } catch(e) {
+                        originalConsole.error("Error in console.error:", e);
+                    }
+                };
+            })();
             
             // 简单的清理 - 仅清理定时器
             (function() {
@@ -129,31 +218,97 @@ class JsEngine(private val context: Context) {
                 }
             }, ${(TIMEOUT_SECONDS-5) * 1000});
             
-            // 定义 toolCall 函数 - 支持多种参数传递方式
+            // 定义 toolCall 函数 - 支持多种参数传递方式，并且返回Promise
             function toolCall(toolType, toolName, toolParams) {
-                // 处理不同的参数调用模式
-                if (arguments.length === 1 && typeof toolType === 'object') {
-                    // 对象模式: toolCall({type: "...", name: "...", params: {...}})
-                    const config = toolType;
-                    return NativeInterface.callTool(
-                        config.type || "default", 
-                        config.name || "", 
-                        JSON.stringify(config.params || {})
-                    );
-                } else if (arguments.length === 1 && typeof toolType === 'string') {
-                    // 字符串模式: toolCall("toolName")
-                    return NativeInterface.callTool("default", toolType, "{}");
-                } else if (arguments.length === 2 && typeof toolName === 'object') {
-                    // 工具名+参数模式: toolCall("toolName", {param1: "value1"})
-                    return NativeInterface.callTool("default", toolType, JSON.stringify(toolName || {}));
-                } else {
-                    // 标准模式: toolCall("toolType", "toolName", {param1: "value1"})
-                    return NativeInterface.callTool(
-                        toolType || "default", 
-                        toolName || "", 
-                        JSON.stringify(toolParams || {})
-                    );
-                }
+                // Create a Promise wrapping the tool call
+                return new Promise((resolve, reject) => {
+                    try {
+                        // 生成唯一回调ID
+                        const callbackId = '_tc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                        
+                        // 处理不同的参数调用模式
+                        let type, name, params;
+                        
+                        if (arguments.length === 1 && typeof toolType === 'object') {
+                            // 对象模式: toolCall({type: "...", name: "...", params: {...}})
+                            const config = toolType;
+                            type = config.type || "default";
+                            name = config.name || "";
+                            
+                            // 安全地序列化参数对象
+                            try {
+                                let paramsObj = {};
+                                if (config.params && typeof config.params === 'object') {
+                                    paramsObj = Object.assign({}, config.params);
+                                }
+                                params = JSON.stringify(paramsObj);
+                            } catch (e) {
+                                console.error("Error serializing object mode params:", e);
+                                params = "{}";
+                            }
+                        } else if (arguments.length === 1 && typeof toolType === 'string') {
+                            // 字符串模式: toolCall("toolName")
+                            type = "default";
+                            name = toolType;
+                            params = "{}";
+                        } else if (arguments.length === 2 && typeof toolName === 'object') {
+                            // 工具名+参数模式: toolCall("toolName", {param1: "value1"})
+                            type = "default";
+                            name = toolType;
+                            
+                            // 安全地序列化参数对象
+                            try {
+                                // 使用深拷贝而非直接引用，避免修改原始对象
+                                const paramsCopy = Object.assign({}, toolName || {});
+                                params = JSON.stringify(paramsCopy);
+                            } catch (e) {
+                                console.error("Error serializing params:", e);
+                                params = "{}";
+                            }
+                        } else {
+                            // 标准模式: toolCall("toolType", "toolName", {param1: "value1"})
+                            type = toolType || "default";
+                            name = toolName || "";
+                            
+                            // 安全地序列化参数对象
+                            try {
+                                const paramsCopy = Object.assign({}, toolParams || {});
+                                params = JSON.stringify(paramsCopy);
+                            } catch (e) {
+                                console.error("Error serializing params:", e);
+                                params = "{}";
+                            }
+                        }
+                        
+                        // 调用本地方法，并传递回调ID
+                        NativeInterface.callToolAsync(callbackId, type, name, params);
+                        
+                        // 注册回调处理
+                        window[callbackId] = function(result, isError) {
+                            // 清理回调
+                            delete window[callbackId];
+                            
+                            // 根据结果处理Promise
+                            if (isError) {
+                                reject(new Error(result));
+                            } else {
+                                try {
+                                    // 尝试解析JSON结果
+                                    if (typeof result === 'string' && (result.startsWith('{') || result.startsWith('['))) {
+                                        resolve(JSON.parse(result));
+                                    } else {
+                                        resolve(result);
+                                    }
+                                } catch (e) {
+                                    // 如果解析失败，直接返回原始结果
+                                    resolve(result);
+                                }
+                            }
+                        };
+                    } catch (error) {
+                        reject(error);
+                    }
+                });
             }
             
             // 工具调用的便捷方法
@@ -163,7 +318,7 @@ class JsEngine(private val context: Context) {
                     list: (path) => toolCall("list_files", { path }),
                     read: (path) => toolCall("read_file", { path }),
                     write: (path, content) => toolCall("write_file", { path, content }),
-                    delete: (path) => toolCall("delete_file", { path }),
+                    deleteFile: (path) => toolCall("delete_file", { path }),
                     exists: (path) => toolCall("file_exists", { path }),
                     move: (source, target) => toolCall("move_file", { source, target }),
                     copy: (source, target) => toolCall("copy_file", { source, target }),
@@ -191,31 +346,259 @@ class JsEngine(private val context: Context) {
             
             // 定义完成回调
             function complete(result) {
-                if (!_hasCompleted) {
-                    _hasCompleted = true;
-                    clearTimeout(_safetyTimeout);
-                    NativeInterface.setResult(JSON.stringify(result));
+                try {
+                    console.log("complete() called with result type: " + typeof result);
+                    
+                    if (!_hasCompleted) {
+                        _hasCompleted = true;
+                        clearTimeout(_safetyTimeout);
+                        
+                        // 确保结果是可以序列化的
+                        let serializedResult;
+                        try {
+                            serializedResult = JSON.stringify(result);
+                            console.log("Result serialized successfully, length: " + serializedResult.length);
+                        } catch (serializeError) {
+                            console.error("Failed to serialize result:", serializeError);
+                            serializedResult = JSON.stringify({
+                                error: "Failed to serialize result",
+                                message: String(serializeError),
+                                result: String(result).substring(0, 1000)
+                            });
+                        }
+                        
+                        // 通过JavaScript接口发送结果
+                        try {
+                            console.log("Calling NativeInterface.setResult...");
+                            NativeInterface.setResult(serializedResult);
+                            console.log("NativeInterface.setResult call completed");
+                        } catch (nativeError) {
+                            console.error("Error calling NativeInterface:", nativeError);
+                            // 尝试再次调用，以防是暂时性错误
+                            setTimeout(() => {
+                                try {
+                                    console.log("Retrying NativeInterface.setResult...");
+                                    NativeInterface.setResult(serializedResult);
+                                } catch (retryError) {
+                                    console.error("Retry also failed:", retryError);
+                                }
+                            }, 100);
+                        }
+                    } else {
+                        console.warn("complete() called but execution was already completed");
+                    }
+                } catch (completeError) {
+                    console.error("Error in complete function:", completeError);
+                    try {
+                        NativeInterface.setError("Error in complete function: " + completeError.message);
+                    } catch (e) {
+                        console.error("Failed to report complete error:", e);
+                    }
                 }
             }
             
-            // 添加第三方库支持
+            // 加载第三方库支持
             $THIRD_PARTY_LIBS
             
-            // 用户脚本
+            // 执行用户脚本
             try {
-                $script
+                // 创建模块执行环境 - 使用一个闭包来避免重复声明变量
+                let moduleResult = (function() {
+                    // 创建一个自包含的模块环境
+                    const module = {exports: {}};
+                    const exports = module.exports;
+                    
+                    // 模拟requireJS
+                    const require = function(moduleName) {
+                        console.log('Attempted to require: ' + moduleName);
+                        // 这里可以扩展，添加对常用模块的模拟
+                        if (moduleName === 'lodash') return _;
+                        // 对其他常用模块的支持可以在这里添加
+                        if (moduleName === 'uuid') {
+                            return {
+                                v4: function() {
+                                    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                                        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                                        return v.toString(16);
+                                    });
+                                }
+                            };
+                        }
+                        if (moduleName === 'axios') {
+                            return {
+                                get: (url, config) => {
+                                    const params = config ? Object.assign({}, { url }, config) : { url };
+                                    return toolCall("http_get", params);
+                                },
+                                post: (url, data, config) => {
+                                    const params = config ? Object.assign({}, { url, data }, config) : { url, data };
+                                    return toolCall("http_post", params);
+                                }
+                            };
+                        }
+                        return {};
+                    };
+                    
+                    // 执行用户脚本，定义所有函数
+                    ${script}
+                    
+                    // 返回模块环境
+                    return {
+                        module: module,
+                        exports: exports,
+                        foundFunction: null
+                    };
+                })();
                 
-                // 如果脚本没有明确调用complete()，尝试返回最后一个表达式的值
-                NativeInterface.setResult("Script executed without explicit result");
+                // 从模块环境中获取结果
+                const module = moduleResult.module;
+                const exports = moduleResult.exports;
+                
+                // Helper for handling async functions
+                function __handleAsync(possiblePromise) {
+                    if (possiblePromise instanceof Promise) {
+                        // 更强大的异步处理
+                        console.log("Detected async Promise, waiting for resolution...");
+                        
+                        // 创建一个超时保护，确保非常长时间运行的Promise最终会被处理
+                        const asyncTimeout = setTimeout(() => {
+                            if (!_hasCompleted) {
+                                console.log("Async Promise timeout reached after 45 seconds");
+                                // 尝试安全地完成执行
+                                try {
+                                    _hasCompleted = true;
+                                    // 创建超时结果
+                                    const timeoutResult = {
+                                        warning: "Operation timeout", 
+                                        result: "Promise did not resolve within the time limit"
+                                    };
+                                    
+                                    NativeInterface.setResult(JSON.stringify(timeoutResult));
+                                    console.log("Timeout result set from Promise handler");
+                                } catch (e) {
+                                    console.error("Error during timeout handling:", e);
+                                }
+                            }
+                        }, 45000); // 45秒后超时，比主超时稍短
+                        
+                        possiblePromise
+                            .then(result => {
+                                clearTimeout(asyncTimeout);
+                                console.log("Async Promise resolved successfully");
+                                if (!_hasCompleted) {
+                                    try {
+                                        _hasCompleted = true;
+                                        // 安全地序列化结果
+                                        let serializedResult;
+                                        try {
+                                            serializedResult = JSON.stringify(result);
+                                        } catch (serializeError) {
+                                            console.error("Failed to serialize Promise result:", serializeError);
+                                            // 创建一个简单的可以序列化的对象
+                                            serializedResult = JSON.stringify({
+                                                error: "Failed to serialize result",
+                                                message: String(serializeError),
+                                                result: String(result).substring(0, 1000)
+                                            });
+                                        }
+                                        NativeInterface.setResult(serializedResult);
+                                        console.log("Result set from Promise resolution");
+                                    } catch (completionError) {
+                                        console.error("Error during async completion:", completionError);
+                                        NativeInterface.setError("Async completion error: " + completionError.message);
+                                    }
+                                } else {
+                                    console.log("Promise resolved, but execution was already completed");
+                                }
+                            })
+                            .catch(error => {
+                                clearTimeout(asyncTimeout);
+                                console.error("Async Promise rejected:", error);
+                                if (!_hasCompleted) {
+                                    try {
+                                        _hasCompleted = true;
+                                        // 安全地序列化结果
+                                        let serializedResult;
+                                        try {
+                                            serializedResult = JSON.stringify(error);
+                                        } catch (serializeError) {
+                                            console.error("Failed to serialize Promise error:", serializeError);
+                                            serializedResult = JSON.stringify({
+                                                error: "Failed to serialize error",
+                                                message: String(error),
+                                                result: String(error).substring(0, 1000)
+                                            });
+                                        }
+                                        NativeInterface.setError(serializedResult);
+                                        console.log("Error set from Promise rejection");
+                                    } catch (errorHandlingError) {
+                                        console.error("Error during async error handling:", errorHandlingError);
+                                    }
+                                }
+                            });
+                        return true; // Signal that we're handling it asynchronously
+                    }
+                    return false; // Not a promise
+                }
+                
+                // 确保指定的函数存在 - 先查找exports，再查找module.exports，最后查找全局
+                let functionResult = null;
+                let functionFound = false;
+                
+                if (typeof exports['${functionName}'] === 'function') {
+                    // 如果函数是作为exports导出的
+                    functionFound = true;
+                    functionResult = exports['${functionName}'](params);
+                } else if (typeof module.exports['${functionName}'] === 'function') {
+                    // 尝试替代的导出模式
+                    functionFound = true;
+                    functionResult = module.exports['${functionName}'](params);
+                } else if (typeof window['${functionName}'] === 'function') {
+                    // 全局函数
+                    functionFound = true;
+                    functionResult = window['${functionName}'](params);
+                }
+                
+                if (functionFound) {
+                    // 处理函数返回结果，特别是异步Promise
+                    if (!__handleAsync(functionResult)) {
+                        // 如果是同步结果且没有调用complete()，使用该结果
+                        if (!_hasCompleted) {
+                            NativeInterface.setResult(JSON.stringify(functionResult));
+                        }
+                    }
+                } else {
+                    // 如果没有找到函数，记录所有可用的函数
+                    var availableFunctions = [];
+                    for (var key in exports) {
+                        if (typeof exports[key] === 'function') {
+                            availableFunctions.push(key);
+                        }
+                    }
+                    for (var key in module.exports) {
+                        if (typeof module.exports[key] === 'function' && !availableFunctions.includes(key)) {
+                            availableFunctions.push(key);
+                        }
+                    }
+                    for (var key in window) {
+                        if (typeof window[key] === 'function' && !key.startsWith('_') && !availableFunctions.includes(key)) {
+                            availableFunctions.push(key);
+                        }
+                    }
+                    
+                    var errorMsg = "Function '${functionName}' not found in script. Available functions: " + 
+                                  (availableFunctions.length > 0 ? availableFunctions.join(", ") : "none");
+                    NativeInterface.setError(errorMsg);
+                }
             } catch (error) {
                 NativeInterface.setError("Script error: " + error.message);
             }
-        """.trimIndent()
+        """
         
         // 在主线程中执行脚本
         ContextCompat.getMainExecutor(context).execute {
             webView?.evaluateJavascript(wrappedScript) { result ->
-                Log.d(TAG, "Script evaluation completed with: $result")
+                Log.d(TAG, "Script function execution completed with: $result")
             }
         }
         
@@ -277,6 +660,14 @@ class JsEngine(private val context: Context) {
             }
             resultCallback = null
         }
+        
+        // 清理所有待处理的工具调用回调
+        toolCallbacks.forEach { (_, future) ->
+            if (!future.isDone) {
+                future.complete("Operation canceled: engine reset")
+            }
+        }
+        toolCallbacks.clear()
         
         // 如果WebView已经存在，执行轻量级清理
         if (webView != null) {
@@ -398,6 +789,9 @@ class JsEngine(private val context: Context) {
     @Keep
     inner class JsToolCallInterface {
         
+        /**
+         * 同步工具调用（旧版本，保留兼容性）
+         */
         @JavascriptInterface
         fun callTool(toolType: String, toolName: String, paramsJson: String): String {
             try {
@@ -409,7 +803,7 @@ class JsEngine(private val context: Context) {
                 }
                 
                 // 调用工具
-                Log.d(TAG, "JavaScript tool call: $toolType:$toolName with params: $params")
+                Log.d(TAG, "[Sync] JavaScript tool call: $toolType:$toolName with params: $params")
                 
                 // 参数验证
                 if (toolName.isEmpty()) {
@@ -435,16 +829,16 @@ class JsEngine(private val context: Context) {
                     parameters = toolParameters
                 )
                 
-                Log.d(TAG, "Executing tool: $fullToolName")
+                Log.d(TAG, "Executing tool (sync): $fullToolName")
                 
                 // 使用 AIToolHandler 执行工具
                 val result = toolHandler.executeTool(aiTool)
                 
                 // 记录执行结果
                 if (result.success) {
-                    Log.d(TAG, "Tool execution succeeded: ${result.result.take(100)}${if (result.result.length > 100) "..." else ""}")
+                    Log.d(TAG, "[Sync] Tool execution succeeded: ${result.result.take(100)}${if (result.result.length > 100) "..." else ""}")
                 } else {
-                    Log.e(TAG, "Tool execution failed: ${result.error}")
+                    Log.e(TAG, "[Sync] Tool execution failed: ${result.error}")
                 }
                 
                 // 返回结果
@@ -454,16 +848,137 @@ class JsEngine(private val context: Context) {
                     "Error: ${result.error}"
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Error in tool call: ${e.message}", e)
+                Log.e(TAG, "[Sync] Error in tool call: ${e.message}", e)
                 return "Error: ${e.message}"
+            }
+        }
+        
+        /**
+         * 异步工具调用（新版本，使用Promise）
+         */
+        @JavascriptInterface
+        fun callToolAsync(callbackId: String, toolType: String, toolName: String, paramsJson: String) {
+            try {
+                // 解析参数
+                val params = mutableMapOf<String, String>()
+                val jsonObject = JSONObject(paramsJson)
+                jsonObject.keys().forEach { key ->
+                    params[key] = jsonObject.opt(key)?.toString() ?: ""
+                }
+                
+                // 调用工具
+                Log.d(TAG, "[Async] JavaScript tool call: $toolType:$toolName with params: $params, callbackId: $callbackId")
+                
+                // 参数验证
+                if (toolName.isEmpty()) {
+                    Log.e(TAG, "Tool name cannot be empty")
+                    sendToolResult(callbackId, "Error: Tool name cannot be empty", true)
+                    return
+                }
+                
+                // 构建工具参数
+                val toolParameters = params.map { (name, value) ->
+                    ToolParameter(name = name, value = value)
+                }
+                
+                // 构建完整工具名称 (如果有类型则使用类型:名称格式，否则直接使用名称)
+                val fullToolName = if (toolType.isNotEmpty() && toolType != "default") {
+                    "$toolType:$toolName"
+                } else {
+                    toolName
+                }
+                
+                // 创建工具调用对象
+                val aiTool = AITool(
+                    name = fullToolName,
+                    parameters = toolParameters
+                )
+                
+                Log.d(TAG, "Executing tool (async): $fullToolName")
+                
+                // 在后台线程中执行工具调用
+                Thread {
+                    try {
+                        // 使用 AIToolHandler 执行工具
+                        val result = toolHandler.executeTool(aiTool)
+                        
+                        // 记录执行结果
+                        if (result.success) {
+                            Log.d(TAG, "[Async] Tool execution succeeded: ${result.result.take(100)}${if (result.result.length > 100) "..." else ""}")
+                            // 发送成功结果回调
+                            sendToolResult(callbackId, result.result, false)
+                        } else {
+                            Log.e(TAG, "[Async] Tool execution failed: ${result.error}")
+                            // 发送错误结果回调
+                            sendToolResult(callbackId, "Error: ${result.error}", true)
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "[Async] Error in async tool execution: ${e.message}", e)
+                        // 发送异常结果回调
+                        sendToolResult(callbackId, "Error: ${e.message}", true)
+                    }
+                }.start()
+            } catch (e: Exception) {
+                Log.e(TAG, "[Async] Error setting up async tool call: ${e.message}", e)
+                sendToolResult(callbackId, "Error: ${e.message}", true)
+            }
+        }
+        
+        /**
+         * 向JavaScript发送工具调用结果
+         */
+        private fun sendToolResult(callbackId: String, result: String, isError: Boolean) {
+            ContextCompat.getMainExecutor(context).execute {
+                try {
+                    val escapedResult = result.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r")
+                    val jsCode = """
+                        if (typeof window['$callbackId'] === 'function') {
+                            window['$callbackId']("$escapedResult", $isError);
+                        } else {
+                            console.error("Callback not found: $callbackId");
+                        }
+                    """.trimIndent()
+                    webView?.evaluateJavascript(jsCode, null)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error sending tool result to JavaScript: ${e.message}", e)
+                }
             }
         }
         
         @JavascriptInterface
         fun setResult(result: String) {
             try {
-                // 返回成功结果
-                resultCallback?.complete(result)
+                // 加入更详细的日志，帮助排查异步问题
+                Log.d(TAG, "Setting result from JavaScript: length=${result.length}, callback=${resultCallback != null}, isDone=${resultCallback?.isDone}")
+                
+                // 确保回调仍然有效
+                if (resultCallback == null) {
+                    Log.e(TAG, "Result callback is null when trying to complete")
+                    return
+                }
+                
+                if (resultCallback!!.isDone) {
+                    Log.w(TAG, "Result callback is already completed when trying to set result")
+                    return
+                }
+                
+                // 使用主线程执行complete操作，避免可能的线程问题
+                ContextCompat.getMainExecutor(context).execute {
+                    try {
+                        // 返回成功结果
+                        if (!resultCallback!!.isDone) {
+                            Log.d(TAG, "Actually completing the result callback")
+                            resultCallback!!.complete(result)
+                        } else {
+                            Log.w(TAG, "Callback became complete between check and execution")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error completing result on main thread: ${e.message}", e)
+                        if (!resultCallback!!.isDone) {
+                            resultCallback!!.completeExceptionally(e)
+                        }
+                    }
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Error setting result: ${e.message}", e)
                 resultCallback?.completeExceptionally(e)
@@ -472,8 +987,52 @@ class JsEngine(private val context: Context) {
         
         @JavascriptInterface
         fun setError(error: String) {
-            // 返回错误结果
-            resultCallback?.complete("Error: $error")
+            try {
+                // 加入更详细的日志
+                Log.d(TAG, "Setting error from JavaScript: $error, callback=${resultCallback != null}, isDone=${resultCallback?.isDone}")
+                
+                // 确保回调仍然有效
+                if (resultCallback == null) {
+                    Log.e(TAG, "Result callback is null when trying to complete with error")
+                    return
+                }
+                
+                if (resultCallback!!.isDone) {
+                    Log.w(TAG, "Result callback is already completed when trying to set error")
+                    return
+                }
+                
+                // 使用主线程执行complete操作
+                ContextCompat.getMainExecutor(context).execute {
+                    // 返回错误结果
+                    if (!resultCallback!!.isDone) {
+                        resultCallback!!.complete("Error: $error")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error setting error result: ${e.message}", e)
+                resultCallback?.completeExceptionally(e)
+            }
+        }
+        
+        @JavascriptInterface
+        fun logInfo(message: String) {
+            Log.i(TAG, "JS: $message")
+        }
+        
+        @JavascriptInterface
+        fun logError(message: String) {
+            Log.e(TAG, "JS ERROR: $message")
+        }
+        
+        @JavascriptInterface
+        fun logDebug(message: String, data: String) {
+            Log.d(TAG, "JS DEBUG: $message | $data")
+        }
+        
+        @JavascriptInterface
+        fun reportError(errorType: String, errorMessage: String, errorLine: Int, errorStack: String) {
+            Log.e(TAG, "DETAILED JS ERROR: \nType: $errorType\nMessage: $errorMessage\nLine: $errorLine\nStack: $errorStack")
         }
     }
     
@@ -485,6 +1044,14 @@ class JsEngine(private val context: Context) {
             // 确保任何挂起的回调被完成
             resultCallback?.complete("Engine destroyed")
             resultCallback = null
+            
+            // 清理所有待处理的工具调用回调
+            toolCallbacks.forEach { (_, future) ->
+                if (!future.isDone) {
+                    future.complete("Engine destroyed")
+                }
+            }
+            toolCallbacks.clear()
             
             // 在主线程中销毁 WebView
             ContextCompat.getMainExecutor(context).execute {
@@ -531,6 +1098,7 @@ class JsEngine(private val context: Context) {
             Log.d(TAG, "=== JsEngine Diagnostics ===")
             Log.d(TAG, "WebView initialized: ${webView != null}")
             Log.d(TAG, "Result callback: ${resultCallback?.isDone ?: "null"}")
+            Log.d(TAG, "Tool callbacks pending: ${toolCallbacks.size}")
             
             // 检查WebView状态
             if (webView != null) {

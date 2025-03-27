@@ -3,16 +3,20 @@ package com.ai.assistance.operit.tools.javascript
 import android.content.Context
 import android.util.Log
 import com.ai.assistance.operit.model.AITool
+import com.ai.assistance.operit.model.ToolParameter
 import com.ai.assistance.operit.model.ToolResult
+import com.ai.assistance.operit.tools.AIToolHandler
 import com.ai.assistance.operit.tools.packTool.PackageManager
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withTimeout
 import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
+import java.util.regex.Pattern
 
 /**
- * JavaScript Tool Manager - 管理 JavaScript 脚本执行和工具调用
- * 此类替代了原来的 OperScript 实现，提供更简洁的 JavaScript 集成
+ * Manages JavaScript tool execution using JsEngine
+ * This class handles the execution of JavaScript code in package tools
+ * and coordinates tool calls from JavaScript back to native Android code.
  */
 class JsToolManager private constructor(
     private val context: Context,
@@ -20,6 +24,7 @@ class JsToolManager private constructor(
 ) {
     companion object {
         private const val TAG = "JsToolManager"
+        private const val SCRIPT_TIMEOUT_MS = 60000L // 60 seconds timeout
         
         @Volatile
         private var INSTANCE: JsToolManager? = null
@@ -31,66 +36,182 @@ class JsToolManager private constructor(
         }
     }
     
-    // 缓存已加载的 JavaScript 引擎
-    private val scriptEngineCache = ConcurrentHashMap<String, JsEngine>()
+    // JavaScript engine for executing code
+    private val jsEngine = JsEngine(context)
     
-    // 最大缓存大小
-    private val MAX_CACHE_SIZE = 5
-    
-    // 最后一次使用时间记录
-    private val lastUsedTime = ConcurrentHashMap<String, Long>()
+    // Tool handler for executing tools
+    private val toolHandler = AIToolHandler.getInstance(context)
     
     /**
-     * 执行 JavaScript 工具调用
-     * @param script JavaScript 脚本内容
-     * @param tool 要执行的工具
-     * @return 工具执行结果
+     * Execute a specific JavaScript tool
+     * @param toolName The name of the tool to execute (format: packageName.functionName)
+     * @param params Parameters to pass to the tool function
+     * @return The result of tool execution
      */
-    suspend fun executeScript(script: String, tool: AITool): ToolResult {
-        // Execute script on background thread using IO dispatcher
-        return withContext(Dispatchers.IO) {
-            executeScriptInternal(script, tool)
+    fun executeScript(toolName: String, params: Map<String, String>): String {
+        try {
+            // Split the tool name to get package and function names
+            val parts = toolName.split(".")
+            if (parts.size < 2) {
+                return "Invalid tool name format: $toolName. Expected format: packageName.functionName"
+            }
+            
+            val packageName = parts[0]
+            val functionName = parts[1]
+            
+            // Get the package script
+            val script = packageManager.getPackageScript(packageName)
+                ?: return "Package not found: $packageName"
+            
+            Log.d(TAG, "Executing function $functionName in package $packageName")
+            
+            // Execute the function in the script
+            val result = jsEngine.executeScriptFunction(script, functionName, params)
+            
+            return result?.toString() ?: "null"
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error executing script: ${e.message}", e)
+            return "Error: ${e.message}"
         }
     }
     
     /**
-     * 在后台线程上执行 JavaScript
+     * Execute a JavaScript script with the given tool parameters
+     * @param script The JavaScript code to execute
+     * @param tool The tool being executed (provides parameters)
+     * @return The result of script execution
      */
-    private fun executeScriptInternal(script: String, tool: AITool): ToolResult {
+    suspend fun executeScript(script: String, tool: AITool): ToolResult {
         try {
-            Log.d(TAG, "Executing JavaScript: ${tool.name}")
+            Log.d(TAG, "Executing script for tool: ${tool.name}")
             
-            // 获取或创建 JavaScript 引擎 - 使用可靠的缓存机制
-            val jsEngine = scriptEngineCache.getOrPut(tool.name) {
-                Log.d(TAG, "Creating new JavaScript engine for: ${tool.name}")
-                JsEngine(context)
+            // Extract the function name from the tool name (packageName:toolName)
+            val parts = tool.name.split(":")
+            if (parts.size != 2) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = "",
+                    error = "Invalid tool name format. Expected 'packageName:toolName'"
+                )
             }
             
-            // 设置工具参数
-            val params = mutableMapOf<String, String>()
-            tool.parameters.forEach { param ->
-                params[param.name] = param.value
+            val functionName = parts[1]
+            
+            // Convert tool parameters to map for the script
+            val params = tool.parameters.associate { it.name to it.value }
+            
+            // Execute the script with timeout
+            val result = try {
+                withTimeout(SCRIPT_TIMEOUT_MS) {
+                    Log.d(TAG, "Starting script execution for function: $functionName")
+                    
+                    // 记录关键脚本部分，以便调试
+                    try {
+                        // 提取脚本中与函数名相关的代码片段
+                        val functionSignature = "(?:function\\s+$functionName|$functionName\\s*=\\s*function|exports\\.$functionName\\s*=\\s*function)"
+                        val pattern = Pattern.compile(functionSignature, Pattern.MULTILINE)
+                        val matcher = pattern.matcher(script)
+                        
+                        if (matcher.find()) {
+                            val position = matcher.start()
+                            val linesBefore = 2
+                            val linesAfter = 3
+                            
+                            // 简单的行数计算
+                            var startLine = 0
+                            var endLine = 0
+                            var currentLine = 1
+                            var currentPos = 0
+                            
+                            for (i in script.indices) {
+                                if (i == position) {
+                                    startLine = maxOf(1, currentLine - linesBefore)
+                                }
+                                
+                                if (script[i] == '\n') {
+                                    currentLine++
+                                    if (currentLine > startLine + linesAfter && startLine > 0) {
+                                        endLine = currentLine
+                                        break
+                                    }
+                                }
+                            }
+                            
+                            if (startLine > 0) {
+                                val lines = script.split("\n")
+                                val codeSnippet = lines.subList(startLine - 1, minOf(lines.size, startLine + linesAfter)).joinToString("\n")
+                                Log.d(TAG, "Function code snippet (lines $startLine-${startLine+linesAfter}):\n$codeSnippet")
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error analyzing script for debugging: ${e.message}")
+                    }
+                    
+                    val startTime = System.currentTimeMillis()
+                    val scriptResult = try {
+                        jsEngine.executeScriptFunction(script, functionName, params)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Exception executing JavaScript: ${e.message}", e)
+                        throw e
+                    }
+                    
+                    val executionTime = System.currentTimeMillis() - startTime
+                    Log.d(TAG, "Script execution completed in ${executionTime}ms with result type: ${scriptResult?.javaClass?.name ?: "null"}")
+                    
+                    // Handle different types of results
+                    when {
+                        scriptResult == null -> "Script returned null result"
+                        scriptResult is String && scriptResult.startsWith("Error:") -> {
+                            // 尝试提取更详细的错误信息
+                            val errorMsg = scriptResult.substring("Error:".length).trim()
+                            Log.e(TAG, "Script execution error: $errorMsg")
+                            throw Exception(errorMsg)
+                        }
+                        else -> {
+                            Log.d(TAG, "Parsing script result: ${scriptResult.toString().take(100)}${if (scriptResult.toString().length > 100) "..." else ""}")
+                            scriptResult.toString()
+                        }
+                    }
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // Handle coroutine cancellation specifically
+                Log.w(TAG, "Script execution was cancelled: ${e.message}")
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = "",
+                    error = "Script execution was cancelled: ${e.message}"
+                )
+            } catch (e: Exception) {
+                // 捕获并记录其他执行异常
+                Log.e(TAG, "Exception during script execution: ${e.message}", e)
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = "",
+                    error = "Script execution failed: ${e.message}"
+                )
             }
             
-            // 执行脚本
-            val result = jsEngine.executeScript(script, params)
+            // Check if the result is an error message
+            if (result.startsWith("Error:") || result.startsWith("Script error:") || result.startsWith("Async error:")) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = "",
+                    error = result
+                )
+            }
             
             return ToolResult(
                 toolName = tool.name,
                 success = true,
-                result = result.toString(),
-                error = null
+                result = result
             )
         } catch (e: Exception) {
-            Log.e(TAG, "Error executing JavaScript: ${e.message}", e)
-            
-            // 如果执行失败，清理这个工具的引擎，下次会创建新的
-            try {
-                cleanupTool(tool.name)
-            } catch (cleanupEx: Exception) {
-                Log.e(TAG, "Failed to cleanup engine after error: ${cleanupEx.message}")
-            }
-            
+            Log.e(TAG, "Error executing script for tool ${tool.name}: ${e.message}", e)
             return ToolResult(
                 toolName = tool.name,
                 success = false,
@@ -99,92 +220,11 @@ class JsToolManager private constructor(
             )
         }
     }
-    
+
     /**
-     * 清理过多的缓存条目
-     */
-    private fun cleanupCache() {
-        if (scriptEngineCache.size > MAX_CACHE_SIZE) {
-            // 按最后使用时间排序，保留最近使用的
-            val sortedEntries = lastUsedTime.entries.sortedBy { it.value }
-            
-            // 移除最老的条目，直到缓存大小达到限制
-            val entriesToRemove = sortedEntries.take(scriptEngineCache.size - MAX_CACHE_SIZE)
-            entriesToRemove.forEach { (key, _) ->
-                scriptEngineCache.remove(key)
-                lastUsedTime.remove(key)
-            }
-        }
-    }
-    
-    /**
-     * 调用 JavaScript 工具
-     * @param toolType 工具类型
-     * @param toolName 工具名称
-     * @param params 参数
-     * @return 工具调用结果
-     */
-    fun callTool(toolType: String, toolName: String, params: Map<String, String>): Any? {
-        try {
-            Log.d(TAG, "Calling tool: $toolType:$toolName with params: $params")
-            
-            // 这里可以实现具体的工具调用逻辑
-            // 例如通过 packageManager 查找对应的工具并执行
-            
-            // 实际调用工具的逻辑
-            // 此处应该集成到现有的工具执行系统
-            
-            return "Result from $toolType:$toolName tool call"
-        } catch (e: Exception) {
-            Log.e(TAG, "Error calling tool: ${e.message}", e)
-            return "Error: ${e.message}"
-        }
-    }
-    
-    /**
-     * 释放所有资源
-     * 在应用退出或者不再需要时调用
+     * Clean up resources when the manager is no longer needed
      */
     fun destroy() {
-        try {
-            // 清理所有缓存的引擎
-            scriptEngineCache.values.forEach { engine ->
-                try {
-                    engine.destroy()
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error destroying engine: ${e.message}", e)
-                }
-            }
-            
-            // 清空集合
-            scriptEngineCache.clear()
-            lastUsedTime.clear()
-        } catch (e: Exception) {
-            Log.e(TAG, "Error during JsToolManager destruction: ${e.message}", e)
-        }
-    }
-    
-    /**
-     * 清理特定工具的引擎
-     * 在特定工具出现问题时调用
-     */
-    fun cleanupTool(toolName: String) {
-        val keysToRemove = mutableListOf<String>()
-        
-        // 查找包含工具名的所有键
-        scriptEngineCache.keys.forEach { key ->
-            if (key.startsWith(toolName)) {
-                keysToRemove.add(key)
-            }
-        }
-        
-        // 移除并销毁对应的引擎
-        keysToRemove.forEach { key ->
-            scriptEngineCache[key]?.destroy()
-            scriptEngineCache.remove(key)
-            lastUsedTime.remove(key)
-        }
-        
-        Log.d(TAG, "Cleaned up ${keysToRemove.size} engines for tool: $toolName")
+        jsEngine.destroy()
     }
 } 

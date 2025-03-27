@@ -133,7 +133,7 @@ class AdbCommandExecutor {
                         return true
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "UID check failed", e)
+//                    Log.e(TAG, "UID check failed", e)
                 }
                 
                 // 记录详细的检测结果

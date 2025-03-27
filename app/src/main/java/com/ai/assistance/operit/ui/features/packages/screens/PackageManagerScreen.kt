@@ -1,5 +1,8 @@
 package com.ai.assistance.operit.ui.features.packages.screens
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -16,6 +19,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,6 +38,8 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.model.AITool
 import com.ai.assistance.operit.model.ToolParameter
@@ -46,6 +52,7 @@ import com.ai.assistance.operit.tools.ToolPackage
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
 
 @Composable
 fun PackageManagerScreen() {
@@ -71,6 +78,61 @@ fun PackageManagerScreen() {
     // State for snackbar
     val snackbarHostState = remember { SnackbarHostState() }
     
+    // File picker launcher for importing external packages
+    val packageFilePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let {
+            scope.launch {
+                try {
+                    // Convert URI to file path - this is a simplified approach
+                    val cursor = context.contentResolver.query(uri, null, null, null, null)
+                    cursor?.use {
+                        val nameIndex = it.getColumnIndex("_display_name")
+                        if (it.moveToFirst() && nameIndex >= 0) {
+                            val fileName = it.getString(nameIndex)
+                            if (!fileName.endsWith(".hjson")) {
+                                snackbarHostState.showSnackbar(
+                                    message = "只支持.hjson文件"
+                                )
+                                return@launch
+                            }
+                        }
+                    }
+                    
+                    // Copy the file to a temporary location
+                    val inputStream = context.contentResolver.openInputStream(uri)
+                    val tempFile = File(context.cacheDir, "temp_package.hjson")
+                    
+                    inputStream?.use { input ->
+                        tempFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    
+                    // Import the package from the temporary file
+                    val result = packageManager.importPackageFromExternalStorage(tempFile.absolutePath)
+                    
+                    // Refresh the lists
+                    availablePackages.value = packageManager.getAvailablePackages()
+                    importedPackages.value = packageManager.getImportedPackages()
+                    
+                    snackbarHostState.showSnackbar(
+                        message = "外部包导入成功"
+                    )
+                    
+                    // Clean up the temporary file
+                    tempFile.delete()
+                } catch (e: Exception) {
+                    Log.e("PackageManagerScreen", "Failed to import external package", e)
+                    snackbarHostState.showSnackbar(
+                        message = "外部包导入失败: ${e.message}"
+                    )
+                }
+            }
+        }
+    }
+    
     // Load packages
     LaunchedEffect(Unit) {
         try {
@@ -82,7 +144,19 @@ fun PackageManagerScreen() {
     }
     
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { packageFilePicker.launch("*/*") },
+                containerColor = MaterialTheme.colorScheme.primary
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Upload,
+                    contentDescription = "导入外部包",
+                    tint = MaterialTheme.colorScheme.onPrimary
+                )
+            }
+        }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -91,17 +165,107 @@ fun PackageManagerScreen() {
                 .padding(16.dp)
         ) {
             Text(
-                text = stringResource(id = R.string.package_manager),
+                text = "包管理器",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 16.dp)
             )
             
+            // 显示外部存储包路径
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = "外部包存储路径",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    val packagesPath = remember { packageManager.getExternalPackagesPath() }
+                    Text(
+                        text = packagesPath,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Button(
+                            onClick = {
+                                try {
+                                    val packagesDir = packageManager.getExternalPackagesPath()
+                                    val intent = Intent(Intent.ACTION_VIEW)
+                                    val uri = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                                        // Android 10及以上使用Storage Access Framework
+                                        intent.setDataAndType(
+                                            android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                                            "*/*"
+                                        )
+                                        intent.action = Intent.ACTION_OPEN_DOCUMENT_TREE
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(
+                                                message = "请导航到Android/data/com.ai.assistance.operit/files/packages目录"
+                                            )
+                                        }
+                                        null
+                                    } else {
+                                        // Android 9及以下可以直接用文件路径
+                                        intent.setDataAndType(Uri.parse("file://$packagesDir"), "*/*")
+                                        Uri.parse("file://$packagesDir")
+                                    }
+                                    
+                                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    Log.e("PackageManagerScreen", "Failed to open file manager", e)
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar(
+                                            message = "无法打开文件管理器: ${e.message}"
+                                        )
+                                    }
+                                }
+                            },
+                            modifier = Modifier.padding(end = 8.dp)
+                        ) {
+                            Text("打开文件管理器")
+                        }
+                        
+                        Button(
+                            onClick = {
+                                val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                val clip = android.content.ClipData.newPlainText("Package Path", packagesPath)
+                                clipboardManager.setPrimaryClip(clip)
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(
+                                        message = "路径已复制到剪贴板"
+                                    )
+                                }
+                            }
+                        ) {
+                            Text("复制路径")
+                        }
+                    }
+                }
+            }
+            
             // Tabs for Available and Imported Packages
             var selectedTabIndex by remember { mutableStateOf(0) }
             val tabs = listOf(
-                stringResource(id = R.string.available_packages), 
-                stringResource(id = R.string.imported_packages)
+                "Available Packages", 
+                "Imported Packages"
             )
             
             TabRow(selectedTabIndex = selectedTabIndex) {
@@ -121,7 +285,7 @@ fun PackageManagerScreen() {
                 0 -> {
                     // Available Packages
                     if (availablePackages.value.isEmpty()) {
-                        EmptyState(message = stringResource(id = R.string.no_packages_available))
+                        EmptyState(message = "No packages available")
                     } else {
                         AvailablePackagesList(
                             packages = availablePackages.value,
@@ -135,12 +299,12 @@ fun PackageManagerScreen() {
                                         val result = packageManager.importPackage(packageName)
                                         importedPackages.value = packageManager.getImportedPackages()
                                         snackbarHostState.showSnackbar(
-                                            message = context.getString(R.string.package_import_success)
+                                            message = "Package import success"
                                         )
                                     } catch (e: Exception) {
                                         Log.e("PackageManagerScreen", "Failed to import package", e)
                                         snackbarHostState.showSnackbar(
-                                            message = context.getString(R.string.package_import_error)
+                                            message = "Package import error"
                                         )
                                     }
                                 }
@@ -151,7 +315,7 @@ fun PackageManagerScreen() {
                 1 -> {
                     // Imported Packages
                     if (importedPackages.value.isEmpty()) {
-                        EmptyState(message = stringResource(id = R.string.no_packages_imported))
+                        EmptyState(message = "No packages imported")
                     } else {
                         ImportedPackagesList(
                             packages = importedPackages.value,
@@ -166,7 +330,7 @@ fun PackageManagerScreen() {
                                         packageManager.removePackage(packageName)
                                         importedPackages.value = packageManager.getImportedPackages()
                                         snackbarHostState.showSnackbar(
-                                            message = context.getString(R.string.package_removed)
+                                            message = "Package removed"
                                         )
                                     } catch (e: Exception) {
                                         Log.e("PackageManagerScreen", "Failed to remove package", e)
@@ -301,9 +465,9 @@ fun PackageItem(
                 Icon(
                     imageVector = if (isImported) Icons.Default.Delete else Icons.Default.Add,
                     contentDescription = if (isImported) 
-                        stringResource(id = R.string.remove_package) 
+                        "Remove package" 
                     else 
-                        stringResource(id = R.string.import_package),
+                        "Import package",
                     tint = MaterialTheme.colorScheme.primary
                 )
             }
@@ -333,7 +497,7 @@ fun PackageDetailsDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text(text = stringResource(id = R.string.package_details))
+            Text(text = "Package Details")
         },
         text = {
             Column {
@@ -349,7 +513,7 @@ fun PackageDetailsDialog(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = stringResource(id = R.string.package_tools),
+                    text = "Package Tools",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -402,7 +566,7 @@ fun PackageDetailsDialog(
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Default.PlayArrow,
-                                                contentDescription = stringResource(id = R.string.run_script),
+                                                contentDescription = "Run Script",
                                                 tint = MaterialTheme.colorScheme.primary
                                             )
                                         }
@@ -411,7 +575,7 @@ fun PackageDetailsDialog(
                                     if (tool.parameters.isNotEmpty()) {
                                         Spacer(modifier = Modifier.height(8.dp))
                                         Text(
-                                            text = stringResource(id = R.string.script_parameters) + ":",
+                                            text = "Script Parameters:" + ":",
                                             style = MaterialTheme.typography.bodyMedium,
                                             fontWeight = FontWeight.Bold
                                         )
@@ -432,7 +596,7 @@ fun PackageDetailsDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text(text = stringResource(id = android.R.string.ok))
+                Text(text = "OK")
             }
         }
     )
@@ -477,7 +641,7 @@ fun ScriptExecutionDialog(
             ) {
                 // Header
                 Text(
-                    text = stringResource(id = R.string.script_execution) + ": ${tool.name}",
+                    text = "Script Execution: ${tool.name}",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
@@ -486,7 +650,7 @@ fun ScriptExecutionDialog(
                 
                 // Script Editor
                 Text(
-                    text = stringResource(id = R.string.script_code) + ":",
+                    text = "Script Code:" + ":",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -514,7 +678,7 @@ fun ScriptExecutionDialog(
                 // Parameters
                 if (tool.parameters.isNotEmpty()) {
                     Text(
-                        text = stringResource(id = R.string.script_parameters) + ":",
+                        text = "Script Parameters:" + ":",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -554,7 +718,7 @@ fun ScriptExecutionDialog(
                 // Result area
                 if (executionResult != null) {
                     Text(
-                        text = stringResource(id = R.string.execution_result) + ":",
+                        text = "Execution Result:" + ":",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -602,7 +766,7 @@ fun ScriptExecutionDialog(
                     horizontalArrangement = Arrangement.End
                 ) {
                     TextButton(onClick = onDismiss) {
-                        Text(text = stringResource(id = R.string.cancel))
+                        Text(text = "Cancel")
                     }
                     
                     Spacer(modifier = Modifier.width(8.dp))
@@ -624,8 +788,9 @@ fun ScriptExecutionDialog(
                                                 toolName = "${packageName}:${tool.name}",
                                                 success = false,
                                                 result = "",
-                                                error = context.getString(R.string.missing_parameters, missingParams.joinToString(", "))
+                                                error = "Missing parameters: ${missingParams.joinToString(", ")}"
                                             )
+                                            onExecuted(executionResult!!)
                                         }
                                     } else {
                                         // Create the tool with parameters
@@ -663,6 +828,7 @@ fun ScriptExecutionDialog(
                                             result = "",
                                             error = "Execution error: ${e.message}"
                                         )
+                                        onExecuted(executionResult!!)
                                     }
                                 } finally {
                                     // 切换回主线程更新UI状态
@@ -708,7 +874,7 @@ fun ScriptExecutionDialog(
                                 )
                             }
                         } else {
-                            Text(text = stringResource(id = R.string.execute_script))
+                            Text(text = "Execute Script")
                         }
                     }
                 }

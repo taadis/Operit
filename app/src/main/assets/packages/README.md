@@ -1,70 +1,189 @@
-# HJSON Tool Packages
+# Assistance Tool Packages
 
-This directory contains tool packages in HJSON format. HJSON is a human-friendly JSON format that supports comments, multi-line strings, and relaxed syntax.
+This directory contains tool packages that can be loaded by the AI assistant. These packages provide additional functionality to the assistant, allowing it to perform specialized tasks.
 
-## Package Format
+## Package Formats
 
-A tool package is defined in HJSON format with the following structure:
+Packages can be defined in two formats:
 
-```hjson
+1. **JavaScript (.js)** - Preferred format with full support for Promise-based async execution
+2. **HJSON (.hjson)** - Legacy format with limited functionality (maintained for backward compatibility)
+
+## JavaScript Package Structure
+
+A JavaScript package consists of a single JavaScript file with:
+
+1. A **metadata block** at the top of the file
+2. **Tool function definitions** that implement the functionality
+3. Optional **exports** statements to make the functions available
+
+### Example JavaScript Package:
+
+```javascript
+/*
+METADATA
 {
-  // Package metadata
-  name: package_name              // Required: Unique package name
-  description: Package description // Required: Description of the package
-  
-  // List of tools in this package
-  tools: [
-    {
-      name: tool_name             // Required: Tool name
-      description: Tool description // Required: Description of what the tool does
-      
-      // Optional: Parameters for the tool
-      parameters: [
+    "name": "example_package",
+    "description": "An example package showing how to create tools",
+    "tools": [
         {
-          name: parameter_name    // Parameter name
-          description: Parameter description // Parameter description
-          type: string            // Parameter type (string, number, boolean, object, array)
-          required: true          // Whether the parameter is required
+            "name": "hello_world",
+            "description": "A simple hello world tool",
+            "parameters": [
+                {
+                    "name": "name",
+                    "description": "Name to greet",
+                    "type": "string",
+                    "required": true
+                }
+            ]
         }
-      ]
-      
-      // Required: JavaScript code that implements the tool
-      script: '''
-        // JavaScript code goes here
-        // Use params object to access parameters
-        // Use complete() function to return results
+    ],
+    "category": "FILE_READ"
+}
+*/
+
+// Tool implementation
+async function hello_world(params) {
+    // Access parameters
+    const name = params.name || "World";
+    
+    // Use async/await with other tools
+    await Tools.System.sleep(1);
+    
+    // Return a result
+    complete(`Hello, ${name}!`);
+}
+
+// Export the function
+exports.hello_world = hello_world;
+```
+
+## TypeScript Support
+
+You can also write your packages in TypeScript (.ts) with full type checking for all APIs. TypeScript packages are automatically compiled to JavaScript at runtime.
+
+### Example TypeScript Package:
+
+```typescript
+/*
+METADATA
+{
+    "name": "typescript_example",
+    "description": "A TypeScript example package",
+    "tools": [
+        {
+            "name": "hello_world",
+            "description": "A simple hello world tool with TypeScript",
+            "parameters": [
+                {
+                    "name": "name",
+                    "description": "Name to greet",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        }
+    ],
+    "category": "FILE_READ"
+}
+*/
+
+/**
+ * Simple hello world function with TypeScript
+ * @param params Tool parameters with name property
+ */
+async function hello_world(params: { name: string }): Promise<void> {
+    // Access parameters with type checking
+    const name = params.name || "World";
+    
+    // Use async/await with proper typing
+    await Tools.System.sleep(1);
+    
+    // Return a result
+    complete(`Hello, ${name}!`);
+}
+
+// Export the function
+exports.hello_world = hello_world;
+```
+
+## Promise-Based Async API
+
+All tool calls now return Promises, allowing for async/await pattern usage:
+
+```javascript
+async function chain_example(params) {
+    try {
+        // Chain multiple tool calls with await
+        const fileList = await Tools.Files.list("/some/path");
+        const fileContents = await Tools.Files.read("/some/path/file.txt");
         
-        const result = "Your result here";
+        // Do work with the results
+        const result = `Found ${fileList.length} files. First file contents: ${fileContents}`;
+        
         complete(result);
-      '''
+    } catch (error) {
+        complete(`Error: ${error.message}`);
     }
-  ]
-  
-  // Required: Tool category
-  // Valid categories: SYSTEM_OPERATION, NETWORK, FILE_OPERATION, MEDIA, UTILITY, USER_INTERFACE, DEVELOPMENT
-  category: SYSTEM_OPERATION
 }
 ```
 
-## Features
+## Available Tools API
 
-- Supports comments using `//` or `/* */`
-- Multi-line strings using triple quotes `'''`
-- No need for quotes around keys
-- No need for commas between elements
-- More forgiving of syntax errors
+The following utility namespaces are available in all package scripts:
 
-## Creating New Packages
+### Tools.Files
+- `list(path)` - List files in a directory
+- `read(path)` - Read file contents
+- `write(path, content)` - Write content to file
+- `deleteFile(path)` - Delete a file or directory
+- `exists(path)` - Check if file exists
+- `move(source, target)` - Move file from source to target
+- `copy(source, target)` - Copy file from source to target
+- `mkdir(path)` - Create a directory
+- `find(path, pattern)` - Find files matching a pattern
+- `info(path)` - Get information about a file
+- `zip(source, target)` - Zip files/directories
+- `unzip(source, target)` - Unzip an archive
+- `open(path)` - Open a file with system handler
 
-1. Create a new .hjson file in this directory
-2. Follow the format above
-3. The file name should match the package name (e.g., `package_name.hjson`)
-4. Implement your tool logic in JavaScript in the script property
+### Tools.Net
+- `httpGet(url)` - Perform HTTP GET request
+- `httpPost(url, data)` - Perform HTTP POST request
+- `search(query)` - Perform web search
 
-## Using Tool Packages
+### Tools.System
+- `exec(command)` - Execute a system command
+- `sleep(seconds)` - Sleep for specified seconds
 
-Tool packages are automatically loaded from this directory when the app starts. You can then invoke them using the format `package_name:tool_name` in your AI conversations.
+### Other Utilities
+- `Tools.calc(expression)` - Calculate mathematical expression
+- `_` - Lodash-like utility library
+- `dataUtils` - Data processing utilities
 
-## Example
+## Creating a New Package
 
-See the `daily_life.hjson` and `javascript_tester.hjson` files for complete examples. 
+1. Create a new `.js` or `.ts` file in this directory
+2. Add a METADATA block at the top with package details
+3. Define your tool functions
+4. Export the functions using the CommonJS pattern
+5. Use the Promise-based API for any asynchronous operations
+
+## Testing Your Package
+
+You can test your package by using the `use_package` tool in the assistant chat:
+
+```
+<tool name="use_package">
+  <param name="package_name">your_package_name</param>
+</tool>
+```
+
+After the package is loaded, you can use any of its tools:
+
+```
+<tool name="your_package_name:your_tool_name">
+  <param name="param1">value1</param>
+</tool>
+``` 
