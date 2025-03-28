@@ -5,6 +5,12 @@ import android.util.Log
 import com.ai.assistance.operit.AdbCommandExecutor
 import com.ai.assistance.operit.model.AITool
 import com.ai.assistance.operit.model.ToolResult
+import com.ai.assistance.operit.model.ToolResultData
+import com.ai.assistance.operit.model.StringResultData
+import com.ai.assistance.operit.tools.AppListData
+import com.ai.assistance.operit.tools.AppOperationData
+import com.ai.assistance.operit.tools.SystemSettingData
+import kotlinx.serialization.Serializable
 
 /**
  * 提供系统级操作的工具类
@@ -16,6 +22,8 @@ class SystemOperationTools(private val context: Context) {
     companion object {
         private const val TAG = "SystemOperationTools"
     }
+    
+    
     
     /**
      * 修改系统设置
@@ -30,7 +38,7 @@ class SystemOperationTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "必须提供setting和value参数"
             )
         }
@@ -41,7 +49,7 @@ class SystemOperationTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "命名空间必须是以下之一: ${validNamespaces.joinToString(", ")}"
             )
         }
@@ -51,17 +59,23 @@ class SystemOperationTools(private val context: Context) {
             val result = AdbCommandExecutor.executeAdbCommand(command)
             
             if (result.success) {
+                val resultData = SystemSettingData(
+                    namespace = namespace,
+                    setting = setting,
+                    value = value
+                )
+                
                 return ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = "成功设置 $namespace.$setting 为 $value",
+                    result = resultData,
                     error = ""
                 )
             } else {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "设置失败: ${result.stderr}"
                 )
             }
@@ -70,7 +84,7 @@ class SystemOperationTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "修改系统设置时出错: ${e.message}"
             )
         }
@@ -87,7 +101,7 @@ class SystemOperationTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "必须提供setting参数"
             )
         }
@@ -98,7 +112,7 @@ class SystemOperationTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "命名空间必须是以下之一: ${validNamespaces.joinToString(", ")}"
             )
         }
@@ -108,17 +122,23 @@ class SystemOperationTools(private val context: Context) {
             val result = AdbCommandExecutor.executeAdbCommand(command)
             
             if (result.success) {
+                val resultData = SystemSettingData(
+                    namespace = namespace,
+                    setting = setting,
+                    value = result.stdout.trim()
+                )
+                
                 return ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = "$namespace.$setting 的当前值是: ${result.stdout}",
+                    result = resultData,
                     error = ""
                 )
             } else {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "获取设置失败: ${result.stderr}"
                 )
             }
@@ -127,7 +147,7 @@ class SystemOperationTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "获取系统设置时出错: ${e.message}"
             )
         }
@@ -144,7 +164,7 @@ class SystemOperationTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "必须提供apk_path参数"
             )
         }
@@ -155,7 +175,7 @@ class SystemOperationTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "APK文件不存在: $apkPath"
             )
         }
@@ -166,17 +186,23 @@ class SystemOperationTools(private val context: Context) {
             val result = AdbCommandExecutor.executeAdbCommand(command)
             
             if (result.success && result.stdout.contains("Success")) {
+                val resultData = AppOperationData(
+                    operationType = "install",
+                    packageName = apkPath,
+                    success = true
+                )
+                
                 return ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = "成功安装应用: $apkPath",
+                    result = resultData,
                     error = ""
                 )
             } else {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "安装失败: ${result.stderr}"
                 )
             }
@@ -185,7 +211,7 @@ class SystemOperationTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "安装应用时出错: ${e.message}"
             )
         }
@@ -203,7 +229,7 @@ class SystemOperationTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "必须提供package_name参数"
             )
         }
@@ -216,7 +242,7 @@ class SystemOperationTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "应用未安装: $packageName"
             )
         }
@@ -232,17 +258,25 @@ class SystemOperationTools(private val context: Context) {
             val result = AdbCommandExecutor.executeAdbCommand(command)
             
             if (result.success && result.stdout.contains("Success")) {
+                val details = if (keepData) "(保留数据)" else ""
+                val resultData = AppOperationData(
+                    operationType = "uninstall",
+                    packageName = packageName,
+                    success = true,
+                    details = details
+                )
+                
                 return ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = "成功卸载应用: $packageName" + if (keepData) " (保留数据)" else "",
+                    result = resultData,
                     error = ""
                 )
             } else {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "卸载失败: ${result.stderr}"
                 )
             }
@@ -251,7 +285,7 @@ class SystemOperationTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "卸载应用时出错: ${e.message}"
             )
         }
@@ -278,19 +312,23 @@ class SystemOperationTools(private val context: Context) {
                     .filter { it.isNotBlank() }
                     .map { it.replace("package:", "") }
                     .sorted()
-                    .joinToString("\n")
+                
+                val resultData = AppListData(
+                    includesSystemApps = systemApps,
+                    packages = packageList
+                )
                 
                 return ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = "已安装应用列表:\n$packageList",
+                    result = resultData,
                     error = ""
                 )
             } else {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "获取应用列表失败: ${result.stderr}"
                 )
             }
@@ -299,7 +337,7 @@ class SystemOperationTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "获取应用列表时出错: ${e.message}"
             )
         }
@@ -316,7 +354,7 @@ class SystemOperationTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "必须提供package_name参数"
             )
         }
@@ -331,17 +369,25 @@ class SystemOperationTools(private val context: Context) {
             val result = AdbCommandExecutor.executeAdbCommand(command)
             
             if (result.success) {
+                val details = if (activity.isNotBlank()) "活动: $activity" else ""
+                val resultData = AppOperationData(
+                    operationType = "start",
+                    packageName = packageName,
+                    success = true,
+                    details = details
+                )
+                
                 return ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = "成功启动应用: $packageName",
+                    result = resultData,
                     error = ""
                 )
             } else {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "启动应用失败: ${result.stderr}"
                 )
             }
@@ -350,7 +396,7 @@ class SystemOperationTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "启动应用时出错: ${e.message}"
             )
         }
@@ -366,7 +412,7 @@ class SystemOperationTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "必须提供package_name参数"
             )
         }
@@ -376,17 +422,23 @@ class SystemOperationTools(private val context: Context) {
             val result = AdbCommandExecutor.executeAdbCommand(command)
             
             if (result.success) {
+                val resultData = AppOperationData(
+                    operationType = "stop",
+                    packageName = packageName,
+                    success = true
+                )
+                
                 return ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = "成功停止应用: $packageName",
+                    result = resultData,
                     error = ""
                 )
             } else {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "停止应用失败: ${result.stderr}"
                 )
             }
@@ -395,7 +447,7 @@ class SystemOperationTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "停止应用时出错: ${e.message}"
             )
         }

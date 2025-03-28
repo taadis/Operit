@@ -10,6 +10,7 @@ import com.ai.assistance.operit.tools.packTool.PackageManager
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
 import com.ai.assistance.operit.permissions.ToolCategory
+import com.ai.assistance.operit.model.StringResultData
 
 /**
  * Represents a package of tools that can be imported by the AI
@@ -62,7 +63,7 @@ class PackageToolExecutor(
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Invalid package tool format. Expected 'packageName:toolName'"
             )
         }
@@ -75,7 +76,7 @@ class PackageToolExecutor(
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Package mismatch: expected ${toolPackage.name}, got $packageName"
             )
         }
@@ -85,7 +86,7 @@ class PackageToolExecutor(
             ?: return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Tool '$toolName' not found in package '${toolPackage.name}'"
             )
         

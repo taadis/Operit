@@ -5,6 +5,14 @@ import android.util.Log
 import com.ai.assistance.operit.AdbCommandExecutor
 import com.ai.assistance.operit.model.AITool
 import com.ai.assistance.operit.model.ToolResult
+import com.ai.assistance.operit.model.ToolResultData
+import com.ai.assistance.operit.model.StringResultData
+import com.ai.assistance.operit.tools.DirectoryListingData
+import com.ai.assistance.operit.tools.FileContentData
+import com.ai.assistance.operit.tools.FileOperationData
+import com.ai.assistance.operit.tools.FileExistsData
+import com.ai.assistance.operit.tools.FindFilesResultData
+import kotlinx.serialization.Serializable
 import java.io.File
 
 /**
@@ -19,6 +27,8 @@ class FileSystemTools(private val context: Context) {
         private const val MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024 // 10MB
     }
     
+    
+    
     /**
      * List files in a directory
      */
@@ -29,7 +39,7 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Path parameter is required"
             )
         }
@@ -38,17 +48,20 @@ class FileSystemTools(private val context: Context) {
             val result = AdbCommandExecutor.executeAdbCommand("ls -la $path")
             
             if (result.success) {
+                // Parse the directory listing output
+                val entries = parseDirectoryListing(result.stdout, path)
+                
                 return ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = "Directory listing for $path:\n${result.stdout}",
+                    result = DirectoryListingData(path, entries),
                     error = ""
                 )
             } else {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "Failed to list directory: ${result.stderr}"
                 )
             }
@@ -57,10 +70,54 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Error listing directory: ${e.message}"
             )
         }
+    }
+    
+    /**
+     * Parse the output of the ls -la command into structured data
+     */
+    private fun parseDirectoryListing(output: String, path: String): List<DirectoryListingData.FileEntry> {
+        val lines = output.trim().split("\n")
+        val entries = mutableListOf<DirectoryListingData.FileEntry>()
+        
+        for (line in lines) {
+            try {
+                if (line.isBlank() || line.startsWith("total")) continue
+                
+                // Parse ls -la format: permissions links owner group size date time filename
+                // Example: drwxr-xr-x 2 root root 4096 Jan 1 12:34 foldername
+                val parts = line.trim().split(Regex("\\s+"), 9) // Max 9 parts to keep filename intact
+                
+                if (parts.size >= 9) {
+                    val permissions = parts[0].substring(1) // Remove the first character (d or -)
+                    val isDirectory = parts[0].startsWith("d")
+                    val size = parts[4].toLongOrNull() ?: 0
+                    val lastModified = "${parts[5]} ${parts[6]} ${parts[7]}"
+                    val name = parts[8]
+                    
+                    // Skip . and .. entries
+                    if (name != "." && name != "..") {
+                        entries.add(
+                            DirectoryListingData.FileEntry(
+                                name = name,
+                                isDirectory = isDirectory,
+                                size = size,
+                                permissions = permissions,
+                                lastModified = lastModified
+                            )
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error parsing directory entry: $line", e)
+                // Skip this entry but continue processing others
+            }
+        }
+        
+        return entries
     }
     
     /**
@@ -73,7 +130,7 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Path parameter is required"
             )
         }
@@ -85,7 +142,7 @@ class FileSystemTools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "File does not exist: $path"
                 )
             }
@@ -98,7 +155,7 @@ class FileSystemTools(private val context: Context) {
                     return ToolResult(
                         toolName = tool.name,
                         success = false,
-                        result = "",
+                        result = StringResultData(""),
                         error = "File is too large (${size / 1024} KB). Maximum allowed size is ${MAX_FILE_SIZE_BYTES / 1024} KB."
                     )
                 }
@@ -108,17 +165,23 @@ class FileSystemTools(private val context: Context) {
             val result = AdbCommandExecutor.executeAdbCommand("cat $path")
             
             if (result.success) {
+                val size = sizeResult.stdout.trim().toLongOrNull() ?: result.stdout.length.toLong()
+                
                 return ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = "Content of $path:\n${result.stdout}",
+                    result = FileContentData(
+                        path = path,
+                        content = result.stdout,
+                        size = size
+                    ),
                     error = ""
                 )
             } else {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "Failed to read file: ${result.stderr}"
                 )
             }
@@ -127,7 +190,7 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Error reading file: ${e.message}"
             )
         }
@@ -145,7 +208,12 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = FileOperationData(
+                    operation = "write",
+                    path = "",
+                    successful = false,
+                    details = "Path parameter is required"
+                ),
                 error = "Path parameter is required"
             )
         }
@@ -160,17 +228,30 @@ class FileSystemTools(private val context: Context) {
             val result = AdbCommandExecutor.executeAdbCommand("echo '$contentBase64' | base64 -d $redirectOperator '$path'")
             
             if (result.success) {
+                val operation = if (append) "append" else "write"
+                val details = if (append) "Content appended to $path" else "Content written to $path"
+                
                 return ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = if (append) "Content appended to $path" else "Content written to $path",
+                    result = FileOperationData(
+                        operation = operation,
+                        path = path,
+                        successful = true,
+                        details = details
+                    ),
                     error = ""
                 )
             } else {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = FileOperationData(
+                        operation = if (append) "append" else "write",
+                        path = path,
+                        successful = false,
+                        details = "Failed to write to file: ${result.stderr}"
+                    ),
                     error = "Failed to write to file: ${result.stderr}"
                 )
             }
@@ -193,7 +274,12 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = FileOperationData(
+                    operation = if (append) "append" else "write",
+                    path = path,
+                    successful = false,
+                    details = errorMessage
+                ),
                 error = errorMessage
             )
         }
@@ -210,7 +296,12 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = FileOperationData(
+                    operation = "delete",
+                    path = "",
+                    successful = false,
+                    details = "Path parameter is required"
+                ),
                 error = "Path parameter is required"
             )
         }
@@ -221,7 +312,12 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = FileOperationData(
+                    operation = "delete",
+                    path = path,
+                    successful = false,
+                    details = "Deleting system directories is not allowed"
+                ),
                 error = "Deleting system directories is not allowed"
             )
         }
@@ -234,36 +330,39 @@ class FileSystemTools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = "Successfully deleted $path",
+                    result = FileOperationData(
+                        operation = "delete",
+                        path = path,
+                        successful = true,
+                        details = "Successfully deleted $path"
+                    ),
                     error = ""
                 )
             } else {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = FileOperationData(
+                        operation = "delete",
+                        path = path,
+                        successful = false,
+                        details = "Failed to delete: ${result.stderr}"
+                    ),
                     error = "Failed to delete: ${result.stderr}"
                 )
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error deleting file/directory", e)
-            
-            // 提供更具体的错误信息
-            val errorMessage = when {
-                e is InterruptedException || e.message?.contains("interrupted", ignoreCase = true) == true -> 
-                    "ADB连接被中断，可能是网络不稳定导致。请检查ADB连接并重试。错误详情: ${e.message}"
-                e is java.net.SocketException || e.message?.contains("socket", ignoreCase = true) == true -> 
-                    "ADB网络连接异常，请检查设备是否仍然连接并重试。错误详情: ${e.message}"
-                e.message?.contains("permission", ignoreCase = true) == true ->
-                    "权限拒绝，无法删除文件: ${e.message}。请检查应用是否有适当的权限。"
-                else -> "删除文件/目录时出错: ${e.message}"
-            }
-            
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
-                error = errorMessage
+                result = FileOperationData(
+                    operation = "delete",
+                    path = path,
+                    successful = false,
+                    details = "Error deleting file/directory: ${e.message}"
+                ),
+                error = "Error deleting file/directory: ${e.message}"
             )
         }
     }
@@ -278,36 +377,59 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Path parameter is required"
             )
         }
         
         return try {
-            val result = AdbCommandExecutor.executeAdbCommand("test -e '$path' && echo 'exists' || echo 'not exists'")
+            // Check if the path exists
+            val existsResult = AdbCommandExecutor.executeAdbCommand("test -e '$path' && echo 'exists' || echo 'not exists'")
+            val exists = existsResult.success && existsResult.stdout.trim() == "exists"
             
-            if (result.success) {
-                val exists = result.stdout.trim() == "exists"
+            if (!exists) {
+                // If it doesn't exist, return a simple FileExistsData with exists=false
                 return ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = if (exists) "The path $path exists" else "The path $path does not exist",
+                    result = FileExistsData(
+                        path = path,
+                        exists = false
+                    ),
                     error = ""
                 )
-            } else {
-                return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = "",
-                    error = "Failed to check existence: ${result.stderr}"
-                )
             }
+            
+            // If it exists, check if it's a directory
+            val isDirResult = AdbCommandExecutor.executeAdbCommand("test -d '$path' && echo 'true' || echo 'false'")
+            val isDirectory = isDirResult.success && isDirResult.stdout.trim() == "true"
+            
+            // Get the size
+            val sizeResult = AdbCommandExecutor.executeAdbCommand("stat -c %s '$path' 2>/dev/null || echo '0'")
+            val size = sizeResult.stdout.trim().toLongOrNull() ?: 0
+            
+            return ToolResult(
+                toolName = tool.name,
+                success = true,
+                result = FileExistsData(
+                    path = path,
+                    exists = true,
+                    isDirectory = isDirectory,
+                    size = size
+                ),
+                error = ""
+            )
         } catch (e: Exception) {
             Log.e(TAG, "Error checking file existence", e)
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = FileExistsData(
+                    path = path,
+                    exists = false,
+                    isDirectory = false,
+                    size = 0
+                ),
                 error = "Error checking file existence: ${e.message}"
             )
         }
@@ -324,7 +446,12 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = FileOperationData(
+                    operation = "move",
+                    path = sourcePath,
+                    successful = false,
+                    details = "Source and destination parameters are required"
+                ),
                 error = "Source and destination parameters are required"
             )
         }
@@ -335,7 +462,12 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = FileOperationData(
+                    operation = "move",
+                    path = sourcePath,
+                    successful = false,
+                    details = "Moving system directories is not allowed"
+                ),
                 error = "Moving system directories is not allowed"
             )
         }
@@ -347,14 +479,24 @@ class FileSystemTools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = "Successfully moved $sourcePath to $destPath",
+                    result = FileOperationData(
+                        operation = "move",
+                        path = sourcePath,
+                        successful = true,
+                        details = "Successfully moved $sourcePath to $destPath"
+                    ),
                     error = ""
                 )
             } else {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = FileOperationData(
+                        operation = "move",
+                        path = sourcePath,
+                        successful = false,
+                        details = "Failed to move file: ${result.stderr}"
+                    ),
                     error = "Failed to move file: ${result.stderr}"
                 )
             }
@@ -363,7 +505,12 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = FileOperationData(
+                    operation = "move",
+                    path = sourcePath,
+                    successful = false,
+                    details = "Error moving file: ${e.message}"
+                ),
                 error = "Error moving file: ${e.message}"
             )
         }
@@ -381,7 +528,12 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = FileOperationData(
+                    operation = "copy",
+                    path = sourcePath,
+                    successful = false,
+                    details = "Source and destination parameters are required"
+                ),
                 error = "Source and destination parameters are required"
             )
         }
@@ -394,14 +546,24 @@ class FileSystemTools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = "Successfully copied $sourcePath to $destPath",
+                    result = FileOperationData(
+                        operation = "copy",
+                        path = sourcePath,
+                        successful = true,
+                        details = "Successfully copied $sourcePath to $destPath"
+                    ),
                     error = ""
                 )
             } else {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = FileOperationData(
+                        operation = "copy",
+                        path = sourcePath,
+                        successful = false,
+                        details = "Failed to copy file: ${result.stderr}"
+                    ),
                     error = "Failed to copy file: ${result.stderr}"
                 )
             }
@@ -410,7 +572,12 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = FileOperationData(
+                    operation = "copy",
+                    path = sourcePath,
+                    successful = false,
+                    details = "Error copying file: ${e.message}"
+                ),
                 error = "Error copying file: ${e.message}"
             )
         }
@@ -427,7 +594,12 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = FileOperationData(
+                    operation = "mkdir",
+                    path = "",
+                    successful = false,
+                    details = "Path parameter is required"
+                ),
                 error = "Path parameter is required"
             )
         }
@@ -440,14 +612,24 @@ class FileSystemTools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = "Successfully created directory $path",
+                    result = FileOperationData(
+                        operation = "mkdir",
+                        path = path,
+                        successful = true,
+                        details = "Successfully created directory $path"
+                    ),
                     error = ""
                 )
             } else {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = FileOperationData(
+                        operation = "mkdir",
+                        path = path,
+                        successful = false,
+                        details = "Failed to create directory: ${result.stderr}"
+                    ),
                     error = "Failed to create directory: ${result.stderr}"
                 )
             }
@@ -456,7 +638,12 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = FileOperationData(
+                    operation = "mkdir",
+                    path = path,
+                    successful = false,
+                    details = "Error creating directory: ${e.message}"
+                ),
                 error = "Error creating directory: ${e.message}"
             )
         }
@@ -473,7 +660,11 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = FindFilesResultData(
+                    path = path,
+                    pattern = pattern,
+                    files = emptyList()
+                ),
                 error = "Path and pattern parameters are required"
             )
         }
@@ -505,27 +696,34 @@ class FileSystemTools(private val context: Context) {
             
             // Always consider the command successful, and check the output
             val fileList = result.stdout.trim()
-            if (fileList.isBlank()) {
-                return ToolResult(
-                    toolName = tool.name,
-                    success = true,
-                    result = "No files matching '$pattern' found in $path",
-                    error = ""
-                )
+            
+            // 将结果转换为字符串列表
+            val files = if (fileList.isBlank()) {
+                emptyList()
             } else {
-                return ToolResult(
-                    toolName = tool.name,
-                    success = true,
-                    result = "Files matching '$pattern' in $path:\n$fileList",
-                    error = ""
-                )
+                fileList.split("\n").map { it.trim() }.filter { it.isNotEmpty() }
             }
+            
+            return ToolResult(
+                toolName = tool.name,
+                success = true,
+                result = FindFilesResultData(
+                    path = path,
+                    pattern = pattern,
+                    files = files
+                ),
+                error = ""
+            )
         } catch (e: Exception) {
             Log.e(TAG, "Error searching for files", e)
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = FindFilesResultData(
+                    path = path,
+                    pattern = pattern,
+                    files = emptyList()
+                ),
                 error = "Error searching for files: ${e.message}"
             )
         }
@@ -541,7 +739,7 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Path parameter is required"
             )
         }
@@ -553,7 +751,7 @@ class FileSystemTools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "File or directory does not exist: $path"
                 )
             }
@@ -565,14 +763,14 @@ class FileSystemTools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = "File information for $path:\n${result.stdout}",
+                    result = StringResultData("File information for $path:\n${result.stdout}"),
                     error = ""
                 )
             } else {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "Failed to get file information: ${result.stderr}"
                 )
             }
@@ -581,7 +779,7 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Error getting file information: ${e.message}"
             )
         }
@@ -598,7 +796,7 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Source and destination parameters are required"
             )
         }
@@ -610,7 +808,7 @@ class FileSystemTools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "The zip utility is not available on this device"
                 )
             }
@@ -622,14 +820,19 @@ class FileSystemTools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = "Successfully compressed $sourcePath to $zipPath",
+                    result = FileOperationData(
+                        operation = "zip",
+                        path = sourcePath,
+                        successful = true,
+                        details = "Successfully compressed $sourcePath to $zipPath"
+                    ),
                     error = ""
                 )
             } else {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "Failed to compress: ${result.stderr}"
                 )
             }
@@ -638,7 +841,7 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Error compressing files: ${e.message}"
             )
         }
@@ -655,7 +858,7 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Source and destination parameters are required"
             )
         }
@@ -667,7 +870,7 @@ class FileSystemTools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "The unzip utility is not available on this device"
                 )
             }
@@ -682,14 +885,19 @@ class FileSystemTools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = "Successfully extracted $zipPath to $destPath",
+                    result = FileOperationData(
+                        operation = "unzip",
+                        path = zipPath,
+                        successful = true,
+                        details = "Successfully extracted $zipPath to $destPath"
+                    ),
                     error = ""
                 )
             } else {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "Failed to extract: ${result.stderr}"
                 )
             }
@@ -698,7 +906,7 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Error extracting zip file: ${e.message}"
             )
         }
@@ -715,7 +923,7 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "必须提供path参数"
             )
         }
@@ -727,7 +935,7 @@ class FileSystemTools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "文件不存在: $path"
                 )
             }
@@ -744,14 +952,14 @@ class FileSystemTools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = "已使用系统应用打开文件: $path",
+                    result = StringResultData("已使用系统应用打开文件: $path"),
                     error = ""
                 )
             } else {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "打开文件失败: ${result.stderr}"
                 )
             }
@@ -760,7 +968,7 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "打开文件时出错: ${e.message}"
             )
         }
@@ -778,7 +986,7 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "必须提供path参数"
             )
         }
@@ -790,7 +998,7 @@ class FileSystemTools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "文件不存在: $path"
                 )
             }
@@ -807,14 +1015,14 @@ class FileSystemTools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = "已打开分享界面，分享文件: $path",
+                    result = StringResultData("已打开分享界面，分享文件: $path"),
                     error = ""
                 )
             } else {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "分享文件失败: ${result.stderr}"
                 )
             }
@@ -823,7 +1031,7 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "分享文件时出错: ${e.message}"
             )
         }
@@ -841,7 +1049,7 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "必须提供url和destination参数"
             )
         }
@@ -851,7 +1059,7 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "URL必须以http://或https://开头"
             )
         }
@@ -865,7 +1073,7 @@ class FileSystemTools(private val context: Context) {
                     return ToolResult(
                         toolName = tool.name,
                         success = false,
-                        result = "",
+                        result = StringResultData(""),
                         error = "无法创建目标目录: ${mkdirResult.stderr}"
                     )
                 }
@@ -884,7 +1092,7 @@ class FileSystemTools(private val context: Context) {
                     return ToolResult(
                         toolName = tool.name,
                         success = false,
-                        result = "",
+                        result = StringResultData(""),
                         error = "系统中没有wget或curl工具，无法下载文件"
                     )
                 }
@@ -900,7 +1108,7 @@ class FileSystemTools(private val context: Context) {
                     return ToolResult(
                         toolName = tool.name,
                         success = false,
-                        result = "",
+                        result = StringResultData(""),
                         error = "下载似乎已完成，但文件未被创建"
                     )
                 }
@@ -923,14 +1131,14 @@ class FileSystemTools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = "文件下载成功: $url -> $destPath (文件大小: $fileSize)",
+                    result = StringResultData("文件下载成功: $url -> $destPath (文件大小: $fileSize)"),
                     error = ""
                 )
             } else {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "下载失败: ${result.stderr}"
                 )
             }
@@ -939,7 +1147,7 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "下载文件时出错: ${e.message}"
             )
         }

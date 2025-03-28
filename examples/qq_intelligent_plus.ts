@@ -73,7 +73,7 @@ async function find_user(params: { search_term: string, search_type: string }) {
     let pageInfo = await toolCall("get_page_info", { detail: "summary" });
 
     // 如果不在QQ中，启动QQ
-    if (!pageInfo.includes("com.tencent.mobileqq")) {
+    if (!pageInfo.toString().includes("com.tencent.mobileqq")) {
       await toolCall("launch_app", { packageName: "com.tencent.mobileqq" });
       await toolCall("sleep", { duration_ms: "500" });
       pageInfo = await toolCall("get_page_info", { detail: "summary" });
@@ -125,14 +125,14 @@ async function find_user(params: { search_term: string, search_type: string }) {
       // 如果刚完成联系人搜索，先返回主界面
       if (searchType === "both") {
         await toolCall("press_key", { keyCode: "KEYCODE_BACK" });
-        await toolCall("sleep", { seconds: "0.5" });
-
-        // 点击群标签
-        await toolCall("combined_operation", {
-          operation: "click_element className android.widget.TextView 2",
-          delayMs: "1000"
-        });
+        await toolCall("sleep", { duration_ms: "500" });
       }
+
+      // 点击群标签
+      await toolCall("combined_operation", {
+        operation: "click_element className android.widget.TextView 2",
+        delayMs: "1000"
+      });
 
       // 模拟群搜索结果
       searchResults.push({
@@ -157,7 +157,7 @@ async function find_user(params: { search_term: string, search_type: string }) {
 }
 
 async function main() {
-  await reply({ message: "你好", target: "wind" });
+  await reply({ message: "你好你好！我是OPERIT，很高兴认识你！", target: "DEC" });
   // await find_user({ search_term: "张三", search_type: "contacts" });
 }
 

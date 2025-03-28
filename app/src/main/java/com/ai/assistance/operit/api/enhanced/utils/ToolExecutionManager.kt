@@ -4,6 +4,7 @@ import android.util.Log
 import com.ai.assistance.operit.api.enhanced.models.ConversationMarkupManager
 import com.ai.assistance.operit.model.ToolInvocation
 import com.ai.assistance.operit.model.ToolResult
+import com.ai.assistance.operit.model.StringResultData
 import com.ai.assistance.operit.tools.AIToolHandler
 
 /**
@@ -29,7 +30,7 @@ object ToolExecutionManager {
                 ToolResult(
                     toolName = invocation.tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "参数无效: ${validationResult.errorMessage}"
                 )
             } else {
@@ -40,7 +41,7 @@ object ToolExecutionManager {
             ToolResult(
                 toolName = invocation.tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "工具执行错误: ${e.message}"
             )
         }
@@ -71,7 +72,7 @@ object ToolExecutionManager {
                 val errorResult = ToolResult(
                     toolName = invocation.tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "Permission denied: Operation was not authorized"
                 )
                 

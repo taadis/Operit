@@ -4,6 +4,11 @@ import android.content.Context
 import android.util.Log
 import com.ai.assistance.operit.model.AITool
 import com.ai.assistance.operit.model.ToolResult
+import com.ai.assistance.operit.model.ToolResultData
+import com.ai.assistance.operit.model.StringResultData
+import com.ai.assistance.operit.tools.HttpResponseData
+import com.ai.assistance.operit.tools.WebPageData
+import kotlinx.serialization.Serializable
 import okhttp3.FormBody
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
@@ -29,6 +34,8 @@ class HttpTools(private val context: Context) {
         private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
     }
     
+    
+    
     // 创建OkHttpClient实例，配置超时
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -49,7 +56,7 @@ class HttpTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "URL参数不能为空"
             )
         }
@@ -59,7 +66,7 @@ class HttpTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "无效的URL格式: $url"
             )
         }
@@ -80,7 +87,7 @@ class HttpTools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "HTTP请求失败: ${response.code} ${response.message}"
                 )
             }
@@ -89,31 +96,47 @@ class HttpTools(private val context: Context) {
             val contentType = response.header("Content-Type") ?: ""
             val responseBody = response.body?.string() ?: ""
             
-            // 使用增强的内容摘要方法
-            val result: String = when {
+            // 提取有用的数据
+            val document = if (contentType.contains("html", ignoreCase = true)) {
+                Jsoup.parse(responseBody)
+            } else {
+                null
+            }
+            
+            val title = document?.title() ?: ""
+            val textContent = when {
                 contentType.contains("json", ignoreCase = true) -> {
-                    "JSON网页内容:\n${summarizeJsonContent(responseBody, MAX_SUMMARY_LENGTH)}"
+                    summarizeJsonContent(responseBody, MAX_SUMMARY_LENGTH)
                 }
-                format == "html" -> {
-                    if (responseBody.length > MAX_CONTENT_LENGTH) {
-                        val previewLength = (MAX_SUMMARY_LENGTH * 0.3).toInt() // 只显示HTML的一小部分
-                        "HTML网页内容 (已极度缩减，仅显示部分代码):\n${responseBody.take(previewLength)}...\n\n" +
-                        "页面内容摘要:\n${extractAndSummarizeHtml(responseBody, contentType, MAX_SUMMARY_LENGTH)}"
-                    } else {
-                        "HTML网页内容:\n${responseBody.take(MAX_SUMMARY_LENGTH)}"
-                    }
+                contentType.contains("html", ignoreCase = true) -> {
+                    extractAndSummarizeHtml(responseBody, contentType, MAX_SUMMARY_LENGTH)
                 }
                 else -> {
-                    // 提取并极度缩减文本
-                    val extractedText = extractTextFromHtml(responseBody, contentType)
-                    "网页内容摘要:\n${ultraSummarizeContent(extractedText, MAX_SUMMARY_LENGTH)}"
+                    ultraSummarizeContent(responseBody, MAX_SUMMARY_LENGTH)
                 }
             }
+            
+            // 提取链接
+            val links = document?.select("a[href]")?.map { element ->
+                val linkUrl = element.attr("abs:href").takeIf { it.isNotBlank() } ?: element.attr("href")
+                val linkText = element.text().takeIf { it.isNotBlank() } ?: linkUrl
+                WebPageData.Link(text = linkText, url = linkUrl)
+            }?.take(20) ?: emptyList()
+            
+            val webPageData = WebPageData(
+                url = url,
+                title = title,
+                contentType = contentType,
+                content = responseBody.take(MAX_CONTENT_LENGTH),
+                textContent = textContent,
+                size = responseBody.length,
+                links = links
+            )
             
             ToolResult(
                 toolName = tool.name,
                 success = true,
-                result = result,
+                result = webPageData,
                 error = ""
             )
         } catch (e: Exception) {
@@ -121,7 +144,7 @@ class HttpTools(private val context: Context) {
             ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "获取网页内容时出错: ${e.message}"
             )
         }
@@ -144,7 +167,7 @@ class HttpTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "URL参数不能为空"
             )
         }
@@ -154,7 +177,7 @@ class HttpTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "无效的URL格式: $url"
             )
         }
@@ -164,7 +187,7 @@ class HttpTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "不支持的HTTP方法: $method"
             )
         }
@@ -209,7 +232,7 @@ class HttpTools(private val context: Context) {
                             return ToolResult(
                                 toolName = tool.name,
                                 success = false,
-                                result = "",
+                                result = StringResultData(""),
                                 error = "无效的表单数据格式: ${e.message}"
                             )
                         }
@@ -222,7 +245,7 @@ class HttpTools(private val context: Context) {
                         return ToolResult(
                             toolName = tool.name,
                             success = false,
-                            result = "",
+                            result = StringResultData(""),
                             error = "不支持的请求体类型: $bodyType"
                         )
                     }
@@ -239,49 +262,51 @@ class HttpTools(private val context: Context) {
             
             // 处理响应
             val contentType = response.header("Content-Type") ?: ""
-            // 限制头信息长度
-            val responseHeaders = response.headers.toString().let {
-                if (it.length > 500) it.take(500) + "...(更多头信息省略)" else it
+            
+            // 提取响应头
+            val responseHeadersMap = response.headers.names().associateWith { name ->
+                response.headers.get(name) ?: ""
             }
             
             val responseBody = response.body?.string() ?: ""
             
-            // 更严格的内容摘要处理
-            val responseText = when {
+            // 处理响应内容
+            val contentSummary = when {
                 contentType.contains("json", ignoreCase = true) -> {
                     summarizeJsonContent(responseBody, MAX_SUMMARY_LENGTH)
                 }
-                contentType.contains("html", ignoreCase = true) || 
-                contentType.contains("xml", ignoreCase = true) -> {
+                contentType.contains("html", ignoreCase = true) -> {
                     extractAndSummarizeHtml(responseBody, contentType, MAX_SUMMARY_LENGTH)
                 }
                 else -> {
-                    // 普通文本使用极度缩减的摘要
                     ultraSummarizeContent(responseBody, MAX_SUMMARY_LENGTH)
                 }
             }
             
+            val httpResponseData = HttpResponseData(
+                url = url,
+                statusCode = response.code,
+                statusMessage = response.message,
+                headers = responseHeadersMap,
+                contentType = contentType,
+                content = responseBody.take(MAX_CONTENT_LENGTH),
+                contentSummary = contentSummary,
+                size = responseBody.length
+            )
+            
             ToolResult(
                 toolName = tool.name,
-                success = response.isSuccessful,
-                result = """
-                    状态码: ${response.code}
-                    
-                    响应头(摘要):
-                    $responseHeaders
-                    
-                    响应体(摘要):
-                    $responseText
-                """.trimIndent(),
-                error = if (!response.isSuccessful) "HTTP请求失败: ${response.code} ${response.message}" else ""
+                success = true,
+                result = httpResponseData,
+                error = ""
             )
         } catch (e: Exception) {
-            Log.e(TAG, "发送HTTP请求时出错", e)
+            Log.e(TAG, "执行HTTP请求时出错", e)
             ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
-                error = "发送HTTP请求时出错: ${e.cause}"
+                result = StringResultData(""),
+                error = "执行HTTP请求时出错: ${e.message}"
             )
         }
     }

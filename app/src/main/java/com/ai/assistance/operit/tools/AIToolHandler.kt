@@ -5,7 +5,6 @@ import android.util.Log
 import com.ai.assistance.operit.model.*
 import com.ai.assistance.operit.permissions.ToolPermissionSystem
 import com.ai.assistance.operit.permissions.ToolCategory
-import com.ai.assistance.operit.tools.defaultTool.BlockingSleepToolExecutor
 import com.ai.assistance.operit.tools.defaultTool.Calculator
 import com.ai.assistance.operit.tools.defaultTool.ConnectionToolExecutor
 import com.ai.assistance.operit.tools.defaultTool.FileSystemTools
@@ -152,674 +151,11 @@ class AIToolHandler private constructor(
     fun registerDefaultTools() {
         // Initialize the permission system with default rules
         toolPermissionSystem.initializeDefaultRules()
-        
-        // 简化工具注册过程
-        // 每个工具都通过统一的registerTool方法进行注册，包含所有必要信息
-        registerTools()
+
+        registerAllTools(this,context)
     }
     
-    /**
-     * Register all available tools
-     */
-    private fun registerTools() {
-        // Problem Library Query Tool
-        registerTool(
-            name = "query_problem_library",
-            category = ToolCategory.FILE_READ,
-            descriptionGenerator = { tool ->
-                val query = tool.parameters.find { it.name == "query" }?.value ?: ""
-                "查询问题库: $query"
-            },
-            executor = { tool ->
-                val query = tool.parameters.find { it.name == "query" }?.value ?: ""
-                val result = queryProblemLibrary(query)
-                ToolResult(
-                    toolName = tool.name,
-                    success = true,
-                    result = result
-                )
-            }
-        )
-        
-        // 系统操作工具
-        registerTool(
-            name = "use_package", 
-            category = ToolCategory.FILE_READ,
-            descriptionGenerator = { tool ->
-                val packageName = tool.parameters.find { it.name == "package_name" }?.value ?: ""
-                "使用工具包: $packageName"
-            },
-            executor = { tool ->
-                val packageName = tool.parameters.find { it.name == "package_name" }?.value ?: ""
-                val result = getOrCreatePackageManager().usePackage(packageName)
-                ToolResult(
-                    toolName = tool.name,
-                    success = true,
-                    result = result
-                )
-            }
-        )
-        
-        // 计算器工具
-        registerTool(
-            name = "calculate", 
-            category = ToolCategory.FILE_READ,
-            descriptionGenerator = { tool ->
-                val expression = tool.parameters.find { it.name == "expression" }?.value ?: ""
-                "计算表达式: $expression"
-            },
-            executor = { tool ->
-                val expression = tool.parameters.find { it.name == "expression" }?.value ?: ""
-                try {
-                    val result = Calculator.evalExpression(expression)
-                    ToolResult(
-                        toolName = tool.name,
-                        success = true,
-                        result = "Calculation result: $result"
-                    )
-                } catch (e: Exception) {
-                    ToolResult(
-                        toolName = tool.name,
-                        success = false,
-                        result = "",
-                        error = "Calculation error: ${e.message}"
-                    )
-                }
-            }
-        )
-        
-        // Web搜索工具
-        registerTool(
-            name = "web_search", 
-            category = ToolCategory.NETWORK,
-            descriptionGenerator = { tool ->
-                val query = tool.parameters.find { it.name == "query" }?.value ?: ""
-                "网络搜索: $query"
-            },
-            executor = { tool ->
-                val webSearchTool = WebSearchTool(context)
-                webSearchTool.invoke(tool)
-            }
-        )
-        
-        // 休眠工具
-        registerTool(
-            name = "sleep", 
-            category = ToolCategory.SYSTEM_OPERATION,
-            descriptionGenerator = { tool ->
-                val durationMs = tool.parameters.find { it.name == "duration_ms" }?.value?.toIntOrNull() ?: 1000
-                "休眠 ${durationMs}毫秒"
-            },
-            executor = { tool ->
-                val durationMs = tool.parameters.find { it.name == "duration_ms" }?.value?.toIntOrNull() ?: 1000
-                val limitedDuration = durationMs.coerceIn(0, 10000) // Limit to max 10 seconds
-                
-                Thread.sleep(limitedDuration.toLong())
-                
-                ToolResult(
-                    toolName = tool.name,
-                    success = true,
-                    result = "Slept for ${limitedDuration}ms"
-                )
-            }
-        )
-        
-        // 设备信息工具
-        registerTool(
-            name = "device_info", 
-            category = ToolCategory.SYSTEM_OPERATION,
-            descriptionGenerator = { _ -> "获取设备信息" },
-            executor = { tool ->
-                val deviceId = android.provider.Settings.Secure.getString(
-                    context.contentResolver,
-                    android.provider.Settings.Secure.ANDROID_ID
-                )
-                
-                ToolResult(
-                    toolName = tool.name,
-                    success = true,
-                    result = "Device ID: $deviceId"
-                )
-            }
-        )
-        
-        // 文件系统工具
-        val fileSystemTools = FileSystemTools(context)
-        
-        // 列出目录内容
-        registerTool(
-            name = "list_files", 
-            category = ToolCategory.FILE_READ,
-            descriptionGenerator = { tool ->
-                val path = tool.parameters.find { it.name == "path" }?.value ?: ""
-                "列出目录内容: $path"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    fileSystemTools.listFiles(tool)
-                }
-            }
-        )
-        
-        // 读取文件内容
-        registerTool(
-            name = "read_file", 
-            category = ToolCategory.FILE_READ,
-            descriptionGenerator = { tool ->
-                val path = tool.parameters.find { it.name == "path" }?.value ?: ""
-                "读取文件: $path"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    fileSystemTools.readFile(tool)
-                }
-            }
-        )
-        
-        // 写入文件
-        registerTool(
-            name = "write_file", 
-            category = ToolCategory.FILE_WRITE,
-            dangerCheck = { true }, // 总是危险操作
-            descriptionGenerator = { tool ->
-                val path = tool.parameters.find { it.name == "path" }?.value ?: ""
-                val append = tool.parameters.find { it.name == "append" }?.value == "true"
-                if (append) "追加内容到文件: $path" else "写入内容到文件: $path"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    fileSystemTools.writeFile(tool)
-                }
-            }
-        )
-        
-        // 删除文件/目录
-        registerTool(
-            name = "delete_file", 
-            category = ToolCategory.FILE_WRITE,
-            dangerCheck = { true }, // 总是危险操作
-            descriptionGenerator = { tool ->
-                val path = tool.parameters.find { it.name == "path" }?.value ?: ""
-                val recursive = tool.parameters.find { it.name == "recursive" }?.value == "true"
-                if (recursive) "递归删除: $path" else "删除文件: $path"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    fileSystemTools.deleteFile(tool)
-                }
-            }
-        )
-        
-        // UI自动化工具
-        val uiTools = UITools(context)
-        
-        // 点击元素
-        registerTool(
-            name = "click_element", 
-            category = ToolCategory.UI_AUTOMATION,
-            dangerCheck = { tool ->
-                val resourceId = tool.parameters.find { it.name == "resourceId" }?.value ?: ""
-                val className = tool.parameters.find { it.name == "className" }?.value ?: ""
-                val dangerousWords = listOf(
-                    "send", "submit", "confirm", "pay", "purchase", "buy", "delete", "remove",
-                    "发送", "提交", "确认", "支付", "购买", "删除", "移除"
-                )
-                
-                dangerousWords.any { word ->
-                    resourceId.contains(word, ignoreCase = true) || 
-                    className.contains(word, ignoreCase = true)
-                }
-            },
-            descriptionGenerator = { tool ->
-                val resourceId = tool.parameters.find { it.name == "resourceId" }?.value
-                val className = tool.parameters.find { it.name == "className" }?.value
-                val index = tool.parameters.find { it.name == "index" }?.value ?: "0"
-                
-                when {
-                    resourceId != null -> "点击元素 [资源ID: $resourceId" + (if (index != "0") ", 索引: $index" else "") + "]"
-                    className != null -> "点击元素 [类名: $className" + (if (index != "0") ", 索引: $index" else "") + "]"
-                    else -> "点击元素"
-                }
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    uiTools.clickElement(tool)
-                }
-            }
-        )
-        
-        // 点击屏幕坐标
-        registerTool(
-            name = "tap", 
-            category = ToolCategory.UI_AUTOMATION,
-            descriptionGenerator = { tool ->
-                val x = tool.parameters.find { it.name == "x" }?.value ?: "?"
-                val y = tool.parameters.find { it.name == "y" }?.value ?: "?"
-                "点击屏幕坐标 ($x, $y)"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    uiTools.tap(tool)
-                }
-            }
-        )
-        
-        // HTTP请求工具
-        val httpTools = HttpTools(context)
-        
-        // 发送HTTP请求
-        registerTool(
-            name = "http_request", 
-            category = ToolCategory.NETWORK,
-            descriptionGenerator = { tool ->
-                val url = tool.parameters.find { it.name == "url" }?.value ?: ""
-                val method = tool.parameters.find { it.name == "method" }?.value ?: "GET"
-                "$method 请求: $url"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    httpTools.httpRequest(tool)
-                }
-            }
-        )
-        
-        // 注册剩余工具
-        registerRemainingTools(fileSystemTools, httpTools, uiTools, SystemOperationTools(context))
-    }
     
-    // Helper method to register the remaining tools with basic configuration
-    private fun registerRemainingTools(
-        fileSystemTools: FileSystemTools,
-        httpTools: HttpTools,
-        uiTools: UITools,
-        systemOperationTools: SystemOperationTools
-    ) {
-        // 检查文件是否存在
-        registerTool(
-            name = "file_exists", 
-            category = ToolCategory.FILE_READ,
-            descriptionGenerator = { tool ->
-                val path = tool.parameters.find { it.name == "path" }?.value ?: ""
-                "检查文件存在: $path"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    fileSystemTools.fileExists(tool)
-                }
-            }
-        )
-        
-        // 移动/重命名文件或目录
-        registerTool(
-            name = "move_file", 
-            category = ToolCategory.FILE_WRITE, 
-            dangerCheck = { true }, 
-            descriptionGenerator = { tool ->
-                val source = tool.parameters.find { it.name == "source" }?.value ?: ""
-                val destination = tool.parameters.find { it.name == "destination" }?.value ?: ""
-                "移动文件: $source -> $destination"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    fileSystemTools.moveFile(tool)
-                }
-            }
-        )
-        
-        // 复制文件或目录
-        registerTool(
-            name = "copy_file", 
-            category = ToolCategory.FILE_WRITE,
-            descriptionGenerator = { tool ->
-                val source = tool.parameters.find { it.name == "source" }?.value ?: ""
-                val destination = tool.parameters.find { it.name == "destination" }?.value ?: ""
-                "复制文件: $source -> $destination"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    fileSystemTools.copyFile(tool)
-                }
-            }
-        )
-        
-        // 创建目录
-        registerTool(
-            name = "make_directory", 
-            category = ToolCategory.FILE_WRITE,
-            descriptionGenerator = { tool ->
-                val path = tool.parameters.find { it.name == "path" }?.value ?: ""
-                "创建目录: $path"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    fileSystemTools.makeDirectory(tool)
-                }
-            }
-        )
-        
-        // 搜索文件
-        registerTool(
-            name = "find_files", 
-            category = ToolCategory.FILE_READ,
-            descriptionGenerator = { tool ->
-                val path = tool.parameters.find { it.name == "path" }?.value ?: ""
-                val pattern = tool.parameters.find { it.name == "pattern" }?.value ?: "*"
-                "搜索文件: 在 $path 中查找 $pattern"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    fileSystemTools.findFiles(tool)
-                }
-            }
-        )
-        
-        // 获取文件信息
-        registerTool(
-            name = "file_info", 
-            category = ToolCategory.FILE_READ,
-            descriptionGenerator = { tool ->
-                val path = tool.parameters.find { it.name == "path" }?.value ?: ""
-                "获取文件信息: $path"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    fileSystemTools.fileInfo(tool)
-                }
-            }
-        )
-        
-        // 压缩文件/目录
-        registerTool(
-            name = "zip_files", 
-            category = ToolCategory.FILE_WRITE,
-            descriptionGenerator = { tool ->
-                val source = tool.parameters.find { it.name == "source" }?.value ?: ""
-                val destination = tool.parameters.find { it.name == "destination" }?.value ?: ""
-                "压缩文件: $source -> $destination"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    fileSystemTools.zipFiles(tool)
-                }
-            }
-        )
-        
-        // 解压缩文件
-        registerTool(
-            name = "unzip_files", 
-            category = ToolCategory.FILE_WRITE,
-            descriptionGenerator = { tool ->
-                val source = tool.parameters.find { it.name == "source" }?.value ?: ""
-                val destination = tool.parameters.find { it.name == "destination" }?.value ?: ""
-                "解压文件: $source -> $destination"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    fileSystemTools.unzipFiles(tool)
-                }
-            }
-        )
-        
-        // 打开文件
-        registerTool(
-            name = "open_file", 
-            category = ToolCategory.FILE_READ,
-            descriptionGenerator = { tool ->
-                val path = tool.parameters.find { it.name == "path" }?.value ?: ""
-                "打开文件: $path"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    fileSystemTools.openFile(tool)
-                }
-            }
-        )
-        
-        // 分享文件
-        registerTool(
-            name = "share_file", 
-            category = ToolCategory.FILE_WRITE,
-            descriptionGenerator = { tool ->
-                val path = tool.parameters.find { it.name == "path" }?.value ?: ""
-                "分享文件: $path"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    fileSystemTools.shareFile(tool)
-                }
-            }
-        )
-        
-        // 下载文件
-        registerTool(
-            name = "download_file", 
-            category = ToolCategory.NETWORK,
-            descriptionGenerator = { tool ->
-                val url = tool.parameters.find { it.name == "url" }?.value ?: ""
-                val destination = tool.parameters.find { it.name == "destination" }?.value ?: ""
-                "下载文件: $url -> $destination"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    fileSystemTools.downloadFile(tool)
-                }
-            }
-        )
-        
-        // 获取网页内容
-        registerTool(
-            name = "fetch_web_page", 
-            category = ToolCategory.NETWORK,
-            descriptionGenerator = { tool ->
-                val url = tool.parameters.find { it.name == "url" }?.value ?: ""
-                "获取网页内容: $url"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    httpTools.fetchWebPage(tool)
-                }
-            }
-        )
-        
-        // 系统操作工具
-        
-        // 修改系统设置
-        registerTool(
-            name = "modify_system_setting", 
-            category = ToolCategory.SYSTEM_OPERATION, 
-            dangerCheck = { true },
-            descriptionGenerator = { tool ->
-                val key = tool.parameters.find { it.name == "key" }?.value ?: ""
-                val value = tool.parameters.find { it.name == "value" }?.value ?: ""
-                "修改系统设置: $key = $value"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    systemOperationTools.modifySystemSetting(tool)
-                }
-            }
-        )
-        
-        // 获取系统设置
-        registerTool(
-            name = "get_system_setting", 
-            category = ToolCategory.SYSTEM_OPERATION,
-            descriptionGenerator = { tool ->
-                val key = tool.parameters.find { it.name == "key" }?.value ?: ""
-                "获取系统设置: $key"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    systemOperationTools.getSystemSetting(tool)
-                }
-            }
-        )
-        
-        // 安装应用
-        registerTool(
-            name = "install_app", 
-            category = ToolCategory.SYSTEM_OPERATION, 
-            dangerCheck = { true },
-            descriptionGenerator = { tool ->
-                val path = tool.parameters.find { it.name == "path" }?.value ?: ""
-                "安装应用: $path"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    systemOperationTools.installApp(tool)
-                }
-            }
-        )
-        
-        // 卸载应用
-        registerTool(
-            name = "uninstall_app", 
-            category = ToolCategory.SYSTEM_OPERATION, 
-            dangerCheck = { true },
-            descriptionGenerator = { tool ->
-                val packageName = tool.parameters.find { it.name == "package_name" }?.value ?: ""
-                "卸载应用: $packageName"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    systemOperationTools.uninstallApp(tool)
-                }
-            }
-        )
-        
-        // 获取已安装应用列表
-        registerTool(
-            name = "list_installed_apps", 
-            category = ToolCategory.SYSTEM_OPERATION,
-            descriptionGenerator = { _ -> "列出已安装应用" },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    systemOperationTools.listInstalledApps(tool)
-                }
-            }
-        )
-        
-        // 启动应用
-        registerTool(
-            name = "start_app", 
-            category = ToolCategory.SYSTEM_OPERATION,
-            descriptionGenerator = { tool ->
-                val packageName = tool.parameters.find { it.name == "package_name" }?.value ?: ""
-                "启动应用: $packageName"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    systemOperationTools.startApp(tool)
-                }
-            }
-        )
-        
-        // 停止应用
-        registerTool(
-            name = "stop_app", 
-            category = ToolCategory.SYSTEM_OPERATION, 
-            dangerCheck = { true },
-            descriptionGenerator = { tool ->
-                val packageName = tool.parameters.find { it.name == "package_name" }?.value ?: ""
-                "停止应用: $packageName"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    systemOperationTools.stopApp(tool)
-                }
-            }
-        )
-        
-        // 获取当前页面/窗口信息
-        registerTool(
-            name = "get_page_info", 
-            category = ToolCategory.UI_AUTOMATION,
-            descriptionGenerator = { _ -> "获取当前页面信息" },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    uiTools.getPageInfo(tool)
-                }
-            }
-        )
-        
-        // 在输入框中设置文本
-        registerTool(
-            name = "set_input_text", 
-            category = ToolCategory.UI_AUTOMATION,
-            descriptionGenerator = { tool ->
-                val text = tool.parameters.find { it.name == "text" }?.value ?: ""
-                "设置输入文本: $text"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    uiTools.setInputText(tool)
-                }
-            }
-        )
-        
-        // 按下特定按键
-        registerTool(
-            name = "press_key", 
-            category = ToolCategory.UI_AUTOMATION,
-            descriptionGenerator = { tool ->
-                val keyCode = tool.parameters.find { it.name == "key_code" }?.value ?: ""
-                "按下按键: $keyCode"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    uiTools.pressKey(tool)
-                }
-            }
-        )
-        
-        // 执行滑动手势
-        registerTool(
-            name = "swipe", 
-            category = ToolCategory.UI_AUTOMATION,
-            descriptionGenerator = { tool ->
-                val startX = tool.parameters.find { it.name == "start_x" }?.value ?: "?"
-                val startY = tool.parameters.find { it.name == "start_y" }?.value ?: "?"
-                val endX = tool.parameters.find { it.name == "end_x" }?.value ?: "?"
-                val endY = tool.parameters.find { it.name == "end_y" }?.value ?: "?"
-                "滑动: ($startX,$startY) -> ($endX,$endY)"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    uiTools.swipe(tool)
-                }
-            }
-        )
-        
-        // 通过包名启动应用
-        registerTool(
-            name = "launch_app", 
-            category = ToolCategory.UI_AUTOMATION,
-            descriptionGenerator = { tool ->
-                val packageName = tool.parameters.find { it.name == "package_name" }?.value ?: ""
-                "启动应用: $packageName"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    uiTools.launchApp(tool)
-                }
-            }
-        )
-        
-        // 执行组合操作并返回新的UI状态
-        registerTool(
-            name = "combined_operation", 
-            category = ToolCategory.UI_AUTOMATION,
-            descriptionGenerator = { tool ->
-                val operations = tool.parameters.find { it.name == "operations" }?.value ?: ""
-                "执行组合操作: $operations"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    uiTools.combinedOperation(tool)
-                }
-            }
-        )
-    }
     
     // Package manager instance (lazy initialized)
     private var packageManagerInstance: PackageManager? = null
@@ -827,7 +163,7 @@ class AIToolHandler private constructor(
     /**
      * Gets or creates the package manager instance
      */
-    private fun getOrCreatePackageManager(): PackageManager {
+    fun getOrCreatePackageManager(): PackageManager {
         return packageManagerInstance ?: run {
             packageManagerInstance = PackageManager.getInstance(context, this)
             packageManagerInstance!!
@@ -911,7 +247,7 @@ class AIToolHandler private constructor(
                                     result = ToolResult(
                                         toolName = invocation.tool.name,
                                         success = false,
-                                        result = "",
+                                        result = StringResultData(""),
                                         error = "Permission denied"
                                     )
                                 )
@@ -937,7 +273,7 @@ class AIToolHandler private constructor(
                                 result = ToolResult(
                                     toolName = invocation.tool.name,
                                     success = false,
-                                    result = "",
+                                    result = StringResultData(""),
                                     error = "Permission check error: ${e.message}"
                                 )
                             )
@@ -955,7 +291,7 @@ class AIToolHandler private constructor(
                             processedResponse = replaceToolInvocation(
                                 processedResponse, 
                                 invocation, 
-                                result.result
+                                result.result.toString()
                             )
                             
                             _toolProgress.value = ToolExecutionProgress(
@@ -982,7 +318,7 @@ class AIToolHandler private constructor(
                             result = ToolResult(
                                 toolName = invocation.tool.name,
                                 success = false,
-                                result = "",
+                                result = StringResultData(""),
                                 error = e.message
                             )
                         )
@@ -1166,22 +502,22 @@ class AIToolHandler private constructor(
         if (executor == null) {
             return ToolResult(
                 toolName = tool.name,
-                success = false,
-                result = "",
+                        success = false,
+                result = StringResultData(""),
                 error = "Tool not found: ${tool.name}"
-            )
-        }
+                    )
+                }
         
         // Validate parameters
         val validationResult = executor.validateParameters(tool)
         if (!validationResult.valid) {
             return ToolResult(
                 toolName = tool.name,
-                success = false,
-                result = "",
+                    success = false,
+                result = StringResultData(""),
                 error = validationResult.errorMessage
-            )
-        }
+                )
+            }
         
         // Execute the tool
         return executor.invoke(tool)
@@ -1276,7 +612,7 @@ class AIToolHandler private constructor(
         loadProblemLibraryFromFile()
     }
 
-    private fun queryProblemLibrary(query: String): String {
+    fun queryProblemLibrary(query: String): String {
         if (problemLibrary.isEmpty()) {
             return "问题库为空，尚无记录"
         }

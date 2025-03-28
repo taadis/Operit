@@ -6,6 +6,12 @@ import com.ai.assistance.operit.AdbCommandExecutor
 import com.ai.assistance.operit.model.AITool
 import com.ai.assistance.operit.model.ToolParameter
 import com.ai.assistance.operit.model.ToolResult
+import com.ai.assistance.operit.model.ToolResultData
+import com.ai.assistance.operit.model.StringResultData
+import com.ai.assistance.operit.tools.CombinedOperationResultData
+import com.ai.assistance.operit.tools.UIActionResultData
+import com.ai.assistance.operit.tools.UIPageResultData
+import kotlinx.serialization.Serializable
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
 import java.io.StringReader
@@ -20,6 +26,8 @@ class UITools(private val context: Context) {
         private const val COMMAND_TIMEOUT_SECONDS = 10L
     }
     
+    
+    
     /**
      * Gets the current UI page/window information
      */
@@ -31,7 +39,7 @@ class UITools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Invalid format specified. Must be 'xml' or 'json'."
             )
         }
@@ -41,50 +49,27 @@ class UITools(private val context: Context) {
             val uiData = getUIData() ?: return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Failed to retrieve UI data."
             )
             
             // 解析当前窗口信息
             val focusInfo = extractFocusInfo(uiData.windowInfo)
             
-            // 生成输出
-            val result = when (detail) {
-                "minimal" -> {
-                    // 简化的输出，只返回基本信息
-                    """
-                    |Current Application: ${focusInfo.packageName ?: "Unknown"}
-                    |Current Activity: ${focusInfo.activityName ?: "Unknown"}
-                    |UI Preview: 
-                    |${simplifyLayout(uiData.uiXml)}
-                    """.trimMargin()
-                }
-                "full" -> {
-                    // 完整的输出，包括完整的UI层次结构和窗口信息
-                    """
-                    |Current Application: ${focusInfo.packageName ?: "Unknown"}
-                    |Current Activity: ${focusInfo.activityName ?: "Unknown"}
-                    |
-                    |UI Hierarchy:
-                    |${simplifyLayout(uiData.uiXml)}
-                    """.trimMargin()
-                }
-                else -> { // "summary"默认情况
-                    // 标准输出，包括窗口信息和简化的UI层次结构
-                    """
-                    |Current Application: ${focusInfo.packageName ?: "Unknown"}
-                    |Current Activity: ${focusInfo.activityName ?: "Unknown"}
-                    |
-                    |UI Elements:
-                    |${simplifyLayout(uiData.uiXml)}
-                    """.trimMargin()
-                }
-            }
+            // 简化布局信息
+            val simplifiedLayout = simplifyLayout(uiData.uiXml)
+            
+            // 创建结构化数据
+            val resultData = UIPageResultData(
+                packageName = focusInfo.packageName ?: "Unknown",
+                activityName = focusInfo.activityName ?: "Unknown",
+                uiElements = simplifiedLayout
+            )
             
             ToolResult(
                 toolName = tool.name,
                 success = true,
-                result = result,
+                result = resultData,
                 error = ""
             )
         } catch (e: Exception) {
@@ -92,7 +77,7 @@ class UITools(private val context: Context) {
             ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Error getting page info: ${e.message}"
             )
         }
@@ -237,7 +222,7 @@ class UITools(private val context: Context) {
         val children: MutableList<SimplifiedNode> = mutableListOf()
     )
     
-    fun simplifyLayout(xml: String): String {
+    fun simplifyLayout(xml: String): com.ai.assistance.operit.tools.SimplifiedUINode {
         val factory = XmlPullParserFactory.newInstance().apply {
             isNamespaceAware = false
         }
@@ -271,7 +256,21 @@ class UITools(private val context: Context) {
             parser.next()
         }
     
-        return rootNode?.toTreeString() ?: ""
+        // Convert SimplifiedNode to SimplifiedUINode
+        return rootNode?.toUINode() ?: com.ai.assistance.operit.tools.SimplifiedUINode()
+    }
+    
+    // Extension function to convert SimplifiedNode to SimplifiedUINode
+    private fun SimplifiedNode.toUINode(): com.ai.assistance.operit.tools.SimplifiedUINode {
+        return com.ai.assistance.operit.tools.SimplifiedUINode(
+            className = className,
+            text = text,
+            contentDesc = contentDesc,
+            resourceId = resourceId,
+            bounds = bounds,
+            isClickable = isClickable,
+            children = children.map { it.toUINode() }
+        )
     }
     
     private fun createNode(parser: XmlPullParser): SimplifiedNode {
@@ -304,6 +303,7 @@ class UITools(private val context: Context) {
         return isKeyElement || hasContent || isClickable || children.any { it.shouldKeepNode() }
     }
     
+    /* Original string conversion function - kept for reference
     private fun SimplifiedNode.toTreeString(indent: String = ""): String {
         if (!shouldKeepNode()) return ""
     
@@ -340,6 +340,8 @@ class UITools(private val context: Context) {
     
         return sb.toString()
     }
+    */
+    
     /**
      * Extracts package and activity information from window focus data
      */
@@ -382,7 +384,7 @@ class UITools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Missing or invalid coordinates. Both 'x' and 'y' must be valid integers."
             )
         }
@@ -400,7 +402,11 @@ class UITools(private val context: Context) {
                 ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = "Successfully tapped at coordinates ($x, $y)",
+                    result = UIActionResultData(
+                        actionType = "tap",
+                        actionDescription = "Successfully tapped at coordinates ($x, $y)",
+                        coordinates = Pair(x, y)
+                    ),
                     error = ""
                 )
             } else {
@@ -408,7 +414,7 @@ class UITools(private val context: Context) {
                 ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "Failed to tap at coordinates ($x, $y): ${result.stderr ?: "Unknown error"}"
                 )
             }
@@ -417,7 +423,7 @@ class UITools(private val context: Context) {
             ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Error tapping at coordinates: ${e.message ?: "Unknown exception"}"
             )
         }
@@ -436,7 +442,7 @@ class UITools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Missing element identifier. Provide at least one of: 'resourceId' or 'className'."
             )
         }
@@ -469,7 +475,7 @@ class UITools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "Failed to dump UI hierarchy: ${dumpResult.stderr ?: "Unknown error"}"
                 )
             }
@@ -482,7 +488,7 @@ class UITools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "Failed to read UI hierarchy: ${readResult.stderr ?: "Unknown error"}"
                 )
             }
@@ -546,7 +552,7 @@ class UITools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "No element found with $criteria ($matchType)."
                 )
             }
@@ -559,7 +565,7 @@ class UITools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "Index out of range. Found ${matchingNodes.size} matching elements, but requested index $index."
                 )
             }
@@ -577,7 +583,7 @@ class UITools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "Failed to extract bounds from the element."
                 )
             }
@@ -611,17 +617,22 @@ class UITools(private val context: Context) {
                     ""
                 }
                 
-                ToolResult(
+                return ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = "Successfully clicked element$identifierDescription$matchCount at coordinates ($centerX, $centerY)",
+                    result = UIActionResultData(
+                        actionType = "click",
+                        actionDescription = "Successfully clicked element$identifierDescription$matchCount at coordinates ($centerX, $centerY)",
+                        coordinates = Pair(centerX, centerY),
+                        elementId = resourceId ?: className
+                    ),
                     error = ""
                 )
             } else {
-                ToolResult(
+                return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "Failed to click element: ${tapResult.stderr ?: "Unknown error"}"
                 )
             }
@@ -630,7 +641,7 @@ class UITools(private val context: Context) {
             ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Error clicking element: ${e.message ?: "Unknown exception"}"
             )
         }
@@ -669,7 +680,10 @@ class UITools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = "Successfully cleared input field",
+                    result = UIActionResultData(
+                        actionType = "textInput",
+                        actionDescription = "Successfully cleared input field"
+                    ),
                     error = ""
                 )
             }
@@ -698,14 +712,17 @@ class UITools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = "Successfully set input text to: $text",
+                    result = UIActionResultData(
+                        actionType = "textInput",
+                        actionDescription = "Successfully set input text to: $text"
+                    ),
                     error = ""
                 )
             } else {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "Failed to set input text via all available methods"
                 )
             }
@@ -714,7 +731,7 @@ class UITools(private val context: Context) {
             ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Error setting input text: ${e.message ?: "Unknown exception"}"
             )
         }
@@ -882,7 +899,7 @@ class UITools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Missing 'keyCode' parameter."
             )
         }
@@ -896,14 +913,17 @@ class UITools(private val context: Context) {
                 ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = "Successfully pressed key: $keyCode",
+                    result = UIActionResultData(
+                        actionType = "keyPress",
+                        actionDescription = "Successfully pressed key: $keyCode"
+                    ),
                     error = ""
                 )
             } else {
                 ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "Failed to press key: ${result.stderr}"
                 )
             }
@@ -912,7 +932,7 @@ class UITools(private val context: Context) {
             ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Error pressing key: ${e.message}"
             )
         }
@@ -932,7 +952,7 @@ class UITools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Missing or invalid coordinates. 'startX', 'startY', 'endX', and 'endY' must be valid integers."
             )
         }
@@ -946,14 +966,17 @@ class UITools(private val context: Context) {
                 ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = "Successfully performed swipe from ($startX, $startY) to ($endX, $endY)",
+                    result = UIActionResultData(
+                        actionType = "swipe",
+                        actionDescription = "Successfully performed swipe from ($startX, $startY) to ($endX, $endY)"
+                    ),
                     error = ""
                 )
             } else {
                 ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "Failed to perform swipe: ${result.stderr}"
                 )
             }
@@ -962,7 +985,7 @@ class UITools(private val context: Context) {
             ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Error performing swipe: ${e.message}"
             )
         }
@@ -978,7 +1001,7 @@ class UITools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Missing 'packageName' parameter."
             )
         }
@@ -992,14 +1015,17 @@ class UITools(private val context: Context) {
                 ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = "Successfully launched app: $packageName",
+                    result = UIActionResultData(
+                        actionType = "launchApp",
+                        actionDescription = "Successfully launched app: $packageName"
+                    ),
                     error = ""
                 )
             } else {
                 ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "Failed to launch app: ${result.stderr}"
                 )
             }
@@ -1008,7 +1034,7 @@ class UITools(private val context: Context) {
             ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Error launching app: ${e.message}"
             )
         }
@@ -1016,7 +1042,6 @@ class UITools(private val context: Context) {
     
     /**
      * Performs a combined operation: execute an action, wait, then return the new UI state
-     * This allows for common patterns like click-wait-get_page_info or swipe-wait-get_page_info
      */
     suspend fun combinedOperation(tool: AITool): ToolResult {
         val operation = tool.parameters.find { it.name == "operation" }?.value
@@ -1026,7 +1051,7 @@ class UITools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Missing 'operation' parameter. Must specify which operation to perform."
             )
         }
@@ -1037,7 +1062,7 @@ class UITools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Invalid operation format. Must specify operation type and parameters."
             )
         }
@@ -1051,7 +1076,7 @@ class UITools(private val context: Context) {
                     return ToolResult(
                         toolName = tool.name,
                         success = false,
-                        result = "",
+                        result = StringResultData(""),
                         error = "Invalid tap operation. Format: tap x y"
                     )
                 }
@@ -1063,7 +1088,7 @@ class UITools(private val context: Context) {
                     return ToolResult(
                         toolName = tool.name,
                         success = false,
-                        result = "",
+                        result = StringResultData(""),
                         error = "Invalid coordinates for tap operation."
                     )
                 }
@@ -1083,7 +1108,7 @@ class UITools(private val context: Context) {
                     return ToolResult(
                         toolName = tool.name,
                         success = false,
-                        result = "",
+                        result = StringResultData(""),
                         error = "Invalid swipe operation. Format: swipe startX startY endX endY [duration]"
                     )
                 }
@@ -1098,7 +1123,7 @@ class UITools(private val context: Context) {
                     return ToolResult(
                         toolName = tool.name,
                         success = false,
-                        result = "",
+                        result = StringResultData(""),
                         error = "Invalid coordinates for swipe operation."
                     )
                 }
@@ -1121,7 +1146,7 @@ class UITools(private val context: Context) {
                     return ToolResult(
                         toolName = tool.name,
                         success = false,
-                        result = "",
+                        result = StringResultData(""),
                         error = "Invalid click_element operation. Format: click_element type value [index] [partialMatch]"
                     )
                 }
@@ -1147,7 +1172,7 @@ class UITools(private val context: Context) {
                     return ToolResult(
                         toolName = tool.name,
                         success = false,
-                        result = "",
+                        result = StringResultData(""),
                         error = "Invalid identifier type for click_element. Must be 'resourceId' or 'className'."
                     )
                 }
@@ -1172,7 +1197,7 @@ class UITools(private val context: Context) {
                     return ToolResult(
                         toolName = tool.name,
                         success = false,
-                        result = "",
+                        result = StringResultData(""),
                         error = "Invalid press_key operation. Format: press_key keyCode"
                     )
                 }
@@ -1193,7 +1218,7 @@ class UITools(private val context: Context) {
                     return ToolResult(
                         toolName = tool.name,
                         success = false,
-                        result = "",
+                        result = StringResultData(""),
                         error = "Invalid set_input_text operation. Format: set_input_text text"
                     )
                 }
@@ -1214,7 +1239,7 @@ class UITools(private val context: Context) {
                     return ToolResult(
                         toolName = tool.name,
                         success = false,
-                        result = "",
+                        result = StringResultData(""),
                         error = "Invalid launch_app operation. Format: launch_app packageName"
                     )
                 }
@@ -1234,7 +1259,7 @@ class UITools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "Unsupported operation: $operationType. Supported operations: tap, swipe, click_element, press_key, set_input_text, launch_app"
                 )
             }
@@ -1245,7 +1270,7 @@ class UITools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Operation failed: ${operationResult.error}"
             )
         }
@@ -1257,9 +1282,9 @@ class UITools(private val context: Context) {
             Log.e(TAG, "Error during delay", e)
         }
         
-        // 使用getPageInfo方法获取新的UI状态，而不是重复实现相同的逻辑
+        // Get UI state after operation
         try {
-            // 创建适当的工具调用以获取页面信息
+            // Create page info tool with appropriate parameters
             val pageInfoTool = AITool(
                 name = "get_page_info",
                 parameters = listOf(
@@ -1268,19 +1293,19 @@ class UITools(private val context: Context) {
                 )
             )
             
-            // 调用getPageInfo获取UI状态
+            // Call getPageInfo to get UI state
             val pageInfoResult = getPageInfo(pageInfoTool)
             
             if (!pageInfoResult.success) {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "Operation succeeded but failed to get UI state: ${pageInfoResult.error}"
                 )
             }
             
-            // 构建操作摘要
+            // Build operation summary
             val operationSummary = when (operationType) {
                 "tap" -> "Tapped at (${operationParts[1]}, ${operationParts[2]})"
                 "swipe" -> "Swiped from (${operationParts[1]}, ${operationParts[2]}) to (${operationParts[3]}, ${operationParts[4]})"
@@ -1303,20 +1328,49 @@ class UITools(private val context: Context) {
                 else -> "Executed operation: $operation"
             }
             
-            // 组合操作摘要和UI状态
-            return ToolResult(
-                toolName = tool.name,
-                success = true,
-                result = "$operationSummary (waited ${delayMs}ms)\n\n${pageInfoResult.result}",
-                error = ""
-            )
-            
+            // Ensure we have a UIPageResultData
+            if (pageInfoResult.result is UIPageResultData) {
+                val pageInfo = pageInfoResult.result
+                
+                // Combine operation summary and UI state
+                return ToolResult(
+                    toolName = tool.name,
+                    success = true,
+                    result = CombinedOperationResultData(
+                        operationSummary = operationSummary,
+                        waitTime = delayMs,
+                        pageInfo = pageInfo
+                    ),
+                    error = ""
+                )
+            } else {
+                // Convert string result to UIPageResultData if needed
+                val defaultPageInfo = UIPageResultData(
+                    packageName = "Unknown",
+                    activityName = "Unknown",
+                    uiElements = com.ai.assistance.operit.tools.SimplifiedUINode(
+                        className = "Root",
+                        text = pageInfoResult.result.toString()
+                    )
+                )
+                
+                return ToolResult(
+                    toolName = tool.name,
+                    success = true,
+                    result = CombinedOperationResultData(
+                        operationSummary = operationSummary,
+                        waitTime = delayMs,
+                        pageInfo = defaultPageInfo
+                    ),
+                    error = ""
+                )
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error getting UI state after operation", e)
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "Operation was successful but failed to get new UI state: ${e.message}",
+                result = StringResultData("Error getting UI state: ${e.message}"),
                 error = "Error getting UI state after operation: ${e.message}"
             )
         }
@@ -1401,7 +1455,7 @@ class UITools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "索引超出范围。找到${matchingNodes.size}个匹配元素，但请求的索引为$index。"
             )
         }
@@ -1413,7 +1467,7 @@ class UITools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "无法从元素中提取边界坐标。"
             )
         }
@@ -1450,14 +1504,19 @@ class UITools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = true,
-                result = "Successfully clicked element$identifierDescription$matchCount at coordinates ($centerX, $centerY)",
+                result = UIActionResultData(
+                    actionType = "click",
+                    actionDescription = "Successfully clicked element$identifierDescription$matchCount at coordinates ($centerX, $centerY)",
+                    coordinates = Pair(centerX, centerY),
+                    elementId = resourceId ?: className
+                ),
                 error = ""
             )
         } else {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Failed to click element: ${tapResult.stderr ?: "Unknown error"}"
             )
         }

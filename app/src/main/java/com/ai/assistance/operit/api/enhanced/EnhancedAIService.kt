@@ -15,6 +15,7 @@ import com.ai.assistance.operit.api.enhanced.models.ConversationRoundManager
 import com.ai.assistance.operit.model.InputProcessingState
 import com.ai.assistance.operit.model.ToolInvocation
 import com.ai.assistance.operit.model.ToolResult
+import com.ai.assistance.operit.model.StringResultData
 import com.ai.assistance.operit.tools.AIToolHandler
 import com.ai.assistance.operit.tools.packTool.PackageManager
 import kotlinx.coroutines.CoroutineScope
@@ -480,7 +481,7 @@ class EnhancedAIService(
             result = ToolResult(
                 toolName = invocation.tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Tool '${invocation.tool.name}' not available"
             )
         } else {
@@ -508,7 +509,7 @@ class EnhancedAIService(
             result = ToolExecutionManager.executeToolSafely(invocation, executor)
 
             // Display tool execution result
-            val toolResultString = if (result.success) result.result else "${result.error}"
+            val toolResultString = if (result.success) result.result.toString() else "${result.error}"
             val resultDisplayContent = roundManager.appendContent(
                 ConversationMarkupManager.createToolResultStatus(
                     invocation.tool.name,

@@ -12,6 +12,7 @@ import kotlinx.coroutines.withTimeout
 import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
 import java.util.regex.Pattern
+import com.ai.assistance.operit.model.StringResultData
 
 /**
  * Manages JavaScript tool execution using JsEngine
@@ -92,7 +93,7 @@ class JsToolManager private constructor(
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "Invalid tool name format. Expected 'packageName:toolName'"
                 )
             }
@@ -181,7 +182,7 @@ class JsToolManager private constructor(
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "Script execution was cancelled: ${e.message}"
                 )
             } catch (e: Exception) {
@@ -190,7 +191,7 @@ class JsToolManager private constructor(
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = "Script execution failed: ${e.message}"
                 )
             }
@@ -200,7 +201,7 @@ class JsToolManager private constructor(
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = "",
+                    result = StringResultData(""),
                     error = result
                 )
             }
@@ -208,14 +209,14 @@ class JsToolManager private constructor(
             return ToolResult(
                 toolName = tool.name,
                 success = true,
-                result = result
+                result = StringResultData(result)
             )
         } catch (e: Exception) {
             Log.e(TAG, "Error executing script for tool ${tool.name}: ${e.message}", e)
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
+                result = StringResultData(""),
                 error = "Script execution error: ${e.message}"
             )
         }

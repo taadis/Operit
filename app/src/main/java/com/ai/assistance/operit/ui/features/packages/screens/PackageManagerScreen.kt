@@ -42,6 +42,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.model.AITool
+import com.ai.assistance.operit.model.StringResultData
 import com.ai.assistance.operit.model.ToolParameter
 import com.ai.assistance.operit.model.ToolResult
 import com.ai.assistance.operit.tools.packTool.PackageManager
@@ -746,7 +747,7 @@ fun ScriptExecutionDialog(
                         ) {
                             Text(
                                 text = if (executionResult!!.success) 
-                                    executionResult!!.result 
+                                    executionResult!!.result.toString() 
                                 else 
                                     "Error: ${executionResult!!.error}",
                                 modifier = Modifier
@@ -787,7 +788,7 @@ fun ScriptExecutionDialog(
                                             executionResult = ToolResult(
                                                 toolName = "${packageName}:${tool.name}",
                                                 success = false,
-                                                result = "",
+                                                result = StringResultData(""),
                                                 error = "Missing parameters: ${missingParams.joinToString(", ")}"
                                             )
                                             onExecuted(executionResult!!)
@@ -825,7 +826,7 @@ fun ScriptExecutionDialog(
                                         executionResult = ToolResult(
                                             toolName = "${packageName}:${tool.name}",
                                             success = false,
-                                            result = "",
+                                            result = StringResultData(""),
                                             error = "Execution error: ${e.message}"
                                         )
                                         onExecuted(executionResult!!)

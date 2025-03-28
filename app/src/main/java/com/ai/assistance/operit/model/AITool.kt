@@ -36,13 +36,48 @@ data class ToolInvocation(
 )
 
 /**
+ * Base interface for all tool result data
+ * Each tool should implement its own version of this interface
+ */
+interface ToolResultData {
+    /**
+     * Converts the structured data to a string representation
+     */
+    override fun toString(): String
+}
+
+/**
+ * Simple boolean result implementation
+ */
+@Serializable
+data class BooleanResultData(val value: Boolean) : ToolResultData {
+    override fun toString(): String = value.toString()
+}
+
+/**
+ * Simple string result implementation
+ */
+@Serializable
+data class StringResultData(val value: String) : ToolResultData {
+    override fun toString(): String = value
+}
+
+/**
+ * Simple integer result implementation
+ */
+@Serializable
+data class IntResultData(val value: Int) : ToolResultData {
+    override fun toString(): String = value.toString()
+}
+
+/**
  * Represents the result of a tool execution
  */
 @Serializable
 data class ToolResult(
     val toolName: String,
     val success: Boolean,
-    val result: String,
+    val result: ToolResultData,
     val error: String? = null
 )
 

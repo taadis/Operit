@@ -9,8 +9,14 @@ import androidx.core.content.ContextCompat
 import com.ai.assistance.operit.model.AITool
 import com.ai.assistance.operit.model.ToolParameter
 import com.ai.assistance.operit.model.ToolResult
-import com.ai.assistance.operit.tools.AIToolHandler
+import com.ai.assistance.operit.model.ToolResultData
+import com.ai.assistance.operit.tools.*
 import com.ai.assistance.operit.tools.packTool.PackageManager
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import org.json.JSONObject
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
@@ -288,19 +294,58 @@ class JsEngine(private val context: Context) {
                             // 清理回调
                             delete window[callbackId];
                             
-                            // 根据结果处理Promise
+                            // Handle the structured result
                             if (isError) {
-                                reject(new Error(result));
+                                // Error results are now structured JSON objects
+                                if (typeof result === 'object' && result.success === false) {
+                                    reject(new Error(result.error || "Unknown error"));
+                                } else {
+                                    reject(new Error(typeof result === 'string' ? result : JSON.stringify(result)));
+                                }
                             } else {
                                 try {
-                                    // 尝试解析JSON结果
-                                    if (typeof result === 'string' && (result.startsWith('{') || result.startsWith('['))) {
-                                        resolve(JSON.parse(result));
+                                    // Process structured result
+                                    let processedResult;
+                                    
+                                    // If it's already a JS object (from JSON in sendToolResult)
+                                    if (typeof result === 'object') {
+                                        if (result.success) {
+                                            // Return just the data part of successful results
+                                            processedResult = result.data;
+                                        } else {
+                                            // For error objects, reject the promise
+                                            reject(new Error(result.error || "Unknown error"));
+                                            return;
+                                        }
+                                    } 
+                                    // If it's a JSON string
+                                    else if (typeof result === 'string' && (result.startsWith('{') || result.startsWith('['))) {
+                                        const parsedResult = JSON.parse(result);
+                                        
+                                        // Check if it's our ToolResult format
+                                        if (parsedResult && typeof parsedResult === 'object' && 'success' in parsedResult) {
+                                            if (parsedResult.success) {
+                                                // Return just the data for successful results
+                                                processedResult = parsedResult.data;
+                                            } else {
+                                                // For error results, reject the promise
+                                                reject(new Error(parsedResult.error || "Unknown error"));
+                                                return;
+                                            }
+                                        } else {
+                                            // Regular JSON result (legacy or other format)
+                                            processedResult = parsedResult;
+                                        }
                                     } else {
-                                        resolve(result);
+                                        // Plain string or other primitive
+                                        processedResult = result;
                                     }
+                                    
+                                    // Resolve the promise with the final processed result
+                                    resolve(processedResult);
                                 } catch (e) {
-                                    // 如果解析失败，直接返回原始结果
+                                    // If any parsing error occurs, return the original result
+                                    console.error("Error processing tool result:", e);
                                     resolve(result);
                                 }
                             }
@@ -320,25 +365,42 @@ class JsEngine(private val context: Context) {
                     write: (path, content) => toolCall("write_file", { path, content }),
                     deleteFile: (path) => toolCall("delete_file", { path }),
                     exists: (path) => toolCall("file_exists", { path }),
-                    move: (source, target) => toolCall("move_file", { source, target }),
-                    copy: (source, target) => toolCall("copy_file", { source, target }),
+                    move: (source, destination) => toolCall("move_file", { source, destination }),
+                    copy: (source, destination) => toolCall("copy_file", { source, destination }),
                     mkdir: (path) => toolCall("make_directory", { path }),
                     find: (path, pattern) => toolCall("find_files", { path, pattern }),
                     info: (path) => toolCall("file_info", { path }),
-                    zip: (source, target) => toolCall("zip_files", { source, target }),
-                    unzip: (source, target) => toolCall("unzip_files", { source, target }),
-                    open: (path) => toolCall("open_file", { path })
+                    zip: (source, destination) => toolCall("zip_files", { source, destination }),
+                    unzip: (source, destination) => toolCall("unzip_files", { source, destination }),
+                    open: (path) => toolCall("open_file", { path }),
+                    share: (path) => toolCall("share_file", { path }),
+                    download: (url, destination) => toolCall("download_file", { url, destination })
                 },
                 // 网络操作
                 Net: {
-                    httpGet: (url) => toolCall("http_get", { url }),
-                    httpPost: (url, data) => toolCall("http_post", { url, data }),
-                    search: (query) => toolCall("web_search", { query })
+                    httpGet: (url) => toolCall("http_request", { url, method: "GET" }),
+                    httpPost: (url, data) => toolCall("http_request", { url, method: "POST", data }),
+                    search: (query) => toolCall("web_search", { query }),
+                    fetchPage: (url) => toolCall("fetch_web_page", { url })
                 },
                 // 系统操作
                 System: {
-                    exec: (command) => toolCall("execute_command", { command }),
-                    sleep: (seconds) => toolCall("sleep", { seconds })
+                    exec: (command) => toolCall("execute_comma nd", { command }),
+                    sleep: (seconds) => toolCall("sleep", { duration_ms: parseInt(seconds) * 1000 }),
+                    getSetting: (setting, namespace) => toolCall("get_system_setting", { key: setting, namespace }),
+                    setSetting: (setting, value, namespace) => toolCall("modify_system_setting", { key: setting, value, namespace }),
+                    getDeviceInfo: () => toolCall("device_info"),
+                    launchApp: (packageName) => toolCall("launch_app", { package_name: packageName }),
+                    stopApp: (packageName) => toolCall("stop_app", { package_name: packageName }),
+                    listApps: (includeSystem) => toolCall("list_installed_apps", { include_system: !!includeSystem })
+                },
+                // UI操作
+                UI: {
+                    getPageInfo: () => toolCall("get_page_info"),
+                    tap: (x, y) => toolCall("tap", { x, y }),
+                    clickElement: (id) => toolCall("click_element", { resourceId: id }),
+                    setText: (id, text) => toolCall("set_input_text", { resourceId: id, text }),
+                    swipe: (startX, startY, endX, endY) => toolCall("swipe", { start_x: startX, start_y: startY, end_x: endX, end_y: endY })
                 },
                 // 计算功能
                 calc: (expression) => toolCall("calculate", { expression })
@@ -428,11 +490,11 @@ class JsEngine(private val context: Context) {
                             return {
                                 get: (url, config) => {
                                     const params = config ? Object.assign({}, { url }, config) : { url };
-                                    return toolCall("http_get", params);
+                                    return toolCall("http_request", params);
                                 },
                                 post: (url, data, config) => {
                                     const params = config ? Object.assign({}, { url, data }, config) : { url, data };
-                                    return toolCall("http_post", params);
+                                    return toolCall("http_request", params);
                                 }
                             };
                         }
@@ -836,20 +898,75 @@ class JsEngine(private val context: Context) {
                 
                 // 记录执行结果
                 if (result.success) {
-                    Log.d(TAG, "[Sync] Tool execution succeeded: ${result.result.take(100)}${if (result.result.length > 100) "..." else ""}")
+                    val resultString = result.result.toString()
+                    Log.d(TAG, "[Sync] Tool execution succeeded: ${resultString.take(100)}${if (resultString.length > 100) "..." else ""}")
                 } else {
                     Log.e(TAG, "[Sync] Tool execution failed: ${result.error}")
                 }
                 
                 // 返回结果
                 return if (result.success) {
-                    result.result
+                    // Convert tool result to JSON for proper handling of structured data
+                    val resultJson = Json.encodeToString(
+                        JsonElement.serializer(),
+                        buildJsonObject {
+                            put("success", JsonPrimitive(true))
+                            
+                            // Handle different result data types
+                            when (val resultData = result.result) {
+                                is StringResultData -> put("data", JsonPrimitive(resultData.value))
+                                is BooleanResultData -> put("data", JsonPrimitive(resultData.value))
+                                is IntResultData -> put("data", JsonPrimitive(resultData.value))
+                                is CalculationResultData, 
+                                is DateResultData,
+                                is ConnectionResultData,
+                                is DirectoryListingData,
+                                is FileContentData,
+                                is FileOperationData,
+                                is HttpResponseData,
+                                is WebPageData, 
+                                is WebSearchResultData,
+                                is SystemSettingData,
+                                is AppOperationData,
+                                is AppListData,
+                                is UIPageResultData,
+                                is UIActionResultData,
+                                is CombinedOperationResultData -> {
+                                    // 使用 toJson 方法获取 JSON 字符串
+                                    val jsonString = resultData.toJson()
+                                    // 确保获取的是有效的 JSON
+                                    try {
+                                        put("data", Json.parseToJsonElement(jsonString))
+                                    } catch (e: Exception) {
+                                        put("data", JsonPrimitive(jsonString))
+                                    }
+                                }
+                                else -> {
+                                    put("data", JsonPrimitive(resultData.toString()))
+                                }
+                            }
+                        }
+                    )
+                    resultJson
                 } else {
-                    "Error: ${result.error}"
+                    // Return error as JSON
+                    Json.encodeToString(
+                        JsonElement.serializer(),
+                        buildJsonObject {
+                            put("success", JsonPrimitive(false))
+                            put("error", JsonPrimitive(result.error ?: "Unknown error"))
+                        }
+                    )
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "[Sync] Error in tool call: ${e.message}", e)
-                return "Error: ${e.message}"
+                return Json.encodeToString(
+                    JsonElement.serializer(),
+                    buildJsonObject {
+                        put("success", JsonPrimitive(false))
+                        put("error", JsonPrimitive("Error: ${e.message}"))
+                    }
+                )
             }
         }
         
@@ -872,7 +989,14 @@ class JsEngine(private val context: Context) {
                 // 参数验证
                 if (toolName.isEmpty()) {
                     Log.e(TAG, "Tool name cannot be empty")
-                    sendToolResult(callbackId, "Error: Tool name cannot be empty", true)
+                    val errorJson = Json.encodeToString(
+                        JsonElement.serializer(),
+                        buildJsonObject {
+                            put("success", JsonPrimitive(false))
+                            put("error", JsonPrimitive("Tool name cannot be empty"))
+                        }
+                    )
+                    sendToolResult(callbackId, errorJson, true)
                     return
                 }
                 
@@ -904,23 +1028,85 @@ class JsEngine(private val context: Context) {
                         
                         // 记录执行结果
                         if (result.success) {
-                            Log.d(TAG, "[Async] Tool execution succeeded: ${result.result.take(100)}${if (result.result.length > 100) "..." else ""}")
+                            val resultString = result.result.toString()
+                            Log.d(TAG, "[Async] Tool execution succeeded: ${resultString.take(100)}${if (resultString.length > 100) "..." else ""}")
                             // 发送成功结果回调
-                            sendToolResult(callbackId, result.result, false)
+                            val resultJson = Json.encodeToString(
+                                JsonElement.serializer(),
+                                buildJsonObject {
+                                    put("success", JsonPrimitive(true))
+                                    
+                                    // Handle different result data types
+                                    when (val resultData = result.result) {
+                                        is StringResultData -> put("data", JsonPrimitive(resultData.value))
+                                        is BooleanResultData -> put("data", JsonPrimitive(resultData.value))
+                                        is IntResultData -> put("data", JsonPrimitive(resultData.value))
+                                        is CalculationResultData, 
+                                        is DateResultData,
+                                        is ConnectionResultData,
+                                        is DirectoryListingData,
+                                        is FileContentData,
+                                        is FileOperationData,
+                                        is HttpResponseData,
+                                        is WebPageData, 
+                                        is WebSearchResultData,
+                                        is SystemSettingData,
+                                        is AppOperationData,
+                                        is AppListData,
+                                        is UIPageResultData,
+                                        is UIActionResultData,
+                                        is CombinedOperationResultData -> {
+                                            // 使用 toJson 方法获取 JSON 字符串
+                                            val jsonString = resultData.toJson()
+                                            // 确保获取的是有效的 JSON
+                                            try {
+                                                put("data", Json.parseToJsonElement(jsonString))
+                                            } catch (e: Exception) {
+                                                put("data", JsonPrimitive(jsonString))
+                                            }
+                                        }
+                                        else -> {
+                                            put("data", JsonPrimitive(resultData.toString()))
+                                        }
+                                    }
+                                }
+                            )
+                            sendToolResult(callbackId, resultJson, false)
                         } else {
                             Log.e(TAG, "[Async] Tool execution failed: ${result.error}")
                             // 发送错误结果回调
-                            sendToolResult(callbackId, "Error: ${result.error}", true)
+                            val errorJson = Json.encodeToString(
+                                JsonElement.serializer(),
+                                buildJsonObject {
+                                    put("success", JsonPrimitive(false))
+                                    put("error", JsonPrimitive(result.error ?: "Unknown error"))
+                                }
+                            )
+                            sendToolResult(callbackId, errorJson, true)
                         }
                     } catch (e: Exception) {
                         Log.e(TAG, "[Async] Error in async tool execution: ${e.message}", e)
                         // 发送异常结果回调
-                        sendToolResult(callbackId, "Error: ${e.message}", true)
+                        val errorJson = Json.encodeToString(
+                            JsonElement.serializer(),
+                            buildJsonObject {
+                                put("success", JsonPrimitive(false))
+                                put("error", JsonPrimitive("Error: ${e.message}"))
+                            }
+                        )
+                        sendToolResult(callbackId, errorJson, true)
                     }
                 }.start()
             } catch (e: Exception) {
                 Log.e(TAG, "[Async] Error setting up async tool call: ${e.message}", e)
-                sendToolResult(callbackId, "Error: ${e.message}", true)
+                val errorJson = Json.encodeToString(
+                    JsonElement.serializer(),
+                    buildJsonObject {
+                        put("success", JsonPrimitive(false))
+                        put("error", JsonPrimitive("Error: ${e.message}"))
+                    }
+                )
+                sendToolResult(callbackId, errorJson, true)
             }
         }
         
@@ -930,14 +1116,25 @@ class JsEngine(private val context: Context) {
         private fun sendToolResult(callbackId: String, result: String, isError: Boolean) {
             ContextCompat.getMainExecutor(context).execute {
                 try {
-                    val escapedResult = result.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r")
-                    val jsCode = """
-                        if (typeof window['$callbackId'] === 'function') {
-                            window['$callbackId']("$escapedResult", $isError);
-                        } else {
-                            console.error("Callback not found: $callbackId");
-                        }
-                    """.trimIndent()
+                    // If the result is already a JSON string, don't escape it further
+                    val jsCode = if (result.trim().startsWith("{") || result.trim().startsWith("[")) {
+                        """
+                            if (typeof window['$callbackId'] === 'function') {
+                                window['$callbackId'](${result}, $isError);
+                            } else {
+                                console.error("Callback not found: $callbackId");
+                            }
+                        """.trimIndent()
+                    } else {
+                        val escapedResult = result.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r")
+                        """
+                            if (typeof window['$callbackId'] === 'function') {
+                                window['$callbackId']("$escapedResult", $isError);
+                            } else {
+                                console.error("Callback not found: $callbackId");
+                            }
+                        """.trimIndent()
+                    }
                     webView?.evaluateJavascript(jsCode, null)
                 } catch (e: Exception) {
                     Log.e(TAG, "Error sending tool result to JavaScript: ${e.message}", e)

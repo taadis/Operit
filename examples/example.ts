@@ -17,18 +17,6 @@ METADATA
             ]
         },
         {
-            "name": "file_explorer",
-            "description": "Lists files in a directory and reads text files using async/await",
-            "parameters": [
-                {
-                    "name": "path",
-                    "description": "Path to explore",
-                    "type": "string",
-                    "required": true
-                }
-            ]
-        },
-        {
             "name": "chain_tools",
             "description": "Demonstrates chaining multiple tool calls using Promises",
             "parameters": [
@@ -71,77 +59,6 @@ This is running in a WebView-based JavaScript environment with Promise support.`
 }
 
 /**
- * List files in a directory and read text files
- * @param params Tool parameters with path property
- */
-async function file_explorer(params: { path: string }): Promise<void> {
-    try {
-        const path = params.path || "/";
-
-        // Get file list using await syntax
-        const fileListResult = await Tools.Files.list(path);
-
-        // Parse the result as JSON
-        const fileList = JSON.parse(fileListResult);
-
-        // Build a formatted response
-        let response = `# Files in ${path}\n\n`;
-
-        if (Array.isArray(fileList)) {
-            // Add file information
-            for (const file of fileList) {
-                if (typeof file === 'object' && file !== null) {
-                    const isDirectory = file.isDirectory || false;
-                    const name = file.name || "Unknown";
-                    const size = file.size || 0;
-
-                    response += `- ${isDirectory ? "📁" : "📄"} **${name}**`;
-                    if (!isDirectory) {
-                        response += ` (${formatFileSize(size)})`;
-                    }
-                    response += "\n";
-                }
-            }
-
-            // Try to read the first text file
-            const textFiles = fileList.filter(file =>
-                !file.isDirectory &&
-                (file.name.endsWith(".txt") ||
-                    file.name.endsWith(".md") ||
-                    file.name.endsWith(".json") ||
-                    file.name.endsWith(".js") ||
-                    file.name.endsWith(".ts"))
-            );
-
-            if (textFiles.length > 0) {
-                const firstFile = textFiles[0];
-                response += "\n## Preview of " + firstFile.name + "\n\n";
-
-                try {
-                    const filePath = path + "/" + firstFile.name;
-                    const content = await Tools.Files.read(filePath);
-
-                    // Truncate long content
-                    const preview = content.length > 500
-                        ? content.substring(0, 500) + "...\n[Content truncated]"
-                        : content;
-
-                    response += "```\n" + preview + "\n```";
-                } catch (readError) {
-                    response += "Error reading file: " + readError.message;
-                }
-            }
-        } else {
-            response += "Error: Could not parse file list result.";
-        }
-
-        complete(response);
-    } catch (error) {
-        complete(`Error exploring files: ${error.message}`);
-    }
-}
-
-/**
  * Format file size in human-readable format
  */
 function formatFileSize(bytes: number): string {
@@ -172,7 +89,7 @@ async function chain_tools(params: { query: string }): Promise<void> {
         const result = {
             calculation: calcResult,
             searchSummary: `Found results for "${query}"`,
-            searchData: searchResult.substring(0, 200) + "...", // Truncate for brevity
+            searchData: searchResult.toString().substring(0, 200) + "...", // Truncate for brevity
             timestamp: Date.now()
         };
 
@@ -184,13 +101,10 @@ async function chain_tools(params: { query: string }): Promise<void> {
 
 // Export functions for direct access
 exports.hello_world = hello_world;
-exports.file_explorer = file_explorer;
 exports.chain_tools = chain_tools;
 
 exports.main = async () => {
     let result = await hello_world({ name: "TypeScript" });
-    console.log(result);
-    result = await file_explorer({ path: "/" });
     console.log(result);
     result = await chain_tools({ query: "TypeScript" });
     console.log(result);

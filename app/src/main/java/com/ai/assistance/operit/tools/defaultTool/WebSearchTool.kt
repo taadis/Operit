@@ -3,9 +3,12 @@ package com.ai.assistance.operit.tools.defaultTool
 import android.content.Context
 import android.util.Log
 import com.ai.assistance.operit.model.AITool
+import com.ai.assistance.operit.model.StringResultData
 import com.ai.assistance.operit.model.ToolResult
 import com.ai.assistance.operit.model.ToolValidationResult
 import com.ai.assistance.operit.tools.ToolExecutor
+import com.ai.assistance.operit.tools.WebSearchResultData
+import kotlinx.serialization.Serializable
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.Jsoup
@@ -26,6 +29,7 @@ class WebSearchTool(private val context: Context) : ToolExecutor {
         private const val USER_AGENT = "Mozilla/5.0 (Linux; Android 12; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Mobile Safari/537.36"
         private const val MAX_SUMMARY_LENGTH = 3000 // 每个搜索结果的最大内容摘要长度
         private const val MAX_TOTAL_RESPONSE_LENGTH = 8000 // 整个搜索响应的最大长度
+        private const val MAX_RESULTS = 10
     }
     
     // 创建OkHttpClient实例，配置超时
@@ -34,74 +38,74 @@ class WebSearchTool(private val context: Context) : ToolExecutor {
         .readTimeout(15, TimeUnit.SECONDS)
         .build()
     
+    
+    
     override fun invoke(tool: AITool): ToolResult {
-        // 从工具参数中获取查询参数 - 支持query或search_term参数名
-        val query = tool.parameters.find { it.name == "query" || it.name == "search_term" }?.value
-        val numResults = tool.parameters.find { it.name == "num_results" }?.value?.toIntOrNull() ?: 3
-        val fetchContent = tool.parameters.find { it.name == "fetch_content" }?.value?.toBoolean() ?: false
+        val query = tool.parameters.find { it.name == "query" }?.value ?: ""
         
-        if (query.isNullOrBlank()) {
+        if (query.isBlank()) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
-                error = "Query parameter is required (use 'query' or 'search_term')"
+                result = StringResultData(""),
+                error = "Query parameter cannot be empty"
             )
         }
         
-        // 尝试执行搜索
         return try {
-            // 首先尝试百度搜索 - 总是解析重定向链接
-            var searchResults = searchBaidu(query, numResults, true)
-            
-            // 如果百度搜索没有返回真实结果（返回了通用错误消息），尝试搜狗搜索
-            if (searchResults.isNotEmpty() && searchResults[0]["title"] == "无法获取\"$query\"的搜索结果") {
-                Log.d(TAG, "Baidu search failed, trying Sogou as fallback")
-                try {
-                    val sogouResults = searchSogou(query, numResults)
-                    if (sogouResults.isNotEmpty() && sogouResults[0]["title"] != "无法获取\"$query\"的搜索结果") {
-                        searchResults = sogouResults
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Fallback to Sogou also failed", e)
-                    // 保持使用百度的通用错误结果
-                }
-            }
-            
-            // 如果请求了获取内容，抓取页面内容
-            if (fetchContent && searchResults.isNotEmpty() && searchResults[0]["title"] != "无法获取\"$query\"的搜索结果") {
-                Log.d(TAG, "Fetching page content for search results")
-                searchResults = fetchPageContentForResults(searchResults)
-            }
+            val searchResults = performSearch(query)
             
             ToolResult(
                 toolName = tool.name,
                 success = true,
-                result = formatSearchResults(query, searchResults, fetchContent)
+                result = searchResults,
+                error = null
             )
         } catch (e: Exception) {
-            Log.e(TAG, "Error during web search", e)
+            Log.e(TAG, "Error performing web search", e)
             
             ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = "",
-                error = "Error during search: ${e.message}"
+                result = StringResultData(""),
+                error = "Error performing web search: ${e.message}"
             )
         }
     }
     
     override fun validateParameters(tool: AITool): ToolValidationResult {
-        val query = tool.parameters.find { it.name == "query" || it.name == "search_term" }?.value
+        val query = tool.parameters.find { it.name == "query" }?.value
         
         return if (query.isNullOrBlank()) {
             ToolValidationResult(
                 valid = false,
-                errorMessage = "Query parameter is required (use 'query' or 'search_term')"
+                errorMessage = "Query parameter is required"
             )
         } else {
             ToolValidationResult(valid = true)
         }
+    }
+    
+    /**
+     * Perform the web search and return results
+     */
+    private fun performSearch(query: String): WebSearchResultData {
+        // Use the actual Baidu search implementation
+        val searchResults = searchBaidu(query, MAX_RESULTS, true)
+        
+        // Convert the search results to WebSearchResultData format
+        val formattedResults = searchResults.map { result ->
+            WebSearchResultData.SearchResult(
+                title = result["title"] ?: "",
+                url = result["link"] ?: "",
+                snippet = result["snippet"] ?: ""
+            )
+        }
+        
+        return WebSearchResultData(
+            query = query,
+            results = formattedResults
+        )
     }
     
     /**
@@ -404,187 +408,6 @@ class WebSearchTool(private val context: Context) : ToolExecutor {
     }
     
     /**
-     * 格式化搜索结果为易读的文本
-     */
-    private fun formatSearchResults(query: String, results: List<Map<String, String>>, fetchedContent: Boolean = false): String {
-        val sb = StringBuilder()
-        val searchEngine = if (results.isNotEmpty() && results[0]["link"]?.contains("sogou.com") == true) "搜狗" else "百度"
-        sb.appendLine("${searchEngine}搜索结果: \"$query\"")
-        sb.appendLine()
-        
-        if (results.isEmpty()) {
-            sb.appendLine("未找到相关结果。请尝试使用不同的关键词或检查网络连接。")
-        } else {
-            // 检查结果是否是通用错误消息
-            val isErrorResult = results.any { it["title"] == "无法获取\"$query\"的搜索结果" }
-            
-            if (isErrorResult) {
-                // 添加更多帮助信息
-                sb.appendLine(results.first()["snippet"])
-                sb.appendLine()
-                sb.appendLine("可能的解决方案:")
-                sb.appendLine("1. 检查您的网络连接")
-                sb.appendLine("2. 稍后再试")
-                sb.appendLine("3. 使用不同的搜索词")
-                sb.appendLine("4. 如果多次尝试仍然失败，可能需要更新应用以适应搜索引擎的变化")
-            } else {
-                // 正常显示结果
-                sb.appendLine("已获取${results.size}个结果${if (fetchedContent) "，并自动解析了网页内容" else ""}。")
-                sb.appendLine()
-                
-                // 计算每个结果的平均可用长度，确保不超过总长度限制
-                val maxResponseLength = MAX_TOTAL_RESPONSE_LENGTH
-                
-                // 计算已经使用的长度（标题和提示信息）
-                var usedLength = sb.length
-                
-                // 计算每个结果可获得的平均内容长度（留出20%的余量）
-                val perResultMaxLength = ((maxResponseLength - usedLength) * 0.8 / results.size).toInt().coerceAtLeast(300)
-                val titleMaxLength = (perResultMaxLength * 0.15).toInt().coerceAtLeast(50)
-                val snippetMaxLength = (perResultMaxLength * 0.25).toInt().coerceAtLeast(150)
-                // 增加内容部分的长度比例，因为我们不再显示链接
-                val contentMaxLength = if (fetchedContent) (perResultMaxLength * 0.8).toInt() else 0
-                
-                results.forEachIndexed { index, result ->
-                    // 检查是否已接近最大长度
-                    if (sb.length >= maxResponseLength * 0.95) {
-                        sb.appendLine()
-                        sb.appendLine("... 剩余结果已省略，以控制响应大小 ...")
-                        return@forEachIndexed
-                    }
-                    
-                    // 添加标题，截断过长标题
-                    val title = result["title"] ?: ""
-                    val formattedTitle = if (title.length <= titleMaxLength) {
-                        title
-                    } else {
-                        title.take(titleMaxLength - 3) + "..."
-                    }
-                    sb.appendLine("${index + 1}. $formattedTitle")
-                    
-                    // 链接不再显示
-                    // sb.appendLine("   ${result["link"]}")
-                    
-                    // 添加摘要，增加摘要长度
-                    val snippet = result["snippet"] ?: ""
-                    val formattedSnippet = if (snippet.length <= snippetMaxLength) {
-                        snippet
-                    } else {
-                        snippet.take(snippetMaxLength - 3) + "..."
-                    }
-                    sb.appendLine("   $formattedSnippet")
-                    
-                    // 如果有页面内容，添加更多的内容摘要
-                    if (fetchedContent && result.containsKey("content") && contentMaxLength > 100) {
-                        val content = result["content"] ?: ""
-                        if (content.isNotBlank()) {
-                            sb.appendLine()
-                            sb.appendLine("   页面内容:")
-                            
-                            // 使用更多的空间来展示内容
-                            val compressedContent = compressContentForSearchResult(content, contentMaxLength)
-                            val formattedContent = compressedContent
-                                .split("\n")
-                                .joinToString("\n") { "   $it" }
-                            
-                            sb.appendLine(formattedContent)
-                        }
-                    }
-                    
-                    sb.appendLine()
-                }
-            }
-        }
-        
-        return sb.toString()
-    }
-    
-    /**
-     * 为搜索结果压缩内容，比smartSummarizeContent更激进
-     */
-    private fun compressContentForSearchResult(content: String, maxLength: Int): String {
-        // 内容较短直接返回
-        if (content.length <= maxLength) return content
-        
-        // 分割成段落
-        val paragraphs = content.split("\n\n", "\r\n\r\n", "\n", "\r\n")
-            .filter { it.isNotBlank() }
-            .map { it.trim() }
-        
-        if (paragraphs.isEmpty()) return "无法获取有效内容"
-        
-        // 构建压缩后的内容
-        val sb = StringBuilder()
-        
-        // 1. 保留第一段的更多内容（通常包含最重要信息）
-        val firstPara = paragraphs.first()
-        val firstParaMaxLength = (maxLength * 0.5).toInt().coerceAtLeast(150)
-        sb.append(firstPara.take(minOf(firstPara.length, firstParaMaxLength)))
-        if (firstPara.length > firstParaMaxLength) sb.append("...")
-        sb.append("\n\n")
-        
-        // 2. 从文档中选取更多的段落样本
-        if (paragraphs.size > 2) {
-            sb.append("... [内容概要] ...\n\n")
-            
-            // 增加中间部分段落数量
-            val midIndexes = listOf(
-                paragraphs.size / 3,  // 三分之一处
-                paragraphs.size / 2,  // 中间
-                paragraphs.size * 2 / 3  // 三分之二处
-            ).distinct().filter { it > 0 && it < paragraphs.size - 1 }
-            
-            val midParaMaxLength = (maxLength * 0.3 / midIndexes.size).toInt().coerceAtLeast(80)
-            
-            midIndexes.forEach { midIndex ->
-                val midPara = paragraphs[midIndex]
-                
-                // 只有当中间段落不太短时才添加
-                if (midPara.length > 20) {
-                    sb.append(midPara.take(minOf(midPara.length, midParaMaxLength)))
-                    if (midPara.length > midParaMaxLength) sb.append("...")
-                    sb.append("\n\n")
-                }
-            }
-        }
-        
-        // 3. 如果有空间和结尾段落，添加结尾信息
-        if (paragraphs.size > 1 && sb.length < maxLength * 0.8) {
-            val lastPara = paragraphs.last()
-            val remainingSpace = (maxLength - sb.length) * 0.9
-            
-            if (remainingSpace > 30 && lastPara.length > 20) {
-                sb.append("... [末尾概要] ...\n\n")
-                sb.append(lastPara.take(minOf(lastPara.length, remainingSpace.toInt())))
-                if (lastPara.length > remainingSpace) sb.append("...")
-            }
-        }
-        
-        return sb.toString().trim()
-    }
-    
-    /**
-     * 用于测试搜索功能的辅助方法
-     * 可以在应用中直接调用此方法进行测试，不依赖于AI工具调用框架
-     * @param resolveRedirects 是否解析重定向链接获取真实URL（会增加网络请求）
-     * @param fetchContent 是否获取页面内容
-     */
-    fun testSearch(query: String, numResults: Int = 3, resolveRedirects: Boolean = true, fetchContent: Boolean = false): String {
-        return try {
-            var results = searchBaidu(query, numResults, resolveRedirects)
-            
-            if (fetchContent && results.isNotEmpty() && results[0]["title"] != "无法获取\"$query\"的搜索结果") {
-                results = fetchPageContentForResults(results)
-            }
-            
-            formatSearchResults(query, results, fetchContent)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error in test search", e)
-            "搜索出错: ${e.message}"
-        }
-    }
-    
-    /**
      * 尝试解析重定向链接获取真实URL
      * 注意：此方法会进行网络请求，应在后台线程上调用
      * 支持多级重定向和多个搜索引擎（百度、搜狗等）
@@ -758,101 +581,183 @@ class WebSearchTool(private val context: Context) : ToolExecutor {
     }
     
     /**
-     * 爬取搜狗搜索结果 (作为备用搜索引擎)
+     * 为搜索结果压缩内容，比smartSummarizeContent更激进
      */
-    private fun searchSogou(query: String, numResults: Int): List<Map<String, String>> {
-        try {
-            // 构建URL并编码查询参数
-            val encodedQuery = URLEncoder.encode(query, "UTF-8")
-            val searchUrl = SOGOU_SEARCH_URL + encodedQuery
-            Log.d(TAG, "Attempting to search Sogou with URL: $searchUrl")
+    private fun compressContentForSearchResult(content: String, maxLength: Int): String {
+        // 内容较短直接返回
+        if (content.length <= maxLength) return content
+        
+        // 分割成段落
+        val paragraphs = content.split("\n\n", "\r\n\r\n", "\n", "\r\n")
+            .filter { it.isNotBlank() }
+            .map { it.trim() }
+        
+        if (paragraphs.isEmpty()) return "无法获取有效内容"
+        
+        // 构建压缩后的内容
+        val sb = StringBuilder()
+        
+        // 1. 保留第一段的更多内容（通常包含最重要信息）
+        val firstPara = paragraphs.first()
+        val firstParaMaxLength = (maxLength * 0.5).toInt().coerceAtLeast(150)
+        sb.append(firstPara.take(minOf(firstPara.length, firstParaMaxLength)))
+        if (firstPara.length > firstParaMaxLength) sb.append("...")
+        sb.append("\n\n")
+        
+        // 2. 从文档中选取更多的段落样本
+        if (paragraphs.size > 2) {
+            sb.append("... [内容概要] ...\n\n")
             
-            // 构建请求
-            val request = Request.Builder()
-                .url(searchUrl)
-                .header("User-Agent", USER_AGENT)
-                .header("Accept", "text/html,application/xhtml+xml,application/xml")
-                .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
-                .build()
+            // 增加中间部分段落数量
+            val midIndexes = listOf(
+                paragraphs.size / 3,  // 三分之一处
+                paragraphs.size / 2,  // 中间
+                paragraphs.size * 2 / 3  // 三分之二处
+            ).distinct().filter { it > 0 && it < paragraphs.size - 1 }
             
-            // 执行请求
-            Log.d(TAG, "Executing Sogou search request...")
-            val response = client.newCall(request).execute()
-            val responseCode = response.code
-            Log.d(TAG, "Received Sogou response with status code: $responseCode")
+            val midParaMaxLength = (maxLength * 0.3 / midIndexes.size).toInt().coerceAtLeast(80)
             
-            val responseBody = response.body?.string() ?: throw Exception("Empty response body")
-            Log.d(TAG, "Sogou response body length: ${responseBody.length} characters")
+            midIndexes.forEach { midIndex ->
+                val midPara = paragraphs[midIndex]
+                
+                // 只有当中间段落不太短时才添加
+                if (midPara.length > 20) {
+                    sb.append(midPara.take(minOf(midPara.length, midParaMaxLength)))
+                    if (midPara.length > midParaMaxLength) sb.append("...")
+                    sb.append("\n\n")
+                }
+            }
+        }
+        
+        // 3. 如果有空间和结尾段落，添加结尾信息
+        if (paragraphs.size > 1 && sb.length < maxLength * 0.8) {
+            val lastPara = paragraphs.last()
+            val remainingSpace = (maxLength - sb.length) * 0.9
             
-            // 解析HTML
-            return parseSogouSearchResults(responseBody, query, numResults)
+            if (remainingSpace > 30 && lastPara.length > 20) {
+                sb.append("... [末尾概要] ...\n\n")
+                sb.append(lastPara.take(minOf(lastPara.length, remainingSpace.toInt())))
+                if (lastPara.length > remainingSpace) sb.append("...")
+            }
+        }
+        
+        return sb.toString().trim()
+    }
+    
+    /**
+     * 用于测试搜索功能的辅助方法
+     * 可以在应用中直接调用此方法进行测试，不依赖于AI工具调用框架
+     * @param resolveRedirects 是否解析重定向链接获取真实URL（会增加网络请求）
+     * @param fetchContent 是否获取页面内容
+     */
+    fun testSearch(query: String, numResults: Int = 3, resolveRedirects: Boolean = true, fetchContent: Boolean = false): String {
+        return try {
+            var results = searchBaidu(query, numResults, resolveRedirects)
+            
+            if (fetchContent && results.isNotEmpty() && results[0]["title"] != "无法获取\"$query\"的搜索结果") {
+                results = fetchPageContentForResults(results)
+            }
+            
+            formatSearchResults(query, results, fetchContent)
         } catch (e: Exception) {
-            Log.e(TAG, "Error searching Sogou: ${e.javaClass.simpleName}: ${e.message}", e)
-            // 如果搜索失败，返回空列表或生成通用响应
-            return generateGenericResults(query, numResults)
+            Log.e(TAG, "Error in test search", e)
+            "搜索出错: ${e.message}"
         }
     }
     
     /**
-     * 解析搜狗搜索结果HTML
+     * 格式化搜索结果为易读的文本
      */
-    private fun parseSogouSearchResults(html: String, query: String, numResults: Int): List<Map<String, String>> {
-        val results = mutableListOf<Map<String, String>>()
-        try {
-            val doc: Document = Jsoup.parse(html)
+    private fun formatSearchResults(query: String, results: List<Map<String, String>>, fetchedContent: Boolean = false): String {
+        val sb = StringBuilder()
+        val searchEngine = if (results.isNotEmpty() && results[0]["link"]?.contains("sogou.com") == true) "搜狗" else "百度"
+        sb.appendLine("${searchEngine}搜索结果: \"$query\"")
+        sb.appendLine()
+        
+        if (results.isEmpty()) {
+            sb.appendLine("未找到相关结果。请尝试使用不同的关键词或检查网络连接。")
+        } else {
+            // 检查结果是否是通用错误消息
+            val isErrorResult = results.any { it["title"] == "无法获取\"$query\"的搜索结果" }
             
-            // 检查是否有验证码或防爬虫页面
-            if (doc.select("form#seccodeForm, div.refresh_captcha").isNotEmpty() || 
-                html.contains("验证码") || html.contains("安全验证")) {
-                Log.e(TAG, "Detected CAPTCHA or anti-crawling page on Sogou")
-                throw Exception("搜索被搜狗拦截，需要进行人机验证")
-            }
-            
-            // 搜狗搜索结果通常在这些容器中
-            val resultElements = doc.select("div.vrwrap, div.rb, div.results > div")
-            Log.d(TAG, "Found ${resultElements.size} potential Sogou search results")
-            
-            var count = 0
-            for (element in resultElements) {
-                if (count >= numResults) break
+            if (isErrorResult) {
+                // 添加更多帮助信息
+                sb.appendLine(results.first()["snippet"])
+                sb.appendLine()
+                sb.appendLine("可能的解决方案:")
+                sb.appendLine("1. 检查您的网络连接")
+                sb.appendLine("2. 稍后再试")
+                sb.appendLine("3. 使用不同的搜索词")
+                sb.appendLine("4. 如果多次尝试仍然失败，可能需要更新应用以适应搜索引擎的变化")
+            } else {
+                // 正常显示结果
+                sb.appendLine("已获取${results.size}个结果${if (fetchedContent) "，并自动解析了网页内容" else ""}。")
+                sb.appendLine()
                 
-                // 提取标题和链接
-                val titleElement = element.select("h3 a, a.pt, a.vrTitle, a.fz14").firstOrNull { it.hasText() }
-                val title = titleElement?.text()?.trim() ?: continue
+                // 计算每个结果的平均可用长度，确保不超过总长度限制
+                val maxResponseLength = MAX_TOTAL_RESPONSE_LENGTH
                 
-                if (title.isBlank()) continue
+                // 计算已经使用的长度（标题和提示信息）
+                var usedLength = sb.length
                 
-                // 搜狗的链接可能需要解析
-                var link = titleElement.attr("href")
-                if (link.isBlank()) continue
+                // 计算每个结果可获得的平均内容长度（留出20%的余量）
+                val perResultMaxLength = ((maxResponseLength - usedLength) * 0.8 / results.size).toInt().coerceAtLeast(300)
+                val titleMaxLength = (perResultMaxLength * 0.15).toInt().coerceAtLeast(50)
+                val snippetMaxLength = (perResultMaxLength * 0.25).toInt().coerceAtLeast(150)
+                // 增加内容部分的长度比例，因为我们不再显示链接
+                val contentMaxLength = if (fetchedContent) (perResultMaxLength * 0.8).toInt() else 0
                 
-                // 搜狗有时使用相对链接
-                if (!link.startsWith("http")) {
-                    link = "https://www.sogou.com$link"
+                results.forEachIndexed { index, result ->
+                    // 检查是否已接近最大长度
+                    if (sb.length >= maxResponseLength * 0.95) {
+                        sb.appendLine()
+                        sb.appendLine("... 剩余结果已省略，以控制响应大小 ...")
+                        return@forEachIndexed
+                    }
+                    
+                    // 添加标题，截断过长标题
+                    val title = result["title"] ?: ""
+                    val formattedTitle = if (title.length <= titleMaxLength) {
+                        title
+                    } else {
+                        title.take(titleMaxLength - 3) + "..."
+                    }
+                    sb.appendLine("${index + 1}. $formattedTitle")
+                    
+                    // 链接不再显示
+                    // sb.appendLine("   ${result["link"]}")
+                    
+                    // 添加摘要，增加摘要长度
+                    val snippet = result["snippet"] ?: ""
+                    val formattedSnippet = if (snippet.length <= snippetMaxLength) {
+                        snippet
+                    } else {
+                        snippet.take(snippetMaxLength - 3) + "..."
+                    }
+                    sb.appendLine("   $formattedSnippet")
+                    
+                    // 如果有页面内容，添加更多的内容摘要
+                    if (fetchedContent && result.containsKey("content") && contentMaxLength > 100) {
+                        val content = result["content"] ?: ""
+                        if (content.isNotBlank()) {
+                            sb.appendLine()
+                            sb.appendLine("   页面内容:")
+                            
+                            // 使用更多的空间来展示内容
+                            val compressedContent = compressContentForSearchResult(content, contentMaxLength)
+                            val formattedContent = compressedContent
+                                .split("\n")
+                                .joinToString("\n") { "   $it" }
+                            
+                            sb.appendLine(formattedContent)
+                        }
+                    }
+                    
+                    sb.appendLine()
                 }
-                
-                // 解析重定向获取真实URL
-                link = tryResolveRedirectUrl(link)
-                
-                // 提取摘要
-                val snippetElement = element.select("div.ft, div.fz13, div.space_txt, div.text, div.d_d").first()
-                val snippet = snippetElement?.text()?.trim() ?: "暂无描述"
-                
-                results.add(mapOf(
-                    "title" to title,
-                    "link" to link,
-                    "snippet" to snippet
-                ))
-                
-                count++
             }
-            
-            Log.d(TAG, "Final Sogou result count: ${results.size}")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error parsing Sogou search results", e)
         }
         
-        // 如果没有找到结果，返回通用响应
-        return if (results.isNotEmpty()) results else generateGenericResults(query, numResults)
+        return sb.toString()
     }
 } 
