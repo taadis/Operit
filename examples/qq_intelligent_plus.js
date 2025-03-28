@@ -137,8 +137,8 @@ async function find_user(params) {
     }
 }
 async function main() {
-    await reply({ message: "你好", target: "张三" });
-    await find_user({ search_term: "张三", search_type: "contacts" });
+    await reply({ message: "你好", target: "wind" });
+    // await find_user({ search_term: "张三", search_type: "contacts" });
 }
 exports.main = main;
 exports.reply = reply;
