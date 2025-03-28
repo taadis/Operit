@@ -1,0 +1,37 @@
+{
+    "javascript.validate.enable": true,
+    "editor.codeActionsOnSave": {
+        "source.fixAll": "explicit"
+    },
+    "files.associations": {
+        "*.js": "javascript",
+        "*.ts": "typescript"
+    },
+    "terminal.integrated.defaultProfile.windows": "Command Prompt",
+    "terminal.integrated.defaultProfile.linux": "bash",
+    "terminal.integrated.defaultProfile.osx": "bash",
+    "javascript.format.enable": true,
+    "javascript.format.semicolons": "insert",
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "vscode.typescript-language-features",
+    // TypeScript 配置
+    "typescript.tsdk": "node_modules/typescript/lib",
+    "typescript.enablePromptUseWorkspaceTsdk": true,
+    "typescript.updateImportsOnFileMove.enabled": "always",
+    "typescript.preferences.importModuleSpecifier": "relative",
+    // 当保存 TypeScript 文件时自动编译
+    "typescript.tsc.autoDetect": "on",
+    "typescript.autoClosingTags": true,
+    // 文件启动配置
+    "launch": {
+        "configurations": [],
+        "compounds": []
+    },
+    // 启动文件类型映射（当打开 .ts 文件按 F5 运行时，自动使用 TS 启动配置）
+    "debug.javascript.autoAttachFilter": "smart",
+    "debug.javascript.terminalOptions": {
+        "skipFiles": [
+            "<node_internals>/**"
+        ]
+    }
+}

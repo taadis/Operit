@@ -116,12 +116,12 @@ class AdbCommandExecutor {
                         isServiceAvailable = true
                         return true
                     } else if (binder == null) {
-                        Log.d(TAG, "Shizuku binder is null")
+                        // Log.d(TAG, "Shizuku binder is null")
                     } else {
-                        Log.d(TAG, "Shizuku binder is not alive")
+                        // Log.d(TAG, "Shizuku binder is not alive")
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Binder check failed", e)
+                    // Log.e(TAG, "Binder check failed", e)
                 }
                 
                 // 方法3: 尝试获取Shizuku UID (如果可以获取有效UID，说明服务在运行)
@@ -133,11 +133,11 @@ class AdbCommandExecutor {
                         return true
                     }
                 } catch (e: Exception) {
-//                    Log.e(TAG, "UID check failed", e)
+                //    Log.e(TAG, "UID check failed", e)
                 }
                 
                 // 记录详细的检测结果
-                Log.d(TAG, "All Shizuku service checks failed")
+                // Log.d(TAG, "All Shizuku service checks failed")
                 isServiceAvailable = false
                 return false
             } catch (e: Throwable) {
