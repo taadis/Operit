@@ -9,6 +9,7 @@ import android.os.ParcelFileDescriptor
 import android.os.RemoteException
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import moe.shizuku.server.IShizukuService
 import rikka.shizuku.Shizuku
@@ -16,6 +17,7 @@ import rikka.shizuku.ShizukuProvider
 import java.io.BufferedReader
 import java.io.FileInputStream
 import java.io.InputStreamReader
+import java.io.InterruptedIOException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 
@@ -421,6 +423,42 @@ class AdbCommandExecutor {
         }
         
         /**
+         * 封装重试逻辑的函数
+         * @param maxRetries 最大重试次数
+         * @param delayMs 每次重试前的延迟时间（毫秒）
+         * @param operation 要执行的操作
+         * @return 操作结果
+         */
+        private suspend fun <T> retryOperation(
+            maxRetries: Int = 3,
+            delayMs: Long = 500,
+            operation: suspend () -> T
+        ): T {
+            var lastException: Exception? = null
+            for (attempt in 0 until maxRetries) {
+                try {
+                    return operation()
+                } catch (e: Exception) {
+                    // 检查是否是 read interrupted 异常
+                    val isInterruptedRead = e is InterruptedIOException && 
+                                         e.message?.contains("read interrupted") == true
+                    
+                    if (isInterruptedRead) {
+                        lastException = e
+                        Log.w(TAG, "Read interrupted on attempt ${attempt + 1}/$maxRetries, retrying in $delayMs ms", e)
+                        delay(delayMs)
+                        continue
+                    } else {
+                        // 对于其他异常，直接抛出
+                        throw e
+                    }
+                }
+            }
+            // 如果达到最大重试次数，抛出最后一个异常
+            throw lastException ?: IllegalStateException("Unknown error in retry operation")
+        }
+        
+        /**
          * 直接执行不包含特殊操作符的普通命令
          */
         private suspend fun executeCommandDirect(command: String): CommandResult = withContext(Dispatchers.IO) {
@@ -449,14 +487,19 @@ class AdbCommandExecutor {
                 val inputStream = processClass.getMethod("getInputStream").invoke(process) as ParcelFileDescriptor?
                 val errorStream = processClass.getMethod("getErrorStream").invoke(process) as ParcelFileDescriptor?
                 
+                // 使用重试逻辑读取标准输出和错误输出
                 val stdout = if (inputStream != null) {
-                    val stdoutStream = FileInputStream(inputStream.fileDescriptor)
-                    BufferedReader(InputStreamReader(stdoutStream)).use { it.readText() }
+                    retryOperation {
+                        val stdoutStream = FileInputStream(inputStream.fileDescriptor)
+                        BufferedReader(InputStreamReader(stdoutStream)).use { it.readText() }
+                    }
                 } else ""
                 
                 val stderr = if (errorStream != null) {
-                    val stderrStream = FileInputStream(errorStream.fileDescriptor)
-                    BufferedReader(InputStreamReader(stderrStream)).use { it.readText() }
+                    retryOperation {
+                        val stderrStream = FileInputStream(errorStream.fileDescriptor)
+                        BufferedReader(InputStreamReader(stderrStream)).use { it.readText() }
+                    }
                 } else ""
                 
                 // 等待进程结束并获取退出代码
@@ -550,14 +593,19 @@ class AdbCommandExecutor {
                 val inputStream = processClass.getMethod("getInputStream").invoke(process) as ParcelFileDescriptor?
                 val errorStream = processClass.getMethod("getErrorStream").invoke(process) as ParcelFileDescriptor?
                 
+                // 使用重试逻辑读取标准输出和错误输出
                 val stdout = if (inputStream != null) {
-                    val stdoutStream = FileInputStream(inputStream.fileDescriptor)
-                    BufferedReader(InputStreamReader(stdoutStream)).use { it.readText() }
+                    retryOperation {
+                        val stdoutStream = FileInputStream(inputStream.fileDescriptor)
+                        BufferedReader(InputStreamReader(stdoutStream)).use { it.readText() }
+                    }
                 } else ""
                 
                 val stderr = if (errorStream != null) {
-                    val stderrStream = FileInputStream(errorStream.fileDescriptor)
-                    BufferedReader(InputStreamReader(stderrStream)).use { it.readText() }
+                    retryOperation {
+                        val stderrStream = FileInputStream(errorStream.fileDescriptor)
+                        BufferedReader(InputStreamReader(stderrStream)).use { it.readText() }
+                    }
                 } else ""
                 
                 // 等待进程结束并获取退出代码

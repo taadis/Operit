@@ -1057,7 +1057,7 @@ async function testDownloadFile(results: TestResults): Promise<void> {
         });
 
         // Validate the result
-        const downloadData = downloadResult as FileOperationData;
+        const downloadData = downloadResult;
         console.log(`Operation: ${downloadData.operation}`);
         console.log(`Path: ${downloadData.path}`);
         console.log(`Success: ${downloadData.successful}`);

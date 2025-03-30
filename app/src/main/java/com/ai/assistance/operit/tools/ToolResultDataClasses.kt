@@ -483,7 +483,8 @@ data class WebSearchResultData(
     data class SearchResult(
         val title: String,
         val url: String,
-        val snippet: String
+        val snippet: String,
+        val extraInfo: String? = null
     )
 
     override fun toString(): String {
@@ -496,6 +497,16 @@ data class WebSearchResultData(
             // sb.appendLine("   URL: ${result.url}")
             //it's a link, so we don't need to show it
             sb.appendLine("   ${result.snippet}")
+            
+            // 如果有extraInfo，则显示它
+            result.extraInfo?.let { extraInfo ->
+                if (extraInfo.isNotEmpty()) {
+                    sb.appendLine("")
+                    sb.appendLine("   详细信息:")
+                    sb.appendLine("   $extraInfo")
+                }
+            }
+            
             sb.appendLine("")
         }
 

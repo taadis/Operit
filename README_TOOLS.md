@@ -742,7 +742,7 @@ Launch an application using accessibility services.
 
 ```
 <tool name="launch_app">
-<param name="packageName">com.example.app</param>
+<param name="package_name">com.example.app</param>
 </tool>
 ```
 

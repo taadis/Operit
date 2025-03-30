@@ -99,13 +99,18 @@ class UITools(private val context: Context) {
             if (uiXml.isNotEmpty()) {
                 Log.d(TAG, "使用无障碍服务获取UI层次结构成功")
                 
-                // 仍然需要获取窗口信息（使用ADB命令）
-                val windowCommand = "dumpsys window windows | grep -E 'mCurrentFocus|mFocusedApp'"
-                val windowResult = AdbCommandExecutor.executeAdbCommand(windowCommand)
+                // 获取窗口信息（使用多个命令尝试）
+                var windowInfo = getWindowInfo()
                 
-                if (windowResult.success) {
-                    return UIData(uiXml, windowResult.stdout)
+                // 如果窗口信息为空，尝试延迟后重试一次
+                if (windowInfo.isEmpty()) {
+                    Log.w(TAG, "首次获取窗口信息失败，延迟500ms后重试")
+                    kotlinx.coroutines.delay(500)
+                    windowInfo = getWindowInfo()
                 }
+                
+                // 即使窗口信息仍然为空，我们也返回UI结构，让提取方法处理
+                return UIData(uiXml, windowInfo)
             }
             
             // 2. 如果无障碍服务获取失败，回退到使用ADB命令
@@ -114,25 +119,85 @@ class UITools(private val context: Context) {
             // 执行UI dump命令
             val dumpCommand = "uiautomator dump /sdcard/window_dump.xml"
             val dumpResult = AdbCommandExecutor.executeAdbCommand(dumpCommand)
-            if (!dumpResult.success) return null
+            if (!dumpResult.success) {
+                Log.e(TAG, "uiautomator dump失败: ${dumpResult.stderr}")
+                return null
+            }
             
             // 读取dump文件内容
             val readCommand = "cat /sdcard/window_dump.xml"
             val readResult = AdbCommandExecutor.executeAdbCommand(readCommand)
-            if (!readResult.success) return null
+            if (!readResult.success) {
+                Log.e(TAG, "读取UI dump文件失败: ${readResult.stderr}")
+                return null
+            }
             
-            // 获取窗口信息
-            val windowCommand = "dumpsys window windows | grep -E 'mCurrentFocus|mFocusedApp'"
-            val windowResult = AdbCommandExecutor.executeAdbCommand(windowCommand)
-            if (!windowResult.success) return null
+            // 获取窗口信息（使用多个命令尝试）
+            var windowInfo = getWindowInfo()
             
-            return UIData(readResult.stdout, windowResult.stdout)
+            // 如果窗口信息为空，尝试延迟后重试一次
+            if (windowInfo.isEmpty()) {
+                Log.w(TAG, "首次获取窗口信息失败，延迟500ms后重试")
+                kotlinx.coroutines.delay(500)
+                windowInfo = getWindowInfo()
+            }
+            
+            return UIData(readResult.stdout, windowInfo)
         } catch (e: Exception) {
-            Log.e(TAG, "Error retrieving UI data", e)
+            Log.e(TAG, "获取UI数据时出错", e)
             return null
         }
     }
-
+    
+    /**
+     * 获取窗口信息，使用多种命令尝试
+     */
+    private suspend fun getWindowInfo(): String {
+        // 尝试多种命令来获取窗口信息
+        val commands = listOf(
+            // 标准命令，获取当前焦点和焦点应用
+            "dumpsys window windows | grep -E 'mCurrentFocus|mFocusedApp'",
+            // 备用命令，只获取当前焦点
+            "dumpsys window | grep -E 'mCurrentFocus'",
+            // 备用命令，只获取焦点应用
+            "dumpsys window | grep -E 'mFocusedApp'",
+            // 最后的备用命令，尝试获取任何窗口信息
+            "dumpsys window | grep -E 'Window #|Focus'",
+            // 极端情况下，尝试获取前台应用包名
+            "dumpsys activity recents | grep 'Recent #0' -A2"
+        )
+        
+        // 依次尝试每个命令，直到有一个成功
+        for (command in commands) {
+            try {
+                val result = AdbCommandExecutor.executeAdbCommand(command)
+                if (result.success && result.stdout.isNotEmpty()) {
+                    Log.d(TAG, "成功获取窗口信息: ${result.stdout.take(100)}")
+                    return result.stdout
+                }
+                // 如果命令执行失败或返回空结果，尝试下一个命令
+                Log.w(TAG, "窗口信息命令 '$command' 失败或返回空结果")
+            } catch (e: Exception) {
+                Log.e(TAG, "执行窗口信息命令 '$command' 出错", e)
+                // 继续尝试下一个命令
+            }
+        }
+        
+        // 所有命令都失败时，尝试获取topActivity作为最后的手段
+        try {
+            val topActivityCommand = "dumpsys activity activities | grep -E 'topResumedActivity|topActivity'"
+            val result = AdbCommandExecutor.executeAdbCommand(topActivityCommand)
+            if (result.success && result.stdout.isNotEmpty()) {
+                Log.d(TAG, "使用topActivity作为窗口信息替代: ${result.stdout.take(100)}")
+                return result.stdout
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "获取topActivity失败", e)
+        }
+        
+        Log.e(TAG, "所有获取窗口信息的尝试均失败")
+        return ""
+    }
     
     data class UINode(
         val className: String?,
@@ -240,20 +305,270 @@ class UITools(private val context: Context) {
         val result = FocusInfo()
         
         try {
-            // Extract package name
-            val packageRegex = "\\s([a-zA-Z0-9.]+)/".toRegex()
-            val packageMatch = packageRegex.find(windowInfo)
-            result.packageName = packageMatch?.groupValues?.get(1)
+            if (windowInfo.isBlank()) {
+                Log.w(TAG, "Window info is empty, cannot extract focus information")
+                // 即使窗口信息为空，也设置默认值，确保不会返回Unknown
+                result.packageName = "android"
+                result.activityName = "ForegroundActivity"
+                return result
+            }
+
+            Log.d(TAG, "Window info for extraction: ${windowInfo.take(200)}")
             
-            // Extract activity name
-            val activityRegex = "/([a-zA-Z0-9.]+)".toRegex()
-            val activityMatch = activityRegex.find(windowInfo)
-            result.activityName = activityMatch?.groupValues?.get(1)
+            // Try different extraction methods in order of specificity
+            if (!extractFromCurrentFocus(windowInfo, result) && 
+                !extractFromFocusedApp(windowInfo, result) && 
+                !extractFromLauncherInfo(windowInfo, result) &&
+                !extractFromTopActivity(windowInfo, result) &&
+                !extractUsingGenericPatterns(windowInfo, result)) {
+                
+                Log.w(TAG, "Could not extract focus information using any method")
+            }
+            
+            // Final fallback: if we still couldn't determine anything, use default values
+            if (result.packageName == null) {
+                if (windowInfo.contains("statusbar") || windowInfo.contains("SystemUI")) {
+                    result.packageName = "com.android.systemui"
+                    result.activityName = "SystemUI"
+                    Log.d(TAG, "Using SystemUI fallback")
+                } else if (windowInfo.contains("recents")) {
+                    result.packageName = "com.android.systemui"
+                    result.activityName = "Recents"
+                    Log.d(TAG, "Using Recents fallback")
+                } else {
+                    result.packageName = "android"
+                    result.activityName = "ForegroundActivity"
+                    Log.d(TAG, "Using last-resort fallback values")
+                }
+            }
+            
+            // Log the extraction results
+            Log.d(TAG, "Final extraction result - package: ${result.packageName}, activity: ${result.activityName}")
         } catch (e: Exception) {
             Log.e(TAG, "Error parsing window info", e)
+            // Ensure we have at least some default values even when exception occurs
+            if (result.packageName == null) result.packageName = "android"
+            if (result.activityName == null) result.activityName = "ForegroundActivity"
         }
         
         return result
+    }
+    
+    /**
+     * Extract from mCurrentFocus format
+     * Example: mCurrentFocus=Window{1234567 u0 com.example.app/com.example.app.MainActivity}
+     */
+    private fun extractFromCurrentFocus(windowInfo: String, result: FocusInfo): Boolean {
+        // Try multiple patterns for mCurrentFocus format
+        val currentFocusPatterns = listOf(
+            // Standard format with package/activity
+            "mCurrentFocus=.*?\\{.*?\\s+([a-zA-Z0-9_.]+)/([^\\s}]+)".toRegex(),
+            // Alternative format sometimes seen
+            "mCurrentFocus=.*?\\s+([a-zA-Z0-9_.]+)/([^\\s}]+)\\}".toRegex(),
+            // Format with just packageName (activity will be handled separately)
+            "mCurrentFocus=.*?\\{.*?\\s+([a-zA-Z0-9_.]+)(?:/|\\s)".toRegex()
+        )
+        
+        for (pattern in currentFocusPatterns) {
+            val match = pattern.find(windowInfo)
+            if (match != null) {
+                if (match.groupValues.size >= 3) {
+                    // Pattern with both package and activity
+                    result.packageName = match.groupValues[1]
+                    result.activityName = match.groupValues[2]
+                    Log.d(TAG, "Extracted from mCurrentFocus pattern (full): ${pattern.pattern}")
+                    return true
+                } else if (match.groupValues.size >= 2) {
+                    // Pattern with just package name
+                    result.packageName = match.groupValues[1]
+                    Log.d(TAG, "Extracted package from mCurrentFocus pattern: ${pattern.pattern}")
+                    // Return false to allow other methods to extract the activity name
+                    return false
+                }
+            }
+        }
+        return false
+    }
+    
+    /**
+     * Extract from mFocusedApp format
+     * Example: mFocusedApp=AppWindowToken{token=Token{12345 ActivityRecord{67890 u0 com.example.app/.MainActivity t123}}}
+     */
+    private fun extractFromFocusedApp(windowInfo: String, result: FocusInfo): Boolean {
+        // Multiple patterns for different mFocusedApp formats
+        val focusedAppPatterns = listOf(
+            // Standard format with ActivityRecord
+            "mFocusedApp=.*?ActivityRecord\\{.*?\\s+([a-zA-Z0-9_.]+)/\\.?([^\\s}]+)".toRegex(),
+            // Alternative format sometimes seen
+            "mFocusedApp=.*?\\s+([a-zA-Z0-9_.]+)/\\.?([^\\s}]+)\\s".toRegex(),
+            // Format with just package name
+            "mFocusedApp=.*?\\s+([a-zA-Z0-9_.]+)(?:/|\\s)".toRegex()
+        )
+        
+        for (pattern in focusedAppPatterns) {
+            val match = pattern.find(windowInfo)
+            if (match != null) {
+                if (match.groupValues.size >= 3) {
+                    // Full match with package and activity
+                    result.packageName = match.groupValues[1]
+                    result.activityName = match.groupValues[2]
+                    Log.d(TAG, "Extracted from mFocusedApp pattern (full): ${pattern.pattern}")
+                    return true
+                } else if (match.groupValues.size >= 2) {
+                    // Partial match with just package
+                    result.packageName = match.groupValues[1]
+                    Log.d(TAG, "Extracted package from mFocusedApp pattern: ${pattern.pattern}")
+                    // Return false to allow activity name extraction via other methods
+                    return false
+                }
+            }
+        }
+        return false
+    }
+    
+    /**
+     * Extract information for launcher windows
+     * Example: mCurrentFocus=Window{1a23bc4 u0 Launcher}
+     */
+    private fun extractFromLauncherInfo(windowInfo: String, result: FocusInfo): Boolean {
+        // Look for launcher-specific patterns
+        if (windowInfo.contains("mCurrentFocus") && windowInfo.contains("Launcher")) {
+            val launcherPatterns = listOf(
+                "\\{.*?\\s+([a-zA-Z0-9_.]+\\.launcher)/".toRegex(),
+                "\\{.*?\\s+([a-zA-Z0-9_.]+\\.home)/".toRegex(),
+                "\\{.*?\\s+Launcher\\}".toRegex()
+            )
+            
+            for (pattern in launcherPatterns) {
+                val match = pattern.find(windowInfo)
+                if (match != null && match.groupValues.size >= 2) {
+                    result.packageName = match.groupValues[1]
+                    result.activityName = "Launcher"
+                    Log.d(TAG, "Extracted launcher info")
+                    return true
+                }
+            }
+            
+            // If we detected Launcher but couldn't extract specific package,
+            // use a default launcher package and name
+            result.packageName = "com.android.launcher3"
+            result.activityName = "Launcher"
+            Log.d(TAG, "Using default launcher info")
+            return true
+        }
+        return false
+    }
+    
+    /**
+     * Extract from topActivity/topResumedActivity output format
+     * Example: topActivity=ComponentInfo{com.example.app/.MainActivity}
+     */
+    private fun extractFromTopActivity(windowInfo: String, result: FocusInfo): Boolean {
+        // Pattern for topActivity format
+        val topActivityPatterns = listOf(
+            "topActivity=ComponentInfo\\{([a-zA-Z0-9_.]+)/\\.?([^}]+)\\}".toRegex(),
+            "topResumedActivity=ComponentInfo\\{([a-zA-Z0-9_.]+)/\\.?([^}]+)\\}".toRegex(),
+            "ResumedActivity:\\s+\\{([a-zA-Z0-9_.]+)/\\.?([^\\s}]+)".toRegex()
+        )
+        
+        for (pattern in topActivityPatterns) {
+            val match = pattern.find(windowInfo)
+            if (match != null && match.groupValues.size >= 3) {
+                result.packageName = match.groupValues[1]
+                result.activityName = match.groupValues[2]
+                Log.d(TAG, "Extracted from topActivity pattern: ${pattern.pattern}")
+                return true
+            }
+        }
+        
+        // Also look for Recent tasks format
+        val recentPattern = "Recent #0.*?\\{([a-zA-Z0-9_.]+)/\\.?([^\\s}]+)".toRegex()
+        val recentMatch = recentPattern.find(windowInfo)
+        if (recentMatch != null && recentMatch.groupValues.size >= 3) {
+            result.packageName = recentMatch.groupValues[1]
+            result.activityName = recentMatch.groupValues[2]
+            Log.d(TAG, "Extracted from Recent tasks pattern")
+            return true
+        }
+        
+        return false
+    }
+    
+    /**
+     * Extract using more generic patterns as a fallback
+     */
+    private fun extractUsingGenericPatterns(windowInfo: String, result: FocusInfo): Boolean {
+        var foundAny = false
+        
+        // Try to extract package name with various patterns
+        if (result.packageName == null) {
+            // Look for common package patterns like com.android.something
+            val packagePatterns = listOf(
+                "\\s([a-zA-Z][a-zA-Z0-9_]+(\\.[a-zA-Z0-9_]+){2,})/".toRegex(),  // com.example.app/
+                "\\s([a-zA-Z][a-zA-Z0-9_]+(\\.[a-zA-Z0-9_]+){2,})\\s".toRegex(),  // com.example.app (space after)
+                "([a-zA-Z][a-zA-Z0-9_]+(\\.[a-zA-Z0-9_]+){2,})".toRegex()  // Just find any package-like name
+            )
+            
+            for (pattern in packagePatterns) {
+                val match = pattern.find(windowInfo)
+                if (match != null && match.groupValues.size >= 2) {
+                    val potentialPackage = match.groupValues[1]
+                    // Verify this looks like a real package (avoid matching random strings)
+                    if (potentialPackage.split(".").size >= 3 && 
+                        !potentialPackage.contains("@") && 
+                        !potentialPackage.startsWith("1") && 
+                        !potentialPackage.startsWith("0")) {
+                        
+                        result.packageName = potentialPackage
+                        foundAny = true
+                        Log.d(TAG, "Found package name using fallback pattern: ${pattern.pattern}")
+                        break
+                    }
+                }
+            }
+        }
+        
+        // Try to extract activity name if we don't have it yet
+        if (result.activityName == null) {
+            // Look for activity name patterns
+            val activityPatterns = listOf(
+                "/\\.?([A-Z][a-zA-Z0-9_]+Activity)".toRegex(),  // /.MainActivity or /MainActivity
+                "/([^\\s/}]+)".toRegex(),  // any segment after a slash
+                "\\.([A-Z][a-zA-Z0-9_]+)".toRegex()  // .MainActivity
+            )
+            
+            for (pattern in activityPatterns) {
+                val match = pattern.find(windowInfo)
+                if (match != null && match.groupValues.size >= 2) {
+                    val activityName = match.groupValues[1]
+                    // Validate that it looks like an activity name (starts with capital letter)
+                    if (activityName.isNotEmpty() && 
+                        activityName[0].isUpperCase() && 
+                        !activityName.contains("@")) {
+                        
+                        result.activityName = activityName
+                        foundAny = true
+                        Log.d(TAG, "Found activity name using fallback pattern: ${pattern.pattern}")
+                        break
+                    }
+                }
+            }
+        }
+        
+        // Special case handling: if we have a package name but no activity name
+        if (result.packageName != null && result.activityName == null) {
+            // Try to guess the main activity name based on package
+            val packageParts = result.packageName!!.split(".")
+            if (packageParts.size > 0) {
+                val lastPart = packageParts.last().capitalize()
+                result.activityName = "${lastPart}Activity"
+                Log.d(TAG, "Guessed activity name from package: ${result.activityName}")
+                foundAny = true
+            }
+        }
+        
+        // If we found either package or activity, consider it a partial success
+        return foundAny
     }
     
     /**
@@ -784,14 +1099,14 @@ class UITools(private val context: Context) {
      * Simulates pressing a specific key
      */
     suspend fun pressKey(tool: AITool): ToolResult {
-        val keyCode = tool.parameters.find { it.name == "keyCode" }?.value
+        val keyCode = tool.parameters.find { it.name == "key_code" }?.value
         
         if (keyCode == null) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
                 result = StringResultData(""),
-                error = "Missing 'keyCode' parameter."
+                error = "Missing 'key_code' parameter."
             )
         }
         
@@ -833,10 +1148,10 @@ class UITools(private val context: Context) {
      * Performs a swipe gesture
      */
     suspend fun swipe(tool: AITool): ToolResult {
-        val startX = tool.parameters.find { it.name == "startX" }?.value?.toIntOrNull()
-        val startY = tool.parameters.find { it.name == "startY" }?.value?.toIntOrNull()
-        val endX = tool.parameters.find { it.name == "endX" }?.value?.toIntOrNull()
-        val endY = tool.parameters.find { it.name == "endY" }?.value?.toIntOrNull()
+        val startX = tool.parameters.find { it.name == "start_x" }?.value?.toIntOrNull()
+        val startY = tool.parameters.find { it.name == "start_y" }?.value?.toIntOrNull()
+        val endX = tool.parameters.find { it.name == "end_x" }?.value?.toIntOrNull()
+        val endY = tool.parameters.find { it.name == "end_y" }?.value?.toIntOrNull()
         val duration = tool.parameters.find { it.name == "duration" }?.value?.toIntOrNull() ?: 300
         
         if (startX == null || startY == null || endX == null || endY == null) {
@@ -844,7 +1159,7 @@ class UITools(private val context: Context) {
                 toolName = tool.name,
                 success = false,
                 result = StringResultData(""),
-                error = "Missing or invalid coordinates. 'startX', 'startY', 'endX', and 'endY' must be valid integers."
+                error = "Missing or invalid coordinates. 'start_x', 'start_y', 'end_x', and 'end_y' must be valid integers."
             )
         }
         
@@ -886,14 +1201,14 @@ class UITools(private val context: Context) {
      * Launches an app by package name
      */
     suspend fun launchApp(tool: AITool): ToolResult {
-        val packageName = tool.parameters.find { it.name == "packageName" }?.value
+        val packageName = tool.parameters.find { it.name == "package_name" }?.value
         
         if (packageName == null) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
                 result = StringResultData(""),
-                error = "Missing 'packageName' parameter."
+                error = "Missing 'package_name' parameter."
             )
         }
         
@@ -936,7 +1251,7 @@ class UITools(private val context: Context) {
      */
     suspend fun combinedOperation(tool: AITool): ToolResult {
         val operation = tool.parameters.find { it.name == "operation" }?.value
-        val delayMs = tool.parameters.find { it.name == "delayMs" }?.value?.toIntOrNull() ?: 1000
+        val delay_ms = tool.parameters.find { it.name == "delay_ms" }?.value?.toIntOrNull() ?: 1000
         
         if (operation == null) {
             return ToolResult(
@@ -1022,10 +1337,10 @@ class UITools(private val context: Context) {
                 val swipeTool = AITool(
                     name = "swipe",
                     parameters = listOf(
-                        ToolParameter("startX", startX.toString()),
-                        ToolParameter("startY", startY.toString()),
-                        ToolParameter("endX", endX.toString()),
-                        ToolParameter("endY", endY.toString()),
+                        ToolParameter("start_x", startX.toString()),
+                        ToolParameter("start_y", startY.toString()),
+                        ToolParameter("end_x", endX.toString()),
+                        ToolParameter("end_y", endY.toString()),
                         ToolParameter("duration", duration.toString())
                     )
                 )
@@ -1098,7 +1413,7 @@ class UITools(private val context: Context) {
                 val keyTool = AITool(
                     name = "press_key",
                     parameters = listOf(
-                        ToolParameter("keyCode", keyCode)
+                        ToolParameter("key_code", keyCode)
                     )
                 )
                 
@@ -1140,7 +1455,7 @@ class UITools(private val context: Context) {
                 val launchTool = AITool(
                     name = "launch_app",
                     parameters = listOf(
-                        ToolParameter("packageName", packageName)
+                        ToolParameter("package_name", packageName)
                     )
                 )
                 
@@ -1168,7 +1483,7 @@ class UITools(private val context: Context) {
         
         // Wait for the specified delay
         try {
-            kotlinx.coroutines.delay(delayMs.toLong())
+            kotlinx.coroutines.delay(delay_ms.toLong())
         } catch (e: Exception) {
             Log.e(TAG, "Error during delay", e)
         }
@@ -1229,7 +1544,7 @@ class UITools(private val context: Context) {
                     success = true,
                     result = CombinedOperationResultData(
                         operationSummary = operationSummary,
-                        waitTime = delayMs,
+                        waitTime = delay_ms,
                         pageInfo = pageInfo
                     ),
                     error = ""
@@ -1255,7 +1570,7 @@ class UITools(private val context: Context) {
                     success = true,
                     result = CombinedOperationResultData(
                         operationSummary = operationSummary,
-                        waitTime = delayMs,
+                        waitTime = delay_ms,
                         pageInfo = defaultPageInfo
                     ),
                     error = ""

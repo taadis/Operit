@@ -84,10 +84,10 @@ object SystemPromptConfig {
         - tap: Simulate a tap at specific coordinates. Parameters: x (X coordinate), y (Y coordinate)
         - click_element: Click an element identified by resource ID or class name. Parameters: resourceId (element resource ID, optional), className (element class name, optional), index (which matching element to click, 0-based counting, default 0), partialMatch (whether to enable partial matching, default false), at least one identification parameter must be provided
         - set_input_text: Set text in an input field. Parameters: text (text to input)
-        - press_key: Simulate a key press. Parameters: keyCode (key code, e.g., "KEYCODE_BACK", "KEYCODE_HOME", etc.)
-        - swipe: Simulate a swipe gesture. Parameters: startX (start X coordinate), startY (start Y coordinate), endX (end X coordinate), endY (end Y coordinate), duration (duration in milliseconds, default 300)
-        - launch_app: Launch an application. Parameters: packageName (app package name)
-        - combined_operation: Execute a UI operation, wait for a specified time, then return the new UI state. Parameters: operation (operation to execute, e.g., "tap 500 800", "click_element resourceId buttonID [index] [partialMatch]", "swipe 500 1000 500 200"), delayMs (wait time in milliseconds, default 1000)
+        - press_key: Simulate a key press. Parameters: key_code (key code, e.g., "KEYCODE_BACK", "KEYCODE_HOME", etc.)
+        - swipe: Simulate a swipe gesture. Parameters: start_x (start X coordinate), start_y (start Y coordinate), end_x (end X coordinate), end_y (end Y coordinate), duration (duration in milliseconds, default 300)
+        - launch_app: Launch an application. Parameters: package_name (app package name)
+        - combined_operation: Execute a UI operation, wait for a specified time, then return the new UI state. Parameters: operation (operation to execute, e.g., "tap 500 800", "click_element resourceId buttonID [index] [partialMatch]", "swipe 500 1000 500 200"), delay_ms (wait time in milliseconds, default 1000)
         
         IMPORTANT UI AUTOMATION ADVICE:
         - When dealing with UI interaction issues, prioritize using the combined_operation tool over individual operation tools

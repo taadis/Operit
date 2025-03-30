@@ -243,6 +243,15 @@ interface WebSearchResultData {
 // ============================================================================
 
 /**
+ * Sleep result data
+ */
+interface SleepResultData {
+    sleptMs: number;
+    requestedMs: number;
+    toString(): string;
+}
+
+/**
  * System setting data
  */
 interface SystemSettingData {
@@ -478,7 +487,7 @@ interface ToolResultMap {
     'fetch_web_page': WebPageData;
 
     // System operations
-    'sleep': { sleptMs: number, requestedMs: number };
+    'sleep': SleepResultData;
     'get_system_setting': SystemSettingData;
     'modify_system_setting': SystemSettingData;
     'install_app': AppOperationData;
@@ -676,7 +685,7 @@ declare namespace Tools {
          * Sleep for specified seconds
          * @param seconds - Seconds to sleep
          */
-        function sleep(seconds: string | number): Promise<{ sleptMs: number, requestedMs: number }>;
+        function sleep(seconds: string | number): Promise<SleepResultData>;
 
         /**
          * Get a system setting

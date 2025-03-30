@@ -1420,7 +1420,12 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = StringResultData(""),
+                result = FileOperationData(
+                    operation = "download",
+                    path = destPath,
+                    successful = false,
+                    details = "必须提供url和destination参数"
+                ),
                 error = "必须提供url和destination参数"
             )
         }
@@ -1430,7 +1435,12 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = StringResultData(""),
+                result = FileOperationData(
+                    operation = "download",
+                    path = destPath,
+                    successful = false,
+                    details = "URL必须以http://或https://开头"
+                ),
                 error = "URL必须以http://或https://开头"
             )
         }
@@ -1444,7 +1454,12 @@ class FileSystemTools(private val context: Context) {
                     return ToolResult(
                         toolName = tool.name,
                         success = false,
-                        result = StringResultData(""),
+                        result = FileOperationData(
+                            operation = "download",
+                            path = destPath,
+                            successful = false,
+                            details = "无法创建目标目录: ${mkdirResult.stderr}"
+                        ),
                         error = "无法创建目标目录: ${mkdirResult.stderr}"
                     )
                 }
@@ -1463,7 +1478,12 @@ class FileSystemTools(private val context: Context) {
                     return ToolResult(
                         toolName = tool.name,
                         success = false,
-                        result = StringResultData(""),
+                        result = FileOperationData(
+                            operation = "download",
+                            path = destPath,
+                            successful = false,
+                            details = "系统中没有wget或curl工具，无法下载文件"
+                        ),
                         error = "系统中没有wget或curl工具，无法下载文件"
                     )
                 }
@@ -1479,7 +1499,12 @@ class FileSystemTools(private val context: Context) {
                     return ToolResult(
                         toolName = tool.name,
                         success = false,
-                        result = StringResultData(""),
+                        result = FileOperationData(
+                            operation = "download",
+                            path = destPath,
+                            successful = false,
+                            details = "下载似乎已完成，但文件未被创建"
+                        ),
                         error = "下载似乎已完成，但文件未被创建"
                     )
                 }
@@ -1502,14 +1527,24 @@ class FileSystemTools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = StringResultData("文件下载成功: $url -> $destPath (文件大小: $fileSize)"),
+                    result = FileOperationData(
+                        operation = "download",
+                        path = destPath,
+                        successful = true,
+                        details = "文件下载成功: $url -> $destPath (文件大小: $fileSize)"
+                    ),
                     error = ""
                 )
             } else {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = StringResultData(""),
+                    result = FileOperationData(
+                        operation = "download",
+                        path = destPath,
+                        successful = false,
+                        details = "下载失败: ${result.stderr}"
+                    ),
                     error = "下载失败: ${result.stderr}"
                 )
             }
@@ -1518,7 +1553,12 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = StringResultData(""),
+                result = FileOperationData(
+                    operation = "download",
+                    path = destPath,
+                    successful = false,
+                    details = "下载文件时出错: ${e.message}"
+                ),
                 error = "下载文件时出错: ${e.message}"
             )
         }
