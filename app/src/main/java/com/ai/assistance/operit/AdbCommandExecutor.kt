@@ -93,7 +93,7 @@ class AdbCommandExecutor {
             try {
                 // 首先检查本地缓存的状态 - 如果已经知道服务可用，直接返回
                 if (isServiceAvailable) {
-                    Log.d(TAG, "Shizuku service is available (cached)")
+                    // Log.d(TAG, "Shizuku service is available (cached)")
                     return true
                 }
                 
@@ -160,7 +160,7 @@ class AdbCommandExecutor {
                 
                 // 适用于Shizuku 13.x版本的权限检查
                 val result = Shizuku.checkSelfPermission()
-                Log.d(TAG, "Shizuku permission check result: $result")
+                // Log.d(TAG, "Shizuku permission check result: $result")
                 return result == PackageManager.PERMISSION_GRANTED
             } catch (e: Exception) {
                 Log.e(TAG, "Error checking Shizuku permission", e)
@@ -320,9 +320,84 @@ class AdbCommandExecutor {
         }
         
         /**
+         * 检测命令是否包含需要shell解释的特殊操作符
+         * 这个方法更准确地检测操作符，避免误判命令参数中包含的特殊字符
+         * @param command 要检查的命令
+         * @return 是否包含shell操作符
+         */
+        private fun containsShellOperators(command: String): Boolean {
+            // 预处理：标记引号内的内容，避免检测引号内的操作符
+            var inSingleQuotes = false
+            var inDoubleQuotes = false
+            var escaped = false
+            var i = 0
+            
+            while (i < command.length) {
+                val c = command[i]
+                
+                // 处理转义字符
+                if (c == '\\' && !escaped) {
+                    escaped = true
+                    i++
+                    continue
+                }
+                
+                // 处理引号
+                if (c == '\'' && !escaped && !inDoubleQuotes) {
+                    inSingleQuotes = !inSingleQuotes
+                } else if (c == '"' && !escaped && !inSingleQuotes) {
+                    inDoubleQuotes = !inDoubleQuotes
+                } 
+                // 只在不在引号内时检测操作符
+                else if (!inSingleQuotes && !inDoubleQuotes && !escaped) {
+                    // 检测管道
+                    if (c == '|') {
+                        // 检查是不是 || 操作符
+                        if (i + 1 < command.length && command[i + 1] == '|') {
+                            return true
+                        }
+                        // 单个 | 管道符
+                        return true
+                    }
+                    
+                    // 检测 && 操作符
+                    if (c == '&') {
+                        // 检查是不是 && 操作符
+                        if (i + 1 < command.length && command[i + 1] == '&') {
+                            return true
+                        }
+                        // 后台运行符号 &
+                        return true
+                    }
+                    
+                    // 检测重定向
+                    if (c == '>' || c == '<') {
+                        return true
+                    }
+                    
+                    // 检测分号
+                    if (c == ';') {
+                        return true
+                    }
+                }
+                
+                escaped = false
+                i++
+            }
+            
+            return false
+        }
+        
+        /**
          * 封装执行ADB命令的函数
          * @param command 要执行的ADB命令
          * @return 命令执行结果
+         * 
+         * 支持的shell特性:
+         * - 管道操作符 (|) 用于命令链接
+         * - 重定向操作符 (>, <, >>, 2>, &>, etc.) 用于输入输出重定向
+         * - 命令连接符 (&&, ||, ;) 用于组合多条命令
+         * - 后台运行 (&) 用于后台执行命令
          */
         suspend fun executeAdbCommand(command: String): CommandResult = withContext(Dispatchers.IO) {
             if (!isShizukuServiceRunning()) {
@@ -335,12 +410,20 @@ class AdbCommandExecutor {
 
             Log.d(TAG, "Executing command: $command")
             
-            // 检查是否包含需要shell解释的特殊操作符
-            if (command.contains("&&") || command.contains("||") || command.contains(";")) {
-                Log.d(TAG, "Command contains shell operators, executing with shell")
+            // 使用更精确的方法检测shell操作符
+            if (containsShellOperators(command)) {
+                Log.d(TAG, "Command contains shell operators or redirections, executing with shell")
                 return@withContext executeWithShell(command)
             }
             
+            // 普通命令执行
+            return@withContext executeCommandDirect(command)
+        }
+        
+        /**
+         * 直接执行不包含特殊操作符的普通命令
+         */
+        private suspend fun executeCommandDirect(command: String): CommandResult = withContext(Dispatchers.IO) {
             var process: Any? = null
             
             try {
@@ -430,9 +513,30 @@ class AdbCommandExecutor {
                     "Shizuku service not available"
                 )
                 
-                // 构建shell命令
-                val shellArgs = arrayOf("sh", "-c", command)
-                Log.d(TAG, "Shell command: ${shellArgs.joinToString(", ", "[", "]")}")
+                // 检测是否包含重定向操作符进行写入操作
+                val containsRedirection = command.contains(">") 
+                
+                // 处理命令，确保使用完整路径
+                val processedCommand = if (command.contains("|") && command.contains("grep")) {
+                    // 替换 'grep' 为 '/system/bin/grep'，确保使用系统grep命令
+                    command.replace(" grep ", " /system/bin/grep ")
+                } else {
+                    command
+                }
+                
+                // 构建增强的shell环境和命令
+                // 添加umask设置确保文件权限较为宽松，避免权限问题
+                // 添加PATH环境变量确保找到所有系统命令
+                val enhancedCommand = if (containsRedirection) {
+                    // 为重定向操作添加更多环境支持
+                    "umask 0022 && PATH=\$PATH:/system/bin:/system/xbin:/vendor/bin:/vendor/xbin && $processedCommand"
+                } else {
+                    processedCommand
+                }
+                
+                // 构建shell命令，使用-e确保出错时立即退出
+                val shellArgs = arrayOf("sh", "-e", "-c", enhancedCommand)
+                Log.d(TAG, "Enhanced shell command: ${shellArgs.joinToString(", ", "[", "]")}")
                 
                 // 创建进程
                 val process = service.newProcess(shellArgs, null, null) ?: return@withContext CommandResult(
@@ -460,11 +564,38 @@ class AdbCommandExecutor {
                 val exitCode = processClass.getMethod("waitFor").invoke(process) as Int
                 
                 // 关闭文件描述符
-                inputStream?.close()
-                errorStream?.close()
+                try {
+                    inputStream?.close()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error closing input stream in shell execution", e)
+                }
+                
+                try {
+                    errorStream?.close()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error closing error stream in shell execution", e)
+                }
+                
+                // 记录详细的结果日志以便调试
+                Log.d(TAG, "Shell execution result: exitCode=$exitCode, success=${exitCode == 0}, stdout length=${stdout.length}, stderr length=${stderr.length}")
+                if (stdout.isNotEmpty()) {
+                    Log.d(TAG, "Shell stdout (first 100 chars): ${stdout.take(100)}")
+                }
+                if (stderr.isNotEmpty()) {
+                    Log.e(TAG, "Shell stderr (first 100 chars): ${stderr.take(100)}")
+                }
+                
+                // 确定命令是否成功
+                val success = when {
+                    // 如果命令包含grep，即使没有找到匹配也认为成功
+                    command.contains("grep") -> exitCode == 0 || exitCode == 1
+                    
+                    // 对其他命令，只有exitCode=0才算成功
+                    else -> exitCode == 0
+                }
                 
                 return@withContext CommandResult(
-                    exitCode == 0,
+                    success,
                     stdout,
                     stderr,
                     exitCode
@@ -498,7 +629,7 @@ class AdbCommandExecutor {
                     }
                     
                     if (isCachedAlive) {
-                        Log.d(TAG, "Using cached Shizuku service")
+                        // Log.d(TAG, "Using cached Shizuku service")
                         return cached
                     } else {
                         Log.d(TAG, "Cached Shizuku service is dead, removing from cache")

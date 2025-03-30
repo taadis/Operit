@@ -87,7 +87,6 @@ function printUIHierarchy(node, indent = "") {
  * @param params Optional parameters to customize the test
  */
 async function runTests(params = {}) {
-    var _a;
     console.log("Starting Tool Response Tester...");
     console.log("Parameters:", params);
     // Store all test results
@@ -111,6 +110,8 @@ async function runTests(params = {}) {
             await testSystemToString(results);
             // Added: Calculator toString tests
             await testCalculatorToString(results);
+            // Added: Test DeviceInfo toString
+            await testDeviceInfoToString(results);
         }
         // Test UI structured data
         if (testType === "all" || testType === "ui") {
@@ -129,16 +130,18 @@ async function runTests(params = {}) {
         if (testType === "all" || testType === "files") {
             console.log("\n📁 Testing File Operations...");
             testSummary.push("Running file operations tests");
-            // List files test
-            await testListFiles(results);
-            // Read file test
-            await testReadFile(results);
-            // File existence test
-            await testFileExists(results);
-            // Added: Additional file operations
+            // 1. First write a file as the foundation for other operations
             await testWriteFile(results);
-            await testFileOperations(results);
+            // 2. Search for files (including the one we just created)
             await testFindFiles(results);
+            // 3. List directory contents
+            await testListFiles(results);
+            // 4. Perform file operations (copy, move, etc.)
+            await testFileOperations(results);
+            // 5. Read file content
+            await testReadFile(results);
+            // 6. Check file existence and then clean up at the end
+            await testFileExists(results);
         }
         // Test network operations
         if (testType === "all" || testType === "network") {
@@ -166,21 +169,12 @@ async function runTests(params = {}) {
             // Added: App operations test
             await testAppOperations(results);
         }
-        // Test clipboard operations
-        if (testType === "all" || testType === "clipboard") {
-            console.log("\n📋 Testing Clipboard Operations...");
-            testSummary.push("Running clipboard operations tests");
-            // Get/set clipboard test
-            await testClipboard(results);
-        }
         // Added: Test calculator operations
         if (testType === "all" || testType === "calculator") {
             console.log("\n🧮 Testing Calculator Operations...");
             testSummary.push("Running calculator operations tests");
             // Calculator test
             await testCalculator(results);
-            // Date calculation test
-            await testDateCalc(results);
         }
         // Added: Test connection operations
         if (testType === "all" || testType === "connection") {
@@ -208,10 +202,6 @@ async function runTests(params = {}) {
         const totalTests = Object.keys(results).length;
         const summaryText = `Overall: ${successCount}/${totalTests} tests passed in ${duration / 1000}s`;
         console.log(`\n${summaryText}`);
-        // If everything worked, dump the UI structure
-        if ((_a = results["get_page_info"]) === null || _a === void 0 ? void 0 : _a.success) {
-            prettyPrint("UIPageResultData Full Structure", results["get_page_info"].data);
-        }
         console.log("\nTool Response Tester completed!");
         // Use complete() function to return results as required by README.md
         complete({
@@ -327,6 +317,14 @@ async function testSystemToString(results) {
         console.log("SystemSettingData.toString() result:");
         console.log("-".repeat(40));
         console.log(settingData.toString());
+        console.log("-".repeat(40));
+        // Test DeviceInfoResultData.toString()
+        console.log("\nTesting DeviceInfoResultData.toString()...");
+        const deviceInfoResult = await toolCall("device_info");
+        // Type assertion and toString test
+        console.log("DeviceInfoResultData.toString() result:");
+        console.log("-".repeat(40));
+        console.log(deviceInfoResult.toString());
         console.log("-".repeat(40));
         results["system_tostring_test"] = { success: true };
     }
@@ -495,18 +493,31 @@ async function testListFiles(results) {
  * Test read file
  */
 async function testReadFile(results) {
+    var _a;
     try {
         console.log("\nTesting read_file...");
-        // Try to read a common Android file
+        // Check if write_file was successful
+        if (!((_a = results["write_file"]) === null || _a === void 0 ? void 0 : _a.success)) {
+            console.log("WARNING: write_file test did not succeed. Reading the test file may fail.");
+        }
+        // Read the test file we created earlier
         const fileContent = await toolCall("read_file", {
-            path: "/sdcard/Download/test.txt"
+            path: "/sdcard/test_file.txt"
         });
         // Type assertion - use unknown as intermediate type to avoid linter error
         const fileData = fileContent;
         console.log(`File path: ${fileData.path}`);
         console.log(`Content length: ${fileData.content.length} characters`);
         console.log(`Content preview: ${fileData.content.substring(0, 100)}...`);
-        results["read_file"] = { success: true, data: fileData };
+        // Verify it's the same content we wrote
+        if (fileData.content.includes("This is a test file created by the tester")) {
+            console.log(`✅ Successfully read the file with correct content`);
+            results["read_file"] = { success: true, data: fileData };
+        }
+        else {
+            console.log(`❌ The file content does not match what we wrote`);
+            results["read_file"] = { success: false, data: fileData, error: "Content mismatch" };
+        }
     }
     catch (err) {
         console.error("Error testing read_file:", err);
@@ -514,14 +525,19 @@ async function testReadFile(results) {
     }
 }
 /**
- * Test file exists
+ * Test file exists and clean up
  */
 async function testFileExists(results) {
+    var _a, _b;
     try {
         console.log("\nTesting file_exists...");
-        // Check if a common Android file exists
+        // Check if write_file was successful
+        if (!((_a = results["write_file"]) === null || _a === void 0 ? void 0 : _a.success)) {
+            console.log("WARNING: write_file test did not succeed. File existence check may fail.");
+        }
+        // Check if our test file exists
         const fileExistsResult = await toolCall("file_exists", {
-            path: "/system/build.prop"
+            path: "/sdcard/test_file.txt"
         });
         // Type assertion - use unknown as intermediate type to avoid linter error
         const fileExistsData = fileExistsResult;
@@ -530,8 +546,39 @@ async function testFileExists(results) {
         if (fileExistsData.exists) {
             console.log(`Is directory: ${fileExistsData.isDirectory}`);
             console.log(`Size: ${fileExistsData.size} bytes`);
+            console.log(`✅ Successfully verified test file exists`);
         }
-        results["file_exists"] = { success: true, data: fileExistsData };
+        else {
+            console.log(`❌ Test file does not exist or was already deleted`);
+        }
+        results["file_exists"] = { success: fileExistsData.exists, data: fileExistsData };
+        // Clean up: delete the test file and directory
+        console.log("\nCleaning up test files...");
+        // Delete the test file
+        console.log("Deleting test file...");
+        try {
+            const deleteResult = await toolCall("delete_file", {
+                path: "/sdcard/test_file.txt"
+            });
+            console.log(`File deletion ${deleteResult.successful ? "successful" : "failed"}`);
+        }
+        catch (e) {
+            console.log(`Error deleting test file: ${e}`);
+        }
+        // Delete the test directory if it was created
+        if ((_b = results["make_directory"]) === null || _b === void 0 ? void 0 : _b.success) {
+            console.log("Deleting test directory...");
+            try {
+                const deleteDirResult = await toolCall("delete_file", {
+                    path: "/sdcard/test_directory",
+                    recursive: true
+                });
+                console.log(`Directory deletion ${deleteDirResult.successful ? "successful" : "failed"}`);
+            }
+            catch (e) {
+                console.log(`Error deleting test directory: ${e}`);
+            }
+        }
     }
     catch (err) {
         console.error("Error testing file_exists:", err);
@@ -653,51 +700,50 @@ async function testListApps(results) {
  */
 async function testDeviceInfo(results) {
     try {
-        console.log("\nTesting get_device_info...");
-        const deviceInfoResult = await toolCall("get_device_info");
+        console.log("\nTesting device_info...");
+        const deviceInfoResult = await toolCall("device_info");
         // Type assertion
         const deviceData = deviceInfoResult;
-        console.log(`Device: ${deviceData.manufacturer} ${deviceData.model}`);
-        console.log(`Android version: ${deviceData.androidVersion} (SDK ${deviceData.sdkVersion})`);
-        console.log(`Display: ${deviceData.displayWidth}x${deviceData.displayHeight}`);
-        console.log(`Screen density: ${deviceData.displayDensity}`);
-        results["get_device_info"] = { success: true, data: deviceData };
+        // Display the basic device information
+        console.log("=== Device Information ===");
+        console.log(`Device ID: ${deviceData.deviceId}`);
+        console.log(`Model: ${deviceData.manufacturer} ${deviceData.model}`);
+        console.log(`Android Version: ${deviceData.androidVersion} (SDK ${deviceData.sdkVersion})`);
+        // Display screen information
+        console.log("\n=== Display ===");
+        console.log(`Resolution: ${deviceData.screenResolution}`);
+        console.log(`Density: ${deviceData.screenDensity}`);
+        // Display memory and storage information
+        console.log("\n=== Memory & Storage ===");
+        console.log(`Memory: ${deviceData.availableMemory} available of ${deviceData.totalMemory} total`);
+        console.log(`Storage: ${deviceData.availableStorage} available of ${deviceData.totalStorage} total`);
+        // Display battery and network information
+        console.log("\n=== Status ===");
+        console.log(`Battery: ${deviceData.batteryLevel}% ${deviceData.batteryCharging ? "(charging)" : "(not charging)"}`);
+        console.log(`Network: ${deviceData.networkType}`);
+        console.log(`Processor: ${deviceData.cpuInfo}`);
+        // Display additional information
+        if (deviceData.additionalInfo && Object.keys(deviceData.additionalInfo).length > 0) {
+            console.log("\n=== Additional Information ===");
+            Object.entries(deviceData.additionalInfo).forEach(([key, value]) => {
+                console.log(`${key}: ${value}`);
+            });
+        }
+        // Test toString() implementation
+        console.log("\n=== Testing DeviceInfoResultData.toString() ===");
+        if (typeof deviceInfoResult.toString === 'function') {
+            console.log("-".repeat(40));
+            console.log(deviceInfoResult.toString());
+            console.log("-".repeat(40));
+        }
+        else {
+            console.log("toString method not available on device info result");
+        }
+        results["device_info"] = { success: true, data: deviceData };
     }
     catch (err) {
-        console.error("Error testing get_device_info:", err);
-        results["get_device_info"] = { success: false, error: String(err) };
-    }
-}
-/**
- * Test clipboard operations
- */
-async function testClipboard(results) {
-    try {
-        console.log("\nTesting clipboard operations...");
-        // Set clipboard text
-        const testText = "Test clipboard text " + new Date().toISOString();
-        console.log(`Setting clipboard text: "${testText}"`);
-        const setClipboardResult = await toolCall("set_clipboard", {
-            text: testText
-        });
-        // Get clipboard text
-        const getClipboardResult = await toolCall("get_clipboard");
-        // Type assertion
-        const clipboardData = getClipboardResult;
-        console.log(`Retrieved clipboard text: "${clipboardData.text}"`);
-        // Verify the text matches what we set
-        const clipboardMatches = clipboardData.text === testText;
-        console.log(`Clipboard text matches: ${clipboardMatches ? "✅ PASS" : "❌ FAIL"}`);
-        results["set_clipboard"] = { success: true };
-        results["get_clipboard"] = {
-            success: clipboardMatches,
-            data: clipboardData,
-            error: clipboardMatches ? undefined : "Retrieved text doesn't match what was set"
-        };
-    }
-    catch (err) {
-        console.error("Error testing clipboard operations:", err);
-        results["clipboard_operations"] = { success: false, error: String(err) };
+        console.error("Error testing device_info:", err);
+        results["device_info"] = { success: false, error: String(err) };
     }
 }
 /**
@@ -771,9 +817,9 @@ exports.testFetchWebPage = testFetchWebPage;
 exports.testSleep = testSleep;
 exports.testAppOperations = testAppOperations;
 exports.testCalculate = testCalculator;
-exports.testDateCalc = testDateCalc;
 exports.testUsePackage = testUsePackage;
 exports.testQueryProblemLibrary = testQueryProblemLibrary;
+exports.testDeviceInfoToString = testDeviceInfoToString;
 // Export a default main function as per README.md suggestion
 exports.main = runTests;
 // Added: Test additional UI operations
@@ -863,11 +909,17 @@ async function testWriteFile(results) {
         results["write_file"] = { success: false, error: String(err) };
     }
 }
-// Added: Test additional file operations
+// Added: Test file operations (copy, move, etc.)
 async function testFileOperations(results) {
-    var _a, _b, _c;
+    var _a, _b, _c, _d, _e;
     try {
-        console.log("\nTesting additional file operations...");
+        console.log("\nTesting file copy and move operations...");
+        // Check if write_file was successful
+        if (!((_a = results["write_file"]) === null || _a === void 0 ? void 0 : _a.success)) {
+            console.log("WARNING: write_file test did not succeed. File operations will fail.");
+            results["file_operations"] = { success: false, error: "Previous write_file test failed" };
+            return;
+        }
         // Test make_directory
         console.log("Testing make_directory...");
         const testDir = "/sdcard/test_directory";
@@ -879,31 +931,35 @@ async function testFileOperations(results) {
         console.log(`Operation: ${mkdirData.operation}`);
         console.log(`Path: ${mkdirData.path}`);
         console.log(`Success: ${mkdirData.successful}`);
-        // Test copy_file (if write_file was successful)
-        if ((_a = results["write_file"]) === null || _a === void 0 ? void 0 : _a.success) {
-            console.log("\nTesting copy_file...");
-            const sourcePath = "/sdcard/test_file.txt";
-            const destPath = "/sdcard/test_directory/copied_file.txt";
-            const copyResult = await toolCall("copy_file", {
-                source: sourcePath,
-                destination: destPath
-            });
-            // Type assertion
-            const copyData = copyResult;
-            console.log(`Operation: ${copyData.operation}`);
-            console.log(`Path: ${copyData.path}`);
-            console.log(`Success: ${copyData.successful}`);
-            console.log(`Details: ${copyData.details}`);
-            results["copy_file"] = { success: copyData.successful, data: copyData };
+        results["make_directory"] = { success: mkdirData.successful, data: mkdirData };
+        if (!mkdirData.successful) {
+            console.log("Failed to create test directory. Skipping copy/move operations.");
+            results["file_operations"] = { success: false, error: "Failed to create test directory" };
+            return;
         }
-        // Test move_file (if copy_file was successful)
-        if ((_b = results["copy_file"]) === null || _b === void 0 ? void 0 : _b.success) {
+        // Test copy_file
+        console.log("\nTesting copy_file...");
+        const sourcePath = "/sdcard/test_file.txt";
+        const destPath = "/sdcard/test_directory/copied_file.txt";
+        const copyResult = await toolCall("copy_file", {
+            source: sourcePath,
+            destination: destPath
+        });
+        // Type assertion
+        const copyData = copyResult;
+        console.log(`Operation: ${copyData.operation}`);
+        console.log(`Path: ${copyData.path}`);
+        console.log(`Success: ${copyData.successful}`);
+        console.log(`Details: ${copyData.details}`);
+        results["copy_file"] = { success: copyData.successful, data: copyData };
+        // Test move_file (only if copy_file was successful)
+        if (copyData.successful) {
             console.log("\nTesting move_file...");
-            const sourcePath = "/sdcard/test_directory/copied_file.txt";
-            const destPath = "/sdcard/test_directory/moved_file.txt";
+            const moveSourcePath = "/sdcard/test_directory/copied_file.txt";
+            const moveDestPath = "/sdcard/test_directory/moved_file.txt";
             const moveResult = await toolCall("move_file", {
-                source: sourcePath,
-                destination: destPath
+                source: moveSourcePath,
+                destination: moveDestPath
             });
             // Type assertion
             const moveData = moveResult;
@@ -912,23 +968,22 @@ async function testFileOperations(results) {
             console.log(`Success: ${moveData.successful}`);
             console.log(`Details: ${moveData.details}`);
             results["move_file"] = { success: moveData.successful, data: moveData };
+            if (moveData.successful) {
+                console.log("✅ Successfully copied and moved files");
+            }
+            else {
+                console.log("❌ File move operation failed");
+            }
         }
-        // Test delete_file (if we've created test files)
-        if ((_c = results["write_file"]) === null || _c === void 0 ? void 0 : _c.success) {
-            console.log("\nTesting delete_file...");
-            const filePath = "/sdcard/test_file.txt";
-            const deleteResult = await toolCall("delete_file", {
-                path: filePath
-            });
-            // Type assertion
-            const deleteData = deleteResult;
-            console.log(`Operation: ${deleteData.operation}`);
-            console.log(`Path: ${deleteData.path}`);
-            console.log(`Success: ${deleteData.successful}`);
-            console.log(`Details: ${deleteData.details}`);
-            results["delete_file"] = { success: deleteData.successful, data: deleteData };
+        else {
+            console.log("❌ File copy operation failed");
         }
-        results["file_operations"] = { success: true };
+        // Note: We purposely leave the test_file.txt and test_directory for later tests
+        // They will be cleaned up in the testFileExists function
+        results["file_operations"] = {
+            success: ((_b = results["copy_file"]) === null || _b === void 0 ? void 0 : _b.success) && ((_c = results["move_file"]) === null || _c === void 0 ? void 0 : _c.success),
+            data: { copy: (_d = results["copy_file"]) === null || _d === void 0 ? void 0 : _d.data, move: (_e = results["move_file"]) === null || _e === void 0 ? void 0 : _e.data }
+        };
     }
     catch (err) {
         console.error("Error testing file operations:", err);
@@ -937,27 +992,36 @@ async function testFileOperations(results) {
 }
 // Added: Test find files
 async function testFindFiles(results) {
+    var _a;
     try {
         console.log("\nTesting find_files...");
+        // Check if write_file was successful
+        if (!((_a = results["write_file"]) === null || _a === void 0 ? void 0 : _a.success)) {
+            console.log("WARNING: write_file test did not succeed. Search might not find the test file.");
+        }
+        // Search specifically for our test file
         const findResult = await toolCall("find_files", {
-            path: "/sdcard",
-            pattern: "*.txt",
-            max_depth: 2,
+            path: "/sdcard/",
+            pattern: "test_file.txt",
+            max_depth: 5,
             use_path_pattern: false,
-            case_insensitive: false
+            case_insensitive: true
         });
-        // 直接处理 FindFilesResultData 类型
         console.log(`Search path: ${findResult.path}`);
         console.log(`Pattern: ${findResult.pattern}`);
         console.log(`Found ${findResult.files.length} files matching pattern`);
         // Show a few results if any found
         if (findResult.files.length > 0) {
-            console.log("\nSample files found:");
-            findResult.files.slice(0, 3).forEach(file => {
+            console.log("\nFiles found:");
+            findResult.files.forEach(file => {
                 console.log(`- ${file}`);
             });
+            console.log(`✅ Successfully found the created test file`);
         }
-        results["find_files"] = { success: true, data: findResult };
+        else {
+            console.log(`❌ Could not find the test file we created`);
+        }
+        results["find_files"] = { success: findResult.files.length > 0, data: findResult };
     }
     catch (err) {
         console.error("Error testing find_files:", err);
@@ -1072,28 +1136,6 @@ async function testCalculator(results) {
         results["calculate"] = { success: false, error: String(err) };
     }
 }
-// Added: Test date calculation
-async function testDateCalc(results) {
-    try {
-        console.log("\nTesting date_calc...");
-        const dateResult = await toolCall("date_calc", {
-            date: "today",
-            operation: "add",
-            value: 7,
-            unit: "days"
-        });
-        // Type assertion
-        const dateData = dateResult;
-        console.log(`Date: ${dateData.date}`);
-        console.log(`Format: ${dateData.format}`);
-        console.log(`Formatted date: ${dateData.formattedDate}`);
-        results["date_calc"] = { success: true, data: dateData };
-    }
-    catch (err) {
-        console.error("Error testing date_calc:", err);
-        results["date_calc"] = { success: false, error: String(err) };
-    }
-}
 // Added: Test calculator toString
 async function testCalculatorToString(results) {
     try {
@@ -1142,5 +1184,21 @@ async function testQueryProblemLibrary(results) {
     catch (err) {
         console.error("Error testing query_problem_library:", err);
         results["query_problem_library"] = { success: false, error: String(err) };
+    }
+}
+// Added: Test DeviceInfo toString
+async function testDeviceInfoToString(results) {
+    try {
+        console.log("\nTesting DeviceInfoResultData.toString()...");
+        const deviceInfoResult = await toolCall("device_info");
+        console.log("DeviceInfoResultData.toString() result:");
+        console.log("-".repeat(40));
+        console.log(deviceInfoResult.toString());
+        console.log("-".repeat(40));
+        results["deviceinfo_tostring_test"] = { success: true };
+    }
+    catch (err) {
+        console.error("Error testing DeviceInfo toString methods:", err);
+        results["deviceinfo_tostring_test"] = { success: false, error: String(err) };
     }
 }

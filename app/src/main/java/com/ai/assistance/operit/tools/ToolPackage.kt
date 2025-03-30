@@ -10,7 +10,7 @@ import com.ai.assistance.operit.tools.packTool.PackageManager
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
 import com.ai.assistance.operit.permissions.ToolCategory
-import com.ai.assistance.operit.model.StringResultData
+import com.ai.assistance.operit.tools.StringResultData
 
 /**
  * Represents a package of tools that can be imported by the AI

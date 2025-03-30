@@ -4,8 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.ai.assistance.operit.model.AITool
 import com.ai.assistance.operit.model.ToolResult
-import com.ai.assistance.operit.model.ToolResultData
-import com.ai.assistance.operit.model.StringResultData
+import com.ai.assistance.operit.tools.StringResultData
 import com.ai.assistance.operit.tools.HttpResponseData
 import com.ai.assistance.operit.tools.WebPageData
 import kotlinx.serialization.Serializable

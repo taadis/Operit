@@ -42,13 +42,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.model.AITool
-import com.ai.assistance.operit.model.StringResultData
 import com.ai.assistance.operit.model.ToolParameter
 import com.ai.assistance.operit.model.ToolResult
 import com.ai.assistance.operit.tools.packTool.PackageManager
 import com.ai.assistance.operit.tools.AIToolHandler
 import com.ai.assistance.operit.tools.javascript.JsToolManager
 import com.ai.assistance.operit.tools.PackageTool
+import com.ai.assistance.operit.tools.StringResultData
 import com.ai.assistance.operit.tools.ToolPackage
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers

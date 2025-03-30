@@ -1,8 +1,7 @@
 package com.ai.assistance.operit.tools
 
+import android.util.Log
 import kotlinx.serialization.Serializable
-import com.ai.assistance.operit.model.ToolResultData
-import kotlinx.serialization.Contextual
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -10,47 +9,31 @@ import kotlinx.serialization.json.Json
  * This file contains all implementations of ToolResultData
  * Centralized for easier maintenance and integration
  */
-
-/**
- * Extension function to serialize ToolResultData objects to JSON
- */
-fun ToolResultData.toJson(): String = when (this) {
-    is BooleanResultData -> Json.encodeToString(this)
-    is StringResultData -> Json.encodeToString(this)
-    is IntResultData -> Json.encodeToString(this)
-    is CalculationResultData -> Json.encodeToString(this)
-    is DateResultData -> Json.encodeToString(this)
-    is ConnectionResultData -> Json.encodeToString(this)
-    is DirectoryListingData -> Json.encodeToString(this)
-    is FileContentData -> Json.encodeToString(this)
-    is FileExistsData -> Json.encodeToString(this)
-    is FileOperationData -> Json.encodeToString(this)
-    is HttpResponseData -> Json.encodeToString(this)
-    is WebPageData -> Json.encodeToString(this)
-    is SystemSettingData -> Json.encodeToString(this)
-    is AppOperationData -> Json.encodeToString(this)
-    is AppListData -> Json.encodeToString(this)
-    is UIPageResultData -> Json.encodeToString(this)
-    is UIActionResultData -> Json.encodeToString(this)
-    is CombinedOperationResultData -> Json.encodeToString(this)
-    is WebSearchResultData -> Json.encodeToString(this)
-    is FindFilesResultData -> Json.encodeToString(this)
-    else -> this.toString()
+@Serializable
+sealed class ToolResultData {
+    /**
+     * Converts the structured data to a string representation
+     */
+    abstract override fun toString(): String
+    fun toJson(): String {
+        val json = Json.encodeToString(this)
+        return json
+    }
 }
 
 // Basic result data types (moved from AITool.kt)
 @Serializable
-data class BooleanResultData(val value: Boolean) : ToolResultData {
+data class BooleanResultData(val value: Boolean) : ToolResultData() {
     override fun toString(): String = value.toString()
 }
 
 @Serializable
-data class StringResultData(val value: String) : ToolResultData {
+data class StringResultData(val value: String) : ToolResultData() {
     override fun toString(): String = value
 }
 
 @Serializable
-data class IntResultData(val value: Int) : ToolResultData {
+data class IntResultData(val value: Int) : ToolResultData() {
     override fun toString(): String = value.toString()
 }
 
@@ -63,7 +46,7 @@ data class CalculationResultData(
     val result: Double,
     val formattedResult: String,
     val variables: Map<String, Double> = emptyMap()
-) : ToolResultData {
+) : ToolResultData() {
     override fun toString(): String {
         val sb = StringBuilder()
         sb.appendLine("表达式: $expression")
@@ -88,7 +71,7 @@ data class DateResultData(
     val date: String,
     val format: String,
     val formattedDate: String
-) : ToolResultData {
+) : ToolResultData() {
     override fun toString(): String {
         return formattedDate
     }
@@ -102,7 +85,7 @@ data class ConnectionResultData(
     val connectionId: String,
     val isActive: Boolean,
     val timestamp: Long = System.currentTimeMillis()
-) : ToolResultData {
+) : ToolResultData() {
     override fun toString(): String {
         return "Simulated connection established. Demo connection ID: $connectionId"
     }
@@ -115,7 +98,7 @@ data class ConnectionResultData(
 data class DirectoryListingData(
     val path: String,
     val entries: List<FileEntry>
-) : ToolResultData {
+) : ToolResultData() {
     @Serializable
     data class FileEntry(
         val name: String,
@@ -148,7 +131,7 @@ data class FileContentData(
     val path: String,
     val content: String,
     val size: Long
-) : ToolResultData {
+) : ToolResultData() {
     override fun toString(): String {
         return "Content of $path:\n$content"
     }
@@ -163,7 +146,7 @@ data class FileExistsData(
     val exists: Boolean,
     val isDirectory: Boolean = false,
     val size: Long = 0
-) : ToolResultData {
+) : ToolResultData() {
     override fun toString(): String {
         val fileType = if (isDirectory) "Directory" else "File"
         return if (exists) {
@@ -171,6 +154,38 @@ data class FileExistsData(
         } else {
             "No file or directory exists at path: $path"
         }
+    }
+}
+
+/**
+ * Represents detailed file information
+ */
+@Serializable
+data class FileInfoData(
+    val path: String,
+    val exists: Boolean,
+    val fileType: String,  // "file", "directory", or "other"
+    val size: Long,
+    val permissions: String,
+    val owner: String,
+    val group: String,
+    val lastModified: String,
+    val rawStatOutput: String
+) : ToolResultData() {
+    override fun toString(): String {
+        if (!exists) {
+            return "File or directory does not exist at path: $path"
+        }
+        
+        val sb = StringBuilder()
+        sb.appendLine("File information for $path:")
+        sb.appendLine("Type: $fileType")
+        sb.appendLine("Size: $size bytes")
+        sb.appendLine("Permissions: $permissions")
+        sb.appendLine("Owner: $owner")
+        sb.appendLine("Group: $group")
+        sb.appendLine("Last modified: $lastModified")
+        return sb.toString()
     }
 }
 
@@ -183,7 +198,7 @@ data class FileOperationData(
     val path: String,
     val successful: Boolean,
     val details: String
-) : ToolResultData {
+) : ToolResultData() {
     override fun toString(): String {
         return details
     }
@@ -202,7 +217,7 @@ data class HttpResponseData(
     val content: String,
     val contentSummary: String,
     val size: Int
-) : ToolResultData {
+) : ToolResultData() {
     override fun toString(): String {
         val sb = StringBuilder()
         sb.appendLine("HTTP Response:")
@@ -229,7 +244,7 @@ data class WebPageData(
     val textContent: String,
     val size: Int,
     val links: List<Link>
-) : ToolResultData {
+) : ToolResultData() {
     @Serializable
     data class Link(
         val text: String,
@@ -258,7 +273,7 @@ data class SystemSettingData(
     val namespace: String,
     val setting: String,
     val value: String
-) : ToolResultData {
+) : ToolResultData() {
     override fun toString(): String {
         return "$namespace.$setting 的当前值是: $value"
     }
@@ -273,7 +288,7 @@ data class AppOperationData(
     val packageName: String,
     val success: Boolean,
     val details: String = ""
-) : ToolResultData {
+) : ToolResultData() {
     override fun toString(): String {
         return when (operationType) {
             "install" -> "成功安装应用: $packageName $details"
@@ -292,7 +307,7 @@ data class AppOperationData(
 data class AppListData(
     val includesSystemApps: Boolean,
     val packages: List<String>
-) : ToolResultData {
+) : ToolResultData() {
     override fun toString(): String {
         val appType = if (includesSystemApps) "所有应用" else "第三方应用"
         return "已安装${appType}列表:\n${packages.joinToString("\n")}"
@@ -304,13 +319,13 @@ data class AppListData(
  */
 @Serializable
 data class SimplifiedUINode(
-    val className: String? = null,
-    val text: String? = null,
-    val contentDesc: String? = null,
-    val resourceId: String? = null,
-    val bounds: String? = null,
-    val isClickable: Boolean = false,
-    val children: List<SimplifiedUINode> = emptyList()
+    val className: String?,
+    val text: String?,
+    val contentDesc: String?,
+    val resourceId: String?,
+    val bounds: String?,
+    val isClickable: Boolean,
+    val children: List<SimplifiedUINode>
 ) {
     fun toTreeString(indent: String = ""): String {
         if (!shouldKeepNode()) return ""
@@ -352,11 +367,11 @@ data class SimplifiedUINode(
     private fun shouldKeepNode(): Boolean {
         // Keep conditions: key element types or has content or clickable or has children that should be kept
         val isKeyElement = className in setOf(
-            "Button", "TextView", "EditText", 
+            "Button", "TextView", "EditText",
             "ScrollView", "Switch", "ImageView"
         )
         val hasContent = !text.isNullOrBlank() || !contentDesc.isNullOrBlank()
-        
+
         return isKeyElement || hasContent || isClickable || children.any { it.shouldKeepNode() }
     }
 }
@@ -369,7 +384,7 @@ data class UIPageResultData(
     val packageName: String,
     val activityName: String,
     val uiElements: SimplifiedUINode
-) : ToolResultData {
+) : ToolResultData() {
     override fun toString(): String {
         return """
             |Current Application: $packageName
@@ -390,7 +405,7 @@ data class UIActionResultData(
     val actionDescription: String,
     val coordinates: Pair<Int, Int>? = null,
     val elementId: String? = null
-) : ToolResultData {
+) : ToolResultData() {
     override fun toString(): String {
         return actionDescription
     }
@@ -404,9 +419,55 @@ data class CombinedOperationResultData(
     val operationSummary: String,
     val waitTime: Int,
     val pageInfo: UIPageResultData
-) : ToolResultData {
+) : ToolResultData() {
     override fun toString(): String {
         return "$operationSummary (waited ${waitTime}ms)\n\n$pageInfo"
+    }
+}
+
+/**
+ * Device information result data
+ */
+@Serializable
+data class DeviceInfoResultData(
+    val deviceId: String,
+    val model: String,
+    val manufacturer: String,
+    val androidVersion: String,
+    val sdkVersion: Int,
+    val screenResolution: String,
+    val screenDensity: Float,
+    val totalMemory: String,
+    val availableMemory: String,
+    val totalStorage: String,
+    val availableStorage: String,
+    val batteryLevel: Int,
+    val batteryCharging: Boolean,
+    val cpuInfo: String,
+    val networkType: String,
+    val additionalInfo: Map<String, String> = emptyMap()
+) : ToolResultData() {
+    override fun toString(): String {
+        val sb = StringBuilder()
+        sb.appendLine("设备信息:")
+        sb.appendLine("设备型号: $manufacturer $model")
+        sb.appendLine("Android版本: $androidVersion (SDK $sdkVersion)")
+        sb.appendLine("设备ID: $deviceId")
+        sb.appendLine("屏幕: $screenResolution (${screenDensity}dp)")
+        sb.appendLine("内存: 可用 $availableMemory / 总计 $totalMemory")
+        sb.appendLine("存储: 可用 $availableStorage / 总计 $totalStorage")
+        sb.appendLine("电池: ${batteryLevel}% ${if (batteryCharging) "(充电中)" else ""}")
+        sb.appendLine("网络: $networkType")
+        sb.appendLine("处理器: $cpuInfo")
+        
+        if (additionalInfo.isNotEmpty()) {
+            sb.appendLine("\n其他信息:")
+            additionalInfo.forEach { (key, value) ->
+                sb.appendLine("$key: $value")
+            }
+        }
+        
+        return sb.toString()
     }
 }
 
@@ -417,7 +478,7 @@ data class CombinedOperationResultData(
 data class WebSearchResultData(
     val query: String,
     val results: List<SearchResult>
-) : ToolResultData {
+) : ToolResultData() {
     @Serializable
     data class SearchResult(
         val title: String,
@@ -454,7 +515,7 @@ data class FindFilesResultData(
     val path: String,
     val pattern: String,
     val files: List<String>
-) : ToolResultData {
+) : ToolResultData() {
     override fun toString(): String {
         val sb = StringBuilder()
         sb.appendLine("文件查找结果:")

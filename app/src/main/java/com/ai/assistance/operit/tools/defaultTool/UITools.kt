@@ -6,12 +6,11 @@ import com.ai.assistance.operit.AdbCommandExecutor
 import com.ai.assistance.operit.model.AITool
 import com.ai.assistance.operit.model.ToolParameter
 import com.ai.assistance.operit.model.ToolResult
-import com.ai.assistance.operit.model.ToolResultData
-import com.ai.assistance.operit.model.StringResultData
 import com.ai.assistance.operit.tools.CombinedOperationResultData
+import com.ai.assistance.operit.tools.SimplifiedUINode
+import com.ai.assistance.operit.tools.StringResultData
 import com.ai.assistance.operit.tools.UIActionResultData
 import com.ai.assistance.operit.tools.UIPageResultData
-import kotlinx.serialization.Serializable
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
 import java.io.StringReader
@@ -133,96 +132,19 @@ class UITools(private val context: Context) {
             return null
         }
     }
+
     
-    /**
-     * 表示一个UI元素节点
-     */
-    private data class UINode(
-        val className: String,    // 元素类名
-        val id: String = "",      // 资源ID
-        val text: String = "",    // 文本内容
-        val contentDesc: String = "", // 内容描述
-        val hint: String = "",    // 提示文本
-        val isClickable: Boolean = false, // 是否可点击
-        val isEnabled: Boolean = true,    // 是否启用
-        val bounds: String = "",  // 元素边界
-        val centerX: Int = 0,     // 中心X坐标
-        val centerY: Int = 0,     // 中心Y坐标
-        val children: MutableList<UINode> = mutableListOf() // 子元素
-    ) {
-        // 获取简短的显示名称
-        fun getDisplayName(): String {
-            val sb = StringBuilder()
-            
-            // 添加类名
-            val shortClassName = className.split(".").lastOrNull() ?: className
-            sb.append("[$shortClassName]")
-            
-            // 添加文本、描述或提示
-            if (text.isNotBlank()) sb.append(" \"$text\"")
-            else if (contentDesc.isNotBlank()) sb.append(" ($contentDesc)")
-            else if (hint.isNotBlank()) sb.append(" hint:$hint")
-            
-            // 添加ID（如果有）
-            if (id.isNotBlank()) {
-                val shortId = id.split("/").lastOrNull() ?: id
-                sb.append(" id=$shortId")
-            }
-            
-            // 如果可点击，添加点击坐标
-            if (isClickable) {
-                sb.append(" 👆($centerX,$centerY)")
-            }
-            
-            // 如果不可用，添加标记
-            if (!isEnabled && isClickable) {
-                sb.append(" [DISABLED]")
-            }
-            
-            return sb.toString()
-        }
-        
-        // 是否是重要元素（可交互或有文本）
-        fun isImportant(): Boolean {
-            return isClickable || 
-                   text.isNotBlank() || 
-                   contentDesc.isNotBlank() || 
-                   hint.isNotBlank() ||
-                   className.contains("EditText") ||
-                   className.contains("Button") ||
-                   className.contains("CheckBox") ||
-                   className.contains("RadioButton") ||
-                   className.contains("Switch")
-        }
-        
-        // 获取元素类型优先级（用于排序）
-        fun getTypePriority(): Int {
-            return when {
-                className.contains("Button") -> 10
-                className.contains("EditText") -> 9
-                className.contains("CheckBox") || className.contains("RadioButton") || className.contains("Switch") -> 8
-                isClickable -> 7
-                text.isNotBlank() -> 6
-                contentDesc.isNotBlank() -> 5
-                hint.isNotBlank() -> 4
-                className.contains("TextView") -> 3
-                className.contains("ImageView") -> 2
-                else -> 1
-            }
-        }
-    }
-    
-    data class SimplifiedNode(
+    data class UINode(
         val className: String?,
         val text: String?,
         val contentDesc: String?,
         val resourceId: String?,
         val bounds: String?,
         val isClickable: Boolean,  // 新增点击状态
-        val children: MutableList<SimplifiedNode> = mutableListOf()
+        val children: MutableList<UINode> = mutableListOf()
     )
     
-    fun simplifyLayout(xml: String): com.ai.assistance.operit.tools.SimplifiedUINode {
+    fun simplifyLayout(xml: String): SimplifiedUINode {
         val factory = XmlPullParserFactory.newInstance().apply {
             isNamespaceAware = false
         }
@@ -230,8 +152,8 @@ class UITools(private val context: Context) {
             setInput(StringReader(xml))
         }
     
-        val nodeStack = mutableListOf<SimplifiedNode>()
-        var rootNode: SimplifiedNode? = null
+        val nodeStack = mutableListOf<UINode>()
+        var rootNode: UINode? = null
     
         while (parser.eventType != XmlPullParser.END_DOCUMENT) {
             when (parser.eventType) {
@@ -257,12 +179,20 @@ class UITools(private val context: Context) {
         }
     
         // Convert SimplifiedNode to SimplifiedUINode
-        return rootNode?.toUINode() ?: com.ai.assistance.operit.tools.SimplifiedUINode()
+        return rootNode?.toUINode() ?: SimplifiedUINode(
+            className = null,
+            text = null,
+            contentDesc = null,
+            resourceId = null,
+            bounds = null,
+            isClickable = false,
+            children = emptyList()
+        )
     }
     
     // Extension function to convert SimplifiedNode to SimplifiedUINode
-    private fun SimplifiedNode.toUINode(): com.ai.assistance.operit.tools.SimplifiedUINode {
-        return com.ai.assistance.operit.tools.SimplifiedUINode(
+    private fun UINode.toUINode(): SimplifiedUINode {
+        return SimplifiedUINode(
             className = className,
             text = text,
             contentDesc = contentDesc,
@@ -273,7 +203,7 @@ class UITools(private val context: Context) {
         )
     }
     
-    private fun createNode(parser: XmlPullParser): SimplifiedNode {
+    private fun createNode(parser: XmlPullParser): UINode {
         // 解析关键属性
         val className = parser.getAttributeValue(null, "class")?.substringAfterLast('.')
         val text = parser.getAttributeValue(null, "text")?.replace("&#10;", "\n")
@@ -282,7 +212,7 @@ class UITools(private val context: Context) {
         val bounds = parser.getAttributeValue(null, "bounds")
         val isClickable = parser.getAttributeValue(null, "clickable") == "true"
     
-        return SimplifiedNode(
+        return UINode(
             className = className,
             text = text,
             contentDesc = contentDesc,
@@ -292,7 +222,7 @@ class UITools(private val context: Context) {
         )
     }
     
-    private fun SimplifiedNode.shouldKeepNode(): Boolean {
+    private fun UINode.shouldKeepNode(): Boolean {
         // 保留条件：关键元素类型 或 有内容 或 可点击 或 包含需要保留的子节点
         val isKeyElement = className in setOf(
             "Button", "TextView", "EditText", 
@@ -302,45 +232,6 @@ class UITools(private val context: Context) {
         
         return isKeyElement || hasContent || isClickable || children.any { it.shouldKeepNode() }
     }
-    
-    /* Original string conversion function - kept for reference
-    private fun SimplifiedNode.toTreeString(indent: String = ""): String {
-        if (!shouldKeepNode()) return ""
-    
-        val sb = StringBuilder()
-        
-        // 节点标识
-        sb.append(indent)
-        if (isClickable) sb.append("▶ ") else sb.append("◢ ")
-        
-        // 类名
-        className?.let { sb.append("[$it] ") }
-        
-        // 文本内容（最多显示30字符）
-        text?.takeIf { it.isNotBlank() }?.let { 
-            val displayText = if (it.length > 30) "${it.take(27)}..." else it
-            sb.append("T: \"$displayText\" ")
-        }
-        
-        // 内容描述
-        contentDesc?.takeIf { it.isNotBlank() }?.let { sb.append("D: \"$it\" ") }
-        
-        // 资源ID
-        resourceId?.takeIf { it.isNotBlank() }?.let { sb.append("ID: $it ") }
-        
-        // 坐标范围
-        bounds?.let { sb.append("⮞ $it") }
-        
-        sb.append("\n")
-    
-        // 递归处理子节点
-        children.forEach { 
-            sb.append(it.toTreeString("$indent  ")) 
-        }
-    
-        return sb.toString()
-    }
-    */
     
     /**
      * Extracts package and activity information from window focus data
@@ -1350,7 +1241,12 @@ class UITools(private val context: Context) {
                     activityName = "Unknown",
                     uiElements = com.ai.assistance.operit.tools.SimplifiedUINode(
                         className = "Root",
-                        text = pageInfoResult.result.toString()
+                        text = pageInfoResult.result.toString(),
+                        contentDesc = null,
+                        resourceId = null,
+                        bounds = null,
+                        isClickable = false,
+                        children = emptyList()
                     )
                 )
                 

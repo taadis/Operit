@@ -12,7 +12,7 @@ import kotlinx.coroutines.withTimeout
 import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
 import java.util.regex.Pattern
-import com.ai.assistance.operit.model.StringResultData
+import com.ai.assistance.operit.tools.StringResultData
 
 /**
  * Manages JavaScript tool execution using JsEngine

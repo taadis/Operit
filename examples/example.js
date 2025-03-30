@@ -27,6 +27,11 @@ METADATA
                     "required": true
                 }
             ]
+        },
+        {
+            "name": "get_device_info",
+            "description": "Returns structured device information including hardware, software, and status details",
+            "parameters": []
         }
     ],
     "category": "FILE_READ"
@@ -67,6 +72,33 @@ function formatFileSize(bytes) {
     return (bytes / (1024 * 1024 * 1024)).toFixed(2) + " GB";
 }
 /**
+ * Get device information and return formatted details
+ * @param params Tool parameters (not required for this tool)
+ */
+async function get_device_info(params) {
+    try {
+        // Get device information using the updated device_info tool
+        // Explicitly cast to DeviceInfoResultData to match the interface
+        const deviceInfo = await Tools.System.getDeviceInfo();
+        // Create a formatted summary
+        const summary = {
+            deviceModel: `${deviceInfo.manufacturer} ${deviceInfo.model}`,
+            androidVersion: `Android ${deviceInfo.androidVersion} (SDK ${deviceInfo.sdkVersion})`,
+            screenInfo: `${deviceInfo.screenResolution} @ ${deviceInfo.screenDensity}dp`,
+            memoryStatus: `Memory: ${deviceInfo.availableMemory} available of ${deviceInfo.totalMemory} total`,
+            storageStatus: `Storage: ${deviceInfo.availableStorage} available of ${deviceInfo.totalStorage} total`,
+            batteryStatus: `Battery: ${deviceInfo.batteryLevel}% ${deviceInfo.batteryCharging ? "(charging)" : ""}`,
+            networkConnection: `Network: ${deviceInfo.networkType}`,
+            processorInfo: `Processor: ${deviceInfo.cpuInfo}`,
+            additionalDetails: deviceInfo.additionalInfo
+        };
+        complete(summary);
+    }
+    catch (error) {
+        complete(`Error getting device info: ${error.message}`);
+    }
+}
+/**
  * Chain multiple tool calls with Promises
  * @param params Tool parameters with query property
  */
@@ -95,10 +127,13 @@ async function chain_tools(params) {
 // Export functions for direct access
 exports.hello_world = hello_world;
 exports.chain_tools = chain_tools;
+exports.get_device_info = get_device_info;
 exports.main = async () => {
     let result = await hello_world({ name: "TypeScript" });
     console.log(result);
     result = await chain_tools({ query: "TypeScript" });
+    console.log(result);
+    result = await get_device_info({});
     console.log(result);
     complete("All operations completed successfully");
 };

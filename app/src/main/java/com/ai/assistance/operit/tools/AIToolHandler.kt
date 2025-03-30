@@ -5,13 +5,6 @@ import android.util.Log
 import com.ai.assistance.operit.model.*
 import com.ai.assistance.operit.permissions.ToolPermissionSystem
 import com.ai.assistance.operit.permissions.ToolCategory
-import com.ai.assistance.operit.tools.defaultTool.Calculator
-import com.ai.assistance.operit.tools.defaultTool.ConnectionToolExecutor
-import com.ai.assistance.operit.tools.defaultTool.FileSystemTools
-import com.ai.assistance.operit.tools.defaultTool.HttpTools
-import com.ai.assistance.operit.tools.defaultTool.SystemOperationTools
-import com.ai.assistance.operit.tools.defaultTool.UITools
-import com.ai.assistance.operit.tools.defaultTool.WebSearchTool
 import com.ai.assistance.operit.tools.packTool.PackageManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

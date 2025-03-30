@@ -44,7 +44,7 @@ object SystemPromptConfig {
         
         Available tools:
         - sleep: Demonstration tool that pauses briefly. Parameters: duration_ms (milliseconds, default 1000, max 10000)
-        - device_info: Returns basic device identifier for the current app session only. No parameters needed.
+        - device_info: Returns detailed device information including model, OS version, memory, storage, network status, and more. No parameters needed.
         - use_package: Activate a package for use in the current session. Parameters: package_name (name of the package to activate)
         - query_problem_library: Query the problem library for similar past solutions. Parameters: query (search query)
 
@@ -58,7 +58,7 @@ object SystemPromptConfig {
         - copy_file: Copy a file or directory. Parameters: source (source path), destination (destination path), recursive (boolean, default false)
         - make_directory: Create a directory. Parameters: path (directory path), create_parents (boolean, default false)
         - find_files: Search for files matching a pattern. Parameters: path (search path, MUST start with /sdcard/ to avoid system issues), pattern (search pattern, e.g. "*.jpg"), max_depth (optional, controls depth of subdirectory search, -1=unlimited), use_path_pattern (boolean, default false), case_insensitive (boolean, default false)
-        - file_info: Get information about a file or directory. Parameters: path (target path)
+        - file_info: Get detailed information about a file or directory including type, size, permissions, owner, group, and last modified time. Parameters: path (target path)
         - zip_files: Compress files or directories. Parameters: source (path to compress), destination (output zip file)
         - unzip_files: Extract a zip file. Parameters: source (zip file path), destination (extract path)
         - open_file: Open a file using the system's default application. Parameters: path (file path)

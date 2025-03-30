@@ -4,7 +4,7 @@ import android.util.Log
 import com.ai.assistance.operit.api.enhanced.models.ConversationMarkupManager
 import com.ai.assistance.operit.model.ToolInvocation
 import com.ai.assistance.operit.model.ToolResult
-import com.ai.assistance.operit.model.StringResultData
+import com.ai.assistance.operit.tools.StringResultData
 import com.ai.assistance.operit.tools.AIToolHandler
 
 /**

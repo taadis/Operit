@@ -15,8 +15,8 @@ import com.ai.assistance.operit.api.enhanced.models.ConversationRoundManager
 import com.ai.assistance.operit.model.InputProcessingState
 import com.ai.assistance.operit.model.ToolInvocation
 import com.ai.assistance.operit.model.ToolResult
-import com.ai.assistance.operit.model.StringResultData
 import com.ai.assistance.operit.tools.AIToolHandler
+import com.ai.assistance.operit.tools.StringResultData
 import com.ai.assistance.operit.tools.packTool.PackageManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

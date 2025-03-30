@@ -1,6 +1,5 @@
 package com.ai.assistance.operit.tools.defaultTool
 
-import com.ai.assistance.operit.model.ToolResultData
 import com.ai.assistance.operit.tools.CalculationResultData
 import com.ai.assistance.operit.tools.DateResultData
 import com.ai.assistance.operit.tools.calculator.Calculator as CalcImpl

@@ -127,16 +127,8 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             category = ToolCategory.SYSTEM_OPERATION,
             descriptionGenerator = { _ -> "获取设备信息" },
             executor = { tool ->
-                val deviceId = android.provider.Settings.Secure.getString(
-                    context.contentResolver,
-                    android.provider.Settings.Secure.ANDROID_ID
-                )
-                
-                ToolResult(
-                    toolName = tool.name,
-                    success = true,
-                    result = StringResultData("Device ID: $deviceId")
-                )
+                val deviceInfoTool = DeviceInfoToolExecutor(context)
+                deviceInfoTool.invoke(tool)
             }
         )
         

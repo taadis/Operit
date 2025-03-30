@@ -62,16 +62,6 @@ interface CalculationResultData {
     toString(): string;
 }
 
-/**
- * Date result data
- */
-interface DateResultData {
-    date: string;
-    format: string;
-    formattedDate: string;
-    toString(): string;
-}
-
 // ============================================================================
 // Connection Result Types
 // ============================================================================
@@ -107,6 +97,21 @@ interface FileExistsData {
     exists: boolean;
     isDirectory?: boolean;
     size?: number;
+}
+
+/**
+ * Detailed file information data
+ */
+interface FileInfoData {
+    path: string;
+    exists: boolean;
+    fileType: string;  // "file", "directory", or "other"
+    size: number;
+    permissions: string;
+    owner: string;
+    group: string;
+    lastModified: string;
+    rawStatOutput: string;
 }
 
 /**
@@ -198,6 +203,29 @@ interface SearchResult {
     title: string;
     url: string;
     snippet: string;
+    toString(): string;
+}
+
+/**
+ * Device information result data
+ */
+interface DeviceInfoResultData {
+    deviceId: string;
+    model: string;
+    manufacturer: string;
+    androidVersion: string;
+    sdkVersion: number;
+    screenResolution: string;
+    screenDensity: number;
+    totalMemory: string;
+    availableMemory: string;
+    totalStorage: string;
+    availableStorage: string;
+    batteryLevel: number;
+    batteryCharging: boolean;
+    cpuInfo: string;
+    networkType: string;
+    additionalInfo: Record<string, string>;
     toString(): string;
 }
 
@@ -294,6 +322,14 @@ interface CombinedOperationResultData {
     toString(): string;
 }
 
+interface CombinedOperationResult extends BaseResult {
+    data: CombinedOperationResultData;
+}
+
+interface DeviceInfoResult extends BaseResult {
+    data: DeviceInfoResultData;
+}
+
 // ============================================================================
 // Result Type Wrappers
 // ============================================================================
@@ -354,10 +390,6 @@ interface UIActionResult extends BaseResult {
     data: UIActionResultData;
 }
 
-interface CombinedOperationResult extends BaseResult {
-    data: CombinedOperationResultData;
-}
-
 /**
  * Generic tool result type
  */
@@ -366,7 +398,7 @@ type ToolResult = StringResult | BooleanResult | NumberResult |
     DirectoryListingResult | FileContentResult | FileOperationResult |
     HttpResponseResult | WebPageResult | WebSearchResult |
     SystemSettingResult | AppOperationResult | AppListResult |
-    UIPageResult | UIActionResult | CombinedOperationResult |
+    UIPageResult | UIActionResult | CombinedOperationResult | DeviceInfoResult |
     (BaseResult & { data: any });
 
 // ============================================================================
@@ -401,7 +433,7 @@ type UiToolName = 'get_page_info' | 'click_element' | 'tap' | 'set_input_text' |
 /**
  * Calculator tool names
  */
-type CalculatorToolName = 'calculate' | 'date_calc';
+type CalculatorToolName = 'calculate';
 
 /**
  * Connection tool names
@@ -433,7 +465,7 @@ interface ToolResultMap {
     'copy_file': FileOperationData;
     'make_directory': FileOperationData;
     'find_files': FindFilesResultData;
-    'file_info': FileOperationData;
+    'file_info': FileInfoData;
     'zip_files': FileOperationData;
     'unzip_files': FileOperationData;
     'open_file': FileOperationData;
@@ -454,7 +486,7 @@ interface ToolResultMap {
     'list_installed_apps': AppListData;
     'start_app': AppOperationData;
     'stop_app': AppOperationData;
-    'device_info': string;
+    'device_info': DeviceInfoResultData;
 
     // UI operations
     'get_page_info': UIPageResultData;
@@ -468,7 +500,6 @@ interface ToolResultMap {
 
     // Calculator operations
     'calculate': CalculationResultData;
-    'date_calc': DateResultData;
 
     // Package operations
     'use_package': string;
@@ -665,7 +696,7 @@ declare namespace Tools {
         /**
          * Get device information
          */
-        function getDeviceInfo(): Promise<string>;
+        function getDeviceInfo(): Promise<DeviceInfoResultData>;
 
         /**
          * Launch an app by package name

@@ -9,7 +9,6 @@ import androidx.core.content.ContextCompat
 import com.ai.assistance.operit.model.AITool
 import com.ai.assistance.operit.model.ToolParameter
 import com.ai.assistance.operit.model.ToolResult
-import com.ai.assistance.operit.model.ToolResultData
 import com.ai.assistance.operit.tools.*
 import com.ai.assistance.operit.tools.packTool.PackageManager
 import kotlinx.serialization.encodeToString
@@ -917,21 +916,7 @@ class JsEngine(private val context: Context) {
                                 is StringResultData -> put("data", JsonPrimitive(resultData.value))
                                 is BooleanResultData -> put("data", JsonPrimitive(resultData.value))
                                 is IntResultData -> put("data", JsonPrimitive(resultData.value))
-                                is CalculationResultData, 
-                                is DateResultData,
-                                is ConnectionResultData,
-                                is DirectoryListingData,
-                                is FileContentData,
-                                is FileOperationData,
-                                is HttpResponseData,
-                                is WebPageData, 
-                                is WebSearchResultData,
-                                is SystemSettingData,
-                                is AppOperationData,
-                                is AppListData,
-                                is UIPageResultData,
-                                is UIActionResultData,
-                                is CombinedOperationResultData -> {
+                                else -> {
                                     // 使用 toJson 方法获取 JSON 字符串
                                     val jsonString = resultData.toJson()
                                     // 确保获取的是有效的 JSON
@@ -940,9 +925,6 @@ class JsEngine(private val context: Context) {
                                     } catch (e: Exception) {
                                         put("data", JsonPrimitive(jsonString))
                                     }
-                                }
-                                else -> {
-                                    put("data", JsonPrimitive(resultData.toString()))
                                 }
                             }
                         }
@@ -1041,21 +1023,7 @@ class JsEngine(private val context: Context) {
                                         is StringResultData -> put("data", JsonPrimitive(resultData.value))
                                         is BooleanResultData -> put("data", JsonPrimitive(resultData.value))
                                         is IntResultData -> put("data", JsonPrimitive(resultData.value))
-                                        is CalculationResultData, 
-                                        is DateResultData,
-                                        is ConnectionResultData,
-                                        is DirectoryListingData,
-                                        is FileContentData,
-                                        is FileOperationData,
-                                        is HttpResponseData,
-                                        is WebPageData, 
-                                        is WebSearchResultData,
-                                        is SystemSettingData,
-                                        is AppOperationData,
-                                        is AppListData,
-                                        is UIPageResultData,
-                                        is UIActionResultData,
-                                        is CombinedOperationResultData -> {
+                                        else -> {
                                             // 使用 toJson 方法获取 JSON 字符串
                                             val jsonString = resultData.toJson()
                                             // 确保获取的是有效的 JSON
@@ -1064,9 +1032,6 @@ class JsEngine(private val context: Context) {
                                             } catch (e: Exception) {
                                                 put("data", JsonPrimitive(jsonString))
                                             }
-                                        }
-                                        else -> {
-                                            put("data", JsonPrimitive(resultData.toString()))
                                         }
                                     }
                                 }

@@ -5,8 +5,7 @@ import android.util.Log
 import com.ai.assistance.operit.AdbCommandExecutor
 import com.ai.assistance.operit.model.AITool
 import com.ai.assistance.operit.model.ToolResult
-import com.ai.assistance.operit.model.ToolResultData
-import com.ai.assistance.operit.model.StringResultData
+import com.ai.assistance.operit.tools.StringResultData
 import com.ai.assistance.operit.tools.AppListData
 import com.ai.assistance.operit.tools.AppOperationData
 import com.ai.assistance.operit.tools.SystemSettingData

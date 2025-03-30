@@ -5,15 +5,23 @@ import android.util.Log
 import com.ai.assistance.operit.AdbCommandExecutor
 import com.ai.assistance.operit.model.AITool
 import com.ai.assistance.operit.model.ToolResult
-import com.ai.assistance.operit.model.ToolResultData
-import com.ai.assistance.operit.model.StringResultData
+import com.ai.assistance.operit.tools.StringResultData
 import com.ai.assistance.operit.tools.DirectoryListingData
 import com.ai.assistance.operit.tools.FileContentData
 import com.ai.assistance.operit.tools.FileOperationData
 import com.ai.assistance.operit.tools.FileExistsData
 import com.ai.assistance.operit.tools.FindFilesResultData
+import com.ai.assistance.operit.tools.FileInfoData
 import kotlinx.serialization.Serializable
 import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.io.BufferedInputStream
+import java.io.BufferedOutputStream
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
+import java.util.zip.ZipEntry
+import java.io.IOException
 
 /**
  * Collection of file system operation tools for the AI assistant
@@ -219,30 +227,46 @@ class FileSystemTools(private val context: Context) {
         }
         
         return try {
+            // 确保目标目录存在
+            val directory = File(path).parent
+            if (directory != null) {
+                val mkdirResult = AdbCommandExecutor.executeAdbCommand("mkdir -p '$directory'")
+                if (!mkdirResult.success) {
+                    Log.w(TAG, "Warning: Failed to create parent directory: ${mkdirResult.stderr}")
+                }
+            }
+            
             // 直接使用echo命令写入内容
             // 对内容进行base64编码，避免特殊字符问题
             val contentBase64 = android.util.Base64.encodeToString(content.toByteArray(), android.util.Base64.NO_WRAP)
             
-            // 使用base64命令解码并写入文件
+            // 使用两种写入方法中的一种:
+            // 方法1: 使用base64命令解码并写入文件
             val redirectOperator = if (append) ">>" else ">"
-            val result = AdbCommandExecutor.executeAdbCommand("echo '$contentBase64' | base64 -d $redirectOperator '$path'")
+            val writeResult = AdbCommandExecutor.executeAdbCommand("echo '$contentBase64' | base64 -d $redirectOperator '$path'")
             
-            if (result.success) {
-                val operation = if (append) "append" else "write"
-                val details = if (append) "Content appended to $path" else "Content written to $path"
-                
-                return ToolResult(
-                    toolName = tool.name,
-                    success = true,
-                    result = FileOperationData(
-                        operation = operation,
-                        path = path,
-                        successful = true,
-                        details = details
-                    ),
-                    error = ""
-                )
-            } else {
+            if (!writeResult.success) {
+                Log.e(TAG, "Failed to write with base64 method: ${writeResult.stderr}")
+                // 方法2: 尝试直接写入，无需base64
+                val fallbackResult = AdbCommandExecutor.executeAdbCommand("printf '%s' '$content' $redirectOperator '$path'")
+                if (!fallbackResult.success) {
+                    return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = FileOperationData(
+                            operation = if (append) "append" else "write",
+                            path = path,
+                            successful = false,
+                            details = "Failed to write to file: ${fallbackResult.stderr}"
+                        ),
+                        error = "Failed to write to file: ${fallbackResult.stderr}"
+                    )
+                }
+            }
+            
+            // 验证写入是否成功
+            val verifyResult = AdbCommandExecutor.executeAdbCommand("test -f '$path' && echo 'exists' || echo 'not exists'")
+            if (verifyResult.stdout.trim() != "exists") {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
@@ -250,11 +274,44 @@ class FileSystemTools(private val context: Context) {
                         operation = if (append) "append" else "write",
                         path = path,
                         successful = false,
-                        details = "Failed to write to file: ${result.stderr}"
+                        details = "Write command completed but file does not exist. Possible permission issue."
                     ),
-                    error = "Failed to write to file: ${result.stderr}"
+                    error = "Write command completed but file does not exist. Possible permission issue."
                 )
             }
+            
+            // 检查文件大小确认内容被写入
+            val sizeResult = AdbCommandExecutor.executeAdbCommand("stat -c %s '$path' 2>/dev/null || echo '0'")
+            val size = sizeResult.stdout.trim().toLongOrNull() ?: 0
+            if (size == 0L && content.isNotEmpty()) {
+                // 文件存在但是大小为0，可能写入失败
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = FileOperationData(
+                        operation = if (append) "append" else "write",
+                        path = path,
+                        successful = false,
+                        details = "File was created but appears to be empty. Possible write failure."
+                    ),
+                    error = "File was created but appears to be empty. Possible write failure."
+                )
+            }
+            
+            val operation = if (append) "append" else "write"
+            val details = if (append) "Content appended to $path" else "Content written to $path"
+            
+            return ToolResult(
+                toolName = tool.name,
+                success = true,
+                result = FileOperationData(
+                    operation = operation,
+                    path = path,
+                    successful = true,
+                    details = details
+                ),
+                error = ""
+            )
         } catch (e: Exception) {
             Log.e(TAG, "Error writing to file", e)
             
@@ -739,7 +796,17 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = StringResultData(""),
+                result = FileInfoData(
+                    path = "",
+                    exists = false,
+                    fileType = "",
+                    size = 0,
+                    permissions = "",
+                    owner = "",
+                    group = "",
+                    lastModified = "",
+                    rawStatOutput = ""
+                ),
                 error = "Path parameter is required"
             )
         }
@@ -751,27 +818,80 @@ class FileSystemTools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = StringResultData(""),
+                    result = FileInfoData(
+                        path = path,
+                        exists = false,
+                        fileType = "",
+                        size = 0,
+                        permissions = "",
+                        owner = "",
+                        group = "",
+                        lastModified = "",
+                        rawStatOutput = ""
+                    ),
                     error = "File or directory does not exist: $path"
                 )
             }
             
             // Get file details using stat
-            val result = AdbCommandExecutor.executeAdbCommand("stat '$path'")
+            val statResult = AdbCommandExecutor.executeAdbCommand("stat '$path'")
             
-            if (result.success) {
+            if (statResult.success) {
+                // Get file type
+                val fileTypeResult = AdbCommandExecutor.executeAdbCommand("test -d '$path' && echo 'directory' || (test -f '$path' && echo 'file' || echo 'other')")
+                val fileType = fileTypeResult.stdout.trim()
+                
+                // Get file size
+                val sizeResult = AdbCommandExecutor.executeAdbCommand("stat -c %s '$path' 2>/dev/null || echo '0'")
+                val size = sizeResult.stdout.trim().toLongOrNull() ?: 0
+                
+                // Get file permissions
+                val permissionsResult = AdbCommandExecutor.executeAdbCommand("stat -c %A '$path' 2>/dev/null || echo ''")
+                val permissions = permissionsResult.stdout.trim()
+                
+                // Get owner and group
+                val ownerResult = AdbCommandExecutor.executeAdbCommand("stat -c %U '$path' 2>/dev/null || echo ''")
+                val owner = ownerResult.stdout.trim()
+                
+                val groupResult = AdbCommandExecutor.executeAdbCommand("stat -c %G '$path' 2>/dev/null || echo ''")
+                val group = groupResult.stdout.trim()
+                
+                // Get last modified time
+                val modifiedResult = AdbCommandExecutor.executeAdbCommand("stat -c %y '$path' 2>/dev/null || echo ''")
+                val lastModified = modifiedResult.stdout.trim()
+                
                 return ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = StringResultData("File information for $path:\n${result.stdout}"),
+                    result = FileInfoData(
+                        path = path,
+                        exists = true,
+                        fileType = fileType,
+                        size = size,
+                        permissions = permissions,
+                        owner = owner,
+                        group = group,
+                        lastModified = lastModified,
+                        rawStatOutput = statResult.stdout
+                    ),
                     error = ""
                 )
             } else {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = StringResultData(""),
-                    error = "Failed to get file information: ${result.stderr}"
+                    result = FileInfoData(
+                        path = path,
+                        exists = true,
+                        fileType = "",
+                        size = 0,
+                        permissions = "",
+                        owner = "",
+                        group = "",
+                        lastModified = "",
+                        rawStatOutput = ""
+                    ),
+                    error = "Failed to get file information: ${statResult.stderr}"
                 )
             }
         } catch (e: Exception) {
@@ -779,7 +899,17 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = StringResultData(""),
+                result = FileInfoData(
+                    path = path,
+                    exists = false,
+                    fileType = "",
+                    size = 0,
+                    permissions = "",
+                    owner = "",
+                    group = "",
+                    lastModified = "",
+                    rawStatOutput = ""
+                ),
                 error = "Error getting file information: ${e.message}"
             )
         }
@@ -802,21 +932,147 @@ class FileSystemTools(private val context: Context) {
         }
         
         return try {
-            // Make sure zip utility is available
-            val zipCheckResult = AdbCommandExecutor.executeAdbCommand("which zip")
-            if (!zipCheckResult.success) {
+            // First, check if the source path exists
+            val existsResult = AdbCommandExecutor.executeAdbCommand("test -e '$sourcePath' && echo 'exists' || echo 'not exists'")
+            if (existsResult.stdout.trim() != "exists") {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error = "The zip utility is not available on this device"
+                    error = "Source file or directory does not exist: $sourcePath"
                 )
             }
             
-            // Compress the file/directory
-            val result = AdbCommandExecutor.executeAdbCommand("cd '${File(sourcePath).parent}' && zip -r '$zipPath' '${File(sourcePath).name}'")
+            // Check if source is a directory
+            val isDirResult = AdbCommandExecutor.executeAdbCommand("test -d '$sourcePath' && echo 'true' || echo 'false'")
+            val isDirectory = isDirResult.stdout.trim() == "true"
             
-            if (result.success) {
+            // Create parent directory for zip file if needed
+            val zipDir = File(zipPath).parent
+            if (zipDir != null) {
+                AdbCommandExecutor.executeAdbCommand("mkdir -p '$zipDir'")
+            }
+            
+            // Use Java's ZipOutputStream to create the zip file
+            // We'll use ADB to copy files to/from the device and process locally
+            val sourceFile = File(sourcePath)
+            val destZipFile = File(zipPath)
+            
+            // Initialize buffer for file copy
+            val buffer = ByteArray(1024)
+            
+            // Create temporary file for processing - using external files directory for better permissions
+            val tempDir = context.getExternalFilesDir(null) ?: context.cacheDir
+            val tempSourceFile = File(tempDir, "temp_source_${System.currentTimeMillis()}")
+            val tempZipFile = File(tempDir, "temp_zip_${System.currentTimeMillis()}.zip")
+            
+            try {
+                // Make sure the temp directory exists
+                tempDir.mkdirs()
+                
+                if (isDirectory) {
+                    // For directories, we need to list all files and add them to the zip
+                    val listResult = AdbCommandExecutor.executeAdbCommand("find '$sourcePath' -type f")
+                    val fileList = listResult.stdout.trim().split("\n").filter { it.isNotEmpty() }
+                    
+                    // Create ZIP output stream
+                    val fos = FileOutputStream(tempZipFile)
+                    val zos = ZipOutputStream(BufferedOutputStream(fos))
+                    
+                    try {
+                        for (filePath in fileList) {
+                            // Get the file path relative to the source directory
+                            val relativePath = filePath.substring(sourcePath.length + 1)
+                            
+                            // Copy the file from device to temp file
+                            val pullResult = AdbCommandExecutor.executeAdbCommand("cat '$filePath' > '${tempSourceFile.absolutePath}'")
+                            if (!pullResult.success) {
+                                continue  // Skip this file if we can't pull it
+                            }
+                            
+                            // Add the file to the ZIP
+                            val fis = FileInputStream(tempSourceFile)
+                            val bis = BufferedInputStream(fis)
+                            
+                            try {
+                                // Add ZIP entry
+                                val entry = ZipEntry(relativePath)
+                                zos.putNextEntry(entry)
+                                
+                                // Write file content to ZIP
+                                var len: Int
+                                while (bis.read(buffer).also { len = it } > 0) {
+                                    zos.write(buffer, 0, len)
+                                }
+                                
+                                zos.closeEntry()
+                            } finally {
+                                bis.close()
+                                fis.close()
+                                tempSourceFile.delete()
+                            }
+                        }
+                    } finally {
+                        zos.close()
+                        fos.close()
+                    }
+                } else {
+                    // For a single file, simpler process
+                    // Copy the file from device to temp file
+                    val pullResult = AdbCommandExecutor.executeAdbCommand("cat '$sourcePath' > '${tempSourceFile.absolutePath}'")
+                    if (!pullResult.success) {
+                        return ToolResult(
+                            toolName = tool.name,
+                            success = false,
+                            result = StringResultData(""),
+                            error = "Failed to read source file: ${pullResult.stderr}"
+                        )
+                    }
+                    
+                    // Create zip file with single entry
+                    val fos = FileOutputStream(tempZipFile)
+                    val zos = ZipOutputStream(BufferedOutputStream(fos))
+                    
+                    try {
+                        val fis = FileInputStream(tempSourceFile)
+                        val bis = BufferedInputStream(fis)
+                        
+                        try {
+                            // Add ZIP entry
+                            val entry = ZipEntry(sourceFile.name)
+                            zos.putNextEntry(entry)
+                            
+                            // Write file content to ZIP
+                            var len: Int
+                            while (bis.read(buffer).also { len = it } > 0) {
+                                zos.write(buffer, 0, len)
+                            }
+                            
+                            zos.closeEntry()
+                        } finally {
+                            bis.close()
+                            fis.close()
+                        }
+                    } finally {
+                        zos.close()
+                        fos.close()
+                    }
+                }
+                
+                // Log information about the temp ZIP file
+                Log.d(TAG, "Temp ZIP file created at: ${tempZipFile.absolutePath}, size: ${tempZipFile.length()} bytes")
+                
+                // Push the ZIP file to the destination
+                val pushResult = AdbCommandExecutor.executeAdbCommand("cat '${tempZipFile.absolutePath}' > '$zipPath'")
+                if (!pushResult.success) {
+                    return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "Failed to write ZIP file: ${pushResult.stderr}"
+                    )
+                }
+                
                 return ToolResult(
                     toolName = tool.name,
                     success = true,
@@ -828,13 +1084,10 @@ class FileSystemTools(private val context: Context) {
                     ),
                     error = ""
                 )
-            } else {
-                return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "Failed to compress: ${result.stderr}"
-                )
+            } finally {
+                // Clean up temporary files
+                tempSourceFile.delete()
+                tempZipFile.delete()
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error compressing files", e)
@@ -864,24 +1117,97 @@ class FileSystemTools(private val context: Context) {
         }
         
         return try {
-            // Make sure unzip utility is available
-            val unzipCheckResult = AdbCommandExecutor.executeAdbCommand("which unzip")
-            if (!unzipCheckResult.success) {
+            // Check if the zip file exists
+            val existsResult = AdbCommandExecutor.executeAdbCommand("test -f '$zipPath' && echo 'exists' || echo 'not exists'")
+            if (existsResult.stdout.trim() != "exists") {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error = "The unzip utility is not available on this device"
+                    error = "Zip file does not exist: $zipPath"
                 )
             }
             
             // Create destination directory if it doesn't exist
             AdbCommandExecutor.executeAdbCommand("mkdir -p '$destPath'")
             
-            // Extract the zip file
-            val result = AdbCommandExecutor.executeAdbCommand("unzip '$zipPath' -d '$destPath'")
+            // Create temporary files for processing - using external files directory for better permissions
+            val tempDir = context.getExternalFilesDir(null) ?: context.cacheDir
+            val tempZipFile = File(tempDir, "temp_zip_${System.currentTimeMillis()}.zip")
             
-            if (result.success) {
+            try {
+                // Make sure the temp directory exists
+                tempDir.mkdirs()
+                
+                // Copy the zip file from device to temp file
+                val pullResult = AdbCommandExecutor.executeAdbCommand("cat '$zipPath' > '${tempZipFile.absolutePath}'")
+                if (!pullResult.success) {
+                    return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "Failed to read zip file: ${pullResult.stderr}"
+                    )
+                }
+                
+                // Log information about the temp ZIP file
+                Log.d(TAG, "Temp ZIP file loaded at: ${tempZipFile.absolutePath}, size: ${tempZipFile.length()} bytes")
+                
+                // Extract files using ZipInputStream
+                val buffer = ByteArray(1024)
+                val zipInputStream = ZipInputStream(BufferedInputStream(FileInputStream(tempZipFile)))
+                
+                try {
+                    var zipEntry: ZipEntry? = zipInputStream.nextEntry
+                    while (zipEntry != null) {
+                        val fileName = zipEntry.name
+                        val newFile = File(tempDir, "unzip_temp_${System.currentTimeMillis()}")
+                        
+                        // Skip directories, but make sure they exist
+                        if (zipEntry.isDirectory) {
+                            val dirPath = "$destPath/$fileName"
+                            AdbCommandExecutor.executeAdbCommand("mkdir -p '$dirPath'")
+                            zipInputStream.closeEntry()
+                            zipEntry = zipInputStream.nextEntry
+                            continue
+                        }
+                        
+                        // Create parent directories if needed
+                        val filePath = "$destPath/$fileName"
+                        val parentDirPath = File(filePath).parent
+                        if (parentDirPath != null) {
+                            AdbCommandExecutor.executeAdbCommand("mkdir -p '$parentDirPath'")
+                        }
+                        
+                        // Extract file
+                        val fileOutputStream = FileOutputStream(newFile)
+                        
+                        try {
+                            var len: Int
+                            while (zipInputStream.read(buffer).also { len = it } > 0) {
+                                fileOutputStream.write(buffer, 0, len)
+                            }
+                        } finally {
+                            fileOutputStream.close()
+                        }
+                        
+                        // Copy the extracted file to device
+                        val pushResult = AdbCommandExecutor.executeAdbCommand("cat '${newFile.absolutePath}' > '$filePath'")
+                        if (!pushResult.success) {
+                            Log.w(TAG, "Failed to copy extracted file: $fileName to $filePath")
+                            // Continue with next file
+                        }
+                        
+                        // Clean up temp file
+                        newFile.delete()
+                        
+                        zipInputStream.closeEntry()
+                        zipEntry = zipInputStream.nextEntry
+                    }
+                } finally {
+                    zipInputStream.close()
+                }
+                
                 return ToolResult(
                     toolName = tool.name,
                     success = true,
@@ -893,13 +1219,8 @@ class FileSystemTools(private val context: Context) {
                     ),
                     error = ""
                 )
-            } else {
-                return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "Failed to extract: ${result.stderr}"
-                )
+            } finally {
+                tempZipFile.delete()
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error extracting zip file", e)
@@ -923,7 +1244,12 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = StringResultData(""),
+                result = FileOperationData(
+                    operation = "open",
+                    path = "",
+                    successful = false,
+                    details = "必须提供path参数"
+                ),
                 error = "必须提供path参数"
             )
         }
@@ -935,7 +1261,12 @@ class FileSystemTools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = StringResultData(""),
+                    result = FileOperationData(
+                        operation = "open",
+                        path = path,
+                        successful = false,
+                        details = "文件不存在: $path"
+                    ),
                     error = "文件不存在: $path"
                 )
             }
@@ -952,14 +1283,24 @@ class FileSystemTools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = StringResultData("已使用系统应用打开文件: $path"),
+                    result = FileOperationData(
+                        operation = "open",
+                        path = path,
+                        successful = true,
+                        details = "已使用系统应用打开文件: $path"
+                    ),
                     error = ""
                 )
             } else {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = StringResultData(""),
+                    result = FileOperationData(
+                        operation = "open",
+                        path = path,
+                        successful = false,
+                        details = "打开文件失败: ${result.stderr}"
+                    ),
                     error = "打开文件失败: ${result.stderr}"
                 )
             }
@@ -968,7 +1309,12 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = StringResultData(""),
+                result = FileOperationData(
+                    operation = "open",
+                    path = path,
+                    successful = false,
+                    details = "打开文件时出错: ${e.message}"
+                ),
                 error = "打开文件时出错: ${e.message}"
             )
         }
@@ -986,7 +1332,12 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = StringResultData(""),
+                result = FileOperationData(
+                    operation = "share",
+                    path = "",
+                    successful = false,
+                    details = "必须提供path参数"
+                ),
                 error = "必须提供path参数"
             )
         }
@@ -998,7 +1349,12 @@ class FileSystemTools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = StringResultData(""),
+                    result = FileOperationData(
+                        operation = "share",
+                        path = path,
+                        successful = false,
+                        details = "文件不存在: $path"
+                    ),
                     error = "文件不存在: $path"
                 )
             }
@@ -1015,14 +1371,24 @@ class FileSystemTools(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = StringResultData("已打开分享界面，分享文件: $path"),
+                    result = FileOperationData(
+                        operation = "share",
+                        path = path,
+                        successful = true,
+                        details = "已打开分享界面，分享文件: $path"
+                    ),
                     error = ""
                 )
             } else {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
-                    result = StringResultData(""),
+                    result = FileOperationData(
+                        operation = "share",
+                        path = path,
+                        successful = false,
+                        details = "分享文件失败: ${result.stderr}"
+                    ),
                     error = "分享文件失败: ${result.stderr}"
                 )
             }
@@ -1031,7 +1397,12 @@ class FileSystemTools(private val context: Context) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = StringResultData(""),
+                result = FileOperationData(
+                    operation = "share",
+                    path = path,
+                    successful = false,
+                    details = "分享文件时出错: ${e.message}"
+                ),
                 error = "分享文件时出错: ${e.message}"
             )
         }
