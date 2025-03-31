@@ -18,6 +18,7 @@ import com.ai.assistance.operit.model.ToolResult
 import com.ai.assistance.operit.tools.AIToolHandler
 import com.ai.assistance.operit.tools.StringResultData
 import com.ai.assistance.operit.tools.packTool.PackageManager
+import com.ai.assistance.operit.ui.common.displays.MessageContentParser
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -196,17 +197,114 @@ class EnhancedAIService(
     ): MutableList<Pair<String, String>> {
         conversationMutex.withLock {
             conversationHistory.clear()
-            conversationHistory.addAll(chatHistory)
-            if (!conversationHistory.any { it.first == "system" }) {
+            
+            // Add system prompt if not already present
+            if (!chatHistory.any { it.first == "system" }) {
                 val userPreferences = preferencesManager.userPreferencesFlow.first()
                 if (userPreferences.preferences.isNotEmpty()) {
                     conversationHistory.add(0, Pair("system", "${SystemPromptConfig.getSystemPrompt(packageManager)}\n\nUser preference description: ${userPreferences.preferences}"))
-                }else{
+                } else {
                     conversationHistory.add(0, Pair("system", SystemPromptConfig.getSystemPrompt(packageManager)))
+                }
+            }
+            
+            // Process each message in chat history
+            for (message in chatHistory) {
+                val role = message.first
+                val content = message.second
+                
+                // If it's an assistant message, check for tool results
+                if (role == "assistant") {
+                    val toolResults = extractToolResults(content)
+                    if (toolResults.isNotEmpty()) {
+                        // Process the message with tool results
+                        processChatMessageWithTools(content, toolResults)
+                    } else {
+                        // Add the message as is
+                        conversationHistory.add(message)
+                    }
+                } else {
+                    // Add user or system messages as is
+                    conversationHistory.add(message)
                 }
             }
         }
         return conversationHistory
+    }
+
+    /**
+     * Extract tool results from message content using both xmlToolResultPattern and xmlStatusPattern
+     */
+    private fun extractToolResults(content: String): List<Triple<String, String, IntRange>> {
+        val results = mutableListOf<Triple<String, String, IntRange>>()
+        
+        // Extract using tool_result pattern
+        val xmlToolResultPattern = MessageContentParser.Companion.xmlToolResultPattern
+        xmlToolResultPattern.findAll(content).forEach { match ->
+            val toolName = match.groupValues[1]
+            val status = match.groupValues[2]
+            val toolContent = match.groupValues[3]
+            results.add(Triple(toolName, toolContent, match.range))
+        }
+        
+        // Also extract using status pattern for result type
+        val xmlStatusPattern = MessageContentParser.Companion.xmlStatusPattern
+        xmlStatusPattern.findAll(content).forEach { match ->
+            val statusType = match.groupValues[1]
+            val toolName = match.groupValues[2]
+            val success = match.groupValues[4].ifEmpty { "true" }
+            val statusContent = match.groupValues[7]
+            
+            // Include status of type "result" or "executing" as tool result
+            if (toolName.isNotEmpty()) {
+                results.add(Triple(toolName, statusContent, match.range))
+            }
+        }
+        
+        return results
+    }
+
+    /**
+     * Process a chat message that contains tool results, splitting it into
+     * assistant message segments and tool result segments
+     */
+    private fun processChatMessageWithTools(content: String, toolResults: List<Triple<String, String, IntRange>>) {
+        var lastEnd = 0
+        val sortedResults = toolResults.sortedBy { it.third.first }
+        
+        for (result in sortedResults) {
+            val toolName = result.first
+            val toolContent = result.second
+            val range = result.third
+            
+            // Add assistant message before the tool result (if any)
+            if (range.first > lastEnd) {
+                val assistantContent = content.substring(lastEnd, range.first)
+                if (assistantContent.isNotBlank()) {
+                    conversationHistory.add(Pair("assistant", assistantContent))
+                }
+            }
+            
+            // Check if this is already in tool_result format
+            if (content.substring(range).contains("<tool_result")) {
+                // Add the existing tool_result markup as a tool message
+                conversationHistory.add(Pair("tool", content.substring(range)))
+            } else {
+                // This is a status tag, convert to tool_result format
+                conversationHistory.add(Pair("tool", "<tool_result name=\"$toolName\" status=\"success\"><content>$toolContent</content></tool_result>"))
+            }
+            
+            // Update lastEnd
+            lastEnd = range.last + 1
+        }
+        
+        // Add any remaining assistant content after the last tool result
+        if (lastEnd < content.length) {
+            val assistantContent = content.substring(lastEnd)
+            if (assistantContent.isNotBlank()) {
+                conversationHistory.add(Pair("assistant", assistantContent))
+            }
+        }
     }
 
     /**

@@ -74,7 +74,7 @@ async function find_user(params: { search_term: string, search_type: string }) {
 
     // 如果不在QQ中，启动QQ
     if (!pageInfo.toString().includes("com.tencent.mobileqq")) {
-      await toolCall("launch_app", { packageName: "com.tencent.mobileqq" });
+      await toolCall("start_app", { packageName: "com.tencent.mobileqq" });
       await toolCall("sleep", { duration_ms: "500" });
       pageInfo = await toolCall("get_page_info", { detail: "summary" });
     }

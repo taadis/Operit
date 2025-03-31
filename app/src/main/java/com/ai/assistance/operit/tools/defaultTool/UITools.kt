@@ -1440,33 +1440,12 @@ class UITools(private val context: Context) {
                 
                 setInputText(inputTool)
             }
-            "launch_app" -> {
-                if (operationParts.size < 2) {
-                    return ToolResult(
-                        toolName = tool.name,
-                        success = false,
-                        result = StringResultData(""),
-                        error = "Invalid launch_app operation. Format: launch_app packageName"
-                    )
-                }
-                
-                val packageName = operationParts[1]
-                
-                val launchTool = AITool(
-                    name = "launch_app",
-                    parameters = listOf(
-                        ToolParameter("package_name", packageName)
-                    )
-                )
-                
-                launchApp(launchTool)
-            }
             else -> {
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error = "Unsupported operation: $operationType. Supported operations: tap, swipe, click_element, press_key, set_input_text, launch_app"
+                    error = "Unsupported operation: $operationType. Supported operations: tap, swipe, click_element, press_key, set_input_text"
                 )
             }
         }
@@ -1530,7 +1509,6 @@ class UITools(private val context: Context) {
                 }
                 "press_key" -> "Pressed key: ${operationParts[1]}"
                 "set_input_text" -> "Set input text to: ${operationParts.drop(1).joinToString(" ")}"
-                "launch_app" -> "Launched app: ${operationParts[1]}"
                 else -> "Executed operation: $operation"
             }
             

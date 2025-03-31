@@ -25,6 +25,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.PictureInPicture
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
@@ -36,6 +37,8 @@ import com.ai.assistance.operit.ui.features.chat.components.ChatHeader
 import com.ai.assistance.operit.ui.features.chat.components.ChatHistorySelector
 import com.ai.assistance.operit.ui.features.chat.components.ChatInputSection
 import android.util.Log
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.snapshotFlow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,13 +88,85 @@ fun AIChatScreen() {
     val thinkingBackgroundColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
     val thinkingTextColor = MaterialTheme.colorScheme.onSurfaceVariant
     
-    // Auto-scroll to bottom when new messages arrive
-    LaunchedEffect(chatHistory.size) {
-        if (chatHistory.isNotEmpty()) {
-            listState.animateScrollToItem(
-                index = chatHistory.size - 1,
-                scrollOffset = 0 // Ensure full visibility of the last item
+    // 只保留两个简单状态
+    var autoScrollToBottom by remember { mutableStateOf(true) } // 是否自动滚动到底部
+    var showScrollButton by remember { mutableStateOf(false) } // 是否显示滚动按钮
+    // 添加一个防抖动标记，防止按钮频繁闪烁
+    var isScrollStateChanging by remember { mutableStateOf(false) }
+    // 跟踪上一次的滚动位置
+    var lastScrollOffset by remember { mutableStateOf(0) }
+    
+    // 防抖动效果
+    LaunchedEffect(isScrollStateChanging) {
+        if (isScrollStateChanging) {
+            delay(300) // 短暂延迟后重置状态
+            isScrollStateChanging = false
+        }
+    }
+    
+    // 更简单直接的滚动状态监听 - 只监听用户主动向上滚动
+    LaunchedEffect(Unit) {
+        snapshotFlow { 
+            Pair(
+                listState.firstVisibleItemScrollOffset,
+                listState.isScrollInProgress
             )
+        }.collect { (currentOffset, isScrolling) ->
+            // 只在用户主动滚动时判断
+            if (isScrolling && !isScrollStateChanging) {
+                // 检测是否是向上滚动(手指向下滑)
+                val isScrollingUp = currentOffset < lastScrollOffset
+                
+                // 更新上次滚动位置
+                lastScrollOffset = currentOffset
+                
+                // 如果用户向上滚动，禁用自动滚动并显示按钮
+                if (!isScrollingUp) {
+                    if (!showScrollButton) {
+                        isScrollStateChanging = true
+                        showScrollButton = true
+                        autoScrollToBottom = false
+                    }
+                }
+            }
+        }
+    }
+    
+    // 监听用户滚动到底部的情况
+    LaunchedEffect(Unit) {
+        snapshotFlow { !listState.canScrollForward }.collect { isAtBottom ->
+            if (isAtBottom && !isScrollStateChanging && showScrollButton) {
+                // 用户手动滚动到底部时，重新启用自动滚动并隐藏按钮
+                isScrollStateChanging = true
+                showScrollButton = false
+                autoScrollToBottom = true
+            }
+        }
+    }
+    
+    // 内容变化时的自动滚动 - 不使用size或index
+    LaunchedEffect(chatHistory) {
+        if (autoScrollToBottom && chatHistory.isNotEmpty()) {
+            delay(50) // 短暂延迟确保布局完成
+            try {
+                // 直接使用极大值滚动，不关心具体位置
+                listState.dispatchRawDelta(100000f)
+            } catch (e: Exception) {
+                Log.e("AIChatScreen", "自动滚动失败", e)
+            }
+        }
+    }
+    
+    // 内容追加的自动滚动 - 不依赖于index或size
+    LaunchedEffect(chatHistory.lastOrNull()?.content) {
+        if (autoScrollToBottom && chatHistory.isNotEmpty()) {
+            delay(10)
+            try {
+                // 直接使用极大值滚动，不关心具体位置
+                listState.dispatchRawDelta(100000f)
+            } catch (e: Exception) {
+                Log.e("AIChatScreen", "内容追加滚动失败", e)
+            }
         }
     }
     
@@ -180,7 +255,7 @@ fun AIChatScreen() {
         },
         floatingActionButton = {
             if (isConfigured) {
-                FloatingActionButton(
+                SmallFloatingActionButton(
                     onClick = { 
                         // Show reminder about system's small window feature
                         android.widget.Toast.makeText(
@@ -188,22 +263,14 @@ fun AIChatScreen() {
                             "提示：您也可以使用系统自带的小窗功能，体验可能更佳。长按应用切换按钮或从最近任务中拖动可开启小窗模式。",
                             android.widget.Toast.LENGTH_LONG
                         ).show()
-                        
-                        // if (canDrawOverlays.value) {
-                        //     viewModel.toggleFloatingMode()
-                        // } else {
-                        //     // Request permission
-                        //     val intent = Intent(
-                        //         Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        //         Uri.parse("package:${context.packageName}")
-                        //     )
-                        //     context.startActivity(intent)
-                        // }
-                    }
+                    },
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 ) {
                     Icon(
                         imageVector = Icons.Default.PictureInPicture,
-                        contentDescription = "Toggle Floating Mode"
+                        contentDescription = "小窗模式",
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
@@ -266,22 +333,63 @@ fun AIChatScreen() {
                         )
                         
                         // Chat area with messages
-                        ChatArea(
-                            chatHistory = chatHistory,
-                            listState = listState,
-                            aiReferences = aiReferences,
-                            toolProgress = toolProgress,
-                            isLoading = isLoading,
-                            userMessageColor = userMessageColor,
-                            aiMessageColor = aiMessageColor,
-                            userTextColor = userTextColor,
-                            aiTextColor = aiTextColor,
-                            systemMessageColor = systemMessageColor,
-                            systemTextColor = systemTextColor,
-                            thinkingBackgroundColor = thinkingBackgroundColor,
-                            thinkingTextColor = thinkingTextColor,
-                            modifier = Modifier.weight(1f)
-                        )
+                        Box(modifier = Modifier.weight(1f)) {
+                            ChatArea(
+                                chatHistory = chatHistory,
+                                listState = listState,
+                                aiReferences = aiReferences,
+                                toolProgress = toolProgress,
+                                isLoading = isLoading,
+                                userMessageColor = userMessageColor,
+                                aiMessageColor = aiMessageColor,
+                                userTextColor = userTextColor,
+                                aiTextColor = aiTextColor,
+                                systemMessageColor = systemMessageColor,
+                                systemTextColor = systemTextColor,
+                                thinkingBackgroundColor = thinkingBackgroundColor,
+                                thinkingTextColor = thinkingTextColor,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            
+                            // Scroll to bottom button - 简化
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .padding(end = 16.dp)
+                            ) {
+                                if (showScrollButton) {
+                                    SmallFloatingActionButton(
+                                        onClick = {
+                                            // 点击按钮：启用自动滚动，隐藏按钮，并立即滚动到底部
+                                            autoScrollToBottom = true
+                                            showScrollButton = false
+                                            
+                                            coroutineScope.launch {
+                                                if (chatHistory.isNotEmpty()) {
+                                                    try {
+                                                        // 不关心index，直接尝试滚动到底部
+                                                        // 使用最大可能的滚动量
+                                                        listState.dispatchRawDelta(100000f)
+                                                        
+                            
+                                                    } catch (e: Exception) {
+                                                        Log.e("AIChatScreen", "滚动到底部失败", e)
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.85f),
+                                        contentColor = MaterialTheme.colorScheme.onSecondary
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.KeyboardArrowDown,
+                                            contentDescription = "滚动到底部",
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

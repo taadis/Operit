@@ -220,7 +220,6 @@ async function runTests(params: { testType?: string } = {}): Promise<void> {
             await testSetInputText(results);
             await testPressKey(results);
             await testSwipe(results);
-            await testLaunchApp(results);
             await testCombinedOperation(results);
         }
 
@@ -1414,6 +1413,9 @@ async function testStartApp(results: TestResults): Promise<void> {
 
         // Use the settings app which should be available on all devices
         const packageName = "com.android.settings";
+
+        // First test: Standard app launch
+        console.log("Testing standard app launch...");
         const startResult = await toolCall("start_app", {
             package_name: packageName
         });
@@ -1429,9 +1431,32 @@ async function testStartApp(results: TestResults): Promise<void> {
         console.log("Waiting for app to start...");
         await toolCall("sleep", { duration_ms: 2000 });
 
+        // Second test: Launch with specific activity
+        console.log("\nTesting specific activity launch...");
+        // Settings main activity is a common one
+        const activity = "com.android.settings.Settings";
+        const startWithActivityResult = await toolCall("start_app", {
+            package_name: packageName,
+            activity: activity
+        });
+
+        // Validate the activity launch result
+        const activityData = startWithActivityResult as AppOperationData;
+        console.log(`Operation type: ${activityData.operationType}`);
+        console.log(`Package name: ${activityData.packageName}`);
+        console.log(`Success: ${activityData.success}`);
+        console.log(`Details: ${activityData.details || ""}`);
+
+        // Final result combines both tests
+        const bothSucceeded = startData.success && activityData.success;
+        const activitySpecified = activityData.details && activityData.details.includes(activity);
+
         results["start_app"] = {
-            success: startData.success && startData.packageName === packageName,
-            data: startData
+            success: bothSucceeded && activityData.packageName === packageName && activitySpecified,
+            data: {
+                standard: startData,
+                withActivity: activityData
+            }
         };
     } catch (err) {
         console.error("Error testing start_app:", err);
@@ -1898,50 +1923,6 @@ async function testSwipe(results: TestResults): Promise<void> {
 }
 
 /**
- * Tests the launch_app tool
- */
-async function testLaunchApp(results: TestResults): Promise<void> {
-    try {
-        console.log("\nTesting launch_app...");
-
-        // Use settings app as a safe test target
-        const packageName = "com.android.settings";
-        console.log(`Launching app: ${packageName}`);
-
-        const launchResult = await toolCall("launch_app", {
-            package_name: packageName
-        });
-
-        // Validate the result
-        const launchData = launchResult as UIActionResultData;
-        console.log(`Action type: ${launchData.actionType}`);
-        console.log(`Action description: ${launchData.actionDescription}`);
-
-        // Wait for app to launch
-        console.log("Waiting for app to launch...");
-        await toolCall("sleep", { duration_ms: 2000 });
-
-        // Verify app was launched
-        const pageInfoResult = await toolCall("get_page_info");
-        const pageData = pageInfoResult as UIPageResultData;
-
-        console.log(`Current package: ${pageData.packageName}`);
-        console.log(`Current activity: ${pageData.activityName}`);
-
-        const appLaunched = pageData.packageName.includes(packageName);
-        console.log(`Verified app was launched: ${appLaunched ? "✅" : "❌"}`);
-
-        results["launch_app"] = {
-            success: appLaunched,
-            data: { launch: launchData, verification: pageData }
-        };
-    } catch (err) {
-        console.error("Error testing launch_app:", err);
-        results["launch_app"] = { success: false, error: String(err) };
-    }
-}
-
-/**
  * Tests the combined_operation tool
  */
 async function testCombinedOperation(results: TestResults): Promise<void> {
@@ -2096,5 +2077,4 @@ exports.testTap = testTap;
 exports.testSetInputText = testSetInputText;
 exports.testPressKey = testPressKey;
 exports.testSwipe = testSwipe;
-exports.testLaunchApp = testLaunchApp;
 exports.testCombinedOperation = testCombinedOperation; 

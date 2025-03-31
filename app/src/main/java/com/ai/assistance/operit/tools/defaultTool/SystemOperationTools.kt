@@ -344,6 +344,8 @@ class SystemOperationTools(private val context: Context) {
     
     /**
      * 启动应用程序
+     * 如果提供了activity参数，将启动指定的活动
+     * 否则使用默认启动器启动应用
      */
     suspend fun startApp(tool: AITool): ToolResult {
         val packageName = tool.parameters.find { it.name == "package_name" }?.value ?: ""

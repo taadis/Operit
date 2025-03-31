@@ -20,6 +20,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Upload
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -172,91 +174,109 @@ fun PackageManagerScreen() {
                 modifier = Modifier.padding(bottom = 16.dp)
             )
             
-            // 显示外部存储包路径
+            // 显示外部存储包路径 - 改为可折叠卡片
+            var isPathCardExpanded by remember { mutableStateOf(false) }
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 16.dp),
+                    .padding(bottom = 16.dp)
+                    .clickable { isPathCardExpanded = !isPathCardExpanded },
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp)
+                        .padding(12.dp)
                 ) {
-                    Text(
-                        text = "外部包存储路径",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    val packagesPath = remember { packageManager.getExternalPackagesPath() }
-                    Text(
-                        text = packagesPath,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Button(
-                            onClick = {
-                                try {
-                                    val packagesDir = packageManager.getExternalPackagesPath()
-                                    val intent = Intent(Intent.ACTION_VIEW)
-                                    val uri = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                                        // Android 10及以上使用Storage Access Framework
-                                        intent.setDataAndType(
-                                            android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-                                            "*/*"
-                                        )
-                                        intent.action = Intent.ACTION_OPEN_DOCUMENT_TREE
+                        Text(
+                            text = "外部包存储路径",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Icon(
+                            imageVector = if (isPathCardExpanded) 
+                                Icons.Default.KeyboardArrowUp 
+                            else 
+                                Icons.Default.KeyboardArrowDown,
+                            contentDescription = if (isPathCardExpanded) "收起" else "展开",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    
+                    if (isPathCardExpanded) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        val packagesPath = remember { packageManager.getExternalPackagesPath() }
+                        Text(
+                            text = packagesPath,
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 2,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            Button(
+                                onClick = {
+                                    try {
+                                        val packagesDir = packageManager.getExternalPackagesPath()
+                                        val intent = Intent()
+                                        
+                                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                                            // Android 10及以上使用Storage Access Framework
+                                            intent.action = Intent.ACTION_OPEN_DOCUMENT_TREE
+                                            
+                                            // 显示提示信息
+                                            scope.launch {
+                                                snackbarHostState.showSnackbar(
+                                                    message = "请导航到Android/data/com.ai.assistance.operit/files/packages目录"
+                                                )
+                                            }
+                                        } else {
+                                            // Android 9及以下可以直接用文件管理器打开指定路径
+                                            intent.action = Intent.ACTION_VIEW
+                                            intent.setDataAndType(Uri.parse("file://$packagesDir"), "*/*")
+                                        }
+                                        
+                                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        context.startActivity(intent)
+                                    } catch (e: Exception) {
+                                        Log.e("PackageManagerScreen", "Failed to open file manager", e)
                                         scope.launch {
                                             snackbarHostState.showSnackbar(
-                                                message = "请导航到Android/data/com.ai.assistance.operit/files/packages目录"
+                                                message = "无法打开文件管理器: ${e.message}"
                                             )
                                         }
-                                        null
-                                    } else {
-                                        // Android 9及以下可以直接用文件路径
-                                        intent.setDataAndType(Uri.parse("file://$packagesDir"), "*/*")
-                                        Uri.parse("file://$packagesDir")
                                     }
-                                    
-                                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    context.startActivity(intent)
-                                } catch (e: Exception) {
-                                    Log.e("PackageManagerScreen", "Failed to open file manager", e)
+                                },
+                                modifier = Modifier.padding(end = 8.dp)
+                            ) {
+                                Text("打开文件管理器")
+                            }
+                            
+                            Button(
+                                onClick = {
+                                    val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                    val clip = android.content.ClipData.newPlainText("Package Path", packagesPath)
+                                    clipboardManager.setPrimaryClip(clip)
                                     scope.launch {
                                         snackbarHostState.showSnackbar(
-                                            message = "无法打开文件管理器: ${e.message}"
+                                            message = "路径已复制到剪贴板"
                                         )
                                     }
                                 }
-                            },
-                            modifier = Modifier.padding(end = 8.dp)
-                        ) {
-                            Text("打开文件管理器")
-                        }
-                        
-                        Button(
-                            onClick = {
-                                val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                                val clip = android.content.ClipData.newPlainText("Package Path", packagesPath)
-                                clipboardManager.setPrimaryClip(clip)
-                                scope.launch {
-                                    snackbarHostState.showSnackbar(
-                                        message = "路径已复制到剪贴板"
-                                    )
-                                }
+                            ) {
+                                Text("复制路径")
                             }
-                        ) {
-                            Text("复制路径")
                         }
                     }
                 }
@@ -384,7 +404,8 @@ fun AvailablePackagesList(
     onImportClick: (String) -> Unit
 ) {
     LazyColumn(
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(bottom = 80.dp)
     ) {
         items(
             items = packages.entries.toList(),
@@ -409,7 +430,8 @@ fun ImportedPackagesList(
     onRemoveClick: (String) -> Unit
 ) {
     LazyColumn(
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(bottom = 80.dp)
     ) {
         items(
             items = packages,

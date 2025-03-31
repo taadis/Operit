@@ -7,16 +7,10 @@ package com.ai.assistance.operit.ui.common.displays
 class MessageContentParser {
     companion object {
         // XML markup patterns
-        private val xmlStatusPattern = Regex("<status\\s+type=\"([^\"]+)\"(?:\\s+tool=\"([^\"]+)\")?(?:\\s+uuid=\"([^\"]+)\")?(?:\\s+success=\"([^\"]+)\")?(?:\\s+title=\"([^\"]+)\")?(?:\\s+subtitle=\"([^\"]+)\")?>([\\s\\S]*?)</status>")
-        private val xmlToolResultPattern = Regex("<tool_result\\s+name=\"([^\"]+)\"\\s+status=\"([^\"]+)\">\\s*<content>([\\s\\S]*?)</content>\\s*</tool_result>")
+        public val xmlStatusPattern = Regex("<status\\s+type=\"([^\"]+)\"(?:\\s+tool=\"([^\"]+)\")?(?:\\s+uuid=\"([^\"]+)\")?(?:\\s+success=\"([^\"]+)\")?(?:\\s+title=\"([^\"]+)\")?(?:\\s+subtitle=\"([^\"]+)\")?>([\\s\\S]*?)</status>")
+        public val xmlToolResultPattern = Regex("<tool_result\\s+name=\"([^\"]+)\"\\s+status=\"([^\"]+)\">\\s*<content>([\\s\\S]*?)</content>\\s*</tool_result>")
         private val xmlToolErrorPattern = Regex("<tool_result\\s+name=\"([^\"]+)\"\\s+status=\"error\">\\s*<e>([\\s\\S]*?)</e>\\s*</tool_result>")
         private val xmlToolRequestPattern = Regex("<tool\\s+name=\"([^\"]+)\"(?:\\s+description=\"([^\"]+)\")?>([\\s\\S]*?)</tool>")
-        private val paramPattern = Regex("<param\\s+name=\"([^\"]+)\">([\\s\\S]*?)</param>")
-        
-        // Legacy markup patterns
-        private val toolExecutionPattern = Regex("\\*\\*Tool Execution \\[(.*?)\\]\\*\\*\n_Processing\\.\\.\\._")
-        private val toolResultPattern = Regex("\\*\\*Tool Result \\[(.*?)\\]\\*\\*\n```\n([\\s\\S]*?)\n```")
-        private val toolErrorPattern = Regex("\\*\\*Tool Error \\[(.*?)\\]\\*\\*\n```\n([\\s\\S]*?)\n```")
         
         /**
          * Content segment types for parsed message
@@ -56,9 +50,6 @@ class MessageContentParser {
             findMatchesAndAdd(xmlToolResultPattern, remainingContent, allMatches)
             findMatchesAndAdd(xmlToolErrorPattern, remainingContent, allMatches)
             findMatchesAndAdd(xmlToolRequestPattern, remainingContent, allMatches)
-            findMatchesAndAdd(toolExecutionPattern, remainingContent, allMatches)
-            findMatchesAndAdd(toolResultPattern, remainingContent, allMatches)
-            findMatchesAndAdd(toolErrorPattern, remainingContent, allMatches)
             
             // Sort matches by start position
             val sortedMatches = allMatches.sortedBy { it.first }
@@ -81,9 +72,6 @@ class MessageContentParser {
                     xmlToolRequestPattern -> parseToolRequestMatch(matchText, segments)
                     xmlToolResultPattern -> parseToolResultMatch(matchText, segments)
                     xmlToolErrorPattern -> parseToolErrorMatch(matchText, segments)
-                    toolExecutionPattern -> parseLegacyToolExecution(matchText, segments)
-                    toolResultPattern -> parseLegacyToolResult(matchText, segments)
-                    toolErrorPattern -> parseLegacyToolError(matchText, segments)
                 }
                 
                 lastEnd = match.second
@@ -160,32 +148,6 @@ class MessageContentParser {
         
         private fun parseToolErrorMatch(matchText: String, segments: MutableList<ContentSegment>) {
             val match = xmlToolErrorPattern.find(matchText)
-            if (match != null) {
-                val toolName = match.groupValues[1]
-                val content = match.groupValues[2]
-                segments.add(ContentSegment.ToolResult(toolName, content, true))
-            }
-        }
-        
-        private fun parseLegacyToolExecution(matchText: String, segments: MutableList<ContentSegment>) {
-            val match = toolExecutionPattern.find(matchText)
-            if (match != null) {
-                val toolName = match.groupValues[1]
-                segments.add(ContentSegment.ToolExecution(toolName))
-            }
-        }
-        
-        private fun parseLegacyToolResult(matchText: String, segments: MutableList<ContentSegment>) {
-            val match = toolResultPattern.find(matchText)
-            if (match != null) {
-                val toolName = match.groupValues[1]
-                val content = match.groupValues[2]
-                segments.add(ContentSegment.ToolResult(toolName, content, false))
-            }
-        }
-        
-        private fun parseLegacyToolError(matchText: String, segments: MutableList<ContentSegment>) {
-            val match = toolErrorPattern.find(matchText)
             if (match != null) {
                 val toolName = match.groupValues[1]
                 val content = match.groupValues[2]

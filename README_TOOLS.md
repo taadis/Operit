@@ -736,15 +736,6 @@ Simulate a swipe gesture.
 
 The `duration` parameter (default: 300) specifies the gesture duration in milliseconds.
 
-### Launch App
-
-Launch an application using accessibility services.
-
-```
-<tool name="launch_app">
-<param name="package_name">com.example.app</param>
-</tool>
-```
 
 ### Combined Operation
 

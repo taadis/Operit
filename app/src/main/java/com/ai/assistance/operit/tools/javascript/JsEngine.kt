@@ -389,7 +389,7 @@ class JsEngine(private val context: Context) {
                     getSetting: (setting, namespace) => toolCall("get_system_setting", { key: setting, namespace }),
                     setSetting: (setting, value, namespace) => toolCall("modify_system_setting", { key: setting, value, namespace }),
                     getDeviceInfo: () => toolCall("device_info"),
-                    launchApp: (packageName) => toolCall("launch_app", { package_name: packageName }),
+                    startApp: (packageName, activity) => toolCall("start_app", { package_name: packageName, activity: activity }),
                     stopApp: (packageName) => toolCall("stop_app", { package_name: packageName }),
                     listApps: (includeSystem) => toolCall("list_installed_apps", { include_system: !!includeSystem })
                 },

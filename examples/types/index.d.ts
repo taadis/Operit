@@ -437,7 +437,7 @@ type SystemToolName = 'sleep' | 'get_system_setting' | 'modify_system_setting' |
  * UI tool names
  */
 type UiToolName = 'get_page_info' | 'click_element' | 'tap' | 'set_input_text' | 'press_key' |
-    'swipe' | 'launch_app' | 'combined_operation';
+    'swipe' | 'combined_operation';
 
 /**
  * Calculator tool names
@@ -504,7 +504,6 @@ interface ToolResultMap {
     'set_input_text': UIActionResultData;
     'press_key': UIActionResultData;
     'swipe': UIActionResultData;
-    'launch_app': UIActionResultData;
     'combined_operation': CombinedOperationResultData;
 
     // Calculator operations
@@ -710,8 +709,9 @@ declare namespace Tools {
         /**
          * Launch an app by package name
          * @param packageName - Package name
+         * @param activity - Optional specific activity to launch
          */
-        function launchApp(packageName: string): Promise<AppOperationData>;
+        function launchApp(packageName: string, activity?: string): Promise<AppOperationData>;
 
         /**
          * Stop a running app
@@ -724,6 +724,13 @@ declare namespace Tools {
          * @param includeSystem - Whether to include system apps
          */
         function listApps(includeSystem?: boolean): Promise<AppListData>;
+
+        /**
+         * Start an app by package name
+         * @param packageName - Package name
+         * @param activity - Optional specific activity to launch
+         */
+        function startApp(packageName: string, activity?: string): Promise<AppOperationData>;
     }
 
     /**

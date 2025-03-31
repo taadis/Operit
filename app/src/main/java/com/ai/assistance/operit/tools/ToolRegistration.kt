@@ -628,20 +628,6 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             }
         )
         
-        // 通过包名启动应用
-        handler.registerTool(
-            name = "launch_app", 
-            category = ToolCategory.UI_AUTOMATION,
-            descriptionGenerator = { tool ->
-                val packageName = tool.parameters.find { it.name == "package_name" }?.value ?: ""
-                "启动应用: $packageName"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking {
-                    uiTools.launchApp(tool)
-                }
-            }
-        )
         
         // 执行组合操作并返回新的UI状态
         handler.registerTool(

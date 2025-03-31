@@ -464,17 +464,6 @@
 
 ---
 
-### 启动应用 (`launch_app`)
-
-通过包名启动应用。
-
-**参数:**
-- `package_name`: 应用包名
-
-**返回:** `UIActionResultData` - 包含启动结果
-
----
-
 ### 组合操作 (`combined_operation`)
 
 执行一系列 UI 操作并返回操作后的 UI 状态。

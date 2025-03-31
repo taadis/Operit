@@ -449,8 +449,11 @@ class MainActivity : ComponentActivity() {
             val displayModes = display?.supportedModes ?: return 0
             var maxRefreshRate = 60f  // Default to 60Hz
             var highestModeId = 0
+
+            Log.d(TAG, "Display supported modes: ${display?.refreshRate}")
             
             for (mode in displayModes) {
+                Log.d(TAG, "Supported mode: ${mode.refreshRate} Hz")
                 if (mode.refreshRate > maxRefreshRate) {
                     maxRefreshRate = mode.refreshRate
                     highestModeId = mode.modeId
@@ -477,10 +480,12 @@ class MainActivity : ComponentActivity() {
         var refreshRate = 60f // Default refresh rate
         
         if (display != null) {
+            Log.d(TAG, "Display supported modes: ${display?.refreshRate}")
             try {
                 @Suppress("DEPRECATION")
                 val modes = display.supportedModes
                 for (mode in modes) {
+                    Log.d(TAG, "Supported mode: ${mode.refreshRate} Hz")
                     if (mode.refreshRate > refreshRate) {
                         refreshRate = mode.refreshRate
                     }
