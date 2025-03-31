@@ -955,6 +955,245 @@ declare namespace NativeInterface {
 }
 
 /**
+ * UINode - A powerful wrapper for Android UI elements with DOM-like operations
+ * 
+ * This class provides a convenient way to navigate, search, and interact with
+ * Android UI elements. It wraps SimplifiedUINode objects and provides methods
+ * similar to web DOM manipulation.
+ */
+declare class UINode {
+    /**
+     * Create a new UINode instance
+     * @param node - The SimplifiedUINode object to wrap
+     */
+    constructor(node: SimplifiedUINode);
+
+    // Core Properties
+
+    /**
+     * The class name of the node
+     */
+    readonly className: string | undefined;
+
+    /**
+     * The text content of the node
+     */
+    readonly text: string | undefined;
+
+    /**
+     * The content description of the node
+     */
+    readonly contentDesc: string | undefined;
+
+    /**
+     * The resource ID of the node
+     */
+    readonly resourceId: string | undefined;
+
+    /**
+     * The bounds of the node in format "[x1,y1][x2,y2]"
+     */
+    readonly bounds: string | undefined;
+
+    /**
+     * Whether the node is clickable
+     */
+    readonly isClickable: boolean;
+
+    /**
+     * The underlying wrapped SimplifiedUINode object
+     */
+    readonly rawNode: SimplifiedUINode;
+
+    /**
+     * The center point coordinates based on bounds
+     */
+    readonly centerPoint: { x: number, y: number } | undefined;
+
+    /**
+     * All children nodes
+     */
+    readonly children: UINode[];
+
+    /**
+     * The number of children
+     */
+    readonly childCount: number;
+
+    // Text Extraction
+
+    /**
+     * Get all text content from this node and its descendants
+     * @param trim - Whether to trim whitespace from text
+     * @param skipEmpty - Whether to skip empty text values
+     */
+    allTexts(trim?: boolean, skipEmpty?: boolean): string[];
+
+    /**
+     * Get all text content as a single string
+     * @param separator - String to join text values with
+     */
+    textContent(separator?: string): string;
+
+    /**
+     * Check if this node or any descendant contains the specified text
+     * @param text - Text to search for
+     * @param caseSensitive - Whether the search is case-sensitive
+     */
+    hasText(text: string, caseSensitive?: boolean): boolean;
+
+    // Search Methods
+
+    /**
+     * Find the first descendant node matching the criteria
+     * @param criteria - Search criteria or predicate function
+     * @param deep - Whether to search recursively
+     */
+    find(criteria: object | ((node: UINode) => boolean), deep?: boolean): UINode | undefined;
+
+    /**
+     * Find all descendant nodes matching the criteria
+     * @param criteria - Search criteria or predicate function
+     * @param deep - Whether to search recursively
+     */
+    findAll(criteria: object | ((node: UINode) => boolean), deep?: boolean): UINode[];
+
+    // Convenience Search Methods
+
+    /**
+     * Find a node by text content
+     * @param text - Text to search for
+     * @param options - Search options
+     */
+    findByText(text: string, options?: { exact?: boolean, caseSensitive?: boolean }): UINode | undefined;
+
+    /**
+     * Find nodes by text content
+     * @param text - Text to search for
+     * @param options - Search options
+     */
+    findAllByText(text: string, options?: { exact?: boolean, caseSensitive?: boolean }): UINode[];
+
+    /**
+     * Find a node by resource ID
+     * @param id - Resource ID to search for
+     * @param options - Search options
+     */
+    findById(id: string, options?: { exact?: boolean, caseSensitive?: boolean }): UINode | undefined;
+
+    /**
+     * Find nodes by resource ID
+     * @param id - Resource ID to search for
+     * @param options - Search options
+     */
+    findAllById(id: string, options?: { exact?: boolean, caseSensitive?: boolean }): UINode[];
+
+    /**
+     * Find a node by class name
+     * @param className - Class name to search for
+     * @param options - Search options
+     */
+    findByClass(className: string, options?: { exact?: boolean, caseSensitive?: boolean }): UINode | undefined;
+
+    /**
+     * Find nodes by class name
+     * @param className - Class name to search for
+     * @param options - Search options
+     */
+    findAllByClass(className: string, options?: { exact?: boolean, caseSensitive?: boolean }): UINode[];
+
+    /**
+     * Find a node by content description
+     * @param description - Content description to search for
+     * @param options - Search options
+     */
+    findByContentDesc(description: string, options?: { exact?: boolean, caseSensitive?: boolean }): UINode | undefined;
+
+    /**
+     * Find nodes by content description
+     * @param description - Content description to search for
+     * @param options - Search options
+     */
+    findAllByContentDesc(description: string, options?: { exact?: boolean, caseSensitive?: boolean }): UINode[];
+
+    /**
+     * Find all clickable nodes
+     */
+    findClickable(): UINode[];
+
+    // Actions
+
+    /**
+     * Click on this node
+     */
+    click(): Promise<UIActionResultData>;
+
+    /**
+     * Set text in this node (typically an input field)
+     * @param text - Text to enter
+     */
+    setText(text: string): Promise<UIActionResultData>;
+
+    /**
+     * Wait for a specified time, then return an updated UI state
+     * @param ms - Milliseconds to wait
+     */
+    wait(ms?: number): Promise<UINode>;
+
+    /**
+     * Click this node and wait for the UI to update
+     * @param ms - Milliseconds to wait after clicking
+     */
+    clickAndWait(ms?: number): Promise<UINode>;
+
+    // Utility Methods
+
+    /**
+     * Convert to string representation
+     */
+    toString(): string;
+
+    /**
+     * Get a tree representation of this node and its descendants
+     * @param indent - Indentation string for formatting
+     */
+    toTree(indent?: string): string;
+
+    /**
+     * Check if this node and another are the same
+     * @param other - Node to compare with
+     */
+    equals(other: UINode): boolean;
+
+    // Static Methods
+
+    /**
+     * Create a UINode from a page info result
+     * @param pageInfo - Page info from UI.getPageInfo()
+     */
+    static fromPageInfo(pageInfo: UIPageResultData): UINode;
+
+    /**
+     * Get the current page UI
+     */
+    static getCurrentPage(): Promise<UINode>;
+
+    /**
+     * Perform a search, wait, and return updated UI state
+     * @param query - Search parameters
+     * @param delayMs - Milliseconds to wait
+     */
+    static findAndWait(query: object, delayMs?: number): Promise<UINode>;
+
+    /**
+     * Click an element, wait, and return updated UI state
+     * @param query - Element to click (search parameters)
+     * @param delayMs - Milliseconds to wait
+     */
+    static clickAndWait(query: object, delayMs?: number): Promise<UINode>;
+}
+
+/**
  * Module exports object for CommonJS-style exports
  */
 declare var exports: {

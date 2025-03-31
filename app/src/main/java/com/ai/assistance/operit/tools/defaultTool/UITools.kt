@@ -3,6 +3,7 @@ package com.ai.assistance.operit.tools.defaultTool
 import android.content.Context
 import android.util.Log
 import com.ai.assistance.operit.AdbCommandExecutor
+import com.ai.assistance.operit.display.UIOperationOverlay
 import com.ai.assistance.operit.model.AITool
 import com.ai.assistance.operit.model.ToolParameter
 import com.ai.assistance.operit.model.ToolResult
@@ -25,7 +26,8 @@ class UITools(private val context: Context) {
         private const val COMMAND_TIMEOUT_SECONDS = 10L
     }
     
-    
+    // 添加操作可视化反馈覆盖层
+    private val operationOverlay = UIOperationOverlay(context)
     
     /**
      * Gets the current UI page/window information
@@ -598,6 +600,9 @@ class UITools(private val context: Context) {
         // Log tap attempt
         Log.d(TAG, "Attempting to tap at coordinates: ($x, $y)")
         
+        // 显示点击反馈
+        operationOverlay.showTap(x, y)
+        
         val command = "input tap $x $y"
         
         return try {
@@ -617,6 +622,7 @@ class UITools(private val context: Context) {
                 )
             } else {
                 Log.e(TAG, "Tap failed at coordinates: ($x, $y), error: ${result.stderr}")
+                operationOverlay.hide() // 隐藏反馈
                 ToolResult(
                     toolName = tool.name,
                     success = false,
@@ -626,6 +632,7 @@ class UITools(private val context: Context) {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error tapping at coordinates ($x, $y)", e)
+            operationOverlay.hide() // 隐藏反馈
             ToolResult(
                 toolName = tool.name,
                 success = false,
@@ -671,6 +678,9 @@ class UITools(private val context: Context) {
                 val centerX = (x1 + x2) / 2
                 val centerY = (y1 + y2) / 2
                 
+                // 显示点击反馈
+                operationOverlay.showTap(centerX, centerY)
+                
                 // 执行点击命令
                 Log.d(TAG, "点击边界坐标: ($centerX, $centerY) 从bounds: $bounds")
                 val tapCommand = "input tap $centerX $centerY"
@@ -689,6 +699,7 @@ class UITools(private val context: Context) {
                         error = ""
                     )
                 } else {
+                    operationOverlay.hide() // 隐藏反馈
                     return ToolResult(
                         toolName = tool.name,
                         success = false,
@@ -698,6 +709,7 @@ class UITools(private val context: Context) {
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "点击边界坐标时出错", e)
+                operationOverlay.hide() // 隐藏反馈
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
@@ -867,8 +879,8 @@ class UITools(private val context: Context) {
             val centerX = (x1 + x2) / 2
             val centerY = (y1 + y2) / 2
             
-            // Log the tap coordinates
-            Log.d(TAG, "Tapping element at coordinates: ($centerX, $centerY)")
+            // 显示点击反馈
+            operationOverlay.showTap(centerX, centerY)
             
             // Execute the tap command at the center point
             val tapCommand = "input tap $centerX $centerY"
@@ -898,6 +910,7 @@ class UITools(private val context: Context) {
                     error = ""
                 )
             } else {
+                operationOverlay.hide() // 隐藏反馈
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
@@ -907,6 +920,7 @@ class UITools(private val context: Context) {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error clicking element", e)
+            operationOverlay.hide() // 隐藏反馈
             ToolResult(
                 toolName = tool.name,
                 success = false,
@@ -928,6 +942,15 @@ class UITools(private val context: Context) {
         }
         
         return try {
+            // 获取当前输入框位置（通过无障碍服务或者最近操作的坐标）
+            // 这里可以使用简化的方法：获取屏幕中心作为文本输入的位置
+            val displayMetrics = context.resources.displayMetrics
+            val centerX = displayMetrics.widthPixels / 2
+            val centerY = displayMetrics.heightPixels / 2
+            
+            // 显示文本输入反馈
+            operationOverlay.showTextInput(centerX, centerY, text)
+            
             // First clear the field by sending DEL key events
             Log.d(TAG, "Clearing text field with DEL keyevents")
             
@@ -988,6 +1011,7 @@ class UITools(private val context: Context) {
                     error = ""
                 )
             } else {
+                operationOverlay.hide() // 隐藏反馈
                 return ToolResult(
                     toolName = tool.name,
                     success = false,
@@ -997,6 +1021,7 @@ class UITools(private val context: Context) {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error setting input text", e)
+            operationOverlay.hide() // 隐藏反馈
             ToolResult(
                 toolName = tool.name,
                 success = false,
@@ -1226,6 +1251,9 @@ class UITools(private val context: Context) {
             )
         }
         
+        // 显示滑动反馈
+        operationOverlay.showSwipe(startX, startY, endX, endY)
+        
         val command = "input swipe $startX $startY $endX $endY $duration"
         
         return try {
@@ -1242,6 +1270,7 @@ class UITools(private val context: Context) {
                     error = ""
                 )
             } else {
+                operationOverlay.hide() // 隐藏反馈
                 ToolResult(
                     toolName = tool.name,
                     success = false,
@@ -1251,6 +1280,7 @@ class UITools(private val context: Context) {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error performing swipe", e)
+            operationOverlay.hide() // 隐藏反馈
             ToolResult(
                 toolName = tool.name,
                 success = false,
@@ -1314,6 +1344,9 @@ class UITools(private val context: Context) {
                     )
                 }
                 
+                // 显示点击反馈
+                operationOverlay.showTap(x, y)
+                
                 val tapTool = AITool(
                     name = "tap",
                     parameters = listOf(
@@ -1348,6 +1381,9 @@ class UITools(private val context: Context) {
                         error = "Invalid coordinates for swipe operation."
                     )
                 }
+                
+                // 显示滑动反馈
+                operationOverlay.showSwipe(startX, startY, endX, endY)
                 
                 val swipeTool = AITool(
                     name = "swipe",
@@ -1411,6 +1447,7 @@ class UITools(private val context: Context) {
                     parameters = parameters
                 )
                 
+                // 注意：clickElement 函数内部会显示点击反馈
                 clickElement(clickTool)
             }
             "press_key" -> {
@@ -1446,6 +1483,14 @@ class UITools(private val context: Context) {
                 
                 val inputText = operationParts.drop(1).joinToString(" ")
                 
+                // 获取当前输入框位置（简化为屏幕中心）
+                val displayMetrics = context.resources.displayMetrics
+                val centerX = displayMetrics.widthPixels / 2
+                val centerY = displayMetrics.heightPixels / 2
+                
+                // 显示文本输入反馈
+                operationOverlay.showTextInput(centerX, centerY, inputText)
+                
                 val inputTool = AITool(
                     name = "set_input_text",
                     parameters = listOf(
@@ -1467,6 +1512,7 @@ class UITools(private val context: Context) {
         
         // If the operation failed, return the error
         if (!operationResult.success) {
+            operationOverlay.hide() // 隐藏反馈
             return ToolResult(
                 toolName = tool.name,
                 success = false,
@@ -1478,8 +1524,12 @@ class UITools(private val context: Context) {
         // Wait for the specified delay
         try {
             kotlinx.coroutines.delay(delay_ms.toLong())
+            
+            // 延迟后隐藏反馈
+            operationOverlay.hide()
         } catch (e: Exception) {
             Log.e(TAG, "Error during delay", e)
+            operationOverlay.hide()
         }
         
         // Get UI state after operation
@@ -1686,6 +1736,9 @@ class UITools(private val context: Context) {
         val centerX = (x1 + x2) / 2
         val centerY = (y1 + y2) / 2
         
+        // 显示点击反馈
+        operationOverlay.showTap(centerX, centerY)
+        
         // 记录点击坐标
         Log.d(TAG, "点击元素坐标: ($centerX, $centerY)")
         
@@ -1717,6 +1770,7 @@ class UITools(private val context: Context) {
                 error = ""
             )
         } else {
+            operationOverlay.hide() // 隐藏反馈
             return ToolResult(
                 toolName = tool.name,
                 success = false,

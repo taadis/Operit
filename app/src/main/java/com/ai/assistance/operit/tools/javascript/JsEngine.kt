@@ -504,6 +504,9 @@ class JsEngine(private val context: Context) {
             // 加载第三方库支持
             $THIRD_PARTY_LIBS
             
+            // 加载 UINode 库
+            ${loadUINodeJs()}
+            
             // 执行用户脚本
             try {
                 // 创建模块执行环境 - 使用一个闭包来避免重复声明变量
@@ -796,6 +799,25 @@ class JsEngine(private val context: Context) {
     }
     
     /**
+     * 加载 UINode.js 文件
+     * 从 assets 目录读取并返回 JS 代码
+     */
+    private fun loadUINodeJs(): String {
+        return try {
+            val inputStream = context.assets.open("js/UINode.js")
+            val size = inputStream.available()
+            val buffer = ByteArray(size)
+            inputStream.read(buffer)
+            inputStream.close()
+            String(buffer)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error loading UINode.js: ${e.message}", e)
+            // 如果加载失败，返回空字符串
+            ""
+        }
+    }
+    
+    /**
      * 加载常用的第三方 JavaScript 库
      * 可以根据需要添加更多库
      */
@@ -941,7 +963,7 @@ class JsEngine(private val context: Context) {
                 // 记录执行结果
                 if (result.success) {
                     val resultString = result.result.toString()
-                    Log.d(TAG, "[Sync] Tool execution succeeded: ${resultString.take(100)}${if (resultString.length > 100) "..." else ""}")
+                    Log.d(TAG, "[Sync] Tool execution succeeded: ${resultString.take(10000)}${if (resultString.length > 10000) "..." else ""}")
                 } else {
                     Log.e(TAG, "[Sync] Tool execution failed: ${result.error}")
                 }
@@ -1054,7 +1076,7 @@ class JsEngine(private val context: Context) {
                         // 记录执行结果
                         if (result.success) {
                             val resultString = result.result.toString()
-                            Log.d(TAG, "[Async] Tool execution succeeded: ${resultString.take(100)}${if (resultString.length > 100) "..." else ""}")
+                            Log.d(TAG, "[Async] Tool execution succeeded: ${resultString.take(10000)}${if (resultString.length > 10000) "..." else ""}")
                             // 发送成功结果回调
                             val resultJson = Json.encodeToString(
                                 JsonElement.serializer(),

@@ -43,7 +43,7 @@ interface UIElementMatchResultData {
  */
 function prettyPrint(label: string, data: any): void {
     console.log(`\n=== ${label} ===`);
-    console.log(JSON.stringify(data, null, 2));
+    console.log(JSON.stringify(data, undefined, 2));
     console.log("=".repeat(label.length + 8));
 }
 
@@ -553,7 +553,7 @@ async function testMakeDirectory(results: TestResults): Promise<void> {
         console.log(`Is directory: ${verifyData.isDirectory}`);
 
         results["make_directory"] = {
-            success: mkdirData.successful && verifyData.exists && verifyData.isDirectory,
+            success: mkdirData.successful && verifyData.exists && verifyData.isDirectory === true,
             data: { create: mkdirData, verify: verifyData }
         };
     } catch (err) {
@@ -766,7 +766,7 @@ async function testZipFiles(results: TestResults): Promise<void> {
         console.log(`Zip file size: ${verifyData.size} bytes`);
 
         results["zip_files"] = {
-            success: zipData.successful && verifyData.exists && verifyData.size > 0,
+            success: zipData.successful && verifyData.exists && (verifyData.size ?? 0) > 0,
             data: { zip: zipData, verify: verifyData }
         };
     } catch (err) {
@@ -1190,7 +1190,7 @@ async function testDeviceInfo(results: TestResults): Promise<void> {
             typeof deviceData.sdkVersion === 'number';
 
         results["device_info"] = {
-            success: hasBasicInfo,
+            success: hasBasicInfo === true,
             data: deviceData
         };
     } catch (err) {
@@ -1213,7 +1213,7 @@ async function testGetSystemSetting(results: TestResults): Promise<void> {
             { namespace: "system", setting: "time_12_24" }
         ];
 
-        const settingResults = [];
+        const settingResults: SystemSettingResult[] = [];
 
         for (const { namespace, setting } of settingsToTest) {
             console.log(`\nFetching ${namespace}/${setting}...`);
@@ -1223,14 +1223,14 @@ async function testGetSystemSetting(results: TestResults): Promise<void> {
             });
 
             // Validate the result
-            const settingData = settingResult as SystemSettingData;
+            const settingData = settingResult;
             console.log(`Setting namespace: ${settingData.namespace}`);
             console.log(`Setting name: ${settingData.setting}`);
             console.log(`Setting value: ${settingData.value}`);
 
             settingResults.push({
-                requested: { namespace, setting },
-                result: settingData,
+                // requested: { namespace, setting },
+                data: settingData,
                 success: settingData.namespace === namespace &&
                     settingData.setting === setting &&
                     settingData.value !== undefined
@@ -1450,7 +1450,7 @@ async function testStartApp(results: TestResults): Promise<void> {
         const activitySpecified = activityData.details && activityData.details.includes(activity);
 
         results["start_app"] = {
-            success: bothSucceeded && activityData.packageName === packageName && activitySpecified,
+            success: bothSucceeded && activityData.packageName === packageName && activitySpecified === true,
             data: {
                 standard: startData,
                 withActivity: activityData
@@ -1794,7 +1794,7 @@ async function testSetInputText(results: TestResults): Promise<void> {
         const pageData = pageInfoResult as UIPageResultData;
 
         // Find an input field
-        let inputField: SimplifiedUINode | null = null;
+        let inputField: SimplifiedUINode | undefined = undefined;
 
         function findInput(node: SimplifiedUINode): void {
             if (!node) return;
@@ -1813,8 +1813,8 @@ async function testSetInputText(results: TestResults): Promise<void> {
 
         if (inputField) {
             console.log("\nFound input field:");
-            console.log(`Resource ID: ${inputField.resourceId || "(no ID)"}`);
-            console.log(`Current text: ${inputField.text || "(empty)"}`);
+            console.log(`Resource ID: ${(inputField as SimplifiedUINode).resourceId || "(no ID)"}`);
+            console.log(`Current text: ${(inputField as SimplifiedUINode).text || "(empty)"}`);
 
             // Try to set text
             const testText = "OperIT Test Input " + Date.now();
@@ -1822,7 +1822,7 @@ async function testSetInputText(results: TestResults): Promise<void> {
 
             const inputResult = await toolCall("set_input_text", {
                 text: testText,
-                resourceId: inputField.resourceId || undefined
+                resourceId: (inputField as SimplifiedUINode).resourceId as string
             });
 
             // Validate the result
@@ -2036,10 +2036,10 @@ async function testCombinedOperation(results: TestResults): Promise<void> {
         console.log(`Wait time: ${combinedSwipeData.waitTime}ms`);
 
         // Try a combined click_element operation if we can find an element
-        let clickElementTest = null;
+        let clickElementTest: CombinedOperationResultData | undefined = undefined;
 
         // Look for a clickable element with a resource ID
-        let clickableId = null;
+        let clickableId: string | undefined = undefined;
 
         function findClickableWithId(node: SimplifiedUINode): void {
             if (!node) return;

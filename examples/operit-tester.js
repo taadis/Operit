@@ -16,7 +16,7 @@
  */
 function prettyPrint(label, data) {
     console.log(`\n=== ${label} ===`);
-    console.log(JSON.stringify(data, null, 2));
+    console.log(JSON.stringify(data, undefined, 2));
     console.log("=".repeat(label.length + 8));
 }
 /**
@@ -458,7 +458,7 @@ async function testMakeDirectory(results) {
         console.log(`Directory exists: ${verifyData.exists}`);
         console.log(`Is directory: ${verifyData.isDirectory}`);
         results["make_directory"] = {
-            success: mkdirData.successful && verifyData.exists && verifyData.isDirectory,
+            success: mkdirData.successful && verifyData.exists && verifyData.isDirectory === true,
             data: { create: mkdirData, verify: verifyData }
         };
     }
@@ -621,6 +621,7 @@ async function testFileInfo(results) {
  * Tests the zip_files tool
  */
 async function testZipFiles(results) {
+    var _a;
     try {
         console.log("\nTesting zip_files...");
         const sourceDir = "/sdcard/operit_test_directory";
@@ -643,7 +644,7 @@ async function testZipFiles(results) {
         console.log(`Zip file exists: ${verifyData.exists}`);
         console.log(`Zip file size: ${verifyData.size} bytes`);
         results["zip_files"] = {
-            success: zipData.successful && verifyData.exists && verifyData.size > 0,
+            success: zipData.successful && verifyData.exists && ((_a = verifyData.size) !== null && _a !== void 0 ? _a : 0) > 0,
             data: { zip: zipData, verify: verifyData }
         };
     }
@@ -1009,7 +1010,7 @@ async function testDeviceInfo(results) {
             deviceData.androidVersion &&
             typeof deviceData.sdkVersion === 'number';
         results["device_info"] = {
-            success: hasBasicInfo,
+            success: hasBasicInfo === true,
             data: deviceData
         };
     }
@@ -1043,8 +1044,8 @@ async function testGetSystemSetting(results) {
             console.log(`Setting name: ${settingData.setting}`);
             console.log(`Setting value: ${settingData.value}`);
             settingResults.push({
-                requested: { namespace, setting },
-                result: settingData,
+                // requested: { namespace, setting },
+                data: settingData,
                 success: settingData.namespace === namespace &&
                     settingData.setting === setting &&
                     settingData.value !== undefined
@@ -1236,7 +1237,7 @@ async function testStartApp(results) {
         const bothSucceeded = startData.success && activityData.success;
         const activitySpecified = activityData.details && activityData.details.includes(activity);
         results["start_app"] = {
-            success: bothSucceeded && activityData.packageName === packageName && activitySpecified,
+            success: bothSucceeded && activityData.packageName === packageName && activitySpecified === true,
             data: {
                 standard: startData,
                 withActivity: activityData
@@ -1539,7 +1540,7 @@ async function testSetInputText(results) {
         const pageInfoResult = await toolCall("get_page_info");
         const pageData = pageInfoResult;
         // Find an input field
-        let inputField = null;
+        let inputField = undefined;
         function findInput(node) {
             if (!node)
                 return;
@@ -1561,7 +1562,7 @@ async function testSetInputText(results) {
             console.log(`\nSetting text to: "${testText}"`);
             const inputResult = await toolCall("set_input_text", {
                 text: testText,
-                resourceId: inputField.resourceId || undefined
+                resourceId: inputField.resourceId
             });
             // Validate the result
             const inputData = inputResult;
@@ -1741,9 +1742,9 @@ async function testCombinedOperation(results) {
         console.log(`Operation summary: ${combinedSwipeData.operationSummary}`);
         console.log(`Wait time: ${combinedSwipeData.waitTime}ms`);
         // Try a combined click_element operation if we can find an element
-        let clickElementTest = null;
+        let clickElementTest = undefined;
         // Look for a clickable element with a resource ID
-        let clickableId = null;
+        let clickableId = undefined;
         function findClickableWithId(node) {
             if (!node)
                 return;

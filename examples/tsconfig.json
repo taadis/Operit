@@ -2,11 +2,14 @@
   "compilerOptions": {
     "target": "es2017",
     "module": "commonjs",
-    "lib": ["es2017", "dom"],
+    "lib": [
+      "es2017",
+      "dom"
+    ],
     "declaration": false,
     "strict": false,
     "noImplicitAny": false,
-    "strictNullChecks": false,
+    "strictNullChecks": true,
     "noImplicitThis": true,
     "alwaysStrict": false,
     "noUnusedLocals": false,
@@ -19,7 +22,9 @@
     "emitDecoratorMetadata": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "typeRoots": ["./types"]
+    "typeRoots": [
+      "./types"
+    ]
   },
   "include": [
     "**/*.ts"
@@ -27,4 +32,4 @@
   "exclude": [
     "node_modules"
   ]
-} 
+}
