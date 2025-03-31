@@ -1,9 +1,9 @@
 package com.ai.assistance.operit.model
 
+import com.ai.assistance.operit.util.LocalDateTimeSerializer
 import java.util.UUID
 import java.time.LocalDateTime
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.Contextual
 
 @Serializable
 data class ChatHistory(

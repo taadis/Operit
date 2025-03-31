@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.navigation
+package com.ai.assistance.operit.ui.navigation
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build

@@ -21,7 +21,7 @@ import com.ai.assistance.operit.ui.OperitApp
 import com.ai.assistance.operit.data.ChatHistoryManager
 import com.ai.assistance.operit.data.UserPreferencesManager
 import com.ai.assistance.operit.ShizukuInstaller
-import com.ai.assistance.operit.navigation.NavItem
+import com.ai.assistance.operit.ui.navigation.NavItem
 import com.ai.assistance.operit.api.EnhancedAIService
 import com.ai.assistance.operit.tools.AIToolHandler
 import kotlinx.coroutines.delay

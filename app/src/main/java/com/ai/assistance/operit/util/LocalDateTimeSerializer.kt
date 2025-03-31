@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.model
+package com.ai.assistance.operit.util
 
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.descriptors.PrimitiveKind

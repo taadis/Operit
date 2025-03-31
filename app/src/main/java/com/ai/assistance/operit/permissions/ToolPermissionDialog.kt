@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.components
+package com.ai.assistance.operit.permissions
 
 /**
  * 工具权限请求结果

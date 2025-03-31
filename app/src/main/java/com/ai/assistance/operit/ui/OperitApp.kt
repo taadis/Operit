@@ -28,7 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.Color
 import com.ai.assistance.operit.R
-import com.ai.assistance.operit.navigation.NavItem
+import com.ai.assistance.operit.ui.navigation.NavItem
 import com.ai.assistance.operit.ui.features.chat.screens.AIChatScreen
 import com.ai.assistance.operit.ui.features.settings.screens.SettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ToolPermissionSettingsScreen
@@ -56,11 +56,11 @@ fun OperitApp(
     var isToolPermissionScreen by remember { mutableStateOf(false) }
     var isUserPreferencesGuideScreen by remember { mutableStateOf(initialNavItem == NavItem.UserPreferencesGuide) }
     val navItems = listOf(
-        NavItem.AiChat, 
-        NavItem.ShizukuCommands, 
-        NavItem.Settings, 
-        NavItem.Packages, 
-        NavItem.ProblemLibrary, 
+        NavItem.AiChat,
+        NavItem.ShizukuCommands,
+        NavItem.Settings,
+        NavItem.Packages,
+        NavItem.ProblemLibrary,
         NavItem.About
     )
     val context = LocalContext.current
