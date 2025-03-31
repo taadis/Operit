@@ -643,13 +643,76 @@ class UITools(private val context: Context) {
         val className = tool.parameters.find { it.name == "className" }?.value
         val index = tool.parameters.find { it.name == "index" }?.value?.toIntOrNull() ?: 0
         val partialMatch = tool.parameters.find { it.name == "partialMatch" }?.value?.toBoolean() ?: false
+        val bounds = tool.parameters.find { it.name == "bounds" }?.value
+        
+        // 如果提供了边界坐标，直接点击
+        if (bounds != null) {
+            return try {
+                // 解析边界坐标格式 [left,top][right,bottom]
+                val boundsPattern = "\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]".toRegex()
+                val matchResult = boundsPattern.find(bounds)
+                
+                if (matchResult == null || matchResult.groupValues.size < 5) {
+                    return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "无效的bounds格式。应为: [left,top][right,bottom]"
+                    )
+                }
+                
+                // 提取坐标
+                val x1 = matchResult.groupValues[1].toInt()
+                val y1 = matchResult.groupValues[2].toInt()
+                val x2 = matchResult.groupValues[3].toInt()
+                val y2 = matchResult.groupValues[4].toInt()
+                
+                // 计算中心点
+                val centerX = (x1 + x2) / 2
+                val centerY = (y1 + y2) / 2
+                
+                // 执行点击命令
+                Log.d(TAG, "点击边界坐标: ($centerX, $centerY) 从bounds: $bounds")
+                val tapCommand = "input tap $centerX $centerY"
+                val tapResult = AdbCommandExecutor.executeAdbCommand(tapCommand)
+                
+                if (tapResult.success) {
+                    return ToolResult(
+                        toolName = tool.name,
+                        success = true,
+                        result = UIActionResultData(
+                            actionType = "click",
+                            actionDescription = "成功点击边界为 $bounds 的元素，点击坐标 ($centerX, $centerY)",
+                            coordinates = Pair(centerX, centerY),
+                            elementId = null
+                        ),
+                        error = ""
+                    )
+                } else {
+                    return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "点击边界坐标失败: ${tapResult.stderr ?: "未知错误"}"
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "点击边界坐标时出错", e)
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "点击边界坐标时出错: ${e.message ?: "未知异常"}"
+                )
+            }
+        }
         
         if (resourceId == null && className == null) {
             return ToolResult(
                 toolName = tool.name,
                 success = false,
                 result = StringResultData(""),
-                error = "Missing element identifier. Provide at least one of: 'resourceId' or 'className'."
+                error = "Missing element identifier. Provide at least one of: 'resourceId', 'className', or 'bounds'."
             )
         }
         
@@ -1045,21 +1108,21 @@ class UITools(private val context: Context) {
             // Give the system time to update the clipboard
             kotlinx.coroutines.delay(300)
             
-            // Try to paste the text using CTRL+V
-            val pasteCommand = "input keyevent 279 47"  // KEYCODE_CTRL_LEFT KEYCODE_V
-            val pasteResult = AdbCommandExecutor.executeAdbCommand(pasteCommand)
-            
-            if (pasteResult.success) {
-                Log.d(TAG, "Pasted text using CTRL+V method")
-                return true
-            }
-            
-            // If that fails, try the named keycode version
+            // First try the named keycode version
             val namedPasteCommand = "input keyevent KEYCODE_CTRL_LEFT KEYCODE_V"
             val namedPasteResult = AdbCommandExecutor.executeAdbCommand(namedPasteCommand)
             
             if (namedPasteResult.success) {
                 Log.d(TAG, "Pasted text using named keycode method")
+                return true
+            }
+            
+            // If that fails, try using numeric keycodes
+            val pasteCommand = "input keyevent 279 47"  // KEYCODE_CTRL_LEFT KEYCODE_V
+            val pasteResult = AdbCommandExecutor.executeAdbCommand(pasteCommand)
+            
+            if (pasteResult.success) {
+                Log.d(TAG, "Pasted text using CTRL+V method")
                 return true
             }
             
@@ -1197,54 +1260,6 @@ class UITools(private val context: Context) {
         }
     }
     
-    /**
-     * Launches an app by package name
-     */
-    suspend fun launchApp(tool: AITool): ToolResult {
-        val packageName = tool.parameters.find { it.name == "package_name" }?.value
-        
-        if (packageName == null) {
-            return ToolResult(
-                toolName = tool.name,
-                success = false,
-                result = StringResultData(""),
-                error = "Missing 'package_name' parameter."
-            )
-        }
-        
-        val command = "monkey -p $packageName -c android.intent.category.LAUNCHER 1"
-        
-        return try {
-            val result = AdbCommandExecutor.executeAdbCommand(command)
-            
-            if (result.success) {
-                ToolResult(
-                    toolName = tool.name,
-                    success = true,
-                    result = UIActionResultData(
-                        actionType = "launchApp",
-                        actionDescription = "Successfully launched app: $packageName"
-                    ),
-                    error = ""
-                )
-            } else {
-                ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "Failed to launch app: ${result.stderr}"
-                )
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error launching app", e)
-            ToolResult(
-                toolName = tool.name,
-                success = false,
-                result = StringResultData(""),
-                error = "Error launching app: ${e.message}"
-            )
-        }
-    }
     
     /**
      * Performs a combined operation: execute an action, wait, then return the new UI state
@@ -1709,5 +1724,220 @@ class UITools(private val context: Context) {
                 error = "Failed to click element: ${tapResult.stderr ?: "Unknown error"}"
             )
         }
+    }
+    
+    /**
+     * Finds UI elements matching specific criteria without clicking them
+     */
+    suspend fun findElement(tool: AITool): ToolResult {
+        val resourceId = tool.parameters.find { it.name == "resourceId" }?.value
+        val className = tool.parameters.find { it.name == "className" }?.value
+        val text = tool.parameters.find { it.name == "text" }?.value
+        val partialMatch = tool.parameters.find { it.name == "partialMatch" }?.value?.toBoolean() ?: false
+        val limit = tool.parameters.find { it.name == "limit" }?.value?.toIntOrNull() ?: 10
+        
+        if (resourceId == null && className == null && text == null) {
+            return ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "Missing search criteria. Provide at least one of: 'resourceId', 'className', or 'text'."
+            )
+        }
+        
+        return try {
+            // Try to use accessibility service first to get UI hierarchy
+            val uiXml = com.ai.assistance.operit.data.UIHierarchyManager.getUIHierarchy(context)
+            
+            if (uiXml.isNotEmpty()) {
+                // Process using accessibility service data
+                return findElementsInXml(uiXml, resourceId, className, text, partialMatch, limit, tool)
+            }
+            
+            // Fall back to using ADB command if accessibility service failed
+            Log.d(TAG, "Falling back to ADB command to get UI data")
+            
+            // Execute UI dump command
+            val dumpCommand = "uiautomator dump /sdcard/window_dump.xml"
+            val dumpResult = AdbCommandExecutor.executeAdbCommand(dumpCommand)
+            if (!dumpResult.success) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Failed to dump UI hierarchy: ${dumpResult.stderr ?: "Unknown error"}"
+                )
+            }
+            
+            // Read the dumped file
+            val readCommand = "cat /sdcard/window_dump.xml"
+            val readResult = AdbCommandExecutor.executeAdbCommand(readCommand)
+            
+            if (!readResult.success) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Failed to read UI hierarchy: ${readResult.stderr ?: "Unknown error"}"
+                )
+            }
+            
+            // Parse XML to find elements
+            val xml = readResult.stdout
+            return findElementsInXml(xml, resourceId, className, text, partialMatch, limit, tool)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error finding elements", e)
+            ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "Error finding elements: ${e.message ?: "Unknown exception"}"
+            )
+        }
+    }
+    
+    /**
+     * Helper method to find elements in XML string and return structured results
+     */
+    private fun findElementsInXml(
+        xml: String, 
+        resourceId: String?, 
+        className: String?, 
+        text: String?,
+        partialMatch: Boolean,
+        limit: Int,
+        tool: AITool
+    ): ToolResult {
+        try {
+            // Build regex patterns for matching
+            val patterns = mutableListOf<Pair<String, Regex>>()
+            
+            if (resourceId != null) {
+                val pattern = if (partialMatch) {
+                    "resource-id=\".*?${Regex.escape(resourceId)}.*?\"".toRegex()
+                } else {
+                    "resource-id=\"(?:.*?:id/)?${Regex.escape(resourceId)}\"".toRegex()
+                }
+                patterns.add("resourceId" to pattern)
+            }
+            
+            if (className != null) {
+                val pattern = if (partialMatch) {
+                    "class=\".*?${Regex.escape(className)}.*?\"".toRegex()
+                } else {
+                    "class=\".*?${Regex.escape(className)}\"".toRegex()
+                }
+                patterns.add("className" to pattern)
+            }
+            
+            if (text != null) {
+                val pattern = if (partialMatch) {
+                    "text=\".*?${Regex.escape(text)}.*?\"".toRegex()
+                } else {
+                    "text=\"${Regex.escape(text)}\"".toRegex()
+                }
+                patterns.add("text" to pattern)
+            }
+            
+            // Find nodes in XML that match our criteria
+            val matchingNodes = mutableListOf<String>()
+            
+            // Extract all node elements from XML
+            val nodePattern = "<node[^>]*?>".toRegex()
+            val allNodes = nodePattern.findAll(xml).map { it.value }.toList()
+            
+            // Check each node against our patterns
+            for (node in allNodes) {
+                // Node must match all provided criteria (AND logic)
+                var matches = true
+                for ((_, pattern) in patterns) {
+                    if (!pattern.containsMatchIn(node)) {
+                        matches = false
+                        break
+                    }
+                }
+                
+                if (matches) {
+                    matchingNodes.add(node)
+                    if (matchingNodes.size >= limit) break
+                }
+            }
+            
+            // Create UI elements list
+            val elements = mutableListOf<SimplifiedUINode>()
+            
+            matchingNodes.forEach { nodeText ->
+                val extractedResourceId = extractAttribute(nodeText, "resource-id")
+                val extractedClassName = extractAttribute(nodeText, "class")
+                val extractedText = extractAttribute(nodeText, "text")
+                val contentDesc = extractAttribute(nodeText, "content-desc")
+                val bounds = extractAttribute(nodeText, "bounds")
+                val isClickable = extractAttribute(nodeText, "clickable") == "true"
+                
+                // Create a SimplifiedUINode for each matching element
+                elements.add(
+                    SimplifiedUINode(
+                        className = extractedClassName,
+                        text = extractedText,
+                        contentDesc = contentDesc,
+                        resourceId = extractedResourceId,
+                        bounds = bounds,
+                        isClickable = isClickable,
+                        children = emptyList()  // No children for these search results
+                    )
+                )
+            }
+            
+            // Create a description for the search
+            val criteria = listOfNotNull(
+                resourceId?.let { "resourceId: $it" },
+                className?.let { "className: $it" },
+                text?.let { "text: $it" }
+            ).joinToString(", ")
+            
+            val searchDescription = "Search criteria: $criteria, Match type: ${if (partialMatch) "partial" else "exact"}, Found ${elements.size} elements"
+            
+            // Create a root node that contains all matched elements as children
+            val rootNode = SimplifiedUINode(
+                className = "SearchResults",
+                text = searchDescription,
+                contentDesc = null,
+                resourceId = null,
+                bounds = null,
+                isClickable = false,
+                children = elements
+            )
+            
+            // Return using UIPageResultData which already exists in the codebase
+            return ToolResult(
+                toolName = tool.name,
+                success = true,
+                result = UIPageResultData(
+                    packageName = "Search",
+                    activityName = if (partialMatch) "PartialMatches" else "ExactMatches",
+                    uiElements = rootNode
+                ),
+                error = ""
+            )
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error parsing XML to find elements", e)
+            return ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "Error parsing UI elements: ${e.message ?: "Unknown exception"}"
+            )
+        }
+    }
+    
+    /**
+     * Helper method to extract attribute values from node text
+     */
+    private fun extractAttribute(nodeText: String, attributeName: String): String {
+        val pattern = "$attributeName=\"(.*?)\"".toRegex()
+        val matchResult = pattern.find(nodeText)
+        return matchResult?.groupValues?.get(1) ?: ""
     }
 }

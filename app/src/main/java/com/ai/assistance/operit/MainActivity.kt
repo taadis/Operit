@@ -26,6 +26,8 @@ import com.ai.assistance.operit.api.EnhancedAIService
 import com.ai.assistance.operit.tools.AIToolHandler
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     private val TAG = "MainActivity"
@@ -53,6 +55,9 @@ class MainActivity : ComponentActivity() {
     
     // 用户偏好管理器
     private lateinit var preferencesManager: UserPreferencesManager
+    
+    // Shizuku状态变化监听器
+    private lateinit var shizukuStateListener: () -> Unit
     
     private val requiredPermissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         arrayOf(
@@ -171,6 +176,25 @@ class MainActivity : ComponentActivity() {
         preferencesManager = UserPreferencesManager(this)
         showPreferencesGuide = !preferencesManager.isPreferencesInitialized()
         Log.d(TAG, "初始化检查: 用户偏好已初始化=${!showPreferencesGuide}，将${if(showPreferencesGuide) "" else "不"}显示引导界面")
+        
+        // 保存监听器引用以便稍后移除
+        val shizukuStateListener = {
+            Log.d(TAG, "Shizuku状态变化，检查是否可以启用无障碍服务")
+            // 在Shizuku状态变化时，尝试启用无障碍服务
+            if (AdbCommandExecutor.isShizukuServiceRunning() && AdbCommandExecutor.hasShizukuPermission()) {
+                if (!accessibilityServiceRequested && 
+                    !com.ai.assistance.operit.data.UIHierarchyManager.isAccessibilityServiceEnabled(this)) {
+                    Log.d(TAG, "Shizuku已授权，尝试通过ADB启用无障碍服务")
+                    tryEnableAccessibilityViaAdb()
+                }
+            }
+        }
+        
+        // 注册Shizuku状态变化监听器
+        AdbCommandExecutor.addStateChangeListener(shizukuStateListener)
+        
+        // 保存监听器引用作为类成员变量
+        this.shizukuStateListener = shizukuStateListener
         
         // 检查无障碍服务是否已启用
         checkAccessibilityServiceEnabled()
@@ -415,8 +439,17 @@ class MainActivity : ComponentActivity() {
             val hasPermission = AdbCommandExecutor.hasShizukuPermission()
             Log.d(TAG, "Shizuku service running: $isRunning, has permission: $hasPermission")
             
+            // 如果Shizuku已运行并且有权限，尝试启用无障碍服务
+            if (isRunning && hasPermission) {
+                // 检查无障碍服务是否已启用，如果未启用则尝试通过ADB启用
+                if (!com.ai.assistance.operit.data.UIHierarchyManager.isAccessibilityServiceEnabled(this) && 
+                    !accessibilityServiceRequested) {
+                    Log.d(TAG, "Shizuku已可用，尝试启用无障碍服务")
+                    tryEnableAccessibilityViaAdb()
+                }
+            } 
             // 如果已安装但未运行或没有权限，自动跳转到Shizuku页面
-            if (!isRunning || !hasPermission) {
+            else if (!isRunning || !hasPermission) {
                 navigateToShizukuScreen = true
                 
                 if (!isRunning) {
@@ -439,6 +472,15 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         Log.d(TAG, "onDestroy called")
+        
+        // 移除Shizuku状态变化监听器
+        try {
+            if (::shizukuStateListener.isInitialized) {
+                AdbCommandExecutor.removeStateChangeListener(shizukuStateListener)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error removing Shizuku state change listener", e)
+        }
     }
     
     /**
@@ -518,27 +560,82 @@ class MainActivity : ComponentActivity() {
     }
     
     /**
+     * 尝试通过ADB启用无障碍服务
+     */
+    private fun tryEnableAccessibilityViaAdb() {
+        // 检查是否已启用，避免重复请求
+        if (com.ai.assistance.operit.data.UIHierarchyManager.isAccessibilityServiceEnabled(this)) {
+            Log.d(TAG, "无障碍服务已启用，无需再次启用")
+            return
+        }
+        
+        // 如果Shizuku可用且有权限，尝试通过ADB启用
+        if (AdbCommandExecutor.isShizukuServiceRunning() && AdbCommandExecutor.hasShizukuPermission()) {
+            Log.d(TAG, "通过ADB尝试启用无障碍服务")
+            
+            // 设置标志，避免同时显示对话框
+            accessibilityServiceRequested = true
+            
+            lifecycleScope.launch(Dispatchers.IO) {
+                val success = com.ai.assistance.operit.data.UIHierarchyManager.enableAccessibilityServiceViaAdb(this@MainActivity)
+                
+                withContext(Dispatchers.Main) {
+                    if (success) {
+                        Log.d(TAG, "通过ADB成功启用无障碍服务")
+                        Toast.makeText(this@MainActivity, "已自动启用无障碍服务", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Log.d(TAG, "通过ADB启用无障碍服务失败，显示手动设置对话框")
+                        // 重置标志，可以再次尝试
+                        accessibilityServiceRequested = false
+                        // 显示对话框
+                        showAccessibilityServiceDialog()
+                    }
+                }
+            }
+        }
+    }
+    
+    /**
      * 检查无障碍服务是否已启用，只在未请求过的情况下显示对话框
      */
     private fun checkAccessibilityServiceEnabled() {
-        // 如果服务未启用且未请求过，则显示对话框
-        if (!com.ai.assistance.operit.data.UIHierarchyManager.isAccessibilityServiceEnabled(this) && !accessibilityServiceRequested) {
-            // 设置标志，表示已经请求过
-            accessibilityServiceRequested = true
-            
-            // 显示对话框提示用户启用无障碍服务
-            android.app.AlertDialog.Builder(this)
-                .setTitle("需要无障碍服务权限")
-                .setMessage("为了提供更快速的UI分析能力，请在设置中启用无障碍服务。这将使AI助手能够更高效地获取屏幕信息，节省您的等待时间。")
-                .setPositiveButton("去设置") { _, _ ->
-                    com.ai.assistance.operit.data.UIHierarchyManager.openAccessibilitySettings(this)
-                }
-                .setNegativeButton("稍后再说") { dialog, _ ->
-                    dialog.dismiss()
-                }
-                .setCancelable(false)
-                .show()
+        // 如果服务已启用，直接返回
+        if (com.ai.assistance.operit.data.UIHierarchyManager.isAccessibilityServiceEnabled(this)) {
+            Log.d(TAG, "无障碍服务已启用")
+            return
         }
+        
+        // 如果未请求过且Shizuku可用，尝试通过ADB启用
+        if (!accessibilityServiceRequested && 
+            AdbCommandExecutor.isShizukuServiceRunning() && 
+            AdbCommandExecutor.hasShizukuPermission()) {
+            
+            tryEnableAccessibilityViaAdb()
+        } else if (!accessibilityServiceRequested) {
+            // 如果无法通过ADB启用或已请求过，显示对话框
+            showAccessibilityServiceDialog()
+        }
+    }
+    
+    /**
+     * 显示无障碍服务请求对话框
+     */
+    private fun showAccessibilityServiceDialog() {
+        // 设置标志，表示已经请求过
+        accessibilityServiceRequested = true
+        
+        // 显示对话框提示用户启用无障碍服务
+        android.app.AlertDialog.Builder(this)
+            .setTitle("需要无障碍服务权限")
+            .setMessage("为了提供更快速的UI分析能力，请在设置中启用无障碍服务。这将使AI助手能够更高效地获取屏幕信息，节省您的等待时间。")
+            .setPositiveButton("去设置") { _, _ ->
+                com.ai.assistance.operit.data.UIHierarchyManager.openAccessibilitySettings(this)
+            }
+            .setNegativeButton("稍后再说") { dialog, _ ->
+                dialog.dismiss()
+            }
+            .setCancelable(false)
+            .show()
     }
     
     /**

@@ -402,6 +402,7 @@
 - `className`: (可选) 元素的类名
 - `text`: (可选) 元素的文本内容
 - `contentDesc`: (可选) 元素的内容描述
+- `bounds`: (可选) 元素的边界坐标，格式为 "[x1,y1][x2,y2]"
 - `index`: (可选) 要点击的第几个匹配元素（从 0 开始计数，默认 0）
 - `partialMatch`: (可选) 是否启用部分匹配（默认 false）
 
@@ -410,6 +411,29 @@
 **返回:** `UIActionResultData` - 包含点击结果
 
 **注意:** 此操作可能被标记为危险操作，取决于目标元素的特性。
+
+---
+
+### 查找元素 (`find_element`)
+
+查找屏幕上的特定 UI 元素，但不进行点击操作。
+
+**参数:**
+- `resourceId`: (可选) 元素的资源 ID
+- `className`: (可选) 元素的类名
+- `text`: (可选) 元素的文本内容
+- `contentDesc`: (可选) 元素的内容描述
+- `partialMatch`: (可选) 是否启用部分匹配（默认 false）
+- `limit`: (可选) 返回结果的最大数量（默认无限制）
+
+**注意:** 至少需要提供一个识别参数
+
+**返回:** `UIPageResultData` - 包含匹配的 UI 元素
+
+**使用建议:**
+- 使用该工具可以先查找 UI 元素，然后使用 `click_element` 工具和 `bounds` 参数点击特定元素
+- 当需要获取元素的详细信息但不希望触发点击操作时，该工具非常有用
+- 使用 `partialMatch` 参数可以执行更灵活的文本匹配
 
 ---
 
@@ -482,7 +506,9 @@
 - 或者使用 "combined_operation" 搭配 "operation=click_element resourceId buttonID" 代替单独的 "click_element" 命令
 - 需要点击列表中特定项目时，使用 "click_element" 的索引参数，例如 "click_element resourceId com.example.app:id/list_item 2" 点击第3个项目
 - 当多个元素共享同一标识符（如列表项）时，可以使用 "index" 参数指定要点击的特定元素
-- 当无法通过 ID 精确定位元素时，可以先使用 "tap" 工具直接使用坐标点击
+- 当无法通过 ID 精确定位元素时，可以使用 "bounds" 参数，例如 "click_element bounds [100,200][300,400]" 点击特定区域
+- 可以先使用 "find_element" 工具查找元素，获取其 bounds 值，然后用 "click_element" 工具点击
+- 当无法通过任何标识符点击元素时，可以使用 "tap" 工具直接使用坐标点击
 - 启动应用时，优先使用 "combined_operation"，这样可以立即获取界面信息
 
 ## 数据结构参考

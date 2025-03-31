@@ -437,7 +437,7 @@ type SystemToolName = 'sleep' | 'get_system_setting' | 'modify_system_setting' |
  * UI tool names
  */
 type UiToolName = 'get_page_info' | 'click_element' | 'tap' | 'set_input_text' | 'press_key' |
-    'swipe' | 'combined_operation';
+    'swipe' | 'combined_operation' | 'find_element';
 
 /**
  * Calculator tool names
@@ -505,6 +505,7 @@ interface ToolResultMap {
     'press_key': UIActionResultData;
     'swipe': UIActionResultData;
     'combined_operation': CombinedOperationResultData;
+    'find_element': UIPageResultData;
 
     // Calculator operations
     'calculate': CalculationResultData;
@@ -681,10 +682,10 @@ declare namespace Tools {
      */
     namespace System {
         /**
-         * Sleep for specified seconds
-         * @param seconds - Seconds to sleep
+         * Sleep for specified milliseconds
+         * @param milliseconds - Milliseconds to sleep
          */
-        function sleep(seconds: string | number): Promise<SleepResultData>;
+        function sleep(milliseconds: string | number): Promise<SleepResultData>;
 
         /**
          * Get a system setting
@@ -705,14 +706,6 @@ declare namespace Tools {
          * Get device information
          */
         function getDeviceInfo(): Promise<DeviceInfoResultData>;
-
-        /**
-         * Launch an app by package name
-         * @param packageName - Package name
-         * @param activity - Optional specific activity to launch
-         */
-        function launchApp(packageName: string, activity?: string): Promise<AppOperationData>;
-
         /**
          * Stop a running app
          * @param packageName - Package name
@@ -751,16 +744,90 @@ declare namespace Tools {
 
         /**
          * Click on an element
-         * @param elementId - Element ID or selector
+         * Multiple call patterns supported:
+         * - clickElement(resourceId: string): Click by resource ID
+         * - clickElement(bounds: string): Click by bounds "[x1,y1][x2,y2]"
+         * - clickElement(params: object): Click using parameters object
+         * - clickElement(type: "resourceId"|"className"|"bounds", value: string): Click by type
+         * - clickElement(resourceId: string, index: number): Click by resource ID and index
+         * @param param1 - Resource ID, bounds, or parameter object
+         * @param param2 - Optional index or value
+         * @param param3 - Optional index when using type+value
          */
-        function clickElement(elementId: string): Promise<UIActionResultData>;
+        function clickElement(param1: string | { [key: string]: any }, param2?: string | number, param3?: number): Promise<UIActionResultData>;
+
+        /**
+         * Click on an element (detailed overloads matching implementation)
+         * @param params - Parameters object with resourceId, className, text, contentDesc, bounds, etc.
+         */
+        function clickElement(params: {
+            resourceId?: string,
+            className?: string,
+            text?: string,
+            contentDesc?: string,
+            bounds?: string,
+            index?: number,
+            partialMatch?: boolean,
+            isClickable?: boolean
+        }): Promise<UIActionResultData>;
+
+        /**
+         * Click on an element by resource ID
+         * @param resourceId - Element resource ID to click
+         */
+        function clickElement(resourceId: string): Promise<UIActionResultData>;
+
+        /**
+         * Click on an element by bounds
+         * @param bounds - Element bounds in format "[x1,y1][x2,y2]"
+         */
+        function clickElement(bounds: string): Promise<UIActionResultData>;
+
+        /**
+         * Click on an element by resource ID with index
+         * @param resourceId - Element resource ID to click
+         * @param index - Index of the element when multiple match (0-based)
+         */
+        function clickElement(resourceId: string, index: number): Promise<UIActionResultData>;
+
+        /**
+         * Click on an element by type and value
+         * @param type - Type of identifier ("resourceId", "className", or "bounds")
+         * @param value - Value for the specified type
+         */
+        function clickElement(type: "resourceId" | "className" | "bounds", value: string): Promise<UIActionResultData>;
+
+        /**
+         * Click on an element by type, value and index
+         * @param type - Type of identifier ("resourceId" or "className")
+         * @param value - Value for the specified type
+         * @param index - Index of the element when multiple match (0-based)
+         */
+        function clickElement(type: "resourceId" | "className", value: string, index: number): Promise<UIActionResultData>;
+
+        /**
+         * Find UI elements matching specific criteria without clicking them
+         * @param params - Search parameters (resourceId, className, text, etc.)
+         */
+        function findElement(params: {
+            resourceId?: string,
+            className?: string,
+            text?: string,
+            partialMatch?: boolean,
+            limit?: number
+        }): Promise<UIPageResultData>;
 
         /**
          * Set text in input field
-         * @param elementId - Element ID or selector
          * @param text - Text to input
          */
-        function setText(elementId: string, text: string): Promise<UIActionResultData>;
+        function setText(text: string): Promise<UIActionResultData>;
+
+        /**
+         * Press a key
+         * @param keyCode - Key code to press
+         */
+        function pressKey(keyCode: string): Promise<UIActionResultData>;
 
         /**
          * Swipe from one position to another
@@ -770,6 +837,13 @@ declare namespace Tools {
          * @param endY - End Y coordinate
          */
         function swipe(startX: number, startY: number, endX: number, endY: number): Promise<UIActionResultData>;
+
+        /**
+         * Execute a UI operation, wait, then return the new UI state
+         * @param operation - Operation to execute
+         * @param delayMs - Delay in milliseconds before getting new UI state
+         */
+        function combinedOperation(operation: string, delayMs?: number): Promise<CombinedOperationResultData>;
     }
 
     /**

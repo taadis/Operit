@@ -385,7 +385,7 @@ class JsEngine(private val context: Context) {
                 // 系统操作
                 System: {
                     exec: (command) => toolCall("execute_comma nd", { command }),
-                    sleep: (seconds) => toolCall("sleep", { duration_ms: parseInt(seconds) * 1000 }),
+                    sleep: (milliseconds) => toolCall("sleep", { duration_ms: parseInt(milliseconds) }),
                     getSetting: (setting, namespace) => toolCall("get_system_setting", { key: setting, namespace }),
                     setSetting: (setting, value, namespace) => toolCall("modify_system_setting", { key: setting, value, namespace }),
                     getDeviceInfo: () => toolCall("device_info"),
@@ -397,9 +397,52 @@ class JsEngine(private val context: Context) {
                 UI: {
                     getPageInfo: () => toolCall("get_page_info"),
                     tap: (x, y) => toolCall("tap", { x, y }),
-                    clickElement: (id) => toolCall("click_element", { resourceId: id }),
-                    setText: (id, text) => toolCall("set_input_text", { resourceId: id, text }),
-                    swipe: (startX, startY, endX, endY) => toolCall("swipe", { start_x: startX, start_y: startY, end_x: endX, end_y: endY })
+                    // 增强的clickElement方法，支持多种参数类型
+                    clickElement: function(param1, param2, param3) {
+                        // 根据参数类型和数量判断调用方式
+                        if (typeof param1 === 'object') {
+                            // 如果第一个参数是对象，直接传递参数对象
+                            return toolCall("click_element", param1);
+                        } else if (arguments.length === 1) {
+                            // 单参数，假定为resourceId
+                            if (param1.startsWith('[') && param1.includes('][')) {
+                                // 参数看起来像bounds格式 [x,y][x,y]
+                                return toolCall("click_element", { bounds: param1 });
+                            }
+                            return toolCall("click_element", { resourceId: param1 });
+                        } else if (arguments.length === 2) {
+                            // 两个参数，假定为(resourceId, index)或(className, index)
+                            if (param1 === 'resourceId') {
+                                return toolCall("click_element", { resourceId: param2 });
+                            } else if (param1 === 'className') {
+                                return toolCall("click_element", { className: param2 });
+                            } else if (param1 === 'bounds') {
+                                return toolCall("click_element", { bounds: param2 });
+                            } else {
+                                return toolCall("click_element", { resourceId: param1, index: param2 });
+                            }
+                        } else if (arguments.length === 3) {
+                            // 三个参数，假定为(type, value, index)
+                            if (param1 === 'resourceId') {
+                                return toolCall("click_element", { resourceId: param2, index: param3 });
+                            } else if (param1 === 'className') {
+                                return toolCall("click_element", { className: param2, index: param3 });
+                            } else {
+                                return toolCall("click_element", { resourceId: param1, className: param2, index: param3 });
+                            }
+                        }
+                        // 默认情况
+                        return toolCall("click_element", { resourceId: param1 });
+                    },
+                    // 查找UI元素方法
+                    findElement: function(params) {
+                        return toolCall("find_element", params);
+                    },
+                    setText: (text) => toolCall("set_input_text", { text }),
+                    swipe: (startX, startY, endX, endY) => toolCall("swipe", { start_x: startX, start_y: startY, end_x: endX, end_y: endY }),
+                    pressKey: (keyCode) => toolCall("press_key", { key_code: keyCode }),
+                    // 组合操作
+                    combinedOperation: (operation, delayMs) => toolCall("combined_operation", { operation, delay_ms: delayMs || 1000 })
                 },
                 // 计算功能
                 calc: (expression) => toolCall("calculate", { expression })

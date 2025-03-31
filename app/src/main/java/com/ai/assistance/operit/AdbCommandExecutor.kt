@@ -184,6 +184,7 @@ class AdbCommandExecutor {
             if (hasShizukuPermission()) {
                 Log.d(TAG, "Permission already granted")
                 onResult(true)
+                notifyStateChanged() // 确保已有权限时也通知状态变化
                 return
             }
             
@@ -211,7 +212,10 @@ class AdbCommandExecutor {
                         val granted = grantResult == PackageManager.PERMISSION_GRANTED
                         Log.d(TAG, "Shizuku permission request result: $granted")
                         onResult(granted)
-                        notifyStateChanged()
+                        if (granted) {
+                            // 权限授予时触发状态变更通知
+                            notifyStateChanged()
+                        }
                         
                         // 权限请求完成后移除监听器
                         try {

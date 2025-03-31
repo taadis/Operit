@@ -119,11 +119,11 @@ class UIAccessibilityService : AccessibilityService() {
             serializer.startTag("", "node")
             
             // 添加节点属性
-            serializer.attribute("", "class", node.className?.toString() ?: "")
-            serializer.attribute("", "package", node.packageName?.toString() ?: "")
-            serializer.attribute("", "content-desc", node.contentDescription?.toString() ?: "")
-            serializer.attribute("", "text", node.text?.toString() ?: "")
-            serializer.attribute("", "resource-id", node.viewIdResourceName ?: "")
+            serializer.attribute("", "class", sanitizeXmlString(node.className?.toString() ?: ""))
+            serializer.attribute("", "package", sanitizeXmlString(node.packageName?.toString() ?: ""))
+            serializer.attribute("", "content-desc", sanitizeXmlString(node.contentDescription?.toString() ?: ""))
+            serializer.attribute("", "text", sanitizeXmlString(node.text?.toString() ?: ""))
+            serializer.attribute("", "resource-id", sanitizeXmlString(node.viewIdResourceName ?: ""))
             serializer.attribute("", "clickable", node.isClickable.toString())
             serializer.attribute("", "enabled", node.isEnabled.toString())
             serializer.attribute("", "focused", node.isFocused.toString())
@@ -144,5 +144,32 @@ class UIAccessibilityService : AccessibilityService() {
         } catch (e: Exception) {
             Log.e(TAG, "序列化节点出错", e)
         }
+    }
+    
+    /**
+     * 清理字符串以确保XML兼容性
+     * 移除或替换XML中不允许的字符
+     */
+    private fun sanitizeXmlString(input: String): String {
+        if (input.isEmpty()) return input
+        
+        val sb = StringBuilder(input.length)
+        for (c in input) {
+            // XML 1.0 规范中允许的字符:
+            // #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]
+            // 以下字符被排除：控制字符，不可见字符和某些特殊Unicode范围
+            if (c == '\u0009' || c == '\n' || c == '\r' || 
+                (c >= '\u0020' && c <= '\uD7FF') || 
+                (c >= '\uE000' && c <= '\uFFFD')) {
+                sb.append(c)
+            } else {
+                // 对于不合法字符，可以替换为空格或其他合法字符
+                sb.append(' ')
+                
+                // 记录不合法字符的处理
+                Log.d(TAG, "替换了不合法XML字符: U+${Integer.toHexString(c.code)}")
+            }
+        }
+        return sb.toString()
     }
 } 

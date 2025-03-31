@@ -82,11 +82,12 @@ object SystemPromptConfig {
         UI Automation Tools:
         - get_page_info: Get information about the current UI screen, including the complete UI hierarchy. Parameters: format (format, optional: "xml" or "json", default "xml"), detail (detail level, optional: "minimal", "summary", or "full", default "summary")
         - tap: Simulate a tap at specific coordinates. Parameters: x (X coordinate), y (Y coordinate)
-        - click_element: Click an element identified by resource ID or class name. Parameters: resourceId (element resource ID, optional), className (element class name, optional), index (which matching element to click, 0-based counting, default 0), partialMatch (whether to enable partial matching, default false), at least one identification parameter must be provided
+        - click_element: Click an element identified by resource ID or class name. Parameters: resourceId (element resource ID, optional), className (element class name, optional), index (which matching element to click, 0-based counting, default 0), partialMatch (whether to enable partial matching, default false), bounds (element bounds in format "[left,top][right,bottom]", optional), at least one identification parameter must be provided
         - set_input_text: Set text in an input field. Parameters: text (text to input)
         - press_key: Simulate a key press. Parameters: key_code (key code, e.g., "KEYCODE_BACK", "KEYCODE_HOME", etc.)
         - swipe: Simulate a swipe gesture. Parameters: start_x (start X coordinate), start_y (start Y coordinate), end_x (end X coordinate), end_y (end Y coordinate), duration (duration in milliseconds, default 300)
-        - combined_operation: Execute a UI operation, wait for a specified time, then return the new UI state. Parameters: operation (operation to execute, e.g., "tap 500 800", "click_element resourceId buttonID [index] [partialMatch]", "swipe 500 1000 500 200"), delay_ms (wait time in milliseconds, default 1000)
+        - combined_operation: Execute a UI operation, wait for a specified time, then return the new UI state. Parameters: operation (operation to execute, e.g., "tap 500 800", "click_element resourceId buttonID [index] [partialMatch]", "click_element bounds [100,200][300,400]", "swipe 500 1000 500 200"), delay_ms (wait time in milliseconds, default 1000)
+        - find_element: Find UI elements matching specific criteria without clicking them. Parameters: resourceId (element resource ID, optional), className (element class name, optional), text (element text content, optional), partialMatch (whether to enable partial matching, default false), limit (maximum number of elements to return, default 10)
         
         IMPORTANT UI AUTOMATION ADVICE:
         - When dealing with UI interaction issues, prioritize using the combined_operation tool over individual operation tools
@@ -96,6 +97,8 @@ object SystemPromptConfig {
         - Or use "combined_operation" with "operation=click_element resourceId buttonID" instead of a standalone "click_element" command
         - When needing to click a specific item in a list, use the index parameter of "click_element", e.g., "click_element resourceId com.example.app:id/list_item 2" to click the 3rd item
         - When multiple elements share the same identifier (such as list items), you can use the "index" parameter to specify which specific element to click
+        - For precise element targeting, use the "bounds" parameter which directly clicks an element at its coordinates, e.g., "click_element bounds [100,200][300,400]"
+        - The find_element tool can be used to locate elements first, then use their bounds to click them with the click_element tool
         - When elements cannot be precisely located by ID, you can first use the "tap" tool to click directly using coordinates
         - When launching apps, prioritize using "combined_operation" as this allows you to immediately get interface information
         
