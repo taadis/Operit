@@ -13,5 +13,7 @@ data class ChatHistory(
     @Serializable(with = LocalDateTimeSerializer::class)
     val createdAt: LocalDateTime = LocalDateTime.now(),
     @Serializable(with = LocalDateTimeSerializer::class)
-    val updatedAt: LocalDateTime = LocalDateTime.now()
+    val updatedAt: LocalDateTime = LocalDateTime.now(),
+    val inputTokens: Int = 0,
+    val outputTokens: Int = 0
 ) 

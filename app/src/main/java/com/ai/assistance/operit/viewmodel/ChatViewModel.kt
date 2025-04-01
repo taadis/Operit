@@ -9,7 +9,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ai.assistance.operit.model.AiReference
-import com.ai.assistance.operit.api.EnhancedAIService
+import com.ai.assistance.operit.api.enhanced.EnhancedAIService
 import com.ai.assistance.operit.model.InputProcessingState
 import com.ai.assistance.operit.data.ApiPreferences
 import com.ai.assistance.operit.data.ChatHistoryManager
@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.UUID
+import java.time.LocalDateTime
 
 // 简单的聊天记忆类，用于存储对话内容
 class ChatMemory {
@@ -125,6 +126,23 @@ class ChatViewModel(
     private val _isFloatingMode = MutableStateFlow(false)
     val isFloatingMode: StateFlow<Boolean> = _isFloatingMode.asStateFlow()
     
+    // State for chat statistics
+    private val _contextWindowSize = MutableStateFlow(0)
+    val contextWindowSize: StateFlow<Int> = _contextWindowSize.asStateFlow()
+    
+    private val _inputTokenCount = MutableStateFlow(0)
+    val inputTokenCount: StateFlow<Int> = _inputTokenCount.asStateFlow()
+    
+    private val _outputTokenCount = MutableStateFlow(0)
+    val outputTokenCount: StateFlow<Int> = _outputTokenCount.asStateFlow()
+    
+    // 添加累计token的记录
+    private var cumulativeInputTokens = 0
+    private var cumulativeOutputTokens = 0
+    
+    private val _memoryOptimization = MutableStateFlow(ApiPreferences.DEFAULT_MEMORY_OPTIMIZATION)
+    val memoryOptimization: StateFlow<Boolean> = _memoryOptimization.asStateFlow()
+    
     // Add a reference to the floating service
     private var floatingService: FloatingChatService? = null
     private val serviceConnection = object : ServiceConnection {
@@ -183,6 +201,11 @@ class ChatViewModel(
                     val selectedChat = _chatHistories.value.find { it.id == chatId }
                     if (selectedChat != null) {
                         _chatHistory.value = selectedChat.messages
+                        // 恢复选中聊天的token计数
+                        cumulativeInputTokens = selectedChat.inputTokens
+                        cumulativeOutputTokens = selectedChat.outputTokens
+                        _inputTokenCount.value = cumulativeInputTokens
+                        _outputTokenCount.value = cumulativeOutputTokens
                     }
                 }
             }
@@ -192,7 +215,13 @@ class ChatViewModel(
         viewModelScope.launch {
             apiPreferences.showThinkingFlow.collect { showThinkingValue ->
                 _showThinking.value = showThinkingValue
-                
+            }
+        }
+        
+        // Collect memory optimization setting
+        viewModelScope.launch {
+            apiPreferences.memoryOptimizationFlow.collect { memoryOptimizationValue ->
+                _memoryOptimization.value = memoryOptimizationValue
             }
         }
         
@@ -336,41 +365,67 @@ class ChatViewModel(
         }
     }
     
-    private fun saveCurrentChat() {
-        // Only save if there's at least one user message
-        if (_chatHistory.value.size > 1) {
-            viewModelScope.launch {
-                // Use current chat ID or create a new one
-                val chatId = _currentChatId.value ?: UUID.randomUUID().toString()
+    /**
+     * Save current chat to persistent storage
+     */
+    fun saveCurrentChat() {
+        viewModelScope.launch {
+            try {
+                val currentId = _currentChatId.value ?: UUID.randomUUID().toString()
                 
-                val title = _chatHistory.value.firstOrNull { it.sender == "user" }?.content?.take(20) ?: "新对话"
-                
-                // 查找是否已有该ID的聊天历史，以保留原始createdAt
-                val existingChat = _chatHistories.value.find { it.id == chatId }
-                
-                val history = if (existingChat != null) {
-                    // 如果是更新现有聊天，则保留原始的createdAt，只更新updatedAt
-                    existingChat.copy(
-                        title = "$title...",
-                        messages = _chatHistory.value,
-                        updatedAt = java.time.LocalDateTime.now()
-                    )
-                } else {
-                    // 如果是新聊天，则创建新的ChatHistory对象
-                    ChatHistory(
-                        id = chatId,
-                        title = "$title...",
-                        messages = _chatHistory.value
-                    )
+                // 仅在有消息时保存
+                if (_chatHistory.value.isNotEmpty()) {
+                    // 查找是否已有该ID的聊天历史，以保留原始createdAt
+                    val existingChat = _chatHistories.value.find { it.id == currentId }
+                    
+                    val history = if (existingChat != null) {
+                        // 如果是更新现有聊天，则保留原始的createdAt，只更新updatedAt
+                        existingChat.copy(
+                            title = generateChatTitle(),
+                            messages = _chatHistory.value,
+                            updatedAt = LocalDateTime.now(),
+                            inputTokens = cumulativeInputTokens,
+                            outputTokens = cumulativeOutputTokens
+                        )
+                    } else {
+                        // 如果是新聊天，则创建新的ChatHistory对象
+                        ChatHistory(
+                            id = currentId,
+                            title = generateChatTitle(),
+                            messages = _chatHistory.value,
+                            inputTokens = cumulativeInputTokens,
+                            outputTokens = cumulativeOutputTokens
+                        )
+                    }
+                    
+                    chatHistoryManager.saveChatHistory(history)
+                    
+                    // Set current chat ID if not already set
+                    if (_currentChatId.value == null) {
+                        chatHistoryManager.setCurrentChatId(currentId)
+                        _currentChatId.value = currentId
+                    }
                 }
-                
-                chatHistoryManager.saveChatHistory(history)
-                
-                // Set current chat ID if not already set
-                if (_currentChatId.value == null) {
-                    chatHistoryManager.setCurrentChatId(chatId)
-                }
+            } catch (e: Exception) {
+                Log.e("ChatViewModel", "Failed to save chat history", e)
             }
+        }
+    }
+    
+    /**
+     * 根据第一条用户消息生成聊天标题
+     */
+    private fun generateChatTitle(): String {
+        val firstUserMessage = _chatHistory.value.firstOrNull { it.sender == "user" }?.content
+        return if (firstUserMessage != null) {
+            // 截取前20个字符作为标题，并添加省略号
+            if (firstUserMessage.length > 20) {
+                "${firstUserMessage.take(20)}..."
+            } else {
+                firstUserMessage
+            }
+        } else {
+            "新对话"
         }
     }
     
@@ -427,6 +482,111 @@ class ChatViewModel(
         }
     }
     
+    /**
+     * 向对话中发送用户消息
+     */
+    fun sendUserMessage() {
+        if (_userMessage.value.isBlank() || _isLoading.value) {
+            return
+        }
+        
+        val message = _userMessage.value
+        _userMessage.value = ""
+        _isLoading.value = true
+        
+        // If no current chat id, create a new one
+        if (_currentChatId.value == null) {
+            createNewChat()
+        }
+        
+        // Add user message to chat history
+        addMessageToChat(ChatMessage(sender = "user", content = message))
+        
+        // Use viewModelScope to launch coroutine
+        viewModelScope.launch {
+            try {
+                // Check network connectivity
+                if (!NetworkUtils.isNetworkAvailable(context)) {
+                    _errorMessage.value = "网络连接不可用，请检查网络设置"
+                    _isLoading.value = false
+                    return@launch
+                }
+                
+                val history = chatMemory.getAll()
+                enhancedAiService?.sendMessage(
+                    message = message,
+                    onPartialResponse = { content, thinking ->
+                        handlePartialResponse(content, thinking)
+                    },
+                    chatHistory = history,
+                    onComplete = {
+                        handleResponseComplete()
+                        
+                        // Update token counts and context window size when response is complete
+                        updateChatStatistics()
+                    }
+                )
+                
+                // Add user message to memory
+                chatMemory.add("user", message)
+                
+            } catch (e: Exception) {
+                Log.e("ChatViewModel", "Error sending message", e)
+                _errorMessage.value = "发送消息失败: ${e.message}"
+                _isLoading.value = false
+            }
+        }
+    }
+    
+    /**
+     * Update chat statistics including token counts and context window size
+     */
+    private fun updateChatStatistics() {
+        enhancedAiService?.let { service ->
+            try {
+                // 从AI服务获取最新的token统计 - 直接通过API获取
+                val currentInputTokens = service.getCurrentInputTokenCount()
+                val currentOutputTokens = service.getCurrentOutputTokenCount()
+                
+                // 更新上下文窗口大小 - 这是当前请求发送的token总数（包括系统提示词）
+                _contextWindowSize.value = currentInputTokens
+                
+                // 更新累计token数
+                cumulativeInputTokens += currentInputTokens  
+                cumulativeOutputTokens += currentOutputTokens
+                
+                // 更新UI显示的累计值
+                _inputTokenCount.value = cumulativeInputTokens
+                _outputTokenCount.value = cumulativeOutputTokens
+                
+                Log.d("ChatViewModel", "Token stats updated - Context: $currentInputTokens, " +
+                    "Cumulative Input: $cumulativeInputTokens, Output: $cumulativeOutputTokens")
+                
+                // 保存当前聊天历史，确保token计数被持久化
+                saveCurrentChat()
+            } catch (e: Exception) {
+                Log.e("ChatViewModel", "Error accessing token counts: ${e.message}", e)
+                // 出错时不重置计数器，保持现有值
+            }
+        }
+    }
+    
+    /**
+     * 创建新的聊天会话时，重置token统计
+     */
+    private fun resetTokenStatistics() {
+        cumulativeInputTokens = 0
+        cumulativeOutputTokens = 0
+        _inputTokenCount.value = 0
+        _outputTokenCount.value = 0
+        _contextWindowSize.value = 0
+        
+        // 如果服务已初始化，同时重置服务中的token计数
+        enhancedAiService?.resetTokenCounters()
+        
+        Log.d("ChatViewModel", "Token statistics reset for new chat")
+    }
+    
     fun createNewChat() {
         viewModelScope.launch {
             try {
@@ -438,6 +598,9 @@ class ChatViewModel(
                 
                 // Clear chat memory
                 chatMemory.clear()
+                
+                // Reset token statistics for new chat
+                resetTokenStatistics()
                 
                 // Create a new chat
                 val newChat = chatHistoryManager.createNewChat()
@@ -466,6 +629,15 @@ class ChatViewModel(
             val selectedChat = _chatHistories.value.find { it.id == chatId }
             if (selectedChat != null) {
                 _chatHistory.value = selectedChat.messages
+                
+                // 恢复选中聊天的token计数
+                cumulativeInputTokens = selectedChat.inputTokens
+                cumulativeOutputTokens = selectedChat.outputTokens
+                _inputTokenCount.value = cumulativeInputTokens
+                _outputTokenCount.value = cumulativeOutputTokens
+                
+                // 更新AI服务的token计数，确保下一次请求正确追加
+                enhancedAiService?.resetTokenCounters()
             }
         }
     }
@@ -657,50 +829,37 @@ class ChatViewModel(
     }
     
     /**
-     * 向对话中发送用户消息
+     * Handle partial AI responses
      */
-    fun sendUserMessage() {
-        val message = _userMessage.value.trim()
-        if (message.isBlank() || _isLoading.value) return
-        
-        // 检查网络连接
-        if (!NetworkUtils.isNetworkAvailable(context)) {
-            _errorMessage.value = "网络不可用，请检查网络连接后重试"
-            return
-        }
-        
-        // 清空输入框
-        _userMessage.value = ""
-        
-        // 标记为加载状态
-        _isLoading.value = true
-        
-        // 先添加用户消息
-        _chatHistory.value = _chatHistory.value + ChatMessage("user", message)
-        
-        // 只有在网络请求开始时才添加思考消息
-        viewModelScope.launch {
-            try {
-                enhancedAiService?.let { service ->
-                    // 添加思考消息
-                    if(_showThinking.value) {
-                        _chatHistory.value = _chatHistory.value + ChatMessage("think", "思考中...")
-                    }
-                    
-                    // 发送消息
-                    sendMessage(message)
-                } ?: run {
-                    // 如果服务不可用，显示错误
-                    _errorMessage.value = "AI服务未初始化"
-                    _isLoading.value = false
-                }
-            } catch (e: Exception) {
-                _errorMessage.value = "发送消息失败: ${e.message}"
-                _isLoading.value = false
-            }
-        }
+    private fun handlePartialResponse(content: String, thinking: String?) {
+        handleAIResponse(content, thinking)
     }
-    
+
+    /**
+     * Handle completion of AI response
+     */
+    private fun handleResponseComplete() {
+        _isLoading.value = false
+        
+        // 将AI回复添加到聊天记忆中
+        val lastAiMessage = _chatHistory.value.lastOrNull { it.sender == "ai" }
+        if (lastAiMessage != null) {
+            chatMemory.add("assistant", lastAiMessage.content)
+        }
+        
+        // 更新token计数已经在调用处通过updateChatStatistics()完成
+        // 该方法内部会保存聊天历史，所以这里不再重复调用saveCurrentChat()
+        
+        Log.d("ChatViewModel", "AI response complete, loading state reset")
+    }
+
+    /**
+     * Add a message to the chat history
+     */
+    private fun addMessageToChat(message: ChatMessage) {
+        _chatHistory.value = _chatHistory.value + message
+    }
+
     private fun showToast(message: String) {
         _toastEvent.value = message
     }

@@ -27,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.PictureInPicture
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.window.Dialog
@@ -296,44 +297,130 @@ fun AIChatScreen() {
                     .fillMaxSize()
                     .padding(paddingValues)
             ) {
-                Row(modifier = Modifier.fillMaxSize()) {
-                    // Chat history selector (collapsible)
-                    AnimatedVisibility(
-                        visible = showChatHistorySelector,
-                        enter = slideInHorizontally(initialOffsetX = { -it }, animationSpec = tween(300)) + fadeIn(animationSpec = tween(300)),
-                        exit = slideOutHorizontally(targetOffsetX = { -it }, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300))
-                    ) {
-                        ChatHistorySelector(
-                            modifier = Modifier
-                                .width(280.dp)
-                                .fillMaxHeight()
-                                .background(MaterialTheme.colorScheme.surface)
-                                .padding(top = 8.dp),
-                            onNewChat = { viewModel.createNewChat() },
-                            onSelectChat = { chatId -> viewModel.switchChat(chatId) },
-                            onDeleteChat = { chatId -> viewModel.deleteChatHistory(chatId) },
-                            chatHistories = chatHistories.sortedByDescending { it.createdAt },
-                            currentId = currentChatId
-                        )
-                    }
+                // 主聊天区域（包括顶部工具栏），确保它一直可见
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                ) {
+                    // Chat header
+                    val currentChatTitle = chatHistories.find { it.id == currentChatId }?.title
                     
-                    // Main chat area
+                    // 聊天区域
                     Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
+                        modifier = Modifier.fillMaxSize()
                     ) {
-                        // Chat header
-                        val currentChatTitle = chatHistories.find { it.id == currentChatId }?.title
+                        // 顶部工具栏 - 整合聊天历史按钮和统计信息
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
+                                .padding(horizontal = 16.dp, vertical = 6.dp)
+                        ) {
+                            // 左侧：聊天历史按钮
+                            ChatHeader(
+                                showChatHistorySelector = showChatHistorySelector,
+                                onToggleChatHistorySelector = { viewModel.toggleChatHistorySelector() },
+                                currentChatTitle = currentChatTitle,
+                                modifier = Modifier.align(Alignment.CenterStart)
+                            )
+                            
+                            // 右侧：统计信息
+                            val contextWindowSize by viewModel.contextWindowSize.collectAsState()
+                            val inputTokenCount by viewModel.inputTokenCount.collectAsState()
+                            val outputTokenCount by viewModel.outputTokenCount.collectAsState()
+                            val memoryOptimization by viewModel.memoryOptimization.collectAsState()
+                            
+                            Row(
+                                modifier = Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .background(
+                                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                                        shape = RoundedCornerShape(4.dp)
+                                    )
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                // 统计项 - 使用水平排列的小标签
+                                StatItem(
+                                    label = "请求",
+                                    value = "$contextWindowSize"
+                                )
+                                
+                                Divider(
+                                    modifier = Modifier
+                                        .height(16.dp)
+                                        .width(1.dp),
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                                )
+                                
+                                StatItem(
+                                    label = "累计入",
+                                    value = "$inputTokenCount"
+                                )
+                                
+                                Divider(
+                                    modifier = Modifier
+                                        .height(16.dp)
+                                        .width(1.dp),
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                                )
+                                
+                                StatItem(
+                                    label = "累计出",
+                                    value = "$outputTokenCount"
+                                )
+                                
+                                Divider(
+                                    modifier = Modifier
+                                        .height(16.dp)
+                                        .width(1.dp),
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                                )
+                                
+                                StatItem(
+                                    label = "总计",
+                                    value = "${inputTokenCount + outputTokenCount}",
+                                    isHighlighted = true
+                                )
+                                
+                                Divider(
+                                    modifier = Modifier
+                                        .height(16.dp)
+                                        .width(1.dp),
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                                )
+                                
+                                // 记忆优化开关标签
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text(
+                                        text = "优化:",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                    )
+                                    Text(
+                                        text = if (memoryOptimization) "开" else "关",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                        ),
+                                        color = if (memoryOptimization) 
+                                            MaterialTheme.colorScheme.primary
+                                        else 
+                                            MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            }
+                        }
                         
-                        ChatHeader(
-                            showChatHistorySelector = showChatHistorySelector,
-                            onToggleChatHistorySelector = { viewModel.toggleChatHistorySelector() },
-                            currentChatTitle = currentChatTitle
-                        )
-                        
-                        // Chat area with messages
-                        Box(modifier = Modifier.weight(1f)) {
+                        // 聊天对话区域
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                        ) {
                             ChatArea(
                                 chatHistory = chatHistory,
                                 listState = listState,
@@ -370,8 +457,6 @@ fun AIChatScreen() {
                                                         // 不关心index，直接尝试滚动到底部
                                                         // 使用最大可能的滚动量
                                                         listState.dispatchRawDelta(100000f)
-                                                        
-                            
                                                     } catch (e: Exception) {
                                                         Log.e("AIChatScreen", "滚动到底部失败", e)
                                                     }
@@ -388,6 +473,69 @@ fun AIChatScreen() {
                                         )
                                     }
                                 }
+                            }
+                        }
+                    }
+                }
+                
+                // 历史选择器作为浮动层，使用AnimatedVisibility保持动画效果
+                AnimatedVisibility(
+                    visible = showChatHistorySelector,
+                    enter = slideInHorizontally(initialOffsetX = { -it }, animationSpec = tween(300)) + fadeIn(animationSpec = tween(300)),
+                    exit = slideOutHorizontally(targetOffsetX = { -it }, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300)),
+                    modifier = Modifier.align(Alignment.TopStart)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(280.dp)
+                            .fillMaxHeight()
+                            .background(
+                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                                shape = RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp)
+                            )
+                    ) {
+                        // 直接使用ChatHistorySelector
+                        ChatHistorySelector(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(top = 8.dp),
+                            onNewChat = { viewModel.createNewChat() },
+                            onSelectChat = { chatId -> viewModel.switchChat(chatId) },
+                            onDeleteChat = { chatId -> viewModel.deleteChatHistory(chatId) },
+                            chatHistories = chatHistories.sortedByDescending { it.createdAt },
+                            currentId = currentChatId
+                        )
+                        
+                        // 在右侧添加浮动返回按钮
+                        OutlinedButton(
+                            onClick = { viewModel.toggleChatHistorySelector() },
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(top = 16.dp, end = 8.dp)
+                                .height(28.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.primary
+                            ),
+                            border = ButtonDefaults.outlinedButtonBorder.copy(
+                                width = 1.dp
+                            ),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowBack,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    "返回",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
                             }
                         }
                     }
@@ -434,5 +582,37 @@ class ChatViewModelFactory(private val context: Context) : androidx.lifecycle.Vi
             return ChatViewModel(context) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
+    }
+}
+
+// 添加用于显示统计项的可复用组件
+@Composable
+private fun StatItem(
+    label: String,
+    value: String,
+    isHighlighted: Boolean = false
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontWeight = if (isHighlighted) 
+                    androidx.compose.ui.text.font.FontWeight.Bold 
+                else 
+                    androidx.compose.ui.text.font.FontWeight.Normal
+            ),
+            color = if (isHighlighted)
+                MaterialTheme.colorScheme.primary
+            else
+                MaterialTheme.colorScheme.onSurface
+        )
     }
 }

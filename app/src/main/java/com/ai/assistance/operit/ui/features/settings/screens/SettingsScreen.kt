@@ -32,6 +32,8 @@ import kotlinx.coroutines.launch
 import com.ai.assistance.operit.model.UserPreferences
 import com.ai.assistance.operit.data.preferencesManager
 import java.lang.StringBuilder
+import com.ai.assistance.operit.data.ChatHistoryManager
+import androidx.compose.ui.text.font.FontWeight
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,20 +50,23 @@ fun SettingsScreen(
     val apiEndpoint = apiPreferences.apiEndpointFlow.collectAsState(initial = ApiPreferences.DEFAULT_API_ENDPOINT).value
     val modelName = apiPreferences.modelNameFlow.collectAsState(initial = ApiPreferences.DEFAULT_MODEL_NAME).value
     val showThinking = apiPreferences.showThinkingFlow.collectAsState(initial = ApiPreferences.DEFAULT_SHOW_THINKING).value
+    val memoryOptimization = apiPreferences.memoryOptimizationFlow.collectAsState(initial = ApiPreferences.DEFAULT_MEMORY_OPTIMIZATION).value
     
     // Mutable state for editing
     var apiKeyInput by remember { mutableStateOf(apiKey) }
     var apiEndpointInput by remember { mutableStateOf(apiEndpoint) }
     var modelNameInput by remember { mutableStateOf(modelName) }
     var showThinkingInput by remember { mutableStateOf(showThinking) }
+    var memoryOptimizationInput by remember { mutableStateOf(memoryOptimization) }
     var showSaveSuccessMessage by remember { mutableStateOf(false) }
     
     // Update local state when preferences change
-    LaunchedEffect(apiKey, apiEndpoint, modelName, showThinking) {
+    LaunchedEffect(apiKey, apiEndpoint, modelName, showThinking, memoryOptimization) {
         apiKeyInput = apiKey
         apiEndpointInput = apiEndpoint
         modelNameInput = modelName
         showThinkingInput = showThinking
+        memoryOptimizationInput = memoryOptimization
     }
     
     Column(
@@ -127,7 +132,8 @@ fun SettingsScreen(
                                 apiKeyInput,
                                 apiEndpointInput,
                                 modelNameInput,
-                                showThinkingInput
+                                showThinkingInput,
+                                memoryOptimizationInput
                             )
                             showSaveSuccessMessage = true
                         }
@@ -176,10 +182,17 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                        text = stringResource(id = R.string.show_thinking),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                    Column {
+                        Text(
+                            text = stringResource(id = R.string.show_thinking),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = "有的模型不具备思考能力，就可以关掉它",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     
                     Switch(
                         checked = showThinkingInput,
@@ -187,6 +200,38 @@ fun SettingsScreen(
                             showThinkingInput = it
                             scope.launch {
                                 apiPreferences.saveShowThinking(it)
+                                showSaveSuccessMessage = true
+                            }
+                        }
+                    )
+                }
+                
+                // 记忆优化开关
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text(
+                            text = "记忆优化",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = "开启后，AI会有一定的遗忘能力",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    
+                    Switch(
+                        checked = memoryOptimizationInput,
+                        onCheckedChange = { 
+                            memoryOptimizationInput = it
+                            scope.launch {
+                                apiPreferences.saveMemoryOptimization(it)
                                 showSaveSuccessMessage = true
                             }
                         }
@@ -389,6 +434,191 @@ fun SettingsScreen(
                     }
                 }
             }
+        }
+        
+        // Token统计卡片
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    text = "Token统计",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                
+                // 从数据源读取token统计数据
+                val chatHistories = remember { ChatHistoryManager(context) }
+                var totalInputTokens by remember { mutableStateOf(0) }
+                var totalOutputTokens by remember { mutableStateOf(0) }
+                var preferenceAnalysisInputTokens by remember { mutableStateOf(0) }
+                var preferenceAnalysisOutputTokens by remember { mutableStateOf(0) }
+                
+                // 计算所有聊天历史的token总和和读取偏好分析token计数
+                LaunchedEffect(Unit) {
+                    // 聊天历史token计数
+                    chatHistories.chatHistoriesFlow.collect { histories ->
+                        totalInputTokens = histories.sumOf { it.inputTokens }
+                        totalOutputTokens = histories.sumOf { it.outputTokens }
+                    }
+                }
+                
+                // 读取偏好分析token计数
+                LaunchedEffect(Unit) {
+                    apiPreferences.preferenceAnalysisInputTokensFlow.collect { tokens ->
+                        preferenceAnalysisInputTokens = tokens
+                    }
+                }
+                
+                LaunchedEffect(Unit) {
+                    apiPreferences.preferenceAnalysisOutputTokensFlow.collect { tokens ->
+                        preferenceAnalysisOutputTokens = tokens
+                    }
+                }
+                
+                // 计算费用（使用DeepSeek的价格）
+                // DeepSeek价格：输入tokens $0.27/百万，输出tokens $1.10/百万
+                val chatInputCost = totalInputTokens * 0.27 / 1_000_000
+                val chatOutputCost = totalOutputTokens * 1.10 / 1_000_000
+                val preferenceAnalysisInputCost = preferenceAnalysisInputTokens * 0.27 / 1_000_000
+                val preferenceAnalysisOutputCost = preferenceAnalysisOutputTokens * 1.10 / 1_000_000
+                val totalCost = chatInputCost + chatOutputCost + preferenceAnalysisInputCost + preferenceAnalysisOutputCost
+                
+                // 统计信息表格
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                ) {
+                    TokenStatRow(
+                        label = "聊天输入Token",
+                        value = totalInputTokens.toString(),
+                        cost = "$${String.format("%.4f", chatInputCost)}"
+                    )
+                    
+                    TokenStatRow(
+                        label = "聊天输出Token",
+                        value = totalOutputTokens.toString(),
+                        cost = "$${String.format("%.4f", chatOutputCost)}"
+                    )
+                    
+                    TokenStatRow(
+                        label = "偏好分析输入Token",
+                        value = preferenceAnalysisInputTokens.toString(),
+                        cost = "$${String.format("%.4f", preferenceAnalysisInputCost)}"
+                    )
+                    
+                    TokenStatRow(
+                        label = "偏好分析输出Token",
+                        value = preferenceAnalysisOutputTokens.toString(),
+                        cost = "$${String.format("%.4f", preferenceAnalysisOutputCost)}"
+                    )
+                    
+                    Divider(
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                    
+                    TokenStatRow(
+                        label = "总计",
+                        value = (totalInputTokens + totalOutputTokens + preferenceAnalysisInputTokens + preferenceAnalysisOutputTokens).toString(),
+                        cost = "$${String.format("%.4f", totalCost)}",
+                        isHighlighted = true
+                    )
+                }
+                
+                // 重置按钮
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            scope.launch {
+                                apiPreferences.resetPreferenceAnalysisTokens()
+                                showSaveSuccessMessage = true
+                            }
+                        }
+                    ) {
+                        Text("重置偏好分析计数")
+                    }
+                }
+                
+                // 幽默解释
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(8.dp)
+                    ) {
+                        Text(
+                            text = "为什么我要关心Token统计？",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = FontWeight.Bold
+                            ),
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        
+                        Text(
+                            text = "因为它就像一个饭店账单，只不过这里的'饭'是AI的思考，而'钱'是以微小得离谱的美元计算的！偏好分析是AI暗中观察你的口味，为你定制下次的\"菜单\"。别担心，即使你聊到手指抽筋，这些费用可能还不够买一杯咖啡～",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TokenStatRow(
+    label: String,
+    value: String,
+    cost: String,
+    isHighlighted: Boolean = false
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (isHighlighted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+        )
+        
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = if (isHighlighted) FontWeight.Bold else FontWeight.Normal
+                ),
+                color = if (isHighlighted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+            )
+            
+            Text(
+                text = cost,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = if (isHighlighted) FontWeight.Bold else FontWeight.Normal
+                ),
+                color = if (isHighlighted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+            )
         }
     }
 } 

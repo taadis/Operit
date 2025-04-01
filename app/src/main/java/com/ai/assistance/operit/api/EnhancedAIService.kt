@@ -61,5 +61,28 @@ class EnhancedAIService(
     fun cancelConversation() {
         implementation.cancelConversation()
     }
-
+    
+    /**
+     * Get the current input token count from the last API call
+     * @return The number of input tokens used in the most recent request
+     */
+    fun getCurrentInputTokenCount(): Int {
+        return implementation.getCurrentInputTokenCount()
+    }
+    
+    /**
+     * Get the current output token count from the last API call
+     * @return The number of output tokens generated in the most recent response
+     */
+    fun getCurrentOutputTokenCount(): Int {
+        return implementation.getCurrentOutputTokenCount()
+    }
+    
+    /**
+     * Reset token counters to zero
+     * Use this when starting a new conversation
+     */
+    fun resetTokenCounters() {
+        implementation.resetTokenCounters()
+    }
 }

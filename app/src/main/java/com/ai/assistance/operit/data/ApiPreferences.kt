@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -21,6 +22,9 @@ class ApiPreferences(private val context: Context) {
         val API_ENDPOINT = stringPreferencesKey("api_endpoint")
         val MODEL_NAME = stringPreferencesKey("model_name")
         val SHOW_THINKING = booleanPreferencesKey("show_thinking")
+        val MEMORY_OPTIMIZATION = booleanPreferencesKey("memory_optimization")
+        val PREFERENCE_ANALYSIS_INPUT_TOKENS = intPreferencesKey("preference_analysis_input_tokens")
+        val PREFERENCE_ANALYSIS_OUTPUT_TOKENS = intPreferencesKey("preference_analysis_output_tokens")
         
         // Default values
         const val DEFAULT_API_ENDPOINT = "https://api.deepseek.com/v1/chat/completions"
@@ -29,6 +33,7 @@ class ApiPreferences(private val context: Context) {
         const val DEFAULT_API_KEY = "sk-e565390c164c4cfa8820624ef47d68bf"
         // const val DEFAULT_API_KEY = "sk-bcf2cbfa8c9144119de247db8fdb7af5"
         const val DEFAULT_SHOW_THINKING = true
+        const val DEFAULT_MEMORY_OPTIMIZATION = true
     }
     
     // Get API Key as Flow
@@ -49,6 +54,21 @@ class ApiPreferences(private val context: Context) {
     // Get Show Thinking as Flow
     val showThinkingFlow: Flow<Boolean> = context.apiDataStore.data.map { preferences ->
         preferences[SHOW_THINKING] ?: DEFAULT_SHOW_THINKING
+    }
+    
+    // Get Memory Optimization as Flow
+    val memoryOptimizationFlow: Flow<Boolean> = context.apiDataStore.data.map { preferences ->
+        preferences[MEMORY_OPTIMIZATION] ?: DEFAULT_MEMORY_OPTIMIZATION
+    }
+    
+    // 获取偏好分析输入token计数
+    val preferenceAnalysisInputTokensFlow: Flow<Int> = context.apiDataStore.data.map { preferences ->
+        preferences[PREFERENCE_ANALYSIS_INPUT_TOKENS] ?: 0
+    }
+    
+    // 获取偏好分析输出token计数
+    val preferenceAnalysisOutputTokensFlow: Flow<Int> = context.apiDataStore.data.map { preferences ->
+        preferences[PREFERENCE_ANALYSIS_OUTPUT_TOKENS] ?: 0
     }
     
     // Save API Key
@@ -79,6 +99,13 @@ class ApiPreferences(private val context: Context) {
         }
     }
     
+    // Save Memory Optimization setting
+    suspend fun saveMemoryOptimization(memoryOptimization: Boolean) {
+        context.apiDataStore.edit { preferences ->
+            preferences[MEMORY_OPTIMIZATION] = memoryOptimization
+        }
+    }
+    
     // Save all settings at once
     suspend fun saveApiSettings(apiKey: String, endpoint: String, modelName: String) {
         context.apiDataStore.edit { preferences ->
@@ -95,6 +122,37 @@ class ApiPreferences(private val context: Context) {
             preferences[API_ENDPOINT] = endpoint
             preferences[MODEL_NAME] = modelName
             preferences[SHOW_THINKING] = showThinking
+        }
+    }
+    
+    // Save all settings including show thinking and memory optimization
+    suspend fun saveAllSettings(apiKey: String, endpoint: String, modelName: String, showThinking: Boolean, memoryOptimization: Boolean) {
+        context.apiDataStore.edit { preferences ->
+            preferences[API_KEY] = apiKey
+            preferences[API_ENDPOINT] = endpoint
+            preferences[MODEL_NAME] = modelName
+            preferences[SHOW_THINKING] = showThinking
+            preferences[MEMORY_OPTIMIZATION] = memoryOptimization
+        }
+    }
+    
+    // 更新偏好分析token计数
+    suspend fun updatePreferenceAnalysisTokens(inputTokens: Int, outputTokens: Int) {
+        context.apiDataStore.edit { preferences ->
+            // 累加而不是覆盖
+            val currentInputTokens = preferences[PREFERENCE_ANALYSIS_INPUT_TOKENS] ?: 0
+            val currentOutputTokens = preferences[PREFERENCE_ANALYSIS_OUTPUT_TOKENS] ?: 0
+            
+            preferences[PREFERENCE_ANALYSIS_INPUT_TOKENS] = currentInputTokens + inputTokens
+            preferences[PREFERENCE_ANALYSIS_OUTPUT_TOKENS] = currentOutputTokens + outputTokens
+        }
+    }
+    
+    // 重置偏好分析token计数
+    suspend fun resetPreferenceAnalysisTokens() {
+        context.apiDataStore.edit { preferences ->
+            preferences[PREFERENCE_ANALYSIS_INPUT_TOKENS] = 0
+            preferences[PREFERENCE_ANALYSIS_OUTPUT_TOKENS] = 0
         }
     }
 } 

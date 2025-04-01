@@ -12,6 +12,7 @@ import com.ai.assistance.operit.data.preferencesManager
 import com.ai.assistance.operit.model.AiReference
 import com.ai.assistance.operit.api.enhanced.models.ConversationMarkupManager
 import com.ai.assistance.operit.api.enhanced.models.ConversationRoundManager
+import com.ai.assistance.operit.data.ApiPreferences
 import com.ai.assistance.operit.model.InputProcessingState
 import com.ai.assistance.operit.model.ToolInvocation
 import com.ai.assistance.operit.model.ToolResult
@@ -67,6 +68,9 @@ class EnhancedAIService(
     private val streamBuffer = StringBuilder()
     private val roundManager = ConversationRoundManager()
     private val isConversationActive = AtomicBoolean(false)
+
+    // Api Preferences for settings
+    private val apiPreferences = ApiPreferences(context)
 
     // Coroutine management
     private val toolProcessingScope = CoroutineScope(Dispatchers.IO)
@@ -265,13 +269,16 @@ class EnhancedAIService(
      * Process a chat message that contains tool results, splitting it into
      * assistant message segments and tool result segments
      */
-    private fun processChatMessageWithTools(content: String, toolResults: List<Triple<String, String, IntRange>>) {
+    private suspend fun processChatMessageWithTools(content: String, toolResults: List<Triple<String, String, IntRange>>) {
         var lastEnd = 0
         val sortedResults = toolResults.sortedBy { it.third.first }
         
+        // Check memory optimization setting once for all tool results
+        val memoryOptimizationEnabled = apiPreferences.memoryOptimizationFlow.first()
+        
         for (result in sortedResults) {
             val toolName = result.first
-            val toolResult = result.second
+            var toolResult = result.second
             val range = result.third
             
             // Add assistant message before the tool result (if any)
@@ -281,12 +288,20 @@ class EnhancedAIService(
                     conversationHistory.add(Pair("assistant", assistantContent))
                 }
             }
+            
+            // Apply memory optimization for long tool results if enabled
+            if (memoryOptimizationEnabled && toolResult.length > 1000) {
+                // Optimize tool result by extracting the most important parts
+                toolResult = optimizeToolResult(toolName, toolResult)
+                Log.d(TAG, "Memory optimization applied to tool result for $toolName, reduced length from ${result.second.length} to ${toolResult.length}")
+            }
+            
             if(conversationHistory.last().first == "tool") {
-                val lastToolResult = conversationHistory.last().second
-                conversationHistory[conversationHistory.size - 1] = Pair("tool", lastToolResult + toolResult)
+                conversationHistory[conversationHistory.size - 1] = Pair("tool", toolResult)
             } else {
                 conversationHistory.add(Pair("tool", toolResult))
             }
+            
             // Update lastEnd
             lastEnd = range.last + 1
         }
@@ -298,6 +313,50 @@ class EnhancedAIService(
                 conversationHistory.add(Pair("assistant", assistantContent))
             }
         }
+    }
+    
+    /**
+     * Optimize tool result by selecting the most important parts
+     * This helps with memory management for long tool outputs
+     */
+    private fun optimizeToolResult(toolName: String, toolResult: String): String {
+        // For excessive long tool results, keep only essential parts
+        if (toolName == "use_package") {
+            return toolResult
+        }
+        if (toolResult.length <= 1000) return toolResult
+        
+        // Extract content within XML tags
+        val tagContent = Regex("<[^>]*>(.*?)</[^>]*>", RegexOption.DOT_MATCHES_ALL)
+            .find(toolResult)?.groupValues?.getOrNull(1)
+        
+        val sb = StringBuilder()
+        
+        // Add prefix based on tool name
+        sb.append("<tool_result name=\"$toolName\">")
+        
+        // If xml content was extracted, use it, otherwise use the first 300 and last 300 chars
+        if (!tagContent.isNullOrEmpty()) {
+            // For XML content, take up to 800 chars
+            val maxContentLength = 800
+            val content = if (tagContent.length > maxContentLength) {
+                tagContent.substring(0, 400) + "\n... [content truncated for memory optimization] ...\n" + 
+                tagContent.substring(tagContent.length - 400)
+            } else {
+                tagContent
+            }
+            sb.append(content)
+        } else {
+            // For non-XML content, take important parts from beginning and end
+            sb.append(toolResult.substring(0, 400))
+            sb.append("\n... [content truncated for memory optimization] ...\n")
+            sb.append(toolResult.substring(toolResult.length - 400))
+        }
+        
+        // Add closing tag
+        sb.append("</tool_result>")
+        
+        return sb.toString()
     }
 
     /**
@@ -648,11 +707,10 @@ class EnhancedAIService(
                     toolHandler,
                     conversationHistory,
                     displayContent,
-                    aiService
+                    aiService,
+                    context
                 )
             }
-
-            
         }
     }
 
@@ -753,6 +811,33 @@ class EnhancedAIService(
                 }
             )
         }
+    }
+
+    // Expose base AIService for token counting
+    fun getBaseAIService(): AIService = aiService
+    
+    /**
+     * Get the current input token count from the last API call
+     * @return The number of input tokens used in the most recent request
+     */
+    fun getCurrentInputTokenCount(): Int {
+        return aiService.inputTokenCount
+    }
+    
+    /**
+     * Get the current output token count from the last API call
+     * @return The number of output tokens generated in the most recent response
+     */
+    fun getCurrentOutputTokenCount(): Int {
+        return aiService.outputTokenCount
+    }
+    
+    /**
+     * Reset token counters to zero
+     * Use this when starting a new conversation
+     */
+    fun resetTokenCounters() {
+        aiService.resetTokenCounts()
     }
 
 } 

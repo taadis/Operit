@@ -31,6 +31,29 @@ class AIService(
     // 当前活跃的Call对象，用于取消流式传输
     private var activeCall: Call? = null
     
+    // 添加token计数器
+    private var _inputTokenCount = 0
+    private var _outputTokenCount = 0
+    
+    // 公开token计数
+    val inputTokenCount: Int get() = _inputTokenCount
+    val outputTokenCount: Int get() = _outputTokenCount
+    
+    // Token计数逻辑
+    private fun estimateTokenCount(text: String): Int {
+        // 简单估算：中文每个字约1.5个token，英文每4个字符约1个token
+        val chineseCharCount = text.count { it.code in 0x4E00..0x9FFF }
+        val otherCharCount = text.length - chineseCharCount
+        
+        return (chineseCharCount * 1.5 + otherCharCount * 0.25).toInt()
+    }
+    
+    // 重置token计数
+    fun resetTokenCounts() {
+        _inputTokenCount = 0
+        _outputTokenCount = 0
+    }
+    
     // 工具函数：分块打印大型文本日志
     private fun logLargeString(tag: String, message: String, prefix: String = "") {
         // 设置单次日志输出的最大长度（Android日志上限约为4000字符）
@@ -125,6 +148,9 @@ class AIService(
                 historyMessage.put("role", role)
                 historyMessage.put("content", content)
                 messagesArray.put(historyMessage)
+                
+                // 计算输入token
+                _inputTokenCount += estimateTokenCount(content)
             }
         }
         
@@ -138,6 +164,9 @@ class AIService(
             messageObject.put("role", "user")
             messageObject.put("content", message)
             messagesArray.put(messageObject)
+            
+            // 计算当前消息的token
+            _inputTokenCount += estimateTokenCount(message)
         } else {
             // 如果上一条消息也是用户，将当前消息与上一条合并
             Log.d("AIService", "合并连续的用户消息")
@@ -145,6 +174,9 @@ class AIService(
             if(lastMessage.getString("content") != message){
                 val combinedContent = lastMessage.getString("content") + "\n" + message
                 lastMessage.put("content", combinedContent)
+                
+                // 重新计算合并后消息的token
+                _inputTokenCount += estimateTokenCount(message)
             }
         }
         
@@ -242,6 +274,9 @@ class AIService(
                                         // 更新内容
                                         if (content.isNotEmpty() && content != "null") {
                                             currentContent.append(content)
+                                            
+                                            // 计算输出tokens
+                                            _outputTokenCount += estimateTokenCount(content)
                                         }
                                         
                                         // 更新思考内容（仅当使用Deepseek API时）
@@ -307,6 +342,10 @@ class AIService(
         onComplete: () -> Unit = {},
         onConnectionStatus: ((status: String) -> Unit)? = null
     ) = withContext(Dispatchers.IO) {
+        // 重置token计数
+        _inputTokenCount = 0
+        _outputTokenCount = 0
+        
         val maxRetries = 3
         var retryCount = 0
         var lastException: Exception? = null

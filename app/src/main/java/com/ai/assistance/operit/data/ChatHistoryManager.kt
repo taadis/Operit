@@ -150,7 +150,9 @@ class ChatHistoryManager(private val context: Context) {
         
         val newHistory = ChatHistory(
             title = "新对话 $formattedTime",
-            messages = listOf<ChatMessage>()
+            messages = listOf<ChatMessage>(),
+            inputTokens = 0,
+            outputTokens = 0
         )
         saveChatHistory(newHistory)
         setCurrentChatId(newHistory.id)
