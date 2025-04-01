@@ -127,7 +127,7 @@ class ConversationMarkupManager {
          */
         fun createTaskCompletionContent(content: String): String {
             return content
-                .replace("[TASK_COMPLETE]", "")
+                .replace("<status type=\"complete\"></status>", "")
                 .trim() + "\n" + createCompleteStatus()
         }
         
@@ -148,7 +148,7 @@ class ConversationMarkupManager {
          * @return True if the content contains a task completion marker
          */
         fun containsTaskCompletion(content: String): Boolean {
-            return content.contains("[TASK_COMPLETE]")
+            return content.contains("<status type=\"complete\"></status>")
         }
         
         /**

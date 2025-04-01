@@ -32,6 +32,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModel
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Arrangement.spacedBy
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.tools.AIToolHandler
 import com.ai.assistance.operit.ui.features.problems.viewmodel.ProblemLibraryViewModel
@@ -343,38 +345,38 @@ fun ProblemItem(
                 overflow = TextOverflow.Ellipsis
             )
             
+            // 时间信息
+            Text(
+                text = formattedDate,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+            
             Spacer(modifier = Modifier.height(8.dp))
             
-            // 工具和时间信息
+            // 工具标签 - 使用Row代替FlowRow
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = spacedBy(4.dp)
             ) {
-                // 工具标签
-                Row {
-                    problem.tools.take(2).forEachIndexed { index, tool ->
-                        if (index > 0) Spacer(modifier = Modifier.width(4.dp))
-                        Chip(
-                            label = tool,
-                            modifier = Modifier.padding(end = 4.dp)
-                        )
-                    }
-                    
-                    if (problem.tools.size > 2) {
-                        Text(
-                            text = "+${problem.tools.size - 2}",
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.align(Alignment.CenterVertically)
-                        )
-                    }
+                // 最多显示3个标签
+                problem.tools.take(3).forEach { tool ->
+                    Chip(
+                        label = tool,
+                        modifier = Modifier
+                    )
                 }
                 
-                // 时间信息
-                Text(
-                    text = formattedDate,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (problem.tools.size > 3) {
+                    Text(
+                        text = "+${problem.tools.size - 3}",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier
+                            .align(Alignment.CenterVertically)
+                            .padding(start = 4.dp)
+                    )
+                }
             }
         }
     }
@@ -445,7 +447,7 @@ fun ProblemDetailView(problem: AIToolHandler.ProblemRecord) {
             Section(title = stringResource(id = R.string.problem_tools)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = spacedBy(8.dp)
                 ) {
                     problem.tools.forEach { tool ->
                         Chip(label = tool)

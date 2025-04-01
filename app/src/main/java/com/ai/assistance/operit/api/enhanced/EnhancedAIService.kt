@@ -242,22 +242,19 @@ class EnhancedAIService(
         val xmlToolResultPattern = MessageContentParser.Companion.xmlToolResultPattern
         xmlToolResultPattern.findAll(content).forEach { match ->
             val toolName = match.groupValues[1]
-            val status = match.groupValues[2]
-            val toolContent = match.groupValues[3]
-            results.add(Triple(toolName, toolContent, match.range))
+            val toolResult = match.groupValues[0]
+            results.add(Triple(toolName, toolResult, match.range))
         }
         
         // Also extract using status pattern for result type
         val xmlStatusPattern = MessageContentParser.Companion.xmlStatusPattern
         xmlStatusPattern.findAll(content).forEach { match ->
-            val statusType = match.groupValues[1]
             val toolName = match.groupValues[2]
-            val success = match.groupValues[4].ifEmpty { "true" }
-            val statusContent = match.groupValues[7]
+            val toolResult = match.groupValues[0]
             
             // Include status of type "result" or "executing" as tool result
             if (toolName.isNotEmpty()) {
-                results.add(Triple(toolName, statusContent, match.range))
+                results.add(Triple(toolName, toolResult, match.range))
             }
         }
         
@@ -274,7 +271,7 @@ class EnhancedAIService(
         
         for (result in sortedResults) {
             val toolName = result.first
-            val toolContent = result.second
+            val toolResult = result.second
             val range = result.third
             
             // Add assistant message before the tool result (if any)
@@ -284,16 +281,12 @@ class EnhancedAIService(
                     conversationHistory.add(Pair("assistant", assistantContent))
                 }
             }
-            
-            // Check if this is already in tool_result format
-            if (content.substring(range).contains("<tool_result")) {
-                // Add the existing tool_result markup as a tool message
-                conversationHistory.add(Pair("tool", content.substring(range)))
+            if(conversationHistory.last().first == "tool") {
+                val lastToolResult = conversationHistory.last().second
+                conversationHistory[conversationHistory.size - 1] = Pair("tool", lastToolResult + toolResult)
             } else {
-                // This is a status tag, convert to tool_result format
-                conversationHistory.add(Pair("tool", "<tool_result name=\"$toolName\" status=\"success\"><content>$toolContent</content></tool_result>"))
+                conversationHistory.add(Pair("tool", toolResult))
             }
-            
             // Update lastEnd
             lastEnd = range.last + 1
         }

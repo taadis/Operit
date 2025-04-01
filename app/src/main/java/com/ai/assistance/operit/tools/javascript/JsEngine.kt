@@ -70,6 +70,9 @@ class JsEngine(private val context: Context) {
     // 用于存储工具调用的回调
     private val toolCallbacks = mutableMapOf<String, CompletableFuture<String>>()
     
+    // 标记 JS 环境是否已初始化
+    private var jsEnvironmentInitialized = false
+    
     // 初始化 WebView
     private fun initWebView() {
         if (webView == null) {
@@ -93,29 +96,16 @@ class JsEngine(private val context: Context) {
     }
 
     /**
-     * 执行 JavaScript 脚本并调用其中的特定函数
-     * @param script 完整的JavaScript脚本内容
-     * @param functionName 要调用的函数名称
-     * @param params 要传递给函数的参数
-     * @return 函数执行结果
+     * 初始化 JavaScript 环境
+     * 加载核心功能、工具库和辅助函数
+     * 这些代码只需要执行一次
      */
-    fun executeScriptFunction(script: String, functionName: String, params: Map<String, String>): Any? {
-        // Reset any previous state
-        resetState()
+    private fun initJavaScriptEnvironment() {
+        if (jsEnvironmentInitialized) {
+            return  // 如果已经初始化，直接返回
+        }
         
-        initWebView()
-        
-        val future = CompletableFuture<Any?>()
-        resultCallback = future
-        
-        // 将参数转换为 JSON 对象
-        val paramsJson = JSONObject(params).toString()
-        
-        // 包装脚本，添加工具调用函数和参数，并调用指定的函数
-        val wrappedScript = """
-            // 设置参数
-            var params = $paramsJson;
-            
+        val initScript = """
             // 添加全局错误处理器，捕获所有未处理的错误
             window.onerror = function(message, source, lineno, colno, error) {
                 try {
@@ -196,32 +186,6 @@ class JsEngine(private val context: Context) {
                     }
                 };
             })();
-            
-            // 简单的清理 - 仅清理定时器
-            (function() {
-                try {
-                    var highestTimeoutId = setTimeout(";");
-                    for (var i = 0 ; i < highestTimeoutId ; i++) {
-                        clearTimeout(i);
-                        clearInterval(i);
-                    }
-                } catch(e) {}
-            })();
-            
-            // 安全超时机制 - 更保守的实现
-            var _hasCompleted = false;
-            var _safetyTimeout = setTimeout(function() {
-                if (!_hasCompleted) {
-                    console.log("Safety timeout warning at " + (${TIMEOUT_SECONDS-5}) + " seconds");
-                    // 不立即结束，而是添加另一个最终超时
-                    setTimeout(function() {
-                        if (!_hasCompleted) {
-                            _hasCompleted = true;
-                            NativeInterface.setResult("Script execution timed out after ${TIMEOUT_SECONDS} seconds");
-                        }
-                    }, 5000); // 再等5秒
-                }
-            }, ${(TIMEOUT_SECONDS-5) * 1000});
             
             // 定义 toolCall 函数 - 支持多种参数传递方式，并且返回Promise
             function toolCall(toolType, toolName, toolParams) {
@@ -453,9 +417,9 @@ class JsEngine(private val context: Context) {
                 try {
                     console.log("complete() called with result type: " + typeof result);
                     
-                    if (!_hasCompleted) {
-                        _hasCompleted = true;
-                        clearTimeout(_safetyTimeout);
+                    if (!window._hasCompleted) {
+                        window._hasCompleted = true;
+                        clearTimeout(window._safetyTimeout);
                         
                         // 确保结果是可以序列化的
                         let serializedResult;
@@ -506,6 +470,169 @@ class JsEngine(private val context: Context) {
             
             // 加载 UINode 库
             ${loadUINodeJs()}
+            
+            // 函数处理异步Promise的辅助函数
+            function __handleAsync(possiblePromise) {
+                if (possiblePromise instanceof Promise) {
+                    // 更强大的异步处理
+                    console.log("Detected async Promise, waiting for resolution...");
+                    
+                    // 创建一个超时保护，确保非常长时间运行的Promise最终会被处理
+                    const asyncTimeout = setTimeout(() => {
+                        if (!window._hasCompleted) {
+                            console.log("Async Promise timeout reached after 45 seconds");
+                            // 尝试安全地完成执行
+                            try {
+                                window._hasCompleted = true;
+                                // 创建超时结果
+                                const timeoutResult = {
+                                    warning: "Operation timeout", 
+                                    result: "Promise did not resolve within the time limit"
+                                };
+                                
+                                NativeInterface.setResult(JSON.stringify(timeoutResult));
+                                console.log("Timeout result set from Promise handler");
+                            } catch (e) {
+                                console.error("Error during timeout handling:", e);
+                            }
+                        }
+                    }, 45000); // 45秒后超时，比主超时稍短
+                    
+                    possiblePromise
+                        .then(result => {
+                            clearTimeout(asyncTimeout);
+                            console.log("Async Promise resolved successfully");
+                            if (!window._hasCompleted) {
+                                try {
+                                    window._hasCompleted = true;
+                                    // 安全地序列化结果
+                                    let serializedResult;
+                                    try {
+                                        serializedResult = JSON.stringify(result);
+                                    } catch (serializeError) {
+                                        console.error("Failed to serialize Promise result:", serializeError);
+                                        // 创建一个简单的可以序列化的对象
+                                        serializedResult = JSON.stringify({
+                                            error: "Failed to serialize result",
+                                            message: String(serializeError),
+                                            result: String(result).substring(0, 1000)
+                                        });
+                                    }
+                                    NativeInterface.setResult(serializedResult);
+                                    console.log("Result set from Promise resolution");
+                                } catch (completionError) {
+                                    console.error("Error during async completion:", completionError);
+                                    NativeInterface.setError("Async completion error: " + completionError.message);
+                                }
+                            } else {
+                                console.log("Promise resolved, but execution was already completed");
+                            }
+                        })
+                        .catch(error => {
+                            clearTimeout(asyncTimeout);
+                            console.error("Async Promise rejected:", error);
+                            if (!window._hasCompleted) {
+                                try {
+                                    window._hasCompleted = true;
+                                    // 安全地序列化结果
+                                    let serializedResult;
+                                    try {
+                                        serializedResult = JSON.stringify(error);
+                                    } catch (serializeError) {
+                                        console.error("Failed to serialize Promise error:", serializeError);
+                                        serializedResult = JSON.stringify({
+                                            error: "Failed to serialize error",
+                                            message: String(error),
+                                            result: String(error).substring(0, 1000)
+                                        });
+                                    }
+                                    NativeInterface.setError(serializedResult);
+                                    console.log("Error set from Promise rejection");
+                                } catch (errorHandlingError) {
+                                    console.error("Error during async error handling:", errorHandlingError);
+                                }
+                            }
+                        });
+                    return true; // Signal that we're handling it asynchronously
+                }
+                return false; // Not a promise
+            }
+        """.trimIndent()
+        
+        // 在 WebView 中执行初始化脚本
+        ContextCompat.getMainExecutor(context).execute {
+            try {
+                webView?.evaluateJavascript(initScript) { result ->
+                    Log.d(TAG, "JS environment initialization completed: $result")
+                    jsEnvironmentInitialized = true
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to initialize JS environment: ${e.message}", e)
+            }
+        }
+        
+        // 等待初始化完成
+        var retries = 0
+        while (!jsEnvironmentInitialized && retries < 10) {
+            Thread.sleep(100)
+            retries++
+        }
+    }
+
+    /**
+     * 执行 JavaScript 脚本并调用其中的特定函数
+     * @param script 完整的JavaScript脚本内容
+     * @param functionName 要调用的函数名称
+     * @param params 要传递给函数的参数
+     * @return 函数执行结果
+     */
+    fun executeScriptFunction(script: String, functionName: String, params: Map<String, String>): Any? {
+        // Reset any previous state
+        resetState()
+        
+        initWebView()
+        
+        // 确保JavaScript环境已初始化
+        if (!jsEnvironmentInitialized) {
+            initJavaScriptEnvironment()
+        }
+        
+        val future = CompletableFuture<Any?>()
+        resultCallback = future
+        
+        // 将参数转换为 JSON 对象
+        val paramsJson = JSONObject(params).toString()
+        
+        // 优化后的脚本执行代码，只包含必要的执行逻辑
+        val executionScript = """
+            // 清理定时器以准备新的执行
+            (function() {
+                try {
+                    var highestTimeoutId = setTimeout(";");
+                    for (var i = 0 ; i < highestTimeoutId ; i++) {
+                        clearTimeout(i);
+                        clearInterval(i);
+                    }
+                } catch(e) {}
+            })();
+            
+            // 设置参数和执行状态
+            var params = $paramsJson;
+            window._hasCompleted = false;
+            
+            // 设置安全超时机制
+            window._safetyTimeout = setTimeout(function() {
+                if (!window._hasCompleted) {
+                    console.log("Safety timeout warning at " + (${TIMEOUT_SECONDS-5}) + " seconds");
+                    // 不立即结束，而是添加另一个最终超时
+                    setTimeout(function() {
+                        if (!window._hasCompleted) {
+                            window._hasCompleted = true;
+                            NativeInterface.setResult("Script execution timed out after ${TIMEOUT_SECONDS} seconds");
+                        }
+                    }, 5000); // 再等5秒
+                }
+            }, ${(TIMEOUT_SECONDS-5) * 1000});
             
             // 执行用户脚本
             try {
@@ -561,93 +688,6 @@ class JsEngine(private val context: Context) {
                 const module = moduleResult.module;
                 const exports = moduleResult.exports;
                 
-                // Helper for handling async functions
-                function __handleAsync(possiblePromise) {
-                    if (possiblePromise instanceof Promise) {
-                        // 更强大的异步处理
-                        console.log("Detected async Promise, waiting for resolution...");
-                        
-                        // 创建一个超时保护，确保非常长时间运行的Promise最终会被处理
-                        const asyncTimeout = setTimeout(() => {
-                            if (!_hasCompleted) {
-                                console.log("Async Promise timeout reached after 45 seconds");
-                                // 尝试安全地完成执行
-                                try {
-                                    _hasCompleted = true;
-                                    // 创建超时结果
-                                    const timeoutResult = {
-                                        warning: "Operation timeout", 
-                                        result: "Promise did not resolve within the time limit"
-                                    };
-                                    
-                                    NativeInterface.setResult(JSON.stringify(timeoutResult));
-                                    console.log("Timeout result set from Promise handler");
-                                } catch (e) {
-                                    console.error("Error during timeout handling:", e);
-                                }
-                            }
-                        }, 45000); // 45秒后超时，比主超时稍短
-                        
-                        possiblePromise
-                            .then(result => {
-                                clearTimeout(asyncTimeout);
-                                console.log("Async Promise resolved successfully");
-                                if (!_hasCompleted) {
-                                    try {
-                                        _hasCompleted = true;
-                                        // 安全地序列化结果
-                                        let serializedResult;
-                                        try {
-                                            serializedResult = JSON.stringify(result);
-                                        } catch (serializeError) {
-                                            console.error("Failed to serialize Promise result:", serializeError);
-                                            // 创建一个简单的可以序列化的对象
-                                            serializedResult = JSON.stringify({
-                                                error: "Failed to serialize result",
-                                                message: String(serializeError),
-                                                result: String(result).substring(0, 1000)
-                                            });
-                                        }
-                                        NativeInterface.setResult(serializedResult);
-                                        console.log("Result set from Promise resolution");
-                                    } catch (completionError) {
-                                        console.error("Error during async completion:", completionError);
-                                        NativeInterface.setError("Async completion error: " + completionError.message);
-                                    }
-                                } else {
-                                    console.log("Promise resolved, but execution was already completed");
-                                }
-                            })
-                            .catch(error => {
-                                clearTimeout(asyncTimeout);
-                                console.error("Async Promise rejected:", error);
-                                if (!_hasCompleted) {
-                                    try {
-                                        _hasCompleted = true;
-                                        // 安全地序列化结果
-                                        let serializedResult;
-                                        try {
-                                            serializedResult = JSON.stringify(error);
-                                        } catch (serializeError) {
-                                            console.error("Failed to serialize Promise error:", serializeError);
-                                            serializedResult = JSON.stringify({
-                                                error: "Failed to serialize error",
-                                                message: String(error),
-                                                result: String(error).substring(0, 1000)
-                                            });
-                                        }
-                                        NativeInterface.setError(serializedResult);
-                                        console.log("Error set from Promise rejection");
-                                    } catch (errorHandlingError) {
-                                        console.error("Error during async error handling:", errorHandlingError);
-                                    }
-                                }
-                            });
-                        return true; // Signal that we're handling it asynchronously
-                    }
-                    return false; // Not a promise
-                }
-                
                 // 确保指定的函数存在 - 先查找exports，再查找module.exports，最后查找全局
                 let functionResult = null;
                 let functionFound = false;
@@ -670,7 +710,7 @@ class JsEngine(private val context: Context) {
                     // 处理函数返回结果，特别是异步Promise
                     if (!__handleAsync(functionResult)) {
                         // 如果是同步结果且没有调用complete()，使用该结果
-                        if (!_hasCompleted) {
+                        if (!window._hasCompleted) {
                             NativeInterface.setResult(JSON.stringify(functionResult));
                         }
                     }
@@ -700,11 +740,11 @@ class JsEngine(private val context: Context) {
             } catch (error) {
                 NativeInterface.setError("Script error: " + error.message);
             }
-        """
+        """.trimIndent()
         
         // 在主线程中执行脚本
         ContextCompat.getMainExecutor(context).execute {
-            webView?.evaluateJavascript(wrappedScript) { result ->
+            webView?.evaluateJavascript(executionScript) { result ->
                 Log.d(TAG, "Script function execution completed with: $result")
             }
         }
@@ -723,7 +763,7 @@ class JsEngine(private val context: Context) {
                             Log.d(TAG, "Pre-timeout warning triggered")
                             ContextCompat.getMainExecutor(context).execute {
                                 webView?.evaluateJavascript("""
-                                    if (typeof complete === 'function' && !_hasCompleted) {
+                                    if (typeof complete === 'function' && !window._hasCompleted) {
                                         console.log("Script execution approaching timeout");
                                         // 不强制完成，只记录警告
                                     }
@@ -748,7 +788,7 @@ class JsEngine(private val context: Context) {
             Log.e(TAG, "Script execution timed out or failed: ${e.message}", e)
             // 确保WebView的JavaScript不再继续执行
             ContextCompat.getMainExecutor(context).execute {
-                webView?.evaluateJavascript("_hasCompleted = true; clearTimeout(_safetyTimeout);", null)
+                webView?.evaluateJavascript("window._hasCompleted = true; clearTimeout(window._safetyTimeout);", null)
             }
             "Error: ${e.message}"
         }

@@ -25,6 +25,12 @@
  * 
  * // Chain operations
  * await ui.find({className: 'EditText'}).setText('username');
+ * 
+ * // Display UI hierarchy in Kotlin format
+ * console.log(ui.toTreeString());
+ * 
+ * // Get complete formatted page info (application, activity and UI elements)
+ * console.log(ui.toFormattedString());
  * ```
  */
 class UINode {
@@ -536,6 +542,81 @@ class UINode {
     // ===== Utility Methods =====
 
     /**
+     * Check if this node should be included in the tree representation
+     * Based on the Kotlin shouldKeepNode() implementation
+     * @private
+     * @return {boolean} True if node should be kept
+     */
+    _shouldKeepNode() {
+        // Key element types to always include
+        const keyElements = [
+            'Button', 'TextView', 'EditText',
+            'ScrollView', 'Switch', 'ImageView'
+        ];
+
+        // Keep conditions: key element types or has content or clickable
+        const isKeyElement = this.className && keyElements.includes(this.className);
+        const hasContent = Boolean(this.text) || Boolean(this.contentDesc);
+
+        // Check if any children should be kept
+        const hasKeepableChildren = this.children.some(child => child._shouldKeepNode());
+
+        return isKeyElement || hasContent || this.isClickable || hasKeepableChildren;
+    }
+
+    /**
+     * Get a tree representation of this node and its descendants in Kotlin format
+     * @param {string} [indent=""] - Indentation string for formatting
+     * @return {string} Tree representation matching the Kotlin implementation
+     */
+    toTreeString(indent = "") {
+        if (!this._shouldKeepNode()) return "";
+
+        let result = "";
+
+        // Node identifier with clickable indicator
+        result += indent;
+        result += this.isClickable ? "▶ " : "◢ ";
+
+        // Class name
+        if (this.className) {
+            result += `[${this.className}] `;
+        }
+
+        // Text content (maximum 30 characters)
+        if (this.text) {
+            const displayText = this.text.length > 30
+                ? this.text.substring(0, 27) + "..."
+                : this.text;
+            result += `T: "${displayText}" `;
+        }
+
+        // Content description
+        if (this.contentDesc) {
+            result += `D: "${this.contentDesc}" `;
+        }
+
+        // Resource ID
+        if (this.resourceId) {
+            result += `ID: ${this.resourceId} `;
+        }
+
+        // Bounds
+        if (this.bounds) {
+            result += `⮞ ${this.bounds}`;
+        }
+
+        result += "\n";
+
+        // Process children recursively
+        for (const child of this.children) {
+            result += child.toTreeString(`${indent}  `);
+        }
+
+        return result;
+    }
+
+    /**
      * Convert to string representation
      * @return {string} String representation
      */
@@ -601,7 +682,18 @@ class UINode {
      * @return {UINode} UINode wrapping the page elements
      */
     static fromPageInfo(pageInfo) {
-        return new UINode(pageInfo.uiElements);
+        const node = new UINode(pageInfo.uiElements);
+
+        // Add formatted string method to mimic Kotlin's UIPageResultData toString()
+        node.toFormattedString = function () {
+            return `Current Application: ${pageInfo.packageName}
+Current Activity: ${pageInfo.activityName}
+
+UI Elements:
+${this.toTreeString()}`;
+        };
+
+        return node;
     }
 
     /**

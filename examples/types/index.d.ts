@@ -298,6 +298,7 @@ interface SimplifiedUINode {
     children: SimplifiedUINode[];
     toString(): string;
     toTreeString(indent?: string): string;
+    shouldKeepNode?(): boolean;
 }
 
 /**
@@ -1158,6 +1159,20 @@ declare class UINode {
      * @param indent - Indentation string for formatting
      */
     toTree(indent?: string): string;
+
+    /**
+     * Get a tree representation of this node and its descendants in Kotlin format
+     * with filtering for relevant nodes only
+     * @param indent - Indentation string for formatting
+     */
+    toTreeString(indent?: string): string;
+
+    /**
+     * Get a formatted string representation of the page info including
+     * application package name, activity name, and UI hierarchy in tree format
+     * (Only available on nodes created via fromPageInfo())
+     */
+    toFormattedString?(): string;
 
     /**
      * Check if this node and another are the same
