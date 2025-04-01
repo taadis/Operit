@@ -9,7 +9,7 @@ METADATA
     tools: [
         {
             name: reply
-            description: 在当前聊天窗口输入消息并发送。一般情况下，用户想要ai帮忙发送消息时，需要ai自己去生成回复的消息，如果不确定发送的内容，请不要调用工具。
+            description: 在当前聊天窗口输入消息并发送。一般情况下，用户想要ai帮忙发送消息时，需要ai自己去生成回复的消息，如果不确定发送的内容，请不要调用工具。只要是停留在聊天界面，就可以直接调用这个。
             parameters: [
                 {
                     name: message
@@ -355,7 +355,7 @@ async function wrap_data(func, params, successMessage, failMessage, additionalMe
 }
 exports.main = main;
 exports.reply = async (params) => await wrap_bool(reply, params, "发送成功", "发送失败");
-exports.find_user = async (params) => await wrap_bool(find_user, params, "查找成功", "查找失败，停留在查找页面", (await UINode.getCurrentPage()).toFormattedString());
-exports.find_and_reply = async (params) => await wrap_bool(find_and_reply, params, "发送成功", "发送失败，停留在查找页面", (await UINode.getCurrentPage()).toFormattedString());
+exports.find_user = async (params) => await wrap_bool(find_user, params, "查找成功", "查找失败，停留在界面", (await UINode.getCurrentPage()).toFormattedString());
+exports.find_and_reply = async (params) => await wrap_bool(find_and_reply, params, "发送成功", "发送失败，停留在界面", (await UINode.getCurrentPage()).toFormattedString());
 exports.get_history = async (params) => await wrap_data(get_history, params, "获取历史消息成功", "获取历史消息失败");
 exports.find_and_get_history = async (params) => await wrap_data(find_and_get_history, params, "获取历史消息成功", "获取历史消息失败");
