@@ -10,6 +10,9 @@ import androidx.core.content.FileProvider
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.util.concurrent.atomic.AtomicReference
+import android.os.Handler
+import android.os.Looper
 
 /**
  * 用于管理内置Termux应用的安装
@@ -19,94 +22,98 @@ class TermuxInstaller {
         private const val TAG = "TermuxInstaller"
         private const val TERMUX_APK_FILENAME = "termux.apk"
         private const val TERMUX_PACKAGE_NAME = "com.termux"
+        private const val CACHE_EXPIRY_MS = 30000 // 30秒缓存
         
-        // 添加监听器列表，用于通知状态变更
+        // 状态变更监听器
         private val stateChangeListeners = mutableListOf<() -> Unit>()
+        private val mainHandler = Handler(Looper.getMainLooper())
         
         /**
          * 添加状态变更监听器
          */
         fun addStateChangeListener(listener: () -> Unit) {
-            stateChangeListeners.add(listener)
+            synchronized(stateChangeListeners) {
+                if (!stateChangeListeners.contains(listener)) {
+                    stateChangeListeners.add(listener)
+                }
+            }
         }
         
         /**
          * 移除状态变更监听器
          */
         fun removeStateChangeListener(listener: () -> Unit) {
-            stateChangeListeners.remove(listener)
-        }
-        
-        /**
-         * 通知所有监听器状态已变更
-         */
-        private fun notifyStateChanged() {
-            stateChangeListeners.forEach { it() }
-        }
-        
-        /**
-         * 检查Termux是否已安装
-         * @param context Android上下文
-         * @return 是否已安装Termux
-         */
-        fun isTermuxInstalled(context: Context): Boolean {
-            try {
-                // 方法1: 使用PackageManager直接查询
-                val packageInfo = context.packageManager.getPackageInfo(TERMUX_PACKAGE_NAME, 0)
-                Log.d(TAG, "Termux is installed (detected via PackageManager)")
-                return true
-            } catch (e: PackageManager.NameNotFoundException) {
-                // 方法2: 尝试通过Intent查询
-                try {
-                    val intent = Intent(Intent.ACTION_MAIN)
-                    intent.addCategory(Intent.CATEGORY_LAUNCHER)
-                    intent.setPackage(TERMUX_PACKAGE_NAME)
-                    val resolveInfos = context.packageManager.queryIntentActivities(intent, 0)
-                    val isInstalled = resolveInfos.size > 0
-                    if (isInstalled) {
-                        Log.d(TAG, "Termux is installed (detected via Intent)")
-                        return true
-                    }
-                } catch (e2: Exception) {
-                    Log.e(TAG, "Error checking via Intent: ${e2.message}")
-                }
-                
-                // 方法3: 检查Termux应用目录是否存在
-                try {
-                    val termuxDataDir = File("/data/data/$TERMUX_PACKAGE_NAME")
-                    if (termuxDataDir.exists()) {
-                        Log.d(TAG, "Termux is installed (detected via data directory)")
-                        return true
-                    }
-                } catch (e3: Exception) {
-                    Log.e(TAG, "Error checking via file system: ${e3.message}")
-                }
-                
-                Log.d(TAG, "Termux is not installed (all detection methods failed)")
-                return false
-            } catch (e: Exception) {
-                Log.e(TAG, "Unexpected error checking Termux installation: ${e.message}")
-                return false
+            synchronized(stateChangeListeners) {
+                stateChangeListeners.remove(listener)
             }
         }
         
         /**
-         * 从assets目录复制Termux APK到应用私有目录
-         * @param context Android上下文
-         * @return 返回目标APK文件对象，如果失败则返回null
+         * 通知状态变化
          */
-        fun extractApkFromAssets(context: Context): File? {
+        private fun notifyStateChanged() {
+            mainHandler.post {
+                synchronized(stateChangeListeners) {
+                    stateChangeListeners.forEach { it.invoke() }
+                }
+            }
+        }
+        
+        // 缓存Termux安装状态
+        private data class TermuxInstallStatus(
+            val isInstalled: Boolean,
+            val lastCheckTime: Long
+        )
+        
+        private val termuxInstallStatusCache = AtomicReference<TermuxInstallStatus?>(null)
+        
+        /**
+         * 重置安装状态缓存
+         */
+        fun resetInstallCache() {
+            termuxInstallStatusCache.set(null)
+            notifyStateChanged()
+        }
+        
+        /**
+         * 检查Termux是否已安装
+         */
+        fun isTermuxInstalled(context: Context): Boolean {
+            val currentTime = System.currentTimeMillis()
+            val cachedStatus = termuxInstallStatusCache.get()
+            
+            // 使用缓存的安装状态（如果有效）
+            if (cachedStatus != null && (currentTime - cachedStatus.lastCheckTime) < CACHE_EXPIRY_MS) {
+                return cachedStatus.isInstalled
+            }
+            
+            // 如果缓存失效，执行实际检查
+            val isInstalled = try {
+                context.packageManager.getPackageInfo(TERMUX_PACKAGE_NAME, 0)
+                true
+            } catch (e: PackageManager.NameNotFoundException) {
+                false
+            }
+            
+            // 更新缓存
+            val oldStatus = termuxInstallStatusCache.getAndSet(TermuxInstallStatus(isInstalled, currentTime))
+            if (oldStatus?.isInstalled != isInstalled) {
+                notifyStateChanged()
+            }
+            
+            return isInstalled
+        }
+        
+        /**
+         * 从assets目录复制Termux APK到应用私有目录
+         */
+        private fun extractApkFromAssets(context: Context): File? {
             val apkFile = File(context.cacheDir, TERMUX_APK_FILENAME)
             
             try {
                 context.assets.open(TERMUX_APK_FILENAME).use { inputStream ->
                     FileOutputStream(apkFile).use { outputStream ->
-                        val buffer = ByteArray(4 * 1024)
-                        var read: Int
-                        while (inputStream.read(buffer).also { read = it } != -1) {
-                            outputStream.write(buffer, 0, read)
-                        }
-                        outputStream.flush()
+                        inputStream.copyTo(outputStream)
                     }
                 }
                 return apkFile
@@ -117,25 +124,12 @@ class TermuxInstaller {
         }
         
         /**
-         * 检查应用私有目录中是否存在提取的APK文件
-         * @param context Android上下文
-         * @return 是否存在APK文件
-         */
-        fun isApkExtracted(context: Context): Boolean {
-            val apkFile = File(context.cacheDir, TERMUX_APK_FILENAME)
-            return apkFile.exists() && apkFile.length() > 0
-        }
-        
-        /**
          * 安装内置的Termux APK
-         * @param context Android上下文
-         * @return 是否成功启动安装界面
          */
         fun installBundledTermux(context: Context): Boolean {
             // 检查是否已经安装了Termux
             if (isTermuxInstalled(context)) {
-                Log.d(TAG, "Termux is already installed")
-                return false
+                return true // 已安装则直接返回成功
             }
             
             try {
@@ -160,31 +154,11 @@ class TermuxInstaller {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }
-                    
-                    // 添加安装完成后的回调
-                    putExtra(Intent.EXTRA_RETURN_RESULT, true)
                 }
                 
                 // 启动安装界面
                 context.startActivity(installIntent)
-                
-                // 安装过程中定期检查安装状态
-                Thread {
-                    var installed = false
-                    for (i in 1..30) { // 最多等待30秒
-                        Thread.sleep(1000)
-                        if (isTermuxInstalled(context)) {
-                            installed = true
-                            Log.d(TAG, "Termux installation confirmed after $i seconds")
-                            break
-                        }
-                    }
-                    
-                    if (installed) {
-                        // 通知所有监听器状态已变更
-                        notifyStateChanged()
-                    }
-                }.start()
+                resetInstallCache() // 立即重置缓存
                 
                 return true
             } catch (e: Exception) {
@@ -195,13 +169,16 @@ class TermuxInstaller {
         
         /**
          * 打开Termux应用
-         * @param context Android上下文
-         * @return 是否成功打开Termux应用
          */
         fun openTermux(context: Context): Boolean {
+            if (!isTermuxInstalled(context)) {
+                return false
+            }
+            
             return try {
                 val intent = context.packageManager.getLaunchIntentForPackage(TERMUX_PACKAGE_NAME)
                 if (intent != null) {
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     context.startActivity(intent)
                     true
                 } else {

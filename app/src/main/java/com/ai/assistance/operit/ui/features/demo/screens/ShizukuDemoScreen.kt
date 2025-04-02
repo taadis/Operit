@@ -281,16 +281,6 @@ fun ShizukuDemoScreen() {
                 isTermuxInstalled = isTermuxInstalled,
                 showWizard = showTermuxWizard,
                 onToggleWizard = { showTermuxWizard = it },
-                onInstallFromStore = {
-                    try {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=com.termux"))
-                        context.startActivity(intent)
-                    } catch (e: Exception) {
-                        // 如果没有安装应用市场，打开浏览器
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.termux"))
-                        context.startActivity(intent)
-                    }
-                },
                 onInstallBundled = {
                     try {
                         // 从assets目录提取Termux APK并安装
@@ -1207,7 +1197,6 @@ fun TermuxWizardCard(
     isTermuxInstalled: Boolean,
     showWizard: Boolean,
     onToggleWizard: (Boolean) -> Unit,
-    onInstallFromStore: () -> Unit,
     onInstallBundled: () -> Unit,
     onOpenTermux: () -> Unit
 ) {
@@ -1274,15 +1263,6 @@ fun TermuxWizardCard(
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
-                    
-                    OutlinedButton(
-                        onClick = onInstallFromStore,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 8.dp)
-                    ) {
-                        Text("从应用商店安装")
-                    }
                     
                     OutlinedButton(
                         onClick = onInstallBundled,
