@@ -23,4 +23,21 @@
 ## 版本信息
 
 - 目前内置版本: 见 `shizuku_version.txt` 文件
-- 最后更新时间: <!-- 更新时添加日期 --> 
+- 最后更新时间: <!-- 更新时添加日期 -->
+
+## Bundled Applications
+
+This folder contains bundled applications that can be installed directly from the app:
+
+1. **shizuku.apk** - Shizuku app for privileged API access without root
+   * Version: See shizuku_version.txt
+   * Used for advanced system operations
+
+2. **termux.apk** - Termux terminal emulator 
+   * Provides a Linux command-line environment
+   * Used by the Terminal feature in the app
+
+## Assets Folders
+
+- **js/** - JavaScript files and shell scripts for various features
+- **packages/** - Additional package files for the app 

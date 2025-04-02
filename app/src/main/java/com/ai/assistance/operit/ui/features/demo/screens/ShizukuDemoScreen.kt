@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Environment
 import android.os.PowerManager
 import android.provider.Settings
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
@@ -23,11 +24,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.core.content.FileProvider
 import com.ai.assistance.operit.AdbCommandExecutor
 import com.ai.assistance.operit.ShizukuInstaller
+import com.ai.assistance.operit.TermuxAuthorizer
+import com.ai.assistance.operit.TermuxCommandExecutor
+import com.ai.assistance.operit.TermuxInstaller
 import com.ai.assistance.operit.data.UIHierarchyManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.io.File
+import java.io.FileOutputStream
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+private const val TAG = "ShizukuDemoScreen"
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -44,6 +55,10 @@ fun ShizukuDemoScreen() {
     var isShizukuRunning by remember { mutableStateOf(AdbCommandExecutor.isShizukuServiceRunning()) }
     var hasShizukuPermission by remember { mutableStateOf(AdbCommandExecutor.hasShizukuPermission()) }
     
+    // Termux状态
+    var isTermuxInstalled by remember { mutableStateOf(false) }
+    var isTermuxAuthorized by remember { mutableStateOf(false) }
+    
     var hasStoragePermission by remember { mutableStateOf(false) }
     var hasOverlayPermission by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
     var hasBatteryOptimizationExemption by remember { mutableStateOf(false) }
@@ -57,8 +72,14 @@ fun ShizukuDemoScreen() {
     // ADB命令执行功能的显示状态
     var showAdbCommandExecutor by remember { mutableStateOf(false) }
     
+    // Termux命令执行功能的显示状态
+    var showTermuxCommandExecutor by remember { mutableStateOf(false) }
+    
     // Shizuku向导状态
     var showShizukuWizard by remember { mutableStateOf(false) }
+    
+    // Termux向导状态
+    var showTermuxWizard by remember { mutableStateOf(false) }
     
     // 预定义的示例命令
     val sampleCommands = listOf(
@@ -70,6 +91,18 @@ fun ShizukuDemoScreen() {
         "dumpsys activity activities" to "查看活动的Activity",
         "service list" to "列出系统服务",
         "wm size" to "查看屏幕分辨率"
+    )
+    
+    // 预定义的Termux示例命令
+    val termuxSampleCommands = listOf(
+        "echo 'Hello Termux'" to "打印Hello Termux",
+        "ls -la" to "列出文件和目录",
+        "whoami" to "显示当前用户",
+        "pkg update" to "更新包管理器",
+        "pkg install python" to "安装Python",
+        "termux-info" to "显示Termux信息",
+        "termux-notification -t '测试通知' -c '这是一条测试通知'" to "发送通知",
+        "termux-clipboard-get" to "获取剪贴板内容"
     )
     
     // 预加载字符串资源
@@ -84,6 +117,14 @@ fun ShizukuDemoScreen() {
         isShizukuInstalled = AdbCommandExecutor.isShizukuInstalled(context)
         isShizukuRunning = AdbCommandExecutor.isShizukuServiceRunning()
         hasShizukuPermission = AdbCommandExecutor.hasShizukuPermission()
+        
+        // 检查Termux是否安装
+        isTermuxInstalled = TermuxInstaller.isTermuxInstalled(context)
+        
+        // 检查Termux是否授权
+        scope.launch {
+            isTermuxAuthorized = TermuxAuthorizer.isTermuxAuthorized(context)
+        }
         
         // 检查存储权限
         hasStoragePermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -106,17 +147,25 @@ fun ShizukuDemoScreen() {
         val sdkVersion = Build.VERSION.SDK_INT
         println("SDK Version: $sdkVersion, Storage: $hasStoragePermission, Overlay: $hasOverlayPermission, " +
                 "Battery: $hasBatteryOptimizationExemption, A11y: $hasAccessibilityServiceEnabled, " +
-                "Shizuku: [Installed: $isShizukuInstalled, Running: $isShizukuRunning, HasPermission: $hasShizukuPermission]")
+                "Shizuku: [Installed: $isShizukuInstalled, Running: $isShizukuRunning, HasPermission: $hasShizukuPermission], " +
+                "Termux: [Installed: $isTermuxInstalled]")
     }
     
     // 注册状态变更监听器
     DisposableEffect(Unit) {
-        val listener: () -> Unit = {
+        val shizukuListener: () -> Unit = {
             refreshStatus()
         }
-        AdbCommandExecutor.addStateChangeListener(listener)
+        AdbCommandExecutor.addStateChangeListener(shizukuListener)
+        
+        val termuxListener: () -> Unit = {
+            refreshStatus()
+        }
+        TermuxInstaller.addStateChangeListener(termuxListener)
+        
         onDispose {
-            AdbCommandExecutor.removeStateChangeListener(listener)
+            AdbCommandExecutor.removeStateChangeListener(shizukuListener)
+            TermuxInstaller.removeStateChangeListener(termuxListener)
         }
     }
     
@@ -219,6 +268,82 @@ fun ShizukuDemoScreen() {
                             Toast.makeText(context, "Shizuku权限请求被拒绝", Toast.LENGTH_SHORT).show()
                         }
                         refreshStatus()
+                    }
+                }
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+        
+        // Termux向导卡片 - 如果Termux未安装则显示
+        if (!isTermuxInstalled) {
+            TermuxWizardCard(
+                isTermuxInstalled = isTermuxInstalled,
+                showWizard = showTermuxWizard,
+                onToggleWizard = { showTermuxWizard = it },
+                onInstallFromStore = {
+                    try {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=com.termux"))
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        // 如果没有安装应用市场，打开浏览器
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.termux"))
+                        context.startActivity(intent)
+                    }
+                },
+                onInstallBundled = {
+                    try {
+                        // 从assets目录提取Termux APK并安装
+                        val apkFile = File(context.cacheDir, "termux.apk")
+                        
+                        context.assets.open("termux.apk").use { inputStream ->
+                            FileOutputStream(apkFile).use { outputStream ->
+                                val buffer = ByteArray(4 * 1024)
+                                var read: Int
+                                while (inputStream.read(buffer).also { read = it } != -1) {
+                                    outputStream.write(buffer, 0, read)
+                                }
+                                outputStream.flush()
+                            }
+                        }
+                        
+                        // 生成APK的URI，考虑文件提供者权限
+                        val apkUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                            FileProvider.getUriForFile(
+                                context,
+                                "${context.packageName}.fileprovider",
+                                apkFile
+                            )
+                        } else {
+                            Uri.fromFile(apkFile)
+                        }
+                        
+                        // 创建安装意图
+                        val installIntent = Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(apkUri, "application/vnd.android.package-archive")
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                        }
+                        
+                        // 启动安装界面
+                        context.startActivity(installIntent)
+                        Toast.makeText(context, "正在安装内置的Termux，请授予安装权限", Toast.LENGTH_LONG).show()
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "安装内置Termux失败，请尝试从应用商店安装", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                onOpenTermux = {
+                    try {
+                        val intent = context.packageManager.getLaunchIntentForPackage("com.termux")
+                        if (intent != null) {
+                            context.startActivity(intent)
+                        } else {
+                            Toast.makeText(context, "无法找到Termux应用", Toast.LENGTH_SHORT).show()
+                        }
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "无法启动Termux应用", Toast.LENGTH_SHORT).show()
                     }
                 }
             )
@@ -365,6 +490,62 @@ fun ShizukuDemoScreen() {
                     )
                 }
                 
+                // Termux状态 - 长按时显示Termux命令执行器
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .combinedClickable(
+                            onClick = {
+                                // 短按时如果Termux未安装，则显示向导
+                                if (!isTermuxInstalled) {
+                                    showTermuxWizard = !showTermuxWizard
+                                } else {
+                                    // 如果已安装，尝试打开Termux
+                                    try {
+                                        val intent = context.packageManager.getLaunchIntentForPackage("com.termux")
+                                        if (intent != null) {
+                                            context.startActivity(intent)
+                                        } else {
+                                            Toast.makeText(context, "无法打开Termux应用", Toast.LENGTH_SHORT).show()
+                                        }
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "无法启动Termux应用", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
+                            onLongClick = {
+                                // 长按时切换Termux命令执行器的显示状态
+                                showTermuxCommandExecutor = !showTermuxCommandExecutor
+                            }
+                        ),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Termux终端",
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    
+                    val termuxStatusText = when {
+                        !isTermuxInstalled -> "未安装"
+                        !isTermuxAuthorized -> "未授权"
+                        else -> "已启用"
+                    }
+                    
+                    val termuxStatusColor = when {
+                        !isTermuxInstalled -> MaterialTheme.colorScheme.error
+                        !isTermuxAuthorized -> MaterialTheme.colorScheme.error
+                        else -> MaterialTheme.colorScheme.primary
+                    }
+                    
+                    Text(
+                        text = termuxStatusText,
+                        color = termuxStatusColor,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                
                 // 显示错误消息（如果有）
                 permissionErrorMessage?.let {
                     Spacer(modifier = Modifier.height(4.dp))
@@ -378,8 +559,8 @@ fun ShizukuDemoScreen() {
         }
         
         // 显示长按提示
-            Text(
-            text = "提示：点击Shizuku服务可查看设置向导，长按可显示ADB命令执行器",
+        Text(
+            text = "提示：点击权限状态可设置权限，长按Shizuku服务可显示ADB命令执行器，长按Termux终端可显示Termux命令执行器",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 8.dp)
@@ -398,107 +579,107 @@ fun ShizukuDemoScreen() {
                     Text(
                         text = "ADB命令执行器",
                         style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp)
-            )
-            
-            // 命令输入
-            OutlinedTextField(
-                value = commandText,
-                onValueChange = { commandText = it },
-                label = { Text("输入ADB命令") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp)
-            )
-            
-            // 示例命令按钮
-            OutlinedButton(
-                onClick = { showSampleCommands = !showSampleCommands },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp)
-            ) {
-                Text(if (showSampleCommands) "隐藏示例命令" else "显示示例命令")
-            }
-            
-            // 示例命令列表
-            if (showSampleCommands) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 8.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
                     )
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp)
+                    
+                    // 命令输入
+                    OutlinedTextField(
+                        value = commandText,
+                        onValueChange = { commandText = it },
+                        label = { Text("输入ADB命令") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                    )
+                    
+                    // 示例命令按钮
+                    OutlinedButton(
+                        onClick = { showSampleCommands = !showSampleCommands },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
                     ) {
-                        Text("选择一个示例命令:", style = MaterialTheme.typography.titleSmall)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        sampleCommands.forEach { (command, description) ->
-                            OutlinedButton(
-                                onClick = { commandText = command },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp)
+                        Text(if (showSampleCommands) "隐藏示例命令" else "显示示例命令")
+                    }
+                    
+                    // 示例命令列表
+                    if (showSampleCommands) {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp)
                             ) {
-                                Column(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalAlignment = Alignment.Start
-                                ) {
-                                    Text(description, style = MaterialTheme.typography.bodyMedium)
-                                    Text(command, style = MaterialTheme.typography.bodySmall)
+                                Text("选择一个示例命令:", style = MaterialTheme.typography.titleSmall)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                
+                                sampleCommands.forEach { (command, description) ->
+                                    OutlinedButton(
+                                        onClick = { commandText = command },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp)
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalAlignment = Alignment.Start
+                                        ) {
+                                            Text(description, style = MaterialTheme.typography.bodyMedium)
+                                            Text(command, style = MaterialTheme.typography.bodySmall)
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
-                }
-            }
-            
-            // 执行按钮
-            Button(
-                onClick = {
-                    if (commandText.isNotBlank()) {
-                        scope.launch {
-                            resultText = "执行中..."
-                            val result = AdbCommandExecutor.executeAdbCommand(commandText)
-                            resultText = if (result.success) {
-                                "命令执行成功:\n${result.stdout}"
-                            } else {
-                                "命令执行失败 (退出码: ${result.exitCode}):\n${result.stderr}"
+                    
+                    // 执行按钮
+                    Button(
+                        onClick = {
+                            if (commandText.isNotBlank()) {
+                                scope.launch {
+                                    resultText = "执行中..."
+                                    val result = AdbCommandExecutor.executeAdbCommand(commandText)
+                                    resultText = if (result.success) {
+                                        "命令执行成功:\n${result.stdout}"
+                                    } else {
+                                        "命令执行失败 (退出码: ${result.exitCode}):\n${result.stderr}"
+                                    }
+                                }
                             }
+                        },
+                        enabled = commandText.isNotBlank(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 16.dp)
+                    ) {
+                        Text("执行命令")
+                    }
+                    
+                    // 结果显示
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp)
+                        ) {
+                            Text(
+                                text = resultText,
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
                     }
-                },
-                enabled = commandText.isNotBlank(),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp)
-            ) {
-                Text("执行命令")
-            }
-            
-            // 结果显示
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp)
-                ) {
-                    Text(
-                        text = resultText,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
                 }
             }
         } else if (showAdbCommandExecutor) {
@@ -515,6 +696,251 @@ fun ShizukuDemoScreen() {
                         "请授予Shizuku权限" 
                     else 
                         "无法使用ADB命令功能",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.padding(16.dp),
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+        
+        // Termux命令执行器 - 只在用户长按Termux状态时显示
+        if (showTermuxCommandExecutor && isTermuxInstalled) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Text(
+                        text = "Termux命令执行器",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                    )
+                    
+                    // 自动授权按钮 - 如果Termux未授权
+                    if (!isTermuxAuthorized) {
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    resultText = "正在授权Termux..."
+                                    val authorized = TermuxAuthorizer.authorizeTermux(context)
+                                    if (authorized) {
+                                        resultText = "Termux授权成功！"
+                                        isTermuxAuthorized = true
+                                    } else {
+                                        resultText = "Termux授权失败，请检查Shizuku权限和应用权限"
+                                    }
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp)
+                        ) {
+                            Text("自动授权Termux (需要Shizuku)")
+                        }
+                    }
+                    
+                    // 命令输入
+                    OutlinedTextField(
+                        value = commandText,
+                        onValueChange = { commandText = it },
+                        label = { Text("输入Termux命令") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                    )
+                    
+                    // 示例命令按钮
+                    OutlinedButton(
+                        onClick = { showSampleCommands = !showSampleCommands },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                    ) {
+                        Text(if (showSampleCommands) "隐藏示例命令" else "显示示例命令")
+                    }
+                    
+                    // 示例命令列表
+                    if (showSampleCommands) {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp)
+                            ) {
+                                Text("选择一个示例命令:", style = MaterialTheme.typography.titleSmall)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                
+                                termuxSampleCommands.forEach { (command, description) ->
+                                    OutlinedButton(
+                                        onClick = { commandText = command },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp)
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalAlignment = Alignment.Start
+                                        ) {
+                                            Text(description, style = MaterialTheme.typography.bodyMedium)
+                                            Text(command, style = MaterialTheme.typography.bodySmall)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // 打开Termux执行按钮
+                    Button(
+                        onClick = {
+                            resultText = "执行中..."
+                            scope.launch {
+                                try {
+                                    // 检查Termux是否授权
+                                    if (!TermuxAuthorizer.isTermuxAuthorized(context)) {
+                                        // 尝试请求权限
+                                        val permissionGranted = TermuxAuthorizer.requestRunCommandPermission(context)
+                                        if (!permissionGranted) {
+                                            resultText = "无法执行命令：Termux未授权或未正确配置。请确保:\n" +
+                                                    "1. Termux已安装\n" +
+                                                    "2. 已在Termux中设置allow-external-apps=true\n" +
+                                                    "3. 应用已声明并获得com.termux.permission.RUN_COMMAND权限"
+                                            Toast.makeText(context, "无法执行命令：Termux未授权", Toast.LENGTH_LONG).show()
+                                            return@launch
+                                        }
+                                    }
+                                    
+                                    // 更新状态文本
+                                    resultText = "命令 '${commandText}' 已发送到Termux执行，等待结果..."
+                                    
+                                    // 使用带回调的executeCommand方法获取实际执行结果
+                                    TermuxCommandExecutor.executeCommand(
+                                        context = context,
+                                        command = commandText,
+                                        autoAuthorize = true,
+                                        background = false, // 显示UI执行
+                                        resultCallback = { result ->
+                                            // 在主线程中更新UI
+                                            scope.launch(Dispatchers.Main) {
+                                                if (result.success) {
+                                                    resultText = "命令执行成功，退出码: ${result.exitCode}\n" +
+                                                                "输出:\n${result.stdout}"
+                                                } else {
+                                                    resultText = "命令执行失败，退出码: ${result.exitCode}\n" +
+                                                                "错误:\n${result.stderr}"
+                                                    Toast.makeText(context, "命令执行失败: ${result.stderr.take(50)}${if(result.stderr.length > 50) "..." else ""}", Toast.LENGTH_LONG).show()
+                                                }
+                                            }
+                                        }
+                                    )
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "执行命令时出错: ${e.message}", e)
+                                    resultText = "执行命令时出错: ${e.message}"
+                                    Toast.makeText(context, "执行命令失败: ${e.message}", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("打开Termux执行")
+                    }
+                
+                    Spacer(modifier = Modifier.width(8.dp))
+                
+                    // 后台执行按钮
+                    Button(
+                        onClick = {
+                            resultText = "执行中..."
+                            scope.launch {
+                                try {
+                                    // 检查Termux是否授权
+                                    if (!TermuxAuthorizer.isTermuxAuthorized(context)) {
+                                        // 尝试请求权限
+                                        val permissionGranted = TermuxAuthorizer.requestRunCommandPermission(context)
+                                        if (!permissionGranted) {
+                                            resultText = "无法执行命令：Termux未授权或未正确配置。请确保:\n" +
+                                                    "1. Termux已安装\n" +
+                                                    "2. 已在Termux中设置allow-external-apps=true\n" +
+                                                    "3. 应用已声明并获得com.termux.permission.RUN_COMMAND权限"
+                                            Toast.makeText(context, "无法执行命令：Termux未授权", Toast.LENGTH_LONG).show()
+                                            return@launch
+                                        }
+                                    }
+                                    
+                                    // 更新状态文本
+                                    resultText = "命令 '${commandText}' 已在后台发送到Termux执行，等待结果..."
+                                    
+                                    // 使用带回调的executeCommand方法获取实际执行结果
+                                    TermuxCommandExecutor.executeCommand(
+                                        context = context,
+                                        command = commandText,
+                                        autoAuthorize = true,
+                                        background = true, // 后台执行
+                                        resultCallback = { result ->
+                                            // 在主线程中更新UI
+                                            scope.launch(Dispatchers.Main) {
+                                                if (result.success) {
+                                                    resultText = "命令执行成功，退出码: ${result.exitCode}\n" +
+                                                                "输出:\n${result.stdout}"
+                                                } else {
+                                                    resultText = "命令执行失败，退出码: ${result.exitCode}\n" +
+                                                                "错误:\n${result.stderr}"
+                                                    Toast.makeText(context, "命令执行失败: ${result.stderr.take(50)}${if(result.stderr.length > 50) "..." else ""}", Toast.LENGTH_LONG).show()
+                                                }
+                                            }
+                                        }
+                                    )
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "后台执行命令时出错: ${e.message}", e)
+                                    resultText = "后台执行命令时出错: ${e.message}"
+                                    Toast.makeText(context, "后台执行命令失败: ${e.message}", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("后台执行")
+                    }
+                    
+                    // 结果显示
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(180.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp)
+                        ) {
+                            Text(
+                                text = resultText,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                }
+            }
+        } else if (showTermuxCommandExecutor && !isTermuxInstalled) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer
+                )
+            ) {
+                Text(
+                    text = "请先安装Termux应用",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onErrorContainer,
                     modifier = Modifier.padding(16.dp),
@@ -774,4 +1200,112 @@ fun PermissionStatusItem(
             style = MaterialTheme.typography.bodyMedium
         )
     }
-} 
+}
+
+@Composable
+fun TermuxWizardCard(
+    isTermuxInstalled: Boolean,
+    showWizard: Boolean,
+    onToggleWizard: (Boolean) -> Unit,
+    onInstallFromStore: () -> Unit,
+    onInstallBundled: () -> Unit,
+    onOpenTermux: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            // 向导标题与折叠/展开按钮
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Termux 设置向导", 
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+                
+                OutlinedButton(
+                    onClick = { onToggleWizard(!showWizard) },
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                ) {
+                    Text(if (showWizard) "收起" else "展开")
+                }
+            }
+            
+            // 显示当前进度
+            LinearProgressIndicator(
+                progress = if (!isTermuxInstalled) 0f else 1f,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+            )
+            
+            // 当前状态文字
+            val statusText = if (!isTermuxInstalled) 
+                "步骤1：安装 Termux 应用" 
+            else 
+                "Termux 已完全设置"
+            
+            Text(
+                text = statusText,
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            
+            // 详细设置内容，仅在展开时显示
+            if (showWizard) {
+                if (!isTermuxInstalled) {
+                    // 第一步：安装Termux
+                    Text(
+                        "Termux是一个功能强大的终端模拟器，通过它您可以使用各种命令行工具。我们需要先安装这个应用。",
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    
+                    OutlinedButton(
+                        onClick = onInstallFromStore,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                    ) {
+                        Text("从应用商店安装")
+                    }
+                    
+                    OutlinedButton(
+                        onClick = onInstallBundled,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("安装内置版本")
+                    }
+                } else {
+                    // Termux已完全设置
+                    Text(
+                        "恭喜！Termux已安装，您可以点击下方按钮打开Termux应用，或者使用终端页面执行命令。",
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    
+                    OutlinedButton(
+                        onClick = onOpenTermux,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("打开Termux应用")
+                    }
+                }
+            }
+        }
+    }
+}

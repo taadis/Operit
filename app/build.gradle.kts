@@ -62,6 +62,13 @@ dependencies {
     // HJSON dependency for human-friendly JSON parsing
     implementation("org.hjson:hjson:3.0.0")
 
+    // FFmpeg dependency for media processing
+    implementation("com.arthenica:ffmpeg-kit-full:6.0-2")
+
+    // Archive/compression libraries
+    implementation("org.apache.commons:commons-compress:1.24.0")
+    implementation("com.github.junrar:junrar:7.5.5")
+
     // Compose dependencies - use BOM for version consistency
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)

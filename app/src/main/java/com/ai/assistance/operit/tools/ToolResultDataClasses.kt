@@ -545,3 +545,173 @@ data class FindFilesResultData(
         return sb.toString()
     }
 }
+
+/**
+ * FFmpeg处理结果数据
+ */
+@Serializable
+data class FFmpegResultData(
+    val command: String,
+    val returnCode: Int,
+    val output: String,
+    val duration: Long,
+    val outputFile: String? = null,
+    val mediaInfo: MediaInfo? = null
+) : ToolResultData() {
+    @Serializable
+    data class MediaInfo(
+        val format: String,
+        val duration: String,
+        val bitrate: String,
+        val videoStreams: List<StreamInfo>,
+        val audioStreams: List<StreamInfo>
+    )
+    
+    @Serializable
+    data class StreamInfo(
+        val index: Int,
+        val codecType: String,
+        val codecName: String,
+        val resolution: String? = null,
+        val frameRate: String? = null,
+        val sampleRate: String? = null,
+        val channels: Int? = null
+    )
+    
+    override fun toString(): String {
+        val sb = StringBuilder()
+        sb.appendLine("FFmpeg执行结果:")
+        sb.appendLine("命令: $command")
+        sb.appendLine("返回码: $returnCode")
+        sb.appendLine("执行时间: ${duration}ms")
+        
+        outputFile?.let { sb.appendLine("输出文件: $it") }
+        
+        mediaInfo?.let { info ->
+            sb.appendLine("\n媒体信息:")
+            sb.appendLine("格式: ${info.format}")
+            sb.appendLine("时长: ${info.duration}")
+            sb.appendLine("比特率: ${info.bitrate}")
+            
+            if (info.videoStreams.isNotEmpty()) {
+                sb.appendLine("\n视频流:")
+                info.videoStreams.forEach { stream ->
+                    sb.appendLine("  索引: ${stream.index}")
+                    sb.appendLine("  编解码器: ${stream.codecName}")
+                    stream.resolution?.let { sb.appendLine("  分辨率: $it") }
+                    stream.frameRate?.let { sb.appendLine("  帧率: $it") }
+                    sb.appendLine()
+                }
+            }
+            
+            if (info.audioStreams.isNotEmpty()) {
+                sb.appendLine("\n音频流:")
+                info.audioStreams.forEach { stream ->
+                    sb.appendLine("  索引: ${stream.index}")
+                    sb.appendLine("  编解码器: ${stream.codecName}")
+                    stream.sampleRate?.let { sb.appendLine("  采样率: $it") }
+                    stream.channels?.let { sb.appendLine("  声道数: $it") }
+                    sb.appendLine()
+                }
+            }
+        }
+        
+        sb.appendLine("\n输出日志:")
+        sb.append(output)
+        
+        return sb.toString()
+    }
+}
+
+/**
+ * 文件转换结果数据
+ */
+@Serializable
+data class FileConversionResultData(
+    val sourcePath: String,
+    val targetPath: String,
+    val sourceFormat: String,
+    val targetFormat: String,
+    val conversionType: String,  // "document", "image", "audio", "video", "archive"
+    val quality: String? = null,
+    val fileSize: Long = 0,      // Size of the output file in bytes
+    val duration: Long = 0,      // Time taken for conversion in ms
+    val metadata: Map<String, String> = emptyMap()  // Any additional metadata about the conversion
+) : ToolResultData() {
+    override fun toString(): String {
+        val sb = StringBuilder()
+        sb.appendLine("文件转换结果:")
+        sb.appendLine("源文件: $sourcePath")
+        sb.appendLine("目标文件: $targetPath")
+        sb.appendLine("格式转换: .$sourceFormat → .$targetFormat")
+        sb.appendLine("转换类型: $conversionType")
+        
+        quality?.let { sb.appendLine("质量设置: $it") }
+        
+        if (fileSize > 0) {
+            val sizeInKB = fileSize / 1024.0
+            val sizeInMB = sizeInKB / 1024.0
+            
+            val sizeStr = when {
+                sizeInMB >= 1.0 -> String.format("%.2f MB", sizeInMB)
+                sizeInKB >= 1.0 -> String.format("%.2f KB", sizeInKB)
+                else -> "$fileSize bytes"
+            }
+            sb.appendLine("文件大小: $sizeStr")
+        }
+        
+        if (duration > 0) {
+            sb.appendLine("处理时间: ${duration}ms")
+        }
+        
+        if (metadata.isNotEmpty()) {
+            sb.appendLine("\n元数据:")
+            metadata.forEach { (key, value) ->
+                sb.appendLine("  $key: $value")
+            }
+        }
+        
+        return sb.toString()
+    }
+}
+
+/**
+ * 文件格式转换支持数据
+ */
+@Serializable
+data class FileFormatConversionsResultData(
+    val formatType: String? = null, // null means all formats
+    val conversions: Map<String, List<String>>, // source format -> list of target formats
+    val fileTypes: Map<String, List<String>> = emptyMap() // category -> list of formats
+) : ToolResultData() {
+    override fun toString(): String {
+        val sb = StringBuilder()
+        
+        if (formatType != null) {
+            sb.appendLine("支持的$formatType 格式转换:")
+            
+            // Only show conversions for the specified format type
+            val formatsForType = fileTypes[formatType] ?: emptyList()
+            formatsForType.forEach { sourceFormat ->
+                val targetFormats = conversions[sourceFormat]
+                if (targetFormats != null && targetFormats.isNotEmpty()) {
+                    sb.appendLine(".$sourceFormat → ${targetFormats.joinToString(", ") { ".$it" }}")
+                }
+            }
+        } else {
+            sb.appendLine("所有支持的格式转换:")
+            conversions.forEach { (sourceFormat, targetFormats) ->
+                sb.appendLine(".$sourceFormat → ${targetFormats.joinToString(", ") { ".$it" }}")
+            }
+            
+            if (fileTypes.isNotEmpty()) {
+                sb.appendLine("\n按类型分组:")
+                fileTypes.forEach { (type, formats) ->
+                    sb.appendLine("$type: ${formats.joinToString(", ") { ".$it" }}")
+                }
+            }
+        }
+        
+        return sb.toString()
+    }
+}

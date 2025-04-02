@@ -669,4 +669,74 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
                 }
             }
         )
+        
+        // FFmpeg工具 - 执行通用FFmpeg命令
+        handler.registerTool(
+            name = "ffmpeg_execute", 
+            category = ToolCategory.FILE_WRITE,
+            dangerCheck = { true }, // 总是危险操作，因为可能会修改文件
+            descriptionGenerator = { tool ->
+                val command = tool.parameters.find { it.name == "command" }?.value ?: ""
+                "执行FFmpeg命令: $command"
+            },
+            executor = { tool ->
+                val ffmpegTool = FFmpegToolExecutor(context)
+                ffmpegTool.invoke(tool)
+            }
+        )
+        
+        // FFmpeg信息工具 - 获取FFmpeg信息
+        handler.registerTool(
+            name = "ffmpeg_info", 
+            category = ToolCategory.FILE_READ,
+            descriptionGenerator = { _ -> "获取FFmpeg信息" },
+            executor = { tool ->
+                val ffmpegInfoTool = FFmpegInfoToolExecutor()
+                ffmpegInfoTool.invoke(tool)
+            }
+        )
+        
+        // FFmpeg视频转换工具 - 简化的视频转换接口
+        handler.registerTool(
+            name = "ffmpeg_convert", 
+            category = ToolCategory.FILE_WRITE,
+            dangerCheck = { true }, // 总是危险操作，因为会创建新文件
+            descriptionGenerator = { tool ->
+                val inputPath = tool.parameters.find { it.name == "input_path" }?.value ?: ""
+                val outputPath = tool.parameters.find { it.name == "output_path" }?.value ?: ""
+                "转换视频: $inputPath → $outputPath"
+            },
+            executor = { tool ->
+                val ffmpegConvertTool = FFmpegConvertToolExecutor(context)
+                ffmpegConvertTool.invoke(tool)
+            }
+        )
+        
+        // 文件格式转换工具
+        val fileConverterTool = FileConverterToolExecutor(context)
+        
+        // 文件格式转换
+        handler.registerTool(
+            name = "convert_file", 
+            category = ToolCategory.FILE_WRITE,
+            dangerCheck = { true }, // 总是危险操作，因为会创建新文件
+            descriptionGenerator = { tool ->
+                val sourcePath = tool.parameters.find { it.name == "source_path" }?.value ?: ""
+                val targetPath = tool.parameters.find { it.name == "target_path" }?.value ?: ""
+                "转换文件格式: $sourcePath → $targetPath"
+            },
+            executor = { tool ->
+                fileConverterTool.invoke(tool)
+            }
+        )
+        
+        // 获取支持的文件转换格式
+        handler.registerTool(
+            name = "get_supported_conversions", 
+            category = ToolCategory.FILE_READ,
+            descriptionGenerator = { _ -> "获取支持的文件转换格式" },
+            executor = { tool ->
+                fileConverterTool.invoke(tool)
+            }
+        )
     }

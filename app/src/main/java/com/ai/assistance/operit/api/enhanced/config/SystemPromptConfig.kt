@@ -67,6 +67,16 @@ object SystemPromptConfig {
         - open_file: Open a file using the system's default application. Parameters: path (file path)
         - share_file: Share a file with other applications. Parameters: path (file path), title (optional share title, default "Share File")
         - download_file: Download a file from the internet. Parameters: url (file URL), destination (save path)
+        - convert_file: Convert a file from one format to another. Parameters: 
+          • source_path (input file path)
+          • target_path (output file path)
+          • quality (optional: "low"/"medium"/"high"/"lossless", default "medium")
+          • extra_params (optional, parameters listed by file type):
+              ▪ Video: "time=00:01:30" (timestamp for frame extraction), "fps=30" (frame rate)
+              ▪ Image: "scale=800:600" (resize dimensions), "rotate=90" (rotation angle)
+              ▪ Audio: "bitrate=320k" (audio bitrate), "channels=2" (stereo channels)
+              ▪ Archive: "compression=9" (compression level)
+        - get_supported_conversions: List all supported file format conversions. Parameters: format_type (optional, filter by type: "document"/"image"/"audio"/"video"/"archive")
         
         HTTP Tools:
         - fetch_web_page: Retrieve web page content. Parameters: url (web page URL), format (return format, optional: "text" or "html", default "text")
@@ -91,6 +101,17 @@ object SystemPromptConfig {
         - swipe: Simulate a swipe gesture. Parameters: start_x (start X coordinate), start_y (start Y coordinate), end_x (end X coordinate), end_y (end Y coordinate), duration (duration in milliseconds, default 300)
         - combined_operation: Execute a UI operation, wait for a specified time, then return the new UI state. Parameters: operation (operation to execute, e.g., "tap 500 800", "click_element resourceId buttonID [index] [partialMatch]", "click_element bounds [100,200][300,400]", "swipe 500 1000 500 200"), delay_ms (wait time in milliseconds, default 1000)
         - find_element: Find UI elements matching specific criteria without clicking them. Parameters: resourceId (element resource ID, optional), className (element class name, optional), text (element text content, optional), partialMatch (whether to enable partial matching, default false), limit (maximum number of elements to return, default 10)
+        
+        FFmpeg Tools:
+        - ffmpeg_execute: Execute a custom FFmpeg command. Parameters: command (the FFmpeg command to execute)
+        - ffmpeg_info: Get FFmpeg system information including version, build configuration, and supported codecs. No parameters needed.
+        - ffmpeg_convert: Convert video files with simplified parameters. Parameters: 
+          • input_path (source video file path)
+          • output_path (destination video file path)
+          • video_codec (optional, video codec to use)
+          • audio_codec (optional, audio codec to use)
+          • resolution (optional, output resolution, e.g. "1280x720")
+          • bitrate (optional, video bitrate, e.g. "1000k")
         
         UI AUTOMATION ADVICE:
         - Try to use combined_operation for all UI actions because it's more efficient - syntax: combined_operation with "operation=click_element resourceId buttonID" or like "operation=set_input_text hello"

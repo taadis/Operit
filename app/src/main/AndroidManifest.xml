@@ -15,6 +15,9 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE" />
     
+    <!-- Termux permissions -->
+    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
+    
     <!-- 添加后台运行和高耗电权限 -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
@@ -24,6 +27,26 @@
 
     <queries>
         <package android:name="moe.shizuku.privileged.api" />
+        <package android:name="com.termux" />
+        <package android:name="com.termux.api" />
+        <!-- 添加特定Intent过滤，支持Termux命令执行 -->
+        <intent>
+            <action android:name="com.termux.RUN_COMMAND" />
+        </intent>
+        <!-- 添加Termux服务组件查询 -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="termux" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="ssh" />
+        </intent>
+        <!-- 添加通用Intent查询，以便能够发现已安装的应用 -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
     </queries>
 
     <application

@@ -37,6 +37,7 @@ import com.ai.assistance.operit.ui.features.demo.screens.ShizukuDemoScreen
 import com.ai.assistance.operit.ui.features.about.screens.AboutScreen
 import com.ai.assistance.operit.ui.features.packages.screens.PackageManagerScreen
 import com.ai.assistance.operit.ui.features.problems.screens.ProblemLibraryScreen
+import com.ai.assistance.operit.ui.features.terminal.screens.TerminalScreen
 import com.ai.assistance.operit.util.NetworkUtils
 import com.ai.assistance.operit.data.ChatHistoryManager
 import com.ai.assistance.operit.tools.AIToolHandler
@@ -58,6 +59,7 @@ fun OperitApp(
     val navItems = listOf(
         NavItem.AiChat,
         NavItem.ShizukuCommands,
+        NavItem.Terminal,
         NavItem.Settings,
         NavItem.Packages,
         NavItem.ProblemLibrary,
@@ -268,6 +270,7 @@ fun OperitApp(
                             when (selectedItem) {
                                 NavItem.AiChat -> AIChatScreen()
                                 NavItem.ShizukuCommands -> ShizukuDemoScreen()
+                                NavItem.Terminal -> TerminalScreen()
                                 NavItem.Settings -> SettingsScreen(
                                     navigateToToolPermissions = { 
                                         isToolPermissionScreen = true 

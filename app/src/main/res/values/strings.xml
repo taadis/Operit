@@ -10,12 +10,31 @@
     <string name="nav_about">关于</string>
     <string name="nav_packages">包管理</string>
     <string name="nav_problem_library">问题库</string>
+    <string name="nav_terminal">终端</string>
     <string name="menu">菜单</string>
     
     <!-- 用于NavItem类的标识符 -->
     <string name="shizuku_commands">权限授予</string>
     <string name="tool_permissions">工具权限设置</string>
     <string name="about">关于</string>
+    <string name="terminal">终端</string>
+    
+    <!-- Terminal Screen -->
+    <string name="termux_not_installed">Termux 未安装</string>
+    <string name="termux_not_running">Termux 未运行</string>
+    <string name="termux_command">Termux 命令</string>
+    <string name="execute_termux_command">执行命令</string>
+    <string name="termux_result">命令结果</string>
+    
+    <!-- Termux Installation -->
+    <string name="install_termux_title">安装 Termux</string>
+    <string name="install_termux_from_store">从应用商店安装 Termux</string>
+    <string name="install_bundled_termux">安装内置版本</string>
+    <string name="installing_bundled_termux">正在安装内置的Termux，请授予安装权限</string>
+    <string name="install_termux_failed">安装 Termux 失败</string>
+    <string name="open_termux">打开 Termux</string>
+    <string name="termux_setup_guide">Termux 设置向导</string>
+    <string name="termux_wizard_title">Termux 设置向导</string>
     
     <!-- About Screen -->
     <string name="about_title">关于 Operit AI</string>

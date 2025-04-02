@@ -154,6 +154,32 @@ interface FindFilesResultData {
     toString(): string;
 }
 
+/**
+ * File conversion result data
+ */
+interface FileConversionResultData {
+    sourcePath: string;
+    targetPath: string;
+    sourceFormat: string;
+    targetFormat: string;
+    conversionType: string;  // "document", "image", "audio", "video", "archive"
+    quality?: string;
+    fileSize: number;
+    duration: number;
+    metadata: Record<string, string>;
+    toString(): string;
+}
+
+/**
+ * File format conversion support data
+ */
+interface FileFormatConversionsResultData {
+    formatType?: string;
+    conversions: Record<string, string[]>;
+    fileTypes: Record<string, string[]>;
+    toString(): string;
+}
+
 // ============================================================================
 // HTTP and Network Types
 // ============================================================================
@@ -400,6 +426,14 @@ interface UIActionResult extends BaseResult {
     data: UIActionResultData;
 }
 
+interface FileConversionResult extends BaseResult {
+    data: FileConversionResultData;
+}
+
+interface FileFormatConversionsResult extends BaseResult {
+    data: FileFormatConversionsResultData;
+}
+
 /**
  * Generic tool result type
  */
@@ -409,6 +443,7 @@ type ToolResult = StringResult | BooleanResult | NumberResult |
     HttpResponseResult | WebPageResult | WebSearchResult |
     SystemSettingResult | AppOperationResult | AppListResult |
     UIPageResult | UIActionResult | CombinedOperationResult | DeviceInfoResult |
+    FileConversionResult | FileFormatConversionsResult |
     (BaseResult & { data: any });
 
 // ============================================================================
@@ -420,7 +455,8 @@ type ToolResult = StringResult | BooleanResult | NumberResult |
  */
 type FileToolName = 'list_files' | 'read_file' | 'write_file' | 'delete_file' | 'file_exists' |
     'move_file' | 'copy_file' | 'make_directory' | 'find_files' | 'file_info' |
-    'zip_files' | 'unzip_files' | 'open_file' | 'share_file' | 'download_file';
+    'zip_files' | 'unzip_files' | 'open_file' | 'share_file' | 'download_file' |
+    'convert_file' | 'get_supported_conversions';
 
 /**
  * Network tool names
@@ -455,11 +491,125 @@ type ConnectionToolName = 'establish_connection';
  */
 type PackageToolName = 'use_package' | 'query_problem_library';
 
+// ============================================================================
+// FFmpeg Types
+// ============================================================================
+
+/**
+ * FFmpeg codec types
+ */
+type FFmpegVideoCodec =
+    | 'libx264'    // H.264/AVC
+    | 'libx265'    // H.265/HEVC
+    | 'libvpx'     // VP8/VP9
+    | 'libaom'     // AV1
+    | 'mpeg4'      // MPEG-4
+    | 'mjpeg'      // Motion JPEG
+    | 'prores'     // ProRes
+    | 'h264'       // H.264 (alternative)
+    | 'hevc'       // HEVC (alternative)
+    | 'vp8'        // VP8 (alternative)
+    | 'vp9'        // VP9 (alternative)
+    | 'av1';       // AV1 (alternative)
+
+type FFmpegAudioCodec =
+    | 'aac'        // Advanced Audio Coding
+    | 'mp3'        // MPEG Audio Layer III
+    | 'opus'       // Opus
+    | 'vorbis'     // Vorbis
+    | 'flac'       // Free Lossless Audio Codec
+    | 'pcm'        // Pulse Code Modulation
+    | 'wav'        // Waveform Audio File Format
+    | 'ac3'        // Dolby Digital
+    | 'eac3';      // Enhanced AC-3
+
+type FFmpegResolution =
+    | '1280x720'   // HD
+    | '1920x1080'  // Full HD
+    | '3840x2160'  // 4K
+    | '7680x4320'  // 8K
+    | `${number}x${number}`;  // Custom resolution
+
+type FFmpegBitrate =
+    | '500k'       // 500 kbps
+    | '1000k'      // 1000 kbps
+    | '2000k'      // 2000 kbps
+    | '4000k'      // 4000 kbps
+    | '8000k'      // 8000 kbps
+    | `${number}k` // Custom kbps
+    | `${number}M`; // Custom Mbps
+
+/**
+ * FFmpeg stream information
+ * Represents detailed information about a video or audio stream in a media file
+ */
+interface FFmpegStreamInfo {
+    /** Stream index in the media file (0-based) */
+    index: number;
+
+    /** Stream type: "video" or "audio" */
+    type: 'video' | 'audio';
+
+    /** Codec name used for this stream */
+    codec: FFmpegVideoCodec | FFmpegAudioCodec;
+
+    /** Frame rate for video streams (e.g., "30/1", "29.97") */
+    frameRate?: `${number}/${number}` | `${number}`;
+
+    /** Sample rate for audio streams in Hz (e.g., "44100") */
+    sampleRate?: `${number}`;
+
+    /** Number of audio channels (e.g., 2 for stereo) */
+    channels?: 1 | 2 | 4 | 6 | 8;
+
+    /** Returns a formatted string representation of the stream info */
+    toString(): string;
+}
+
+/**
+ * FFmpeg result data
+ * Contains comprehensive information about the FFmpeg operation execution
+ */
+interface FFmpegResultData {
+    /** The complete FFmpeg command that was executed */
+    command: string;
+
+    /** FFmpeg return code (0 indicates success) */
+    returnCode: number;
+
+    /** Complete output from the FFmpeg command execution */
+    output: string;
+
+    /** Execution duration in milliseconds */
+    duration: number;
+
+    /** Array of video stream information */
+    videoStreams: FFmpegStreamInfo[];
+
+    /** Array of audio stream information */
+    audioStreams: FFmpegStreamInfo[];
+
+    /** Returns a formatted string representation of the result */
+    toString(): string;
+}
+
+/**
+ * FFmpeg tool names
+ * Available FFmpeg-related tools in the system
+ */
+type FFmpegToolName =
+    /** Execute custom FFmpeg commands */
+    | 'ffmpeg_execute'
+    /** Get FFmpeg system information */
+    | 'ffmpeg_info'
+    /** Convert video files with simplified parameters */
+    | 'ffmpeg_convert';
+
 /**
  * All tool names
  */
 type ToolName = FileToolName | NetToolName | SystemToolName | UiToolName |
-    CalculatorToolName | ConnectionToolName | PackageToolName | string;
+    CalculatorToolName | ConnectionToolName | PackageToolName | FFmpegToolName | string;
 
 /**
  * Maps tool names to their result data types
@@ -481,6 +631,8 @@ interface ToolResultMap {
     'open_file': FileOperationData;
     'share_file': FileOperationData;
     'download_file': FileOperationData;
+    'convert_file': FileConversionResultData;
+    'get_supported_conversions': FileFormatConversionsResultData;
 
     // Network operations
     'http_request': HttpResponseData;
@@ -514,6 +666,11 @@ interface ToolResultMap {
     // Package operations
     'use_package': string;
     'query_problem_library': string;
+
+    // FFmpeg operations
+    'ffmpeg_execute': FFmpegResultData;
+    'ffmpeg_info': FFmpegResultData;
+    'ffmpeg_convert': FFmpegResultData;
 }
 
 /**
@@ -646,6 +803,27 @@ declare namespace Tools {
          * @param destination - Destination path
          */
         function download(url: string, destination: string): Promise<FileOperationData>;
+
+        /**
+         * Convert a file
+         * @param sourcePath - Source file path
+         * @param targetPath - Target file path
+         * @param options - Conversion options
+         */
+        function convert(sourcePath: string, targetPath: string, options?: {
+            quality?: 'low' | 'medium' | 'high' | 'lossless';
+            video_codec?: FFmpegVideoCodec;
+            audio_codec?: FFmpegAudioCodec;
+            resolution?: FFmpegResolution;
+            bitrate?: FFmpegBitrate;
+            extra_params?: string;
+        }): Promise<FileConversionResultData>;
+
+        /**
+         * Get supported conversions for a file
+         * @param formatType - Optional file type filter (e.g., "image", "audio", "video", "document", "archive")
+         */
+        function getSupportedConversions(formatType?: string): Promise<FileFormatConversionsResultData>;
     }
 
     /**
@@ -852,6 +1030,43 @@ declare namespace Tools {
      * @param expression - Expression to calculate
      */
     function calc(expression: string): Promise<CalculationResultData>;
+
+    /**
+     * FFmpeg operations
+     * Provides tools for video and audio processing using FFmpeg
+     */
+    namespace FFmpeg {
+        /**
+         * Execute a custom FFmpeg command
+         * @param command - The FFmpeg command to execute
+         * @returns Promise resolving to FFmpegResultData containing execution details
+         * @throws Error if the command execution fails
+         */
+        function execute(command: string): Promise<FFmpegResultData>;
+
+        /**
+         * Get FFmpeg system information
+         * @returns Promise resolving to FFmpegResultData containing system information
+         */
+        function info(): Promise<FFmpegResultData>;
+
+        /**
+         * Convert video file with simplified parameters
+         * @param inputPath - Source video file path
+         * @param outputPath - Destination video file path
+         * @param options - Optional conversion parameters
+         */
+        function convert(
+            inputPath: string,
+            outputPath: string,
+            options?: {
+                video_codec?: FFmpegVideoCodec;
+                audio_codec?: FFmpegAudioCodec;
+                resolution?: FFmpegResolution;
+                bitrate?: FFmpegBitrate;
+            }
+        ): Promise<FFmpegResultData>;
+    }
 }
 
 /**
