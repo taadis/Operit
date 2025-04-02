@@ -358,19 +358,19 @@ fun TerminalScreen() {
                                             command = command,
                                             autoAuthorize = true,
                                             background = false, // 显示UI执行
-                                            // resultCallback = { result ->
-                                            //     // 在主线程中更新UI
-                                            //     scope.launch(Dispatchers.Main) {
-                                            //         if (result.success) {
-                                            //             resultText = "命令执行成功，退出码: ${result.exitCode}\n" +
-                                            //                          "输出:\n${result.stdout}"
-                                            //         } else {
-                                            //             resultText = "命令执行失败，退出码: ${result.exitCode}\n" +
-                                            //                          "错误:\n${result.stderr}"
-                                            //             Toast.makeText(context, "命令执行失败: ${result.stderr.take(50)}${if(result.stderr.length > 50) "..." else ""}", Toast.LENGTH_LONG).show()
-                                            //         }
-                                            //     }
-                                            // }
+                                            resultCallback = { result ->
+                                                // 在主线程中更新UI
+                                                scope.launch(Dispatchers.Main) {
+                                                    if (result.success) {
+                                                        resultText = "命令执行成功，退出码: ${result.exitCode}\n" +
+                                                                     "输出:\n${result.stdout}"
+                                                    } else {
+                                                        resultText = "命令执行失败，退出码: ${result.exitCode}\n" +
+                                                                     "错误:\n${result.stderr}"
+                                                        Toast.makeText(context, "命令执行失败: ${result.stderr.take(50)}${if(result.stderr.length > 50) "..." else ""}", Toast.LENGTH_LONG).show()
+                                                    }
+                                                }
+                                            }
                                         )
                                     } catch (e: Exception) {
                                         Log.e(TAG, "执行命令时出错: ${e.message}", e)
