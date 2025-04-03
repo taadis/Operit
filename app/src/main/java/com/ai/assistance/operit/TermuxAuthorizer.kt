@@ -13,6 +13,7 @@ import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicReference
 import android.os.Handler
 import android.os.Looper
+import android.content.pm.PackageManager
 
 /**
  * Termux授权工具类
@@ -23,6 +24,12 @@ class TermuxAuthorizer {
         private const val TERMUX_PACKAGE = "com.termux"
         private const val TERMUX_CONFIG_PATH = "/data/data/com.termux/files/home/.termux/termux.properties"
         private const val CACHE_EXPIRY_MS = 100000 // 100秒
+        
+        // 权限相关常量
+        private const val PERMISSION_POST_NOTIFICATIONS = "android.permission.POST_NOTIFICATIONS"
+        private const val PERMISSION_SYSTEM_ALERT_WINDOW = "android.permission.SYSTEM_ALERT_WINDOW"
+        private const val PERMISSION_REQUEST_INSTALL_PACKAGES = "android.permission.REQUEST_INSTALL_PACKAGES"
+        private const val PERMISSION_TERMUX_RUN_COMMAND = "com.termux.permission.RUN_COMMAND"
         
         // 状态变更监听器
         private val stateChangeListeners = mutableListOf<() -> Unit>()
@@ -63,6 +70,16 @@ class TermuxAuthorizer {
         private data class ConfigStatus(val isConfigured: Boolean, val lastCheckTime: Long)
         private val configCache = AtomicReference<ConfigStatus?>(null)
         
+        // 权限状态缓存
+        private data class PermissionStatus(
+            val notificationEnabled: Boolean,
+            val floatingWindowEnabled: Boolean,
+            val associationEnabled: Boolean,
+            val runCommandEnabled: Boolean,
+            val lastCheckTime: Long
+        )
+        private val permissionCache = AtomicReference<PermissionStatus?>(null)
+        
         /**
          * 检查Termux配置
          */
@@ -74,30 +91,32 @@ class TermuxAuthorizer {
                 return@withContext cached.isConfigured
             }
             
-            // 检查配置文件
-            val dirCheck = AdbCommandExecutor.executeAdbCommand(
-                "run-as com.termux [ -d \"/data/data/com.termux/files/home/.termux\" ] && echo \"exists\""
-            )
+            // 检查.termux目录是否存在
+            val termuxDirExistsCommand = 
+                "run-as com.termux sh -c 'ls -d \"/data/data/com.termux/files/home/.termux\" 2>/dev/null && echo \"exists\"'"
+            val termuxDirExistsResult = AdbCommandExecutor.executeAdbCommand(termuxDirExistsCommand)
             
-            if (!dirCheck.success || !dirCheck.stdout.contains("exists")) {
+            if (!termuxDirExistsResult.success || !termuxDirExistsResult.stdout.contains("exists")) {
                 updateCache(false)
                 return@withContext false
             }
             
-            val fileCheck = AdbCommandExecutor.executeAdbCommand(
-                "run-as com.termux [ -f \"$TERMUX_CONFIG_PATH\" ] && echo \"exists\""
-            )
+            // 检查配置文件是否存在
+            val configExistsCommand = 
+                "run-as com.termux sh -c 'ls \"$TERMUX_CONFIG_PATH\" 2>/dev/null && echo \"exists\"'"
+            val configExistsResult = AdbCommandExecutor.executeAdbCommand(configExistsCommand)
             
-            if (!fileCheck.success || !fileCheck.stdout.contains("exists")) {
+            if (!configExistsResult.success || !configExistsResult.stdout.contains("exists")) {
                 updateCache(false)
                 return@withContext false
             }
             
-            val contentCheck = AdbCommandExecutor.executeAdbCommand(
-                "run-as com.termux cat \"$TERMUX_CONFIG_PATH\""
-            )
+            // 读取配置文件
+            val readConfigCommand = 
+                "run-as com.termux sh -c 'cat \"$TERMUX_CONFIG_PATH\"'"
+            val readConfigResult = AdbCommandExecutor.executeAdbCommand(readConfigCommand)
             
-            val configured = contentCheck.success && contentCheck.stdout.contains("allow-external-apps=true")
+            val configured = readConfigResult.success && readConfigResult.stdout.contains("allow-external-apps=true")
             updateCache(configured)
             return@withContext configured
         }
@@ -113,10 +132,39 @@ class TermuxAuthorizer {
         }
         
         /**
+         * 更新权限缓存
+         */
+        private fun updatePermissionCache(
+            notificationEnabled: Boolean, 
+            floatingWindowEnabled: Boolean,
+            associationEnabled: Boolean,
+            runCommandEnabled: Boolean
+        ) {
+            val currentTime = System.currentTimeMillis()
+            val oldStatus = permissionCache.getAndSet(
+                PermissionStatus(
+                    notificationEnabled, 
+                    floatingWindowEnabled, 
+                    associationEnabled,
+                    runCommandEnabled,
+                    currentTime
+                )
+            )
+            
+            if (oldStatus?.notificationEnabled != notificationEnabled || 
+                oldStatus?.floatingWindowEnabled != floatingWindowEnabled ||
+                oldStatus?.associationEnabled != associationEnabled ||
+                oldStatus?.runCommandEnabled != runCommandEnabled) {
+                notifyStateChanged()
+            }
+        }
+        
+        /**
          * 重置缓存
          */
         private fun resetCache() {
             configCache.set(null)
+            permissionCache.set(null)
             notifyStateChanged()
             TermuxInstaller.resetInstallCache()
         }
@@ -161,12 +209,7 @@ class TermuxAuthorizer {
                 return@withContext true
             }
             
-            // 使用替代方式尝试授权
-            val alternativeResult = configureWithAlternative(context)
-            if (alternativeResult) {
-                notifyStateChanged()
-            }
-            return@withContext alternativeResult
+            return@withContext false
         }
         
         /**
@@ -174,10 +217,15 @@ class TermuxAuthorizer {
          */
         private suspend fun configureWithRunAs(): Boolean = withContext(Dispatchers.IO) {
             try {
-                // 创建目录
-                AdbCommandExecutor.executeAdbCommand(
-                    "run-as com.termux mkdir -p /data/data/com.termux/files/home/.termux"
-                )
+                // 确保目录存在
+                val mkdirCmd = 
+                    "run-as com.termux sh -c 'mkdir -p /data/data/com.termux/files/home/.termux'"
+                val mkdirResult = AdbCommandExecutor.executeAdbCommand(mkdirCmd)
+                
+                if (!mkdirResult.success) {
+                    Log.e(TAG, "创建.termux目录失败: ${mkdirResult.stderr}")
+                    return@withContext false
+                }
                 
                 // 写入配置
                 val success = AdbCommandExecutor.executeAdbCommand(
@@ -195,10 +243,15 @@ class TermuxAuthorizer {
                     }
                 }
                 
-                // 设置权限
-                AdbCommandExecutor.executeAdbCommand(
-                    "run-as com.termux chmod 600 $TERMUX_CONFIG_PATH"
-                )
+                // 设置文件权限
+                val chmodCommand = 
+                    "run-as com.termux sh -c 'chmod 600 $TERMUX_CONFIG_PATH'"
+                val chmodResult = AdbCommandExecutor.executeAdbCommand(chmodCommand)
+                
+                if (!chmodResult.success) {
+                    Log.e(TAG, "设置文件权限失败: ${chmodResult.stderr}")
+                    return@withContext false
+                }
                 
                 // 重启Termux
                 AdbCommandExecutor.executeAdbCommand("am force-stop com.termux")
@@ -215,79 +268,337 @@ class TermuxAuthorizer {
         }
         
         /**
-         * 使用替代方式配置Termux
+         * 检查应用是否有Termux运行命令权限
          */
-        private suspend fun configureWithAlternative(context: Context): Boolean = withContext(Dispatchers.IO) {
+        private suspend fun checkRunCommandPermission(context: Context): Boolean = withContext(Dispatchers.IO) {
+            val packageName = context.packageName
+            
+            // 首先检查清单中是否已声明权限
             try {
-                // 创建外部配置文件
-                val externalDir = context.getExternalFilesDir(null)?.absolutePath 
-                    ?: "/sdcard/Android/data/${context.packageName}/files"
-                val configFile = "$externalDir/termux.properties"
-                
-                // 写入配置
-                AdbCommandExecutor.executeAdbCommand(
-                    "echo 'allow-external-apps=true' > $configFile"
+                val packageInfo = context.packageManager.getPackageInfo(
+                    packageName, 
+                    PackageManager.GET_PERMISSIONS
                 )
-                
-                // 尝试root复制
-                val rootSuccess = AdbCommandExecutor.executeAdbCommand(
-                    "su -c 'mkdir -p /data/data/com.termux/files/home/.termux && " +
-                    "cp $configFile /data/data/com.termux/files/home/.termux/termux.properties && " +
-                    "chmod 600 /data/data/com.termux/files/home/.termux/termux.properties && " +
-                    "chown -R `stat -c %u:%g /data/data/com.termux/files/home` /data/data/com.termux/files/home/.termux'"
-                ).success
-                
-                if (rootSuccess) {
-                    AdbCommandExecutor.executeAdbCommand("am force-stop com.termux")
-                    resetCache()
-                    return@withContext true
+                val declaredPermissions = packageInfo.requestedPermissions ?: emptyArray()
+                if (!declaredPermissions.contains(PERMISSION_TERMUX_RUN_COMMAND)) {
+                    Log.e(TAG, "应用清单中未声明Termux运行命令权限")
+                    return@withContext false
                 }
-                
-                // 提示手动操作
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(
-                        context,
-                        "请手动复制配置文件: $configFile 到 ~/.termux/termux.properties",
-                        Toast.LENGTH_LONG
-                    ).show()
-                    
-                    val dialog = AlertDialog.Builder(context)
-                        .setTitle("需要手动配置")
-                        .setMessage(
-                            "请在Termux中执行:\n\n" +
-                            "1. mkdir -p ~/.termux\n" +
-                            "2. echo 'allow-external-apps=true' > ~/.termux/termux.properties\n" +
-                            "3. 重启Termux"
-                        )
-                        .setPositiveButton("打开Termux") { dialog, _ ->
-                            dialog.dismiss()
-                            TermuxInstaller.openTermux(context)
-                        }
-                        .setNegativeButton("取消") { dialog, _ ->
-                            dialog.dismiss()
-                        }
-                        .create()
-                    
-                    dialog.show()
-                }
-                
-                return@withContext false
             } catch (e: Exception) {
-                Log.e(TAG, "配置失败: ${e.message}")
-                return@withContext false
+                Log.e(TAG, "检查权限声明失败: ${e.message}")
             }
+            
+            // 检查运行命令权限
+            val result = AdbCommandExecutor.executeAdbCommand(
+                "dumpsys package $packageName | grep permission.$PERMISSION_TERMUX_RUN_COMMAND"
+            )
+            
+            return@withContext result.success && result.stdout.contains("granted=true")
         }
         
         /**
          * 请求Termux运行命令权限
          */
         suspend fun requestRunCommandPermission(context: Context): Boolean = withContext(Dispatchers.IO) {
-            // 尝试自动授权
-            val result = authorizeTermux(context)
-            if (result) {
-                notifyStateChanged()
+            // 检查Termux是否已配置
+            if (!authorizeTermux(context)) {
+                return@withContext false
             }
-            return@withContext result
+            
+            // 检查运行命令权限
+            if (checkRunCommandPermission(context)) {
+                return@withContext true
+            }
+            
+            // 尝试授予运行命令权限
+            val packageName = context.packageName
+            
+            // 尝试方法1: 使用pm grant
+            val grantResult = AdbCommandExecutor.executeAdbCommand(
+                "pm grant $packageName $PERMISSION_TERMUX_RUN_COMMAND"
+            )
+            
+            if (grantResult.success) {
+                Log.d(TAG, "通过pm grant授予运行命令权限成功")
+                notifyStateChanged()
+                return@withContext true
+            }
+            
+            // 尝试方法2: 修改Termux的AndroidManifest.xml (需要root)
+            val rootResult = AdbCommandExecutor.executeAdbCommand(
+                "su -c 'mkdir -p /data/data/com.termux/shared_prefs && " +
+                "echo \"<?xml version=\\'1.0\\' encoding=\\'utf-8\\'?><map>" +
+                "<set name=\\\"allowed_apps\\\"><string>$packageName</string></set>" +
+                "</map>\" > /data/data/com.termux/shared_prefs/com.termux.shared_preferences.xml && " +
+                "chmod 660 /data/data/com.termux/shared_prefs/com.termux.shared_preferences.xml && " +
+                "chown `stat -c %u:%g /data/data/com.termux/shared_prefs` /data/data/com.termux/shared_prefs/com.termux.shared_preferences.xml'"
+            )
+            
+            if (rootResult.success) {
+                Log.d(TAG, "通过修改Termux首选项授予运行命令权限成功")
+                // 重启Termux使配置生效
+                AdbCommandExecutor.executeAdbCommand("am force-stop com.termux")
+                notifyStateChanged()
+                return@withContext true
+            }
+            
+            // 尝试方法3: 在应用列表中添加
+            val appTermuxSuccess = grantAppTermuxPermissions(context)
+            if (appTermuxSuccess) {
+                Log.d(TAG, "通过am.allow授予运行命令权限成功")
+                notifyStateChanged()
+                return@withContext true
+            }
+            
+            // 如果所有方法都失败，提示用户手动操作
+            withContext(Dispatchers.Main) {
+                val dialog = AlertDialog.Builder(context)
+                    .setTitle("需要手动授权")
+                    .setMessage(
+                        "无法自动授予Termux运行命令权限，请手动操作:\n\n" +
+                        "1. 打开Termux\n" +
+                        "2. 长按屏幕，选择'更多'\n" +
+                        "3. 选择'设置'\n" +
+                        "4. 启用'允许外部应用访问'"
+                    )
+                    .setPositiveButton("打开Termux") { dialog, _ ->
+                        dialog.dismiss()
+                        TermuxInstaller.openTermux(context)
+                    }
+                    .setNegativeButton("取消") { dialog, _ ->
+                        dialog.dismiss()
+                    }
+                    .create()
+                
+                dialog.show()
+            }
+            
+            return@withContext false
+        }
+        
+        /**
+         * 检查Termux的额外权限状态
+         */
+        suspend fun checkTermuxPermissions(context: Context): Triple<Boolean, Boolean, Boolean> = withContext(Dispatchers.IO) {
+            val currentTime = System.currentTimeMillis()
+            val cached = permissionCache.get()
+            
+            if (cached != null && (currentTime - cached.lastCheckTime) < CACHE_EXPIRY_MS) {
+                return@withContext Triple(
+                    cached.notificationEnabled,
+                    cached.floatingWindowEnabled,
+                    cached.associationEnabled
+                )
+            }
+            
+            // 检查通知权限
+            val notificationEnabled = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val result = AdbCommandExecutor.executeAdbCommand(
+                    "dumpsys package $TERMUX_PACKAGE | grep permission.$PERMISSION_POST_NOTIFICATIONS"
+                )
+                result.success && result.stdout.contains("granted=true")
+            } else {
+                true // 低版本Android默认允许通知
+            }
+            
+            // 检查悬浮窗权限
+            val floatingWindowEnabled = AdbCommandExecutor.executeAdbCommand(
+                "dumpsys package $TERMUX_PACKAGE | grep permission.$PERMISSION_SYSTEM_ALERT_WINDOW"
+            ).let { result ->
+                result.success && result.stdout.contains("granted=true")
+            }
+            
+            // 检查关联启动权限
+            val associationEnabled = AdbCommandExecutor.executeAdbCommand(
+                "dumpsys package $TERMUX_PACKAGE | grep QUERY_ALL_PACKAGES"
+            ).let { result ->
+                result.success && result.stdout.contains("granted=true")
+            }
+            
+            // 检查运行命令权限
+            val runCommandEnabled = checkRunCommandPermission(context)
+            
+            updatePermissionCache(notificationEnabled, floatingWindowEnabled, associationEnabled, runCommandEnabled)
+            return@withContext Triple(notificationEnabled, floatingWindowEnabled, associationEnabled)
+        }
+        
+        
+        /**
+         * 一键授予Termux全部所需权限
+         */
+        suspend fun grantAllTermuxPermissions(context: Context): Boolean = withContext(Dispatchers.IO) {
+            // 授予运行命令权限
+            val runCmdResult = requestRunCommandPermission(context)
+            
+            val success = runCmdResult
+            
+            if (success) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(
+                        context,
+                        "Termux全部权限授权成功",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            } else {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(
+                        context,
+                        "部分权限授权失败，请查看日志或手动设置",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+            
+            return@withContext success
+        }
+        
+        /**
+         * 获取应用包名
+         */
+        fun getAppPackageName(context: Context): String {
+            return context.packageName
+        }
+        
+        /**
+         * 为应用授权Termux相关权限
+         */
+        suspend fun grantAppTermuxPermissions(context: Context): Boolean = withContext(Dispatchers.IO) {
+            val packageName = getAppPackageName(context)
+            
+            if (!TermuxInstaller.isTermuxInstalled(context)) {
+                Toast.makeText(context, "请先安装Termux应用", Toast.LENGTH_SHORT).show()
+                return@withContext false
+            }
+            
+            if (!AdbCommandExecutor.isShizukuServiceRunning() || !AdbCommandExecutor.hasShizukuPermission()) {
+                Toast.makeText(context, "请确保Shizuku已运行并授权", Toast.LENGTH_SHORT).show()
+                return@withContext false
+            }
+            
+            // 先确保Termux已授权
+            val termuxAuthorized = authorizeTermux(context)
+            if (!termuxAuthorized) {
+                return@withContext false
+            }
+            
+            // 添加应用到Termux允许列表
+            try {
+                // 检查AM配置文件是否存在
+                val amAllowPath = "/data/data/com.termux/files/home/.termux/am.allow"
+                val amAllowExistsCommand = 
+                    "run-as com.termux sh -c 'ls \"$amAllowPath\" 2>/dev/null && echo \"exists\"'"
+                val amAllowExistsResult = AdbCommandExecutor.executeAdbCommand(amAllowExistsCommand)
+                
+                if (amAllowExistsResult.success && amAllowExistsResult.stdout.contains("exists")) {
+                    // 检查是否已包含应用包名
+                    val readAmAllowCommand = 
+                        "run-as com.termux sh -c 'cat \"$amAllowPath\"'"
+                    val readAmAllowResult = AdbCommandExecutor.executeAdbCommand(readAmAllowCommand)
+                    
+                    if (readAmAllowResult.success && readAmAllowResult.stdout.contains(packageName)) {
+                        Log.d(TAG, "应用已在Termux允许列表中")
+                        return@withContext true
+                    }
+                    
+                    // 追加包名
+                    val appendResult = AdbCommandExecutor.executeAdbCommand(
+                        "run-as com.termux sh -c \"echo '$packageName' >> $amAllowPath\""
+                    )
+                    
+                    if (!appendResult.success) {
+                        Log.e(TAG, "追加应用到Termux允许列表失败: ${appendResult.stderr}")
+                        return@withContext false
+                    }
+                } else {
+                    // 确保目录存在
+                    val mkdirCmd = 
+                        "run-as com.termux sh -c 'mkdir -p /data/data/com.termux/files/home/.termux'"
+                    try {
+                        val mkdirResult = AdbCommandExecutor.executeAdbCommand(mkdirCmd)
+                        if (mkdirResult.success) {
+                            Log.d(TAG, "成功创建.termux目录")
+                        } else {
+                            Log.e(TAG, "创建.termux目录失败: ${mkdirResult.stderr}")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "创建目录异常: ${e.message}")
+                    }
+                    
+                    // 创建文件并添加包名
+                    val createResult = AdbCommandExecutor.executeAdbCommand(
+                        "run-as com.termux sh -c \"echo '$packageName' > $amAllowPath\""
+                    )
+                    
+                    if (!createResult.success) {
+                        Log.e(TAG, "创建Termux允许列表失败: ${createResult.stderr}")
+                        return@withContext false
+                    }
+                }
+                
+                // 设置文件权限
+                val chmodCommand = 
+                    "run-as com.termux sh -c 'chmod 600 $amAllowPath'"
+                val chmodResult = AdbCommandExecutor.executeAdbCommand(chmodCommand)
+                
+                if (!chmodResult.success) {
+                    Log.e(TAG, "设置文件权限失败: ${chmodResult.stderr}")
+                    return@withContext false
+                }
+                
+                // 重启Termux使配置生效
+                AdbCommandExecutor.executeAdbCommand("am force-stop com.termux")
+                
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(
+                        context,
+                        "已授权应用与Termux关联",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+                
+                return@withContext true
+            } catch (e: Exception) {
+                Log.e(TAG, "应用授权失败: ${e.message}")
+                return@withContext false
+            }
+        }
+        
+        /**
+         * 声明Termux运行命令权限
+         * 需要确保在AndroidManifest.xml中添加相应的<uses-permission>声明
+         */
+        suspend fun ensureTermuxRunCommandPermission(context: Context): Boolean = withContext(Dispatchers.IO) {
+            // 调用完整的授权流程
+            if (requestRunCommandPermission(context)) {
+                return@withContext true
+            }
+            
+            // 如果上述方法都失败，尝试使用intent方式手动授权
+            withContext(Dispatchers.Main) {
+                try {
+                    // 打开Termux应用，引导用户手动授权
+                    val intent = Intent()
+                    intent.setClassName(TERMUX_PACKAGE, "com.termux.app.TermuxActivity")
+                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    context.startActivity(intent)
+                    
+                    Toast.makeText(
+                        context,
+                        "请在Termux中开启'允许外部应用访问'选项",
+                        Toast.LENGTH_LONG
+                    ).show()
+                } catch (e: Exception) {
+                    Log.e(TAG, "打开Termux失败: ${e.message}")
+                    Toast.makeText(
+                        context,
+                        "无法打开Termux，请手动设置",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+            
+            return@withContext false
         }
     }
 }

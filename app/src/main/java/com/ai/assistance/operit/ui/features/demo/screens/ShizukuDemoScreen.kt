@@ -370,6 +370,13 @@ fun ShizukuDemoScreen() {
                 
                 Spacer(modifier = Modifier.height(8.dp))
                 
+                // 系统权限部分
+                Text(
+                    text = "系统权限",
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+                
                 // 存储权限状态
                 PermissionStatusItem(
                     title = "存储权限",
@@ -436,7 +443,16 @@ fun ShizukuDemoScreen() {
                     }
                 )
                 
-                // Shizuku状态 - 长按时显示ADB命令执行器
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // 应用权限部分
+                Text(
+                    text = "应用权限",
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+                
+                // Shizuku状态
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -480,18 +496,31 @@ fun ShizukuDemoScreen() {
                     )
                 }
                 
-                // Termux状态 - 长按时显示Termux命令执行器
+                // Termux状态
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp)
                         .combinedClickable(
                             onClick = {
-                                // 短按时如果Termux未安装，则显示向导
+                                // 短按时处理Termux
                                 if (!isTermuxInstalled) {
+                                    // 如果未安装，显示向导
                                     showTermuxWizard = !showTermuxWizard
+                                } else if (!isTermuxAuthorized) {
+                                    // 如果已安装但未授权，尝试自动授权
+                                    scope.launch {
+                                        Toast.makeText(context, "正在授权Termux...", Toast.LENGTH_SHORT).show()
+                                        val success = TermuxAuthorizer.ensureTermuxRunCommandPermission(context)
+                                        if (success) {
+                                            isTermuxAuthorized = true
+                                            Toast.makeText(context, "成功授权Termux", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "授权Termux失败，请检查Termux设置", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
                                 } else {
-                                    // 如果已安装，尝试打开Termux
+                                    // 如果已安装且已授权，尝试打开Termux
                                     try {
                                         val intent = context.packageManager.getLaunchIntentForPackage("com.termux")
                                         if (intent != null) {
@@ -535,6 +564,88 @@ fun ShizukuDemoScreen() {
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
+                
+                // Termux通知权限
+                PermissionStatusItem(
+                    title = "Termux通知权限",
+                    isGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        context.packageManager.checkPermission(
+                            android.Manifest.permission.POST_NOTIFICATIONS,
+                            "com.termux"
+                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                    } else {
+                        true // 低于Android 13版本不需要通知权限
+                    },
+                    onClick = {
+                        try {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                    data = Uri.parse("package:com.termux")
+                                }
+                                context.startActivity(intent)
+                            } else {
+                                Toast.makeText(context, "通知权限仅Android 13及以上需要", Toast.LENGTH_SHORT).show()
+                            }
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "无法打开Termux通知权限设置", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                )
+                
+                // Termux悬浮窗权限
+                PermissionStatusItem(
+                    title = "Termux悬浮窗权限",
+                    isGranted = try {
+                        if (isTermuxInstalled) {
+                            Settings.canDrawOverlays(context.createPackageContext(
+                                "com.termux", 0
+                            ))
+                        } else {
+                            false
+                        }
+                    } catch (e: Exception) {
+                        false
+                    },
+                    onClick = {
+                        try {
+                            val intent = Intent(
+                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:com.termux")
+                            )
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "无法打开Termux悬浮窗权限设置", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                )
+                
+                // Termux关联启动权限
+                PermissionStatusItem(
+                    title = "Termux关联启动权限",
+                    isGranted = {
+                        try {
+                            val intent = Intent()
+                            intent.setClassName("com.termux", "com.termux.app.TermuxActivity")
+                            val resolveInfo = context.packageManager.resolveActivity(
+                                intent, 
+                                android.content.pm.PackageManager.MATCH_DEFAULT_ONLY
+                            )
+                            resolveInfo != null
+                        } catch (e: Exception) {
+                            false
+                        }
+                    }(),
+                    onClick = {
+                        try {
+                            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                data = Uri.parse("package:com.termux")
+                            }
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "无法打开Termux应用设置", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                )
                 
                 // 显示错误消息（如果有）
                 permissionErrorMessage?.let {
@@ -790,136 +901,10 @@ fun ShizukuDemoScreen() {
                             }
                         }
                     }
-                    
-                    // 打开Termux执行按钮
-                    Button(
-                        onClick = {
-                            resultText = "执行中..."
-                            scope.launch {
-                                try {
-                                    // 检查Termux是否授权
-                                    if (!TermuxAuthorizer.isTermuxAuthorized(context)) {
-                                        // 尝试请求权限
-                                        val permissionGranted = TermuxAuthorizer.requestRunCommandPermission(context)
-                                        if (!permissionGranted) {
-                                            resultText = "无法执行命令：Termux未授权或未正确配置。请确保:\n" +
-                                                    "1. Termux已安装\n" +
-                                                    "2. 已在Termux中设置allow-external-apps=true\n" +
-                                                    "3. 应用已声明并获得com.termux.permission.RUN_COMMAND权限"
-                                            Toast.makeText(context, "无法执行命令：Termux未授权", Toast.LENGTH_LONG).show()
-                                            return@launch
-                                        }
-                                    }
-                                    
-                                    // 更新状态文本
-                                    resultText = "命令 '${commandText}' 已发送到Termux执行，等待结果..."
-                                    
-                                    // 使用带回调的executeCommand方法获取实际执行结果
-                                    TermuxCommandExecutor.executeCommand(
-                                        context = context,
-                                        command = commandText,
-                                        autoAuthorize = true,
-                                        background = false, // 显示UI执行
-                                        resultCallback = { result ->
-                                            // 在主线程中更新UI
-                                            scope.launch(Dispatchers.Main) {
-                                                if (result.success) {
-                                                    resultText = "命令执行成功，退出码: ${result.exitCode}\n" +
-                                                                "输出:\n${result.stdout}"
-                                                } else {
-                                                    resultText = "命令执行失败，退出码: ${result.exitCode}\n" +
-                                                                "错误:\n${result.stderr}"
-                                                    Toast.makeText(context, "命令执行失败: ${result.stderr.take(50)}${if(result.stderr.length > 50) "..." else ""}", Toast.LENGTH_LONG).show()
-                                                }
-                                            }
-                                        }
-                                    )
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "执行命令时出错: ${e.message}", e)
-                                    resultText = "执行命令时出错: ${e.message}"
-                                    Toast.makeText(context, "执行命令失败: ${e.message}", Toast.LENGTH_LONG).show()
-                                }
-                            }
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("打开Termux执行")
-                    }
+
                 
                     Spacer(modifier = Modifier.width(8.dp))
-                
-                    // 后台执行按钮
-                    Button(
-                        onClick = {
-                            resultText = "执行中..."
-                            scope.launch {
-                                try {
-                                    // 检查Termux是否授权
-                                    if (!TermuxAuthorizer.isTermuxAuthorized(context)) {
-                                        // 尝试请求权限
-                                        val permissionGranted = TermuxAuthorizer.requestRunCommandPermission(context)
-                                        if (!permissionGranted) {
-                                            resultText = "无法执行命令：Termux未授权或未正确配置。请确保:\n" +
-                                                    "1. Termux已安装\n" +
-                                                    "2. 已在Termux中设置allow-external-apps=true\n" +
-                                                    "3. 应用已声明并获得com.termux.permission.RUN_COMMAND权限"
-                                            Toast.makeText(context, "无法执行命令：Termux未授权", Toast.LENGTH_LONG).show()
-                                            return@launch
-                                        }
-                                    }
-                                    
-                                    // 更新状态文本
-                                    resultText = "命令 '${commandText}' 已在后台发送到Termux执行，等待结果..."
-                                    
-                                    // 使用带回调的executeCommand方法获取实际执行结果
-                                    TermuxCommandExecutor.executeCommand(
-                                        context = context,
-                                        command = commandText,
-                                        autoAuthorize = true,
-                                        background = true, // 后台执行
-                                        resultCallback = { result ->
-                                            // 在主线程中更新UI
-                                            scope.launch(Dispatchers.Main) {
-                                                if (result.success) {
-                                                    resultText = "命令执行成功，退出码: ${result.exitCode}\n" +
-                                                                "输出:\n${result.stdout}"
-                                                } else {
-                                                    resultText = "命令执行失败，退出码: ${result.exitCode}\n" +
-                                                                "错误:\n${result.stderr}"
-                                                    Toast.makeText(context, "命令执行失败: ${result.stderr.take(50)}${if(result.stderr.length > 50) "..." else ""}", Toast.LENGTH_LONG).show()
-                                                }
-                                            }
-                                        }
-                                    )
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "后台执行命令时出错: ${e.message}", e)
-                                    resultText = "后台执行命令时出错: ${e.message}"
-                                    Toast.makeText(context, "后台执行命令失败: ${e.message}", Toast.LENGTH_LONG).show()
-                                }
-                            }
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("后台执行")
-                    }
-                    
-                    // 结果显示
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(180.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(16.dp)
-                        ) {
-                            Text(
-                                text = resultText,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
+
                 }
             }
         } else if (showTermuxCommandExecutor && !isTermuxInstalled) {
