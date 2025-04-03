@@ -148,6 +148,15 @@ class TerminalSession(
                             // 调试输出
                             Log.d("TerminalSession", "收到错误输出: $error")
                             
+                            // 检查是否是交互式提示特殊标记
+                            if (error.startsWith("INTERACTIVE_PROMPT:")) {
+                                // 直接转发交互式提示消息，不做处理
+                                scope.launch {
+                                    outputFlow.emit(TerminalLine.Output(error))
+                                }
+                                return
+                            }
+                            
                             // 将错误输出按行分割并处理
                             val lines = error.split("\n")
                             for (line in lines) {

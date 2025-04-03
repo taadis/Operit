@@ -45,6 +45,11 @@ class TermuxCommandExecutor {
         private const val INACTIVITY_TIMEOUT = 15000L // 无活动超时时间：15秒
         private var EXECUTION_ID = 1000
         
+        // 正在运行的命令的临时文件映射
+        private val activeCommandFiles = mutableMapOf<Int, String>()
+        // 正在等待用户输入的命令
+        private val waitingForInput = mutableMapOf<Int, CompletableDeferred<String>>()
+        
         /**
          * 命令输出接收器接口
          * 用于接收命令执行过程中的实时输出
@@ -481,6 +486,14 @@ class TermuxCommandExecutor {
                             try {
                                 AdbCommandExecutor.executeAdbCommand("run-as com.termux sh -c 'rm -f \"$tempOutputFile\"'")
                                 Log.d(TAG, "临时文件已通过ADB删除: $tempOutputFile")
+                                
+                                // 尝试清理FIFO管道
+                                val fifoFile = "/data/data/com.termux/files/home/.termux_input_$executionId.fifo"
+                                AdbCommandExecutor.executeAdbCommand("run-as com.termux sh -c 'rm -f \"$fifoFile\" 2>/dev/null'")
+                                
+                                // 清理资源
+                                activeCommandFiles.remove(executionId)
+                                waitingForInput.remove(executionId)
                         } catch (e: Exception) {
                                 Log.e(TAG, "删除临时文件失败: ${e.message}")
                             }
@@ -601,6 +614,9 @@ class TermuxCommandExecutor {
                     // 发送命令
                     context.startService(intent)
                     Log.d(TAG, "已发送命令到Termux: $command, 执行ID: $executionId")
+                    
+                    // 记录此命令的临时文件，以便可以发送输入
+                    activeCommandFiles[executionId] = tempOutputFile
                     
                     // 使用一个额外的标志表示命令是否已完成
                     val commandIsRunning = AtomicBoolean(true)
@@ -739,6 +755,37 @@ class TermuxCommandExecutor {
                                     monitoredResult.success = exitCode == 0
                                     Log.d(TAG, "命令执行完成，退出码: $exitCode, 成功: ${monitoredResult.success}")
                                     commandIsRunning.set(false)
+                                }
+                                
+                                // 检查是否需要用户输入
+                                if (output.contains("Do you want to continue") || 
+                                    output.contains("[Y/n]") || 
+                                    output.contains("[y/N]") ||
+                                    output.contains("(yes/no)") ||
+                                    output.contains("请按回车键继续") ||
+                                    output.contains("Press Enter to continue")) {
+                                    
+                                    Log.d(TAG, "检测到命令等待用户输入")
+                                    
+                                    // 创建一个通知，让用户知道命令需要输入
+                                    Handler(Looper.getMainLooper()).post {
+                                        // 发送带有执行ID和提示信息的特殊消息
+                                        val promptMessage = 
+                                            if (output.contains("[Y/n]")) {
+                                                "确认继续？默认为是 [Y/n]"
+                                            } else if (output.contains("[y/N]")) {
+                                                "确认继续？默认为否 [y/N]"
+                                            } else if (output.contains("(yes/no)")) {
+                                                "确认继续？(yes/no)"
+                                            } else if (output.contains("请按回车键继续") || output.contains("Press Enter to continue")) {
+                                                "按回车键继续"
+                                            } else {
+                                                "请输入响应"
+                                            }
+                                        
+                                        val specialMarker = "INTERACTIVE_PROMPT:ID:$executionId:PROMPT:$promptMessage"
+                                        effectiveOutputReceiver?.onStderr(specialMarker, false)
+                                    }
                                 }
                                 
                                 // 处理获取到的内容
@@ -1017,6 +1064,74 @@ class TermuxCommandExecutor {
                 exitCode = exitCode
             ).also {
                 Log.d(TAG, "最终处理结果: $it")
+            }
+        }
+        
+        /**
+         * 向正在运行的命令发送输入
+         * @param executionId 命令的执行ID
+         * @param input 要发送的输入文本，自动添加换行符
+         * @return 是否成功发送
+         */
+        suspend fun sendInputToCommand(
+            context: Context,
+            executionId: Int, 
+            input: String
+        ): Boolean = withContext(Dispatchers.IO) {
+            try {
+                // 清理输入文本，删除可能导致问题的多余空白字符
+                val cleanInput = input.trim().replace(Regex("\\s+"), "") // 移除所有空白字符
+                Log.d(TAG, "开始向命令 $executionId 发送清理后的输入: '$cleanInput'")
+                
+                if (cleanInput.isEmpty()) {
+                    // 仅发送回车
+                    Log.d(TAG, "输入为空，仅发送回车键")
+                    for (i in 1..3) {
+                        AdbCommandExecutor.executeAdbCommand("input keyevent 66") // KEYCODE_ENTER
+                        delay(200)
+                    }
+                    return@withContext true
+                }
+                
+                // 逐个字符发送输入（最可靠的方法）
+                for (char in cleanInput) {
+                    val charCmd = "input text \"$char\""
+                    Log.d(TAG, "发送单个字符: '$char'")
+                    val result = AdbCommandExecutor.executeAdbCommand(charCmd)
+                    delay(100) // 短暂延迟确保每个字符都被处理
+                }
+                
+                // 发送回车键（多次，确保被接收）
+                delay(300) // 等待文本输入完成
+                for (i in 1..3) { 
+                    Log.d(TAG, "发送回车键 $i/3")
+                    AdbCommandExecutor.executeAdbCommand("input keyevent 66") // KEYCODE_ENTER
+                    delay(200) // 延迟以确保处理
+                }
+                
+                // 额外尝试：直接点击屏幕
+                try {
+                    Log.d(TAG, "尝试点击屏幕确认")
+                    // 尝试点击屏幕下半部分，可能更靠近虚拟键盘的确认按钮
+                    val screenSize = context.resources.displayMetrics
+                    val tapX = screenSize.widthPixels / 2
+                    val tapY = (screenSize.heightPixels * 0.7).toInt() // 70%位置，更靠近底部
+                    
+                    AdbCommandExecutor.executeAdbCommand("input tap $tapX $tapY")
+                    delay(200)
+                    
+                    // 再点一次中间位置
+                    val centerY = screenSize.heightPixels / 2
+                    AdbCommandExecutor.executeAdbCommand("input tap $tapX $centerY")
+                } catch (e: Exception) {
+                    Log.e(TAG, "点击屏幕失败，但这并不影响关键功能: ${e.message}")
+                }
+                
+                Log.d(TAG, "所有输入方法执行完成，输入应已成功发送")
+                return@withContext true
+            } catch (e: Exception) {
+                Log.e(TAG, "发送输入时出错: ${e.message}", e)
+                return@withContext false
             }
         }
     }

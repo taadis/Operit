@@ -17,6 +17,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,8 +32,11 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import com.ai.assistance.operit.TermuxCommandExecutor
 import com.ai.assistance.operit.ui.features.terminal.model.TerminalLine
 import com.ai.assistance.operit.ui.features.terminal.model.TerminalSession
 import com.ai.assistance.operit.ui.features.terminal.model.TerminalSessionManager
@@ -71,6 +75,12 @@ fun TerminalScreen() {
     var inputText by remember { mutableStateOf(TextFieldValue()) }
     val focusRequester = remember { FocusRequester() }
     
+    // 交互式输入对话框状态
+    var showInputDialog by remember { mutableStateOf(false) }
+    var interactivePrompt by remember { mutableStateOf("") }
+    var interactiveInputText by remember { mutableStateOf("") }
+    var currentExecutionId by remember { mutableStateOf(-1) }
+    
     // 对象是否已完成组合
     var isComposed by remember { mutableStateOf(false) }
     
@@ -93,6 +103,46 @@ fun TerminalScreen() {
                 // 忽略可能的异常
             }
         }
+    }
+    
+    // 交互式输入对话框
+    if (showInputDialog) {
+        InteractiveInputDialog(
+            prompt = interactivePrompt,
+            initialInput = interactiveInputText,
+            onDismissRequest = { 
+                showInputDialog = false
+            },
+            onInputSubmit = { input ->
+                showInputDialog = false
+                interactiveInputText = ""
+                
+                // 发送用户输入到正在运行的命令
+                scope.launch {
+                    try {
+                        val success = TermuxCommandExecutor.sendInputToCommand(
+                            context = context,
+                            executionId = currentExecutionId,
+                            input = input
+                        )
+                        
+                        if (success) {
+                            // 添加用户输入到终端历史
+                            sessionManager.getActiveSession()?.let { session ->
+                                session.commandHistory.add(TerminalLine.Input(input, "User Input: "))
+                            }
+                        } else {
+                            // 添加输入发送失败消息
+                            sessionManager.getActiveSession()?.let { session ->
+                                session.commandHistory.add(TerminalLine.Output("[输入发送失败]"))
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "发送用户输入时出错: ${e.message}", e)
+                    }
+                }
+            }
+        )
     }
     
     Surface(
@@ -204,7 +254,11 @@ fun TerminalScreen() {
                                                         // 清空输入并重置命令历史索引
                                                         inputText = TextFieldValue()
                                                         activeSession.resetCommandHistoryIndex()
-                                                    }
+                                                    },
+                                                    setCurrentExecutionId = { id -> currentExecutionId = id },
+                                                    setInteractivePrompt = { prompt -> interactivePrompt = prompt },
+                                                    setInteractiveInputText = { text -> interactiveInputText = text },
+                                                    setShowInputDialog = { show -> showInputDialog = show }
                                                 )
                                             }
                                         }
@@ -228,7 +282,11 @@ fun TerminalScreen() {
                                                 // 清空输入并重置命令历史索引
                                                 inputText = TextFieldValue()
                                                 activeSession.resetCommandHistoryIndex()
-                                            }
+                                            },
+                                            setCurrentExecutionId = { id -> currentExecutionId = id },
+                                            setInteractivePrompt = { prompt -> interactivePrompt = prompt },
+                                            setInteractiveInputText = { text -> interactiveInputText = text },
+                                            setShowInputDialog = { show -> showInputDialog = show }
                                         )
                                     }
                                 }
@@ -277,7 +335,11 @@ private suspend fun handleCommand(
     command: String,
     session: TerminalSession,
     scope: CoroutineScope,
-    onCommandProcessed: () -> Unit
+    onCommandProcessed: () -> Unit,
+    setCurrentExecutionId: (Int) -> Unit,
+    setInteractivePrompt: (String) -> Unit,
+    setInteractiveInputText: (String) -> Unit,
+    setShowInputDialog: (Boolean) -> Unit
 ) {
     // 将命令添加到历史，保存当前提示符
     val currentPrompt = session.getPrompt()
@@ -312,7 +374,40 @@ private suspend fun handleCommand(
                         // 为避免并发修改，使用互斥锁保护
                         historyMutex.withLock {
                             Log.d("TerminalScreen", "收到命令输出: ${output.text}")
-                            session.commandHistory.add(output)
+                            
+                            // 检查是否包含交互式提示标记
+                            if (output.text.startsWith("INTERACTIVE_PROMPT:")) {
+                                // 提取提示信息
+                                val executionId = output.text.substringAfter("ID:").substringBefore(":PROMPT:")
+                                val prompt = output.text.substringAfter(":PROMPT:")
+                                
+                                Log.d("TerminalScreen", "检测到交互式提示: ID=$executionId, 提示=$prompt")
+                                
+                                // 显示交互式输入对话框
+                                session.commandHistory.add(TerminalLine.Output("等待用户输入..."))
+                                
+                                try {
+                                    val id = executionId.toInt()
+                                    setCurrentExecutionId(id)
+                                    setInteractivePrompt(prompt)
+                                    setInteractiveInputText("y") // 默认为 yes
+                                    setShowInputDialog(true)
+                                } catch (e: NumberFormatException) {
+                                    session.commandHistory.add(TerminalLine.Output("[无法解析执行ID: $executionId]"))
+                                }
+                            } else {
+                                // 检查是否可能是交互式提示但未被前面的代码识别
+                                val output_text = output.text.trim()
+                                if (output_text.contains("[Y/n]") || output_text.contains("[y/N]") || 
+                                    output_text.contains("(yes/no)") || output_text.contains("yes/no") ||
+                                    output_text.contains("是否继续") || output_text.contains("Press Enter")) {
+                                    
+                                    Log.d("TerminalScreen", "可能存在未捕获的交互式提示: ${output_text}")
+                                }
+                                
+                                // 普通输出
+                                session.commandHistory.add(output)
+                            }
                         }
                     }
                 }
@@ -423,6 +518,119 @@ private fun SessionTabsRow(
                         contentDescription = "添加新会话",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 交互式输入对话框
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun InteractiveInputDialog(
+    prompt: String,
+    initialInput: String,
+    onDismissRequest: () -> Unit,
+    onInputSubmit: (String) -> Unit
+) {
+    var inputText by remember { mutableStateOf(initialInput) }
+    
+    Dialog(onDismissRequest = onDismissRequest) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surface
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .widthIn(max = 400.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "命令需要输入",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                
+                // 提示文本
+                Text(
+                    text = prompt,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                
+                // 输入框
+                OutlinedTextField(
+                    value = inputText,
+                    onValueChange = { inputText = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(
+                        onDone = { 
+                            // 简化处理，只发送干净的文本
+                            val cleanInput = inputText.trim()
+                            onInputSubmit(cleanInput) 
+                        }
+                    ),
+                    label = { Text("输入响应") },
+                    trailingIcon = {
+                        IconButton(
+                            onClick = { 
+                                // 简化处理，只发送干净的文本
+                                val cleanInput = inputText.trim()
+                                onInputSubmit(cleanInput) 
+                            }
+                        ) {
+                            Icon(Icons.Default.Send, contentDescription = "发送")
+                        }
+                    }
+                )
+                
+                // 按钮行
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    // 快捷按钮 - 简化输入为单个字符，而不是包含换行符
+                    Button(
+                        onClick = { onInputSubmit("y") },
+                        modifier = Modifier.weight(1f).padding(end = 8.dp)
+                    ) {
+                        Text("是 (Y)")
+                    }
+                    
+                    Button(
+                        onClick = { onInputSubmit("n") },
+                        modifier = Modifier.weight(1f).padding(start = 8.dp)
+                    ) {
+                        Text("否 (N)")
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Button(
+                    onClick = { 
+                        // 清理输入文本并发送
+                        val cleanInput = inputText.trim()
+                        onInputSubmit(cleanInput) 
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("发送自定义输入")
+                }
+                
+                TextButton(
+                    onClick = onDismissRequest,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text("取消")
                 }
             }
         }
