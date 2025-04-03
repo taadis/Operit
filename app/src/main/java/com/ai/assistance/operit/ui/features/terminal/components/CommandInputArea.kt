@@ -1,0 +1,401 @@
+package com.ai.assistance.operit.ui.features.terminal.components
+
+import android.content.Context
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.*
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.ai.assistance.operit.ui.features.terminal.model.TerminalLine
+import com.ai.assistance.operit.ui.features.terminal.model.TerminalSession
+import com.ai.assistance.operit.ui.features.terminal.utils.TerminalColors
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+
+/**
+ * 命令输入区域组件
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CommandInputArea(
+    context: Context,
+    session: TerminalSession,
+    inputText: TextFieldValue,
+    onInputTextChange: (TextFieldValue) -> Unit,
+    fontSize: Int,
+    scope: CoroutineScope,
+    focusRequester: FocusRequester,
+    onCommandProcessed: () -> Unit,
+    setCurrentExecutionId: (Int) -> Unit,
+    setInteractivePrompt: (String) -> Unit,
+    setInteractiveInputText: (String) -> Unit,
+    setShowInputDialog: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp))
+            .background(TerminalColors.ParrotBgLight)
+            .padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 分段样式的命令提示符
+        Row {
+            Text(
+                text = "[",
+                color = TerminalColors.ParrotAccent,
+                fontFamily = FontFamily.Monospace,
+                fontSize = fontSize.sp,
+                fontWeight = FontWeight.Bold
+            )
+            
+            // 用户名部分
+            Text(
+                text = if (session.currentUser == "root") "root" else "user",
+                color = if (session.currentUser == "root") TerminalColors.ParrotRed else TerminalColors.ParrotYellow,
+                fontFamily = FontFamily.Monospace,
+                fontSize = fontSize.sp,
+                fontWeight = FontWeight.Bold
+            )
+            
+            
+            Text(
+                text = "]",
+                color = TerminalColors.ParrotAccent,
+                fontFamily = FontFamily.Monospace,
+                fontSize = fontSize.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        
+        // 路径和提示符部分
+        Text(
+            text = " ~ ",
+            color = TerminalColors.ParrotPurple,
+            fontFamily = FontFamily.Monospace,
+            fontSize = fontSize.sp,
+            fontWeight = FontWeight.Bold
+        )
+        
+        // 命令提示符箭头
+        Text(
+            text = "$ ",
+            color = TerminalColors.ParrotAccent,
+            fontFamily = FontFamily.Monospace,
+            fontSize = fontSize.sp,
+            fontWeight = FontWeight.Bold
+        )
+        
+        // 历史命令浏览部分
+        Box {
+            var showHistoryDropdown by remember { mutableStateOf(false) }
+        
+            OutlinedTextField(
+                value = inputText,
+                onValueChange = onInputTextChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester)
+                    .padding(vertical = 0.dp, horizontal = 2.dp)
+                    // 添加向上滑动手势来显示历史命令
+                    .pointerInput(Unit) {
+                        detectDragGestures(
+                            onDragStart = { offset ->
+                                // 如果是向上拖动开始，显示历史命令
+                                if (offset.y < 0) {
+                                    showHistoryDropdown = true
+                                }
+                            },
+                            onDragEnd = {
+                                // 不在这里关闭，让用户点击选择
+                            },
+                            onDragCancel = {
+                                // 不处理
+                            },
+                            onDrag = { change, dragAmount ->
+                                // 不处理
+                            }
+                        )
+                    }
+                    .onKeyEvent { keyEvent ->
+                        // 处理上下方向键浏览命令历史
+                        when {
+                            keyEvent.key == Key.DirectionUp && keyEvent.type == KeyEventType.KeyUp -> {
+                                session.getPreviousCommand()?.let {
+                                    onInputTextChange(TextFieldValue(it))
+                                }
+                                true
+                            }
+                            keyEvent.key == Key.DirectionDown && keyEvent.type == KeyEventType.KeyUp -> {
+                                session.getNextCommand()?.let {
+                                    onInputTextChange(TextFieldValue(it))
+                                }
+                                true
+                            }
+                            keyEvent.key == Key.Enter && keyEvent.type == KeyEventType.KeyUp -> {
+                                val command = inputText.text.trim()
+                                if (command.isNotEmpty()) {
+                                    scope.launch {
+                                        handleCommand(
+                                            context = context,
+                                            command = command,
+                                            session = session,
+                                            scope = scope,
+                                            onCommandProcessed = onCommandProcessed,
+                                            setCurrentExecutionId = setCurrentExecutionId,
+                                            setInteractivePrompt = setInteractivePrompt,
+                                            setInteractiveInputText = setInteractiveInputText,
+                                            setShowInputDialog = setShowInputDialog
+                                        )
+                                    }
+                                }
+                                true
+                            }
+                            else -> false
+                        }
+                    },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        val command = inputText.text.trim()
+                        if (command.isNotEmpty()) {
+                            scope.launch {
+                                handleCommand(
+                                    context = context,
+                                    command = command,
+                                    session = session,
+                                    scope = scope,
+                                    onCommandProcessed = onCommandProcessed,
+                                    setCurrentExecutionId = setCurrentExecutionId,
+                                    setInteractivePrompt = setInteractivePrompt,
+                                    setInteractiveInputText = setInteractiveInputText,
+                                    setShowInputDialog = setShowInputDialog
+                                )
+                            }
+                        }
+                    }
+                ),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = TerminalColors.ParrotGreen,
+                    unfocusedTextColor = TerminalColors.ParrotGreen,
+                    cursorColor = TerminalColors.ParrotAccent,
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent,
+                    focusedContainerColor = TerminalColors.ParrotBgLight,
+                    unfocusedContainerColor = TerminalColors.ParrotBgLight
+                ),
+                textStyle = TextStyle(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = fontSize.sp,
+                    fontWeight = FontWeight.Bold
+                ),
+                singleLine = true,
+                trailingIcon = {
+                    // 添加历史命令按钮，点击后显示历史命令下拉菜单
+                    IconButton(
+                        onClick = { showHistoryDropdown = !showHistoryDropdown }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowUp,
+                            contentDescription = "历史命令",
+                            tint = TerminalColors.ParrotAccent
+                        )
+                    }
+                }
+            )
+            
+            // 历史命令下拉菜单
+            DropdownMenu(
+                expanded = showHistoryDropdown,
+                onDismissRequest = { showHistoryDropdown = false },
+                modifier = Modifier
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                TerminalColors.ParrotBgLight.copy(alpha = 0.95f),
+                                TerminalColors.ParrotBg.copy(alpha = 0.95f)
+                            )
+                        )
+                    )
+                    .border(
+                        width = 1.dp,
+                        color = TerminalColors.ParrotAccent.copy(alpha = 0.3f),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+            ) {
+                // 获取最多10条历史命令
+                val commandHistory = session.getUserInputHistory().takeLast(10).reversed()
+                
+                if (commandHistory.isEmpty()) {
+                    DropdownMenuItem(
+                        text = { 
+                            Text(
+                                "没有历史命令",
+                                color = Color.White.copy(alpha = 0.7f),
+                                fontSize = (fontSize - 2).coerceAtLeast(10).sp
+                            ) 
+                        },
+                        onClick = { showHistoryDropdown = false },
+                        enabled = false
+                    )
+                } else {
+                    // 显示历史命令列表
+                    commandHistory.forEachIndexed { index, command ->
+                        DropdownMenuItem(
+                            text = { 
+                                Text(
+                                    text = command,
+                                    color = TerminalColors.ParrotGreen,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = (fontSize - 1).coerceAtLeast(10).sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            },
+                            onClick = {
+                                onInputTextChange(TextFieldValue(command))
+                                showHistoryDropdown = false
+                            },
+                            leadingIcon = {
+                                Text(
+                                    text = "${commandHistory.size - index}",
+                                    color = TerminalColors.ParrotAccent,
+                                    fontSize = (fontSize - 2).coerceAtLeast(8).sp
+                                )
+                            }
+                        )
+                    }
+                }
+            }
+        }
+        
+        // 添加闪烁光标
+        if (inputText.text.isEmpty()) {
+            BlinkingCursor(fontSize)
+        }
+    }
+}
+
+/**
+ * 处理命令输入
+ */
+private suspend fun handleCommand(
+    context: Context,
+    command: String,
+    session: TerminalSession,
+    scope: CoroutineScope,
+    onCommandProcessed: () -> Unit,
+    setCurrentExecutionId: (Int) -> Unit,
+    setInteractivePrompt: (String) -> Unit,
+    setInteractiveInputText: (String) -> Unit,
+    setShowInputDialog: (Boolean) -> Unit
+) {
+    // 将命令添加到历史，保存当前提示符
+    val currentPrompt = session.getPrompt()
+    session.commandHistory.add(TerminalLine.Input(command, currentPrompt))
+    
+    // 特殊命令处理
+    when (command) {
+        "exit" -> {
+            // 通知用户应该按返回键返回
+            android.widget.Toast.makeText(context, "请按返回键返回上一页", android.widget.Toast.LENGTH_SHORT).show()
+            onCommandProcessed()
+        }
+        else -> {
+            // 立即返回，不阻塞UI
+            onCommandProcessed()
+            
+            // 用于安全修改命令历史的互斥锁
+            val historyMutex = Mutex()
+            
+            // 使用Termux执行命令，返回输出流
+            val outputFlow = session.executeCommand(
+                context = context,
+                command = command,
+                scope = scope
+            )
+            
+            // 收集输出流并更新UI
+            try {
+                outputFlow.collect { output ->
+                    // 使用scope.launch确保在主线程更新UI状态
+                    withContext(Dispatchers.Main) {
+                        // 为避免并发修改，使用互斥锁保护
+                        historyMutex.withLock {
+                            android.util.Log.d("TerminalScreen", "收到命令输出: ${output.text}")
+                            
+                            // 检查是否包含交互式提示标记
+                            if (output.text.startsWith("INTERACTIVE_PROMPT:")) {
+                                // 提取提示信息
+                                val executionId = output.text.substringAfter("ID:").substringBefore(":PROMPT:")
+                                val prompt = output.text.substringAfter(":PROMPT:")
+                                
+                                android.util.Log.d("TerminalScreen", "检测到交互式提示: ID=$executionId, 提示=$prompt")
+                                
+                                // 显示交互式输入对话框
+                                session.commandHistory.add(TerminalLine.Output("等待用户输入..."))
+                                
+                                try {
+                                    val id = executionId.toInt()
+                                    setCurrentExecutionId(id)
+                                    setInteractivePrompt(prompt)
+                                    setInteractiveInputText("y") // 默认为 yes
+                                    setShowInputDialog(true)
+                                } catch (e: NumberFormatException) {
+                                    session.commandHistory.add(TerminalLine.Output("[无法解析执行ID: $executionId]"))
+                                }
+                            } else {
+                                // 检查是否可能是交互式提示但未被前面的代码识别
+                                val output_text = output.text.trim()
+                                if (output_text.contains("[Y/n]") || output_text.contains("[y/N]") || 
+                                    output_text.contains("(yes/no)") || output_text.contains("yes/no") ||
+                                    output_text.contains("是否继续") || output_text.contains("Press Enter")) {
+                                    
+                                    android.util.Log.d("TerminalScreen", "可能存在未捕获的交互式提示: ${output_text}")
+                                }
+                                
+                                // 普通输出
+                                session.commandHistory.add(output)
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                // 处理流收集过程中的异常
+                android.util.Log.e("TerminalScreen", "收集命令输出时出错: ${e.message}", e)
+                withContext(Dispatchers.Main) {
+                    historyMutex.withLock {
+                        session.commandHistory.add(TerminalLine.Output("[输出收集失败: ${e.message}]"))
+                    }
+                }
+            }
+        }
+    }
+} 

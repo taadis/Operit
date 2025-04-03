@@ -6,9 +6,9 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 
 /**
  * 终端会话管理器
- * 管理多个终端会话
+ * 管理多个终端会话，全局通用单例，在应用内切换界面时保持状态
  */
-class TerminalSessionManager {
+object TerminalSessionManager {
     // 所有会话列表
     private val _sessions = mutableStateListOf<TerminalSession>()
     val sessions: SnapshotStateList<TerminalSession> = _sessions
@@ -79,15 +79,8 @@ class TerminalSessionManager {
         session?.let {
             val index = _sessions.indexOf(it)
             if (index != -1) {
-                // 创建新的会话对象，并替换旧的会话
-                val updatedSession = TerminalSession(
-                    id = it.id,
-                    name = newName,
-                    workingDirectory = it.workingDirectory,
-                    commandHistory = it.commandHistory,
-                    commandHistoryIndex = it.commandHistoryIndex
-                )
-                _sessions[index] = updatedSession
+                // 直接修改会话名称
+                it.name = newName
             }
         }
     }

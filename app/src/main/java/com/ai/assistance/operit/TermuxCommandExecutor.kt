@@ -629,8 +629,55 @@ class TermuxCommandExecutor {
                     intent.putExtra("com.termux.RUN_COMMAND_OUTPUT_INTERVAL", 50L)  // 输出更新间隔设置为更短的50毫秒，提高实时性
                     
                     // 发送命令
-                    context.startService(intent)
-                    Log.d(TAG, "已发送命令到Termux: $command, 执行ID: $executionId")
+                    try {
+                        context.startService(intent)
+                        Log.d(TAG, "已发送命令到Termux: $command, 执行ID: $executionId")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "启动Termux服务失败: ${e.message}, 尝试使用ADB强制启动", e)
+                        
+                        // 通过ADB强制启动Termux服务
+                        GlobalScope.launch(Dispatchers.IO) {
+                            try {
+                                // 准备执行的ADB命令
+                                // 1. 确保Termux应用存在
+                                val checkTermuxCmd = "pm path com.termux"
+                                val checkResult = AdbCommandExecutor.executeAdbCommand(checkTermuxCmd)
+                                if (!checkResult.stdout.contains("package:")) {
+                                    Log.e(TAG, "Termux应用不存在，无法通过ADB启动服务")
+                                    effectiveOutputReceiver?.onError("Termux应用不存在，无法通过ADB强制启动服务", -1)
+                                    return@launch
+                                }
+                                
+                                // 2. 尝试通过ADB启动Termux服务
+                                val adbLaunchCmd = "am startservice -n com.termux/com.termux.app.RunCommandService --es com.termux.RUN_COMMAND_PATH /data/data/com.termux/files/usr/bin/bash --esa com.termux.RUN_COMMAND_ARGUMENTS \"-c,$wrappedCommand\" --es com.termux.RUN_COMMAND_WORKDIR /data/data/com.termux/files/home --ez com.termux.RUN_COMMAND_BACKGROUND ${background} --es com.termux.RUN_COMMAND_SESSION_ACTION 0"
+                                
+                                val launchResult = AdbCommandExecutor.executeAdbCommand(adbLaunchCmd)
+                                if (launchResult.success) {
+                                    Log.d(TAG, "通过ADB成功启动Termux服务: ${launchResult.stdout}")
+                                } else {
+                                    Log.e(TAG, "通过ADB启动Termux服务失败: ${launchResult.stderr}")
+                                    effectiveOutputReceiver?.onError("通过ADB启动Termux服务失败: ${launchResult.stderr}", -1)
+                                    
+                                    // 3. 如果服务启动失败，尝试先启动主应用再启动服务
+                                    val startAppCmd = "monkey -p com.termux -c android.intent.category.LAUNCHER 1"
+                                    AdbCommandExecutor.executeAdbCommand(startAppCmd)
+                                    delay(2000) // 等待应用启动
+                                    
+                                    // 再次尝试启动服务
+                                    val retryResult = AdbCommandExecutor.executeAdbCommand(adbLaunchCmd)
+                                    if (!retryResult.success) {
+                                        Log.e(TAG, "二次尝试通过ADB启动Termux服务失败: ${retryResult.stderr}")
+                                        effectiveOutputReceiver?.onError("二次尝试通过ADB启动Termux服务失败", -1)
+                                    } else {
+                                        Log.d(TAG, "二次尝试通过ADB成功启动Termux服务")
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "通过ADB启动Termux服务过程中出错: ${e.message}", e)
+                                effectiveOutputReceiver?.onError("通过ADB启动Termux服务出错: ${e.message}", -1)
+                            }
+                        }
+                    }
                     
                     // 记录此命令的临时文件，以便可以发送输入
                     activeCommandFiles[executionId] = tempOutputFile

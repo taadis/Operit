@@ -22,7 +22,7 @@ import java.util.UUID
  */
 class TerminalSession(
     val id: String = UUID.randomUUID().toString(),
-    val name: String,
+    var name: String,
     var workingDirectory: String = "/data/data/com.termux/files/home",
     val commandHistory: SnapshotStateList<TerminalLine> = mutableStateListOf(),
     var commandHistoryIndex: Int = -1,
@@ -41,8 +41,10 @@ class TerminalSession(
     
     /**
      * 当前用户 (如果使用su命令切换了用户)
+     * 此属性应当只影响当前会话，不影响其他会话
      */
     var currentUser: String? = null
+        private set // 使属性只能从类内部修改
     
     /**
      * 执行命令
@@ -368,8 +370,10 @@ class TerminalSession(
             override fun onComplete(result: CommandResult) {
                 scope.launch {
                     if (result.success) {
-                        // 切换用户成功
+                        // 切换用户成功 - 只修改当前会话的用户状态
                         currentUser = user
+                        // 输出一个特殊的状态变更消息，以便UI可以特殊处理
+                        outputFlow.emit(TerminalLine.Output("USER_SWITCHED:" + user))
                         outputFlow.emit(TerminalLine.Output("Switched to user: $user"))
                     } else {
                         // 切换失败
@@ -426,7 +430,7 @@ class TerminalSession(
         // 如果是切换用户状态，则显示不同的提示符
         return if (currentUser != null) {
             if (currentUser == "root") {
-                "[$currentDir]# "
+                "[$currentUser@$currentDir]# "
             } else {
                 "[$currentUser@$currentDir]$ "
             }
@@ -474,6 +478,13 @@ class TerminalSession(
      */
     fun resetCommandHistoryIndex() {
         commandHistoryIndex = -1
+    }
+    
+    /**
+     * 获取用户输入历史列表
+     */
+    fun getUserInputHistory(): List<String> {
+        return userInputHistory.toList()
     }
 }
 
