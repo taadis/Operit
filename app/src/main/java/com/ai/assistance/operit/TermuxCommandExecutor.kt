@@ -139,7 +139,8 @@ class TermuxCommandExecutor {
             val description: String? = null,
             val stdin: String? = null,
             val user: String? = null,
-            val timeout: Long = DEFAULT_TIMEOUT
+            val timeout: Long = DEFAULT_TIMEOUT,
+            val timeoutAsError: Boolean = false  // 新增，控制超时是否被视为错误
             // 移除streamOutput选项，因为现在总是使用流式输出
         ) {
             override fun equals(other: Any?): Boolean {
@@ -158,6 +159,7 @@ class TermuxCommandExecutor {
                 if (stdin != other.stdin) return false
                 if (user != other.user) return false
                 if (timeout != other.timeout) return false
+                if (timeoutAsError != other.timeoutAsError) return false
 
                 return true
             }
@@ -173,6 +175,7 @@ class TermuxCommandExecutor {
                 result = 31 * result + (stdin?.hashCode() ?: 0)
                 result = 31 * result + (user?.hashCode() ?: 0)
                 result = 31 * result + timeout.hashCode()
+                result = 31 * result + timeoutAsError.hashCode()
                 return result
             }
         }
@@ -267,6 +270,7 @@ class TermuxCommandExecutor {
          * @param background 是否在后台执行命令
          * @param outputReceiver 命令输出接收器，用于接收实时输出
          * @param resultCallback 命令执行结果回调，在不提供outputReceiver时使用
+         * @param options 命令选项，包括超时设置和超时处理模式
          * @return 执行结果 (仅表示命令是否成功发送，不代表实际执行结果)
          */
         suspend fun executeCommandStreaming(
@@ -275,7 +279,8 @@ class TermuxCommandExecutor {
             autoAuthorize: Boolean = true,
             background: Boolean = true,
             outputReceiver: CommandOutputReceiver? = null,
-            resultCallback: ((CommandResult) -> Unit)? = null
+            resultCallback: ((CommandResult) -> Unit)? = null,
+            options: CommandOptions = CommandOptions()
         ): CommandResult = withContext(Dispatchers.IO) {
             try {
                 // 检查ADB权限
@@ -344,55 +349,50 @@ class TermuxCommandExecutor {
                     // 创建一个不断回显的命令，使用stdbuf禁用缓冲
                     val wrappedCommand = """
                         {
-                            # 文件应该已经通过ADB创建，检查文件是否存在
-                            if [ -f "$tempOutputFile" ]; then
-                                echo "DEBUG: Temp file already exists, proceeding" >&2
-                            else
-                                echo "DEBUG: Temp file does not exist yet, waiting..." >&2
-                                # 尝试等待文件
-                                for i in {1..5}; do
-                                    sleep 1
-                                    if [ -f "$tempOutputFile" ]; then
-                                        echo "DEBUG: Temp file now exists after waiting" >&2
-                                        break
-                                    fi
-                                    echo "DEBUG: Still waiting for temp file (attempt ${'$'}i)" >&2
+                            # 创建输入FIFO管道
+                            INPUT_FIFO="/data/data/com.termux/files/home/.termux_input_${executionId}.fifo"
+                            rm -f "${'$'}INPUT_FIFO" 2>/dev/null
+                            mkfifo "${'$'}INPUT_FIFO" 2>/dev/null
+                            chmod 666 "${'$'}INPUT_FIFO" 2>/dev/null
+                            
+                            # 保持FIFO打开状态(防止读取方在没有写入方时退出)
+                            (
+                                while true; do
+                                    sleep 3600 > "${'$'}INPUT_FIFO" 2>/dev/null &
+                                    wait ${'$'}! 2>/dev/null
                                 done
-                                
-                                # 如果还是没有，尝试再次创建
-                                if [ ! -f "$tempOutputFile" ]; then
-                                    echo "DEBUG: File still doesn't exist, trying to create it" >&2
-                                    touch "$tempOutputFile"
-                                    chmod 666 "$tempOutputFile"
-                                fi
+                            ) &
+                            FIFO_KEEPER_PID=${'$'}!
+                            trap "kill ${'$'}FIFO_KEEPER_PID 2>/dev/null; rm -f \"${'$'}INPUT_FIFO\" 2>/dev/null" EXIT
+
+                            # 检查输出文件是否存在
+                            if [ ! -f "$tempOutputFile" ]; then
+                                touch "$tempOutputFile"
+                                chmod 666 "$tempOutputFile"
                             fi
                             
                             # 清空文件内容，重新开始
                             echo "" > "$tempOutputFile"
-                            echo "DEBUG: Prepared temp file for output" >&2
                             
                             # 执行命令并同时将输出重定向到文件
                             {
-                                # 使用最简单的输出重定向，确保可靠
-                                echo "DEBUG: Starting command execution" >&2
                                 {
-                                    # 添加更多输出, 以确保用户能看到命令实际执行情况
-                                    echo "执行命令: $finalCommand"
-                                    echo "执行时间: $(date)"
-                                    echo "---开始执行---"
+                                    # 添加基本输出信息
+                                    echo "Excute Time: $(date)"
                                     
-                                    $finalCommand
+                                    # 从FIFO读取输入并传递给命令
+                                    $finalCommand < "${'$'}INPUT_FIFO"
+                                    CMD_EXIT_CODE=${'$'}?
                                     
-                                    echo "---执行完成---"
-                                    echo "退出代码: ${'$'}?"
-                                    echo "COMMAND_COMPLETE:${'$'}?" >> "$tempOutputFile"
+                                    echo "---Execute Completed---"
+                                    echo "Exit Code: ${'$'}CMD_EXIT_CODE"
+                                    echo "COMMAND_COMPLETE:${'$'}CMD_EXIT_CODE" >> "$tempOutputFile"
                                 } 2>&1 | tee -a "$tempOutputFile"
-                                
-                                echo "DEBUG: Command execution completed" >&2
                             }
                             
-                            # 检查文件内容
-                            echo "DEBUG: Final file size: $(stat -c %s "$tempOutputFile" 2>/dev/null || stat -f %z "$tempOutputFile")" >&2
+                            # 清理FIFO
+                            kill ${'$'}FIFO_KEEPER_PID 2>/dev/null
+                            rm -f "${'$'}INPUT_FIFO" 2>/dev/null
                         }
                     """.trimIndent()
                 
@@ -475,7 +475,7 @@ class TermuxCommandExecutor {
                     
                     // 创建结果处理回调
                     TermuxCommandResultService.registerCallback(executionId) { result ->
-                        Log.d(TAG, "收到命令执行结果: $result")
+                        Log.d(TAG, "收到命令执行结果回调: $result")
                         
                         // 命令已完成，使用AdbCommandExecutor清理临时文件
                         GlobalScope.launch(Dispatchers.IO) {
@@ -497,6 +497,23 @@ class TermuxCommandExecutor {
                         } catch (e: Exception) {
                                 Log.e(TAG, "删除临时文件失败: ${e.message}")
                             }
+                        }
+                        
+                        // 检查当前输出是否已经包含COMMAND_COMPLETE标记
+                        // 如果已经通过文件监听获取了完整输出，则不再重复添加内容
+                        val currentOutput = stdoutBuilder.toString()
+                        val alreadyCompleted = currentOutput.contains("COMMAND_COMPLETE:")
+                        
+                        if (alreadyCompleted) {
+                            Log.d(TAG, "已通过文件监听获取完整输出，不再添加Intent回调内容")
+                            // 仅完成延迟对象，不更新输出
+                            commandCompleted.complete(CommandResult(
+                                success = result.success,
+                                stdout = currentOutput,
+                                stderr = stderrBuilder.toString(),
+                                exitCode = result.exitCode
+                            ))
+                            return@registerCallback
                         }
                         
                         // 触发完成回调
@@ -881,8 +898,21 @@ class TermuxCommandExecutor {
                             // 忽略线程终止失败
                         }
                         
-                        // 通知接收器超时
-                        effectiveOutputReceiver?.onError("Command execution timed out", -1)
+                        // 根据选项决定超时是否视为错误
+                        val timeoutIsError = options.timeoutAsError
+                        
+                        // 修改：通知接收器超时，如果timeoutAsError为false，则不视为错误
+                        if (timeoutIsError) {
+                            effectiveOutputReceiver?.onError("Command execution timed out", -1)
+                        } else {
+                            val timeoutResult = CommandResult(
+                                success = true, // 视超时为成功
+                                stdout = stdoutBuilder.toString(),
+                                stderr = "Command timed out, but considered successful",
+                                exitCode = 0 // 使用0作为成功的退出码
+                            )
+                            effectiveOutputReceiver?.onComplete(timeoutResult)
+                        }
                         
                         // 清理临时文件
                         GlobalScope.launch(Dispatchers.IO) {
@@ -893,12 +923,12 @@ class TermuxCommandExecutor {
                             }
                         }
                         
-                return@withContext CommandResult(
-                    success = false,
+                        return@withContext CommandResult(
+                            success = !timeoutIsError, // 根据选项决定是否视为成功
                             stdout = stdoutBuilder.toString(),
-                            stderr = "Command execution timed out",
-                    exitCode = -1
-                )
+                            stderr = if (timeoutIsError) "Command execution timed out" else "Command timed out, but considered successful",
+                            exitCode = if (timeoutIsError) -1 else 0 // 根据是否视为错误设置不同的退出码
+                        )
                     } catch (e: CancellationException) {
                         Log.e(TAG, "命令执行被取消: ${e.message}")
                         
@@ -1080,55 +1110,45 @@ class TermuxCommandExecutor {
         ): Boolean = withContext(Dispatchers.IO) {
             try {
                 // 清理输入文本，删除可能导致问题的多余空白字符
-                val cleanInput = input.trim().replace(Regex("\\s+"), "") // 移除所有空白字符
-                Log.d(TAG, "开始向命令 $executionId 发送清理后的输入: '$cleanInput'")
+                val cleanInput = input.trim()
+                Log.d(TAG, "向命令 $executionId 发送输入: '$cleanInput'")
                 
-                if (cleanInput.isEmpty()) {
-                    // 仅发送回车
-                    Log.d(TAG, "输入为空，仅发送回车键")
-                    for (i in 1..3) {
-                        AdbCommandExecutor.executeAdbCommand("input keyevent 66") // KEYCODE_ENTER
-                        delay(200)
+                // 通过命名管道(FIFO)发送输入
+                val inputWithNewline = if (cleanInput.endsWith("\n")) cleanInput else "$cleanInput\n"
+                val fifoPath = "/data/data/com.termux/files/home/.termux_input_${executionId}.fifo"
+                
+                // 检查FIFO是否存在
+                val checkFifoCmd = "run-as com.termux sh -c 'if [ -p \"$fifoPath\" ]; then echo \"EXISTS\"; else echo \"NOT_EXISTS\"; fi'"
+                val checkFifoResult = AdbCommandExecutor.executeAdbCommand(checkFifoCmd)
+                
+                if (checkFifoResult.stdout.trim() == "EXISTS") {
+                    Log.d(TAG, "FIFO存在，写入数据: '$inputWithNewline'")
+                    
+                    // 使用多种方法向FIFO写入数据以提高成功率
+                    
+                    // 方法1: 使用echo直接写入
+                    val echoCmd = "run-as com.termux sh -c 'echo \"$inputWithNewline\" > \"$fifoPath\"'"
+                    AdbCommandExecutor.executeAdbCommand(echoCmd)
+                    
+                    // 方法2: 使用printf写入原始数据(避免echo对特殊字符的处理)
+                    val printfCmd = "run-as com.termux sh -c 'printf \"$inputWithNewline\" > \"$fifoPath\"'"
+                    AdbCommandExecutor.executeAdbCommand(printfCmd)
+                    
+                    // 方法3: 字符一个一个地写入
+                    val chars = inputWithNewline.toCharArray()
+                    for (c in chars) {
+                        val charCmd = "run-as com.termux sh -c 'printf \"$c\" > \"$fifoPath\"'"
+                        AdbCommandExecutor.executeAdbCommand(charCmd)
+                        delay(5) // 短暂延迟，避免写入太快
                     }
+                    
+                    Log.d(TAG, "输入数据发送完成")
                     return@withContext true
+                } else {
+                    Log.w(TAG, "FIFO不存在，无法发送输入")
+                    return@withContext false
                 }
                 
-                // 逐个字符发送输入（最可靠的方法）
-                for (char in cleanInput) {
-                    val charCmd = "input text \"$char\""
-                    Log.d(TAG, "发送单个字符: '$char'")
-                    val result = AdbCommandExecutor.executeAdbCommand(charCmd)
-                    delay(100) // 短暂延迟确保每个字符都被处理
-                }
-                
-                // 发送回车键（多次，确保被接收）
-                delay(300) // 等待文本输入完成
-                for (i in 1..3) { 
-                    Log.d(TAG, "发送回车键 $i/3")
-                    AdbCommandExecutor.executeAdbCommand("input keyevent 66") // KEYCODE_ENTER
-                    delay(200) // 延迟以确保处理
-                }
-                
-                // 额外尝试：直接点击屏幕
-                try {
-                    Log.d(TAG, "尝试点击屏幕确认")
-                    // 尝试点击屏幕下半部分，可能更靠近虚拟键盘的确认按钮
-                    val screenSize = context.resources.displayMetrics
-                    val tapX = screenSize.widthPixels / 2
-                    val tapY = (screenSize.heightPixels * 0.7).toInt() // 70%位置，更靠近底部
-                    
-                    AdbCommandExecutor.executeAdbCommand("input tap $tapX $tapY")
-                    delay(200)
-                    
-                    // 再点一次中间位置
-                    val centerY = screenSize.heightPixels / 2
-                    AdbCommandExecutor.executeAdbCommand("input tap $tapX $centerY")
-                } catch (e: Exception) {
-                    Log.e(TAG, "点击屏幕失败，但这并不影响关键功能: ${e.message}")
-                }
-                
-                Log.d(TAG, "所有输入方法执行完成，输入应已成功发送")
-                return@withContext true
             } catch (e: Exception) {
                 Log.e(TAG, "发送输入时出错: ${e.message}", e)
                 return@withContext false

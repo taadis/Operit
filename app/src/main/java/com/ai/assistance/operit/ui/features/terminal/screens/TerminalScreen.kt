@@ -597,16 +597,16 @@ private fun InteractiveInputDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // 快捷按钮 - 简化输入为单个字符，而不是包含换行符
+                    // 快捷按钮 - 改为发送完整单词
                     Button(
-                        onClick = { onInputSubmit("y") },
+                        onClick = { onInputSubmit("yes") },
                         modifier = Modifier.weight(1f).padding(end = 8.dp)
                     ) {
                         Text("是 (Y)")
                     }
                     
                     Button(
-                        onClick = { onInputSubmit("n") },
+                        onClick = { onInputSubmit("no") },
                         modifier = Modifier.weight(1f).padding(start = 8.dp)
                     ) {
                         Text("否 (N)")

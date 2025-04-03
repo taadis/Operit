@@ -477,7 +477,7 @@ class AdbCommandExecutor {
                 
                 // 拆分命令行参数 - 使用更智能的解析方法
                 val commandParts = parseCommand(command)
-                Log.d(TAG, "Parsed command parts: ${commandParts.joinToString(", ", "[", "]")}")
+                // Log.d(TAG, "Parsed command parts: ${commandParts.joinToString(", ", "[", "]")}")
                 
                 // 创建进程
                 process = service.newProcess(commandParts, null, null)
@@ -778,7 +778,7 @@ class AdbCommandExecutor {
             }
             
             // 日志记录结果
-            Log.d(TAG, "Command parsing result: ${result.joinToString(", ", "[", "]")}")
+            // Log.d(TAG, "Command parsing result: ${result.joinToString(", ", "[", "]")}")
             
             return result.toTypedArray()
         }
