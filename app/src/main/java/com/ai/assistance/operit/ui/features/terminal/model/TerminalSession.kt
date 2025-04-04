@@ -19,15 +19,27 @@ import java.util.UUID
 /**
  * 终端会话
  * 管理一个独立的终端会话，包括命令历史、工作目录等
+ * 
+ * 关于Termux路径说明：
+ * 1. Termux环境中的根目录不同于Android系统根目录
+ * 2. Termux主目录通常是 /data/data/com.termux/files/home
+ * 3. 绝对路径 (/) 在Termux中是相对于它自己的文件系统的
+ * 4. 访问Android存储通常需要映射，如 /storage/emulated/0 对应 /sdcard
+ * 5. 工作目录切换需要确保命令在正确的环境中执行
  */
 class TerminalSession(
     val id: String = UUID.randomUUID().toString(),
     var name: String,
-    var workingDirectory: String = "/data/data/com.termux/files/home",
+    initialDirectory: String? = null,
     val commandHistory: SnapshotStateList<TerminalLine> = mutableStateListOf(),
     var commandHistoryIndex: Int = -1,
     var termuxSessionId: String? = null
 ) {
+    
+    /**
+     * 上一个工作目录 (用于支持 cd - 命令)
+     */
+    private var previousWorkingDirectory: String? = null
     
     /**
      * 保存用户输入的命令历史
@@ -45,6 +57,12 @@ class TerminalSession(
      */
     var currentUser: String? = null
         private set // 使属性只能从类内部修改
+    
+    /**
+     * 工作目录
+     */
+    var workingDirectory: String = initialDirectory ?: "/data/data/com.termux/files/home"
+        private set
     
     /**
      * 执行命令
@@ -81,7 +99,27 @@ class TerminalSession(
                 }
                 command.trim().startsWith("cd ") -> {
                     // 处理cd命令，更新工作目录
-                    handleCdCommand(context, command.substring(3).trim(), outputFlow)
+                    // 确保即使是单个字符的参数也不会丢失
+                    val cdArg = command.trim().substring(2).trim()
+                    Log.d("TerminalSession", "提取CD参数: '$cdArg'")
+                    
+                    // 处理全角斜杠，将其转换为半角斜杠
+                    val normalizedArg = cdArg.replace("／", "/")
+                    Log.d("TerminalSession", "标准化CD参数: '$normalizedArg'")
+                    
+                    // 检查参数是否为空
+                    if (normalizedArg.isEmpty() || normalizedArg == " ") {
+                        // cd 后面没有参数或只有空格，切换到主目录
+                        handleCdCommand(context, "~", outputFlow)
+                    } else {
+                        // 去掉可能的前导空格
+                        handleCdCommand(context, normalizedArg, outputFlow)
+                    }
+                    return@launch
+                }
+                command.trim() == "cd" -> {
+                    // 单独的cd命令，切换到主目录
+                    handleCdCommand(context, "~", outputFlow)
                     return@launch
                 }
                 command.trim() == "pwd" -> {
@@ -106,8 +144,17 @@ class TerminalSession(
                         userInputHistory.add(command)
                     }
                     
-                    // 创建命令选项
+                    // 创建命令选项，确保使用最新的工作目录
                     val options = createCommandOptions(command)
+                    
+                    // 记录工作目录，以便调试
+                    // Log.d("TerminalSession", "执行常规命令，当前工作目录: ${options.workingDirectory}")
+
+                    // 直接使用原始命令，不添加前缀
+                    // TermuxCommandExecutor会使用options中的workingDirectory
+                    val effectiveCommand = command
+                    
+                    // Log.d("TerminalSession", "最终执行命令: '$effectiveCommand'")
                     
                     // 创建输出接收器，以便实时更新终端
                     val outputReceiver = object : TermuxCommandExecutor.Companion.CommandOutputReceiver {
@@ -200,7 +247,7 @@ class TerminalSession(
                                             // 检查是否已有此行避免重复
                                             if (!stdoutBuffer.toString().contains(line)) {
                                                 outputFlow.emit(TerminalLine.Output(line))
-                                                Log.d("TerminalSession", "发送输出行: $line")
+                                                // Log.d("TerminalSession", "发送输出行: $line")
                                             }
                                         }
                                     }
@@ -243,13 +290,16 @@ class TerminalSession(
                     
                     // 使用TermuxCommandExecutor执行命令并确保结果立即处理
                     try {
+                        Log.d("TerminalSession", "执行命令: '$effectiveCommand'，工作目录: '${options.workingDirectory}'")
                         TermuxCommandExecutor.executeCommandStreaming(
                             context = context,
-                            command = command,
+                            command = effectiveCommand,
                             autoAuthorize = true,
                             background = true,
-                            outputReceiver = outputReceiver
+                            outputReceiver = outputReceiver,
+                            options = options
                         )
+                        Log.d("TerminalSession", "命令已发送，等待结果")
                         // 注意：结果会通过outputReceiver传递
                     } catch (e: Exception) {
                         // 处理异常情况
@@ -272,64 +322,135 @@ class TerminalSession(
         directory: String,
         outputFlow: MutableSharedFlow<TerminalLine.Output>
     ) {
-        val cdCommand = if (directory.startsWith("/")) {
-            "cd \"$directory\" && pwd"
-        } else {
-            "cd \"$workingDirectory\" && cd \"$directory\" && pwd"
-        }
+        // 记录开始状态
+        Log.d("TerminalSession", "CD命令开始: 当前工作目录=$workingDirectory, 目标目录='$directory'")
         
-        // 创建命令选项，默认使用当前用户
-        val options = TermuxCommandExecutor.Companion.CommandOptions(
-            workingDirectory = workingDirectory,
-            background = true,
-            sessionAction = TermuxCommandExecutor.Companion.SessionAction.ACTION_NEW_SESSION,
-            user = currentUser
-        )
-        
-        // 创建输出接收器
-        val outputReceiver = object : TermuxCommandExecutor.Companion.CommandOutputReceiver {
-            private var result = ""
-            
-            override fun onStdout(output: String, isComplete: Boolean) {
-                if (output.isNotEmpty()) {
-                    result = output.trim()
+        try {
+            // 处理特殊路径
+            val targetDir = when {
+                directory == "-" -> {
+                    // cd - 命令切换到上一个工作目录
+                    previousWorkingDirectory ?: workingDirectory
                 }
-            }
-            
-            override fun onStderr(error: String, isComplete: Boolean) {
-                if (error.isNotEmpty()) {
-                    CoroutineScope(Dispatchers.IO).launch {
-                        outputFlow.emit(TerminalLine.Output("cd: $error"))
+                directory == "~" -> {
+                    // cd ~ 命令切换到主目录
+                    "/data/data/com.termux/files/home"
+                }
+                directory == "." || directory == "./" -> {
+                    // 当前目录，不改变工作目录
+                    workingDirectory
+                }
+                directory == ".." || directory == "../" -> {
+                    // 上级目录
+                    val parts = workingDirectory.split("/").filter { it.isNotEmpty() }
+                    if (parts.isEmpty() || workingDirectory == "/") {
+                        // 已经在根目录，保持不变
+                        "/"
+                    } else {
+                        // 移除最后一个部分，返回上级目录
+                        "/" + parts.dropLast(1).joinToString("/")
+                    }
+                }
+                directory.startsWith("../") -> {
+                    // 处理以../开头的相对路径
+                    var tempDir = workingDirectory
+                    var remainingPath = directory
+                    
+                    // 处理每个../部分
+                    while (remainingPath.startsWith("../")) {
+                        // 移除一级目录
+                        tempDir = if (tempDir == "/" || tempDir.isEmpty()) {
+                            "/"
+                        } else {
+                            val parts = tempDir.split("/").filter { it.isNotEmpty() }
+                            if (parts.isEmpty()) {
+                                "/"
+                            } else {
+                                "/" + parts.dropLast(1).joinToString("/")
+                            }
+                        }
+                        // 移除处理过的../
+                        remainingPath = remainingPath.substring(3)
+                    }
+                    
+                    // 处理剩余路径
+                    if (remainingPath.isEmpty()) {
+                        tempDir
+                    } else if (tempDir == "/") {
+                        tempDir + remainingPath
+                    } else {
+                        tempDir + "/" + remainingPath
+                    }
+                }
+                directory.startsWith("./") -> {
+                    // 处理以./开头的相对路径
+                    val pathWithoutPrefix = directory.substring(2)
+                    if (workingDirectory.endsWith("/")) {
+                        workingDirectory + pathWithoutPrefix
+                    } else {
+                        workingDirectory + "/" + pathWithoutPrefix
+                    }
+                }
+                directory.startsWith("/") -> {
+                    // 绝对路径，直接使用
+                    directory
+                }
+                else -> {
+                    // 相对路径，基于当前工作目录解析
+                    if (workingDirectory.endsWith("/")) {
+                        workingDirectory + directory
+                    } else {
+                        workingDirectory + "/" + directory
                     }
                 }
             }
             
-            override fun onComplete(finalResult: CommandResult) {
-                CoroutineScope(Dispatchers.IO).launch {
-                    if (finalResult.success && result.isNotEmpty()) {
-                        // 更新工作目录
-                        workingDirectory = result
-                        outputFlow.emit(TerminalLine.Output(""))
-                    } else if (!finalResult.success) {
-                        outputFlow.emit(TerminalLine.Output("cd: ${finalResult.stderr}"))
-                    }
-                }
-            }
+            Log.d("TerminalSession", "CD目标目录: '$targetDir'")
             
-            override fun onError(error: String, exitCode: Int) {
-                CoroutineScope(Dispatchers.IO).launch {
-                    outputFlow.emit(TerminalLine.Output("cd: $error"))
+            // 执行pwd命令，使用目标目录作为工作目录
+            // 这将测试目录是否存在并可访问
+            val options = TermuxCommandExecutor.Companion.CommandOptions(
+                workingDirectory = targetDir,  // 直接设置为目标目录
+                background = true,
+                sessionAction = TermuxCommandExecutor.Companion.SessionAction.ACTION_NEW_SESSION,
+                user = currentUser
+            )
+            
+            // 执行pwd命令来验证目录能否访问
+            val pwdResult = TermuxCommandExecutor.executeCommandStreaming(
+                context = context,
+                command = "pwd",
+                autoAuthorize = true,
+                background = true,
+                resultCallback = null,
+                options = options
+            )
+            
+            if (pwdResult.success) {
+                // 目录存在且可访问，更新工作目录
+                val newDir = targetDir  // 使用pwd的输出作为实际路径，避免符号链接问题
+                
+                if (newDir.isNotEmpty()) {
+                    // 保存旧目录用于cd -命令
+                    previousWorkingDirectory = workingDirectory
+                    
+                    // 更新工作目录
+                    val oldDir = workingDirectory
+                    workingDirectory = newDir
+                    Log.d("TerminalSession", "工作目录已更新: '$oldDir' -> '$workingDirectory'")
+                    
+                } else {
+                    outputFlow.emit(TerminalLine.Output("cd: 无法获取目录路径"))
                 }
+            } else {
+                // 目录不存在或无法访问
+                outputFlow.emit(TerminalLine.Output("cd: $directory: No such file or directory"))
+                Log.e("TerminalSession", "目录不存在或无法访问: $targetDir, 错误: ${pwdResult.stderr}")
             }
+        } catch (e: Exception) {
+            Log.e("TerminalSession", "CD命令异常: ${e.message}", e)
+            outputFlow.emit(TerminalLine.Output("cd: 执行错误: ${e.message}"))
         }
-        
-        TermuxCommandExecutor.executeCommandStreaming(
-            context = context,
-            command = cdCommand,
-            autoAuthorize = true,
-            background = true,
-            outputReceiver = outputReceiver
-        )
     }
     
     /**
@@ -394,7 +515,9 @@ class TerminalSession(
             command = checkCmd,
             autoAuthorize = true,
             background = true,
-            outputReceiver = outputReceiver
+            outputReceiver = outputReceiver,
+            resultCallback = null,
+            options = options
         )
     }
     
@@ -409,9 +532,19 @@ class TerminalSession(
             TermuxCommandExecutor.Companion.SessionAction.ACTION_NEW_SESSION
         }
         
+        // 确保工作目录有效
+        var effectiveWorkingDir = workingDirectory
+        if (effectiveWorkingDir.isEmpty()) {
+            Log.w("TerminalSession", "警告: 工作目录为空，使用默认目录")
+            effectiveWorkingDir = "/data/data/com.termux/files/home"
+        }
+        
+        // 记录选项创建信息
+        Log.d("TerminalSession", "创建命令选项 - 工作目录: '$effectiveWorkingDir', 用户: '$currentUser', 命令: '$command'")
+        
         // 创建命令选项
         return TermuxCommandExecutor.Companion.CommandOptions(
-            workingDirectory = workingDirectory,
+            workingDirectory = effectiveWorkingDir,
             background = true,
             sessionAction = sessionAction,
             label = "Session command: $name",
@@ -424,11 +557,19 @@ class TerminalSession(
      * 获取命令提示符
      */
     fun getPrompt(): String {
-        // 提取工作目录最后一部分作为当前目录
-        val currentDir = workingDirectory.split("/").last().ifEmpty { "/" }
+        // 记录工作目录
+        Log.d("TerminalSession", "生成提示符时的工作目录: $workingDirectory")
         
-        // 如果是切换用户状态，则显示不同的提示符
-        return if (currentUser != null) {
+        // 提取工作目录最后一部分作为当前目录
+        val currentDir = if (workingDirectory == "/") {
+            "/"
+        } else {
+            val parts = workingDirectory.split("/").filter { it.isNotEmpty() }
+            parts.lastOrNull() ?: "/"
+        }
+        
+        // 创建提示符
+        val prompt = if (currentUser != null) {
             if (currentUser == "root") {
                 "[$currentUser@$currentDir]# "
             } else {
@@ -437,6 +578,9 @@ class TerminalSession(
         } else {
             "[$currentDir]$ "
         }
+        
+        Log.d("TerminalSession", "最终提示符: $prompt")
+        return prompt
     }
     
     /**

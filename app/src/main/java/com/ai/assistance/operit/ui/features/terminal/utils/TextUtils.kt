@@ -75,9 +75,53 @@ fun highlightCommandText(command: String): AnnotatedString {
         )
     }
     
-    // 高亮路径(/开头或包含/ 的词)
-    val pathPattern = Regex("(\\s|^)(/{1,2}[\\w./\\-_]+)")
-    pathPattern.findAll(command).forEach { matchResult ->
+    // 高亮路径 - 修改正则表达式以匹配更简单的路径，包括单个斜杠
+    // 处理单斜杠的情况 (支持半角"/"和全角"／"斜杠)
+    if (command.contains(" /") || command.contains(" ／")) {
+        // 处理半角斜杠
+        if (command.contains(" /")) {
+            val slashIndex = command.indexOf(" /") + 1
+            builderFactory.addStyle(
+                style = SpanStyle(
+                    color = TerminalColors.ParrotPurple,
+                    fontWeight = FontWeight.Bold
+                ),
+                start = slashIndex,
+                end = slashIndex + 1
+            )
+        }
+        
+        // 处理全角斜杠
+        if (command.contains(" ／")) {
+            val slashIndex = command.indexOf(" ／") + 1
+            builderFactory.addStyle(
+                style = SpanStyle(
+                    color = TerminalColors.ParrotPurple,
+                    fontWeight = FontWeight.Bold
+                ),
+                start = slashIndex,
+                end = slashIndex + 1
+            )
+        }
+    }
+    
+    // 然后处理更复杂的路径 (支持半角和全角斜杠)
+    val halfWidthPathPattern = Regex("(\\s|^)(/{1,2}[\\w./\\-_]*)")
+    halfWidthPathPattern.findAll(command).forEach { matchResult ->
+        val path = matchResult.groups[2]!!
+        builderFactory.addStyle(
+            style = SpanStyle(
+                color = TerminalColors.ParrotPurple,
+                fontWeight = FontWeight.Bold
+            ),
+            start = path.range.first,
+            end = path.range.last + 1
+        )
+    }
+    
+    // 处理全角斜杠开头的路径
+    val fullWidthPathPattern = Regex("(\\s|^)(／{1,2}[\\w.／\\-_]*)")
+    fullWidthPathPattern.findAll(command).forEach { matchResult ->
         val path = matchResult.groups[2]!!
         builderFactory.addStyle(
             style = SpanStyle(

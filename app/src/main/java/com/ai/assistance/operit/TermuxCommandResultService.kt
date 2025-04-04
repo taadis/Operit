@@ -51,7 +51,7 @@ class TermuxCommandResultService : IntentService("TermuxCommandResultService") {
         
         // 获取执行ID
         val executionId = intent.getIntExtra(EXTRA_EXECUTION_ID, -1)
-        Log.d(TAG, "收到命令结果，执行ID: $executionId")
+        // Log.d(TAG, "收到命令结果，执行ID: $executionId")
         
         if (executionId == -1) {
             Log.e(TAG, "无效的执行ID")
@@ -71,7 +71,7 @@ class TermuxCommandResultService : IntentService("TermuxCommandResultService") {
         val exitCode = resultBundle.getInt("exitCode", -1)
         val errmsg = resultBundle.getString("errmsg", "")
         
-        Log.d(TAG, "命令执行结果: stdout长度=${stdout.length}, stderr长度=${stderr.length}, exitCode=$exitCode")
+        // Log.d(TAG, "命令执行结果: stdout长度=${stdout.length}, stderr长度=${stderr.length}, exitCode=$exitCode")
         
         // 构建结果对象
         val result = CommandResult(
@@ -90,7 +90,7 @@ class TermuxCommandResultService : IntentService("TermuxCommandResultService") {
                 removeCallback(executionId)
             }
         } else {
-            Log.w(TAG, "未找到ID为 $executionId 的回调")
+            // Log.w(TAG, "未找到ID为 $executionId 的回调")
         }
     }
 } 

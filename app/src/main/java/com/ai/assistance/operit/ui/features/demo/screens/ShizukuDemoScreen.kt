@@ -60,7 +60,7 @@ fun ShizukuDemoScreen() {
     // Termux状态
     var isTermuxInstalled by remember { mutableStateOf(false) }
     var isTermuxAuthorized by remember { mutableStateOf(false) }
-    var hasTermuxStorageAccess by remember { mutableStateOf(false) }
+    var hasTermuxStoragePermission by remember { mutableStateOf(false) }
     
     var hasStoragePermission by remember { mutableStateOf(false) }
     var hasOverlayPermission by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
@@ -134,64 +134,63 @@ fun ShizukuDemoScreen() {
             isTermuxAuthorized = TermuxAuthorizer.isTermuxAuthorized(context)
             
             // 检查Termux存储权限
-            if (isTermuxInstalled && isTermuxAuthorized) {
+            if (isTermuxInstalled) {
                 try {
-                    // 使用CountDownLatch来等待命令执行完成
-                    val latch = java.util.concurrent.CountDownLatch(1)
-                    var checkResult = false
-                    
-                    // 创建输出接收器
-                    val outputReceiver = object : TermuxCommandExecutor.Companion.CommandOutputReceiver {
-                        private val output = StringBuilder()
-                        
-                        override fun onStdout(output: String, isComplete: Boolean) {
-                            this.output.append(output)
-                        }
-                        
-                        override fun onStderr(error: String, isComplete: Boolean) {
-                            // 错误输出不处理
-                        }
-                        
-                        override fun onComplete(result: com.ai.assistance.operit.AdbCommandExecutor.CommandResult) {
-                            // 检查输出是否包含 "exists"
-                            checkResult = result.stdout.trim() == "exists" || output.toString().trim() == "exists"
-                            latch.countDown()
-                        }
-                        
-                        override fun onError(error: String, exitCode: Int) {
-                            latch.countDown()
-                        }
-                    }
-                    
-                    // 检查Termux的~/storage目录是否存在
-                    val checkCommand = "[ -d /data/data/com.termux/files/home/storage ] && echo 'exists' || echo 'not exists'"
-                    
-                    // 使用流式执行命令
-                    TermuxCommandExecutor.executeCommandStreaming(
-                        context = context,
-                        command = checkCommand,
-                        autoAuthorize = true,
-                        outputReceiver = outputReceiver
+                    // 使用更详细的检查方法
+                    // 1. 首先检查权限是否已授予
+                    val permResult = AdbCommandExecutor.executeAdbCommand(
+                        "dumpsys package com.termux | grep -E 'android.permission.(READ|WRITE)_EXTERNAL_STORAGE' | grep granted=true | wc -l"
                     )
                     
-                    // 等待最多3秒
-                    latch.await(3, java.util.concurrent.TimeUnit.SECONDS)
-                    hasTermuxStorageAccess = checkResult
+                    // 应该有两个权限(READ和WRITE)都显示granted=true
+                    val permCount = try {
+                        permResult.stdout.trim().toInt()
+                    } catch (e: Exception) {
+                        0
+                    }
+                    
+                    // 2. 测试Termux是否实际能访问存储
+                    val testAccessResult = AdbCommandExecutor.executeAdbCommand(
+                        "su -c 'run-as com.termux touch /sdcard/termux_permission_test && rm /sdcard/termux_permission_test'"
+                    )
+                    
+                    // 更新权限状态并记录日志
+                    val hasPermsGranted = permCount >= 2
+                    val hasActualAccess = testAccessResult.success
+                    
+                    Log.d(TAG, "Termux存储权限检测: 授权数=$permCount, 实际访问=${hasActualAccess}, " +
+                              "permResult=${permResult.stdout.trim()}, testResult=${testAccessResult.success}")
+                    
+                    // 只有满足两种条件才认为有完整的存储权限
+                    hasTermuxStoragePermission = hasPermsGranted
+                    
+                    // 检查存储权限
+                    hasStoragePermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        Environment.isExternalStorageManager()
+                    } else {
+                        context.checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED &&
+                        context.checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                    }
+                    
+                    // 检查电池优化豁免
+                    val powerManager = context.getSystemService(android.content.Context.POWER_SERVICE) as PowerManager
+                    hasBatteryOptimizationExemption = powerManager.isIgnoringBatteryOptimizations(context.packageName)
+                    
+                    // 检查无障碍服务状态
+                    hasAccessibilityServiceEnabled = UIHierarchyManager.isAccessibilityServiceEnabled(context)
+                    
+                    val sdkVersion = Build.VERSION.SDK_INT
+                    println("SDK Version: $sdkVersion, Storage: $hasStoragePermission, Overlay: $hasOverlayPermission, " +
+                            "Battery: $hasBatteryOptimizationExemption, A11y: $hasAccessibilityServiceEnabled, " +
+                            "Shizuku: [Installed: $isShizukuInstalled, Running: $isShizukuRunning, HasPermission: $hasShizukuPermission], " +
+                            "Termux: [Installed: $isTermuxInstalled]")
                 } catch (e: Exception) {
-                    Log.e(TAG, "检查Termux存储权限时出错: ${e.message}", e)
-                    hasTermuxStorageAccess = false
+                    Log.e(TAG, "检查Termux权限时出错: ${e.message}", e)
+                    hasTermuxStoragePermission = false
                 }
             } else {
-                hasTermuxStorageAccess = false
+                hasTermuxStoragePermission = false
             }
-        }
-        
-        // 检查存储权限
-        hasStoragePermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            Environment.isExternalStorageManager()
-        } else {
-            context.checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED &&
-            context.checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED
         }
         
         // 检查悬浮窗权限
@@ -494,6 +493,34 @@ fun ShizukuDemoScreen() {
                     }
                 )
                 
+                // Termux通知权限
+                PermissionStatusItem(
+                    title = "Termux通知权限",
+                    isGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        context.packageManager.checkPermission(
+                            android.Manifest.permission.POST_NOTIFICATIONS,
+                            "com.termux"
+                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                    } else {
+                        true // 低于Android 13版本不需要通知权限
+                    },
+                    onClick = {
+                        try {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                    data = Uri.parse("package:com.termux")
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                context.startActivity(intent)
+                            } else {
+                                Toast.makeText(context, "通知权限仅Android 13及以上需要", Toast.LENGTH_SHORT).show()
+                            }
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "无法打开Termux通知权限设置", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                )
+                
                 // 无障碍服务状态
                 PermissionStatusItem(
                     title = "无障碍服务",
@@ -628,7 +655,7 @@ fun ShizukuDemoScreen() {
                 // Termux存储权限
                 PermissionStatusItem( 
                     title = "Termux存储权限",
-                    isGranted = hasTermuxStorageAccess,
+                    isGranted = hasTermuxStoragePermission,
                     onClick = {
                         if (!isTermuxInstalled) {
                             Toast.makeText(context, "请先安装Termux", Toast.LENGTH_SHORT).show()
@@ -642,217 +669,29 @@ fun ShizukuDemoScreen() {
                         }
                         
                         // 弹出提示
-                        Toast.makeText(context, "正在通过ADB模拟termux-setup-storage功能...", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "正在授予Termux存储权限...", Toast.LENGTH_SHORT).show()
                         
-                        // 使用ADB直接授予Termux存储权限
+                        // 使用ADB授予Termux存储权限
                         scope.launch {
                             try {
-                                // 创建输出文本
-                                var output = "模拟termux-setup-storage操作结果：\n\n"
-                                var success = true
-                                
-                                // 1. 检查Android版本
-                                output += "# 检查Android版本\n"
-                                val androidVersion = Build.VERSION.SDK_INT
-                                output += "Android版本: $androidVersion\n\n"
-                                
-                                // 2. 确保Termux主目录存在
-                                output += "# 确保Termux主目录存在\n"
-                                val mkdirHomeCmds = listOf(
-                                    "run-as com.termux mkdir -p /data/data/com.termux/files/home"
+                                // 为Termux授予存储权限
+                                val result = AdbCommandExecutor.executeAdbCommand(
+                                    "pm grant com.termux android.permission.READ_EXTERNAL_STORAGE && " +
+                                    "pm grant com.termux android.permission.WRITE_EXTERNAL_STORAGE"
                                 )
                                 
-                                for (cmd in mkdirHomeCmds) {
-                                    val result = AdbCommandExecutor.executeAdbCommand(cmd)
-                                    if (!result.success) {
-                                        Log.e(TAG, "创建Termux主目录失败: ${result.stderr}")
-                                        success = false
-                                        output += "❌ 命令失败: $cmd\n${result.stderr}\n"
-                                    } else {
-                                        output += "✅ 成功执行: $cmd\n"
-                                    }
-                                }
-                                output += "\n"
-                                
-                                // 3. 先删除已存在的storage目录(如果存在)并重新创建
-                                output += "# 清除并重建storage目录\n"
-                                val cleanStorageCmds = listOf(
-                                    "run-as com.termux rm -rf /data/data/com.termux/files/home/storage",
-                                    "run-as com.termux mkdir -p /data/data/com.termux/files/home/storage"
-                                )
-                                
-                                for (cmd in cleanStorageCmds) {
-                                    val result = AdbCommandExecutor.executeAdbCommand(cmd)
-                                    if (!result.success) {
-                                        Log.e(TAG, "清理storage目录失败: ${result.stderr}")
-                                        success = false
-                                        output += "❌ 命令失败: $cmd\n${result.stderr}\n"
-                                    } else {
-                                        output += "✅ 成功执行: $cmd\n"
-                                    }
-                                }
-                                output += "\n"
-                                
-                                // 4. 创建符号链接
-                                output += "# 创建各存储目录的符号链接\n"
-                                
-                                // 使用真实的系统路径
-                                val storageMappings = listOf(
-                                    Pair("shared", "/storage/emulated/0"),
-                                    Pair("dcim", "/storage/emulated/0/DCIM"),
-                                    Pair("downloads", "/storage/emulated/0/Download"),
-                                    Pair("movies", "/storage/emulated/0/Movies"),
-                                    Pair("music", "/storage/emulated/0/Music"),
-                                    Pair("pictures", "/storage/emulated/0/Pictures")
-                                )
-                                
-                                for ((name, target) in storageMappings) {
-                                    // 先创建目标目录（如果不存在）
-                                    AdbCommandExecutor.executeAdbCommand("mkdir -p $target")
-                                    
-                                    // 创建符号链接
-                                    val linkCmd = "run-as com.termux ln -sf $target /data/data/com.termux/files/home/storage/$name"
-                                    val result = AdbCommandExecutor.executeAdbCommand(linkCmd)
-                                    if (!result.success) {
-                                        Log.e(TAG, "创建符号链接失败: ${result.stderr}")
-                                        success = false
-                                        output += "❌ 符号链接失败: $name -> $target\n${result.stderr}\n"
-                                    } else {
-                                        output += "✅ 符号链接创建: $name -> $target\n"
-                                    }
-                                }
-                                output += "\n"
-                                
-                                // 5. 创建外部存储链接(如果有外置SD卡)
-                                output += "# 检查外部存储\n"
-                                val externalDirsResult = AdbCommandExecutor.executeAdbCommand("ls -la /storage")
-                                if (externalDirsResult.success) {
-                                    val externalDirs = externalDirsResult.stdout.lines()
-                                        .filter { it.contains("-") && !it.contains("emulated") && !it.contains("self") }
-                                        .map { it.trim().split("\\s+".toRegex()).last() }
-                                        .filter { it.length > 0 }
-                                    
-                                    var externalIndex = 1
-                                    for (dir in externalDirs) {
-                                        val externalCmd = "run-as com.termux ln -sf /storage/$dir /data/data/com.termux/files/home/storage/external-$externalIndex"
-                                        val result = AdbCommandExecutor.executeAdbCommand(externalCmd)
-                                        if (result.success) {
-                                            output += "✅ 外部存储链接: external-$externalIndex -> /storage/$dir\n"
-                                        } else {
-                                            output += "❓ 外部存储链接失败: external-$externalIndex -> /storage/$dir\n"
-                                        }
-                                        externalIndex++
-                                    }
-                                    
-                                    if (externalDirs.isEmpty()) {
-                                        output += "未检测到外部存储设备\n"
-                                    }
-                                } else {
-                                    output += "无法检查外部存储: ${externalDirsResult.stderr}\n"
-                                }
-                                output += "\n"
-                                
-                                // 6. 设置权限
-                                output += "# 设置适当的权限\n"
-                                val permissionCmd = "run-as com.termux chmod 700 /data/data/com.termux/files/home/storage"
-                                val permResult = AdbCommandExecutor.executeAdbCommand(permissionCmd)
-                                if (!permResult.success) {
-                                    Log.e(TAG, "设置权限失败: ${permResult.stderr}")
-                                    success = false
-                                    output += "❌ 设置权限失败: ${permResult.stderr}\n"
-                                } else {
-                                    output += "✅ 权限设置成功\n"
-                                }
-                                output += "\n"
-                                
-                                // 7. 验证结果
-                                output += "# 验证结果\n"
-                                val lsResult = AdbCommandExecutor.executeAdbCommand(
-                                    "run-as com.termux ls -la /data/data/com.termux/files/home/storage"
-                                )
-                                if (lsResult.success) {
-                                    output += "存储目录内容:\n${lsResult.stdout}\n"
-                                } else {
-                                    output += "无法列出存储目录: ${lsResult.stderr}\n"
-                                }
-                                
-                                // 在UI线程显示结果
-                                withContext(Dispatchers.Main) {
-                                    if (success) {
-                                        Toast.makeText(context, "已模拟termux-setup-storage功能，创建存储链接成功", Toast.LENGTH_LONG).show()
-                                    } else {
-                                        Toast.makeText(context, "部分操作失败，存储访问可能不完整", Toast.LENGTH_SHORT).show()
-                                    }
-                                    
+                                if (result.success) {
+                                    Toast.makeText(context, "已成功授予Termux存储权限", Toast.LENGTH_SHORT).show()
                                     // 刷新权限状态
                                     refreshStatus()
-                                    
-                                    // 设置对话框内容并显示
-                                    resultDialogTitle = "模拟termux-setup-storage结果"
-                                    resultDialogContent = output
-                                    showResultDialogState = true
+                                } else {
+                                    Toast.makeText(context, "授予权限失败: ${result.stderr}", Toast.LENGTH_SHORT).show()
                                 }
                             } catch (e: Exception) {
                                 withContext(Dispatchers.Main) {
                                     Toast.makeText(context, "执行命令时出错: ${e.message}", Toast.LENGTH_SHORT).show()
                                 }
                             }
-                        }
-                    }
-                )
-                
-                // Termux悬浮窗权限
-                PermissionStatusItem(
-                    title = "Termux悬浮窗权限",
-                    isGranted = try {
-                        if (isTermuxInstalled) {
-                            Settings.canDrawOverlays(context.createPackageContext(
-                                "com.termux", 0
-                            ))
-                        } else {
-                            false
-                        }
-                    } catch (e: Exception) {
-                        false
-                    },
-                    onClick = {
-                        try {
-                            val intent = Intent(
-                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                Uri.parse("package:com.termux")
-                            )
-                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            context.startActivity(intent)
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "无法打开Termux悬浮窗权限设置", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                )
-                
-                // Termux通知权限
-                PermissionStatusItem(
-                    title = "Termux通知权限",
-                    isGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        context.packageManager.checkPermission(
-                            android.Manifest.permission.POST_NOTIFICATIONS,
-                            "com.termux"
-                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-                    } else {
-                        true // 低于Android 13版本不需要通知权限
-                    },
-                    onClick = {
-                        try {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                    data = Uri.parse("package:com.termux")
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-                                context.startActivity(intent)
-                            } else {
-                                Toast.makeText(context, "通知权限仅Android 13及以上需要", Toast.LENGTH_SHORT).show()
-                            }
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "无法打开Termux通知权限设置", Toast.LENGTH_SHORT).show()
                         }
                     }
                 )

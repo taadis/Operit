@@ -41,8 +41,8 @@ class TermuxCommandExecutor {
         private const val EXTRA_COMMAND = "com.termux.app.execute_command_key"
         private const val EXTRA_RUNNER_SERVICE = "com.termux.run_command.RunCommandService"
         private const val EXTRA_SESSION_ACTION = "session_action"
-        private const val DEFAULT_TIMEOUT = 30000L // 默认超时时间：30秒
-        private const val INACTIVITY_TIMEOUT = 15000L // 无活动超时时间：15秒
+        private const val DEFAULT_TIMEOUT = 120000L // 默认超时时间：120秒
+        private const val INACTIVITY_TIMEOUT = 120000L // 无活动超时时间：120秒
         private var EXECUTION_ID = 1000
         
         // 正在运行的命令的临时文件映射
@@ -180,57 +180,6 @@ class TermuxCommandExecutor {
             }
         }
         
-        // 添加调试函数来检查权限
-        private fun checkAdbPermissions(context: Context) {
-            GlobalScope.launch(Dispatchers.IO) {
-                try {
-                    Log.d(TAG, "=== 验证ADB权限及功能 ===")
-                    // 检查是否能创建文件
-                    val testFile = "/data/data/com.termux/files/home/.termux_test_file"
-                    val createResult = AdbCommandExecutor.executeAdbCommand("run-as com.termux sh -c 'touch \"$testFile\" && echo \"Test content\" > \"$testFile\" && echo \"Created\"'")
-                    Log.d(TAG, "创建测试文件结果: ${createResult.success}, 输出: ${createResult.stdout}")
-                    
-                    // 检查是否能读取文件
-                    val readResult = AdbCommandExecutor.executeAdbCommand("run-as com.termux sh -c 'cat \"$testFile\"'")
-                    Log.d(TAG, "读取测试文件结果: ${readResult.success}, 输出: ${readResult.stdout}")
-                    
-                    // 检查是否能获取文件大小
-                    val sizeResult = AdbCommandExecutor.executeAdbCommand("run-as com.termux sh -c 'stat -c %s \"$testFile\" 2>/dev/null || stat -f %z \"$testFile\"'")
-                    Log.d(TAG, "获取文件大小结果: ${sizeResult.success}, 输出: ${sizeResult.stdout}")
-                    
-                    // 删除测试文件
-                    val deleteResult = AdbCommandExecutor.executeAdbCommand("run-as com.termux sh -c 'rm \"$testFile\"' && echo 'Deleted'")
-                    Log.d(TAG, "删除测试文件结果: ${deleteResult.success}, 输出: ${deleteResult.stdout}")
-                    
-                    Log.d(TAG, "=== ADB权限检查完成 ===")
-                } catch (e: Exception) {
-                    Log.e(TAG, "检查ADB权限时出错", e)
-                }
-            }
-        }
-        
-        /**
-         * 使用Termux执行命令
-         */
-        fun executeCommand(
-            context: Context,
-            command: String,
-            autoAuthorize: Boolean = true,
-            background: Boolean = false,
-            options: CommandOptions = CommandOptions()
-        ): CommandResult {
-            // 启动权限检查
-            checkAdbPermissions(context)
-            
-            // 简化的实现，仅用于兼容旧代码
-            // 实际应该使用executeCommandStreaming
-            return CommandResult(
-                success = false,
-                stdout = "",
-                stderr = "请使用executeCommandStreaming替代此方法",
-                exitCode = -1
-            )
-        }
         
         /**
          * 执行Termux命令
@@ -283,10 +232,6 @@ class TermuxCommandExecutor {
             options: CommandOptions = CommandOptions()
         ): CommandResult = withContext(Dispatchers.IO) {
             try {
-                // 检查ADB权限
-                GlobalScope.launch(Dispatchers.IO) {
-                    checkAdbPermissions(context)
-                }
                 
                 Log.d(TAG, "执行命令: $command")
                 
@@ -332,19 +277,6 @@ class TermuxCommandExecutor {
                     // 创建一个临时文件用于输出，使用ADB创建以确保权限正确
                     val tempOutputFile = "/data/data/com.termux/files/home/.termux_output_${executionId}.log"
                     
-                    // 直接通过ADB创建临时文件，而不是依赖Termux创建
-                    try {
-                        val testCmd = "run-as com.termux sh -c 'touch \"$tempOutputFile\" && chmod 666 \"$tempOutputFile\" && echo \"INIT_TEST_${executionId}\" > \"$tempOutputFile\"'"
-                        val testResult = AdbCommandExecutor.executeAdbCommand(testCmd)
-                        Log.d(TAG, "ADB创建文件测试: $testResult")
-                        
-                        // 验证文件是否创建成功
-                        val checkCmd = "run-as com.termux sh -c 'ls -la \"$tempOutputFile\" && cat \"$tempOutputFile\"'"
-                        val checkResult = AdbCommandExecutor.executeAdbCommand(checkCmd)
-                        Log.d(TAG, "验证文件创建: ${checkResult.stdout}")
-                    } catch (e: Exception) {
-                        Log.e(TAG, "ADB创建文件测试失败", e)
-                    }
                     
                     // 创建一个不断回显的命令，使用stdbuf禁用缓冲
                     val wrappedCommand = """
@@ -384,8 +316,6 @@ class TermuxCommandExecutor {
                                     $finalCommand < "${'$'}INPUT_FIFO"
                                     CMD_EXIT_CODE=${'$'}?
                                     
-                                    echo "---Execute Completed---"
-                                    echo "Exit Code: ${'$'}CMD_EXIT_CODE"
                                     echo "COMMAND_COMPLETE:${'$'}CMD_EXIT_CODE" >> "$tempOutputFile"
                                 } 2>&1 | tee -a "$tempOutputFile"
                             }
@@ -404,7 +334,7 @@ class TermuxCommandExecutor {
                 // 设置命令路径和参数
                 intent.putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/bash")
                     intent.putExtra("com.termux.RUN_COMMAND_ARGUMENTS", arrayOf("-c", wrappedCommand))
-                intent.putExtra("com.termux.RUN_COMMAND_WORKDIR", "/data/data/com.termux/files/home")
+                intent.putExtra("com.termux.RUN_COMMAND_WORKDIR", options.workingDirectory)
                     intent.putExtra("com.termux.RUN_COMMAND_BACKGROUND", background) // 使用传入的background参数决定是否在后台执行
                 intent.putExtra("com.termux.RUN_COMMAND_SESSION_ACTION", "0")
                 
@@ -526,7 +456,8 @@ class TermuxCommandExecutor {
                         
                         // 确保stdout和stderr非空
                         if (result.stdout.isNotEmpty() && stdoutBuilder.toString().isEmpty()) {
-                            stdoutBuilder.append(result.stdout)
+                            //termux has some bug
+                            // stdoutBuilder.append(result.stdout)
                         }
                         
                         if (result.stderr.isNotEmpty() && stderrBuilder.toString().isEmpty()) {
@@ -707,7 +638,7 @@ class TermuxCommandExecutor {
                             while (commandIsRunning.get()) {
                                 // 使用AdbCommandExecutor获取文件大小
                                 val sizeCommand = "run-as com.termux sh -c 'if [ -f \"$tempOutputFile\" ]; then echo \"EXISTS=\"; stat -c %s \"$tempOutputFile\" 2>/dev/null || stat -f %z \"$tempOutputFile\"; else echo \"NOT_EXISTS\"; fi'"
-                                Log.d(TAG, "检查文件状态: $sizeCommand")
+                                // Log.d(TAG, "检查文件状态: $sizeCommand")
                                 
                                 val sizeResult = runCatching {
                                     val latch = CountDownLatch(1)
@@ -724,7 +655,7 @@ class TermuxCommandExecutor {
                                 
                                 // 解析文件大小结果
                                 val sizeOutput = sizeResult?.stdout?.trim() ?: ""
-                                Log.d(TAG, "文件大小检查结果: '$sizeOutput'")
+                                // Log.d(TAG, "文件大小检查结果: '$sizeOutput'")
                                 
                                 // 如果文件不存在，继续循环
                                 if (sizeOutput.isEmpty() || sizeOutput.contains("NOT_EXISTS")) {
@@ -762,7 +693,7 @@ class TermuxCommandExecutor {
                                     // 对于小块数据，直接按字节读取
                                     "run-as com.termux sh -c 'dd if=\"$tempOutputFile\" bs=1 skip=$lastSize count=${newSize - lastSize} 2>/dev/null'"
                                 }
-                                Log.d(TAG, "读取命令: $readCommand, 从位置 $lastSize 读取 ${newSize - lastSize} 字节")
+                                // Log.d(TAG, "读取命令: $readCommand, 从位置 $lastSize 读取 ${newSize - lastSize} 字节")
                                 
                                 val readResult = runCatching {
                                     val latch = CountDownLatch(1)

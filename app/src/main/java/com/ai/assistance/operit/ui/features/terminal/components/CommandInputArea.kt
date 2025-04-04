@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -95,18 +96,74 @@ fun CommandInputArea(
             )
         }
         
-        // 路径和提示符部分
-        Text(
-            text = " ~ ",
-            color = TerminalColors.ParrotPurple,
-            fontFamily = FontFamily.Monospace,
-            fontSize = fontSize.sp,
-            fontWeight = FontWeight.Bold
-        )
+        // 获取当前工作目录名称
+        val currentDirName = remember(session.workingDirectory) {
+            val path = session.workingDirectory
+            when {
+                // Termux 主目录显示为 ~ 
+                path == "/data/data/com.termux/files/home" -> "~"
+                
+                // 根目录
+                path == "/" -> "/"
+                
+                // Android 存储目录显示为更友好的名称
+                path.startsWith("/storage/emulated/0") -> {
+                    val relativePath = path.removePrefix("/storage/emulated/0")
+                    if (relativePath.isEmpty()) "sdcard" else "sdcard${relativePath}"
+                }
+                
+                // 完整 Termux 路径
+                path.startsWith("/data/data/com.termux/files/") -> {
+                    val relativePath = path.removePrefix("/data/data/com.termux/files/")
+                    if (relativePath.isEmpty()) "termux" else relativePath
+                }
+                
+                // 其他路径显示最后一个目录名
+                else -> {
+                    val parts = path.split("/").filter { it.isNotEmpty() }
+                    parts.lastOrNull() ?: "/"
+                }
+            }
+        }
+        
+        // 完整路径提示
+        val fullPathTooltip = remember(session.workingDirectory) {
+            "当前工作目录: ${session.workingDirectory}"
+        }
+        
+        // 路径部分 - 使用会话的实际工作目录
+        Box(
+            modifier = Modifier
+                .padding(horizontal = 4.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(TerminalColors.ParrotBg.copy(alpha = 0.3f))
+                .pointerInput(Unit) {
+                    // 长按显示完整路径提示
+                    detectTapGestures(
+                        onLongPress = {
+                            // 显示完整路径的Toast提示
+                            android.widget.Toast.makeText(
+                                context, 
+                                fullPathTooltip, 
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    )
+                }
+        ) {
+            Text(
+                text = " $currentDirName ",
+                color = TerminalColors.ParrotPurple,
+                fontFamily = FontFamily.Monospace,
+                fontSize = fontSize.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+            )
+        }
         
         // 命令提示符箭头
         Text(
-            text = "$ ",
+            text = if (session.currentUser == "root") "# " else "$ ",
             color = TerminalColors.ParrotAccent,
             fontFamily = FontFamily.Monospace,
             fontSize = fontSize.sp,
@@ -349,7 +406,7 @@ private suspend fun handleCommand(
                     withContext(Dispatchers.Main) {
                         // 为避免并发修改，使用互斥锁保护
                         historyMutex.withLock {
-                            android.util.Log.d("TerminalScreen", "收到命令输出: ${output.text}")
+                            // android.util.Log.d("TerminalScreen", "收到命令输出: ${output.text}")
                             
                             // 检查是否包含交互式提示标记
                             if (output.text.startsWith("INTERACTIVE_PROMPT:")) {
