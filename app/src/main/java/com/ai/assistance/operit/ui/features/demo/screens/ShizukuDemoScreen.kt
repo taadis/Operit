@@ -60,7 +60,6 @@ fun ShizukuDemoScreen() {
     // Termux状态
     var isTermuxInstalled by remember { mutableStateOf(false) }
     var isTermuxAuthorized by remember { mutableStateOf(false) }
-    var hasTermuxStoragePermission by remember { mutableStateOf(false) }
     
     var hasStoragePermission by remember { mutableStateOf(false) }
     var hasOverlayPermission by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
@@ -126,71 +125,12 @@ fun ShizukuDemoScreen() {
         isShizukuRunning = AdbCommandExecutor.isShizukuServiceRunning()
         hasShizukuPermission = AdbCommandExecutor.hasShizukuPermission()
         
-        // 检查Termux是否安装
-        isTermuxInstalled = TermuxInstaller.isTermuxInstalled(context)
-        
-        // 检查Termux是否授权
-        scope.launch {
-            isTermuxAuthorized = TermuxAuthorizer.isTermuxAuthorized(context)
-            
-            // 检查Termux存储权限
-            if (isTermuxInstalled) {
-                try {
-                    // 使用更详细的检查方法
-                    // 1. 首先检查权限是否已授予
-                    val permResult = AdbCommandExecutor.executeAdbCommand(
-                        "dumpsys package com.termux | grep -E 'android.permission.(READ|WRITE)_EXTERNAL_STORAGE' | grep granted=true | wc -l"
-                    )
-                    
-                    // 应该有两个权限(READ和WRITE)都显示granted=true
-                    val permCount = try {
-                        permResult.stdout.trim().toInt()
-                    } catch (e: Exception) {
-                        0
-                    }
-                    
-                    // 2. 测试Termux是否实际能访问存储
-                    val testAccessResult = AdbCommandExecutor.executeAdbCommand(
-                        "su -c 'run-as com.termux touch /sdcard/termux_permission_test && rm /sdcard/termux_permission_test'"
-                    )
-                    
-                    // 更新权限状态并记录日志
-                    val hasPermsGranted = permCount >= 2
-                    val hasActualAccess = testAccessResult.success
-                    
-                    Log.d(TAG, "Termux存储权限检测: 授权数=$permCount, 实际访问=${hasActualAccess}, " +
-                              "permResult=${permResult.stdout.trim()}, testResult=${testAccessResult.success}")
-                    
-                    // 只有满足两种条件才认为有完整的存储权限
-                    hasTermuxStoragePermission = hasPermsGranted
-                    
-                    // 检查存储权限
-                    hasStoragePermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        Environment.isExternalStorageManager()
-                    } else {
-                        context.checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED &&
-                        context.checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED
-                    }
-                    
-                    // 检查电池优化豁免
-                    val powerManager = context.getSystemService(android.content.Context.POWER_SERVICE) as PowerManager
-                    hasBatteryOptimizationExemption = powerManager.isIgnoringBatteryOptimizations(context.packageName)
-                    
-                    // 检查无障碍服务状态
-                    hasAccessibilityServiceEnabled = UIHierarchyManager.isAccessibilityServiceEnabled(context)
-                    
-                    val sdkVersion = Build.VERSION.SDK_INT
-                    println("SDK Version: $sdkVersion, Storage: $hasStoragePermission, Overlay: $hasOverlayPermission, " +
-                            "Battery: $hasBatteryOptimizationExemption, A11y: $hasAccessibilityServiceEnabled, " +
-                            "Shizuku: [Installed: $isShizukuInstalled, Running: $isShizukuRunning, HasPermission: $hasShizukuPermission], " +
-                            "Termux: [Installed: $isTermuxInstalled]")
-                } catch (e: Exception) {
-                    Log.e(TAG, "检查Termux权限时出错: ${e.message}", e)
-                    hasTermuxStoragePermission = false
-                }
-            } else {
-                hasTermuxStoragePermission = false
-            }
+        // 检查存储权限
+        hasStoragePermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Environment.isExternalStorageManager()
+        } else {
+            context.checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED &&
+            context.checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED
         }
         
         // 检查悬浮窗权限
@@ -202,6 +142,14 @@ fun ShizukuDemoScreen() {
         
         // 检查无障碍服务状态
         hasAccessibilityServiceEnabled = UIHierarchyManager.isAccessibilityServiceEnabled(context)
+        
+        // 检查Termux是否安装
+        isTermuxInstalled = TermuxInstaller.isTermuxInstalled(context)
+        
+        // 检查Termux是否授权
+        scope.launch {
+            isTermuxAuthorized = TermuxAuthorizer.isTermuxAuthorized(context)
+        }
         
         val sdkVersion = Build.VERSION.SDK_INT
         println("SDK Version: $sdkVersion, Storage: $hasStoragePermission, Overlay: $hasOverlayPermission, " +
@@ -334,10 +282,11 @@ fun ShizukuDemoScreen() {
             Spacer(modifier = Modifier.height(16.dp))
         }
         
-        // Termux向导卡片 - 如果Termux未安装则显示
-        if (!isTermuxInstalled) {
+        // Termux向导卡片 - 如果Termux未完全设置则显示
+        if (!isTermuxInstalled || !isTermuxAuthorized) {
             TermuxWizardCard(
                 isTermuxInstalled = isTermuxInstalled,
+                isTermuxAuthorized = isTermuxAuthorized,
                 showWizard = showTermuxWizard,
                 onToggleWizard = { showTermuxWizard = it },
                 onInstallBundled = {
@@ -394,6 +343,18 @@ fun ShizukuDemoScreen() {
                     } catch (e: Exception) {
                         Toast.makeText(context, "无法启动Termux应用", Toast.LENGTH_SHORT).show()
                     }
+                },
+                onAuthorizeTermux = {
+                    scope.launch {
+                        Toast.makeText(context, "正在授权Termux...", Toast.LENGTH_SHORT).show()
+                        val success = TermuxAuthorizer.ensureTermuxRunCommandPermission(context)
+                        if (success) {
+                            isTermuxAuthorized = true
+                            Toast.makeText(context, "成功授权Termux", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "授权Termux失败，请检查Termux设置", Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 }
             )
             
@@ -418,12 +379,84 @@ fun ShizukuDemoScreen() {
                     Button(
                         onClick = {
                             isRefreshing = true
-                            refreshStatus()
-                            isRefreshing = false
+                            scope.launch {
+                                try {
+                                    
+                                    // 强制立即重新检查Termux状态 - 使用包管理器直接检查
+                                    try {
+                                        val packageManager = context.packageManager
+                                        try {
+                                            val packageInfo = packageManager.getPackageInfo("com.termux", 0)
+                                            isTermuxInstalled = packageInfo != null
+                                            Log.d(TAG, "刷新: Termux已安装状态: $isTermuxInstalled")
+                                        } catch (e: Exception) {
+                                            isTermuxInstalled = false
+                                            Log.d(TAG, "刷新: Termux未安装: ${e.message}")
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "检查Termux安装状态出错: ${e.message}")
+                                        isTermuxInstalled = false
+                                    }
+                                    
+                                    // 确保安装状态已经更新后，再检查授权状态
+                                    delay(300) // 短暂延迟确保状态更新
+                                    
+                                    // 如果Termux已安装，检查授权状态
+                                    if (isTermuxInstalled) {
+                                        val authResult = TermuxAuthorizer.isTermuxAuthorized(context)
+                                        Log.d(TAG, "刷新: Termux授权状态: $authResult")
+                                        isTermuxAuthorized = authResult
+                                    } else {
+                                        isTermuxAuthorized = false
+                                    }
+                                    
+                                    // 检查其他状态
+                                    isShizukuInstalled = AdbCommandExecutor.isShizukuInstalled(context)
+                                    isShizukuRunning = AdbCommandExecutor.isShizukuServiceRunning()
+                                    hasShizukuPermission = AdbCommandExecutor.hasShizukuPermission()
+                                    
+                                    // 检查存储权限
+                                    hasStoragePermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                        Environment.isExternalStorageManager()
+                                    } else {
+                                        context.checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED &&
+                                        context.checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                                    }
+                                    
+                                    // 检查悬浮窗权限
+                                    hasOverlayPermission = Settings.canDrawOverlays(context)
+                                    
+                                    // 检查电池优化豁免
+                                    val powerManager = context.getSystemService(android.content.Context.POWER_SERVICE) as PowerManager
+                                    hasBatteryOptimizationExemption = powerManager.isIgnoringBatteryOptimizations(context.packageName)
+                                    
+                                    // 检查无障碍服务状态
+                                    hasAccessibilityServiceEnabled = UIHierarchyManager.isAccessibilityServiceEnabled(context)
+                                    
+                                    // 刷新完成，打印状态日志
+                                    Log.d(TAG, "刷新完成: Termux [Installed: $isTermuxInstalled, Authorized: $isTermuxAuthorized], " +
+                                              "Shizuku [Installed: $isShizukuInstalled, Running: $isShizukuRunning, Permission: $hasShizukuPermission]")
+                                    
+                                    
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "刷新状态时出错: ${e.message}", e)
+                                    withContext(Dispatchers.Main) {
+                                        Toast.makeText(context, "刷新状态时出错: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    }
+                                } finally {
+                                    // 刷新完成
+                                    delay(300) // 短暂延迟以确保UI更新
+                                    isRefreshing = false
+                                }
+                            }
                         },
                         enabled = !isRefreshing
                     ) {
-                        Text("刷新")
+                        if (isRefreshing) {
+                            Text("正在刷新...")
+                        } else {
+                            Text("刷新")
+                        }
                     }
                 }
                 
@@ -493,34 +526,6 @@ fun ShizukuDemoScreen() {
                     }
                 )
                 
-                // Termux通知权限
-                PermissionStatusItem(
-                    title = "Termux通知权限",
-                    isGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        context.packageManager.checkPermission(
-                            android.Manifest.permission.POST_NOTIFICATIONS,
-                            "com.termux"
-                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-                    } else {
-                        true // 低于Android 13版本不需要通知权限
-                    },
-                    onClick = {
-                        try {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                    data = Uri.parse("package:com.termux")
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-                                context.startActivity(intent)
-                            } else {
-                                Toast.makeText(context, "通知权限仅Android 13及以上需要", Toast.LENGTH_SHORT).show()
-                            }
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "无法打开Termux通知权限设置", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                )
-                
                 // 无障碍服务状态
                 PermissionStatusItem(
                     title = "无障碍服务",
@@ -583,7 +588,7 @@ fun ShizukuDemoScreen() {
                     )
                 }
                 
-                // Termux状态
+                // Termux状态保留显示
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -591,21 +596,9 @@ fun ShizukuDemoScreen() {
                         .combinedClickable(
                             onClick = {
                                 // 短按时处理Termux
-                                if (!isTermuxInstalled) {
-                                    // 如果未安装，显示向导
+                                if (!isTermuxInstalled || !isTermuxAuthorized) {
+                                    // 如果未安装或未授权，显示向导
                                     showTermuxWizard = !showTermuxWizard
-                                } else if (!isTermuxAuthorized) {
-                                    // 如果已安装但未授权，尝试自动授权
-                                    scope.launch {
-                                        Toast.makeText(context, "正在授权Termux...", Toast.LENGTH_SHORT).show()
-                                        val success = TermuxAuthorizer.ensureTermuxRunCommandPermission(context)
-                                        if (success) {
-                                            isTermuxAuthorized = true
-                                            Toast.makeText(context, "成功授权Termux", Toast.LENGTH_SHORT).show()
-                                        } else {
-                                            Toast.makeText(context, "授权Termux失败，请检查Termux设置", Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
                                 } else {
                                     // 如果已安装且已授权，尝试打开Termux
                                     try {
@@ -651,50 +644,6 @@ fun ShizukuDemoScreen() {
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
-                
-                // Termux存储权限
-                PermissionStatusItem( 
-                    title = "Termux存储权限",
-                    isGranted = hasTermuxStoragePermission,
-                    onClick = {
-                        if (!isTermuxInstalled) {
-                            Toast.makeText(context, "请先安装Termux", Toast.LENGTH_SHORT).show()
-                            return@PermissionStatusItem
-                        }
-                        
-                        // 检查Shizuku是否可用（使用ADB需要Shizuku权限）
-                        if (!isShizukuRunning || !hasShizukuPermission) {
-                            Toast.makeText(context, "需要Shizuku服务来授予权限", Toast.LENGTH_SHORT).show()
-                            return@PermissionStatusItem
-                        }
-                        
-                        // 弹出提示
-                        Toast.makeText(context, "正在授予Termux存储权限...", Toast.LENGTH_SHORT).show()
-                        
-                        // 使用ADB授予Termux存储权限
-                        scope.launch {
-                            try {
-                                // 为Termux授予存储权限
-                                val result = AdbCommandExecutor.executeAdbCommand(
-                                    "pm grant com.termux android.permission.READ_EXTERNAL_STORAGE && " +
-                                    "pm grant com.termux android.permission.WRITE_EXTERNAL_STORAGE"
-                                )
-                                
-                                if (result.success) {
-                                    Toast.makeText(context, "已成功授予Termux存储权限", Toast.LENGTH_SHORT).show()
-                                    // 刷新权限状态
-                                    refreshStatus()
-                                } else {
-                                    Toast.makeText(context, "授予权限失败: ${result.stderr}", Toast.LENGTH_SHORT).show()
-                                }
-                            } catch (e: Exception) {
-                                withContext(Dispatchers.Main) {
-                                    Toast.makeText(context, "执行命令时出错: ${e.message}", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        }
-                    }
-                )
                 
                 // 显示错误消息（如果有）
                 permissionErrorMessage?.let {
@@ -1266,10 +1215,12 @@ fun PermissionStatusItem(
 @Composable
 fun TermuxWizardCard(
     isTermuxInstalled: Boolean,
+    isTermuxAuthorized: Boolean,
     showWizard: Boolean,
     onToggleWizard: (Boolean) -> Unit,
     onInstallBundled: () -> Unit,
-    onOpenTermux: () -> Unit
+    onOpenTermux: () -> Unit,
+    onAuthorizeTermux: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -1306,17 +1257,22 @@ fun TermuxWizardCard(
             
             // 显示当前进度
             LinearProgressIndicator(
-                progress = if (!isTermuxInstalled) 0f else 1f,
+                progress = when {
+                    !isTermuxInstalled -> 0f
+                    !isTermuxAuthorized -> 0.5f
+                    else -> 1f
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 8.dp)
             )
             
             // 当前状态文字
-            val statusText = if (!isTermuxInstalled) 
-                "步骤1：安装 Termux 应用" 
-            else 
-                "Termux 已完全设置"
+            val statusText = when {
+                !isTermuxInstalled -> "步骤1：安装 Termux 应用"
+                !isTermuxAuthorized -> "步骤2：授权 Termux 使用权限"
+                else -> "Termux 已完全设置"
+            }
             
             Text(
                 text = statusText,
@@ -1327,33 +1283,119 @@ fun TermuxWizardCard(
             
             // 详细设置内容，仅在展开时显示
             if (showWizard) {
-                if (!isTermuxInstalled) {
+                when {
                     // 第一步：安装Termux
-                    Text(
-                        "Termux是一个功能强大的终端模拟器，通过它您可以使用各种命令行工具。我们需要先安装这个应用。",
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                    
-                    OutlinedButton(
-                        onClick = onInstallBundled,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("安装内置版本")
+                    !isTermuxInstalled -> {
+                        Text(
+                            "Termux是一个功能强大的终端模拟器，通过它您可以使用各种命令行工具。我们需要先安装这个应用。",
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        
+                        // 安装说明
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp)
+                            ) {
+                                Text(
+                                    text = "Termux 安装说明",
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(bottom = 4.dp)
+                                )
+                                Text(
+                                    text = "安装完成后，请首次打开Termux并等待初始化完成，然后返回本应用完成授权步骤。",
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                        
+                        OutlinedButton(
+                            onClick = onInstallBundled,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("安装内置版本")
+                        }
                     }
-                } else {
-                    // Termux已完全设置
-                    Text(
-                        "恭喜！Termux已安装，您可以点击下方按钮打开Termux应用，或者使用终端页面执行命令。",
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
                     
-                    OutlinedButton(
-                        onClick = onOpenTermux,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("打开Termux应用")
+                    // 第二步：授权Termux
+                    !isTermuxAuthorized -> {
+                        Text(
+                            "Termux已安装，现在需要授予Termux必要的权限，这样我们才能执行命令。",
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        
+                        // 授权说明
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp)
+                            ) {
+                                Text(
+                                    text = "授权说明",
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(bottom = 4.dp)
+                                )
+                                Text(
+                                    text = "点击下方按钮自动授权Termux。授权过程需要使用Shizuku服务，请确保Shizuku服务已正确配置。\n\n" +
+                                           "如果授权失败，请先打开Termux应用运行一次，然后重试授权。",
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            OutlinedButton(
+                                onClick = onOpenTermux,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(end = 4.dp)
+                            ) {
+                                Text("打开Termux")
+                            }
+                            
+                            OutlinedButton(
+                                onClick = onAuthorizeTermux,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(start = 4.dp)
+                            ) {
+                                Text("授权Termux")
+                            }
+                        }
+                    }
+                    
+                    // 全部完成
+                    else -> {
+                        Text(
+                            "恭喜！Termux已完全设置，您现在可以使用全部功能。",
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                        
+                        OutlinedButton(
+                            onClick = onOpenTermux,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("打开Termux应用")
+                        }
                     }
                 }
             }

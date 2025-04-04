@@ -1,6 +1,7 @@
 package com.ai.assistance.operit.ui.features.terminal.components
 
 import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -360,6 +361,8 @@ fun CommandInputArea(
     }
 }
 
+
+
 /**
  * 处理命令输入
  */
@@ -376,13 +379,17 @@ private suspend fun handleCommand(
 ) {
     // 将命令添加到历史，保存当前提示符
     val currentPrompt = session.getPrompt()
+    // 记录当前工作目录和提示符，以便调试
+    // android.util.Log.d("TerminalScreen", "执行命令时的工作目录: ${session.workingDirectory}")
+    // android.util.Log.d("TerminalScreen", "使用提示符: $currentPrompt")
+    
     session.commandHistory.add(TerminalLine.Input(command, currentPrompt))
     
     // 特殊命令处理
     when (command) {
         "exit" -> {
             // 通知用户应该按返回键返回
-            android.widget.Toast.makeText(context, "请按返回键返回上一页", android.widget.Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "请按返回键返回上一页", Toast.LENGTH_SHORT).show()
             onCommandProcessed()
         }
         else -> {
@@ -390,7 +397,7 @@ private suspend fun handleCommand(
             onCommandProcessed()
             
             // 用于安全修改命令历史的互斥锁
-            val historyMutex = Mutex()
+            val historyMutex = kotlinx.coroutines.sync.Mutex()
             
             // 使用Termux执行命令，返回输出流
             val outputFlow = session.executeCommand(
@@ -406,7 +413,7 @@ private suspend fun handleCommand(
                     withContext(Dispatchers.Main) {
                         // 为避免并发修改，使用互斥锁保护
                         historyMutex.withLock {
-                            // android.util.Log.d("TerminalScreen", "收到命令输出: ${output.text}")
+                            android.util.Log.d("TerminalScreen", "收到命令输出: ${output.text}")
                             
                             // 检查是否包含交互式提示标记
                             if (output.text.startsWith("INTERACTIVE_PROMPT:")) {
@@ -428,7 +435,14 @@ private suspend fun handleCommand(
                                 } catch (e: NumberFormatException) {
                                     session.commandHistory.add(TerminalLine.Output("[无法解析执行ID: $executionId]"))
                                 }
-                            } else {
+                            } 
+                            // 检查是否是用户切换消息
+                            else if (output.text.startsWith("USER_SWITCHED:")) {
+                                // 这是一个特殊的用户切换消息，我们只记录实际的切换消息
+                                // 不添加这条特殊消息到历史记录中
+                                android.util.Log.d("TerminalScreen", "检测到用户切换: ${output.text}")
+                            }
+                            else {
                                 // 检查是否可能是交互式提示但未被前面的代码识别
                                 val output_text = output.text.trim()
                                 if (output_text.contains("[Y/n]") || output_text.contains("[y/N]") || 
@@ -444,6 +458,9 @@ private suspend fun handleCommand(
                         }
                     }
                 }
+                
+                // 命令执行完毕后记录当前工作目录，以验证是否正确更新
+                android.util.Log.d("TerminalScreen", "命令执行完毕后的工作目录: ${session.workingDirectory}")
             } catch (e: Exception) {
                 // 处理流收集过程中的异常
                 android.util.Log.e("TerminalScreen", "收集命令输出时出错: ${e.message}", e)
@@ -455,4 +472,4 @@ private suspend fun handleCommand(
             }
         }
     }
-} 
+}
