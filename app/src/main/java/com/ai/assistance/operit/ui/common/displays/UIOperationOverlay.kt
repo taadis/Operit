@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.display
+package com.ai.assistance.operit.ui.common.displays
 
 import android.content.Context
 import android.content.Intent

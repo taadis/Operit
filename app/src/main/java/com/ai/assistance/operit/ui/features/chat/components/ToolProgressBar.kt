@@ -11,8 +11,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.ai.assistance.operit.model.ToolExecutionProgress
-import com.ai.assistance.operit.model.ToolExecutionState
+import com.ai.assistance.operit.data.model.ToolExecutionProgress
+import com.ai.assistance.operit.data.model.ToolExecutionState
 import com.ai.assistance.operit.ui.common.animations.SimpleAnimatedVisibility
 
 /**

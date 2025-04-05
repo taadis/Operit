@@ -1,6 +1,5 @@
-package com.ai.assistance.operit.service
+package com.ai.assistance.operit.services
 
-import android.os.Bundle
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry

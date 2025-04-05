@@ -1,31 +1,26 @@
-package com.ai.assistance.operit
+package com.ai.assistance.operit.tools.system
 
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import com.ai.assistance.operit.AdbCommandExecutor.CommandResult
+import com.ai.assistance.operit.tools.system.AdbCommandExecutor.CommandResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import java.util.UUID
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.withTimeout
 import android.content.BroadcastReceiver
 import android.os.Build
 import android.app.PendingIntent
-import android.os.Bundle
+import com.ai.assistance.operit.services.TermuxCommandResultService
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
-import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.TimeoutException
@@ -223,7 +218,7 @@ class TermuxCommandExecutor {
          * @return 执行结果 (仅表示命令是否成功发送，不代表实际执行结果)
          */
         suspend fun executeCommandStreaming(
-            context: Context, 
+            context: Context,
             command: String,
             autoAuthorize: Boolean = true,
             background: Boolean = true,
@@ -406,46 +401,49 @@ class TermuxCommandExecutor {
                     // 创建结果处理回调
                     TermuxCommandResultService.registerCallback(executionId) { result ->
                         Log.d(TAG, "收到命令执行结果回调: $result")
-                        
+
                         // 命令已完成，使用AdbCommandExecutor清理临时文件
                         GlobalScope.launch(Dispatchers.IO) {
                             // 等待一会确保所有输出都被处理
                             delay(500)
-                            
+
                             // 使用AdbCommandExecutor删除临时文件，避免再次调用Termux
                             try {
                                 AdbCommandExecutor.executeAdbCommand("run-as com.termux sh -c 'rm -f \"$tempOutputFile\"'")
                                 Log.d(TAG, "临时文件已通过ADB删除: $tempOutputFile")
-                                
+
                                 // 尝试清理FIFO管道
-                                val fifoFile = "/data/data/com.termux/files/home/.termux_input_$executionId.fifo"
+                                val fifoFile =
+                                    "/data/data/com.termux/files/home/.termux_input_$executionId.fifo"
                                 AdbCommandExecutor.executeAdbCommand("run-as com.termux sh -c 'rm -f \"$fifoFile\" 2>/dev/null'")
-                                
+
                                 // 清理资源
                                 activeCommandFiles.remove(executionId)
                                 waitingForInput.remove(executionId)
-                        } catch (e: Exception) {
+                            } catch (e: Exception) {
                                 Log.e(TAG, "删除临时文件失败: ${e.message}")
                             }
                         }
-                        
+
                         // 检查当前输出是否已经包含COMMAND_COMPLETE标记
                         // 如果已经通过文件监听获取了完整输出，则不再重复添加内容
                         val currentOutput = stdoutBuilder.toString()
                         val alreadyCompleted = currentOutput.contains("COMMAND_COMPLETE:")
-                        
+
                         if (alreadyCompleted) {
                             Log.d(TAG, "已通过文件监听获取完整输出，不再添加Intent回调内容")
                             // 仅完成延迟对象，不更新输出
-                            commandCompleted.complete(CommandResult(
-                                success = result.success,
-                                stdout = currentOutput,
-                                stderr = stderrBuilder.toString(),
-                                exitCode = result.exitCode
-                            ))
+                            commandCompleted.complete(
+                                CommandResult(
+                                    success = result.success,
+                                    stdout = currentOutput,
+                                    stderr = stderrBuilder.toString(),
+                                    exitCode = result.exitCode
+                                )
+                            )
                             return@registerCallback
                         }
-                        
+
                         // 触发完成回调
                         val finalResult = CommandResult(
                             success = result.success,
@@ -453,20 +451,23 @@ class TermuxCommandExecutor {
                             stderr = result.stderr,  // 确保使用原始结果中的stderr
                             exitCode = result.exitCode
                         )
-                        
+
                         // 确保stdout和stderr非空
                         if (result.stdout.isNotEmpty() && stdoutBuilder.toString().isEmpty()) {
                             //termux has some bug
                             // stdoutBuilder.append(result.stdout)
                         }
-                        
+
                         if (result.stderr.isNotEmpty() && stderrBuilder.toString().isEmpty()) {
                             stderrBuilder.append(result.stderr)
                         }
-                        
-                        Log.d(TAG, "传递给接收器的最终结果: stdout长度=${finalResult.stdout.length}, stderr长度=${finalResult.stderr.length}")
+
+                        Log.d(
+                            TAG,
+                            "传递给接收器的最终结果: stdout长度=${finalResult.stdout.length}, stderr长度=${finalResult.stderr.length}"
+                        )
                         effectiveOutputReceiver?.onComplete(finalResult)
-                        
+
                         // 完成延迟对象
                         commandCompleted.complete(finalResult)
                     }
@@ -572,7 +573,8 @@ class TermuxCommandExecutor {
                                 // 准备执行的ADB命令
                                 // 1. 确保Termux应用存在
                                 val checkTermuxCmd = "pm path com.termux"
-                                val checkResult = AdbCommandExecutor.executeAdbCommand(checkTermuxCmd)
+                                val checkResult =
+                                    AdbCommandExecutor.executeAdbCommand(checkTermuxCmd)
                                 if (!checkResult.stdout.contains("package:")) {
                                     Log.e(TAG, "Termux应用不存在，无法通过ADB启动服务")
                                     effectiveOutputReceiver?.onError("Termux应用不存在，无法通过ADB强制启动服务", -1)
@@ -582,7 +584,8 @@ class TermuxCommandExecutor {
                                 // 2. 尝试通过ADB启动Termux服务
                                 val adbLaunchCmd = "am startservice -n com.termux/com.termux.app.RunCommandService --es com.termux.RUN_COMMAND_PATH /data/data/com.termux/files/usr/bin/bash --esa com.termux.RUN_COMMAND_ARGUMENTS \"-c,$wrappedCommand\" --es com.termux.RUN_COMMAND_WORKDIR /data/data/com.termux/files/home --ez com.termux.RUN_COMMAND_BACKGROUND ${background} --es com.termux.RUN_COMMAND_SESSION_ACTION 0"
                                 
-                                val launchResult = AdbCommandExecutor.executeAdbCommand(adbLaunchCmd)
+                                val launchResult =
+                                    AdbCommandExecutor.executeAdbCommand(adbLaunchCmd)
                                 if (launchResult.success) {
                                     Log.d(TAG, "通过ADB成功启动Termux服务: ${launchResult.stdout}")
                                 } else {
@@ -595,7 +598,8 @@ class TermuxCommandExecutor {
                                     delay(2000) // 等待应用启动
                                     
                                     // 再次尝试启动服务
-                                    val retryResult = AdbCommandExecutor.executeAdbCommand(adbLaunchCmd)
+                                    val retryResult =
+                                        AdbCommandExecutor.executeAdbCommand(adbLaunchCmd)
                                     if (!retryResult.success) {
                                         Log.e(TAG, "二次尝试通过ADB启动Termux服务失败: ${retryResult.stderr}")
                                         effectiveOutputReceiver?.onError("二次尝试通过ADB启动Termux服务失败", -1)
@@ -722,7 +726,8 @@ class TermuxCommandExecutor {
                                         var result: CommandResult? = null
                                         
                                         GlobalScope.launch(Dispatchers.IO) {
-                                            result = AdbCommandExecutor.executeAdbCommand(fallbackCommand)
+                                            result =
+                                                AdbCommandExecutor.executeAdbCommand(fallbackCommand)
                                             latch.countDown()
                                         }
                                         
@@ -841,7 +846,7 @@ class TermuxCommandExecutor {
                             // 判断是否应该超时:
                             // 1. 如果总时间超过DEFAULT_TIMEOUT且没有数据被读取，则超时
                             // 2. 如果无活动时间超过INACTIVITY_TIMEOUT，则超时
-                            if ((totalElapsed > DEFAULT_TIMEOUT && !isDataBeingRead.get()) || 
+                            if ((totalElapsed > DEFAULT_TIMEOUT && !isDataBeingRead.get()) ||
                                 (inactivityTime > INACTIVITY_TIMEOUT && totalElapsed > INACTIVITY_TIMEOUT)) {
                                 Log.w(TAG, "命令执行超时 - 总时间: ${totalElapsed/1000}秒, 无活动时间: ${inactivityTime/1000}秒")
                                 waitingForResult = false

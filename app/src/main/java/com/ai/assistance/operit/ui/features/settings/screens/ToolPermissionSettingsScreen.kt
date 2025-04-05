@@ -11,9 +11,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ai.assistance.operit.permissions.PermissionLevel
-import com.ai.assistance.operit.permissions.ToolCategory
-import com.ai.assistance.operit.permissions.ToolPermissionSystem
+import com.ai.assistance.operit.ui.permissions.PermissionLevel
+import com.ai.assistance.operit.ui.permissions.ToolCategory
+import com.ai.assistance.operit.ui.permissions.ToolPermissionSystem
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)

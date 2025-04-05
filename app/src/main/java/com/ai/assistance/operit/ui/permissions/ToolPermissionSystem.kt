@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.permissions
+package com.ai.assistance.operit.ui.permissions
 
 import android.content.Context
 import android.os.Handler
@@ -9,7 +9,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import com.ai.assistance.operit.core.model.AITool
+import com.ai.assistance.operit.data.model.AITool
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -113,28 +113,38 @@ class ToolPermissionSystem private constructor(private val context: Context) {
     }
     
     val systemOperationPermissionFlow: Flow<PermissionLevel> = context.toolPermissionsDataStore.data.map { preferences ->
-        PermissionLevel.fromString(preferences[SYSTEM_OPERATION_PERMISSION] 
-            ?: ToolCategory.getDefaultPermissionLevel(ToolCategory.SYSTEM_OPERATION).name)
+        PermissionLevel.fromString(
+            preferences[SYSTEM_OPERATION_PERMISSION]
+                ?: ToolCategory.getDefaultPermissionLevel(ToolCategory.SYSTEM_OPERATION).name
+        )
     }
     
     val networkPermissionFlow: Flow<PermissionLevel> = context.toolPermissionsDataStore.data.map { preferences ->
-        PermissionLevel.fromString(preferences[NETWORK_PERMISSION] 
-            ?: ToolCategory.getDefaultPermissionLevel(ToolCategory.NETWORK).name)
+        PermissionLevel.fromString(
+            preferences[NETWORK_PERMISSION]
+                ?: ToolCategory.getDefaultPermissionLevel(ToolCategory.NETWORK).name
+        )
     }
     
     val uiAutomationPermissionFlow: Flow<PermissionLevel> = context.toolPermissionsDataStore.data.map { preferences ->
-        PermissionLevel.fromString(preferences[UI_AUTOMATION_PERMISSION] 
-            ?: ToolCategory.getDefaultPermissionLevel(ToolCategory.UI_AUTOMATION).name)
+        PermissionLevel.fromString(
+            preferences[UI_AUTOMATION_PERMISSION]
+                ?: ToolCategory.getDefaultPermissionLevel(ToolCategory.UI_AUTOMATION).name
+        )
     }
     
     val fileReadPermissionFlow: Flow<PermissionLevel> = context.toolPermissionsDataStore.data.map { preferences ->
-        PermissionLevel.fromString(preferences[FILE_READ_PERMISSION] 
-            ?: ToolCategory.getDefaultPermissionLevel(ToolCategory.FILE_READ).name)
+        PermissionLevel.fromString(
+            preferences[FILE_READ_PERMISSION]
+                ?: ToolCategory.getDefaultPermissionLevel(ToolCategory.FILE_READ).name
+        )
     }
     
     val fileWritePermissionFlow: Flow<PermissionLevel> = context.toolPermissionsDataStore.data.map { preferences ->
-        PermissionLevel.fromString(preferences[FILE_WRITE_PERMISSION] 
-            ?: ToolCategory.getDefaultPermissionLevel(ToolCategory.FILE_WRITE).name)
+        PermissionLevel.fromString(
+            preferences[FILE_WRITE_PERMISSION]
+                ?: ToolCategory.getDefaultPermissionLevel(ToolCategory.FILE_WRITE).name
+        )
     }
     
     // Registry of dangerous operations by tool name

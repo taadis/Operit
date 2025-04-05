@@ -2,11 +2,12 @@ package com.ai.assistance.operit.tools.defaultTool
 
 import android.content.Context
 import android.util.Log
-import com.ai.assistance.operit.AdbCommandExecutor
-import com.ai.assistance.operit.display.UIOperationOverlay
-import com.ai.assistance.operit.model.AITool
-import com.ai.assistance.operit.model.ToolParameter
-import com.ai.assistance.operit.model.ToolResult
+import com.ai.assistance.operit.tools.system.AdbCommandExecutor
+import com.ai.assistance.operit.data.repository.UIHierarchyManager
+import com.ai.assistance.operit.ui.common.displays.UIOperationOverlay
+import com.ai.assistance.operit.data.model.AITool
+import com.ai.assistance.operit.data.model.ToolParameter
+import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.tools.CombinedOperationResultData
 import com.ai.assistance.operit.tools.SimplifiedUINode
 import com.ai.assistance.operit.tools.StringResultData
@@ -95,7 +96,7 @@ class UITools(private val context: Context) {
     private suspend fun getUIData(): UIData? {
         try {
             // 1. 首先尝试使用无障碍服务获取UI层次结构
-            val uiXml = com.ai.assistance.operit.data.UIHierarchyManager.getUIHierarchy(context)
+            val uiXml = UIHierarchyManager.getUIHierarchy(context)
             
             // 如果成功获取到UI层次结构
             if (uiXml.isNotEmpty()) {
@@ -730,7 +731,7 @@ class UITools(private val context: Context) {
         
         return try {
             // 优先使用无障碍服务尝试点击元素
-            val uiXml = com.ai.assistance.operit.data.UIHierarchyManager.getUIHierarchy(context)
+            val uiXml = UIHierarchyManager.getUIHierarchy(context)
             if (uiXml.isNotEmpty()) {
                 // 如果通过无障碍服务获取到了UI层次结构，则尝试直接使用这个数据而不再调用ADB dump
                 Log.d(TAG, "使用无障碍服务获取的UI层次结构")
@@ -986,7 +987,7 @@ class UITools(private val context: Context) {
             var success = false
             
             // Try to use accessibility service first
-            if (com.ai.assistance.operit.service.UIAccessibilityService.isRunning()) {
+            if (com.ai.assistance.operit.services.UIAccessibilityService.isRunning()) {
                 success = setTextWithAccessibility(text)
                 if (success) {
                     Log.d(TAG, "Successfully set text using accessibility service")
@@ -1037,7 +1038,7 @@ class UITools(private val context: Context) {
      */
     private fun setTextWithAccessibility(text: String): Boolean {
         try {
-            val service = com.ai.assistance.operit.service.UIAccessibilityService.getInstance() ?: return false
+            val service = com.ai.assistance.operit.services.UIAccessibilityService.getInstance() ?: return false
             
             // Get the root node
             val rootNode = service.rootInActiveWindow ?: return false
@@ -1801,7 +1802,7 @@ class UITools(private val context: Context) {
         
         return try {
             // Try to use accessibility service first to get UI hierarchy
-            val uiXml = com.ai.assistance.operit.data.UIHierarchyManager.getUIHierarchy(context)
+            val uiXml = UIHierarchyManager.getUIHierarchy(context)
             
             if (uiXml.isNotEmpty()) {
                 // Process using accessibility service data

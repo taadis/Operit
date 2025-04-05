@@ -2,9 +2,15 @@ package com.ai.assistance.operit.tools
 
 import android.content.Context
 import android.util.Log
-import com.ai.assistance.operit.model.*
-import com.ai.assistance.operit.permissions.ToolPermissionSystem
-import com.ai.assistance.operit.permissions.ToolCategory
+import com.ai.assistance.operit.data.model.AITool
+import com.ai.assistance.operit.data.model.ToolExecutionProgress
+import com.ai.assistance.operit.data.model.ToolExecutionState
+import com.ai.assistance.operit.data.model.ToolInvocation
+import com.ai.assistance.operit.data.model.ToolParameter
+import com.ai.assistance.operit.data.model.ToolResult
+import com.ai.assistance.operit.data.model.ToolValidationResult
+import com.ai.assistance.operit.ui.permissions.ToolPermissionSystem
+import com.ai.assistance.operit.ui.permissions.ToolCategory
 import com.ai.assistance.operit.tools.packTool.PackageManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -83,8 +89,8 @@ class AIToolHandler private constructor(
     
     // 工具注册的唯一方法 - 提供完整信息的注册
     fun registerTool(
-        name: String, 
-        category: ToolCategory, 
+        name: String,
+        category: ToolCategory,
         dangerCheck: ((AITool) -> Boolean)? = null,
         descriptionGenerator: ((AITool) -> String)? = null,
         executor: ToolExecutor
@@ -125,8 +131,8 @@ class AIToolHandler private constructor(
     
     // 添加重载方法接受函数式接口作为executor的便捷写法
     fun registerTool(
-        name: String, 
-        category: ToolCategory, 
+        name: String,
+        category: ToolCategory,
         dangerCheck: ((AITool) -> Boolean)? = null,
         descriptionGenerator: ((AITool) -> String)? = null,
         executor: (AITool) -> ToolResult

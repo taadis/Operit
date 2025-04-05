@@ -5,15 +5,13 @@ import android.content.Context
 import android.util.Log
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.snapshots.SnapshotStateList
-import com.ai.assistance.operit.AdbCommandExecutor.CommandResult
-import com.ai.assistance.operit.TermuxCommandExecutor
+import com.ai.assistance.operit.tools.system.AdbCommandExecutor.CommandResult
+import com.ai.assistance.operit.tools.system.TermuxCommandExecutor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.util.UUID
 
 /**
@@ -527,7 +525,7 @@ class TerminalSession(
     private fun createCommandOptions(command: String): TermuxCommandExecutor.Companion.CommandOptions {
         // 确定会话操作模式
         val sessionAction = if (termuxSessionId != null) {
-            TermuxCommandExecutor.Companion.SessionAction.ACTION_USE_CURRENT_SESSION 
+            TermuxCommandExecutor.Companion.SessionAction.ACTION_USE_CURRENT_SESSION
         } else {
             TermuxCommandExecutor.Companion.SessionAction.ACTION_NEW_SESSION
         }

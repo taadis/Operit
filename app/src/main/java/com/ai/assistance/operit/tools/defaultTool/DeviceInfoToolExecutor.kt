@@ -8,9 +8,10 @@ import android.os.Build
 import android.os.Environment
 import android.os.StatFs
 import android.provider.Settings
-import com.ai.assistance.operit.model.AITool
-import com.ai.assistance.operit.model.ToolResult
+import com.ai.assistance.operit.data.model.AITool
+import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.tools.DeviceInfoResultData
+import com.ai.assistance.operit.tools.StringResultData
 import com.ai.assistance.operit.tools.ToolExecutor
 
 /**
@@ -140,7 +141,7 @@ class DeviceInfoToolExecutor(private val context: Context) : ToolExecutor {
             ToolResult(
                 toolName = tool.name,
                 success = false,
-                result = com.ai.assistance.operit.tools.StringResultData(""),
+                result = StringResultData(""),
                 error = "Error retrieving device info: ${e.message}"
             )
         }

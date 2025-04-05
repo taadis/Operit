@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.core.data.preferences
+package com.ai.assistance.operit.data.preferences
 
 import android.content.Context
 import androidx.datastore.core.DataStore

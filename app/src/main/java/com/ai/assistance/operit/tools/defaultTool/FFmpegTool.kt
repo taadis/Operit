@@ -1,11 +1,10 @@
 package com.ai.assistance.operit.tools.defaultTool
 
 import android.content.Context
-import android.util.Log
-import com.ai.assistance.operit.model.AITool
-import com.ai.assistance.operit.model.ToolResult
-import com.ai.assistance.operit.model.ToolValidationResult
-import com.ai.assistance.operit.permissions.ToolCategory
+import com.ai.assistance.operit.data.model.AITool
+import com.ai.assistance.operit.data.model.ToolResult
+import com.ai.assistance.operit.data.model.ToolValidationResult
+import com.ai.assistance.operit.ui.permissions.ToolCategory
 import com.ai.assistance.operit.tools.FFmpegResultData
 import com.ai.assistance.operit.tools.StringResultData
 import com.ai.assistance.operit.tools.ToolExecutor
@@ -13,7 +12,6 @@ import com.arthenica.ffmpegkit.FFmpegKit
 import com.arthenica.ffmpegkit.FFmpegKitConfig
 import com.arthenica.ffmpegkit.FFprobeKit
 import com.arthenica.ffmpegkit.ReturnCode
-import com.arthenica.ffmpegkit.Session
 import java.io.File
 
 /**

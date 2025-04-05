@@ -2,7 +2,7 @@ package com.ai.assistance.operit.ui.features.chat.components
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
-import com.ai.assistance.operit.model.ChatMessage
+import com.ai.assistance.operit.data.model.ChatMessage
 
 /**
  * A composable function that renders chat messages in a Cursor IDE style.

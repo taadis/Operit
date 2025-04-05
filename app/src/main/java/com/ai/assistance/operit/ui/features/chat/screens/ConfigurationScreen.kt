@@ -12,7 +12,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ai.assistance.operit.data.ApiPreferences
+import com.ai.assistance.operit.data.preferences.ApiPreferences
 import kotlinx.coroutines.CoroutineScope
 
 @Composable

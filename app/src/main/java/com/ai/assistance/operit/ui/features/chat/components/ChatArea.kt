@@ -10,9 +10,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.ai.assistance.operit.model.AiReference
-import com.ai.assistance.operit.model.ChatMessage
-import com.ai.assistance.operit.model.ToolExecutionProgress
+import com.ai.assistance.operit.data.model.AiReference
+import com.ai.assistance.operit.data.model.ChatMessage
+import com.ai.assistance.operit.data.model.ToolExecutionProgress
 
 @Composable
 fun ChatArea(

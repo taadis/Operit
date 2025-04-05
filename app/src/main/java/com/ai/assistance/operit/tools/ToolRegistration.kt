@@ -1,12 +1,9 @@
 package com.ai.assistance.operit.tools
 
 import android.content.Context
-import com.ai.assistance.operit.model.*
-import com.ai.assistance.operit.permissions.ToolCategory
+import com.ai.assistance.operit.data.model.ToolResult
+import com.ai.assistance.operit.ui.permissions.ToolCategory
 import com.ai.assistance.operit.tools.defaultTool.*
-import com.ai.assistance.operit.tools.packTool.PackageManager
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 /**
  * This file contains all tool registrations centralized for easier maintenance and integration
@@ -291,7 +288,7 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
         // 移动/重命名文件或目录
         handler.registerTool(
             name = "move_file", 
-            category = ToolCategory.FILE_WRITE, 
+            category = ToolCategory.FILE_WRITE,
             dangerCheck = { true }, 
             descriptionGenerator = { tool ->
                 val source = tool.parameters.find { it.name == "source" }?.value ?: ""
@@ -466,7 +463,7 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
         // 修改系统设置
         handler.registerTool(
             name = "modify_system_setting", 
-            category = ToolCategory.SYSTEM_OPERATION, 
+            category = ToolCategory.SYSTEM_OPERATION,
             dangerCheck = { true },
             descriptionGenerator = { tool ->
                 val key = tool.parameters.find { it.name == "key" }?.value ?: ""
@@ -498,7 +495,7 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
         // 安装应用
         handler.registerTool(
             name = "install_app", 
-            category = ToolCategory.SYSTEM_OPERATION, 
+            category = ToolCategory.SYSTEM_OPERATION,
             dangerCheck = { true },
             descriptionGenerator = { tool ->
                 val path = tool.parameters.find { it.name == "path" }?.value ?: ""
@@ -514,7 +511,7 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
         // 卸载应用
         handler.registerTool(
             name = "uninstall_app", 
-            category = ToolCategory.SYSTEM_OPERATION, 
+            category = ToolCategory.SYSTEM_OPERATION,
             dangerCheck = { true },
             descriptionGenerator = { tool ->
                 val packageName = tool.parameters.find { it.name == "package_name" }?.value ?: ""
@@ -557,7 +554,7 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
         // 停止应用
         handler.registerTool(
             name = "stop_app", 
-            category = ToolCategory.SYSTEM_OPERATION, 
+            category = ToolCategory.SYSTEM_OPERATION,
             dangerCheck = { true },
             descriptionGenerator = { tool ->
                 val packageName = tool.parameters.find { it.name == "package_name" }?.value ?: ""

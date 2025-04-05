@@ -1,24 +1,15 @@
 package com.ai.assistance.operit.tools.packTool
 
 import android.content.Context
-import android.content.res.AssetManager
-import android.os.Environment
 import android.util.Log
-import com.ai.assistance.operit.permissions.ToolCategory
-import com.ai.assistance.operit.model.AITool
-import com.ai.assistance.operit.model.ToolResult
 import com.ai.assistance.operit.tools.AIToolHandler
-import com.ai.assistance.operit.tools.PackageTool
 import com.ai.assistance.operit.tools.PackageToolExecutor
-import com.ai.assistance.operit.tools.PackageToolParameter
 import com.ai.assistance.operit.tools.ToolPackage
 import com.ai.assistance.operit.tools.javascript.JsEngine
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 import org.hjson.JsonValue
 import java.io.File
-import java.io.IOException
-import org.json.JSONObject
 
 /**
  * Manages the loading, registration, and handling of tool packages

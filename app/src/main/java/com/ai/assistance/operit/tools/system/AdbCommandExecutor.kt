@@ -1,9 +1,8 @@
-package com.ai.assistance.operit
+package com.ai.assistance.operit.tools.system
 
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Handler
-import android.os.IBinder
 import android.os.Looper
 import android.os.ParcelFileDescriptor
 import android.os.RemoteException
@@ -13,13 +12,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import moe.shizuku.server.IShizukuService
 import rikka.shizuku.Shizuku
-import rikka.shizuku.ShizukuProvider
 import java.io.BufferedReader
 import java.io.FileInputStream
 import java.io.InputStreamReader
 import java.io.InterruptedIOException
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.CountDownLatch
 
 /**
  * 工具类用于通过Shizuku执行ADB命令

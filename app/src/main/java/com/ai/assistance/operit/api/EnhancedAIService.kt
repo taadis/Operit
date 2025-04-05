@@ -1,21 +1,21 @@
-package com.ai.assistance.operit.api.enhanced
+package com.ai.assistance.operit.api
 
 import android.content.Context
 import android.util.Log
-import com.ai.assistance.operit.api.AIService
-import com.ai.assistance.operit.api.enhanced.config.SystemPromptConfig
-import com.ai.assistance.operit.api.enhanced.utils.InputProcessor
-import com.ai.assistance.operit.api.enhanced.utils.ProblemLibraryManager
-import com.ai.assistance.operit.api.enhanced.utils.ReferenceManager
-import com.ai.assistance.operit.api.enhanced.utils.ToolExecutionManager
-import com.ai.assistance.operit.data.preferencesManager
-import com.ai.assistance.operit.model.AiReference
-import com.ai.assistance.operit.api.enhanced.models.ConversationMarkupManager
-import com.ai.assistance.operit.api.enhanced.models.ConversationRoundManager
-import com.ai.assistance.operit.data.ApiPreferences
-import com.ai.assistance.operit.model.InputProcessingState
-import com.ai.assistance.operit.model.ToolInvocation
-import com.ai.assistance.operit.model.ToolResult
+import com.ai.assistance.operit.core.config.SystemPromptConfig
+import com.ai.assistance.operit.api.enhance.InputProcessor
+import com.ai.assistance.operit.api.library.ProblemLibrary
+import com.ai.assistance.operit.api.enhance.ReferenceManager
+import com.ai.assistance.operit.api.enhance.ToolExecutionManager
+import com.ai.assistance.operit.data.preferences.preferencesManager
+import com.ai.assistance.operit.data.model.AiReference
+import com.ai.assistance.operit.api.enhance.ConversationMarkupManager
+import com.ai.assistance.operit.api.enhance.ConversationRoundManager
+import com.ai.assistance.operit.data.preferences.ApiPreferences
+import com.ai.assistance.operit.data.model.InputProcessingState
+import com.ai.assistance.operit.data.model.ToolExecutionProgress
+import com.ai.assistance.operit.data.model.ToolInvocation
+import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.tools.AIToolHandler
 import com.ai.assistance.operit.tools.StringResultData
 import com.ai.assistance.operit.tools.packTool.PackageManager
@@ -57,6 +57,11 @@ class EnhancedAIService(
     // Tool handler for executing tools
     private val toolHandler = AIToolHandler.getInstance(context)
 
+    // 初始化问题库
+    init {
+        ProblemLibrary.initialize(context)
+    }
+
     // State flows for UI updates
     private val _inputProcessingState = MutableStateFlow<InputProcessingState>(InputProcessingState.Idle)
     val inputProcessingState = _inputProcessingState.asStateFlow()
@@ -92,7 +97,7 @@ class EnhancedAIService(
     /**
      * Get the tool progress flow for UI updates
      */
-    fun getToolProgressFlow(): StateFlow<com.ai.assistance.operit.model.ToolExecutionProgress> {
+    fun getToolProgressFlow(): StateFlow<ToolExecutionProgress> {
         return toolHandler.toolProgress
     }
 
@@ -376,23 +381,6 @@ class EnhancedAIService(
         roundManager.clearContent()
         Log.d(TAG, "Conversation canceled - content pool cleared")
 
-        // Safely clean up conversation history
-        toolProcessingScope.launch {
-            try {
-                conversationMutex.withLock {
-                    // If the last message is from AI, remove it as it might be incomplete
-                    if (conversationHistory.isNotEmpty() && conversationHistory.last().first == "assistant") {
-                        Log.d(TAG, "Removing incomplete AI message from conversation history")
-                        conversationHistory.removeAt(conversationHistory.size - 1)
-                    }
-                }
-
-                Log.d(TAG, "Conversation history cleanup complete")
-            } catch (e: Exception) {
-                Log.e(TAG, "Error cleaning up conversation history", e)
-            }
-        }
-
         // Reset input processing state
         _inputProcessingState.value = InputProcessingState.Idle
 
@@ -488,6 +476,13 @@ class EnhancedAIService(
                 // Handle task completion marker
                 if (ConversationMarkupManager.containsTaskCompletion(content)) {
                     handleTaskCompletion(displayContent, null, responseCallback)
+                    onComplete()
+                    return@launch
+                }
+                
+                // Handle wait for user need marker
+                if (ConversationMarkupManager.containsWaitForUserNeed(content)) {
+                    handleWaitForUserNeed(displayContent, null, responseCallback)
                     onComplete()
                     return@launch
                 }
@@ -701,16 +696,48 @@ class EnhancedAIService(
             // Call completion callback
             currentCompleteCallback?.invoke()
 
-            // Save problem record to library
+            // 保存问题记录到库
             toolProcessingScope.launch {
-                ProblemLibraryManager.saveProblemToLibrary(
+                ProblemLibrary.saveProblemAsync(
+                    context,
                     toolHandler,
                     conversationHistory,
                     displayContent,
-                    aiService,
-                    context
+                    aiService
                 )
             }
+        }
+    }
+
+    /**
+     * Handle wait for user need logic - similar to task completion but without problem summary
+     */
+    private fun handleWaitForUserNeed(content: String, thinking: String?, onPartialResponse: (content: String, thinking: String?) -> Unit) {
+        // Mark conversation as complete
+        isConversationActive.set(false)
+
+        // Clean up wait for user need marker
+        val cleanedContent = ConversationMarkupManager.createWaitForUserNeedContent(content)
+
+        val displayContent = roundManager.getDisplayContent()
+        // Clear content pool
+        roundManager.clearContent()
+
+        // Ensure input processing state is updated to completed
+        _inputProcessingState.value = InputProcessingState.Completed
+
+        Log.d(TAG, "Wait for user need - content pool cleared, input processing state updated to Completed")
+
+        // Update UI
+        onPartialResponse(cleanedContent, thinking)
+
+        // Update conversation history without triggering problem analysis
+        toolProcessingScope.launch {
+            // Call completion callback
+            currentCompleteCallback?.invoke()
+
+            // No problem library saving here - this is the key difference
+            Log.d(TAG, "Wait for user need - skipping problem library analysis")
         }
     }
 

@@ -1,7 +1,6 @@
 package com.ai.assistance.operit.util
 
-import android.util.Log
-import com.ai.assistance.operit.model.ChatMessage
+import com.ai.assistance.operit.data.model.ChatMessage
 
 /**
  * Utility functions for chat message handling

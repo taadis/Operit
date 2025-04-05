@@ -2,12 +2,11 @@ package com.ai.assistance.operit.tools.defaultTool
 
 import android.content.Context
 import android.util.Log
-import com.ai.assistance.operit.model.AITool
-import com.ai.assistance.operit.model.ToolResult
+import com.ai.assistance.operit.data.model.AITool
+import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.tools.StringResultData
 import com.ai.assistance.operit.tools.HttpResponseData
 import com.ai.assistance.operit.tools.WebPageData
-import kotlinx.serialization.Serializable
 import okhttp3.FormBody
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient

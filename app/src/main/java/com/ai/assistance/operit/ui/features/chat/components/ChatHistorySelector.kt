@@ -14,7 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.ai.assistance.operit.model.ChatHistory
+import com.ai.assistance.operit.data.model.ChatHistory
 
 // Constants
 private const val CHAT_HISTORY_PAGE_SIZE = 20

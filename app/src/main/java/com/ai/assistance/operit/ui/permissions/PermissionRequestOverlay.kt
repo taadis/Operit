@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.permissions
+package com.ai.assistance.operit.ui.permissions
 
 import android.app.AlertDialog
 import android.content.Context
@@ -40,8 +40,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
-import com.ai.assistance.operit.core.model.AITool
-import com.ai.assistance.operit.service.ServiceLifecycleOwner
+import com.ai.assistance.operit.data.model.AITool
+import com.ai.assistance.operit.services.ServiceLifecycleOwner
 
 
 @OptIn(ExperimentalMaterial3Api::class)

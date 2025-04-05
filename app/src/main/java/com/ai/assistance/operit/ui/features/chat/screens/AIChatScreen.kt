@@ -2,7 +2,6 @@ package com.ai.assistance.operit.ui.features.chat.screens
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -14,7 +13,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
-import com.ai.assistance.operit.viewmodel.ChatViewModel
+import com.ai.assistance.operit.ui.chat.viewmodel.ChatViewModel
 import kotlinx.coroutines.delay
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -24,15 +23,11 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.PictureInPicture
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.window.Dialog
-import com.ai.assistance.operit.model.ChatMessage
-import com.ai.assistance.operit.service.FloatingChatService
+import com.ai.assistance.operit.services.FloatingChatService
 import com.ai.assistance.operit.ui.features.chat.components.ChatArea
 import com.ai.assistance.operit.ui.features.chat.components.ChatHeader
 import com.ai.assistance.operit.ui.features.chat.components.ChatHistorySelector

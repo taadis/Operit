@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.api.enhanced.config
+package com.ai.assistance.operit.core.config
 
 import com.ai.assistance.operit.tools.packTool.PackageManager
 

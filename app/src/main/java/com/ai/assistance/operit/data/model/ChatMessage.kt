@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.core.model
+package com.ai.assistance.operit.data.model
 
 import android.os.Parcel
 import android.os.Parcelable

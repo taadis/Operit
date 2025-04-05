@@ -1,73 +1,38 @@
 package com.ai.assistance.operit.ui.features.terminal.screens
 
-import android.content.Context
 import android.util.Log
-import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.TextFields
-import androidx.compose.material.icons.outlined.TextIncrease
-import androidx.compose.material.icons.outlined.TextDecrease
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.*
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ai.assistance.operit.TermuxCommandExecutor
-import com.ai.assistance.operit.ui.features.terminal.model.TerminalLine
-import com.ai.assistance.operit.ui.features.terminal.model.TerminalSession
+import com.ai.assistance.operit.tools.system.TermuxCommandExecutor
 import com.ai.assistance.operit.ui.features.terminal.model.TerminalSessionManager
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlin.math.roundToInt
 import com.ai.assistance.operit.ui.features.terminal.components.*
 import com.ai.assistance.operit.ui.features.terminal.utils.TerminalColors
 
@@ -157,7 +122,7 @@ fun TerminalScreen() {
                 // 处理用户输入
                 scope.launch {
                     try {
-                        val success = com.ai.assistance.operit.TermuxCommandExecutor.sendInputToCommand(
+                        val success = TermuxCommandExecutor.sendInputToCommand(
                             context = context,
                             executionId = currentExecutionId,
                             input = input

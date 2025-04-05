@@ -10,7 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.ai.assistance.operit.model.ChatMessage
+import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.ui.common.displays.MessageContentParser.Companion.ContentSegment
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -23,13 +23,6 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.text.selection.SelectionContainer
 import com.ai.assistance.operit.ui.common.displays.MessageContentParser
 import com.ai.assistance.operit.ui.common.displays.TextWithCodeBlocksComposable
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Autorenew
-import com.ai.assistance.operit.ui.features.chat.components.SimpleLinearProgressIndicator
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.draw.rotate
 
 /**
  * A composable function for rendering AI response messages in a Cursor IDE style.
@@ -212,7 +205,67 @@ fun AiMessageComposable(
                                 }
                             }
                             "completion" -> {
-                                // We don't handle completion status anymore since we removed sequence tools
+                                // Task completion indicator (old name, keep for backward compatibility)
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                                    ),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+                                ) {
+                                    SelectionContainer {
+                                        Text(
+                                            text = "✓ Task completed",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.padding(12.dp)
+                                        )
+                                    }
+                                }
+                            }
+                            "complete" -> {
+                                // Task completion indicator (new name)
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                                    ),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+                                ) {
+                                    SelectionContainer {
+                                        Text(
+                                            text = "✓ Task completed",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.padding(12.dp)
+                                        )
+                                    }
+                                }
+                            }
+                            "wait_for_user_need" -> {
+                                // Wait for user need indicator
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
+                                    ),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f))
+                                ) {
+                                    SelectionContainer {
+                                        Text(
+                                            text = "✓ Ready for further assistance",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.tertiary,
+                                            modifier = Modifier.padding(12.dp)
+                                        )
+                                    }
+                                }
                             }
                             "warning" -> {
                                 // Warning information
@@ -244,28 +297,6 @@ fun AiMessageComposable(
                                     }
                                 }
                             }
-                            "complete" -> {
-                                // Task completion indicator
-                                Card(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 4.dp),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                                    ),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
-                                ) {
-                                    SelectionContainer {
-                                        Text(
-                                            text = "✓ Task completed",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.padding(12.dp)
-                                        )
-                                    }
-                                }
-                            }
-                            // Thinking status is handled by ThinkingMessageComposable
                         }
                     }
                 }

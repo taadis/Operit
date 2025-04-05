@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.core.viewmodel
+package com.ai.assistance.operit.ui.chat.viewmodel
 
 import android.content.ComponentName
 import android.content.Context

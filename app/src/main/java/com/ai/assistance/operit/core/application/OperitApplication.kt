@@ -1,9 +1,9 @@
-package com.ai.assistance.operit.core
+package com.ai.assistance.operit.core.application
 
 import android.app.Application
 import com.ai.assistance.operit.util.SerializationSetup
 import kotlinx.serialization.json.Json
-import com.ai.assistance.operit.core.data.initUserPreferencesManager
+import com.ai.assistance.operit.data.preferences.initUserPreferencesManager
 
 /**
  * Application class for Operit

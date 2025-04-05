@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.service
+package com.ai.assistance.operit.services
 
 import android.annotation.SuppressLint
 import android.app.NotificationChannel
@@ -32,9 +32,9 @@ import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
-import com.ai.assistance.operit.core.model.ChatMessage
-import com.ai.assistance.operit.service.ui.FloatingChatWindow
-import com.ai.assistance.operit.service.ui.FloatingWindowTheme
+import com.ai.assistance.operit.data.model.ChatMessage
+import com.ai.assistance.operit.ui.floating.FloatingChatWindow
+import com.ai.assistance.operit.ui.floating.FloatingWindowTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

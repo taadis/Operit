@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.core.application
+package com.ai.assistance.operit.ui.main
 
 import android.Manifest
 import android.content.Intent
@@ -18,11 +18,10 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.ai.assistance.operit.tools.system.AdbCommandExecutor
 import com.ai.assistance.operit.ui.theme.OperitTheme
-import com.ai.assistance.operit.ui.app.OperitApp
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.tools.system.ShizukuInstaller
 import com.ai.assistance.operit.data.repository.UIHierarchyManager
-import com.ai.assistance.operit.ui.navigation.NavItem
+import com.ai.assistance.operit.ui.common.NavItem
 import com.ai.assistance.operit.tools.AIToolHandler
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch

@@ -1,38 +1,27 @@
 package com.ai.assistance.operit.ui.features.settings.screens
 
-import android.content.Context
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.Color
 import com.ai.assistance.operit.R
-import com.ai.assistance.operit.data.ApiPreferences
+import com.ai.assistance.operit.data.preferences.ApiPreferences
 import kotlinx.coroutines.launch
-import com.ai.assistance.operit.model.UserPreferences
-import com.ai.assistance.operit.data.preferencesManager
-import java.lang.StringBuilder
-import com.ai.assistance.operit.data.ChatHistoryManager
+import com.ai.assistance.operit.data.model.UserPreferences
+import com.ai.assistance.operit.data.preferences.preferencesManager
+import com.ai.assistance.operit.data.repository.ChatHistoryManager
 import androidx.compose.ui.text.font.FontWeight
 
 @OptIn(ExperimentalMaterial3Api::class)

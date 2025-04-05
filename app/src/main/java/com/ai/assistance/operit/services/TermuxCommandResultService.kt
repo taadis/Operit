@@ -1,12 +1,9 @@
-package com.ai.assistance.operit
+package com.ai.assistance.operit.services
 
 import android.app.IntentService
-import android.app.Service
 import android.content.Intent
-import android.os.Bundle
-import android.os.IBinder
 import android.util.Log
-import com.ai.assistance.operit.AdbCommandExecutor.CommandResult
+import com.ai.assistance.operit.tools.system.AdbCommandExecutor.CommandResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

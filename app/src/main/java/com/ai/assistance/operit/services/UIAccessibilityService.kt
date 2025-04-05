@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.service
+package com.ai.assistance.operit.services
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
@@ -6,7 +6,7 @@ import android.content.Intent
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
-import com.ai.assistance.operit.core.data.UIHierarchyManager
+import com.ai.assistance.operit.data.repository.UIHierarchyManager
 import org.xmlpull.v1.XmlSerializer
 import java.io.StringWriter
 import android.util.Xml

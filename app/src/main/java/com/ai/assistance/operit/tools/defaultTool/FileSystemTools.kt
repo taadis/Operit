@@ -2,9 +2,9 @@ package com.ai.assistance.operit.tools.defaultTool
 
 import android.content.Context
 import android.util.Log
-import com.ai.assistance.operit.AdbCommandExecutor
-import com.ai.assistance.operit.model.AITool
-import com.ai.assistance.operit.model.ToolResult
+import com.ai.assistance.operit.tools.system.AdbCommandExecutor
+import com.ai.assistance.operit.data.model.AITool
+import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.tools.StringResultData
 import com.ai.assistance.operit.tools.DirectoryListingData
 import com.ai.assistance.operit.tools.FileContentData
@@ -12,7 +12,6 @@ import com.ai.assistance.operit.tools.FileOperationData
 import com.ai.assistance.operit.tools.FileExistsData
 import com.ai.assistance.operit.tools.FindFilesResultData
 import com.ai.assistance.operit.tools.FileInfoData
-import kotlinx.serialization.Serializable
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -21,7 +20,6 @@ import java.io.BufferedOutputStream
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 import java.util.zip.ZipEntry
-import java.io.IOException
 
 /**
  * Collection of file system operation tools for the AI assistant

@@ -15,7 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.R
-import com.ai.assistance.operit.model.ChatMessage
+import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.ui.common.displays.MessageContentParser
 import com.ai.assistance.operit.ui.common.displays.MessageContentParser.Companion.ContentSegment
 

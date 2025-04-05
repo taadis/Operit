@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.domain.manager
+package com.ai.assistance.operit.api.enhance
 
 import com.ai.assistance.operit.data.model.AiReference
 

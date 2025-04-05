@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.core.model
+package com.ai.assistance.operit.data.model
 
 /**
  * Represents different states of input processing in the EnhancedAIService

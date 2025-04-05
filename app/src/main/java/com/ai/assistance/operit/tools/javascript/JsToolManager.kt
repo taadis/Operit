@@ -2,15 +2,11 @@ package com.ai.assistance.operit.tools.javascript
 
 import android.content.Context
 import android.util.Log
-import com.ai.assistance.operit.model.AITool
-import com.ai.assistance.operit.model.ToolParameter
-import com.ai.assistance.operit.model.ToolResult
+import com.ai.assistance.operit.data.model.AITool
+import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.tools.AIToolHandler
 import com.ai.assistance.operit.tools.packTool.PackageManager
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.withTimeout
-import org.json.JSONObject
-import java.util.concurrent.ConcurrentHashMap
 import java.util.regex.Pattern
 import com.ai.assistance.operit.tools.StringResultData
 

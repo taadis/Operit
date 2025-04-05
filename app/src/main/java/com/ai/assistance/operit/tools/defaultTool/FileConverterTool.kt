@@ -1,16 +1,11 @@
 package com.ai.assistance.operit.tools.defaultTool
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.media.MediaMetadataRetriever
-import android.net.Uri
 import android.util.Log
-import com.ai.assistance.operit.model.AITool
+import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.tools.FileConversionResultData
-import com.ai.assistance.operit.model.ToolResult
-import com.ai.assistance.operit.model.ToolValidationResult
-import com.ai.assistance.operit.permissions.ToolCategory
+import com.ai.assistance.operit.data.model.ToolResult
+import com.ai.assistance.operit.data.model.ToolValidationResult
 import com.ai.assistance.operit.tools.ToolExecutor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -19,7 +14,6 @@ import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
-import androidx.documentfile.provider.DocumentFile
 import java.io.IOException
 import java.util.Locale
 import java.util.zip.ZipEntry
@@ -37,9 +31,9 @@ import org.apache.commons.compress.archivers.sevenz.SevenZFile
 import org.apache.commons.compress.archivers.sevenz.SevenZOutputFile
 import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry
 import com.github.junrar.Archive
-import com.github.junrar.exception.RarException
 import com.ai.assistance.operit.tools.StringResultData
 import com.ai.assistance.operit.tools.FileFormatConversionsResultData
+import com.ai.assistance.operit.ui.permissions.ToolCategory
 
 /**
  * Tool for converting between different file formats
@@ -1379,7 +1373,7 @@ class FileConverterToolExecutor(private val context: Context) : ToolExecutor {
         }
     }
     
-    override fun getCategory(): com.ai.assistance.operit.permissions.ToolCategory {
-        return com.ai.assistance.operit.permissions.ToolCategory.FILE_WRITE
+    override fun getCategory(): ToolCategory {
+        return ToolCategory.FILE_WRITE
     }
 } 

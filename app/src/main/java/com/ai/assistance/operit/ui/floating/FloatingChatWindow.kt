@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.services.ui
+package com.ai.assistance.operit.ui.floating
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background

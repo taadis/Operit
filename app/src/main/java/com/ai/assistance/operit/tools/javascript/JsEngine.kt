@@ -6,12 +6,9 @@ import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import androidx.annotation.Keep
 import androidx.core.content.ContextCompat
-import com.ai.assistance.operit.model.AITool
-import com.ai.assistance.operit.model.ToolParameter
-import com.ai.assistance.operit.model.ToolResult
+import com.ai.assistance.operit.data.model.AITool
+import com.ai.assistance.operit.data.model.ToolParameter
 import com.ai.assistance.operit.tools.*
-import com.ai.assistance.operit.tools.packTool.PackageManager
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive

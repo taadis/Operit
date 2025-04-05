@@ -22,22 +22,19 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.core.content.FileProvider
-import com.ai.assistance.operit.AdbCommandExecutor
-import com.ai.assistance.operit.ShizukuInstaller
-import com.ai.assistance.operit.TermuxAuthorizer
-import com.ai.assistance.operit.TermuxCommandExecutor
-import com.ai.assistance.operit.TermuxInstaller
-import com.ai.assistance.operit.data.UIHierarchyManager
+import com.ai.assistance.operit.tools.system.AdbCommandExecutor
+import com.ai.assistance.operit.tools.system.ShizukuInstaller
+import com.ai.assistance.operit.tools.system.TermuxAuthorizer
+import com.ai.assistance.operit.tools.system.TermuxInstaller
+import com.ai.assistance.operit.data.repository.UIHierarchyManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.CoroutineScope
 import android.content.Context
 
 private const val TAG = "ShizukuDemoScreen"

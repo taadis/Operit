@@ -1,10 +1,8 @@
-package com.ai.assistance.operit
+package com.ai.assistance.operit.tools.system
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
-import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
 import android.app.AlertDialog
@@ -173,9 +171,10 @@ class TermuxAuthorizer {
          * 检查Termux是否已授权
          */
         suspend fun isTermuxAuthorized(context: Context): Boolean = withContext(Dispatchers.IO) {
-            if (!TermuxInstaller.isTermuxInstalled(context) || 
-                !AdbCommandExecutor.isShizukuServiceRunning() || 
-                !AdbCommandExecutor.hasShizukuPermission()) {
+            if (!TermuxInstaller.isTermuxInstalled(context) ||
+                !AdbCommandExecutor.isShizukuServiceRunning() ||
+                !AdbCommandExecutor.hasShizukuPermission()
+            ) {
                 return@withContext false
             }
             
@@ -327,11 +326,11 @@ class TermuxAuthorizer {
             // 尝试方法2: 修改Termux的AndroidManifest.xml (需要root)
             val rootResult = AdbCommandExecutor.executeAdbCommand(
                 "su -c 'mkdir -p /data/data/com.termux/shared_prefs && " +
-                "echo \"<?xml version=\\'1.0\\' encoding=\\'utf-8\\'?><map>" +
-                "<set name=\\\"allowed_apps\\\"><string>$packageName</string></set>" +
-                "</map>\" > /data/data/com.termux/shared_prefs/com.termux.shared_preferences.xml && " +
-                "chmod 660 /data/data/com.termux/shared_prefs/com.termux.shared_preferences.xml && " +
-                "chown `stat -c %u:%g /data/data/com.termux/shared_prefs` /data/data/com.termux/shared_prefs/com.termux.shared_preferences.xml'"
+                        "echo \"<?xml version=\\'1.0\\' encoding=\\'utf-8\\'?><map>" +
+                        "<set name=\\\"allowed_apps\\\"><string>$packageName</string></set>" +
+                        "</map>\" > /data/data/com.termux/shared_prefs/com.termux.shared_preferences.xml && " +
+                        "chmod 660 /data/data/com.termux/shared_prefs/com.termux.shared_preferences.xml && " +
+                        "chown `stat -c %u:%g /data/data/com.termux/shared_prefs` /data/data/com.termux/shared_prefs/com.termux.shared_preferences.xml'"
             )
             
             if (rootResult.success) {

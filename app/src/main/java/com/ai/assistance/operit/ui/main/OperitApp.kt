@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.app
+package com.ai.assistance.operit.ui.main
 
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.Color
 import com.ai.assistance.operit.R
-import com.ai.assistance.operit.ui.navigation.NavItem
+import com.ai.assistance.operit.ui.common.NavItem
 import com.ai.assistance.operit.ui.features.chat.screens.AIChatScreen
 import com.ai.assistance.operit.ui.features.settings.screens.SettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ToolPermissionSettingsScreen
