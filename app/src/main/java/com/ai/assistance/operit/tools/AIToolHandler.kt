@@ -12,10 +12,12 @@ import com.ai.assistance.operit.data.model.ToolValidationResult
 import com.ai.assistance.operit.ui.permissions.ToolPermissionSystem
 import com.ai.assistance.operit.ui.permissions.ToolCategory
 import com.ai.assistance.operit.tools.packTool.PackageManager
+import com.ai.assistance.operit.tools.defaultTool.ProblemLibraryTool
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.regex.Pattern
+import com.ai.assistance.operit.util.TextSegmenter
 
 /**
  * Handles the extraction and execution of AI tools from responses
@@ -71,6 +73,25 @@ class AIToolHandler private constructor(
     
     // Tool permission system
     private val toolPermissionSystem = ToolPermissionSystem.getInstance(context)
+    
+    // 问题库工具实例（在工具注册时设置）
+    private var problemLibraryTool: ProblemLibraryTool? = null
+    
+    /**
+     * 设置问题库工具实例
+     * @param tool 问题库工具实例
+     */
+    fun setProblemLibraryTool(tool: ProblemLibraryTool) {
+        this.problemLibraryTool = tool
+    }
+    
+    /**
+     * 获取问题库工具实例
+     * @return 问题库工具实例，如果没有则返回null
+     */
+    fun getProblemLibraryTool(): ProblemLibraryTool? {
+        return problemLibraryTool
+    }
     
     /**
      * Get the tool permission system for UI use
@@ -151,10 +172,8 @@ class AIToolHandler private constructor(
         // Initialize the permission system with default rules
         toolPermissionSystem.initializeDefaultRules()
 
-        registerAllTools(this,context)
+        registerAllTools(this, context)
     }
-    
-    
     
     // Package manager instance (lazy initialized)
     private var packageManagerInstance: PackageManager? = null
@@ -501,249 +520,25 @@ class AIToolHandler private constructor(
         if (executor == null) {
             return ToolResult(
                 toolName = tool.name,
-                        success = false,
+                success = false,
                 result = StringResultData(""),
                 error = "Tool not found: ${tool.name}"
-                    )
-                }
+            )
+        }
         
         // Validate parameters
         val validationResult = executor.validateParameters(tool)
         if (!validationResult.valid) {
             return ToolResult(
                 toolName = tool.name,
-                    success = false,
+                success = false,
                 result = StringResultData(""),
                 error = validationResult.errorMessage
-                )
-            }
+            )
+        }
         
         // Execute the tool
         return executor.invoke(tool)
-    }
-
-    // Problem Library Management
-    private val problemLibrary = mutableMapOf<String, ProblemRecord>()
-    private val problemLibraryFile = "problem_library.json"
-
-    // Make ProblemRecord public so it can be accessed from EnhancedAIService
-    data class ProblemRecord(
-        val uuid: String,
-        val query: String,
-        val solution: String,
-        val tools: List<String>,
-        val summary: String = "", // 添加问题总结字段
-        val timestamp: Long = System.currentTimeMillis()
-    )
-
-    // Public method for saving problem records
-    fun saveProblemRecord(record: ProblemRecord) {
-        problemLibrary[record.uuid] = record
-        saveProblemLibraryToFile()
-        Log.d(TAG, "Problem record saved: ${record.uuid}")
-    }
-
-    // 保存问题库到文件
-    private fun saveProblemLibraryToFile() {
-        try {
-            val json = org.json.JSONArray()
-            
-            problemLibrary.values.forEach { record ->
-                val recordJson = org.json.JSONObject().apply {
-                    put("uuid", record.uuid)
-                    put("query", record.query)
-                    put("solution", record.solution)
-                    put("summary", record.summary)
-                    put("tools", org.json.JSONArray(record.tools))
-                    put("timestamp", record.timestamp)
-                }
-                json.put(recordJson)
-            }
-            
-            val file = java.io.File(context.filesDir, problemLibraryFile)
-            file.writeText(json.toString(2))
-            Log.d(TAG, "Problem library saved to file: ${file.absolutePath}")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error saving problem library to file", e)
-        }
-    }
-
-    // 从文件加载问题库
-    private fun loadProblemLibraryFromFile() {
-        try {
-            val file = java.io.File(context.filesDir, problemLibraryFile)
-            if (!file.exists()) {
-                Log.d(TAG, "Problem library file does not exist, creating empty library")
-                return
-            }
-            
-            val json = org.json.JSONArray(file.readText())
-            
-            for (i in 0 until json.length()) {
-                val recordJson = json.getJSONObject(i)
-                val toolsArray = recordJson.getJSONArray("tools")
-                val tools = mutableListOf<String>()
-                
-                for (j in 0 until toolsArray.length()) {
-                    tools.add(toolsArray.getString(j))
-                }
-                
-                val record = ProblemRecord(
-                    uuid = recordJson.getString("uuid"),
-                    query = recordJson.getString("query"),
-                    solution = recordJson.getString("solution"),
-                    summary = recordJson.optString("summary", ""),
-                    tools = tools,
-                    timestamp = recordJson.getLong("timestamp")
-                )
-                
-                problemLibrary[record.uuid] = record
-            }
-            
-            Log.d(TAG, "Problem library loaded from file: ${problemLibrary.size} records")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error loading problem library from file", e)
-        }
-    }
-
-    // 初始化问题库
-    init {
-        loadProblemLibraryFromFile()
-    }
-
-    fun queryProblemLibrary(query: String): String {
-        if (problemLibrary.isEmpty()) {
-            return "问题库为空，尚无记录"
-        }
-
-        // 使用更智能的匹配方式，提取查询关键词
-        val keywords = query.split(Regex("\\s+|,|，|\\.|。"))
-            .filter { it.length > 1 }
-            .map { it.lowercase() }
-
-        // 如果没有有效关键词，返回所有记录
-        if (keywords.isEmpty()) {
-            return formatProblemLibraryResults(problemLibrary.values.toList())
-        }
-
-        // 按相关性排序的记录
-        val scoredRecords = problemLibrary.values.map { record ->
-            // 计算记录的相关性分数
-            val queryScore = keywords.count { keyword ->
-                record.query.lowercase().contains(keyword)
-            }
-            val summaryScore = keywords.count { keyword ->
-                record.summary.lowercase().contains(keyword)
-            }
-            val toolsScore = keywords.count { keyword ->
-                record.tools.any { tool -> tool.lowercase().contains(keyword) }
-            }
-            
-            // 总分 = 查询分 * 2 + 摘要分 * 1.5 + 工具分 * 1
-            val totalScore = queryScore * 2.0 + summaryScore * 1.5 + toolsScore
-            
-            Pair(record, totalScore)
-        }
-        .filter { it.second > 0 } // 只返回有相关性的记录
-        .sortedByDescending { it.second } // 按相关性排序
-        .map { it.first }
-        .take(5) // 最多返回5条记录
-
-        if (scoredRecords.isEmpty()) {
-            return "未找到相关记录"
-        }
-
-        return formatProblemLibraryResults(scoredRecords)
-    }
-
-    // 格式化问题库查询结果
-    private fun formatProblemLibraryResults(records: List<ProblemRecord>): String {
-        val result = StringBuilder()
-        result.appendLine("找到 ${records.size} 条相关记录:")
-        
-        records.forEach { record ->
-            result.appendLine("\nUUID: ${record.uuid}")
-            
-            // 优先显示摘要，如果没有则显示原始查询
-            if (record.summary.isNotEmpty()) {
-                result.appendLine("摘要: ${record.summary}")
-            } else {
-                result.appendLine("问题: ${record.query}")
-            }
-            
-            // 显示使用的工具
-            result.appendLine("使用工具: ${record.tools.joinToString(", ")}")
-            
-            // 显示时间
-            result.appendLine("时间: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(java.util.Date(record.timestamp))}")
-        }
-
-        return result.toString()
-    }
-    
-    /**
-     * 获取所有问题记录
-     * @return 问题记录列表
-     */
-    fun getAllProblemRecords(): List<ProblemRecord> {
-        return problemLibrary.values.toList()
-    }
-    
-    /**
-     * 搜索问题库
-     * @param query 搜索关键词
-     * @return 匹配的问题记录列表
-     */
-    fun searchProblemLibrary(query: String): List<ProblemRecord> {
-        if (problemLibrary.isEmpty()) {
-            return emptyList()
-        }
-
-        // 提取查询关键词
-        val keywords = query.split(Regex("\\s+|,|，|\\.|。"))
-            .filter { it.length > 1 }
-            .map { it.lowercase() }
-
-        // 如果没有有效关键词，返回所有记录
-        if (keywords.isEmpty()) {
-            return problemLibrary.values.toList()
-        }
-
-        // 按相关性排序的记录
-        return problemLibrary.values.map { record ->
-            // 计算记录的相关性分数
-            val queryScore = keywords.count { keyword ->
-                record.query.lowercase().contains(keyword)
-            }
-            val summaryScore = keywords.count { keyword ->
-                record.summary.lowercase().contains(keyword)
-            }
-            val toolsScore = keywords.count { keyword ->
-                record.tools.any { tool -> tool.lowercase().contains(keyword) }
-            }
-            
-            // 总分 = 查询分 * 2 + 摘要分 * 1.5 + 工具分 * 1
-            val totalScore = queryScore * 2.0 + summaryScore * 1.5 + toolsScore
-            
-            Pair(record, totalScore)
-        }
-        .filter { it.second > 0 } // 只返回有相关性的记录
-        .sortedByDescending { it.second } // 按相关性排序
-        .map { it.first }
-    }
-    
-    /**
-     * 删除问题记录
-     * @param uuid 问题记录的UUID
-     * @return 是否删除成功
-     */
-    fun deleteProblemRecord(uuid: String): Boolean {
-        val removed = problemLibrary.remove(uuid) != null
-        if (removed) {
-            saveProblemLibraryToFile()
-            Log.d(TAG, "Problem record deleted: $uuid")
-        }
-        return removed
     }
 }
 

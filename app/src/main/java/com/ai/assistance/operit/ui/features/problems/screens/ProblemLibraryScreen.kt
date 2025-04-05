@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -36,6 +37,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Arrangement.spacedBy
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.tools.AIToolHandler
+import com.ai.assistance.operit.tools.defaultTool.ProblemLibraryTool
 import com.ai.assistance.operit.ui.features.problems.viewmodel.ProblemLibraryViewModel
 import java.text.SimpleDateFormat
 import java.util.*
@@ -57,9 +59,11 @@ fun ProblemLibraryScreen() {
     val problems by viewModel.problems.collectAsState()
     val selectedProblem by viewModel.selectedProblem.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
+    val searchInfo by viewModel.searchInfo.collectAsState()
     val isEditMode by viewModel.isEditMode.collectAsState()
     val editedSummary by viewModel.editedSummary.collectAsState()
     val editedSolution by viewModel.editedSolution.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
     
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -76,11 +80,12 @@ fun ProblemLibraryScreen() {
                     SearchBar(
                         query = searchQuery,
                         onQueryChange = { viewModel.updateSearchQuery(it) },
-                        onSearch = { viewModel.searchProblems() }
+                        onSearch = { viewModel.searchProblems() },
+                        searchInfo = searchInfo
                     )
                     
                     // 问题列表
-                    if (problems.isEmpty()) {
+                    if (problems.isEmpty() && !isLoading) {
                         EmptyLibraryView()
                     } else {
                         ProblemList(
@@ -178,6 +183,47 @@ fun ProblemLibraryScreen() {
                 }
             }
             
+            // 加载指示器
+            if (isLoading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        // 使用简单的Text替代可能不兼容的CircularProgressIndicator
+                        Surface(
+                            modifier = Modifier.size(48.dp),
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ) {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "...",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "正在加载...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+            
             // Snackbar主机
             SnackbarHost(
                 hostState = snackbarHostState,
@@ -194,7 +240,7 @@ class ProblemLibraryViewModelFactory(private val context: Context) : ViewModelPr
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(ProblemLibraryViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return ProblemLibraryViewModel(context.applicationContext as android.app.Application) as T
+            return ProblemLibraryViewModel(AIToolHandler.getInstance(context)) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
@@ -205,57 +251,84 @@ class ProblemLibraryViewModelFactory(private val context: Context) : ViewModelPr
 fun SearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
-    onSearch: () -> Unit
+    onSearch: () -> Unit,
+    searchInfo: String? = null  // 添加搜索信息参数
 ) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 4.dp,
-        shape = RoundedCornerShape(8.dp)
+    Column(
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
+        Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(8.dp)
+                .padding(16.dp),
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 4.dp,
+            shape = RoundedCornerShape(8.dp)
         ) {
-            Icon(
-                Icons.Default.Search,
-                contentDescription = stringResource(id = R.string.search_problems),
-                modifier = Modifier.padding(start = 8.dp)
-            )
-            TextField(
-                value = query,
-                onValueChange = onQueryChange,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 8.dp),
-                placeholder = { Text(stringResource(id = R.string.search_problems)) },
-                singleLine = true,
-                colors = TextFieldDefaults.textFieldColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    focusedIndicatorColor = MaterialTheme.colorScheme.primary,
-                    unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
-                ),
-                keyboardOptions = KeyboardOptions.Default.copy(
-                    imeAction = ImeAction.Search
-                ),
-                keyboardActions = KeyboardActions(
-                    onSearch = { onSearch() }
-                ),
-                trailingIcon = {
-                    if (query.isNotEmpty()) {
-                        IconButton(onClick = { onQueryChange("") }) {
-                            Icon(
-                                Icons.Default.Clear,
-                                contentDescription = "清除搜索"
-                            )
+                    .fillMaxWidth()
+                    .padding(8.dp)
+            ) {
+                Icon(
+                    Icons.Default.Search,
+                    contentDescription = stringResource(id = R.string.search_problems),
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+                TextField(
+                    value = query,
+                    onValueChange = onQueryChange,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 8.dp),
+                    placeholder = { Text(stringResource(id = R.string.search_problems)) },
+                    singleLine = true,
+                    colors = TextFieldDefaults.textFieldColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                        unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+                    ),
+                    keyboardOptions = KeyboardOptions.Default.copy(
+                        imeAction = ImeAction.Search
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onSearch = { onSearch() }
+                    ),
+                    trailingIcon = {
+                        if (query.isNotEmpty()) {
+                            IconButton(onClick = { onQueryChange("") }) {
+                                Icon(
+                                    Icons.Default.Clear,
+                                    contentDescription = "清除搜索"
+                                )
+                            }
                         }
                     }
-                }
-            )
+                )
+            }
+        }
+        
+        // 显示搜索信息（如分词结果）
+        searchInfo?.let {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 8.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            ) {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp)
+                )
+            }
         }
     }
 }
@@ -299,8 +372,8 @@ fun EmptyLibraryView() {
 
 @Composable
 fun ProblemList(
-    problems: List<AIToolHandler.ProblemRecord>,
-    onProblemClick: (AIToolHandler.ProblemRecord) -> Unit
+    problems: List<ProblemLibraryTool.ProblemRecord>,
+    onProblemClick: (ProblemLibraryTool.ProblemRecord) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier
@@ -315,7 +388,7 @@ fun ProblemList(
 
 @Composable
 fun ProblemItem(
-    problem: AIToolHandler.ProblemRecord,
+    problem: ProblemLibraryTool.ProblemRecord,
     onClick: () -> Unit
 ) {
     val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
@@ -407,7 +480,7 @@ fun Chip(
 }
 
 @Composable
-fun ProblemDetailView(problem: AIToolHandler.ProblemRecord) {
+fun ProblemDetailView(problem: ProblemLibraryTool.ProblemRecord) {
     val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
     val formattedDate = dateFormat.format(Date(problem.timestamp))
     
@@ -417,93 +490,160 @@ fun ProblemDetailView(problem: AIToolHandler.ProblemRecord) {
             .padding(16.dp)
     ) {
         item {
-            // 问题UUID
-            Text(
-                text = "UUID: ${problem.uuid}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
-            
-            // 问题摘要
-            Section(title = stringResource(id = R.string.problem_summary)) {
-                Text(
-                    text = problem.summary.ifEmpty { problem.query },
-                    style = MaterialTheme.typography.bodyLarge
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                shape = RoundedCornerShape(8.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
                 )
-            }
-            
-            // 原始问题
-            if (problem.summary.isNotEmpty()) {
-                Section(title = "原始问题") {
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    // 问题标题
                     Text(
-                        text = problem.query,
+                        text = "问题摘要",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    // 问题摘要
+                    Text(
+                        text = problem.summary.ifEmpty { "无摘要信息" },
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
             }
             
-            // 使用工具
-            Section(title = stringResource(id = R.string.problem_tools)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = spacedBy(8.dp)
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // 原始查询信息
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                shape = RoundedCornerShape(8.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
                 ) {
-                    problem.tools.forEach { tool ->
-                        Chip(label = tool)
-                    }
+                    // 详情标题
+                    Text(
+                        text = "原始查询",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    // 查询内容
+                    Text(
+                        text = problem.query,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // 记录时间信息
+                    Text(
+                        text = "记录时间: $formattedDate",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
             
-            // 创建时间
-            Section(title = stringResource(id = R.string.problem_time)) {
-                Text(
-                    text = formattedDate,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
+            Spacer(modifier = Modifier.height(16.dp))
             
-            // 解决方案
-            Section(title = stringResource(id = R.string.problem_solution)) {
-                Text(
-                    text = problem.solution,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun Section(
-    title: String,
-    content: @Composable () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp)
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-        
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-            color = MaterialTheme.colorScheme.surfaceVariant
-        ) {
-            Box(
+            // 解决方案信息
+            Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(12.dp)
+                    .padding(vertical = 8.dp),
+                shape = RoundedCornerShape(8.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
             ) {
-                content()
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    // 解决方案标题
+                    Text(
+                        text = "解决方案",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    // 解决方案内容 - 可滚动区域
+                    Text(
+                        text = problem.solution,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // 使用工具信息
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                shape = RoundedCornerShape(8.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    // 工具标题
+                    Text(
+                        text = "使用的工具",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    // 工具列表
+                    if (problem.tools.isEmpty()) {
+                        Text(
+                            text = "未使用任何工具",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Column(
+                            verticalArrangement = spacedBy(4.dp)
+                        ) {
+                            problem.tools.forEach { tool ->
+                                Chip(
+                                    label = tool,
+                                    modifier = Modifier.padding(vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -516,59 +656,44 @@ fun ProblemEditView(
     onSummaryChange: (String) -> Unit,
     onSolutionChange: (String) -> Unit
 ) {
-    LazyColumn(
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        item {
-            // 编辑摘要
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp)
-            ) {
-                Text(
-                    text = stringResource(id = R.string.problem_summary),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                
-                OutlinedTextField(
-                    value = summary,
-                    onValueChange = onSummaryChange,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 100.dp),
-                    placeholder = { Text("输入问题摘要...") }
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // 编辑解决方案
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp)
-            ) {
-                Text(
-                    text = stringResource(id = R.string.problem_solution),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                
-                OutlinedTextField(
-                    value = solution,
-                    onValueChange = onSolutionChange,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 300.dp),
-                    placeholder = { Text("输入解决方案...") }
-                )
-            }
-        }
+        // 摘要编辑
+        Text(
+            text = "问题摘要",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        
+        OutlinedTextField(
+            value = summary,
+            onValueChange = onSummaryChange,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            maxLines = 3
+        )
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // 解决方案编辑
+        Text(
+            text = "解决方案",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        
+        OutlinedTextField(
+            value = solution,
+            onValueChange = onSolutionChange,
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .padding(vertical = 8.dp),
+            maxLines = 20
+        )
     }
 } 

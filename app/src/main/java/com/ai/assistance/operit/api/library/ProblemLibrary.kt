@@ -11,7 +11,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.take
 import org.json.JSONObject
+import com.ai.assistance.operit.util.TextSegmenter
+import com.ai.assistance.operit.tools.defaultTool.ProblemLibraryTool
 
 /**
  * 问题库管理类 - 提供分析对话内容并存储问题记录的功能
@@ -35,6 +40,39 @@ object ProblemLibrary {
      */
     fun initialize(context: Context) {
         apiPreferences = ApiPreferences(context.applicationContext)
+        
+        // 初始化分词器
+        TextSegmenter.initialize(context.applicationContext)
+        
+        // 后台预热分词器
+        coroutineScope.launch {
+            try {
+                prewarmSegmenter()
+                Log.d(TAG, "分词器预热完成")
+            } catch (e: Exception) {
+                Log.e(TAG, "分词器预热失败", e)
+            }
+        }
+    }
+    
+    /**
+     * 预热分词器，提前加载词典
+     */
+    private suspend fun prewarmSegmenter() {
+        withContext(Dispatchers.IO) {
+            // 使用几个常见词汇预热分词器
+            val testWords = listOf(
+                "Android开发问题",
+                "如何实现自定义View",
+                "Kotlin协程使用示例",
+                "应用崩溃问题分析",
+                "用户认证流程设计"
+            )
+            
+            testWords.forEach { word ->
+                TextSegmenter.segment(word)
+            }
+        }
     }
     
     /**
@@ -135,8 +173,8 @@ object ProblemLibrary {
             }
         }
 
-        // 创建并保存问题记录
-        val record = AIToolHandler.ProblemRecord(
+        // 创建问题记录
+        val record = ProblemLibraryTool.ProblemRecord(
             uuid = java.util.UUID.randomUUID().toString(),
             query = query,
             solution = if (analysisResults.solutionSummary.isNotEmpty()) 
@@ -146,9 +184,15 @@ object ProblemLibrary {
             summary = analysisResults.problemSummary
         )
 
+        // 保存问题记录到 ProblemLibraryTool
         try {
-            toolHandler.saveProblemRecord(record)
-            Log.d(TAG, "问题记录已保存: ${record.uuid}")
+            val problemLibraryTool = toolHandler.getProblemLibraryTool()
+            if (problemLibraryTool != null) {
+                problemLibraryTool.saveProblemRecord(record)
+                Log.d(TAG, "问题记录已保存: ${record.uuid}")
+            } else {
+                Log.e(TAG, "保存问题记录失败: ProblemLibraryTool 未初始化")
+            }
         } catch (e: Exception) {
             Log.e(TAG, "保存问题记录失败", e)
         }
@@ -164,11 +208,20 @@ object ProblemLibrary {
         conversationHistory: List<Pair<String, String>>
     ): AnalysisResults {
         try {
+            // 获取当前的用户偏好
+            val currentPreferences = withContext(Dispatchers.IO) {
+                var preferences = ""
+                preferencesManager.userPreferencesFlow.take(1).collect { userPreferences ->
+                    preferences = userPreferences.preferences
+                }
+                preferences
+            }
+
             val systemPrompt = """
                 你是一个专业的问题分析专家。你的任务是：
                 1. 根据用户的问题和解决方案，生成一个简洁的问题摘要
-                2. 分析用户的对话历史，提取用户偏好信息
-                3. 对解决方案进行归纳总结，提炼核心内容
+                2. 分析用户的对话历史，增量更新用户偏好信息
+                3. 对解决方案进行全面归纳总结，保留关键信息和上下文
                 
                 你需要返回一个固定格式的JSON对象，包含三个字段：
                 {
@@ -177,9 +230,24 @@ object ProblemLibrary {
                   "solution_summary": "解决方案摘要内容"
                 }
                 
-                问题摘要：清晰描述问题核心，不超过100字，客观，保留技术术语
-                用户偏好：提取使用习惯与风格偏好，不超过150字
-                解决方案摘要：提炼核心步骤和关键点，不超过200字，结构化
+                问题摘要：清晰描述问题的核心和背景，不超过150字，客观记录技术术语和问题类型。
+                【重要提示】必须从解决方案中提取并包含关键技术词汇、函数名、类名、工具名称和专业术语，
+                以确保后续基于关键词的搜索能够找到这条记录。必须在摘要末尾添加以下格式的内容:
+                "关键词: [从解决方案中提取的10-15个最重要的技术词汇、方法名和核心概念，用逗号分隔]"
+                
+                用户偏好：【特别重要】在现有偏好的基础上进行小幅增量更新，不要完全重写。
+                现有用户偏好："${currentPreferences}"
+                只有当发现与现有偏好不同的新信息时才进行添加或调整，最多150字。
+                
+                解决方案摘要：全面提炼解决方案的核心步骤和关键点，不超过600字，结构化呈现。
+                必须包含：
+                1. 用户身份信息（如有）
+                2. 用户特定喜好和偏好（如有）
+                3. 对话中的关键注意点和警告
+                4. 核心解决步骤和方法
+                5. 技术术语和专业指导
+                6. 解决方案中的亮点句子和独特表述，使用原文中的原始表达
+                7. 【特别重要】直接引用解决方案中最关键的1-2个代码片段或独特表述，使用引号标注
                 
                 只返回格式正确的JSON对象，不要添加任何其他内容。
             """.trimIndent()
@@ -240,15 +308,15 @@ object ProblemLibrary {
         messageBuilder.appendLine(query)
         messageBuilder.appendLine()
         messageBuilder.appendLine("解决方案:")
-        messageBuilder.appendLine(solution.take(2000))
+        messageBuilder.appendLine(solution.take(3000)) // 增加取值长度，获取更多解决方案细节
         messageBuilder.appendLine()
         
-        // 添加对话历史（最多10条）
-        val recentHistory = conversationHistory.takeLast(10)
+        // 添加更完整的对话历史（最多15条，每条限制300字符）
+        val recentHistory = conversationHistory.takeLast(15)
         if (recentHistory.isNotEmpty()) {
             messageBuilder.appendLine("历史记录:")
-            recentHistory.forEach { (role, content) ->
-                messageBuilder.appendLine("$role: ${content.take(200)}")
+            recentHistory.forEachIndexed { index, (role, content) ->
+                messageBuilder.appendLine("#${index + 1} $role: ${content.take(300)}")
             }
         }
         
@@ -273,9 +341,9 @@ object ProblemLibrary {
             
             val json = JSONObject(cleanJson)
             AnalysisResults(
-                problemSummary = json.optString("problem_summary", "").take(200),
+                problemSummary = json.optString("problem_summary", "").take(500),
                 userPreferences = json.optString("user_preferences", "").take(200),
-                solutionSummary = json.optString("solution_summary", "").take(300)
+                solutionSummary = json.optString("solution_summary", "").take(1000)
             )
         } catch (e: Exception) {
             Log.e(TAG, "解析分析结果失败", e)

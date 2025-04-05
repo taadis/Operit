@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     kotlin("plugin.serialization") version "1.9.22"
+    id("kotlin-kapt")
 }
 
 android {
@@ -46,6 +47,10 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "/META-INF/LICENSE-EPL-1.0.txt"
+            excludes += "LICENSE-EPL-1.0.txt"
+            excludes += "/META-INF/LICENSE-EDL-1.0.txt"
+            excludes += "LICENSE-EDL-1.0.txt"
         }
     }
 }
@@ -61,6 +66,21 @@ dependencies {
 
     // HJSON dependency for human-friendly JSON parsing
     implementation("org.hjson:hjson:3.0.0")
+
+    // 中文分词库 - Jieba Android
+    implementation("com.huaban:jieba-analysis:1.0.2")
+
+    // 向量搜索库 - 轻量级实现，适合Android
+    implementation("com.github.jelmerk:hnswlib-core:0.0.46")
+    implementation("com.github.jelmerk:hnswlib-utils:0.0.46")
+    
+    // 用于向量嵌入的TF Lite (如果需要自定义嵌入)
+    implementation("org.tensorflow:tensorflow-lite:2.8.0")
+
+    // Room 数据库
+    implementation("androidx.room:room-runtime:2.6.1")
+    implementation("androidx.room:room-ktx:2.6.1") // Kotlin扩展和协程支持
+    kapt("androidx.room:room-compiler:2.6.1") // 使用kapt代替ksp
 
     // FFmpeg dependency for media processing
     implementation("com.arthenica:ffmpeg-kit-full:6.0-2")

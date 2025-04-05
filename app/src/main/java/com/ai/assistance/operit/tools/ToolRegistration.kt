@@ -16,24 +16,8 @@ import com.ai.assistance.operit.tools.defaultTool.*
  * @param context Application context for tools that need it
  */
 fun registerAllTools(handler: AIToolHandler, context: Context) {
-        // Problem Library Query Tool
-        handler.registerTool(
-            name = "query_problem_library",
-            category = ToolCategory.FILE_READ,
-            descriptionGenerator = { tool ->
-                val query = tool.parameters.find { it.name == "query" }?.value ?: ""
-                "查询问题库: $query"
-            },
-            executor = { tool ->
-                val query = tool.parameters.find { it.name == "query" }?.value ?: ""
-                val result = handler.queryProblemLibrary(query)
-                ToolResult(
-                    toolName = tool.name,
-                    success = true,
-                    result = StringResultData(result)
-                )
-            }
-        )
+        // 注册问题库工具
+        registerProblemLibraryTool(handler, context)
         
         // 系统操作工具
         handler.registerTool(
