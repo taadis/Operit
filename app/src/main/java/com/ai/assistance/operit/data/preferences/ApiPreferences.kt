@@ -25,6 +25,7 @@ class ApiPreferences(private val context: Context) {
         val MEMORY_OPTIMIZATION = booleanPreferencesKey("memory_optimization")
         val PREFERENCE_ANALYSIS_INPUT_TOKENS = intPreferencesKey("preference_analysis_input_tokens")
         val PREFERENCE_ANALYSIS_OUTPUT_TOKENS = intPreferencesKey("preference_analysis_output_tokens")
+        val SHOW_FPS_COUNTER = booleanPreferencesKey("show_fps_counter")
         
         // Default values
         const val DEFAULT_API_ENDPOINT = "https://api.deepseek.com/v1/chat/completions"
@@ -34,6 +35,7 @@ class ApiPreferences(private val context: Context) {
         // const val DEFAULT_API_KEY = "sk-bcf2cbfa8c9144119de247db8fdb7af5"
         const val DEFAULT_SHOW_THINKING = true
         const val DEFAULT_MEMORY_OPTIMIZATION = true
+        const val DEFAULT_SHOW_FPS_COUNTER = false
     }
     
     // Get API Key as Flow
@@ -71,6 +73,11 @@ class ApiPreferences(private val context: Context) {
         preferences[PREFERENCE_ANALYSIS_OUTPUT_TOKENS] ?: 0
     }
     
+    // Get FPS Counter Display setting as Flow
+    val showFpsCounterFlow: Flow<Boolean> = context.apiDataStore.data.map { preferences ->
+        preferences[SHOW_FPS_COUNTER] ?: DEFAULT_SHOW_FPS_COUNTER
+    }
+    
     // Save API Key
     suspend fun saveApiKey(apiKey: String) {
         context.apiDataStore.edit { preferences ->
@@ -106,6 +113,13 @@ class ApiPreferences(private val context: Context) {
         }
     }
     
+    // Save FPS Counter Display setting
+    suspend fun saveShowFpsCounter(showFpsCounter: Boolean) {
+        context.apiDataStore.edit { preferences ->
+            preferences[SHOW_FPS_COUNTER] = showFpsCounter
+        }
+    }
+    
     // Save all settings at once
     suspend fun saveApiSettings(apiKey: String, endpoint: String, modelName: String) {
         context.apiDataStore.edit { preferences ->
@@ -133,6 +147,25 @@ class ApiPreferences(private val context: Context) {
             preferences[MODEL_NAME] = modelName
             preferences[SHOW_THINKING] = showThinking
             preferences[MEMORY_OPTIMIZATION] = memoryOptimization
+        }
+    }
+    
+    // Save all settings including new FPS counter setting
+    suspend fun saveAllSettings(
+        apiKey: String, 
+        endpoint: String, 
+        modelName: String, 
+        showThinking: Boolean, 
+        memoryOptimization: Boolean,
+        showFpsCounter: Boolean
+    ) {
+        context.apiDataStore.edit { preferences ->
+            preferences[API_KEY] = apiKey
+            preferences[API_ENDPOINT] = endpoint
+            preferences[MODEL_NAME] = modelName
+            preferences[SHOW_THINKING] = showThinking
+            preferences[MEMORY_OPTIMIZATION] = memoryOptimization
+            preferences[SHOW_FPS_COUNTER] = showFpsCounter
         }
     }
     

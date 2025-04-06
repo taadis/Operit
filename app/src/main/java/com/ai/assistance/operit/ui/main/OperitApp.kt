@@ -43,6 +43,8 @@ import com.ai.assistance.operit.data.repository.ChatHistoryManager
 import com.ai.assistance.operit.tools.AIToolHandler
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import com.ai.assistance.operit.ui.common.displays.FpsCounter
+import com.ai.assistance.operit.data.preferences.ApiPreferences
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -99,6 +101,10 @@ fun OperitApp(
     // 用户偏好配置导航参数
     var userPreferencesProfileName by remember { mutableStateOf("") }
     var userPreferencesProfileId by remember { mutableStateOf("") }
+
+    // 获取FPS显示设置
+    val apiPreferences = remember { ApiPreferences(context) }
+    val showFpsCounter = apiPreferences.showFpsCounterFlow.collectAsState(initial = false).value
 
     // 应用整体结构
     Box(modifier = Modifier.fillMaxSize()) {
@@ -336,6 +342,15 @@ fun OperitApp(
                     }
                 }
             }
+        }
+        
+        // 帧率计数器 - 放在右上角
+        if (showFpsCounter) {
+            FpsCounter(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 80.dp, end = 16.dp)
+            )
         }
     }
 } 

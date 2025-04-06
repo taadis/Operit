@@ -89,6 +89,8 @@
     <string name="settings_saved">设置已保存</string>
     <string name="display_settings">显示设置</string>
     <string name="show_thinking">显示思考过程</string>
+    <string name="show_fps_counter">显示帧率</string>
+    <string name="fps_counter_description">在屏幕右上角显示实时帧率</string>
     
     <!-- Shizuku Command Screen -->
     <string name="shizuku_command_executor">Shizuku ADB 命令执行器</string>

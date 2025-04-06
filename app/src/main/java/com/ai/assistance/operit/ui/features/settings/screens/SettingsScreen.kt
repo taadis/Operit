@@ -38,6 +38,7 @@ fun SettingsScreen(
     val modelName = apiPreferences.modelNameFlow.collectAsState(initial = ApiPreferences.DEFAULT_MODEL_NAME).value
     val showThinking = apiPreferences.showThinkingFlow.collectAsState(initial = ApiPreferences.DEFAULT_SHOW_THINKING).value
     val memoryOptimization = apiPreferences.memoryOptimizationFlow.collectAsState(initial = ApiPreferences.DEFAULT_MEMORY_OPTIMIZATION).value
+    val showFpsCounter = apiPreferences.showFpsCounterFlow.collectAsState(initial = ApiPreferences.DEFAULT_SHOW_FPS_COUNTER).value
     
     // Mutable state for editing
     var apiKeyInput by remember { mutableStateOf(apiKey) }
@@ -45,15 +46,17 @@ fun SettingsScreen(
     var modelNameInput by remember { mutableStateOf(modelName) }
     var showThinkingInput by remember { mutableStateOf(showThinking) }
     var memoryOptimizationInput by remember { mutableStateOf(memoryOptimization) }
+    var showFpsCounterInput by remember { mutableStateOf(showFpsCounter) }
     var showSaveSuccessMessage by remember { mutableStateOf(false) }
     
     // Update local state when preferences change
-    LaunchedEffect(apiKey, apiEndpoint, modelName, showThinking, memoryOptimization) {
+    LaunchedEffect(apiKey, apiEndpoint, modelName, showThinking, memoryOptimization, showFpsCounter) {
         apiKeyInput = apiKey
         apiEndpointInput = apiEndpoint
         modelNameInput = modelName
         showThinkingInput = showThinking
         memoryOptimizationInput = memoryOptimization
+        showFpsCounterInput = showFpsCounter
     }
     
     Column(
@@ -120,7 +123,8 @@ fun SettingsScreen(
                                 apiEndpointInput,
                                 modelNameInput,
                                 showThinkingInput,
-                                memoryOptimizationInput
+                                memoryOptimizationInput,
+                                showFpsCounterInput
                             )
                             showSaveSuccessMessage = true
                         }
@@ -219,6 +223,38 @@ fun SettingsScreen(
                             memoryOptimizationInput = it
                             scope.launch {
                                 apiPreferences.saveMemoryOptimization(it)
+                                showSaveSuccessMessage = true
+                            }
+                        }
+                    )
+                }
+                
+                // 帧率显示开关
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text(
+                            text = "显示帧率",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = "在屏幕右上角显示实时帧率",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    
+                    Switch(
+                        checked = showFpsCounterInput,
+                        onCheckedChange = { 
+                            showFpsCounterInput = it
+                            scope.launch {
+                                apiPreferences.saveShowFpsCounter(it)
                                 showSaveSuccessMessage = true
                             }
                         }

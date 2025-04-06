@@ -144,15 +144,15 @@ fun UserPreferencesSettingsScreen(
     Scaffold(
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { showAddProfileDialog = true },
+                onClick = { editMode = !editMode },
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 shape = CircleShape,
                 modifier = Modifier.size(48.dp)
             ) {
                 Icon(
-                    Icons.Default.Add, 
-                    contentDescription = "添加配置"
+                    if (editMode) Icons.Default.Check else Icons.Default.Edit, 
+                    contentDescription = if (editMode) "完成编辑" else "编辑配置"
                 )
             }
         }
@@ -243,22 +243,26 @@ fun UserPreferencesSettingsScreen(
                                     }
                                 }
                                 
-                                IconButton(
-                                    onClick = { editMode = !editMode },
-                                    modifier = Modifier
-                                        .size(30.dp)
-                                        .clip(CircleShape)
-                                        .background(
-                                            if (editMode) MaterialTheme.colorScheme.primary
-                                            else MaterialTheme.colorScheme.surfaceVariant
-                                        )
+                                OutlinedButton(
+                                    onClick = { showAddProfileDialog = true },
+                                    shape = RoundedCornerShape(16.dp),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                    modifier = Modifier.height(32.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.primary
+                                    )
                                 ) {
                                     Icon(
-                                        if (editMode) Icons.Default.Check else Icons.Default.Edit,
-                                        contentDescription = if (editMode) "完成编辑" else "编辑配置",
-                                        tint = if (editMode) MaterialTheme.colorScheme.onPrimary
-                                               else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        Icons.Default.Add,
+                                        contentDescription = null,
                                         modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        "新建",
+                                        fontSize = 14.sp,
+                                        style = MaterialTheme.typography.labelMedium
                                     )
                                 }
                             }
