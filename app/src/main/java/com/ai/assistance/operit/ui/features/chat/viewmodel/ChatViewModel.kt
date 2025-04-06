@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.chat.viewmodel
+package com.ai.assistance.operit.ui.features.chat.viewmodel
 
 import android.content.ComponentName
 import android.content.Context
@@ -445,9 +445,6 @@ class ChatViewModel(
                         
                         // 保存当前对话
                         saveCurrentChat()
-                        
-                        // 用户偏好分析已集成到问题库保存流程中，此处不再单独调用
-                        // UserPreferenceAnalyzer.analyzeWithAI(_chatHistory.value, service)
                     }
                 )
             } catch (e: Exception) {
@@ -740,8 +737,9 @@ class ChatViewModel(
             
             if (thinking != null && _showThinking.value) {
                 // 更新或添加思考消息
+                val lastUserIndex = _chatHistory.value.indexOfLast { it.sender == "user" }
                 val thinkIndex = _chatHistory.value.indexOfLast { it.sender == "think" }
-                if (thinkIndex >= 0) {
+                if (thinkIndex >= 0 && thinkIndex > lastUserIndex) {
                     try {
                         // 更新现有思考消息
                         val updatedHistory = _chatHistory.value.toMutableList()

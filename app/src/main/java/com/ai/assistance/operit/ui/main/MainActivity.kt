@@ -200,9 +200,9 @@ class MainActivity : ComponentActivity() {
         
         // 监听偏好变化
         lifecycleScope.launch {
-            preferencesManager.userPreferencesFlow.collect { preferences ->
+            preferencesManager.getUserPreferencesFlow().collect { profile ->
                 // 只有当状态变化时才更新UI
-                val newValue = !preferences.isInitialized
+                val newValue = !profile.isInitialized
                 if (showPreferencesGuide != newValue) {
                     Log.d(TAG, "偏好变更: 从 $showPreferencesGuide 变为 $newValue")
                     showPreferencesGuide = newValue

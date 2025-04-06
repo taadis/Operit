@@ -187,12 +187,16 @@ class TermuxAuthorizer {
         suspend fun authorizeTermux(context: Context): Boolean = withContext(Dispatchers.IO) {
             // 必要检查
             if (!TermuxInstaller.isTermuxInstalled(context)) {
-                Toast.makeText(context, "请先安装Termux应用", Toast.LENGTH_SHORT).show()
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "请先安装Termux应用", Toast.LENGTH_SHORT).show()
+                }
                 return@withContext false
             }
             
             if (!AdbCommandExecutor.isShizukuServiceRunning() || !AdbCommandExecutor.hasShizukuPermission()) {
-                Toast.makeText(context, "请确保Shizuku已运行并授权", Toast.LENGTH_SHORT).show()
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "请确保Shizuku已运行并授权", Toast.LENGTH_SHORT).show()
+                }
                 return@withContext false
             }
             
@@ -466,12 +470,16 @@ class TermuxAuthorizer {
             val packageName = getAppPackageName(context)
             
             if (!TermuxInstaller.isTermuxInstalled(context)) {
-                Toast.makeText(context, "请先安装Termux应用", Toast.LENGTH_SHORT).show()
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "请先安装Termux应用", Toast.LENGTH_SHORT).show()
+                }
                 return@withContext false
             }
             
             if (!AdbCommandExecutor.isShizukuServiceRunning() || !AdbCommandExecutor.hasShizukuPermission()) {
-                Toast.makeText(context, "请确保Shizuku已运行并授权", Toast.LENGTH_SHORT).show()
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "请确保Shizuku已运行并授权", Toast.LENGTH_SHORT).show()
+                }
                 return@withContext false
             }
             

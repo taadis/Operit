@@ -90,6 +90,15 @@ class AIToolHandler private constructor(
      * @return 问题库工具实例，如果没有则返回null
      */
     fun getProblemLibraryTool(): ProblemLibraryTool? {
+        // 如果还没有设置过问题库工具，则自动创建一个
+        if (problemLibraryTool == null) {
+            synchronized(this) {
+                if (problemLibraryTool == null) {
+                    problemLibraryTool = ProblemLibraryTool.getInstance(context)
+                    Log.d(TAG, "自动创建并设置了ProblemLibraryTool实例")
+                }
+            }
+        }
         return problemLibraryTool
     }
     

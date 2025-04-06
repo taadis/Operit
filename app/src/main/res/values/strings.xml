@@ -133,6 +133,7 @@
     <!-- 用户偏好 -->
     <string name="user_preferences_guide">个性化设置</string>
     <string name="user_preferences">用户偏好设置</string>
+    <string name="user_preferences_settings">用户偏好详细设置</string>
     <string name="custom_description">自定义介绍</string>
     <string name="preferences_hint">请输入您的个人介绍（最多100字）</string>
     <string name="enter_preferences">在此输入您的个人介绍...</string>
@@ -148,6 +149,8 @@
     <string name="enter_age">请输入年龄</string>
     <string name="complete">完成</string>
     <string name="preferences_guide_title">为了更好地为您服务，请完成以下设置</string>
+    <string name="preference_lock">锁定用户偏好</string>
+    <string name="preference_lock_desc">锁定后将无法修改用户偏好信息</string>
     
     <!-- Package Manager Screen -->
     <string name="packages">包管理</string>

@@ -209,9 +209,11 @@ class EnhancedAIService(
             
             // Add system prompt if not already present
             if (!chatHistory.any { it.first == "system" }) {
-                val userPreferences = preferencesManager.userPreferencesFlow.first()
-                if (userPreferences.preferences.isNotEmpty()) {
-                    conversationHistory.add(0, Pair("system", "${SystemPromptConfig.getSystemPrompt(packageManager)}\n\nUser preference description: ${userPreferences.preferences}"))
+                val activeProfile = preferencesManager.getUserPreferencesFlow().first()
+                val preferencesText = buildPreferencesText(activeProfile)
+                
+                if (preferencesText.isNotEmpty()) {
+                    conversationHistory.add(0, Pair("system", "${SystemPromptConfig.getSystemPrompt(packageManager)}\n\nUser preference description: $preferencesText"))
                 } else {
                     conversationHistory.add(0, Pair("system", SystemPromptConfig.getSystemPrompt(packageManager)))
                 }
@@ -362,6 +364,39 @@ class EnhancedAIService(
         sb.append("</tool_result>")
         
         return sb.toString()
+    }
+
+    /**
+     * Build a formatted preferences text string from a PreferenceProfile
+     */
+    private fun buildPreferencesText(profile: com.ai.assistance.operit.data.model.PreferenceProfile): String {
+        val parts = mutableListOf<String>()
+        
+        if (profile.gender.isNotEmpty()) {
+            parts.add("性别: ${profile.gender}")
+        }
+        
+        if (profile.age > 0) {
+            parts.add("年龄: ${profile.age}")
+        }
+        
+        if (profile.personality.isNotEmpty()) {
+            parts.add("性格特点: ${profile.personality}")
+        }
+        
+        if (profile.identity.isNotEmpty()) {
+            parts.add("身份认同: ${profile.identity}")
+        }
+        
+        if (profile.occupation.isNotEmpty()) {
+            parts.add("职业: ${profile.occupation}")
+        }
+        
+        if (profile.aiStyle.isNotEmpty()) {
+            parts.add("期待的AI风格: ${profile.aiStyle}")
+        }
+        
+        return parts.joinToString("; ")
     }
 
     /**

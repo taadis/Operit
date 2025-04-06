@@ -32,6 +32,7 @@ import com.ai.assistance.operit.ui.features.chat.screens.AIChatScreen
 import com.ai.assistance.operit.ui.features.settings.screens.SettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ToolPermissionSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.UserPreferencesGuideScreen
+import com.ai.assistance.operit.ui.features.settings.screens.UserPreferencesSettingsScreen
 import com.ai.assistance.operit.ui.features.demo.screens.ShizukuDemoScreen
 import com.ai.assistance.operit.ui.features.about.screens.AboutScreen
 import com.ai.assistance.operit.ui.features.packages.screens.PackageManagerScreen
@@ -55,6 +56,8 @@ fun OperitApp(
     var selectedItem by remember { mutableStateOf<NavItem>(initialNavItem) }
     var isToolPermissionScreen by remember { mutableStateOf(false) }
     var isUserPreferencesGuideScreen by remember { mutableStateOf(initialNavItem == NavItem.UserPreferencesGuide) }
+    var isUserPreferencesSettingsScreen by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
     val navItems = listOf(
         NavItem.AiChat,
         NavItem.ShizukuCommands,
@@ -92,6 +95,10 @@ fun OperitApp(
             ""
         }
     }
+
+    // 用户偏好配置导航参数
+    var userPreferencesProfileName by remember { mutableStateOf("") }
+    var userPreferencesProfileId by remember { mutableStateOf("") }
 
     // 应用整体结构
     Box(modifier = Modifier.fillMaxSize()) {
@@ -179,6 +186,7 @@ fun OperitApp(
                                 when {
                                     isToolPermissionScreen -> stringResource(id = R.string.tool_permissions)
                                     isUserPreferencesGuideScreen -> stringResource(id = R.string.user_preferences_guide)
+                                    isUserPreferencesSettingsScreen -> stringResource(id = R.string.user_preferences_settings)
                                     else -> stringResource(id = selectedItem.titleResId)
                                 },
                                 fontWeight = FontWeight.SemiBold,
@@ -187,7 +195,7 @@ fun OperitApp(
                             )
                             
                             // 显示当前聊天标题（仅在AI对话页面且不在工具权限设置页面）
-                            if (selectedItem == NavItem.AiChat && !isToolPermissionScreen && !isUserPreferencesGuideScreen && currentChatTitle.isNotBlank()) {
+                            if (selectedItem == NavItem.AiChat && !isToolPermissionScreen && !isUserPreferencesGuideScreen && !isUserPreferencesSettingsScreen && currentChatTitle.isNotBlank()) {
                                 Text(
                                     text = "- $currentChatTitle",
                                     style = MaterialTheme.typography.bodySmall,
@@ -212,6 +220,11 @@ fun OperitApp(
                                         isUserPreferencesGuideScreen = false
                                         selectedItem = NavItem.Settings
                                     }
+                                    isUserPreferencesSettingsScreen -> {
+                                        // 如果在用户偏好设置页面，点击返回按钮返回到设置页面
+                                        isUserPreferencesSettingsScreen = false
+                                        selectedItem = NavItem.Settings
+                                    }
                                     else -> {
                                         // 否则打开导航抽屉
                                         scope.launch { drawerState.open() }
@@ -220,10 +233,11 @@ fun OperitApp(
                             }
                         ) {
                             Icon(
-                                if (isToolPermissionScreen || isUserPreferencesGuideScreen) Icons.Default.ArrowBack else Icons.Default.Menu,
+                                if (isToolPermissionScreen || isUserPreferencesGuideScreen || isUserPreferencesSettingsScreen) Icons.Default.ArrowBack else Icons.Default.Menu,
                                 contentDescription = when {
                                     isToolPermissionScreen -> stringResource(id = R.string.nav_settings)
                                     isUserPreferencesGuideScreen -> stringResource(id = R.string.nav_settings)
+                                    isUserPreferencesSettingsScreen -> stringResource(id = R.string.nav_settings)
                                     else -> stringResource(id = R.string.menu)
                                 },
                                 tint = Color.White
@@ -254,6 +268,8 @@ fun OperitApp(
                         isUserPreferencesGuideScreen -> {
                             // 用户偏好引导页面
                             UserPreferencesGuideScreen(
+                                profileName = userPreferencesProfileName,
+                                profileId = userPreferencesProfileId,
                                 onComplete = {
                                     isUserPreferencesGuideScreen = false
                                     selectedItem = NavItem.Settings
@@ -261,6 +277,23 @@ fun OperitApp(
                                 navigateToPermissions = {
                                     isUserPreferencesGuideScreen = false
                                     selectedItem = NavItem.ShizukuCommands  // 直接跳转到权限授予界面
+                                }
+                            )
+                        }
+                        isUserPreferencesSettingsScreen -> {
+                            UserPreferencesSettingsScreen(
+                                onNavigateBack = {
+                                    isUserPreferencesSettingsScreen = false
+                                },
+                                onNavigateToGuide = { profileName, profileId ->
+                                    // 导航到引导页并传递配置信息
+                                    isUserPreferencesGuideScreen = true
+                                    isUserPreferencesSettingsScreen = false
+                                    
+                                    // 创建一个包含profileName和profileId的导航，
+                                    // 这需要在UserPreferencesGuideScreen中接收这些参数
+                                    userPreferencesProfileName = profileName
+                                    userPreferencesProfileId = profileId
                                 }
                             )
                         }
@@ -273,9 +306,11 @@ fun OperitApp(
                                 NavItem.Settings -> SettingsScreen(
                                     navigateToToolPermissions = { 
                                         isToolPermissionScreen = true 
+                                        isUserPreferencesSettingsScreen = false
                                     },
                                     onNavigateToUserPreferences = {
-                                        isUserPreferencesGuideScreen = true
+                                        isUserPreferencesSettingsScreen = true
+                                        isUserPreferencesGuideScreen = false
                                     }
                                 )
                                 NavItem.Packages -> PackageManagerScreen()
@@ -284,6 +319,10 @@ fun OperitApp(
                                     selectedItem = NavItem.Settings
                                 }
                                 NavItem.UserPreferencesGuide -> {
+                                    // 不应该直接导航到这里
+                                    selectedItem = NavItem.Settings
+                                }
+                                NavItem.UserPreferencesSettings -> {
                                     // 不应该直接导航到这里
                                     selectedItem = NavItem.Settings
                                 }

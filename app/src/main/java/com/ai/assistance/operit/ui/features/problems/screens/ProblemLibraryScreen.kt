@@ -237,12 +237,27 @@ fun ProblemLibraryScreen() {
 
 // ViewModel Factory
 class ProblemLibraryViewModelFactory(private val context: Context) : ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(ProblemLibraryViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return ProblemLibraryViewModel(AIToolHandler.getInstance(context)) as T
+            // 获取 AIToolHandler 实例
+            val toolHandler = getToolHandler(context)
+            
+            // 创建 ViewModel
+            return ProblemLibraryViewModel(toolHandler) as T
         }
-        throw IllegalArgumentException("Unknown ViewModel class")
+        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+    }
+    
+    // 获取 AIToolHandler 实例
+    private fun getToolHandler(context: Context): AIToolHandler {
+        // 从应用级别获取 AIToolHandler 实例
+        // 这里假设 AIToolHandler 是一个应用级单例
+        return (context.applicationContext as? com.ai.assistance.operit.core.application.OperitApplication)?.let {
+            // 如果应用实例是 OperitApplication，这里应该提供一个适当的 getter 方法
+            // 如果 OperitApplication 没有 getToolHandler 方法，直接使用单例方法
+            AIToolHandler.getInstance(context.applicationContext)
+        } ?: AIToolHandler.getInstance(context.applicationContext)
     }
 }
 

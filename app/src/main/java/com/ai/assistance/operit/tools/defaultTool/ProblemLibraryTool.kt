@@ -19,13 +19,35 @@ import java.util.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+// 顶级常量，用于顶级函数中的日志
+private const val PROBLEM_LIBRARY_TOOL_TAG = "ProblemLibraryTool_Reg"
+
 /**
  * 问题库工具类 - 负责问题库的管理、查询和搜索功能
  * 使用Room数据库存储，支持向量搜索
  */
-class ProblemLibraryTool(private val context: Context) {
+class ProblemLibraryTool private constructor(private val context: Context) {
     companion object {
         private const val TAG = "ProblemLibraryTool"
+        
+        @Volatile
+        private var INSTANCE: ProblemLibraryTool? = null
+        
+        /**
+         * 获取ProblemLibraryTool单例实例
+         * 确保整个应用中只有一个实例
+         */
+        fun getInstance(context: Context): ProblemLibraryTool {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: ProblemLibraryTool(context.applicationContext).also { 
+                    INSTANCE = it
+                    
+                    // 初始化向量索引（仅在第一次创建实例时调用）
+                    it.initVectorIndex()
+                    Log.d(TAG, "ProblemLibraryTool 单例实例已创建并初始化")
+                }
+            }
+        }
     }
 
     // 问题记录数据类
@@ -51,11 +73,6 @@ class ProblemLibraryTool(private val context: Context) {
     // 向量索引是否准备好
     private var vectorIndexReady = false
 
-    // 初始化问题库
-    init {
-        initVectorIndex()
-    }
-    
     // 初始化向量索引
     private fun initVectorIndex() {
         try {
@@ -319,7 +336,7 @@ class ProblemLibraryTool(private val context: Context) {
     fun registerTools(toolHandler: AIToolHandler) {
         // 查询问题库工具
         toolHandler.registerTool(
-            name = "queryProblemLibrary",
+            name = "query_problem_library",
             category = ToolCategory.FILE_READ,
             dangerCheck = null,
             descriptionGenerator = { tool ->
@@ -361,14 +378,25 @@ class ProblemLibraryTool(private val context: Context) {
 }
 
 /**
- * 用于注册问题库工具
+ * 向AIToolHandler注册问题库工具
  */
 fun registerProblemLibraryTool(toolHandler: AIToolHandler, context: Context) {
-    val problemLibraryTool = ProblemLibraryTool(context)
+    // 添加顶级函数自己的TAG常量
+    val TAG = "ProblemLibraryTool_Reg"
+    
+    // 获取单例实例
+    val problemLibraryTool = ProblemLibraryTool.getInstance(context)
+    
+    // 防止多次注册
+    if (toolHandler.getProblemLibraryTool() != null) {
+        Log.d(TAG, "ProblemLibraryTool 已经被注册，跳过注册")
+        return
+    }
     
     // 向AIToolHandler中注册问题库工具
     problemLibraryTool.registerTools(toolHandler)
     
-    // 向AIToolHandler暴露问题库工具的实例
+    // 保存ProblemLibraryTool实例到AIToolHandler中
     toolHandler.setProblemLibraryTool(problemLibraryTool)
+    Log.d(TAG, "ProblemLibraryTool 已注册到 AIToolHandler")
 } 

@@ -254,7 +254,7 @@ fun SettingsScreen(
                     onClick = navigateToToolPermissions,
                     modifier = Modifier.align(Alignment.End)
                 ) {
-                    Text("管理工具权限")
+                    Text("配置工具权限")
                 }
             }
         }
@@ -263,164 +263,28 @@ fun SettingsScreen(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 8.dp)
+                .padding(bottom = 16.dp)
         ) {
             Column(
                 modifier = Modifier.padding(16.dp)
             ) {
                 Text(
-                    text = stringResource(id = R.string.user_preferences),
+                    text = "用户偏好设置",
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
                 
-                val userPreferences = preferencesManager.userPreferencesFlow.collectAsState(initial = UserPreferences()).value
+                Text(
+                    text = "配置个人信息和偏好，让AI更好地了解你，包括年龄、性格、身份、职业和期待的AI风格",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
                 
-                if (userPreferences.isInitialized && userPreferences.preferences.isNotEmpty()) {
-                    // 显示用户偏好信息
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 16.dp)
-                    ) {
-                        Text(
-                            text = stringResource(id = R.string.custom_description),
-                            style = MaterialTheme.typography.titleSmall,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-                        
-                        // 添加偏好文本编辑功能
-                        var isEditingPreferences by remember { mutableStateOf(false) }
-                        var editedPreferences by remember { mutableStateOf(userPreferences.preferences) }
-                        
-                        if (isEditingPreferences) {
-                            // 编辑模式
-                            OutlinedTextField(
-                                value = editedPreferences,
-                                onValueChange = { editedPreferences = it },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(bottom = 8.dp)
-                                    .height(120.dp),
-                                label = { Text(stringResource(id = R.string.edit_preferences)) }
-                            )
-                            
-                            // 保存和取消按钮
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
-                            ) {
-                                TextButton(
-                                    onClick = { 
-                                        isEditingPreferences = false 
-                                        editedPreferences = userPreferences.preferences
-                                    }
-                                ) {
-                                    Text(stringResource(id = R.string.cancel))
-                                }
-                                
-                                Button(
-                                    onClick = {
-                                        scope.launch {
-                                            preferencesManager.updatePreferencesText(editedPreferences)
-                                            isEditingPreferences = false
-                                        }
-                                    }
-                                ) {
-                                    Text(stringResource(id = R.string.save))
-                                }
-                            }
-                        } else {
-                            // 显示模式
-                            Text(
-                                text = userPreferences.preferences,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-                            
-                            // 编辑按钮
-                            IconButton(
-                                onClick = { 
-                                    isEditingPreferences = true 
-                                    editedPreferences = userPreferences.preferences
-                                },
-                                modifier = Modifier.align(Alignment.End)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Edit,
-                                    contentDescription = stringResource(id = R.string.edit_preferences)
-                                )
-                            }
-                        }
-                        
-                        // 用户信息摘要
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            if (userPreferences.gender.isNotEmpty()) {
-                                Text(
-                                    text = "${stringResource(id = R.string.gender)}: ${userPreferences.gender}",
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
-                            
-                            if (userPreferences.occupation.isNotEmpty()) {
-                                Text(
-                                    text = "${stringResource(id = R.string.occupation)}: ${userPreferences.occupation}",
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
-                            
-                            if (userPreferences.age > 0) {
-                                Text(
-                                    text = "${stringResource(id = R.string.age)}: ${userPreferences.age}",
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
-                        }
-                    }
-                    
-                    // 按钮行
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
-                    ) {
-                        // 重置偏好按钮
-                        OutlinedButton(
-                            onClick = {
-                                scope.launch {
-                                    preferencesManager.resetPreferences()
-                                }
-                            }
-                        ) {
-                            Text(stringResource(id = R.string.reset_preferences))
-                        }
-                        
-                        // 修改偏好按钮
-                        Button(
-                            onClick = onNavigateToUserPreferences
-                        ) {
-                            Text(stringResource(id = R.string.set_preferences))
-                        }
-                    }
-                } else {
-                    // 尚未设置偏好时显示
-                    Text(
-                        text = stringResource(id = R.string.no_preferences),
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(vertical = 16.dp)
-                    )
-                    
-                    // 设置偏好按钮
-                    Button(
-                        onClick = onNavigateToUserPreferences,
-                        modifier = Modifier.align(Alignment.End)
-                    ) {
-                        Text(stringResource(id = R.string.set_preferences))
-                    }
+                Button(
+                    onClick = onNavigateToUserPreferences,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text("配置用户偏好")
                 }
             }
         }

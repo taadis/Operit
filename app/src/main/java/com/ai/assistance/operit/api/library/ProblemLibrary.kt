@@ -165,7 +165,8 @@ object ProblemLibrary {
         if (analysisResults.userPreferences.isNotEmpty()) {
             try {
                 withContext(Dispatchers.IO) {
-                    preferencesManager.updatePreferencesText(analysisResults.userPreferences)
+                    // 解析生成的偏好文本，尝试更新各个分类
+                    updateUserPreferencesFromAnalysis(analysisResults.userPreferences)
                     Log.d(TAG, "用户偏好已更新")
                 }
             } catch (e: Exception) {
@@ -211,8 +212,8 @@ object ProblemLibrary {
             // 获取当前的用户偏好
             val currentPreferences = withContext(Dispatchers.IO) {
                 var preferences = ""
-                preferencesManager.userPreferencesFlow.take(1).collect { userPreferences ->
-                    preferences = userPreferences.preferences
+                preferencesManager.getUserPreferencesFlow().take(1).collect { profile ->
+                    preferences = buildPreferencesText(profile)
                 }
                 preferences
             }
@@ -226,7 +227,14 @@ object ProblemLibrary {
                 你需要返回一个固定格式的JSON对象，包含三个字段：
                 {
                   "problem_summary": "问题摘要内容",
-                  "user_preferences": "用户偏好分析结果",
+                  "user_preferences": {
+                    "age": 保持不变用"<UNCHANGED>"，有新发现则更新为数字,
+                    "gender": 保持不变用"<UNCHANGED>"，有新发现则更新为具体值,
+                    "personality": 保持不变用"<UNCHANGED>"，有新发现则更新为具体值,
+                    "identity": 保持不变用"<UNCHANGED>"，有新发现则更新为具体值,
+                    "occupation": 保持不变用"<UNCHANGED>"，有新发现则更新为具体值,
+                    "aiStyle": 保持不变用"<UNCHANGED>"，有新发现则更新为具体值
+                  },
                   "solution_summary": "解决方案摘要内容"
                 }
                 
@@ -235,9 +243,10 @@ object ProblemLibrary {
                 以确保后续基于关键词的搜索能够找到这条记录。必须在摘要末尾添加以下格式的内容:
                 "关键词: [从解决方案中提取的10-15个最重要的技术词汇、方法名和核心概念，用逗号分隔]"
                 
-                用户偏好：【特别重要】在现有偏好的基础上进行小幅增量更新，不要完全重写。
+                用户偏好：【特别重要】用结构化JSON格式表示，在现有偏好的基础上进行小幅增量更新，不要完全重写。
                 现有用户偏好："${currentPreferences}"
-                只有当发现与现有偏好不同的新信息时才进行添加或调整，最多150字。
+                对于没有新发现的字段，使用"<UNCHANGED>"特殊标记表示保持不变。
+                只有当确定发现与现有偏好不同的新信息时才进行更新。
                 
                 解决方案摘要：全面提炼解决方案的核心步骤和关键点，不超过600字，结构化呈现。
                 必须包含：
@@ -255,8 +264,7 @@ object ProblemLibrary {
             // 构建分析消息
             val analysisMessage = buildAnalysisMessage(query, solution, conversationHistory)
             
-            // 预估token
-            val inputTokens = estimateTokenCount(systemPrompt) + estimateTokenCount(analysisMessage)
+            // AIService会自动计算和累计token，不需要手动预估
             
             // 准备消息
             val messages = listOf(
@@ -275,7 +283,7 @@ object ProblemLibrary {
                     onPartialResponse = { content, _ ->
                         result.clear()
                         result.append(content)
-                        outputTokens = estimateTokenCount(content)
+                        outputTokens = aiService.outputTokenCount
                     },
                     chatHistory = messages,
                     onComplete = {}
@@ -283,7 +291,7 @@ object ProblemLibrary {
             }
             
             // 更新token统计
-            apiPreferences?.updatePreferenceAnalysisTokens(inputTokens, outputTokens)
+            apiPreferences?.updatePreferenceAnalysisTokens(aiService.inputTokenCount, aiService.outputTokenCount)
             
             // 解析结果
             return parseAnalysisResult(result.toString())
@@ -340,9 +348,62 @@ object ProblemLibrary {
             }
             
             val json = JSONObject(cleanJson)
+            
+            // 提取用户偏好信息，将结构化数据转换为字符串
+            val userPreferences = if (json.has("user_preferences") && json.get("user_preferences") is JSONObject) {
+                val preferencesObj = json.getJSONObject("user_preferences")
+                val preferenceParts = mutableListOf<String>()
+                
+                // 处理每个偏好类别
+                if (preferencesObj.has("age") && preferencesObj.get("age") != "<UNCHANGED>") {
+                    val age = preferencesObj.get("age")
+                    preferenceParts.add("年龄: $age")
+                }
+                
+                if (preferencesObj.has("gender") && preferencesObj.get("gender") != "<UNCHANGED>") {
+                    val gender = preferencesObj.getString("gender")
+                    if (gender.isNotEmpty()) {
+                        preferenceParts.add("性别: $gender")
+                    }
+                }
+                
+                if (preferencesObj.has("personality") && preferencesObj.get("personality") != "<UNCHANGED>") {
+                    val personality = preferencesObj.getString("personality")
+                    if (personality.isNotEmpty()) {
+                        preferenceParts.add("性格特点: $personality")
+                    }
+                }
+                
+                if (preferencesObj.has("identity") && preferencesObj.get("identity") != "<UNCHANGED>") {
+                    val identity = preferencesObj.getString("identity")
+                    if (identity.isNotEmpty()) {
+                        preferenceParts.add("身份认同: $identity")
+                    }
+                }
+                
+                if (preferencesObj.has("occupation") && preferencesObj.get("occupation") != "<UNCHANGED>") {
+                    val occupation = preferencesObj.getString("occupation")
+                    if (occupation.isNotEmpty()) {
+                        preferenceParts.add("职业: $occupation")
+                    }
+                }
+                
+                if (preferencesObj.has("aiStyle") && preferencesObj.get("aiStyle") != "<UNCHANGED>") {
+                    val aiStyle = preferencesObj.getString("aiStyle")
+                    if (aiStyle.isNotEmpty()) {
+                        preferenceParts.add("期待的AI风格: $aiStyle")
+                    }
+                }
+                
+                preferenceParts.joinToString("; ")
+            } else {
+                // 兼容旧格式
+                json.optString("user_preferences", "")
+            }
+            
             AnalysisResults(
                 problemSummary = json.optString("problem_summary", "").take(500),
-                userPreferences = json.optString("user_preferences", "").take(200),
+                userPreferences = userPreferences.take(200),
                 solutionSummary = json.optString("solution_summary", "").take(1000)
             )
         } catch (e: Exception) {
@@ -352,15 +413,82 @@ object ProblemLibrary {
     }
     
     /**
-     * 估算token数量
+     * 将用户偏好配置转换为文本描述
      */
-    private fun estimateTokenCount(text: String?): Int {
-        if (text == null || text.isEmpty()) return 0
+    private fun buildPreferencesText(profile: com.ai.assistance.operit.data.model.PreferenceProfile): String {
+        val parts = mutableListOf<String>()
         
-        // 简单估算：中文字符约1.5个token，其他字符约0.25个token
-        val chineseCharCount = text.count { it.code in 0x4E00..0x9FFF }
-        val otherCharCount = text.length - chineseCharCount
+        if (profile.gender.isNotEmpty()) {
+            parts.add("性别: ${profile.gender}")
+        }
         
-        return (chineseCharCount * 1.5 + otherCharCount * 0.25).toInt()
+        if (profile.age > 0) {
+            parts.add("年龄: ${profile.age}")
+        }
+        
+        if (profile.personality.isNotEmpty()) {
+            parts.add("性格特点: ${profile.personality}")
+        }
+        
+        if (profile.identity.isNotEmpty()) {
+            parts.add("身份认同: ${profile.identity}")
+        }
+        
+        if (profile.occupation.isNotEmpty()) {
+            parts.add("职业: ${profile.occupation}")
+        }
+        
+        if (profile.aiStyle.isNotEmpty()) {
+            parts.add("期待的AI风格: ${profile.aiStyle}")
+        }
+        
+        return parts.joinToString("; ")
+    }
+    
+    /**
+     * 从分析结果文本中解析并更新用户偏好
+     * 
+     * 分析文本可能是结构化格式，例如：
+     * "性别: 男; 年龄: 30; 性格特点: 耐心、细致; 职业: 软件工程师"
+     * 
+     * 只有在分析出来的字段才会被更新，未包含的字段将保持不变
+     */
+    private suspend fun updateUserPreferencesFromAnalysis(preferencesText: String) {
+        if (preferencesText.isEmpty()) {
+            return
+        }
+        
+        // 提取各项信息
+        val ageMatch = """年龄[:：\s]+(\d+)""".toRegex().find(preferencesText)
+        val genderMatch = """性别[:：\s]+([\u4e00-\u9fa5]+)""".toRegex().find(preferencesText)
+        val personalityMatch = """性格(特点)?[:：\s]+([\u4e00-\u9fa5、，,]+)""".toRegex().find(preferencesText)
+        val identityMatch = """身份(认同)?[:：\s]+([\u4e00-\u9fa5、，,]+)""".toRegex().find(preferencesText)
+        val occupationMatch = """职业[:：\s]+([\u4e00-\u9fa5、，,]+)""".toRegex().find(preferencesText)
+        val aiStyleMatch = """(AI风格|期待的AI风格|偏好的AI风格)[:：\s]+([\u4e00-\u9fa5、，,]+)""".toRegex().find(preferencesText)
+        
+        // 只更新分析出的字段，其他字段保持不变
+        preferencesManager.updateProfileCategory(
+            age = ageMatch?.groupValues?.getOrNull(1)?.toIntOrNull(),
+            gender = genderMatch?.groupValues?.getOrNull(1),
+            personality = personalityMatch?.groupValues?.getOrNull(2),
+            identity = identityMatch?.groupValues?.getOrNull(2),
+            occupation = occupationMatch?.groupValues?.getOrNull(1),
+            aiStyle = aiStyleMatch?.groupValues?.getOrNull(2)
+        )
+        
+        // 记录更新了哪些字段
+        val updatedFields = mutableListOf<String>()
+        if (ageMatch != null) updatedFields.add("年龄")
+        if (genderMatch != null) updatedFields.add("性别")
+        if (personalityMatch != null) updatedFields.add("性格特点")
+        if (identityMatch != null) updatedFields.add("身份认同")
+        if (occupationMatch != null) updatedFields.add("职业")
+        if (aiStyleMatch != null) updatedFields.add("AI风格偏好")
+        
+        if (updatedFields.isNotEmpty()) {
+            Log.d(TAG, "已更新用户偏好字段: ${updatedFields.joinToString(", ")}")
+        } else {
+            Log.d(TAG, "未从文本中提取到新的用户偏好信息")
+        }
     }
 } 
