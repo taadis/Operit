@@ -2,6 +2,7 @@ package com.ai.assistance.operit.ui.features.settings.screens
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -39,7 +40,11 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import com.ai.assistance.operit.R
-import androidx.compose.foundation.BorderStroke
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+import android.app.DatePickerDialog as AndroidDatePickerDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,12 +82,15 @@ fun UserPreferencesSettingsScreen(
     
     // 编辑状态
     var editMode by remember { mutableStateOf(false) }
-    var editAge by remember { mutableStateOf("") }
+    var editBirthDate by remember { mutableStateOf(0L) }
     var editGender by remember { mutableStateOf("") }
     var editPersonality by remember { mutableStateOf("") }
     var editIdentity by remember { mutableStateOf("") }
     var editOccupation by remember { mutableStateOf("") }
     var editAiStyle by remember { mutableStateOf("") }
+    
+    // 日期选择器状态
+    val dateFormatter = SimpleDateFormat("yyyy年MM月dd日", Locale.getDefault())
     
     // 动画状态
     val listState = rememberLazyListState()
@@ -92,13 +100,45 @@ fun UserPreferencesSettingsScreen(
         preferencesManager.getUserPreferencesFlow(selectedProfileId).collect { profile ->
             selectedProfile = profile
             // 初始化编辑字段
-            editAge = if (profile.age > 0) profile.age.toString() else ""
+            editBirthDate = profile.birthDate
             editGender = profile.gender
             editPersonality = profile.personality
             editIdentity = profile.identity
             editOccupation = profile.occupation
             editAiStyle = profile.aiStyle
         }
+    }
+    
+    // 日期选择器函数
+    val showDatePickerDialog = { 
+        val calendar = Calendar.getInstance().apply {
+            if (editBirthDate > 0) {
+                timeInMillis = editBirthDate
+            } else {
+                set(Calendar.YEAR, 1990)
+                set(Calendar.MONTH, Calendar.JANUARY)
+                set(Calendar.DAY_OF_MONTH, 1)
+            }
+        }
+        
+        val year = calendar.get(Calendar.YEAR)
+        val month = calendar.get(Calendar.MONTH)
+        val day = calendar.get(Calendar.DAY_OF_MONTH)
+        
+        AndroidDatePickerDialog(
+            context,
+            { _, selectedYear, selectedMonth, selectedDay ->
+                val selectedCalendar = Calendar.getInstance().apply {
+                    set(Calendar.YEAR, selectedYear)
+                    set(Calendar.MONTH, selectedMonth)
+                    set(Calendar.DAY_OF_MONTH, selectedDay)
+                }
+                editBirthDate = selectedCalendar.timeInMillis
+            },
+            year,
+            month,
+            day
+        ).show()
     }
     
     Scaffold(
@@ -182,7 +222,7 @@ fun UserPreferencesSettingsScreen(
                                             scope.launch {
                                                 preferencesManager.updateProfileCategory(
                                                     profileId = selectedProfile?.id ?: "",
-                                                    age = editAge.toIntOrNull(),
+                                                    birthDate = editBirthDate,
                                                     gender = editGender.takeIf { it.isNotBlank() },
                                                     personality = editPersonality.takeIf { it.isNotBlank() },
                                                     identity = editIdentity.takeIf { it.isNotBlank() },
@@ -351,22 +391,25 @@ fun UserPreferencesSettingsScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    // 年龄
+                                    // 出生日期
                                     item {
                                         ModernPreferenceCategoryItem(
-                                            title = "年龄",
-                                            value = if (profile.age > 0) profile.age.toString() else "未设置",
-                                            editValue = editAge,
-                                            onValueChange = { editAge = it },
-                                            isLocked = categoryLockStatus["age"] ?: false,
+                                            title = "出生日期",
+                                            value = if (profile.birthDate > 0) dateFormatter.format(Date(profile.birthDate)) else "未设置",
+                                            editMode = editMode,
+                                            isLocked = categoryLockStatus["birthDate"] ?: false,
                                             onLockChange = { locked ->
                                                 scope.launch {
-                                                    preferencesManager.setCategoryLocked("age", locked)
+                                                    preferencesManager.setCategoryLocked("birthDate", locked)
                                                 }
                                             },
-                                            editMode = editMode,
-                                            isNumeric = true,
-                                            icon = Icons.Default.Cake
+                                            icon = Icons.Default.Cake,
+                                            onDatePickerClick = {
+                                                if (editMode && !(categoryLockStatus["birthDate"] ?: false)) {
+                                                    showDatePickerDialog()
+                                                }
+                                            },
+                                            dateValue = editBirthDate
                                         )
                                     }
                                     
@@ -468,7 +511,7 @@ fun UserPreferencesSettingsScreen(
                                                     scope.launch {
                                                         preferencesManager.updateProfileCategory(
                                                             profileId = profile.id,
-                                                            age = editAge.toIntOrNull(),
+                                                            birthDate = editBirthDate,
                                                             gender = editGender.takeIf { it.isNotBlank() },
                                                             personality = editPersonality.takeIf { it.isNotBlank() },
                                                             identity = editIdentity.takeIf { it.isNotBlank() },
@@ -685,13 +728,16 @@ fun ProfileItem(
 fun ModernPreferenceCategoryItem(
     title: String,
     value: String,
-    editValue: String,
-    onValueChange: (String) -> Unit,
+    editValue: String = "",
+    onValueChange: (String) -> Unit = {},
     isLocked: Boolean,
     onLockChange: (Boolean) -> Unit,
     editMode: Boolean,
     isNumeric: Boolean = false,
-    icon: androidx.compose.ui.graphics.vector.ImageVector
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    placeholder: String = "请输入${title}信息",
+    dateValue: Long = 0L,
+    onDatePickerClick: () -> Unit = {}
 ) {
     val animatedElevation by animateDpAsState(
         targetValue = if (editMode && !isLocked) 2.dp else 0.dp,
@@ -779,40 +825,84 @@ fun ModernPreferenceCategoryItem(
                 label = "edit mode transition"
             ) { isEditMode ->
                 if (isEditMode) {
-                    OutlinedTextField(
-                        value = editValue,
-                        onValueChange = { 
-                            if (isNumeric) {
-                                if (it.all { char -> char.isDigit() } || it.isEmpty()) {
+                    if (title == "出生日期") {
+                        // 出生日期使用点击卡片打开日期选择器
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp)
+                                .clickable(
+                                    enabled = !isLocked,
+                                    onClick = onDatePickerClick
+                                ),
+                            shape = RoundedCornerShape(6.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = if (dateValue > 0) 
+                                           SimpleDateFormat("yyyy年MM月dd日", Locale.getDefault()).format(Date(dateValue)) 
+                                           else "请选择出生日期",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = if (isLocked) 
+                                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                            else MaterialTheme.colorScheme.onSurface
+                                )
+                                Icon(
+                                    Icons.Default.CalendarMonth,
+                                    contentDescription = "选择日期",
+                                    tint = if (isLocked) 
+                                           MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                           else MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    } else {
+                        OutlinedTextField(
+                            value = editValue,
+                            onValueChange = { 
+                                if (isNumeric) {
+                                    if (it.all { char -> char.isDigit() } || it.isEmpty()) {
+                                        onValueChange(it)
+                                    }
+                                } else {
                                     onValueChange(it)
                                 }
-                            } else {
-                                onValueChange(it)
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp),
+                            enabled = !isLocked,
+                            textStyle = LocalTextStyle.current.copy(fontSize = 16.sp),
+                            shape = RoundedCornerShape(6.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                                disabledBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            ),
+                            placeholder = { 
+                                Text(
+                                    placeholder,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                    fontSize = 16.sp
+                                ) 
                             }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(50.dp),
-                        enabled = !isLocked,
-                        textStyle = LocalTextStyle.current.copy(fontSize = 16.sp),
-                        shape = RoundedCornerShape(6.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                            disabledBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                            disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                        ),
-                        placeholder = { 
-                            Text(
-                                "请输入${title}信息",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                fontSize = 16.sp
-                            ) 
-                        }
-                    )
+                        )
+                    }
                 } else {
                     val displayText = if (value == "未设置") {
-                        "未设置${title}信息"
+                        "未设置${title}"
                     } else {
                         value
                     }

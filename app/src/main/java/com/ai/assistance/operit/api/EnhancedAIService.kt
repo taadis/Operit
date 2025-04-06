@@ -35,6 +35,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.Calendar
 
 /**
  * Enhanced AI service that provides advanced conversational capabilities
@@ -376,8 +377,22 @@ class EnhancedAIService(
             parts.add("性别: ${profile.gender}")
         }
         
-        if (profile.age > 0) {
-            parts.add("年龄: ${profile.age}")
+        if (profile.birthDate > 0) {
+            // Convert timestamp to age and format as text
+            val today = Calendar.getInstance()
+            val birthCal = Calendar.getInstance().apply { timeInMillis = profile.birthDate }
+            var age = today.get(Calendar.YEAR) - birthCal.get(Calendar.YEAR)
+            // Adjust age if birthday hasn't occurred yet this year
+            if (today.get(Calendar.MONTH) < birthCal.get(Calendar.MONTH) || 
+                (today.get(Calendar.MONTH) == birthCal.get(Calendar.MONTH) && 
+                 today.get(Calendar.DAY_OF_MONTH) < birthCal.get(Calendar.DAY_OF_MONTH))) {
+                age--
+            }
+            parts.add("年龄: ${age}岁")
+            
+            // Also add birth date for more precise information
+            val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+            parts.add("出生日期: ${dateFormat.format(java.util.Date(profile.birthDate))}")
         }
         
         if (profile.personality.isNotEmpty()) {

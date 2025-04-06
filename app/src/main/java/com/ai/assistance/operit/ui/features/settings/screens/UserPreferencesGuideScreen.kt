@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -23,6 +24,12 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.DisplayMode
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -30,24 +37,46 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 /**
  * 根据用户选择的关键信息生成偏好描述
  */
-private fun generatePreferencesDescription(gender: String, occupation: String, age: Int): String {
+private fun generatePreferencesDescription(gender: String, occupation: String, birthDate: Long): String {
     val genderDesc = when (gender) {
         "男" -> "一位男性用户"
         "女" -> "一位女性用户"
         else -> "一位用户"
+    }
+    
+    // 根据出生日期计算年龄
+    val age = if (birthDate > 0) {
+        val today = Calendar.getInstance()
+        val birthCal = Calendar.getInstance().apply { timeInMillis = birthDate }
+        var age = today.get(Calendar.YEAR) - birthCal.get(Calendar.YEAR)
+        // 如果今年的生日还没过，年龄减一
+        if (today.get(Calendar.MONTH) < birthCal.get(Calendar.MONTH) || 
+            (today.get(Calendar.MONTH) == birthCal.get(Calendar.MONTH) && 
+             today.get(Calendar.DAY_OF_MONTH) < birthCal.get(Calendar.DAY_OF_MONTH))) {
+            age--
+        }
+        age
+    } else {
+        0
     }
     
     val ageDesc = when {
@@ -108,10 +137,28 @@ fun UserPreferencesGuideScreen(
     
     var selectedGender by remember { mutableStateOf("") }
     var selectedOccupation by remember { mutableStateOf("") }
-    var age by remember { mutableStateOf("") }
+    var birthDate by remember { mutableStateOf(0L) }
     var selectedPersonality by remember { mutableStateOf(setOf<String>()) }
     var selectedIdentity by remember { mutableStateOf(setOf<String>()) }
     var selectedAiStyleTags by remember { mutableStateOf(setOf<String>()) }
+    
+    // 日期选择器状态
+    var showDatePicker by remember { mutableStateOf(false) }
+    val dateFormatter = SimpleDateFormat("yyyy年MM月dd日", Locale.getDefault())
+    
+    // 初始化日期选择器状态
+    val initialSelectedDateMillis = if (birthDate > 0) birthDate else {
+        // 默认设置为1990年1月1日
+        Calendar.getInstance().apply {
+            set(Calendar.YEAR, 1990)
+            set(Calendar.MONTH, Calendar.JANUARY)
+            set(Calendar.DAY_OF_MONTH, 1)
+        }.timeInMillis
+    }
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = initialSelectedDateMillis, 
+        initialDisplayMode = DisplayMode.Picker
+    )
     
     // 各种选项数据
     val genderOptions = listOf("男", "女", "其他")
@@ -159,7 +206,7 @@ fun UserPreferencesGuideScreen(
             // 填充表单字段
             selectedGender = profile.gender
             selectedOccupation = profile.occupation
-            age = if (profile.age > 0) profile.age.toString() else ""
+            birthDate = profile.birthDate
             
             // 解析个性特点
             val personalityTags = profile.personality.split(",").map { it.trim() }.filter { it.isNotEmpty() }
@@ -222,6 +269,43 @@ fun UserPreferencesGuideScreen(
         }
     }
     
+    // 日期选择器对话框
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let {
+                            birthDate = it
+                        }
+                        showDatePicker = false
+                    }
+                ) {
+                    Text("确定")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDatePicker = false }
+                ) {
+                    Text("取消")
+                }
+            }
+        ) {
+            DatePicker(
+                state = datePickerState,
+                title = {
+                    Text(
+                        "选择您的出生日期",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(start = 24.dp, end = 12.dp, top = 16.dp)
+                    )
+                }
+            )
+        }
+    }
+    
     Scaffold(
     ) { paddingValues ->
         Column(
@@ -271,15 +355,35 @@ fun UserPreferencesGuideScreen(
                 }
             }
             
-            // 年龄输入
-            Text(stringResource(id = R.string.age), style = MaterialTheme.typography.titleSmall)
-            OutlinedTextField(
-                value = age,
-                onValueChange = { if (it.length <= 2 && it.all { char -> char.isDigit() }) age = it },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text(stringResource(id = R.string.enter_age)) },
-                singleLine = true
-            )
+            // 出生日期选择
+            Text(stringResource(id = R.string.birth_date), style = MaterialTheme.typography.titleSmall)
+            OutlinedCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                onClick = { showDatePicker = true }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = if (birthDate > 0) dateFormatter.format(Date(birthDate)) else "请选择出生日期",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = if (birthDate > 0) 
+                                MaterialTheme.colorScheme.onSurface 
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Icon(
+                        Icons.Default.CalendarMonth,
+                        contentDescription = "选择日期",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
             
             // 性格特点选择（多选标签）
             Text("性格特点 (可多选)", style = MaterialTheme.typography.titleSmall)
@@ -359,9 +463,6 @@ fun UserPreferencesGuideScreen(
             Button(
                 onClick = {
                     scope.launch {
-                        // 提取年龄
-                        val ageInt = age.toIntOrNull() ?: 0
-                        
                         // 将选中的标签合并为字符串
                         val personalityTags = selectedPersonality.joinToString(", ")
                         val identityTags = selectedIdentity.joinToString(", ")
@@ -372,7 +473,7 @@ fun UserPreferencesGuideScreen(
                             // 如果提供了profileId，更新指定的配置文件
                             preferencesManager.updateProfileCategory(
                                 profileId = profileId,
-                                age = ageInt,
+                                birthDate = birthDate,
                                 gender = selectedGender,
                                 occupation = selectedOccupation,
                                 personality = personalityTags,
@@ -382,7 +483,7 @@ fun UserPreferencesGuideScreen(
                         } else {
                             // 否则更新当前活动的配置文件
                             preferencesManager.updateProfileCategory(
-                                age = ageInt,
+                                birthDate = birthDate,
                                 gender = selectedGender,
                                 occupation = selectedOccupation,
                                 personality = personalityTags,
@@ -397,12 +498,12 @@ fun UserPreferencesGuideScreen(
                             onComplete()
                         } else {
                             // 如果是首次启动应用，进入权限页
-                            navigateToPermissions()
+                        navigateToPermissions()
                         }
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = selectedGender.isNotEmpty() && selectedOccupation.isNotEmpty() && age.isNotEmpty()
+                enabled = selectedGender.isNotEmpty() && selectedOccupation.isNotEmpty() && birthDate > 0
             ) {
                 Text(stringResource(id = R.string.complete))
             }

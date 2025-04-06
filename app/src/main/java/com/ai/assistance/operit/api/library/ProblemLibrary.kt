@@ -377,7 +377,7 @@ object ProblemLibrary {
                 // 处理每个偏好类别
                 if (preferencesObj.has("age") && preferencesObj.get("age") != "<UNCHANGED>") {
                     val age = preferencesObj.get("age")
-                    preferenceParts.add("年龄: $age")
+                    preferenceParts.add("出生年份: $age")
                 }
                 
                 if (preferencesObj.has("gender") && preferencesObj.get("gender") != "<UNCHANGED>") {
@@ -442,8 +442,22 @@ object ProblemLibrary {
             parts.add("性别: ${profile.gender}")
         }
         
-        if (profile.age > 0) {
-            parts.add("年龄: ${profile.age}")
+        if (profile.birthDate > 0) {
+            // Convert timestamp to formatted date string
+            val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+            parts.add("出生日期: ${dateFormat.format(java.util.Date(profile.birthDate))}")
+            
+            // Also calculate and include age
+            val today = java.util.Calendar.getInstance()
+            val birthCal = java.util.Calendar.getInstance().apply { timeInMillis = profile.birthDate }
+            var age = today.get(java.util.Calendar.YEAR) - birthCal.get(java.util.Calendar.YEAR)
+            // Adjust age if birthday hasn't occurred yet this year
+            if (today.get(java.util.Calendar.MONTH) < birthCal.get(java.util.Calendar.MONTH) || 
+                (today.get(java.util.Calendar.MONTH) == birthCal.get(java.util.Calendar.MONTH) && 
+                 today.get(java.util.Calendar.DAY_OF_MONTH) < birthCal.get(java.util.Calendar.DAY_OF_MONTH))) {
+                age--
+            }
+            parts.add("年龄: ${age}岁")
         }
         
         if (profile.personality.isNotEmpty()) {
@@ -469,7 +483,7 @@ object ProblemLibrary {
      * 从分析结果文本中解析并更新用户偏好
      * 
      * 分析文本可能是结构化格式，例如：
-     * "性别: 男; 年龄: 30; 性格特点: 耐心、细致; 职业: 软件工程师"
+     * "性别: 男; 出生年份: 1990; 性格特点: 耐心、细致; 职业: 软件工程师"
      * 
      * 只有在分析出来的字段才会被更新，未包含的字段将保持不变
      */
@@ -479,16 +493,43 @@ object ProblemLibrary {
         }
         
         // 提取各项信息
-        val ageMatch = """年龄[:：\s]+(\d+)""".toRegex().find(preferencesText)
+        val birthDateMatch = """(出生日期|出生年月日)[:：\s]+([\d-]+)""".toRegex().find(preferencesText)
+        val birthYearMatch = """(出生年份|年龄)[:：\s]+(\d+)""".toRegex().find(preferencesText)
         val genderMatch = """性别[:：\s]+([\u4e00-\u9fa5]+)""".toRegex().find(preferencesText)
         val personalityMatch = """性格(特点)?[:：\s]+([\u4e00-\u9fa5、，,]+)""".toRegex().find(preferencesText)
         val identityMatch = """身份(认同)?[:：\s]+([\u4e00-\u9fa5、，,]+)""".toRegex().find(preferencesText)
         val occupationMatch = """职业[:：\s]+([\u4e00-\u9fa5、，,]+)""".toRegex().find(preferencesText)
         val aiStyleMatch = """(AI风格|期待的AI风格|偏好的AI风格)[:：\s]+([\u4e00-\u9fa5、，,]+)""".toRegex().find(preferencesText)
         
+        // 转换出生日期或年龄为birthDate时间戳
+        var birthDateTimestamp: Long? = null
+        if (birthDateMatch != null) {
+            // 尝试解析完整日期格式 (yyyy-MM-dd)
+            try {
+                val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+                val date = dateFormat.parse(birthDateMatch.groupValues[2])
+                if (date != null) {
+                    birthDateTimestamp = date.time
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "解析出生日期失败: ${e.message}")
+            }
+        } else if (birthYearMatch != null) {
+            // 只有年份，设置为当年1月1日
+            try {
+                val year = birthYearMatch.groupValues[2].toInt()
+                val calendar = java.util.Calendar.getInstance()
+                calendar.set(year, java.util.Calendar.JANUARY, 1, 0, 0, 0)
+                calendar.set(java.util.Calendar.MILLISECOND, 0)
+                birthDateTimestamp = calendar.timeInMillis
+            } catch (e: Exception) {
+                Log.e(TAG, "解析出生年份失败: ${e.message}")
+            }
+        }
+        
         // 只更新分析出的字段，其他字段保持不变
         preferencesManager.updateProfileCategory(
-            age = ageMatch?.groupValues?.getOrNull(1)?.toIntOrNull(),
+            birthDate = birthDateTimestamp,
             gender = genderMatch?.groupValues?.getOrNull(1),
             personality = personalityMatch?.groupValues?.getOrNull(2),
             identity = identityMatch?.groupValues?.getOrNull(2),
@@ -498,7 +539,7 @@ object ProblemLibrary {
         
         // 记录更新了哪些字段
         val updatedFields = mutableListOf<String>()
-        if (ageMatch != null) updatedFields.add("年龄")
+        if (birthDateTimestamp != null) updatedFields.add("出生日期")
         if (genderMatch != null) updatedFields.add("性别")
         if (personalityMatch != null) updatedFields.add("性格特点")
         if (identityMatch != null) updatedFields.add("身份认同")

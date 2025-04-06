@@ -5,10 +5,9 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import com.ai.assistance.operit.data.model.UserPreferences
 import com.ai.assistance.operit.data.model.PreferenceProfile
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -45,19 +44,11 @@ class UserPreferencesManager(private val context: Context) {
         private val PROFILE_LIST = stringPreferencesKey("profile_list")
         
         // 分类锁定状态
-        private val AGE_LOCKED = booleanPreferencesKey("age_locked")
+        private val BIRTH_DATE_LOCKED = booleanPreferencesKey("birth_date_locked")
         private val PERSONALITY_LOCKED = booleanPreferencesKey("personality_locked")
         private val IDENTITY_LOCKED = booleanPreferencesKey("identity_locked")
         private val OCCUPATION_LOCKED = booleanPreferencesKey("occupation_locked")
         private val AI_STYLE_LOCKED = booleanPreferencesKey("ai_style_locked")
-        
-        // 兼容旧版本的键
-        private val PREFERENCES = stringPreferencesKey("preferences")
-        private val GENDER = stringPreferencesKey("gender")
-        private val OCCUPATION = stringPreferencesKey("occupation")
-        private val AGE = intPreferencesKey("age")
-        private val IS_INITIALIZED_KEY = booleanPreferencesKey("is_initialized")
-        private val PREFERENCES_LOCKED = booleanPreferencesKey("preferences_locked")
         
         // 默认配置文件ID
         private const val DEFAULT_PROFILE_ID = "default"
@@ -103,35 +94,9 @@ class UserPreferencesManager(private val context: Context) {
                     createDefaultProfile(targetProfileId)
                 }
             } else {
-                // 如果是默认配置且不存在，尝试从旧版本迁移
-                if (targetProfileId == DEFAULT_PROFILE_ID) {
-                    migrateFromOldPreferences(preferences)
-                } else {
-                    createDefaultProfile(targetProfileId)
-                }
+                createDefaultProfile(targetProfileId)
             }
         }
-    }
-    
-    // 从旧版本迁移偏好设置
-    private fun migrateFromOldPreferences(preferences: Preferences): PreferenceProfile {
-        val oldPreferences = preferences[PREFERENCES] ?: ""
-        val oldGender = preferences[GENDER] ?: ""
-        val oldOccupation = preferences[OCCUPATION] ?: ""
-        val oldAge = preferences[AGE] ?: 0
-        val isInitialized = preferences[IS_INITIALIZED_KEY] ?: false
-        
-        return PreferenceProfile(
-            id = DEFAULT_PROFILE_ID,
-            name = "默认配置",
-            age = oldAge,
-            gender = oldGender,
-            occupation = oldOccupation,
-            personality = "",
-            identity = "",
-            aiStyle = "",
-            isInitialized = isInitialized
-        )
     }
     
     // 创建默认的配置文件
@@ -139,7 +104,7 @@ class UserPreferencesManager(private val context: Context) {
         return PreferenceProfile(
             id = profileId,
             name = if (profileId == DEFAULT_PROFILE_ID) "默认配置" else profileId,
-            age = 0,
+            birthDate = 0L,
             gender = "",
             occupation = "",
             personality = "",
@@ -152,7 +117,7 @@ class UserPreferencesManager(private val context: Context) {
     // 获取分类锁定状态
     val categoryLockStatusFlow: Flow<Map<String, Boolean>> = context.userPreferencesDataStore.data.map { preferences ->
         mapOf(
-            "age" to (preferences[AGE_LOCKED] ?: false),
+            "birthDate" to (preferences[BIRTH_DATE_LOCKED] ?: false),
             "personality" to (preferences[PERSONALITY_LOCKED] ?: false),
             "identity" to (preferences[IDENTITY_LOCKED] ?: false),
             "occupation" to (preferences[OCCUPATION_LOCKED] ?: false),
@@ -172,7 +137,7 @@ class UserPreferencesManager(private val context: Context) {
     suspend fun setCategoryLocked(category: String, locked: Boolean) {
         context.userPreferencesDataStore.edit { preferences ->
             when (category) {
-                "age" -> preferences[AGE_LOCKED] = locked
+                "birthDate" -> preferences[BIRTH_DATE_LOCKED] = locked
                 "personality" -> preferences[PERSONALITY_LOCKED] = locked
                 "identity" -> preferences[IDENTITY_LOCKED] = locked
                 "occupation" -> preferences[OCCUPATION_LOCKED] = locked
@@ -195,7 +160,7 @@ class UserPreferencesManager(private val context: Context) {
         val newProfile = PreferenceProfile(
             id = profileId,
             name = name,
-            age = 0,
+            birthDate = 0L,
             gender = "",
             occupation = "",
             personality = "",
@@ -222,6 +187,9 @@ class UserPreferencesManager(private val context: Context) {
             // 保存配置文件内容
             val profileKey = stringPreferencesKey("profile_$profileId")
             preferences[profileKey] = Json.encodeToString(newProfile)
+            
+            // 默认锁定出生日期
+            preferences[BIRTH_DATE_LOCKED] = true
         }
         
         return profileId
@@ -245,7 +213,7 @@ class UserPreferencesManager(private val context: Context) {
     // 更新配置文件中的特定分类
     suspend fun updateProfileCategory(
         profileId: String = "",
-        age: Int? = null,
+        birthDate: Long? = null,
         gender: String? = null,
         personality: String? = null,
         identity: String? = null,
@@ -262,7 +230,7 @@ class UserPreferencesManager(private val context: Context) {
         
         // 检查每个分类的锁定状态，如果锁定则不更新
         val updatedProfile = currentProfile.copy(
-            age = if (age != null && !isCategoryLocked("age")) age else currentProfile.age,
+            birthDate = if (birthDate != null && !isCategoryLocked("birthDate")) birthDate else currentProfile.birthDate,
             gender = if (gender != null && !isCategoryLocked("gender")) gender else currentProfile.gender,
             personality = if (personality != null && !isCategoryLocked("personality")) personality else currentProfile.personality,
             identity = if (identity != null && !isCategoryLocked("identity")) identity else currentProfile.identity,

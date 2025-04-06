@@ -145,8 +145,11 @@
     <string name="no_preferences">暂无偏好信息</string>
     <string name="gender">性别</string>
     <string name="occupation">职业</string>
-    <string name="age">年龄</string>
-    <string name="enter_age">请输入年龄</string>
+    <string name="age">出生年份</string>
+    <string name="birth_year">出生年份</string>
+    <string name="birth_date">出生日期</string>
+    <string name="enter_age">请输入出生年份</string>
+    <string name="select_birth_date">请选择出生日期</string>
     <string name="complete">完成</string>
     <string name="preferences_guide_title">为了更好地为您服务，请完成以下设置</string>
     <string name="preference_lock">锁定用户偏好</string>

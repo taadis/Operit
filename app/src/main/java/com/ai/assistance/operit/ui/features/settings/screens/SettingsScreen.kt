@@ -19,8 +19,6 @@ import androidx.compose.ui.graphics.Color
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import kotlinx.coroutines.launch
-import com.ai.assistance.operit.data.model.UserPreferences
-import com.ai.assistance.operit.data.preferences.preferencesManager
 import com.ai.assistance.operit.data.repository.ChatHistoryManager
 import androidx.compose.ui.text.font.FontWeight
 
