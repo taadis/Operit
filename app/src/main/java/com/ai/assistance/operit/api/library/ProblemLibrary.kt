@@ -26,6 +26,10 @@ object ProblemLibrary {
     private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var apiPreferences: ApiPreferences? = null
     
+    // 添加初始化状态标志
+    @Volatile
+    private var isInitialized = false
+    
     /**
      * 分析结果数据类
      */
@@ -39,19 +43,31 @@ object ProblemLibrary {
      * 初始化问题库
      */
     fun initialize(context: Context) {
-        apiPreferences = ApiPreferences(context.applicationContext)
-        
-        // 初始化分词器
-        TextSegmenter.initialize(context.applicationContext)
-        
-        // 后台预热分词器
-        coroutineScope.launch {
-            try {
-                prewarmSegmenter()
-                Log.d(TAG, "分词器预热完成")
-            } catch (e: Exception) {
-                Log.e(TAG, "分词器预热失败", e)
+        // 添加同步锁和初始化检查，确保只初始化一次
+        synchronized(ProblemLibrary::class.java) {
+            if (isInitialized) {
+                // Log.d(TAG, "ProblemLibrary 已经初始化，跳过重复初始化")
+                return
             }
+            
+            Log.d(TAG, "正在初始化 ProblemLibrary")
+            apiPreferences = ApiPreferences(context.applicationContext)
+            
+            // 初始化分词器
+            TextSegmenter.initialize(context.applicationContext)
+            
+            // 后台预热分词器
+            coroutineScope.launch {
+                try {
+                    prewarmSegmenter()
+                    Log.d(TAG, "分词器预热完成")
+                } catch (e: Exception) {
+                    Log.e(TAG, "分词器预热失败", e)
+                }
+            }
+            
+            isInitialized = true
+            Log.d(TAG, "ProblemLibrary 初始化完成")
         }
     }
     
@@ -60,13 +76,13 @@ object ProblemLibrary {
      */
     private suspend fun prewarmSegmenter() {
         withContext(Dispatchers.IO) {
-            // 使用几个常见词汇预热分词器
+            // 使用几个常见生活词汇预热分词器
             val testWords = listOf(
-                "Android开发问题",
-                "如何实现自定义View",
-                "Kotlin协程使用示例",
-                "应用崩溃问题分析",
-                "用户认证流程设计"
+                "如何制作美味的家常菜",
+                "周末旅行好去处推荐",
+                "健康生活小技巧分享",
+                "家庭理财省钱妙招",
+                "日常英语口语学习方法"
             )
             
             testWords.forEach { word ->
@@ -123,8 +139,12 @@ object ProblemLibrary {
      * 确保已初始化
      */
     private fun ensureInitialized(context: Context) {
-        if (apiPreferences == null) {
-            initialize(context)
+        if (!isInitialized) {
+            synchronized(ProblemLibrary::class.java) {
+                if (!isInitialized) {
+                    initialize(context)
+                }
+            }
         }
     }
     

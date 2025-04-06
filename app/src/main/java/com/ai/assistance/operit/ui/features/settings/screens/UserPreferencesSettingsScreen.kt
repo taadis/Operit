@@ -1,15 +1,28 @@
 package com.ai.assistance.operit.ui.features.settings.screens
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -22,6 +35,11 @@ import com.ai.assistance.operit.data.preferences.preferencesManager
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
+import com.ai.assistance.operit.R
+import androidx.compose.foundation.BorderStroke
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,6 +84,9 @@ fun UserPreferencesSettingsScreen(
     var editOccupation by remember { mutableStateOf("") }
     var editAiStyle by remember { mutableStateOf("") }
     
+    // 动画状态
+    val listState = rememberLazyListState()
+    
     // 加载选中的配置文件
     LaunchedEffect(selectedProfileId) {
         preferencesManager.getUserPreferencesFlow(selectedProfileId).collect { profile ->
@@ -80,304 +101,398 @@ fun UserPreferencesSettingsScreen(
         }
     }
     
-    Scaffold() { paddingValues ->
-        Column(
+    Scaffold(
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { showAddProfileDialog = true },
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                shape = CircleShape,
+                modifier = Modifier.size(48.dp)
+            ) {
+                Icon(
+                    Icons.Default.Add, 
+                    contentDescription = "添加配置"
+                )
+            }
+        }
+    ) { paddingValues ->
+        Box(
             modifier = Modifier
                 .padding(paddingValues)
                 .fillMaxSize()
-                .padding(12.dp)  // 增加整体内边距
         ) {
-            // 配置文件选择区域 - 更紧凑的头部
-            Row(
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp),  // 增加间距
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                    .fillMaxSize()
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
             ) {
-                Text(
-                    text = "选择配置文件",
-                    style = MaterialTheme.typography.titleMedium,  // 恢复使用标题字体
-                )
-                
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),  // 增加按钮间距
-                    verticalAlignment = Alignment.CenterVertically
+                // 配置文件选择区域
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                    ),
+                    elevation = CardDefaults.cardElevation(
+                        defaultElevation = 1.dp
+                    )
                 ) {
-                    if (selectedProfile != null) {
-                        IconButton(
-                            onClick = { editMode = !editMode },
-                            modifier = Modifier.size(40.dp)  // 增加按钮大小
-                        ) {
-                            Icon(
-                                if (editMode) Icons.Default.Save else Icons.Default.Edit,
-                                contentDescription = if (editMode) "保存" else "编辑",
-                                modifier = Modifier.size(22.dp)  // 增加图标大小
-                            )
-                        }
-                    }
-                    
-                    Button(
-                        onClick = { showAddProfileDialog = true },
-                        modifier = Modifier.height(38.dp),  // 增加按钮高度
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)  // 增加内部填充
-                    ) {
-                        Text("新建配置", fontSize = 14.sp)  // 增加字体大小
-                    }
-                }
-            }
-            
-            // 配置文件列表 - 更紧凑的列表
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(110.dp)  // 增加高度
-                    .padding(bottom = 12.dp),  // 增加间距
-                verticalArrangement = Arrangement.spacedBy(4.dp)  // 增加项目间距
-            ) {
-                items(profileList) { profileId ->
-                    val isActive = profileId == activeProfileId
-                    val isSelected = profileId == selectedProfileId
-                    
-                    // 获取配置文件名称
-                    val profileName = runBlocking {
-                        preferencesManager.getUserPreferencesFlow(profileId).first().name
-                    }
-                    
-                    // 更紧凑的项目布局
-                    Row(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 4.dp),  // 增加垂直间距
-                        verticalAlignment = Alignment.CenterVertically
+                            .padding(12.dp)
                     ) {
-                        RadioButton(
-                            selected = isSelected,
-                            onClick = {
-                                selectedProfileId = profileId
-                                editMode = false
-                            },
-                            modifier = Modifier.size(36.dp)  // 增加单选按钮大小
-                        )
-                        
-                        Text(
-                            text = profileName,
-                            fontSize = 15.sp,  // 增加字体大小
+                        Row(
                             modifier = Modifier
-                                .weight(1f)
-                                .padding(start = 8.dp)  // 增加间距
-                        )
-                        
-                        if (isActive) {
-                            Text(
-                                text = "(当前)",
-                                color = MaterialTheme.colorScheme.primary,
-                                fontSize = 12.sp,  // 增加字体大小
-                                modifier = Modifier.padding(end = 8.dp)  // 增加间距
-                            )
-                        }
-                        
-                        Button(
-                            onClick = {
-                                scope.launch {
-                                    preferencesManager.setActiveProfile(profileId)
-                                }
-                            },
-                            enabled = !isActive,
-                            modifier = Modifier.height(30.dp),  // 增加按钮高度
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("激活", fontSize = 12.sp)  // 增加字体大小
-                        }
-                        
-                        // 只有非默认配置才显示删除按钮
-                        if (profileId != "default") {
-                            IconButton(
-                                onClick = {
-                                    scope.launch {
-                                        preferencesManager.deleteProfile(profileId)
-                                        if (selectedProfileId == profileId) {
-                                            selectedProfileId = activeProfileId
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.size(36.dp)  // 增加按钮大小
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
-                                    Icons.Default.Delete,
-                                    contentDescription = "删除",
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(20.dp)  // 增加图标大小
+                                    Icons.Default.Person,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "偏好配置",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                AnimatedVisibility(
+                                    visible = selectedProfile != null && editMode,
+                                    enter = fadeIn() + expandHorizontally(),
+                                    exit = fadeOut() + shrinkHorizontally()
+                                ) {
+                                    IconButton(
+                                        onClick = {
+                                            scope.launch {
+                                                preferencesManager.updateProfileCategory(
+                                                    profileId = selectedProfile?.id ?: "",
+                                                    age = editAge.toIntOrNull(),
+                                                    gender = editGender.takeIf { it.isNotBlank() },
+                                                    personality = editPersonality.takeIf { it.isNotBlank() },
+                                                    identity = editIdentity.takeIf { it.isNotBlank() },
+                                                    occupation = editOccupation.takeIf { it.isNotBlank() },
+                                                    aiStyle = editAiStyle.takeIf { it.isNotBlank() }
+                                                )
+                                                editMode = false
+                                            }
+                                        },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Save,
+                                            contentDescription = "保存",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                                
+                                IconButton(
+                                    onClick = { editMode = !editMode },
+                                    modifier = Modifier
+                                        .size(30.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (editMode) MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.surfaceVariant
+                                        )
+                                ) {
+                                    Icon(
+                                        if (editMode) Icons.Default.Check else Icons.Default.Edit,
+                                        contentDescription = if (editMode) "完成编辑" else "编辑配置",
+                                        tint = if (editMode) MaterialTheme.colorScheme.onPrimary
+                                               else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        }
+                        
+                        // 配置文件列表 - 使用更现代的卡片设计
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(130.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            items(profileList) { profileId ->
+                                val isActive = profileId == activeProfileId
+                                val isSelected = profileId == selectedProfileId
+                                
+                                // 获取配置文件名称
+                                val profileName = runBlocking {
+                                    preferencesManager.getUserPreferencesFlow(profileId).first().name
+                                }
+                                
+                                // 现代化的配置项布局
+                                ProfileItem(
+                                    profileName = profileName,
+                                    isActive = isActive,
+                                    isSelected = isSelected,
+                                    onSelect = {
+                                        selectedProfileId = profileId
+                                        editMode = false
+                                    },
+                                    onActivate = {
+                                        scope.launch {
+                                            preferencesManager.setActiveProfile(profileId)
+                                        }
+                                    },
+                                    onDelete = if (profileId != "default") {
+                                        {
+                                            scope.launch {
+                                                preferencesManager.deleteProfile(profileId)
+                                                if (selectedProfileId == profileId) {
+                                                    selectedProfileId = activeProfileId
+                                                }
+                                            }
+                                        }
+                                    } else null
                                 )
                             }
                         }
                     }
                 }
-            }
-            
-            Divider(modifier = Modifier.padding(vertical = 6.dp))  // 增加分隔线间距
-            
-            // 配置文件详情 - 使用单一 LazyColumn 避免嵌套
-            LazyColumn(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(6.dp)  // 增加项目间距
-            ) {
-                selectedProfile?.let { profile ->
-                    // 标题和引导按钮
-                    item {
-                        Row(
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                // 配置文件详情
+                AnimatedVisibility(
+                    visible = selectedProfile != null,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
+                ) {
+                    selectedProfile?.let { profile ->
+                        Card(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 8.dp),  // 增加间距
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "配置: ${profile.name}",
-                                style = MaterialTheme.typography.titleMedium,  // 使用更大的标题字体
+                                .fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface
+                            ),
+                            elevation = CardDefaults.cardElevation(
+                                defaultElevation = 1.dp
                             )
-                            
-                            // 添加引导配置按钮
-                            if (!editMode) {
-                                TextButton(
-                                    onClick = {
-                                        onNavigateToGuide(profile.name, profile.id)
-                                    },
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)  // 增加内部填充
-                                ) {
-                                    Text("引导配置", fontSize = 14.sp)  // 增加字体大小
-                                }
-                            }
-                        }
-                    }
-                    
-                    // 年龄
-                    item {
-                        CompactPreferenceCategoryItem(
-                            title = "年龄",
-                            value = if (profile.age > 0) profile.age.toString() else "未设置",
-                            editValue = editAge,
-                            onValueChange = { editAge = it },
-                            isLocked = categoryLockStatus["age"] ?: false,
-                            onLockChange = { locked ->
-                                scope.launch {
-                                    preferencesManager.setCategoryLocked("age", locked)
-                                }
-                            },
-                            editMode = editMode,
-                            isNumeric = true
-                        )
-                    }
-                    
-                    // 性别
-                    item {
-                        CompactPreferenceCategoryItem(
-                            title = "性别",
-                            value = profile.gender.ifEmpty { "未设置" },
-                            editValue = editGender,
-                            onValueChange = { editGender = it },
-                            isLocked = categoryLockStatus["gender"] ?: false,
-                            onLockChange = { locked ->
-                                scope.launch {
-                                    preferencesManager.setCategoryLocked("gender", locked)
-                                }
-                            },
-                            editMode = editMode
-                        )
-                    }
-                    
-                    // 性格特点
-                    item {
-                        CompactPreferenceCategoryItem(
-                            title = "性格特点",
-                            value = profile.personality.ifEmpty { "未设置" },
-                            editValue = editPersonality,
-                            onValueChange = { editPersonality = it },
-                            isLocked = categoryLockStatus["personality"] ?: false,
-                            onLockChange = { locked ->
-                                scope.launch {
-                                    preferencesManager.setCategoryLocked("personality", locked)
-                                }
-                            },
-                            editMode = editMode
-                        )
-                    }
-                    
-                    // 身份认同
-                    item {
-                        CompactPreferenceCategoryItem(
-                            title = "身份认同",
-                            value = profile.identity.ifEmpty { "未设置" },
-                            editValue = editIdentity,
-                            onValueChange = { editIdentity = it },
-                            isLocked = categoryLockStatus["identity"] ?: false,
-                            onLockChange = { locked ->
-                                scope.launch {
-                                    preferencesManager.setCategoryLocked("identity", locked)
-                                }
-                            },
-                            editMode = editMode
-                        )
-                    }
-                    
-                    // 职业
-                    item {
-                        CompactPreferenceCategoryItem(
-                            title = "职业",
-                            value = profile.occupation.ifEmpty { "未设置" },
-                            editValue = editOccupation,
-                            onValueChange = { editOccupation = it },
-                            isLocked = categoryLockStatus["occupation"] ?: false,
-                            onLockChange = { locked ->
-                                scope.launch {
-                                    preferencesManager.setCategoryLocked("occupation", locked)
-                                }
-                            },
-                            editMode = editMode
-                        )
-                    }
-                    
-                    // AI风格偏好
-                    item {
-                        CompactPreferenceCategoryItem(
-                            title = "AI风格",
-                            value = profile.aiStyle.ifEmpty { "未设置" },
-                            editValue = editAiStyle,
-                            onValueChange = { editAiStyle = it },
-                            isLocked = categoryLockStatus["aiStyle"] ?: false,
-                            onLockChange = { locked ->
-                                scope.launch {
-                                    preferencesManager.setCategoryLocked("aiStyle", locked)
-                                }
-                            },
-                            editMode = editMode
-                        )
-                    }
-                    
-                    // 保存按钮（编辑模式时显示）
-                    if (editMode) {
-                        item {
-                            Button(
-                                onClick = {
-                                    scope.launch {
-                                        preferencesManager.updateProfileCategory(
-                                            profileId = profile.id,
-                                            age = editAge.toIntOrNull(),
-                                            gender = editGender.takeIf { it.isNotBlank() },
-                                            personality = editPersonality.takeIf { it.isNotBlank() },
-                                            identity = editIdentity.takeIf { it.isNotBlank() },
-                                            occupation = editOccupation.takeIf { it.isNotBlank() },
-                                            aiStyle = editAiStyle.takeIf { it.isNotBlank() }
-                                        )
-                                        editMode = false
-                                    }
-                                },
+                        ) {
+                            Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 12.dp),  // 增加间距
-                                contentPadding = PaddingValues(vertical = 12.dp)  // 增加内部填充
+                                    .padding(12.dp)
                             ) {
-                                Text("保存更改", fontSize = 16.sp)  // 增加字体大小
+                                // 标题和引导按钮
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 4.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Settings,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "${profile.name}",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    
+                                    // 添加引导配置按钮
+                                    if (!editMode) {
+                                        OutlinedButton(
+                                            onClick = {
+                                                onNavigateToGuide(profile.name, profile.id)
+                                            },
+                                            shape = RoundedCornerShape(16.dp),
+                                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                                            modifier = Modifier.height(32.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Assistant,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                "配置向导", 
+                                                fontSize = 14.sp
+                                            )
+                                        }
+                                    }
+                                }
+                                
+                                // 偏好分类项
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    // 年龄
+                                    item {
+                                        ModernPreferenceCategoryItem(
+                                            title = "年龄",
+                                            value = if (profile.age > 0) profile.age.toString() else "未设置",
+                                            editValue = editAge,
+                                            onValueChange = { editAge = it },
+                                            isLocked = categoryLockStatus["age"] ?: false,
+                                            onLockChange = { locked ->
+                                                scope.launch {
+                                                    preferencesManager.setCategoryLocked("age", locked)
+                                                }
+                                            },
+                                            editMode = editMode,
+                                            isNumeric = true,
+                                            icon = Icons.Default.Cake
+                                        )
+                                    }
+                                    
+                                    // 性别
+                                    item {
+                                        ModernPreferenceCategoryItem(
+                                            title = "性别",
+                                            value = profile.gender.ifEmpty { "未设置" },
+                                            editValue = editGender,
+                                            onValueChange = { editGender = it },
+                                            isLocked = categoryLockStatus["gender"] ?: false,
+                                            onLockChange = { locked ->
+                                                scope.launch {
+                                                    preferencesManager.setCategoryLocked("gender", locked)
+                                                }
+                                            },
+                                            editMode = editMode,
+                                            icon = Icons.Default.Face
+                                        )
+                                    }
+                                    
+                                    // 性格特点
+                                    item {
+                                        ModernPreferenceCategoryItem(
+                                            title = "性格特点",
+                                            value = profile.personality.ifEmpty { "未设置" },
+                                            editValue = editPersonality,
+                                            onValueChange = { editPersonality = it },
+                                            isLocked = categoryLockStatus["personality"] ?: false,
+                                            onLockChange = { locked ->
+                                                scope.launch {
+                                                    preferencesManager.setCategoryLocked("personality", locked)
+                                                }
+                                            },
+                                            editMode = editMode,
+                                            icon = Icons.Default.Psychology
+                                        )
+                                    }
+                                    
+                                    // 身份认同
+                                    item {
+                                        ModernPreferenceCategoryItem(
+                                            title = "身份认同",
+                                            value = profile.identity.ifEmpty { "未设置" },
+                                            editValue = editIdentity,
+                                            onValueChange = { editIdentity = it },
+                                            isLocked = categoryLockStatus["identity"] ?: false,
+                                            onLockChange = { locked ->
+                                                scope.launch {
+                                                    preferencesManager.setCategoryLocked("identity", locked)
+                                                }
+                                            },
+                                            editMode = editMode,
+                                            icon = Icons.Default.Badge
+                                        )
+                                    }
+                                    
+                                    // 职业
+                                    item {
+                                        ModernPreferenceCategoryItem(
+                                            title = "职业",
+                                            value = profile.occupation.ifEmpty { "未设置" },
+                                            editValue = editOccupation,
+                                            onValueChange = { editOccupation = it },
+                                            isLocked = categoryLockStatus["occupation"] ?: false,
+                                            onLockChange = { locked ->
+                                                scope.launch {
+                                                    preferencesManager.setCategoryLocked("occupation", locked)
+                                                }
+                                            },
+                                            editMode = editMode,
+                                            icon = Icons.Default.Work
+                                        )
+                                    }
+                                    
+                                    // AI风格偏好
+                                    item {
+                                        ModernPreferenceCategoryItem(
+                                            title = "AI风格",
+                                            value = profile.aiStyle.ifEmpty { "未设置" },
+                                            editValue = editAiStyle,
+                                            onValueChange = { editAiStyle = it },
+                                            isLocked = categoryLockStatus["aiStyle"] ?: false,
+                                            onLockChange = { locked ->
+                                                scope.launch {
+                                                    preferencesManager.setCategoryLocked("aiStyle", locked)
+                                                }
+                                            },
+                                            editMode = editMode,
+                                            icon = Icons.Default.SmartToy
+                                        )
+                                    }
+                                    
+                                    // 保存按钮（编辑模式时显示）
+                                    if (editMode) {
+                                        item {
+                                            Button(
+                                                onClick = {
+                                                    scope.launch {
+                                                        preferencesManager.updateProfileCategory(
+                                                            profileId = profile.id,
+                                                            age = editAge.toIntOrNull(),
+                                                            gender = editGender.takeIf { it.isNotBlank() },
+                                                            personality = editPersonality.takeIf { it.isNotBlank() },
+                                                            identity = editIdentity.takeIf { it.isNotBlank() },
+                                                            occupation = editOccupation.takeIf { it.isNotBlank() },
+                                                            aiStyle = editAiStyle.takeIf { it.isNotBlank() }
+                                                        )
+                                                        editMode = false
+                                                    }
+                                                },
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(top = 8.dp),
+                                                contentPadding = PaddingValues(vertical = 8.dp),
+                                                shape = RoundedCornerShape(8.dp)
+                                            ) {
+                                                Text(
+                                                    "保存更改", 
+                                                    fontSize = 14.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -392,14 +507,38 @@ fun UserPreferencesSettingsScreen(
                     showAddProfileDialog = false
                     newProfileName = ""
                 },
-                title = { Text("新建偏好配置") },
-                text = {
-                    OutlinedTextField(
-                        value = newProfileName,
-                        onValueChange = { newProfileName = it },
-                        label = { Text("配置名称") },
-                        modifier = Modifier.fillMaxWidth()
+                title = { 
+                    Text(
+                        "新建偏好配置",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
                     )
+                },
+                text = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            "创建新的偏好配置，个性化AI助手体验",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = newProfileName,
+                            onValueChange = { newProfileName = it },
+                            label = { Text("配置名称", fontSize = 12.sp) },
+                            placeholder = { Text("例如: 工作、学习、娱乐...", fontSize = 12.sp) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                            ),
+                            singleLine = true,
+                            textStyle = LocalTextStyle.current.copy(fontSize = 14.sp)
+                        )
+                    }
                 },
                 confirmButton = {
                     Button(
@@ -414,9 +553,10 @@ fun UserPreferencesSettingsScreen(
                                     onNavigateToGuide(newProfileName, newProfileId)
                                 }
                             }
-                        }
+                        },
+                        shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text("创建并配置")
+                        Text("创建并配置", fontSize = 13.sp)
                     }
                 },
                 dismissButton = {
@@ -426,17 +566,123 @@ fun UserPreferencesSettingsScreen(
                             newProfileName = ""
                         }
                     ) {
-                        Text("取消")
+                        Text("取消", fontSize = 13.sp)
                     }
-                }
+                },
+                shape = RoundedCornerShape(12.dp)
             )
         }
     }
 }
 
-// 更紧凑的偏好分类项
 @Composable
-fun CompactPreferenceCategoryItem(
+fun ProfileItem(
+    profileName: String,
+    isActive: Boolean,
+    isSelected: Boolean,
+    onSelect: () -> Unit,
+    onActivate: () -> Unit,
+    onDelete: (() -> Unit)? = null
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(50.dp)
+            .clickable(onClick = onSelect),
+        shape = RoundedCornerShape(8.dp),
+        color = when {
+            isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+            isActive -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+            else -> MaterialTheme.colorScheme.surface
+        },
+        border = BorderStroke(
+            width = if (isSelected) 1.dp else 0.dp,
+            color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            RadioButton(
+                selected = isSelected,
+                onClick = onSelect,
+                colors = RadioButtonDefaults.colors(
+                    selectedColor = MaterialTheme.colorScheme.primary,
+                    unselectedColor = MaterialTheme.colorScheme.outline
+                ),
+                modifier = Modifier.size(36.dp)
+            )
+            
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 8.dp)
+            ) {
+                Text(
+                    text = profileName,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                    fontSize = 16.sp,
+                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                
+                if (isActive) {
+                    Text(
+                        text = "当前激活",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+            
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                if (!isActive) {
+                    OutlinedButton(
+                        onClick = onActivate,
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+                        modifier = Modifier.height(28.dp)
+                    ) {
+                        Text(
+                            "激活",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+                
+                if (onDelete != null) {
+                    IconButton(
+                        onClick = onDelete,
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                    ) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "删除",
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ModernPreferenceCategoryItem(
     title: String,
     value: String,
     editValue: String,
@@ -444,77 +690,144 @@ fun CompactPreferenceCategoryItem(
     isLocked: Boolean,
     onLockChange: (Boolean) -> Unit,
     editMode: Boolean,
-    isNumeric: Boolean = false
+    isNumeric: Boolean = false,
+    icon: androidx.compose.ui.graphics.vector.ImageVector
 ) {
+    val animatedElevation by animateDpAsState(
+        targetValue = if (editMode && !isLocked) 2.dp else 0.dp,
+        label = "elevation"
+    )
+    
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),  // 增加外部间距
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        tonalElevation = 1.dp,
-        shape = MaterialTheme.shapes.small
+            .shadow(elevation = animatedElevation, shape = RoundedCornerShape(8.dp)),
+        shape = RoundedCornerShape(8.dp),
+        color = if (isLocked) 
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
+                else MaterialTheme.colorScheme.surface,
+        border = BorderStroke(
+            width = if (editMode && !isLocked) 1.dp else 0.dp,
+            color = if (editMode && !isLocked) MaterialTheme.colorScheme.primary 
+                   else Color.Transparent
+        )
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp)  // 增加内部填充
+                .padding(horizontal = 12.dp, vertical = 6.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = title,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp  // 增加标题字体
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = title,
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontSize = 16.sp
+                    )
+                }
                 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)  // 增加水平间距
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Icon(
                         if (isLocked) Icons.Default.Lock else Icons.Default.LockOpen,
                         contentDescription = if (isLocked) "已锁定" else "未锁定",
-                        modifier = Modifier.size(20.dp)  // 增加图标大小
+                        tint = if (isLocked) 
+                               MaterialTheme.colorScheme.primary 
+                               else MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.size(18.dp)
                     )
                     
                     Switch(
                         checked = isLocked,
                         onCheckedChange = onLockChange,
-                        modifier = Modifier.scale(0.8f)  // 调整开关大小
+                        modifier = Modifier.scale(0.8f),
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                            checkedTrackColor = MaterialTheme.colorScheme.primary,
+                            checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                            uncheckedBorderColor = MaterialTheme.colorScheme.outline
+                        )
                     )
                 }
             }
             
-            if (editMode) {
-                OutlinedTextField(
-                    value = editValue,
-                    onValueChange = { 
-                        if (isNumeric) {
-                            if (it.all { char -> char.isDigit() } || it.isEmpty()) {
+            Spacer(modifier = Modifier.height(4.dp))
+            
+            AnimatedContent(
+                targetState = editMode,
+                transitionSpec = {
+                    (fadeIn() + scaleIn(initialScale = 0.95f)).togetherWith(fadeOut())
+                },
+                label = "edit mode transition"
+            ) { isEditMode ->
+                if (isEditMode) {
+                    OutlinedTextField(
+                        value = editValue,
+                        onValueChange = { 
+                            if (isNumeric) {
+                                if (it.all { char -> char.isDigit() } || it.isEmpty()) {
+                                    onValueChange(it)
+                                }
+                            } else {
                                 onValueChange(it)
                             }
-                        } else {
-                            onValueChange(it)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        enabled = !isLocked,
+                        textStyle = LocalTextStyle.current.copy(fontSize = 16.sp),
+                        shape = RoundedCornerShape(6.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                            disabledBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        ),
+                        placeholder = { 
+                            Text(
+                                "请输入${title}信息",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                fontSize = 16.sp
+                            ) 
                         }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),  // 增加间距
-                    enabled = !isLocked,
-                    textStyle = LocalTextStyle.current.copy(fontSize = 15.sp),  // 增加字体大小
-                    colors = OutlinedTextFieldDefaults.colors(
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
                     )
-                )
-            } else {
-                Text(
-                    text = value, 
-                    fontSize = 15.sp,  // 增加字体大小
-                    modifier = Modifier.padding(top = 4.dp)  // 增加间距
-                )
+                } else {
+                    val displayText = if (value == "未设置") {
+                        "未设置${title}信息"
+                    } else {
+                        value
+                    }
+                    
+                    Text(
+                        text = displayText,
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.padding(vertical = 4.dp, horizontal = 2.dp),
+                        color = if (value == "未设置") 
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                else MaterialTheme.colorScheme.onSurface,
+                        fontSize = 16.sp,
+                        lineHeight = 22.sp
+                    )
+                }
             }
         }
     }

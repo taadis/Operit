@@ -389,7 +389,6 @@ fun registerProblemLibraryTool(toolHandler: AIToolHandler, context: Context) {
     
     // 防止多次注册
     if (toolHandler.getProblemLibraryTool() != null) {
-        Log.d(TAG, "ProblemLibraryTool 已经被注册，跳过注册")
         return
     }
     
