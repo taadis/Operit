@@ -1,5 +1,6 @@
 package com.ai.assistance.operit.ui.features.chat.components
 
+import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -12,6 +13,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.data.model.AiReference
 import com.ai.assistance.operit.data.model.ChatMessage
+import com.ai.assistance.operit.data.model.PlanItem
 import com.ai.assistance.operit.data.model.ToolExecutionProgress
 
 @Composable
@@ -19,6 +21,8 @@ fun ChatArea(
     chatHistory: List<ChatMessage>,
     listState: LazyListState,
     aiReferences: List<AiReference>,
+    planItems: List<PlanItem> = emptyList(),
+    enablePlanning: Boolean = false,
     toolProgress: ToolExecutionProgress,
     isLoading: Boolean,
     userMessageColor: Color,
@@ -39,6 +43,16 @@ fun ChatArea(
             references = aiReferences,
             modifier = Modifier.fillMaxWidth()
         )
+        
+        // Plan display when planning is enabled and there are plan items
+        if (enablePlanning && planItems.isNotEmpty()) {
+            PlanDisplay(
+                planItems = planItems,
+                modifier = Modifier.fillMaxWidth()
+            )
+        } else {
+            // 删除全部不必要的诊断日志
+        }
         
         // Tool progress bar
         ToolProgressBar(

@@ -22,10 +22,12 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.PictureInPicture
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.ui.Alignment
 import com.ai.assistance.operit.services.FloatingChatService
 import com.ai.assistance.operit.ui.features.chat.components.ChatArea
@@ -58,6 +60,8 @@ fun AIChatScreen() {
     val isProcessingInput by viewModel.isProcessingInput.collectAsState()
     val inputProcessingMessage by viewModel.inputProcessingMessage.collectAsState()
     val aiReferences by viewModel.aiReferences.collectAsState()
+    val planItems by viewModel.planItems.collectAsState()
+    val enableAiPlanning by viewModel.enableAiPlanning.collectAsState()
     val showChatHistorySelector by viewModel.showChatHistorySelector.collectAsState()
     val chatHistories by viewModel.chatHistories.collectAsState()
     val currentChatId by viewModel.currentChatId.collectAsState()
@@ -233,20 +237,122 @@ fun AIChatScreen() {
         }
     }
     
+    // Add overflow menu items
+    val overflowMenuItems = listOf(
+        Triple("切换思考显示", "toggle_thinking") {
+            viewModel.toggleShowThinking()
+        },
+        Triple("切换记忆优化", "toggle_memory_optimization") {
+            viewModel.toggleMemoryOptimization()
+        },
+        Triple("切换AI计划模式", "toggle_ai_planning") {
+            viewModel.toggleAiPlanning()
+        },
+        Triple("清空聊天记录", "clear_chat") {
+            viewModel.clearCurrentChat()
+        },
+        Triple("管理历史记录", "manage_history") {
+            viewModel.showChatHistorySelector(true)
+        }
+    )
+    
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             if (isConfigured) {
-                ChatInputSection(
-                    userMessage = userMessage,
-                    onUserMessageChange = { viewModel.updateUserMessage(it) },
-                    onSendMessage = { viewModel.sendUserMessage() },
-                    onCancelMessage = { viewModel.cancelCurrentMessage() },
-                    isLoading = isLoading,
-                    isProcessingInput = isProcessingInput,
-                    inputProcessingMessage = inputProcessingMessage,
-                    focusRequester = inputFocusRequester
-                )
+                Column {
+                    // 添加优化和计划模式开关到输入框上方
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f)
+                            )
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val memoryOptimization by viewModel.memoryOptimization.collectAsState()
+                        
+                        // 记忆优化开关 - 添加背景色效果，与计划模式一致
+                        Row(
+                            modifier = Modifier
+                                .background(
+                                    color = if (memoryOptimization) 
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                    else 
+                                        MaterialTheme.colorScheme.surface,
+                                    shape = RoundedCornerShape(4.dp)
+                                )
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                                .clickable { viewModel.toggleMemoryOptimization() },
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text(
+                                text = "记忆优化:",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            )
+                            Text(
+                                text = if (memoryOptimization) "已开启" else "已关闭",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                ),
+                                color = if (memoryOptimization) 
+                                    MaterialTheme.colorScheme.primary
+                                else 
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.width(12.dp))
+                        
+                        // AI计划模式开关 - 更详细的文本
+                        Row(
+                            modifier = Modifier
+                                .background(
+                                    color = if (enableAiPlanning) 
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                    else 
+                                        MaterialTheme.colorScheme.surface,
+                                    shape = RoundedCornerShape(4.dp)
+                                )
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                                .clickable { viewModel.toggleAiPlanning() },
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text(
+                                text = "AI计划模式:",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            )
+                            Text(
+                                text = if (enableAiPlanning) "已开启" else "已关闭",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                ),
+                                color = if (enableAiPlanning) 
+                                    MaterialTheme.colorScheme.primary
+                                else 
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    
+                    // 原有输入框区域
+                    ChatInputSection(
+                        userMessage = userMessage,
+                        onUserMessageChange = { viewModel.updateUserMessage(it) },
+                        onSendMessage = { viewModel.sendUserMessage() },
+                        onCancelMessage = { viewModel.cancelCurrentMessage() },
+                        isLoading = isLoading,
+                        isProcessingInput = isProcessingInput,
+                        inputProcessingMessage = inputProcessingMessage,
+                        focusRequester = inputFocusRequester
+                    )
+                }
             }
         },
         floatingActionButton = {
@@ -323,7 +429,6 @@ fun AIChatScreen() {
                             val contextWindowSize by viewModel.contextWindowSize.collectAsState()
                             val inputTokenCount by viewModel.inputTokenCount.collectAsState()
                             val outputTokenCount by viewModel.outputTokenCount.collectAsState()
-                            val memoryOptimization by viewModel.memoryOptimization.collectAsState()
                             
                             Row(
                                 modifier = Modifier
@@ -340,13 +445,6 @@ fun AIChatScreen() {
                                 StatItem(
                                     label = "请求",
                                     value = "$contextWindowSize"
-                                )
-                                
-                                Divider(
-                                    modifier = Modifier
-                                        .height(16.dp)
-                                        .width(1.dp),
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
                                 )
                                 
                                 StatItem(
@@ -378,35 +476,6 @@ fun AIChatScreen() {
                                     value = "${inputTokenCount + outputTokenCount}",
                                     isHighlighted = true
                                 )
-                                
-                                Divider(
-                                    modifier = Modifier
-                                        .height(16.dp)
-                                        .width(1.dp),
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
-                                )
-                                
-                                // 记忆优化开关标签
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Text(
-                                        text = "优化:",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                                    )
-                                    Text(
-                                        text = if (memoryOptimization) "开" else "关",
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                                        ),
-                                        color = if (memoryOptimization) 
-                                            MaterialTheme.colorScheme.primary
-                                        else 
-                                            MaterialTheme.colorScheme.error
-                                    )
-                                }
                             }
                         }
                         
@@ -420,6 +489,8 @@ fun AIChatScreen() {
                                 chatHistory = chatHistory,
                                 listState = listState,
                                 aiReferences = aiReferences,
+                                planItems = planItems,
+                                enablePlanning = enableAiPlanning,
                                 toolProgress = toolProgress,
                                 isLoading = isLoading,
                                 userMessageColor = userMessageColor,

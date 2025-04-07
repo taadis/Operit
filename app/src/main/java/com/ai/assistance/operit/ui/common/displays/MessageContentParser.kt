@@ -12,6 +12,10 @@ class MessageContentParser {
         private val xmlToolErrorPattern = Regex("<tool_result\\s+name=\"([^\"]+)\"\\s+status=\"error\">\\s*<e>([\\s\\S]*?)</e>\\s*</tool_result>")
         private val xmlToolRequestPattern = Regex("<tool\\s+name=\"([^\"]+)\"(?:\\s+description=\"([^\"]+)\")?>([\\s\\S]*?)</tool>")
         
+        // 添加计划项XML标记的模式匹配
+        private val planItemPattern = Regex("<plan_item\\s+(?:.*?)?id=\"([^\"]+)\"(?:.*?)status=\"([^\"]+)\"(?:.*?)>([^<]+)</plan_item>", RegexOption.DOT_MATCHES_ALL)
+        private val planUpdatePattern = Regex("<plan_update\\s+(?:.*?)?(?:id=\"([^\"]+)\"(?:.*?)status=\"([^\"]+)\"|status=\"([^\"]+)\"(?:.*?)id=\"([^\"]+)\")(?:.*?)(?:/>|></plan_update>|>(?:[^<]*)</plan_update>)", RegexOption.DOT_MATCHES_ALL)
+        
         /**
          * Content segment types for parsed message
          */
@@ -28,6 +32,18 @@ class MessageContentParser {
                 val success: Boolean,
                 val title: String,
                 val subtitle: String
+            ) : ContentSegment()
+            // 添加计划项相关的内容段类型
+            data class PlanItem(
+                val id: String,
+                val status: String,
+                val description: String
+            ) : ContentSegment()
+            
+            data class PlanUpdate(
+                val id: String,
+                val status: String,
+                val message: String?
             ) : ContentSegment()
         }
         
@@ -50,6 +66,9 @@ class MessageContentParser {
             findMatchesAndAdd(xmlToolResultPattern, remainingContent, allMatches)
             findMatchesAndAdd(xmlToolErrorPattern, remainingContent, allMatches)
             findMatchesAndAdd(xmlToolRequestPattern, remainingContent, allMatches)
+            // 添加对计划项标记的匹配
+            findMatchesAndAdd(planItemPattern, remainingContent, allMatches)
+            findMatchesAndAdd(planUpdatePattern, remainingContent, allMatches)
             
             // Sort matches by start position
             val sortedMatches = allMatches.sortedBy { it.first }
@@ -72,6 +91,8 @@ class MessageContentParser {
                     xmlToolRequestPattern -> parseToolRequestMatch(matchText, segments)
                     xmlToolResultPattern -> parseToolResultMatch(matchText, segments)
                     xmlToolErrorPattern -> parseToolErrorMatch(matchText, segments)
+                    planItemPattern -> parsePlanItemMatch(matchText, segments)
+                    planUpdatePattern -> parsePlanUpdateMatch(matchText, segments)
                 }
                 
                 lastEnd = match.second
@@ -152,6 +173,35 @@ class MessageContentParser {
                 val toolName = match.groupValues[1]
                 val content = match.groupValues[2]
                 segments.add(ContentSegment.ToolResult(toolName, content, true))
+            }
+        }
+        
+        // 添加解析计划项的方法
+        private fun parsePlanItemMatch(matchText: String, segments: MutableList<ContentSegment>) {
+            val match = planItemPattern.find(matchText)
+            if (match != null) {
+                val id = match.groupValues[1]
+                val status = match.groupValues[2]
+                val description = match.groupValues[3]
+                segments.add(ContentSegment.PlanItem(id, status, description))
+            }
+        }
+        
+        // 添加解析计划更新的方法
+        private fun parsePlanUpdateMatch(matchText: String, segments: MutableList<ContentSegment>) {
+            val match = planUpdatePattern.find(matchText)
+            if (match != null) {
+                // 提取ID - 可能在第1组或第4组
+                val id = match.groupValues[1].ifEmpty { match.groupValues[4] }
+                // 提取状态 - 可能在第2组或第3组
+                val status = match.groupValues[2].ifEmpty { match.groupValues[3] }
+                
+                // 尝试提取消息内容 - 通过简单正则提取标签内的文本
+                val messagePattern = Regex("<plan_update[^>]*>(.*?)</plan_update>")
+                val messageMatch = messagePattern.find(matchText)
+                val message = messageMatch?.groupValues?.getOrNull(1)
+                
+                segments.add(ContentSegment.PlanUpdate(id, status, message))
             }
         }
     }

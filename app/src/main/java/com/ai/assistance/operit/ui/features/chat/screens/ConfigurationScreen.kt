@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 @Composable
 fun ConfigurationScreen(
@@ -34,11 +35,13 @@ fun ConfigurationScreen(
     val storedApiKey = apiPreferences.apiKeyFlow.collectAsState(initial = "").value
     val storedApiEndpoint = apiPreferences.apiEndpointFlow.collectAsState(initial = "").value
     val storedModelName = apiPreferences.modelNameFlow.collectAsState(initial = "").value
+    val storedEnableAiPlanning = apiPreferences.enableAiPlanningFlow.collectAsState(initial = false).value
     
     // 本地状态用于表单输入
     var apiKeyInput by remember { mutableStateOf(apiKey) }
     var apiEndpointInput by remember { mutableStateOf(apiEndpoint) }
     var modelNameInput by remember { mutableStateOf(modelName) }
+    var enableAiPlanningInput by remember { mutableStateOf(storedEnableAiPlanning) }
     
     // 当从 DataStore 读取到的值改变时，更新本地状态
     // 但只在组件首次加载时进行更新，防止用户输入被覆盖
@@ -131,6 +134,28 @@ fun ConfigurationScreen(
                     textStyle = modernTextStyle,
                     shape = RoundedCornerShape(12.dp)
                 )
+                
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 24.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "启用AI计划模式",
+                        style = modernTextStyle,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Switch(
+                        checked = enableAiPlanningInput,
+                        onCheckedChange = { 
+                            enableAiPlanningInput = it
+                            coroutineScope.launch {
+                                apiPreferences.saveEnableAiPlanning(it)
+                            }
+                        }
+                    )
+                }
                 
                 Button(
                     onClick = { 

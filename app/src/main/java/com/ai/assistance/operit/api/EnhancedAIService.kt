@@ -11,8 +11,11 @@ import com.ai.assistance.operit.data.preferences.preferencesManager
 import com.ai.assistance.operit.data.model.AiReference
 import com.ai.assistance.operit.api.enhance.ConversationMarkupManager
 import com.ai.assistance.operit.api.enhance.ConversationRoundManager
+import com.ai.assistance.operit.api.enhance.PlanItemParser
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.model.InputProcessingState
+import com.ai.assistance.operit.data.model.PlanItem
+import com.ai.assistance.operit.data.model.PlanItemStatus
 import com.ai.assistance.operit.data.model.ToolExecutionProgress
 import com.ai.assistance.operit.data.model.ToolInvocation
 import com.ai.assistance.operit.data.model.ToolResult
@@ -69,6 +72,10 @@ class EnhancedAIService(
 
     private val _references = MutableStateFlow<List<AiReference>>(emptyList())
     val references = _references.asStateFlow()
+    
+    // Plan items tracking
+    private val _planItems = MutableStateFlow<List<PlanItem>>(emptyList())
+    val planItems = _planItems.asStateFlow()
 
     // Conversation management
     private val streamBuffer = StringBuilder()
@@ -119,12 +126,111 @@ class EnhancedAIService(
             _references.value = newReferences
         }
     }
+    
+    /**
+     * Extract and update plan items from content
+     */
+    private fun extractPlanItems(content: String) {
+        // Only extract plan items if planning is enabled
+        toolProcessingScope.launch {
+            try {
+                val planningEnabled = apiPreferences.enableAiPlanningFlow.first()
+                if (planningEnabled) {
+                    Log.d(TAG, "计划模式已启用，开始提取计划项")
+                    
+                    // 获取当前的计划项
+                    val existingItems = _planItems.value
+                    
+                    // 始终传入现有的计划项，让PlanItemParser处理合并和更新
+                    val updatedPlanItems = ConversationMarkupManager.extractPlanItems(content, existingItems)
+                    
+                    if (updatedPlanItems.isNotEmpty()) {
+                        // 检查计划项是否有变化
+                        if (updatedPlanItems != existingItems) {
+                            Log.d(TAG, "计划项有变化，更新状态流")
+                            _planItems.value = updatedPlanItems
+                        }
+                    } else if (_planItems.value.isNotEmpty()) {
+                        // 即使没有提取到新的计划项，也保留现有的计划项
+                        Log.d(TAG, "保留现有计划项")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "提取计划项时发生错误: ${e.message}")
+                // 错误时也保留现有计划项，避免因为异常导致UI丢失显示
+            }
+        }
+    }
 
     /**
      * Clear all references
      */
     fun clearReferences() {
         _references.value = emptyList()
+    }
+    
+    /**
+     * Clear all plan items
+     */
+    fun clearPlanItems() {
+        toolProcessingScope.launch {
+            try {
+                Log.d(TAG, "清除所有计划项")
+                _planItems.value = emptyList()
+            } catch (e: Exception) {
+                Log.e(TAG, "清除计划项时发生错误", e)
+            }
+        }
+    }
+
+    /**
+     * Re-extract plan items from the entire chat history
+     * This helps recover plan items in case they were lost due to UI state issues
+     */
+    private fun reExtractPlanItems(chatHistory: List<Pair<String, String>>) {
+        if (chatHistory.isEmpty()) {
+            Log.d(TAG, "空聊天历史，跳过计划项重新提取")
+            return
+        }
+        
+        toolProcessingScope.launch {
+            try {
+                val planningEnabled = apiPreferences.enableAiPlanningFlow.first()
+                if (!planningEnabled) {
+                    Log.d(TAG, "计划模式未启用，跳过计划项重新提取")
+                    return@launch
+                }
+                
+                // 如果当前已有计划项，不进行重新提取
+                if (_planItems.value.isNotEmpty()) {
+                    Log.d(TAG, "当前已有计划项，无需重新提取: ${_planItems.value.map { "${it.id}: ${it.status}" }}")
+                    return@launch
+                }
+                
+                Log.d(TAG, "开始从历史聊天中重新提取计划项")
+                // 获取所有助手消息内容
+                val assistantMessages = chatHistory.filter { it.first == "assistant" }.map { it.second }
+                
+                // 合并提取所有计划项的逻辑
+                var accumulatedItems = _planItems.value
+                
+                for (content in assistantMessages) {
+                    // 使用新的带有现有计划项参数的方法
+                    accumulatedItems = ConversationMarkupManager.extractPlanItems(content, accumulatedItems)
+                }
+                
+                // 只有在找到计划项时才更新状态流
+                if (accumulatedItems.isNotEmpty() && accumulatedItems != _planItems.value) {
+                    Log.d(TAG, "从历史聊天中重新提取到计划项: ${accumulatedItems.map { "${it.id}: ${it.status}" }}")
+                    _planItems.value = accumulatedItems
+                    Log.d(TAG, "已更新计划项状态流")
+                } else if (accumulatedItems.isEmpty()) {
+                    Log.d(TAG, "未从历史聊天中提取到任何计划项")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "重新提取计划项时发生错误: ${e.message}", e)
+            }
+        }
     }
 
     /**
@@ -143,14 +249,28 @@ class EnhancedAIService(
         currentResponseCallback = onPartialResponse
         currentCompleteCallback = onComplete
         isConversationActive.set(true)
+        
+        // 尝试从历史聊天中重新提取计划项，确保不会丢失
+        reExtractPlanItems(chatHistory)
 
         // If it's a new conversation, reset all state
         if (chatHistory.isEmpty()) {
             Log.d(TAG, "Starting new conversation - resetting all state")
             conversationHistory.clear()
             clearReferences()
+            // 修改：只有在没有计划项或强制清除状态下才清除计划项
+            // 这确保了在对话完成或等待用户输入后，计划项不会被清除
+            if (_planItems.value.isEmpty()) {
+                Log.d(TAG, "无现有计划项，无需保留")
+            } else {
+                Log.d(TAG, "发现现有计划项，保留计划项: ${_planItems.value.map { "${it.id}: ${it.status}" }}")
+                // clearPlanItems() - 不再清除现有计划项
+            }
             streamBuffer.clear()
             roundManager.initializeNewConversation()
+        } else {
+            // 如果有聊天历史，说明是在继续之前的对话，确保会话标记为活跃
+            Log.d(TAG, "继续现有对话，确保计划项保留: ${_planItems.value.map { "${it.id}: ${it.status}" }}")
         }
 
         // Show processing input feedback
@@ -213,10 +333,13 @@ class EnhancedAIService(
                 val activeProfile = preferencesManager.getUserPreferencesFlow().first()
                 val preferencesText = buildPreferencesText(activeProfile)
                 
+                // Check if planning is enabled
+                val planningEnabled = apiPreferences.enableAiPlanningFlow.first()
+                
                 if (preferencesText.isNotEmpty()) {
-                    conversationHistory.add(0, Pair("system", "${SystemPromptConfig.getSystemPrompt(packageManager)}\n\nUser preference description: $preferencesText"))
+                    conversationHistory.add(0, Pair("system", "${SystemPromptConfig.getSystemPrompt(packageManager, planningEnabled)}\n\nUser preference description: $preferencesText"))
                 } else {
-                    conversationHistory.add(0, Pair("system", SystemPromptConfig.getSystemPrompt(packageManager)))
+                    conversationHistory.add(0, Pair("system", SystemPromptConfig.getSystemPrompt(packageManager, planningEnabled)))
                 }
             }
             
@@ -434,14 +557,20 @@ class EnhancedAIService(
         // Reset input processing state
         _inputProcessingState.value = InputProcessingState.Idle
 
-        // Clear references
+        // Clear references but not plan items
         clearReferences()
+        // 记录取消对话时的计划项状态，确保不会意外清除
+        if (_planItems.value.isNotEmpty()) {
+            Log.d(TAG, "取消对话时的计划项状态: ${_planItems.value.map { "${it.id}: ${it.status}" }}")
+            Log.d(TAG, "取消对话保留计划项，不清除计划项状态")
+        }
+        // clearPlanItems()  // 不再自动清除计划项
 
         // Clear callback references
         currentResponseCallback = null
         currentCompleteCallback = null
 
-        Log.d(TAG, "Conversation cancellation complete - all state reset")
+        Log.d(TAG, "Conversation cancellation complete - all state reset except plan items")
     }
 
     /**
@@ -466,6 +595,12 @@ class EnhancedAIService(
                 // Use completely new content processing
                 streamBuffer.replace(0, streamBuffer.length, content)
                 val displayContent = roundManager.updateContent(content)
+                
+                // Extract references and plan items
+                extractReferences(displayContent)
+                // 移除此处的计划项处理，只在流结束时处理
+                // extractPlanItems(displayContent)
+                
                 onPartialResponse(displayContent, thinking)
                 return
             }
@@ -475,6 +610,9 @@ class EnhancedAIService(
 
             // Update content in round manager
             val displayContent = roundManager.updateContent(content)
+            
+            // Extract references and plan items as the content is received
+            extractReferences(displayContent)
 
             // Check again if conversation is active
             if (!isConversationActive.get()) {
@@ -520,9 +658,13 @@ class EnhancedAIService(
                     return@launch
                 }
 
-                // Extract references in the complete stage
+                // 首先提取引用和计划项，确保在任何状态变更前完成
                 extractReferences(displayContent)
-
+                
+                // 提取计划项
+                Log.d(TAG, "流传输完成，处理计划项")
+                extractPlanItems(content)
+                
                 // Handle task completion marker
                 if (ConversationMarkupManager.containsTaskCompletion(content)) {
                     handleTaskCompletion(displayContent, null, responseCallback)
@@ -551,71 +693,40 @@ class EnhancedAIService(
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Error adding assistant message to history", e)
-
-                    // Still call completion callback if error occurs
                     onComplete()
                     return@launch
                 }
 
                 // Check again if conversation is active
                 if (!isConversationActive.get()) {
-                    Log.d(TAG, "Conversation canceled after processing history, stopping further processing")
+                    Log.d(TAG, "Conversation canceled after processing history")
                     onComplete()
                     return@launch
                 }
 
                 // Main flow: Detect and process tool invocations
-                Log.d(TAG, "Starting tool invocation detection: content length = ${content.length}")
+                Log.d(TAG, "Starting tool invocation detection")
 
-                // Add more detailed logging including first 50 chars of content for debugging
-                val contentPreview = if (content.length > 50) content.substring(0, 50) + "..." else content
-                Log.d(TAG, "Content preview: $contentPreview")
-
-                // Try to detect tool invocations using both methods
+                // Try to detect tool invocations
                 val toolInvocations = toolHandler.extractToolInvocations(content)
 
-                if (toolInvocations.isNotEmpty() && isConversationActive.get()) {
-                    // Tool invocation processing flow
-                    Log.d(TAG, "Found ${toolInvocations.size} tool invocations: ${toolInvocations.map { it.tool.name }}")
+                if (toolInvocations.isNotEmpty()) {
                     handleToolInvocation(toolInvocations, displayContent, responseCallback, onComplete)
-                } else {
-                    // Double-check - use simple text matching to confirm if tool invocation tags might have been missed
-                    val possibleToolTag = "<tool\\s+name=".toRegex().find(content)
-
-                    if (possibleToolTag != null) {
-                        // Possible tool invocation but not correctly parsed, do more lenient detection
-                        Log.w(TAG, "Possible tool tag found but no valid tool invocations extracted, doing secondary check")
-
-                        // Retry tool extraction - this time clean the string, removing some chars that might interfere with parsing
-                        val cleanedContent = content
-                            .replace("\r", " ")
-                            .replace(Regex("\\s{2,}"), " ")
-
-                        val retriedInvocations = toolHandler.extractToolInvocations(cleanedContent)
-
-                        if (retriedInvocations.isNotEmpty() && isConversationActive.get()) {
-                            // Second try successfully extracted tool invocations
-                            Log.d(TAG, "Secondary check found ${retriedInvocations.size} tool invocations: ${retriedInvocations.map { it.tool.name }}")
-                            handleToolInvocation(retriedInvocations, displayContent, responseCallback, onComplete)
-                            return@launch
-                        } else {
-                            Log.w(TAG, "Secondary check still found no valid tool invocations, format might not match expectations")
-                        }
-                    }
-
-                    // No tool invocations, mark conversation round as completed
-                    Log.d(TAG, "No tool invocations found, completing current round")
-
-                    // I dont know this will work or not
-                    handleTaskCompletion(displayContent, null, responseCallback)
-
-                    // if the handleTaskCompletion is need to be here, I think it should be here
-                    // if (isConversationActive.get()) {
-                    //     markConversationCompleted()
-                    // }
-
-                    onComplete()
+                    return@launch
                 }
+
+                // 修改默认行为：如果没有特殊标记或工具调用，默认等待用户输入
+                // 而不是直接标记为完成
+                Log.d(TAG, "未检测到特殊标记或工具调用，默认使用等待用户输入模式")
+                
+                // 创建等待用户输入的内容
+                val userNeedContent = ConversationMarkupManager.createWaitForUserNeedContent(displayContent)
+                
+                // 处理为等待用户输入模式
+                handleWaitForUserNeed(userNeedContent, null, responseCallback)
+                
+                // 完成回调
+                onComplete()
             } catch (e: Exception) {
                 // Catch any exceptions in the processing flow
                 Log.e(TAG, "Error handling streaming complete", e)
@@ -730,18 +841,18 @@ class EnhancedAIService(
         val cleanedContent = ConversationMarkupManager.createTaskCompletionContent(content)
 
         val displayContent = roundManager.getDisplayContent()
-        // Clear content pool
+        
+        
+        // 清除内容池
         roundManager.clearContent()
 
         // Ensure input processing state is updated to completed
         _inputProcessingState.value = InputProcessingState.Completed
 
-        Log.d(TAG, "Task completed - content pool cleared, input processing state updated to Completed")
-
         // Update UI
         onPartialResponse(cleanedContent, thinking)
 
-        // Update conversation history
+        // Save problem in the background
         toolProcessingScope.launch {
             // Call completion callback
             currentCompleteCallback?.invoke()
@@ -770,13 +881,12 @@ class EnhancedAIService(
         val cleanedContent = ConversationMarkupManager.createWaitForUserNeedContent(content)
 
         val displayContent = roundManager.getDisplayContent()
-        // Clear content pool
+        
+        // 清除内容池
         roundManager.clearContent()
 
         // Ensure input processing state is updated to completed
         _inputProcessingState.value = InputProcessingState.Completed
-
-        Log.d(TAG, "Wait for user need - content pool cleared, input processing state updated to Completed")
 
         // Update UI
         onPartialResponse(cleanedContent, thinking)
@@ -785,8 +895,7 @@ class EnhancedAIService(
         toolProcessingScope.launch {
             // Call completion callback
             currentCompleteCallback?.invoke()
-
-            // No problem library saving here - this is the key difference
+            
             Log.d(TAG, "Wait for user need - skipping problem library analysis")
         }
     }
@@ -915,6 +1024,56 @@ class EnhancedAIService(
      */
     fun resetTokenCounters() {
         aiService.resetTokenCounts()
+    }
+
+    /**
+     * Extract plan items from chat history without sending a message
+     * This is used by ChatViewModel to restore plan items when switching chats or on app startup
+     */
+    fun extractPlansFromHistory(chatHistory: List<Pair<String, String>>) {
+        if (chatHistory.isEmpty()) {
+            Log.d(TAG, "extractPlansFromHistory: 空聊天历史，跳过计划项提取")
+            return
+        }
+        
+        Log.d(TAG, "extractPlansFromHistory: 从 ${chatHistory.size} 条聊天记录中提取计划项")
+        
+        // 确保计划项状态流为空，以便重新填充
+        _planItems.value = emptyList()
+        
+        // 提取所有助手消息
+        val assistantMessages = chatHistory.filter { it.first == "assistant" }.map { it.second }
+        Log.d(TAG, "extractPlansFromHistory: 找到 ${assistantMessages.size} 条助手消息")
+        
+        // 从每条助手消息中提取计划项
+        var accumulatedItems = emptyList<PlanItem>()
+        
+        toolProcessingScope.launch {
+            try {
+                val planningEnabled = apiPreferences.enableAiPlanningFlow.first()
+                if (!planningEnabled) {
+                    Log.d(TAG, "extractPlansFromHistory: 计划模式未启用，跳过提取")
+                    return@launch
+                }
+                
+                // 按时间顺序处理每条消息
+                for (content in assistantMessages) {
+                    // 使用带有现有计划项参数的方法提取计划项
+                    accumulatedItems = ConversationMarkupManager.extractPlanItems(content, accumulatedItems)
+                }
+                
+                // 只有找到计划项时才更新状态流
+                if (accumulatedItems.isNotEmpty()) {
+                    Log.d(TAG, "extractPlansFromHistory: 从历史聊天中提取到计划项: ${accumulatedItems.map { "${it.id}: ${it.status}" }}")
+                    _planItems.value = accumulatedItems
+                    Log.d(TAG, "extractPlansFromHistory: 已更新计划项状态流")
+                } else {
+                    Log.d(TAG, "extractPlansFromHistory: 未从历史聊天中提取到任何计划项")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "extractPlansFromHistory: 提取计划项时发生错误: ${e.message}", e)
+            }
+        }
     }
 
 } 

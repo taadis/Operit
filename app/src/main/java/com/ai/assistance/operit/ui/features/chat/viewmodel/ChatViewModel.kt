@@ -15,6 +15,8 @@ import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.repository.ChatHistoryManager
 import com.ai.assistance.operit.data.model.ChatHistory
 import com.ai.assistance.operit.data.model.ChatMessage
+import com.ai.assistance.operit.data.model.PlanItem
+import com.ai.assistance.operit.data.model.PlanItemStatus
 import com.ai.assistance.operit.data.model.ToolExecutionProgress
 import com.ai.assistance.operit.data.model.ToolExecutionState
 import com.ai.assistance.operit.services.FloatingChatService
@@ -43,6 +45,9 @@ class ChatViewModel(
     // 加载状态跟踪
     private var historiesLoaded = false
     private var currentChatIdLoaded = false
+    
+    // 保存最后一次的有效计划项列表，用于在意外清除时恢复
+    private var lastKnownValidPlanItems: List<PlanItem> = emptyList()
     
     // State flows
     private val _apiKey = MutableStateFlow("")
@@ -80,6 +85,12 @@ class ChatViewModel(
     
     private val _aiReferences = MutableStateFlow<List<AiReference>>(emptyList())
     val aiReferences: StateFlow<List<AiReference>> = _aiReferences
+    
+    private val _planItems = MutableStateFlow<List<PlanItem>>(emptyList())
+    val planItems: StateFlow<List<PlanItem>> = _planItems.asStateFlow()
+    
+    private val _enableAiPlanning = MutableStateFlow(ApiPreferences.DEFAULT_ENABLE_AI_PLANNING)
+    val enableAiPlanning: StateFlow<Boolean> = _enableAiPlanning.asStateFlow()
     
     private val _showChatHistorySelector = MutableStateFlow(false)
     val showChatHistorySelector: StateFlow<Boolean> = _showChatHistorySelector
@@ -186,6 +197,42 @@ class ChatViewModel(
                         cumulativeOutputTokens = selectedChat.outputTokens
                         _inputTokenCount.value = cumulativeInputTokens
                         _outputTokenCount.value = cumulativeOutputTokens
+                        
+                        // 应用启动时，清空现有计划项并从历史记录中重新提取
+                        if (_planItems.value.isNotEmpty()) {
+                            Log.d("ChatViewModel", "应用启动时清空现有计划项")
+                            _planItems.value = emptyList()
+                            lastKnownValidPlanItems = emptyList()
+                            // 同时清空EnhancedAIService的计划项
+                            enhancedAiService?.clearPlanItems()
+                        }
+                        
+                        // 从聊天历史中重新提取计划项
+                        Log.d("ChatViewModel", "应用启动时从聊天历史中重新提取计划项")
+                        // 将聊天历史转换为EnhancedAIService所需的格式
+                        val chatHistoryFormatted = selectedChat.messages.map { 
+                            when (it.sender) {
+                                "user" -> Pair("user", it.content)
+                                "ai" -> Pair("assistant", it.content)
+                                "system" -> Pair("system", it.content)
+                                else -> null
+                            }
+                        }.filterNotNull()
+                        
+                        // 检查是否有AI服务实例
+                        if (enhancedAiService != null) {
+                            // 确保服务已初始化
+                            viewModelScope.launch {
+                                // 稍微延迟，确保EnhancedAIService初始化完毕
+                                kotlinx.coroutines.delay(500)
+                                try {
+                                    // 单独处理历史记录中的计划项重新提取
+                                    enhancedAiService?.extractPlansFromHistory(chatHistoryFormatted)
+                                } catch (e: Exception) {
+                                    Log.e("ChatViewModel", "应用启动时从历史中提取计划项失败", e)
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -202,6 +249,13 @@ class ChatViewModel(
         viewModelScope.launch {
             apiPreferences.memoryOptimizationFlow.collect { memoryOptimizationValue ->
                 _memoryOptimization.value = memoryOptimizationValue
+            }
+        }
+        
+        // Collect AI planning setting
+        viewModelScope.launch {
+            apiPreferences.enableAiPlanningFlow.collect { enableAiPlanningValue ->
+                _enableAiPlanning.value = enableAiPlanningValue
             }
         }
         
@@ -261,6 +315,12 @@ class ChatViewModel(
                             _isProcessingInput.value = false
                         }
                     }
+                }
+            }
+            
+            viewModelScope.launch {
+                enhancedAiService?.planItems?.collect { items: List<PlanItem> ->
+                    saveApiSettings(items)
                 }
             }
             
@@ -338,6 +398,12 @@ class ChatViewModel(
                 }
             }
             
+            viewModelScope.launch {
+                enhancedAiService?.planItems?.collect { items: List<PlanItem> ->
+                    saveApiSettings(items)
+                }
+            }
+            
             _isConfigured.value = true
             
             // 标记为已配置，然后检查是否应该创建新对话
@@ -366,6 +432,8 @@ class ChatViewModel(
                             updatedAt = LocalDateTime.now(),
                             inputTokens = cumulativeInputTokens,
                             outputTokens = cumulativeOutputTokens
+                            // 注意：这里应该有一个保存计划项的字段，但现有的ChatHistory类可能没有
+                            // 如果需要彻底解决问题，需要修改ChatHistory数据类添加planItems字段
                         )
                     } else {
                         // 如果是新聊天，则创建新的ChatHistory对象
@@ -409,7 +477,7 @@ class ChatViewModel(
         }
     }
     
-    fun sendMessage(message: String) {
+    fun sendMessage(message: String, addToChatHistory: Boolean = true) {
         if (message.trim().isEmpty()) {
             return
         }
@@ -489,7 +557,10 @@ class ChatViewModel(
                     return@launch
                 }
                 
-                val history = getMemory()
+                // 将计划项保存到局部变量，以便在请求过程中可以参照
+                val currentPlanItems = _planItems.value
+                
+                val history = getMemory(includePlanInfo = true)
                 enhancedAiService?.sendMessage(
                     message = message,
                     onPartialResponse = { content, thinking ->
@@ -563,14 +634,25 @@ class ChatViewModel(
         Log.d("ChatViewModel", "Token statistics reset for new chat")
     }
     
+    /**
+     * Create a new chat
+     */
     fun createNewChat() {
         viewModelScope.launch {
             try {
-                // Save current chat before creating a new one
+                // Save current chat
                 saveCurrentChat()
                 
                 // Clear references
                 enhancedAiService?.clearReferences()
+                
+                // 清空计划项
+                if (_planItems.value.isNotEmpty()) {
+                    Log.d("ChatViewModel", "创建新聊天前清空计划项")
+                    _planItems.value = emptyList()
+                    lastKnownValidPlanItems = emptyList()
+                    enhancedAiService?.clearPlanItems()
+                }
                 
                 // Reset token statistics for new chat
                 resetTokenStatistics()
@@ -594,6 +676,15 @@ class ChatViewModel(
             // Clear references
             enhancedAiService?.clearReferences()
             
+            // 清空计划项
+            if (_planItems.value.isNotEmpty()) {
+                Log.d("ChatViewModel", "切换聊天前清空计划项")
+                _planItems.value = emptyList()
+                lastKnownValidPlanItems = emptyList()
+                // 重置token计数器
+                enhancedAiService?.resetTokenCounters()
+            }
+            
             // Switch to selected chat
             chatHistoryManager.setCurrentChatId(chatId)
             val selectedChat = _chatHistories.value.find { it.id == chatId }
@@ -608,6 +699,38 @@ class ChatViewModel(
                 
                 // 更新AI服务的token计数，确保下一次请求正确追加
                 enhancedAiService?.resetTokenCounters()
+                
+                // 从聊天历史中重新提取计划项
+                Log.d("ChatViewModel", "从聊天历史中重新提取计划项")
+                // 将聊天历史转换为EnhancedAIService所需的格式
+                val chatHistoryFormatted = selectedChat.messages.map { 
+                    when (it.sender) {
+                        "user" -> Pair("user", it.content)
+                        "ai" -> Pair("assistant", it.content)
+                        "system" -> Pair("system", it.content)
+                        else -> null
+                    }
+                }.filterNotNull()
+                
+                // 检查是否有AI服务实例
+                if (enhancedAiService != null) {
+                    // 发送一个空消息以触发计划项提取但不实际生成新响应
+                    // 由于我们检查了是否有计划项，所以这不会实际发送请求
+                    try {
+                        // 临时变量保存输入状态，用于恢复
+                        val wasProcessing = _isProcessingInput.value
+                        val processingMsg = _inputProcessingMessage.value
+                        
+                        // 单独处理历史记录中的计划项重新提取
+                        enhancedAiService?.extractPlansFromHistory(chatHistoryFormatted)
+                        
+                        // 恢复之前的UI状态
+                        _isProcessingInput.value = wasProcessing
+                        _inputProcessingMessage.value = processingMsg
+                    } catch (e: Exception) {
+                        Log.e("ChatViewModel", "从历史中提取计划项失败", e)
+                    }
+                }
             }
         }
     }
@@ -795,8 +918,7 @@ class ChatViewModel(
      * 准备聊天历史供API使用
      */
     private fun prepareChatHistory(): List<Pair<String, String>> {
-        // 使用getMemory代替直接调用ChatUtils
-        return getMemory()
+        return getMemory(includePlanInfo = true)
     }
     
     /**
@@ -812,12 +934,8 @@ class ChatViewModel(
     private fun handleResponseComplete() {
         _isLoading.value = false
         
-        // No need to add AI reply to memory as it's already in chat history
-        
-        // 更新token计数已经在调用处通过updateChatStatistics()完成
-        // 该方法内部会保存聊天历史，所以这里不再重复调用saveCurrentChat()
-        
-        Log.d("ChatViewModel", "AI response complete, loading state reset")
+        // 尝试恢复计划项（如果需要）
+        tryRestorePlanItemsIfNeeded()
     }
     
     /**
@@ -869,8 +987,14 @@ class ChatViewModel(
     /**
      * 从当前聊天历史构建内存记录用于发送到AI服务
      * 只包含user和ai消息，不包含系统消息和思考消息
+     * @param includePlanInfo 是否包含带有plan_item和plan_update标签的消息，用于恢复计划项状态
      */
-    private fun getMemory(): List<Pair<String, String>> {
+    private fun getMemory(includePlanInfo: Boolean = true): List<Pair<String, String>> {
+        // 首先记录当前的计划项状态
+        if (_planItems.value.isNotEmpty()) {
+            Log.d("ChatViewModel", "发送消息前的计划项状态")
+        }
+        
         return _chatHistory.value
             .filter { it.sender == "user" || it.sender == "ai" }
             .map { message ->
@@ -880,5 +1004,172 @@ class ChatViewModel(
                 }
                 Pair(role, message.content)
             }
+    }
+
+    /**
+     * Toggle AI planning feature on/off
+     */
+    fun toggleAiPlanning() {
+        viewModelScope.launch {
+            val newValue = !_enableAiPlanning.value
+            apiPreferences.saveEnableAiPlanning(newValue)
+            _enableAiPlanning.value = newValue
+            
+            // Show toast to confirm change
+            val message = if (newValue) "AI计划模式已开启" else "AI计划模式已关闭"
+            _toastEvent.value = message
+        }
+    }
+
+    /**
+     * Toggle show thinking preference
+     */
+    fun toggleShowThinking() {
+        viewModelScope.launch {
+            val newValue = !_showThinking.value
+            apiPreferences.saveShowThinking(newValue)
+            _showThinking.value = newValue
+            
+            // Show toast to confirm change
+            val message = if (newValue) "思考过程显示已开启" else "思考过程显示已关闭"
+            _toastEvent.value = message
+        }
+    }
+
+    /**
+     * Toggle memory optimization preference
+     */
+    fun toggleMemoryOptimization() {
+        viewModelScope.launch {
+            val newValue = !_memoryOptimization.value
+            apiPreferences.saveMemoryOptimization(newValue)
+            _memoryOptimization.value = newValue
+            
+            // Show toast to confirm change
+            val message = if (newValue) "记忆优化已开启" else "记忆优化已关闭"
+            _toastEvent.value = message
+        }
+    }
+
+    /**
+     * Clear the current chat history
+     */
+    fun clearCurrentChat() {
+        viewModelScope.launch {
+            try {
+                // Clear chat history in viewmodel
+                _chatHistory.value = emptyList()
+                
+                // Clear references and plan items
+                _aiReferences.value = emptyList()
+                
+                // 清除计划项
+                if (_planItems.value.isNotEmpty()) {
+                    _planItems.value = emptyList()
+                }
+                
+                // Reset token counts for new conversation
+                cumulativeInputTokens = 0
+                cumulativeOutputTokens = 0
+                _inputTokenCount.value = 0
+                _outputTokenCount.value = 0
+                
+                // Reset AI service if initialized
+                enhancedAiService?.let {
+                    it.cancelConversation()
+                    // 确保服务端的计划项也被清除
+                    it.clearPlanItems()
+                }
+                
+                // Create a new chat ID
+                val newChatId = UUID.randomUUID().toString()
+                chatHistoryManager.setCurrentChatId(newChatId)
+                _currentChatId.value = newChatId
+                
+                // Show confirmation toast
+                _toastEvent.value = "聊天记录已清空"
+            } catch (e: Exception) {
+                Log.e("ChatViewModel", "Failed to clear chat", e)
+                _toastEvent.value = "清空聊天记录失败: ${e.message}"
+            }
+        }
+    }
+
+    /**
+     * Show or hide chat history selector
+     */
+    fun showChatHistorySelector(show: Boolean) {
+        _showChatHistorySelector.value = show
+    }
+
+    /**
+     * 在检测到计划项丢失时尝试恢复之前保存的有效计划项
+     * 返回是否成功恢复
+     */
+    private fun tryRestorePlanItemsIfNeeded(): Boolean {
+        val currentItems = _planItems.value
+        
+        // 如果当前计划项为空但我们有保存的有效计划项
+        if (currentItems.isEmpty() && lastKnownValidPlanItems.isNotEmpty()) {
+            // 检查当前对话状态
+            val isCompleted = enhancedAiService?.inputProcessingState?.value is InputProcessingState.Completed
+            
+            if (isCompleted) {
+                Log.d("ChatViewModel", "检测到计划项丢失，恢复之前保存的计划项")
+                _planItems.value = lastKnownValidPlanItems
+                return true
+            }
+        }
+        return false
+    }
+    
+    /**
+     * 强制使用保存的计划项覆盖当前计划项
+     * 适用于当怀疑计划项出现不一致时
+     */
+    private fun forceRestoreSavedPlanItems() {
+        if (lastKnownValidPlanItems.isNotEmpty()) {
+            Log.d("ChatViewModel", "强制恢复保存的计划项")
+            _planItems.value = lastKnownValidPlanItems
+        } else {
+            Log.d("ChatViewModel", "没有可用的保存计划项，无法恢复")
+        }
+    }
+
+    private fun saveApiSettings(items: List<PlanItem>) {
+        viewModelScope.launch {
+            val oldItems = _planItems.value
+
+            // 收到计划项更新，只保留关键日志
+            if (items.isNotEmpty()) {
+                Log.d("ChatViewModel", "收到计划项更新: ${items.size}项")
+            }
+
+            // 检查是否收到空列表
+            if (items.isEmpty()) {
+                // 保留现有的计划项，如果我们处于完成状态且收到空列表
+                // 或者刚刚启动一个新聊天/切换聊天
+                val isCompletedWithEmptyPlanItems = enhancedAiService?.inputProcessingState?.value is InputProcessingState.Completed && oldItems.isNotEmpty()
+                if (isCompletedWithEmptyPlanItems) {
+                    Log.d("ChatViewModel", "对话已完成，收到空计划项列表，但保留现有计划项")
+                    return@launch
+                } else if (lastKnownValidPlanItems.isNotEmpty()) {
+                    // 有之前保存的有效计划项，使用它们
+                    Log.d("ChatViewModel", "收到空计划项但有之前保存的有效计划项，将使用保存的计划项")
+                    _planItems.value = lastKnownValidPlanItems
+                    return@launch
+                }
+            }
+
+            // 更新UI
+            if (oldItems != items) {
+                // 保存有效的计划项列表(不为空)
+                if (items.isNotEmpty()) {
+                    lastKnownValidPlanItems = items
+                }
+
+                _planItems.value = items
+            }
+        }
     }
 } 

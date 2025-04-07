@@ -23,6 +23,15 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.text.selection.SelectionContainer
 import com.ai.assistance.operit.ui.common.displays.MessageContentParser
 import com.ai.assistance.operit.ui.common.displays.TextWithCodeBlocksComposable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 
 /**
  * A composable function for rendering AI response messages in a Cursor IDE style.
@@ -299,11 +308,164 @@ fun AiMessageComposable(
                             }
                         }
                     }
+                    
+                    // 新增：处理计划项显示
+                    is ContentSegment.PlanItem -> {
+                        PlanItemDisplay(segment.id, segment.status, segment.description)
+                    }
+                    
+                    // 新增：处理计划更新显示
+                    is ContentSegment.PlanUpdate -> {
+                        PlanUpdateDisplay(segment.id, segment.status, segment.message)
+                    }
                 }
                 
                 // Add spacing between segments
                 if (segment != contentSegments.last()) {
                     Spacer(modifier = Modifier.height(8.dp))
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 计划项的显示组件
+ */
+@Composable
+private fun PlanItemDisplay(id: String, status: String, description: String) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 图标根据状态显示不同的图标
+            val (icon, color) = when (status.lowercase()) {
+                "todo" -> Icons.Filled.RadioButtonUnchecked to MaterialTheme.colorScheme.onSurface
+                "in_progress" -> Icons.Filled.PlayArrow to MaterialTheme.colorScheme.primary
+                "completed" -> Icons.Filled.CheckCircle to Color(0xFF4CAF50) // Green
+                "failed" -> Icons.Filled.Error to Color(0xFFF44336) // Red
+                "cancelled" -> Icons.Filled.Cancel to Color(0xFF9E9E9E) // Gray
+                else -> Icons.Filled.RadioButtonUnchecked to MaterialTheme.colorScheme.onSurface
+            }
+            
+            Icon(
+                imageVector = icon,
+                contentDescription = "Plan item status: $status",
+                tint = color,
+                modifier = Modifier.size(20.dp)
+            )
+            
+            Spacer(modifier = Modifier.width(12.dp))
+            
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                // ID和状态信息
+                Text(
+                    text = "ID: $id • Status: ${status.uppercase()}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 计划更新的显示组件
+ */
+@Composable
+private fun PlanUpdateDisplay(id: String, status: String, message: String?) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = when (status.lowercase()) {
+                "completed" -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+                "failed" -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f)
+                "in_progress" -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.2f)
+                else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+            }
+        ),
+        border = BorderStroke(1.dp, when (status.lowercase()) {
+            "completed" -> MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+            "failed" -> MaterialTheme.colorScheme.error.copy(alpha = 0.3f)
+            "in_progress" -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f)
+            else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+        })
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 图标根据状态显示不同的图标
+            val (icon, color) = when (status.lowercase()) {
+                "todo" -> Icons.Filled.RadioButtonUnchecked to MaterialTheme.colorScheme.onSurface
+                "in_progress" -> Icons.Filled.PlayArrow to MaterialTheme.colorScheme.primary
+                "completed" -> Icons.Filled.CheckCircle to Color(0xFF4CAF50) // Green
+                "failed" -> Icons.Filled.Error to Color(0xFFF44336) // Red
+                "cancelled" -> Icons.Filled.Cancel to Color(0xFF9E9E9E) // Gray
+                else -> Icons.Filled.RadioButtonUnchecked to MaterialTheme.colorScheme.onSurface
+            }
+            
+            Icon(
+                imageVector = icon,
+                contentDescription = "Plan status update: $status",
+                tint = color,
+                modifier = Modifier.size(16.dp)
+            )
+            
+            Spacer(modifier = Modifier.width(8.dp))
+            
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                // 状态更新信息
+                Text(
+                    text = "Plan #$id: Status updated to ${status.uppercase()}",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium,
+                    color = when (status.lowercase()) {
+                        "completed" -> Color(0xFF2E7D32) // dark green
+                        "failed" -> Color(0xFFC62828) // dark red
+                        "in_progress" -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.onSurface
+                    }
+                )
+                
+                // 如果有消息，则显示
+                if (!message.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
                 }
             }
         }

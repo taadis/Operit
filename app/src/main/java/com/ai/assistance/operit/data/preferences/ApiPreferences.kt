@@ -26,6 +26,7 @@ class ApiPreferences(private val context: Context) {
         val PREFERENCE_ANALYSIS_INPUT_TOKENS = intPreferencesKey("preference_analysis_input_tokens")
         val PREFERENCE_ANALYSIS_OUTPUT_TOKENS = intPreferencesKey("preference_analysis_output_tokens")
         val SHOW_FPS_COUNTER = booleanPreferencesKey("show_fps_counter")
+        val ENABLE_AI_PLANNING = booleanPreferencesKey("enable_ai_planning")
         
         // Default values
         const val DEFAULT_API_ENDPOINT = "https://api.deepseek.com/v1/chat/completions"
@@ -36,6 +37,7 @@ class ApiPreferences(private val context: Context) {
         const val DEFAULT_SHOW_THINKING = true
         const val DEFAULT_MEMORY_OPTIMIZATION = true
         const val DEFAULT_SHOW_FPS_COUNTER = false
+        const val DEFAULT_ENABLE_AI_PLANNING = false
     }
     
     // Get API Key as Flow
@@ -78,6 +80,11 @@ class ApiPreferences(private val context: Context) {
         preferences[SHOW_FPS_COUNTER] ?: DEFAULT_SHOW_FPS_COUNTER
     }
     
+    // Get AI Planning setting as Flow
+    val enableAiPlanningFlow: Flow<Boolean> = context.apiDataStore.data.map { preferences ->
+        preferences[ENABLE_AI_PLANNING] ?: DEFAULT_ENABLE_AI_PLANNING
+    }
+    
     // Save API Key
     suspend fun saveApiKey(apiKey: String) {
         context.apiDataStore.edit { preferences ->
@@ -117,6 +124,13 @@ class ApiPreferences(private val context: Context) {
     suspend fun saveShowFpsCounter(showFpsCounter: Boolean) {
         context.apiDataStore.edit { preferences ->
             preferences[SHOW_FPS_COUNTER] = showFpsCounter
+        }
+    }
+    
+    // Save AI Planning setting
+    suspend fun saveEnableAiPlanning(enablePlanning: Boolean) {
+        context.apiDataStore.edit { preferences ->
+            preferences[ENABLE_AI_PLANNING] = enablePlanning
         }
     }
     
@@ -166,6 +180,27 @@ class ApiPreferences(private val context: Context) {
             preferences[SHOW_THINKING] = showThinking
             preferences[MEMORY_OPTIMIZATION] = memoryOptimization
             preferences[SHOW_FPS_COUNTER] = showFpsCounter
+        }
+    }
+    
+    // Update the saveAllSettings method to include the AI planning setting
+    suspend fun saveAllSettings(
+        apiKey: String, 
+        endpoint: String, 
+        modelName: String, 
+        showThinking: Boolean, 
+        memoryOptimization: Boolean,
+        showFpsCounter: Boolean,
+        enableAiPlanning: Boolean
+    ) {
+        context.apiDataStore.edit { preferences ->
+            preferences[API_KEY] = apiKey
+            preferences[API_ENDPOINT] = endpoint
+            preferences[MODEL_NAME] = modelName
+            preferences[SHOW_THINKING] = showThinking
+            preferences[MEMORY_OPTIMIZATION] = memoryOptimization
+            preferences[SHOW_FPS_COUNTER] = showFpsCounter
+            preferences[ENABLE_AI_PLANNING] = enableAiPlanning
         }
     }
     
