@@ -15,6 +15,7 @@ import com.ai.assistance.operit.data.model.AiReference
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.model.PlanItem
 import com.ai.assistance.operit.data.model.ToolExecutionProgress
+import com.ai.assistance.operit.ui.features.chat.components.PlanGraphDisplay
 
 @Composable
 fun ChatArea(
@@ -46,7 +47,7 @@ fun ChatArea(
         
         // Plan display when planning is enabled and there are plan items
         if (enablePlanning && planItems.isNotEmpty()) {
-            PlanDisplay(
+            PlanGraphDisplay(
                 planItems = planItems,
                 modifier = Modifier.fillMaxWidth()
             )
