@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.ai.assistance.operit.R
 
@@ -25,5 +26,6 @@ sealed class NavItem(val route: String, val titleResId: Int, val icon: ImageVect
     object Packages : NavItem("packages", R.string.nav_packages, Icons.Default.Extension)
     object ProblemLibrary : NavItem("problem_library", R.string.nav_problem_library, Icons.Default.Storage)
     object Terminal : NavItem("terminal", R.string.terminal, Icons.Default.Terminal)
+    object Toolbox : NavItem("toolbox", R.string.toolbox, Icons.Default.Apps)
     object About : NavItem("about", R.string.nav_about, Icons.Default.Info)
 } 

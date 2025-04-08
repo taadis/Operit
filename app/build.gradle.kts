@@ -102,6 +102,8 @@ dependencies {
     implementation("androidx.compose.animation:animation")
     implementation("androidx.compose.animation:animation-core")
 
+    // Navigation Compose
+    implementation("androidx.navigation:navigation-compose:2.7.7")
 
     // Shizuku dependencies
     implementation("dev.rikka.shizuku:api:13.1.5")

@@ -11,6 +11,7 @@
     <string name="nav_packages">包管理</string>
     <string name="nav_problem_library">问题库</string>
     <string name="nav_terminal">终端</string>
+    <string name="nav_toolbox">工具箱</string>
     <string name="menu">菜单</string>
     
     <!-- 用于NavItem类的标识符 -->
@@ -18,6 +19,7 @@
     <string name="tool_permissions">工具权限设置</string>
     <string name="about">关于</string>
     <string name="terminal">终端</string>
+    <string name="toolbox">工具箱</string>
     
     <!-- Terminal Screen -->
     <string name="termux_not_installed">Termux 未安装</string>
