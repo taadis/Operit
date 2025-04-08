@@ -27,6 +27,7 @@ class ApiPreferences(private val context: Context) {
         val PREFERENCE_ANALYSIS_OUTPUT_TOKENS = intPreferencesKey("preference_analysis_output_tokens")
         val SHOW_FPS_COUNTER = booleanPreferencesKey("show_fps_counter")
         val ENABLE_AI_PLANNING = booleanPreferencesKey("enable_ai_planning")
+        val COLLAPSE_EXECUTION = booleanPreferencesKey("collapse_execution")
         
         // Default values
         const val DEFAULT_API_ENDPOINT = "https://api.deepseek.com/v1/chat/completions"
@@ -38,6 +39,7 @@ class ApiPreferences(private val context: Context) {
         const val DEFAULT_MEMORY_OPTIMIZATION = true
         const val DEFAULT_SHOW_FPS_COUNTER = false
         const val DEFAULT_ENABLE_AI_PLANNING = false
+        const val DEFAULT_COLLAPSE_EXECUTION = true
     }
     
     // Get API Key as Flow
@@ -83,6 +85,11 @@ class ApiPreferences(private val context: Context) {
     // Get AI Planning setting as Flow
     val enableAiPlanningFlow: Flow<Boolean> = context.apiDataStore.data.map { preferences ->
         preferences[ENABLE_AI_PLANNING] ?: DEFAULT_ENABLE_AI_PLANNING
+    }
+    
+    // Get Collapse Execution setting as Flow
+    val collapseExecutionFlow: Flow<Boolean> = context.apiDataStore.data.map { preferences ->
+        preferences[COLLAPSE_EXECUTION] ?: DEFAULT_COLLAPSE_EXECUTION
     }
     
     // Save API Key
@@ -131,6 +138,13 @@ class ApiPreferences(private val context: Context) {
     suspend fun saveEnableAiPlanning(enablePlanning: Boolean) {
         context.apiDataStore.edit { preferences ->
             preferences[ENABLE_AI_PLANNING] = enablePlanning
+        }
+    }
+    
+    // Save Collapse Execution setting
+    suspend fun saveCollapseExecution(collapseExecution: Boolean) {
+        context.apiDataStore.edit { preferences ->
+            preferences[COLLAPSE_EXECUTION] = collapseExecution
         }
     }
     
@@ -201,6 +215,29 @@ class ApiPreferences(private val context: Context) {
             preferences[MEMORY_OPTIMIZATION] = memoryOptimization
             preferences[SHOW_FPS_COUNTER] = showFpsCounter
             preferences[ENABLE_AI_PLANNING] = enableAiPlanning
+        }
+    }
+    
+    // Update the saveAllSettings method to include the Collapse Execution setting
+    suspend fun saveAllSettings(
+        apiKey: String, 
+        endpoint: String, 
+        modelName: String, 
+        showThinking: Boolean, 
+        memoryOptimization: Boolean,
+        showFpsCounter: Boolean,
+        enableAiPlanning: Boolean,
+        collapseExecution: Boolean
+    ) {
+        context.apiDataStore.edit { preferences ->
+            preferences[API_KEY] = apiKey
+            preferences[API_ENDPOINT] = endpoint
+            preferences[MODEL_NAME] = modelName
+            preferences[SHOW_THINKING] = showThinking
+            preferences[MEMORY_OPTIMIZATION] = memoryOptimization
+            preferences[SHOW_FPS_COUNTER] = showFpsCounter
+            preferences[ENABLE_AI_PLANNING] = enableAiPlanning
+            preferences[COLLAPSE_EXECUTION] = collapseExecution
         }
     }
     

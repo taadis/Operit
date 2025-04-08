@@ -39,6 +39,7 @@ fun SettingsScreen(
     val showThinking = apiPreferences.showThinkingFlow.collectAsState(initial = ApiPreferences.DEFAULT_SHOW_THINKING).value
     val memoryOptimization = apiPreferences.memoryOptimizationFlow.collectAsState(initial = ApiPreferences.DEFAULT_MEMORY_OPTIMIZATION).value
     val showFpsCounter = apiPreferences.showFpsCounterFlow.collectAsState(initial = ApiPreferences.DEFAULT_SHOW_FPS_COUNTER).value
+    val collapseExecution = apiPreferences.collapseExecutionFlow.collectAsState(initial = ApiPreferences.DEFAULT_COLLAPSE_EXECUTION).value
     
     // Mutable state for editing
     var apiKeyInput by remember { mutableStateOf(apiKey) }
@@ -47,16 +48,18 @@ fun SettingsScreen(
     var showThinkingInput by remember { mutableStateOf(showThinking) }
     var memoryOptimizationInput by remember { mutableStateOf(memoryOptimization) }
     var showFpsCounterInput by remember { mutableStateOf(showFpsCounter) }
+    var collapseExecutionInput by remember { mutableStateOf(collapseExecution) }
     var showSaveSuccessMessage by remember { mutableStateOf(false) }
     
     // Update local state when preferences change
-    LaunchedEffect(apiKey, apiEndpoint, modelName, showThinking, memoryOptimization, showFpsCounter) {
+    LaunchedEffect(apiKey, apiEndpoint, modelName, showThinking, memoryOptimization, showFpsCounter, collapseExecution) {
         apiKeyInput = apiKey
         apiEndpointInput = apiEndpoint
         modelNameInput = modelName
         showThinkingInput = showThinking
         memoryOptimizationInput = memoryOptimization
         showFpsCounterInput = showFpsCounter
+        collapseExecutionInput = collapseExecution
     }
     
     Column(
@@ -124,7 +127,9 @@ fun SettingsScreen(
                                 modelNameInput,
                                 showThinkingInput,
                                 memoryOptimizationInput,
-                                showFpsCounterInput
+                                showFpsCounterInput,
+                                false, // enableAiPlanning
+                                collapseExecutionInput
                             )
                             showSaveSuccessMessage = true
                         }
@@ -255,6 +260,38 @@ fun SettingsScreen(
                             showFpsCounterInput = it
                             scope.launch {
                                 apiPreferences.saveShowFpsCounter(it)
+                                showSaveSuccessMessage = true
+                            }
+                        }
+                    )
+                }
+                
+                // 折叠执行开关
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text(
+                            text = "折叠执行",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = "执行结果默认折叠显示",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    
+                    Switch(
+                        checked = collapseExecutionInput,
+                        onCheckedChange = { 
+                            collapseExecutionInput = it
+                            scope.launch {
+                                apiPreferences.saveCollapseExecution(it)
                                 showSaveSuccessMessage = true
                             }
                         }

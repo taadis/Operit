@@ -1,7 +1,6 @@
 package com.ai.assistance.operit.ui.features.chat.components
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -32,8 +31,10 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 
 // Maximum length for collapsed tool result display
 private const val MAX_RESULT_LENGTH = 500
@@ -46,29 +47,11 @@ fun ToolExecutionBox(
     isProcessing: Boolean,
     result: String?,
     isError: Boolean,
+    params: String? = null,
     enableCopy: Boolean = false,
-    hideToolRequest: Boolean = true // 默认隐藏工具请求
+    hideToolRequest: Boolean = true, // 默认隐藏工具请求
+    collapseExecution: Boolean = false // 是否启用折叠执行模式
 ) {
-    val accentColor = if (isError) 
-        MaterialTheme.colorScheme.error 
-    else 
-        MaterialTheme.colorScheme.primary
-    
-    val backgroundColor = if (isProcessing)
-        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-    else if (isError)
-        MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f)
-    else
-        MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
-    
-    val textColor = if (isProcessing)
-        MaterialTheme.colorScheme.onPrimaryContainer
-    else if (isError)
-        MaterialTheme.colorScheme.onErrorContainer
-    else
-        MaterialTheme.colorScheme.onSecondaryContainer
-    
-    // For clipboard functionality
     val clipboardManager = LocalClipboardManager.current
     val haptic = LocalHapticFeedback.current
     
@@ -78,11 +61,37 @@ fun ToolExecutionBox(
     // State for full result dialog
     var showFullResultDialog by remember { mutableStateOf(false) }
     
-    // If hideToolRequest is true and tool is processing, don't show anything
-    if (hideToolRequest && isProcessing) {
+    // 折叠执行模式下的请求和结果处理
+    if (collapseExecution) {
+        // 在折叠执行模式下，使用共享的ToolStatusDisplay组件
+        ToolStatusDisplay(
+            toolName = toolName,
+            isProcessing = isProcessing,
+            isError = isError,
+            result = result,
+            params = params,
+            onShowResult = {
+                showFullResultDialog = true
+            },
+            onCopyResult = {
+                result?.let { clipboardManager.setText(AnnotatedString(it)) }
+            }
+        )
+        
+        // 结果对话框
+        if (showFullResultDialog && result != null) {
+            ResultDialog(
+                title = toolName,
+                content = result,
+                params = params,
+                onDismiss = { showFullResultDialog = false }
+            )
+        }
+        
         return
     }
     
+    // 非折叠模式下的完整显示
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -90,10 +99,20 @@ fun ToolExecutionBox(
             .clip(RoundedCornerShape(8.dp))
             .border(
                 width = 1.dp,
-                color = accentColor.copy(alpha = 0.5f),
+                color = if (isError) 
+                    MaterialTheme.colorScheme.error.copy(alpha = 0.5f) 
+                else 
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
                 shape = RoundedCornerShape(8.dp)
             )
-            .background(backgroundColor)
+            .background(
+                if (isProcessing)
+                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                else if (isError)
+                    MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f)
+                else
+                    MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+            )
             .let {
                 if (enableCopy && result != null) {
                     it.combinedClickable(
@@ -128,6 +147,18 @@ fun ToolExecutionBox(
                 // Left side with icon and tool name
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     // 图标
+                    // 使用InfiniteTransition创建持续旋转动画
+                    val infiniteTransition = rememberInfiniteTransition()
+                    val rotation by infiniteTransition.animateFloat(
+                        initialValue = 0f,
+                        targetValue = 360f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(2000, easing = LinearEasing),
+                            repeatMode = RepeatMode.Restart
+                        ),
+                        label = ""
+                    )
+                    
                     Icon(
                         imageVector = when {
                             isProcessing -> Icons.Default.Autorenew
@@ -139,17 +170,14 @@ fun ToolExecutionBox(
                             isError -> "执行错误"
                             else -> "执行成功"
                         },
-                        tint = accentColor,
+                        tint = if (isError) 
+                            MaterialTheme.colorScheme.error 
+                        else 
+                            MaterialTheme.colorScheme.primary,
                         modifier = if (isProcessing) {
                             Modifier
                                 .size(18.dp)
-                                .rotate(
-                                    animateFloatAsState(
-                                        targetValue = (System.currentTimeMillis() / 10 % 360).toFloat(),
-                                        animationSpec = tween(0),
-                                        label = "loading"
-                                    ).value
-                                )
+                                .rotate(rotation)
                         } else {
                             Modifier.size(18.dp)
                         }
@@ -158,15 +186,41 @@ fun ToolExecutionBox(
                     Spacer(modifier = Modifier.width(8.dp))
                     
                     // 工具名称
-                    Text(
-                        text = when {
-                            isProcessing -> "正在执行工具: $toolName"
-                            isError -> "工具执行失败: $toolName"
-                            else -> "工具执行成功: $toolName"
-                        },
-                        style = MaterialTheme.typography.titleSmall,
-                        color = textColor
-                    )
+                    Column {
+                        Text(
+                            text = when {
+                                isProcessing -> "正在执行工具: $toolName"
+                                isError -> "工具执行失败: $toolName"
+                                else -> "工具执行成功: $toolName"
+                            },
+                            style = MaterialTheme.typography.titleSmall,
+                            color = if (isProcessing)
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            else if (isError)
+                                MaterialTheme.colorScheme.onErrorContainer
+                            else
+                                MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        
+                        // 显示参数值（如果有）
+                        if (params != null && params.isNotBlank()) {
+                            val paramValuesText = extractParamValues(params)
+                            if (paramValuesText.isNotBlank()) {
+                                Text(
+                                    text = paramValuesText,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (isProcessing)
+                                        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                                    else if (isError)
+                                        MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f)
+                                    else
+                                        MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
                 }
                 
                 // Expand/collapse button for results
@@ -178,7 +232,12 @@ fun ToolExecutionBox(
                             else 
                                 Icons.Default.KeyboardArrowDown,
                             contentDescription = if (isResultExpanded) "收起" else "展开",
-                            tint = textColor
+                            tint = if (isProcessing)
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            else if (isError)
+                                MaterialTheme.colorScheme.onErrorContainer
+                            else
+                                MaterialTheme.colorScheme.onSecondaryContainer
                         )
                     }
                 }
@@ -194,7 +253,7 @@ fun ToolExecutionBox(
                 Text(
                     text = "工具正在执行中，请稍候...",
                     style = MaterialTheme.typography.bodySmall,
-                    color = textColor.copy(alpha = 0.7f),
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
                     modifier = Modifier.padding(top = 8.dp)
                 )
             }
@@ -209,21 +268,34 @@ fun ToolExecutionBox(
                     result
                 }
                 
-                SelectionContainer {
-                    Text(
-                        text = displayResult,
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontFamily = FontFamily.Monospace
-                        ),
-                        color = textColor,
-                        maxLines = if (isResultExpanded) Int.MAX_VALUE else 15,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(textColor.copy(alpha = 0.1f))
-                            .padding(8.dp)
-                    )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 50.dp, max = if (isResultExpanded) 300.dp else 150.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(
+                            if (isError)
+                                MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.1f)
+                            else
+                                MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.1f)
+                        )
+                ) {
+                    SelectionContainer {
+                        Text(
+                            text = displayResult,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace
+                            ),
+                            color = if (isError)
+                                MaterialTheme.colorScheme.onErrorContainer
+                            else
+                                MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .verticalScroll(rememberScrollState())
+                                .padding(8.dp)
+                        )
+                    }
                 }
                 
                 if (result.length > MAX_RESULT_LENGTH && !isResultExpanded) {
@@ -239,75 +311,39 @@ fun ToolExecutionBox(
     }
     
     // Dialog for full result content
-    if (showFullResultDialog) {
-        Dialog(onDismissRequest = { showFullResultDialog = false }) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 500.dp),
-                shape = RoundedCornerShape(16.dp),
-            ) {
-                Column(
-                    modifier = Modifier
-                        .padding(16.dp)
-                        .fillMaxWidth()
-                ) {
-                    // Dialog title
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = toolName,
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        
-                        IconButton(onClick = { showFullResultDialog = false }) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "关闭"
-                            )
-                        }
-                    }
-                    
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
-                    
-                    // Result content in scrollable box
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                    ) {
-                        SelectionContainer {
-                            Text(
-                                text = result ?: "",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontFamily = FontFamily.Monospace
-                                ),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp)
-                            )
-                        }
-                    }
-                    
-                    // Copy button
-                    Button(
-                        onClick = {
-                            result?.let { clipboardManager.setText(AnnotatedString(it)) }
-                            showFullResultDialog = false
-                        },
-                        modifier = Modifier
-                            .padding(top = 16.dp)
-                            .align(Alignment.End)
-                    ) {
-                        Text("复制内容")
-                    }
-                }
-            }
+    if (showFullResultDialog && result != null) {
+        ResultDialog(
+            title = toolName,
+            content = result,
+            params = params,
+            onDismiss = { showFullResultDialog = false }
+        )
+    }
+}
+
+/**
+ * 从XML参数中提取实际内容（而不是属性值）
+ */
+private fun extractParamValues(params: String?): String {
+    if (params.isNullOrBlank()) return ""
+    
+    // 直接提取XML标签之间的内容
+    // 注意：这里不再需要提取属性，而是直接获取内容
+    val noTagsContent = params.replace(Regex("<[^>]*>|</[^>]*>"), "").trim()
+    if (noTagsContent.isNotBlank()) {
+        return noTagsContent.take(100) + if (noTagsContent.length > 100) "..." else ""
+    }
+    
+    // 如果直接清除标签方法失败，尝试特定模式匹配
+    val toolContentPattern = "<tool[^>]*>(.*?)</tool>".toRegex(RegexOption.DOT_MATCHES_ALL)
+    val match = toolContentPattern.find(params)
+    if (match != null && match.groupValues.size > 1) {
+        val content = match.groupValues[1].trim()
+        if (content.isNotBlank()) {
+            return content.take(100) + if (content.length > 100) "..." else ""
         }
     }
+    
+    // 如果都失败，则返回原始参数
+    return params.take(100) + if (params.length > 100) "..." else ""
 } 

@@ -27,7 +27,8 @@ fun ThinkingMessageComposable(
     message: ChatMessage,
     backgroundColor: Color,
     textColor: Color,
-    supportToolMarkup: Boolean = true
+    supportToolMarkup: Boolean = true,
+    collapseExecution: Boolean = false
 ) {
     var expanded by remember { mutableStateOf(false) } // Default collapsed
     
@@ -103,7 +104,8 @@ fun ThinkingMessageComposable(
                                         result = null,
                                         isError = false,
                                         enableCopy = true,
-                                        hideToolRequest = true // Hide execution requests
+                                        hideToolRequest = true, // Hide execution requests
+                                        collapseExecution = collapseExecution
                                     )
                                     Spacer(modifier = Modifier.height(8.dp))
                                 }
@@ -115,7 +117,8 @@ fun ThinkingMessageComposable(
                                         result = segment.content,
                                         isError = segment.isError,
                                         enableCopy = true,
-                                        hideToolRequest = false // Show results
+                                        hideToolRequest = false, // Show results
+                                        collapseExecution = collapseExecution
                                     )
                                     Spacer(modifier = Modifier.height(8.dp))
                                 }
@@ -129,7 +132,8 @@ fun ThinkingMessageComposable(
                                                     result = null,
                                                     isError = false,
                                                     enableCopy = true,
-                                                    hideToolRequest = true // Hide execution requests
+                                                    hideToolRequest = true, // Hide execution requests
+                                                    collapseExecution = collapseExecution
                                                 )
                                                 Spacer(modifier = Modifier.height(8.dp))
                                             }
@@ -142,7 +146,8 @@ fun ThinkingMessageComposable(
                                                     result = segment.content,
                                                     isError = !segment.success,
                                                     enableCopy = true,
-                                                    hideToolRequest = false // Show results
+                                                    hideToolRequest = false, // Show results
+                                                    collapseExecution = collapseExecution
                                                 )
                                                 Spacer(modifier = Modifier.height(8.dp))
                                             }

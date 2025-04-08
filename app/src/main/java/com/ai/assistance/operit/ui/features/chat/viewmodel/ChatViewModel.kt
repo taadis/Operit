@@ -134,6 +134,10 @@ class ChatViewModel(
     private val _memoryOptimization = MutableStateFlow(ApiPreferences.DEFAULT_MEMORY_OPTIMIZATION)
     val memoryOptimization: StateFlow<Boolean> = _memoryOptimization.asStateFlow()
     
+    // State for collapse execution
+    private val _collapseExecution = MutableStateFlow(ApiPreferences.DEFAULT_COLLAPSE_EXECUTION)
+    val collapseExecution: StateFlow<Boolean> = _collapseExecution.asStateFlow()
+    
     // Add a reference to the floating service
     private var floatingService: FloatingChatService? = null
     private val serviceConnection = object : ServiceConnection {
@@ -256,6 +260,20 @@ class ChatViewModel(
         viewModelScope.launch {
             apiPreferences.enableAiPlanningFlow.collect { enableAiPlanningValue ->
                 _enableAiPlanning.value = enableAiPlanningValue
+            }
+        }
+        
+        // Collect memory optimization preference
+        viewModelScope.launch {
+            apiPreferences.memoryOptimizationFlow.collect { enabled ->
+                _memoryOptimization.value = enabled
+            }
+        }
+        
+        // Collect collapse execution preference
+        viewModelScope.launch {
+            apiPreferences.collapseExecutionFlow.collect { enabled ->
+                _collapseExecution.value = enabled
             }
         }
         
@@ -646,13 +664,7 @@ class ChatViewModel(
                 // Clear references
                 enhancedAiService?.clearReferences()
                 
-                // 清空计划项
-                if (_planItems.value.isNotEmpty()) {
-                    Log.d("ChatViewModel", "创建新聊天前清空计划项")
-                    _planItems.value = emptyList()
-                    lastKnownValidPlanItems = emptyList()
-                    enhancedAiService?.clearPlanItems()
-                }
+                
                 
                 // Reset token statistics for new chat
                 resetTokenStatistics()
@@ -662,6 +674,11 @@ class ChatViewModel(
                 
                 // Update UI state
                 _chatHistory.value = newChat.messages
+                
+                // 确保计划项被清空，即使没有进入上面的if条件
+                _planItems.value = emptyList()
+                lastKnownValidPlanItems = emptyList()
+                enhancedAiService?.clearPlanItems()
             } catch (e: Exception) {
                 _errorMessage.value = "创建新对话失败: ${e.message}"
             }
@@ -684,6 +701,10 @@ class ChatViewModel(
                 // 重置token计数器
                 enhancedAiService?.resetTokenCounters()
             }
+            
+            // 确保计划项被清空，即使没有进入上面的if条件
+            _planItems.value = emptyList()
+            lastKnownValidPlanItems = emptyList()
             
             // Switch to selected chat
             chatHistoryManager.setCurrentChatId(chatId)

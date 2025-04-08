@@ -34,6 +34,7 @@ fun ChatArea(
     systemTextColor: Color,
     thinkingBackgroundColor: Color,
     thinkingTextColor: Color,
+    collapseExecution: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -80,7 +81,8 @@ fun ChatArea(
                     systemTextColor = systemTextColor,
                     thinkingBackgroundColor = thinkingBackgroundColor,
                     thinkingTextColor = thinkingTextColor,
-                    supportToolMarkup = true
+                    supportToolMarkup = true,
+                    collapseExecution = collapseExecution
                 )
                 Spacer(modifier = Modifier.height(8.dp))
             }

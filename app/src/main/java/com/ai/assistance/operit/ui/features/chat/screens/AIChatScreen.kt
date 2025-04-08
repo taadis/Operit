@@ -66,6 +66,7 @@ fun AIChatScreen() {
     val chatHistories by viewModel.chatHistories.collectAsState()
     val currentChatId by viewModel.currentChatId.collectAsState()
     val popupMessage by viewModel.popupMessage.collectAsState()
+    val collapseExecution by viewModel.collapseExecution.collectAsState()
     
     // Floating window mode state
     val isFloatingMode by viewModel.isFloatingMode.collectAsState()
@@ -501,6 +502,7 @@ fun AIChatScreen() {
                                 systemTextColor = systemTextColor,
                                 thinkingBackgroundColor = thinkingBackgroundColor,
                                 thinkingTextColor = thinkingTextColor,
+                                collapseExecution = collapseExecution,
                                 modifier = Modifier.fillMaxSize()
                             )
                             

@@ -19,7 +19,8 @@ fun CursorStyleChatMessage(
     systemTextColor: Color,
     thinkingBackgroundColor: Color,
     thinkingTextColor: Color,
-    supportToolMarkup: Boolean = true
+    supportToolMarkup: Boolean = true,
+    collapseExecution: Boolean = false
 ) {
     when (message.sender) {
         "user" -> {
@@ -34,7 +35,8 @@ fun CursorStyleChatMessage(
                 message = message,
                 backgroundColor = aiMessageColor,
                 textColor = aiTextColor,
-                supportToolMarkup = supportToolMarkup
+                supportToolMarkup = supportToolMarkup,
+                collapseExecution = collapseExecution
             )
         }
         "think" -> {
@@ -42,7 +44,8 @@ fun CursorStyleChatMessage(
                 message = message,
                 backgroundColor = thinkingBackgroundColor,
                 textColor = thinkingTextColor,
-                supportToolMarkup = supportToolMarkup
+                supportToolMarkup = supportToolMarkup,
+                collapseExecution = collapseExecution
             )
         }
         "system" -> {
