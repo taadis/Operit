@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -20,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -165,43 +167,97 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                         Divider(modifier = Modifier.padding(horizontal = 16.dp))
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        // 导航菜单项
-                        navItems.forEach { navItem ->
-                            NavigationDrawerItem(
-                                    icon = {
-                                        Icon(
-                                                navItem.icon,
-                                                contentDescription = null,
-                                                tint =
-                                                        if (navItem == selectedItem &&
-                                                                        !isToolPermissionScreen
-                                                        )
-                                                                MaterialTheme.colorScheme.primary
-                                                        else
-                                                                MaterialTheme.colorScheme
-                                                                        .onSurfaceVariant
-                                        )
-                                    },
-                                    label = {
-                                        Text(
-                                                stringResource(id = navItem.titleResId),
-                                                fontWeight =
-                                                        if (navItem == selectedItem &&
-                                                                        !isToolPermissionScreen
-                                                        )
-                                                                FontWeight.Bold
-                                                        else FontWeight.Normal
-                                        )
-                                    },
-                                    selected = navItem == selectedItem && !isToolPermissionScreen,
-                                    onClick = {
-                                        selectedItem = navItem
-                                        isToolPermissionScreen = navItem == NavItem.ToolPermissions
-                                        scope.launch { drawerState.close() }
-                                    },
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                            )
-                        }
+                        // 分组导航菜单
+                        
+                        // AI功能组
+                        NavigationDrawerItemHeader("AI功能")
+                        
+                        // AI聊天
+                        CompactNavigationDrawerItem(
+                            icon = NavItem.AiChat.icon,
+                            label = stringResource(id = NavItem.AiChat.titleResId),
+                            selected = selectedItem == NavItem.AiChat && !isToolPermissionScreen,
+                            onClick = {
+                                selectedItem = NavItem.AiChat
+                                scope.launch { drawerState.close() }
+                            }
+                        )
+                        
+                        // 问题库
+                        CompactNavigationDrawerItem(
+                            icon = NavItem.ProblemLibrary.icon,
+                            label = stringResource(id = NavItem.ProblemLibrary.titleResId),
+                            selected = selectedItem == NavItem.ProblemLibrary && !isToolPermissionScreen,
+                            onClick = {
+                                selectedItem = NavItem.ProblemLibrary
+                                scope.launch { drawerState.close() }
+                            }
+                        )
+                        
+                        // 包管理
+                        CompactNavigationDrawerItem(
+                            icon = NavItem.Packages.icon,
+                            label = stringResource(id = NavItem.Packages.titleResId),
+                            selected = selectedItem == NavItem.Packages && !isToolPermissionScreen,
+                            onClick = {
+                                selectedItem = NavItem.Packages
+                                scope.launch { drawerState.close() }
+                            }
+                        )
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        // 工具组
+                        NavigationDrawerItemHeader("工具")
+                        
+                        // 工具箱
+                        CompactNavigationDrawerItem(
+                            icon = NavItem.Toolbox.icon,
+                            label = stringResource(id = NavItem.Toolbox.titleResId),
+                            selected = selectedItem == NavItem.Toolbox && !isToolPermissionScreen,
+                            onClick = {
+                                selectedItem = NavItem.Toolbox
+                                scope.launch { drawerState.close() }
+                            }
+                        )
+                        
+                        // Shizuku命令
+                        CompactNavigationDrawerItem(
+                            icon = NavItem.ShizukuCommands.icon,
+                            label = stringResource(id = NavItem.ShizukuCommands.titleResId),
+                            selected = selectedItem == NavItem.ShizukuCommands && !isToolPermissionScreen,
+                            onClick = {
+                                selectedItem = NavItem.ShizukuCommands
+                                scope.launch { drawerState.close() }
+                            }
+                        )
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        // 系统组
+                        NavigationDrawerItemHeader("系统")
+                        
+                        // 设置
+                        CompactNavigationDrawerItem(
+                            icon = NavItem.Settings.icon,
+                            label = stringResource(id = NavItem.Settings.titleResId),
+                            selected = selectedItem == NavItem.Settings && !isToolPermissionScreen,
+                            onClick = {
+                                selectedItem = NavItem.Settings
+                                scope.launch { drawerState.close() }
+                            }
+                        )
+                        
+                        // 关于
+                        CompactNavigationDrawerItem(
+                            icon = NavItem.About.icon,
+                            label = stringResource(id = NavItem.About.titleResId),
+                            selected = selectedItem == NavItem.About && !isToolPermissionScreen,
+                            onClick = {
+                                selectedItem = NavItem.About
+                                scope.launch { drawerState.close() }
+                            }
+                        )
                     }
                 },
                 drawerState = drawerState
@@ -462,6 +518,70 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
         if (showFpsCounter) {
             FpsCounter(
                     modifier = Modifier.align(Alignment.TopEnd).padding(top = 80.dp, end = 16.dp)
+            )
+        }
+    }
+}
+
+/**
+ * 导航抽屉分组标题
+ */
+@Composable
+private fun NavigationDrawerItemHeader(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.primary,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(start = 28.dp, top = 16.dp, bottom = 8.dp)
+    )
+}
+
+/**
+ * 紧凑型导航抽屉项
+ */
+@Composable
+private fun CompactNavigationDrawerItem(
+    icon: ImageVector,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .height(40.dp),
+        onClick = onClick,
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+        shape = MaterialTheme.shapes.small
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (selected) 
+                    MaterialTheme.colorScheme.primary 
+                else 
+                    MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
+            
+            Spacer(modifier = Modifier.width(12.dp))
+            
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+                color = if (selected) 
+                    MaterialTheme.colorScheme.primary 
+                else 
+                    MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
