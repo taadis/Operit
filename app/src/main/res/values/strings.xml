@@ -20,6 +20,7 @@
     <string name="about">关于</string>
     <string name="terminal">终端</string>
     <string name="toolbox">工具箱</string>
+    <string name="mcp">MCP 插件市场</string>
     
     <!-- Terminal Screen -->
     <string name="termux_not_installed">Termux 未安装</string>

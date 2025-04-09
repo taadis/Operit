@@ -1,5 +1,7 @@
 package com.ai.assistance.operit.ui.main
 
+import android.os.Build
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Menu
@@ -32,19 +35,20 @@ import androidx.navigation.compose.rememberNavController
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.repository.ChatHistoryManager
+import com.ai.assistance.operit.data.mcp.MCPRepository
 import com.ai.assistance.operit.tools.AIToolHandler
 import com.ai.assistance.operit.ui.common.NavItem
 import com.ai.assistance.operit.ui.common.displays.FpsCounter
 import com.ai.assistance.operit.ui.features.about.screens.AboutScreen
 import com.ai.assistance.operit.ui.features.chat.screens.AIChatScreen
 import com.ai.assistance.operit.ui.features.demo.screens.ShizukuDemoScreen
+import com.ai.assistance.operit.ui.features.mcp.screens.MCPScreen
 import com.ai.assistance.operit.ui.features.packages.screens.PackageManagerScreen
 import com.ai.assistance.operit.ui.features.problems.screens.ProblemLibraryScreen
 import com.ai.assistance.operit.ui.features.settings.screens.SettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ToolPermissionSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.UserPreferencesGuideScreen
 import com.ai.assistance.operit.ui.features.settings.screens.UserPreferencesSettingsScreen
-import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.screens.TerminalScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.FileManagerToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.FormatConverterToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.TerminalToolScreen
@@ -65,6 +69,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
         mutableStateOf(initialNavItem == NavItem.UserPreferencesGuide)
     }
     var isUserPreferencesSettingsScreen by remember { mutableStateOf(false) }
+    var isMcpScreen by remember { mutableStateOf(false) }
 
     // 工具箱相关状态
     var isFormatConverterScreen by remember { mutableStateOf(false) }
@@ -78,6 +83,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                     NavItem.AiChat,
                     NavItem.ShizukuCommands,
                     NavItem.Toolbox,
+                    NavItem.Mcp,
                     NavItem.Settings,
                     NavItem.Packages,
                     NavItem.ProblemLibrary,
@@ -120,6 +126,9 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
     // 获取FPS显示设置
     val apiPreferences = remember { ApiPreferences(context) }
     val showFpsCounter = apiPreferences.showFpsCounterFlow.collectAsState(initial = false).value
+
+    // Create an instance of MCPRepository
+    val mcpRepository = remember { MCPRepository(context) }
 
     // 应用整体结构
     Box(modifier = Modifier.fillMaxSize()) {
@@ -168,95 +177,114 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                         Spacer(modifier = Modifier.height(8.dp))
 
                         // 分组导航菜单
-                        
+
                         // AI功能组
                         NavigationDrawerItemHeader("AI功能")
-                        
+
                         // AI聊天
                         CompactNavigationDrawerItem(
-                            icon = NavItem.AiChat.icon,
-                            label = stringResource(id = NavItem.AiChat.titleResId),
-                            selected = selectedItem == NavItem.AiChat && !isToolPermissionScreen,
-                            onClick = {
-                                selectedItem = NavItem.AiChat
-                                scope.launch { drawerState.close() }
-                            }
+                                icon = NavItem.AiChat.icon,
+                                label = stringResource(id = NavItem.AiChat.titleResId),
+                                selected =
+                                        selectedItem == NavItem.AiChat && !isToolPermissionScreen,
+                                onClick = {
+                                    selectedItem = NavItem.AiChat
+                                    scope.launch { drawerState.close() }
+                                }
                         )
-                        
+
                         // 问题库
                         CompactNavigationDrawerItem(
-                            icon = NavItem.ProblemLibrary.icon,
-                            label = stringResource(id = NavItem.ProblemLibrary.titleResId),
-                            selected = selectedItem == NavItem.ProblemLibrary && !isToolPermissionScreen,
-                            onClick = {
-                                selectedItem = NavItem.ProblemLibrary
-                                scope.launch { drawerState.close() }
-                            }
+                                icon = NavItem.ProblemLibrary.icon,
+                                label = stringResource(id = NavItem.ProblemLibrary.titleResId),
+                                selected =
+                                        selectedItem == NavItem.ProblemLibrary &&
+                                                !isToolPermissionScreen,
+                                onClick = {
+                                    selectedItem = NavItem.ProblemLibrary
+                                    scope.launch { drawerState.close() }
+                                }
                         )
-                        
+
                         // 包管理
                         CompactNavigationDrawerItem(
-                            icon = NavItem.Packages.icon,
-                            label = stringResource(id = NavItem.Packages.titleResId),
-                            selected = selectedItem == NavItem.Packages && !isToolPermissionScreen,
-                            onClick = {
-                                selectedItem = NavItem.Packages
-                                scope.launch { drawerState.close() }
-                            }
+                                icon = NavItem.Packages.icon,
+                                label = stringResource(id = NavItem.Packages.titleResId),
+                                selected =
+                                        selectedItem == NavItem.Packages && !isToolPermissionScreen,
+                                onClick = {
+                                    selectedItem = NavItem.Packages
+                                    scope.launch { drawerState.close() }
+                                }
                         )
-                        
+
                         Spacer(modifier = Modifier.height(8.dp))
-                        
+
                         // 工具组
                         NavigationDrawerItemHeader("工具")
-                        
+
                         // 工具箱
                         CompactNavigationDrawerItem(
-                            icon = NavItem.Toolbox.icon,
-                            label = stringResource(id = NavItem.Toolbox.titleResId),
-                            selected = selectedItem == NavItem.Toolbox && !isToolPermissionScreen,
-                            onClick = {
-                                selectedItem = NavItem.Toolbox
-                                scope.launch { drawerState.close() }
-                            }
+                                icon = NavItem.Toolbox.icon,
+                                label = stringResource(id = NavItem.Toolbox.titleResId),
+                                selected =
+                                        selectedItem == NavItem.Toolbox && !isToolPermissionScreen,
+                                onClick = {
+                                    selectedItem = NavItem.Toolbox
+                                    scope.launch { drawerState.close() }
+                                }
                         )
-                        
+
                         // Shizuku命令
                         CompactNavigationDrawerItem(
-                            icon = NavItem.ShizukuCommands.icon,
-                            label = stringResource(id = NavItem.ShizukuCommands.titleResId),
-                            selected = selectedItem == NavItem.ShizukuCommands && !isToolPermissionScreen,
-                            onClick = {
-                                selectedItem = NavItem.ShizukuCommands
-                                scope.launch { drawerState.close() }
-                            }
+                                icon = NavItem.ShizukuCommands.icon,
+                                label = stringResource(id = NavItem.ShizukuCommands.titleResId),
+                                selected =
+                                        selectedItem == NavItem.ShizukuCommands &&
+                                                !isToolPermissionScreen,
+                                onClick = {
+                                    selectedItem = NavItem.ShizukuCommands
+                                    scope.launch { drawerState.close() }
+                                }
                         )
-                        
+
+                        // MCP 插件市场
+                        CompactNavigationDrawerItem(
+                                icon = NavItem.Mcp.icon,
+                                label = stringResource(id = NavItem.Mcp.titleResId),
+                                selected = selectedItem == NavItem.Mcp && !isToolPermissionScreen,
+                                onClick = {
+                                    selectedItem = NavItem.Mcp
+                                    scope.launch { drawerState.close() }
+                                }
+                        )
+
                         Spacer(modifier = Modifier.height(8.dp))
-                        
+
                         // 系统组
                         NavigationDrawerItemHeader("系统")
-                        
+
                         // 设置
                         CompactNavigationDrawerItem(
-                            icon = NavItem.Settings.icon,
-                            label = stringResource(id = NavItem.Settings.titleResId),
-                            selected = selectedItem == NavItem.Settings && !isToolPermissionScreen,
-                            onClick = {
-                                selectedItem = NavItem.Settings
-                                scope.launch { drawerState.close() }
-                            }
+                                icon = NavItem.Settings.icon,
+                                label = stringResource(id = NavItem.Settings.titleResId),
+                                selected =
+                                        selectedItem == NavItem.Settings && !isToolPermissionScreen,
+                                onClick = {
+                                    selectedItem = NavItem.Settings
+                                    scope.launch { drawerState.close() }
+                                }
                         )
-                        
+
                         // 关于
                         CompactNavigationDrawerItem(
-                            icon = NavItem.About.icon,
-                            label = stringResource(id = NavItem.About.titleResId),
-                            selected = selectedItem == NavItem.About && !isToolPermissionScreen,
-                            onClick = {
-                                selectedItem = NavItem.About
-                                scope.launch { drawerState.close() }
-                            }
+                                icon = NavItem.About.icon,
+                                label = stringResource(id = NavItem.About.titleResId),
+                                selected = selectedItem == NavItem.About && !isToolPermissionScreen,
+                                onClick = {
+                                    selectedItem = NavItem.About
+                                    scope.launch { drawerState.close() }
+                                }
                         )
                     }
                 },
@@ -375,8 +403,9 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                                             stringResource(
                                                                     id = R.string.nav_settings
                                                             )
-                                                    isFormatConverterScreen || isFileManagerScreen || isTerminalToolScreen ->
-                                                            "返回工具箱"
+                                                    isFormatConverterScreen ||
+                                                            isFileManagerScreen ||
+                                                            isTerminalToolScreen -> "返回工具箱"
                                                     else -> stringResource(id = R.string.menu)
                                                 },
                                         tint = Color.White
@@ -396,14 +425,40 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                         color = MaterialTheme.colorScheme.background
                 ) {
                     if (isLoading) {
-                        // 加载中状态
+                        // 加载中状态 - 使用简单的Text替代CircularProgressIndicator
                         Box(
                                 modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center
                         ) {
-                            CircularProgressIndicator(
-                                    modifier = Modifier.padding(horizontal = 16.dp)
-                            )
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Surface(
+                                    modifier = Modifier.size(48.dp),
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
+                                ) {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "...",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                                
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = "正在加载...",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
                         }
                     } else {
                         Box(modifier = Modifier.fillMaxSize()) {
@@ -462,10 +517,14 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                     NavItem.Toolbox -> {
                                         // 工具箱页面
                                         ToolboxScreen(
-                                            navController = navController,
-                                            onFormatConverterSelected = { isFormatConverterScreen = true },
-                                            onFileManagerSelected = { isFileManagerScreen = true },
-                                            onTerminalSelected = { isTerminalToolScreen = true }
+                                                navController = navController,
+                                                onFormatConverterSelected = {
+                                                    isFormatConverterScreen = true
+                                                },
+                                                onFileManagerSelected = {
+                                                    isFileManagerScreen = true
+                                                },
+                                                onTerminalSelected = { isTerminalToolScreen = true }
                                         )
                                     }
                                     NavItem.Settings ->
@@ -502,6 +561,10 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                         selectedItem = NavItem.Toolbox
                                         isTerminalToolScreen = true
                                     }
+                                    NavItem.Mcp -> {
+                                        // MCP 屏幕
+                                        MCPScreen(mcpRepository = mcpRepository)
+                                    }
                                     else -> {
                                         // 处理其他情况
                                         selectedItem = NavItem.AiChat
@@ -523,65 +586,57 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
     }
 }
 
-/**
- * 导航抽屉分组标题
- */
+/** 导航抽屉分组标题 */
 @Composable
 private fun NavigationDrawerItemHeader(title: String) {
     Text(
-        text = title,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(start = 28.dp, top = 16.dp, bottom = 8.dp)
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(start = 28.dp, top = 16.dp, bottom = 8.dp)
     )
 }
 
-/**
- * 紧凑型导航抽屉项
- */
+/** 紧凑型导航抽屉项 */
 @Composable
 private fun CompactNavigationDrawerItem(
-    icon: ImageVector,
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit
+        icon: ImageVector,
+        label: String,
+        selected: Boolean,
+        onClick: () -> Unit
 ) {
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp)
-            .height(40.dp),
-        onClick = onClick,
-        color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-        shape = MaterialTheme.shapes.small
+            modifier =
+                    Modifier.fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                            .height(40.dp),
+            onClick = onClick,
+            color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+            shape = MaterialTheme.shapes.small
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = if (selected) 
-                    MaterialTheme.colorScheme.primary 
-                else 
-                    MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp)
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint =
+                            if (selected) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
             )
-            
+
             Spacer(modifier = Modifier.width(12.dp))
-            
+
             Text(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
-                color = if (selected) 
-                    MaterialTheme.colorScheme.primary 
-                else 
-                    MaterialTheme.colorScheme.onSurfaceVariant
+                    text = label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+                    color =
+                            if (selected) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
