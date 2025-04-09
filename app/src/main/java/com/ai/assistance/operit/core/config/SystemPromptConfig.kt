@@ -2,15 +2,12 @@ package com.ai.assistance.operit.core.config
 
 import com.ai.assistance.operit.tools.packTool.PackageManager
 
-/**
- * Configuration class for system prompts and other related settings
- */
+/** Configuration class for system prompts and other related settings */
 object SystemPromptConfig {
 
-    /**
-     * Base system prompt template used by the enhanced AI service
-     */
-    val SYSTEM_PROMPT_TEMPLATE = """
+    /** Base system prompt template used by the enhanced AI service */
+    val SYSTEM_PROMPT_TEMPLATE =
+            """
         You are Operit, an all-capable AI assistant, aimed at solving any task presented by the user. You have various tools at your disposal that you can call upon to efficiently complete complex requests. 
         
         DEFAULT BEHAVIOR GUIDELINE:
@@ -80,6 +77,7 @@ object SystemPromptConfig {
           • source_path (input file path)
           • target_path (output file path)
           • quality (optional: "low"/"medium"/"high"/"lossless", default "medium")
+          • password (optional: password for encrypted archives when converting or extracting)
           • extra_params (optional, parameters listed by file type):
               ▪ Video: "time=00:01:30" (timestamp for frame extraction), "fps=30" (frame rate)
               ▪ Image: "scale=800:600" (resize dimensions), "rotate=90" (rotation angle)
@@ -129,11 +127,10 @@ object SystemPromptConfig {
           • Precise: use bounds "[left,top][right,bottom]" or find_element first
           • Fallback: use "tap x y" for coordinate-based clicks
     """.trimIndent()
-    
-    /**
-     * Planning mode prompt section that will be inserted when planning feature is enabled
-     */
-    val PLANNING_MODE_PROMPT = """
+
+    /** Planning mode prompt section that will be inserted when planning feature is enabled */
+    val PLANNING_MODE_PROMPT =
+            """
         PLANNING MODE GUIDELINES
         Use plan items to track and manage complex multi-step tasks:
         
@@ -158,53 +155,59 @@ object SystemPromptConfig {
         
         Update plan item status after each tool execution. Plan updates are displayed to users in a collapsible section.
     """.trimIndent()
-    
+
     /**
      * Generates the system prompt with dynamic package information and planning mode if enabled
-     * 
+     *
      * @param packageManager The PackageManager instance to get package information from
      * @param enablePlanning Whether planning mode is enabled
      * @return The complete system prompt with package information and planning details if enabled
      */
     fun getSystemPrompt(packageManager: PackageManager, enablePlanning: Boolean = false): String {
         val importedPackages = packageManager.getImportedPackages()
-        
+
         // Build the available packages section
         val packagesSection = StringBuilder()
-        
+
         // List available packages without details
         if (importedPackages.isNotEmpty()) {
             packagesSection.appendLine("Available packages:")
             for (packageName in importedPackages) {
-                packagesSection.appendLine("- $packageName : ${packageManager.getPackageTools(packageName)?.description}")
+                packagesSection.appendLine(
+                        "- $packageName : ${packageManager.getPackageTools(packageName)?.description}"
+                )
             }
         } else {
             packagesSection.appendLine("No packages are currently available.")
         }
-        
+
         // Information about using packages
         packagesSection.appendLine()
         packagesSection.appendLine("To use a package:")
-        packagesSection.appendLine("<tool name=\"use_package\"><param name=\"package_name\">package_name_here</param></tool>")
-        
+        packagesSection.appendLine(
+                "<tool name=\"use_package\"><param name=\"package_name\">package_name_here</param></tool>"
+        )
+
         // Build prompt with appropriate sections
-        var prompt = SYSTEM_PROMPT_TEMPLATE
-            .replace("ACTIVE_PACKAGES_SECTION", packagesSection.toString())
-        
+        var prompt =
+                SYSTEM_PROMPT_TEMPLATE.replace(
+                        "ACTIVE_PACKAGES_SECTION",
+                        packagesSection.toString()
+                )
+
         // Add planning mode section if enabled
-        prompt = if (enablePlanning) {
-            prompt.replace("PLANNING_MODE_SECTION", PLANNING_MODE_PROMPT)
-        } else {
-            prompt.replace("PLANNING_MODE_SECTION", "")
-        }
-        
+        prompt =
+                if (enablePlanning) {
+                    prompt.replace("PLANNING_MODE_SECTION", PLANNING_MODE_PROMPT)
+                } else {
+                    prompt.replace("PLANNING_MODE_SECTION", "")
+                }
+
         return prompt
     }
-    
-    /**
-     * Original method for backward compatibility
-     */
+
+    /** Original method for backward compatibility */
     fun getSystemPrompt(packageManager: PackageManager): String {
         return getSystemPrompt(packageManager, false)
     }
-} 
+}

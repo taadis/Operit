@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.features.terminal.model
+package com.ai.assistance.operit.ui.features.toolbox.screens.terminal.model
 
 // Updated to use streaming commands exclusively
 import android.content.Context
@@ -84,15 +84,17 @@ class TerminalSession(
                     return@launch
                 }
                 command.trim() == "help" -> {
-                    outputFlow.emit(TerminalLine.Output(
-                        "Available commands:\n" +
-                        "  help - Display this help information\n" +
-                        "  clear - Clear the terminal\n" +
-                        "  cd [directory] - Change directory\n" +
-                        "  su [user] - Switch user\n" +
-                        "  pwd - Display current working directory\n" +
-                        "  exit - Close this terminal session"
-                    ))
+                    outputFlow.emit(
+                        TerminalLine.Output(
+                            "Available commands:\n" +
+                                "  help - Display this help information\n" +
+                                "  clear - Clear the terminal\n" +
+                                "  cd [directory] - Change directory\n" +
+                                "  su [user] - Switch user\n" +
+                                "  pwd - Display current working directory\n" +
+                                "  exit - Close this terminal session"
+                        )
+                    )
                     return@launch
                 }
                 command.trim().startsWith("cd ") -> {

@@ -42,9 +42,10 @@ import com.ai.assistance.operit.ui.features.settings.screens.SettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ToolPermissionSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.UserPreferencesGuideScreen
 import com.ai.assistance.operit.ui.features.settings.screens.UserPreferencesSettingsScreen
-import com.ai.assistance.operit.ui.features.terminal.screens.TerminalScreen
+import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.screens.TerminalScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.FileManagerToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.FormatConverterToolScreen
+import com.ai.assistance.operit.ui.features.toolbox.screens.TerminalToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.ToolboxScreen
 import com.ai.assistance.operit.util.NetworkUtils
 import kotlinx.coroutines.delay
@@ -66,6 +67,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
     // 工具箱相关状态
     var isFormatConverterScreen by remember { mutableStateOf(false) }
     var isFileManagerScreen by remember { mutableStateOf(false) }
+    var isTerminalToolScreen by remember { mutableStateOf(false) }
 
     var isLoading by remember { mutableStateOf(false) }
 
@@ -77,7 +79,6 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                     NavItem.Settings,
                     NavItem.Packages,
                     NavItem.ProblemLibrary,
-                    NavItem.Terminal,
                     NavItem.About
             )
     val context = LocalContext.current
@@ -228,6 +229,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                                     )
                                             isFormatConverterScreen -> "万能格式转换"
                                             isFileManagerScreen -> "文件管理器"
+                                            isTerminalToolScreen -> "命令终端"
                                             else -> stringResource(id = selectedItem.titleResId)
                                         },
                                         fontWeight = FontWeight.SemiBold,
@@ -242,6 +244,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                                 !isUserPreferencesSettingsScreen &&
                                                 !isFormatConverterScreen &&
                                                 !isFileManagerScreen &&
+                                                !isTerminalToolScreen &&
                                                 currentChatTitle.isNotBlank()
                                 ) {
                                     Text(
@@ -278,8 +281,12 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                                 isFormatConverterScreen = false
                                             }
                                             isFileManagerScreen -> {
-                                                // 如果在文件管理器页面，点击返回按钮返回到工具箱页面
+                                                // 如果在文件管理器工具页面，点击返回按钮返回到工具箱页面
                                                 isFileManagerScreen = false
+                                            }
+                                            isTerminalToolScreen -> {
+                                                // 如果在终端工具页面，点击返回按钮返回到工具箱页面
+                                                isTerminalToolScreen = false
                                             }
                                             else -> {
                                                 // 否则打开导航抽屉
@@ -293,7 +300,8 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                                         isUserPreferencesGuideScreen ||
                                                         isUserPreferencesSettingsScreen ||
                                                         isFormatConverterScreen ||
-                                                        isFileManagerScreen
+                                                        isFileManagerScreen ||
+                                                        isTerminalToolScreen
                                         )
                                                 Icons.Default.ArrowBack
                                         else Icons.Default.Menu,
@@ -311,7 +319,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                                             stringResource(
                                                                     id = R.string.nav_settings
                                                             )
-                                                    isFormatConverterScreen || isFileManagerScreen ->
+                                                    isFormatConverterScreen || isFileManagerScreen || isTerminalToolScreen ->
                                                             "返回工具箱"
                                                     else -> stringResource(id = R.string.menu)
                                                 },
@@ -387,6 +395,9 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                             } else if (isFileManagerScreen) {
                                 // 文件管理器屏幕
                                 FileManagerToolScreen(navController = navController)
+                            } else if (isTerminalToolScreen) {
+                                // 终端工具屏幕
+                                TerminalToolScreen(navController = navController)
                             } else {
                                 // 主导航页面
                                 when (selectedItem) {
@@ -397,7 +408,8 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                         ToolboxScreen(
                                             navController = navController,
                                             onFormatConverterSelected = { isFormatConverterScreen = true },
-                                            onFileManagerSelected = { isFileManagerScreen = true }
+                                            onFileManagerSelected = { isFileManagerScreen = true },
+                                            onTerminalSelected = { isTerminalToolScreen = true }
                                         )
                                     }
                                     NavItem.Settings ->
@@ -430,8 +442,9 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                     }
                                     NavItem.About -> AboutScreen()
                                     NavItem.Terminal -> {
-                                        // 显示终端屏幕
-                                        TerminalScreen()
+                                        // 转到工具箱中的终端工具
+                                        selectedItem = NavItem.Toolbox
+                                        isTerminalToolScreen = true
                                     }
                                     else -> {
                                         // 处理其他情况

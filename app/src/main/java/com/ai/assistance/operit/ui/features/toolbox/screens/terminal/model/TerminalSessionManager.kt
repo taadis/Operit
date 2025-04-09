@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.features.terminal.model
+package com.ai.assistance.operit.ui.features.toolbox.screens.terminal.model
 
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf

@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.features.terminal.screens
+package com.ai.assistance.operit.ui.features.toolbox.screens.terminal.screens
 
 import android.util.Log
 import androidx.compose.animation.core.animateFloatAsState
@@ -30,11 +30,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.assistance.operit.tools.system.TermuxCommandExecutor
-import com.ai.assistance.operit.ui.features.terminal.model.TerminalSessionManager
+import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.model.TerminalSessionManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.ai.assistance.operit.ui.features.terminal.components.*
-import com.ai.assistance.operit.ui.features.terminal.utils.TerminalColors
+import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.utils.TerminalColors
+import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.components.CommandInputArea
+import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.components.CommandOutputDisplay
+import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.components.FontSizeController
+import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.components.InteractiveInputDialog
+import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.model.TerminalLine
 
 private const val TAG = "TerminalScreen"
 private const val DEFAULT_FONT_SIZE = 14 // 默认字体大小
@@ -130,11 +135,11 @@ fun TerminalScreen() {
                         
                         if (success) {
                             sessionManager.getActiveSession()?.let { session ->
-                                session.commandHistory.add(com.ai.assistance.operit.ui.features.terminal.model.TerminalLine.Input(input, "User Input: "))
+                                session.commandHistory.add(TerminalLine.Input(input, "User Input: "))
                             }
                         } else {
                             sessionManager.getActiveSession()?.let { session ->
-                                session.commandHistory.add(com.ai.assistance.operit.ui.features.terminal.model.TerminalLine.Output("[输入发送失败]"))
+                                session.commandHistory.add(TerminalLine.Output("[输入发送失败]"))
                             }
                         }
                     } catch (e: Exception) {

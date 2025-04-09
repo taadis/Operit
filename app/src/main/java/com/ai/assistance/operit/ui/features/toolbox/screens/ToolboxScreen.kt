@@ -15,6 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.ai.assistance.operit.ui.features.toolbox.screens.filemanager.FileManagerScreen
+import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.screens.TerminalScreen
 
 data class Tool(
     val name: String,
@@ -29,7 +30,8 @@ data class Tool(
 fun ToolboxScreen(
     navController: NavController,
     onFormatConverterSelected: () -> Unit,
-    onFileManagerSelected: () -> Unit
+    onFileManagerSelected: () -> Unit,
+    onTerminalSelected: () -> Unit
 ) {
     val tools = listOf(
         Tool(
@@ -43,6 +45,12 @@ fun ToolboxScreen(
             icon = Icons.Default.Folder,
             description = "浏览和管理设备文件",
             onClick = onFileManagerSelected
+        ),
+        Tool(
+            name = "命令终端",
+            icon = Icons.Default.Terminal,
+            description = "工具箱内置的命令行终端",
+            onClick = onTerminalSelected
         )
     )
 
@@ -51,13 +59,6 @@ fun ToolboxScreen(
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        Text(
-            text = "工具箱",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -89,6 +90,17 @@ fun FileManagerToolScreen(navController: NavController) {
     Scaffold() { paddingValues ->
         Box(modifier = Modifier.padding(paddingValues)) {
             FileManagerScreen(navController = navController)
+        }
+    }
+}
+
+/** 显示终端工具屏幕 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TerminalToolScreen(navController: NavController) {
+    Scaffold() { paddingValues ->
+        Box(modifier = Modifier.padding(paddingValues)) {
+            TerminalScreen()
         }
     }
 }

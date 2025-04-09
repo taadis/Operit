@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.features.terminal.components
+package com.ai.assistance.operit.ui.features.toolbox.screens.terminal.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -20,7 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.ai.assistance.operit.ui.features.terminal.utils.TerminalColors
+import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.utils.TerminalColors
 
 /**
  * 字体大小控制器组件

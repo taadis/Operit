@@ -11,7 +11,7 @@ android {
 
     defaultConfig {
         applicationId = "com.ai.assistance.operit"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
@@ -35,6 +35,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
+        isCoreLibraryDesugaringEnabled = true
     }
     kotlinOptions {
         jvmTarget = "1.8"
@@ -52,10 +53,32 @@ android {
             excludes += "LICENSE-EPL-1.0.txt"
             excludes += "/META-INF/LICENSE-EDL-1.0.txt"
             excludes += "LICENSE-EDL-1.0.txt"
+            
+            // Resolve merge conflicts for document libraries
+            excludes += "/META-INF/DEPENDENCIES"
+            excludes += "/META-INF/LICENSE"
+            excludes += "/META-INF/LICENSE.txt"
+            excludes += "/META-INF/license.txt"
+            excludes += "/META-INF/NOTICE"
+            excludes += "/META-INF/NOTICE.txt"
+            excludes += "/META-INF/notice.txt"
+            excludes += "/META-INF/ASL2.0"
+            excludes += "/META-INF/*.SF"
+            excludes += "/META-INF/*.DSA"
+            excludes += "/META-INF/*.RSA"
+            excludes += "/META-INF/*.kotlin_module"
+            excludes += "META-INF/versions/9/module-info.class"
         }
     }
 }
 dependencies {
+    // Desugaring support for modern Java APIs on older Android
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+    
+    // Document conversion libraries
+    implementation("com.itextpdf:itextpdf:5.5.13.3") // iText for PDF creation
+    implementation("org.apache.pdfbox:pdfbox:2.0.27") // PDFBox for PDF operations
+    
     // Base Android dependencies
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
@@ -126,4 +149,9 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.compose.bom))
+
+    // Apache POI - for Document processing (DOC, DOCX, etc.)
+    implementation("org.apache.poi:poi:5.2.3")
+    implementation("org.apache.poi:poi-ooxml:5.2.3")
+    implementation("org.apache.poi:poi-scratchpad:5.2.3")
 }

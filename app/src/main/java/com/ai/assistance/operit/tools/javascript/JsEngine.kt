@@ -9,67 +9,66 @@ import androidx.core.content.ContextCompat
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolParameter
 import com.ai.assistance.operit.tools.*
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import org.json.JSONObject
-import java.util.concurrent.CompletableFuture
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 
 /**
- * JavaScript 引擎 - 通过 WebView 执行 JavaScript 脚本
- * 提供与 Android 原生代码的交互机制
- * 
+ * JavaScript 引擎 - 通过 WebView 执行 JavaScript 脚本 提供与 Android 原生代码的交互机制
+ *
  * 主要功能：
  * 1. 执行 JavaScript 脚本
  * 2. 为脚本提供工具调用能力
  * 3. 集成常用的第三方 JavaScript 库
- * 
+ *
  * 工具调用使用方式:
  * - 标准模式: toolCall("toolType", "toolName", { param1: "value1" })
  * - 简化模式: toolCall("toolName", { param1: "value1" })
  * - 对象模式: toolCall({ type: "toolType", name: "toolName", params: { param1: "value1" } })
  * - 直接模式: toolCall("toolName")
- * 
+ *
  * 便捷工具调用:
  * - 文件操作: Tools.Files.read("/path/to/file")
  * - 网络操作: Tools.Net.httpGet("https://example.com")
  * - 系统操作: Tools.System.sleep("1")
  * - 计算功能: Tools.calc("2 + 2 * 3")
- * 
+ *
  * 完成脚本执行:
  * - complete(result) 函数传递最终结果返回给调用者
  */
 class JsEngine(private val context: Context) {
     companion object {
         private const val TAG = "JsEngine"
-        private const val TIMEOUT_SECONDS = 60L  // 增加超时时间到60秒
-        private const val PRE_TIMEOUT_SECONDS = 55L  // 提前5秒触发JavaScript端的超时保护
+        private const val TIMEOUT_SECONDS = 60L // 增加超时时间到60秒
+        private const val PRE_TIMEOUT_SECONDS = 55L // 提前5秒触发JavaScript端的超时保护
     }
-    
+
     // WebView 实例用于执行 JavaScript
     private var webView: WebView? = null
-    
+
     // 工具处理器
     private val toolHandler = AIToolHandler.getInstance(context)
-    
+
     // 工具调用接口
     private val toolCallInterface = JsToolCallInterface()
-    
+
     // 结果回调
     private var resultCallback: CompletableFuture<Any?>? = null
-    
+
     // 用于生成唯一ID的计数器
     private var callbackCounter = 0
-    
+
     // 用于存储工具调用的回调
     private val toolCallbacks = mutableMapOf<String, CompletableFuture<String>>()
-    
+
     // 标记 JS 环境是否已初始化
     private var jsEnvironmentInitialized = false
-    
+
     // 初始化 WebView
     private fun initWebView() {
         if (webView == null) {
@@ -77,11 +76,12 @@ class JsEngine(private val context: Context) {
             val latch = CountDownLatch(1)
             ContextCompat.getMainExecutor(context).execute {
                 try {
-                    webView = WebView(context).apply {
-                        settings.javaScriptEnabled = true
-                        settings.domStorageEnabled = true
-                        addJavascriptInterface(toolCallInterface, "NativeInterface")
-                    }
+                    webView =
+                            WebView(context).apply {
+                                settings.javaScriptEnabled = true
+                                settings.domStorageEnabled = true
+                                addJavascriptInterface(toolCallInterface, "NativeInterface")
+                            }
                     latch.countDown()
                 } catch (e: Exception) {
                     Log.e(TAG, "Error initializing WebView: ${e.message}", e)
@@ -92,17 +92,14 @@ class JsEngine(private val context: Context) {
         }
     }
 
-    /**
-     * 初始化 JavaScript 环境
-     * 加载核心功能、工具库和辅助函数
-     * 这些代码只需要执行一次
-     */
+    /** 初始化 JavaScript 环境 加载核心功能、工具库和辅助函数 这些代码只需要执行一次 */
     private fun initJavaScriptEnvironment() {
         if (jsEnvironmentInitialized) {
-            return  // 如果已经初始化，直接返回
+            return // 如果已经初始化，直接返回
         }
-        
-        val initScript = """
+
+        val initScript =
+                """
             // 添加全局错误处理器，捕获所有未处理的错误
             window.onerror = function(message, source, lineno, colno, error) {
                 try {
@@ -335,7 +332,6 @@ class JsEngine(private val context: Context) {
                     open: (path) => toolCall("open_file", { path }),
                     share: (path) => toolCall("share_file", { path }),
                     download: (url, destination) => toolCall("download_file", { url, destination }),
-                    // 文件格式转换功能
                     convert: (sourcePath, targetPath, options = {}) => {
                         const params = {
                             source_path: sourcePath,
@@ -588,7 +584,7 @@ class JsEngine(private val context: Context) {
                 return false; // Not a promise
             }
         """.trimIndent()
-        
+
         // 在 WebView 中执行初始化脚本
         ContextCompat.getMainExecutor(context).execute {
             try {
@@ -600,7 +596,7 @@ class JsEngine(private val context: Context) {
                 Log.e(TAG, "Failed to initialize JS environment: ${e.message}", e)
             }
         }
-        
+
         // 等待初始化完成
         var retries = 0
         while (!jsEnvironmentInitialized && retries < 10) {
@@ -616,25 +612,30 @@ class JsEngine(private val context: Context) {
      * @param params 要传递给函数的参数
      * @return 函数执行结果
      */
-    fun executeScriptFunction(script: String, functionName: String, params: Map<String, String>): Any? {
+    fun executeScriptFunction(
+            script: String,
+            functionName: String,
+            params: Map<String, String>
+    ): Any? {
         // Reset any previous state
         resetState()
-        
+
         initWebView()
-        
+
         // 确保JavaScript环境已初始化
         if (!jsEnvironmentInitialized) {
             initJavaScriptEnvironment()
         }
-        
+
         val future = CompletableFuture<Any?>()
         resultCallback = future
-        
+
         // 将参数转换为 JSON 对象
         val paramsJson = JSONObject(params).toString()
-        
+
         // 优化后的脚本执行代码，只包含必要的执行逻辑
-        val executionScript = """
+        val executionScript =
+                """
             // 清理定时器以准备新的执行
             (function() {
                 try {
@@ -771,41 +772,47 @@ class JsEngine(private val context: Context) {
                 NativeInterface.setError("Script error: " + error.message);
             }
         """.trimIndent()
-        
+
         // 在主线程中执行脚本
         ContextCompat.getMainExecutor(context).execute {
             webView?.evaluateJavascript(executionScript) { result ->
                 Log.d(TAG, "Script function execution completed with: $result")
             }
         }
-        
+
         // 等待结果或超时
         return try {
             // 创建一个定时器，在超时前提醒JavaScript
             val preTimeoutTimer = java.util.Timer()
-            
+
             // 只在较长的脚本执行中使用超时预警
-            preTimeoutTimer.schedule(object : java.util.TimerTask() {
-                override fun run() {
-                    try {
-                        // 如果还没完成，尝试提前触发完成
-                        if (!future.isDone) {
-                            Log.d(TAG, "Pre-timeout warning triggered")
-                            ContextCompat.getMainExecutor(context).execute {
-                                webView?.evaluateJavascript("""
+            preTimeoutTimer.schedule(
+                    object : java.util.TimerTask() {
+                        override fun run() {
+                            try {
+                                // 如果还没完成，尝试提前触发完成
+                                if (!future.isDone) {
+                                    Log.d(TAG, "Pre-timeout warning triggered")
+                                    ContextCompat.getMainExecutor(context).execute {
+                                        webView?.evaluateJavascript(
+                                                """
                                     if (typeof complete === 'function' && !window._hasCompleted) {
                                         console.log("Script execution approaching timeout");
                                         // 不强制完成，只记录警告
                                     }
-                                """, null)
+                                """,
+                                                null
+                                        )
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error in pre-timeout handler: ${e.message}", e)
                             }
                         }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error in pre-timeout handler: ${e.message}", e)
-                    }
-                }
-            }, PRE_TIMEOUT_SECONDS * 1000)
-            
+                    },
+                    PRE_TIMEOUT_SECONDS * 1000
+            )
+
             try {
                 val result = future.get(TIMEOUT_SECONDS, TimeUnit.SECONDS)
                 preTimeoutTimer.cancel()
@@ -818,15 +825,16 @@ class JsEngine(private val context: Context) {
             Log.e(TAG, "Script execution timed out or failed: ${e.message}", e)
             // 确保WebView的JavaScript不再继续执行
             ContextCompat.getMainExecutor(context).execute {
-                webView?.evaluateJavascript("window._hasCompleted = true; clearTimeout(window._safetyTimeout);", null)
+                webView?.evaluateJavascript(
+                        "window._hasCompleted = true; clearTimeout(window._safetyTimeout);",
+                        null
+                )
             }
             "Error: ${e.message}"
         }
     }
-    
-    /**
-     * 重置引擎状态，避免多次调用时的状态干扰
-     */
+
+    /** 重置引擎状态，避免多次调用时的状态干扰 */
     private fun resetState() {
         // 只有当之前的回调存在时才需要完成它
         if (resultCallback != null && !resultCallback!!.isDone) {
@@ -837,7 +845,7 @@ class JsEngine(private val context: Context) {
             }
             resultCallback = null
         }
-        
+
         // 清理所有待处理的工具调用回调
         toolCallbacks.forEach { (_, future) ->
             if (!future.isDone) {
@@ -845,13 +853,14 @@ class JsEngine(private val context: Context) {
             }
         }
         toolCallbacks.clear()
-        
+
         // 如果WebView已经存在，执行轻量级清理
         if (webView != null) {
             ContextCompat.getMainExecutor(context).execute {
                 try {
                     // 使用更简单、更安全的清理代码
-                    webView?.evaluateJavascript("""
+                    webView?.evaluateJavascript(
+                            """
                         // 清理所有定时器
                         (function() {
                             var highestTimeoutId = setTimeout(";");
@@ -860,18 +869,17 @@ class JsEngine(private val context: Context) {
                                 clearInterval(i);
                             }
                         })();
-                    """, null)
+                    """,
+                            null
+                    )
                 } catch (e: Exception) {
                     Log.e(TAG, "Error in WebView cleanup: ${e.message}", e)
                 }
             }
         }
     }
-    
-    /**
-     * 加载 UINode.js 文件
-     * 从 assets 目录读取并返回 JS 代码
-     */
+
+    /** 加载 UINode.js 文件 从 assets 目录读取并返回 JS 代码 */
     private fun loadUINodeJs(): String {
         return try {
             val inputStream = context.assets.open("js/UINode.js")
@@ -886,12 +894,10 @@ class JsEngine(private val context: Context) {
             ""
         }
     }
-    
-    /**
-     * 加载常用的第三方 JavaScript 库
-     * 可以根据需要添加更多库
-     */
-    private val THIRD_PARTY_LIBS = """
+
+    /** 加载常用的第三方 JavaScript 库 可以根据需要添加更多库 */
+    private val THIRD_PARTY_LIBS =
+            """
         // Lodash 核心功能
         // 轻量级版本，包含最常用的工具函数
         var _ = (function() {
@@ -978,16 +984,12 @@ class JsEngine(private val context: Context) {
             }
         };
     """.trimIndent()
-    
-    /**
-     * JavaScript 接口，提供 Native 调用方法
-     */
+
+    /** JavaScript 接口，提供 Native 调用方法 */
     @Keep
     inner class JsToolCallInterface {
-        
-        /**
-         * 同步工具调用（旧版本，保留兼容性）
-         */
+
+        /** 同步工具调用（旧版本，保留兼容性） */
         @JavascriptInterface
         fun callTool(toolType: String, toolName: String, paramsJson: String): String {
             try {
@@ -997,101 +999,108 @@ class JsEngine(private val context: Context) {
                 jsonObject.keys().forEach { key ->
                     params[key] = jsonObject.opt(key)?.toString() ?: ""
                 }
-                
+
                 // 调用工具
                 Log.d(TAG, "[Sync] JavaScript tool call: $toolType:$toolName with params: $params")
-                
+
                 // 参数验证
                 if (toolName.isEmpty()) {
                     Log.e(TAG, "Tool name cannot be empty")
                     return "Error: Tool name cannot be empty"
                 }
-                
+
                 // 构建工具参数
-                val toolParameters = params.map { (name, value) ->
-                    ToolParameter(name = name, value = value)
-                }
-                
+                val toolParameters =
+                        params.map { (name, value) -> ToolParameter(name = name, value = value) }
+
                 // 构建完整工具名称 (如果有类型则使用类型:名称格式，否则直接使用名称)
-                val fullToolName = if (toolType.isNotEmpty() && toolType != "default") {
-                    "$toolType:$toolName"
-                } else {
-                    toolName
-                }
-                
+                val fullToolName =
+                        if (toolType.isNotEmpty() && toolType != "default") {
+                            "$toolType:$toolName"
+                        } else {
+                            toolName
+                        }
+
                 // 创建工具调用对象
-                val aiTool = AITool(
-                    name = fullToolName,
-                    parameters = toolParameters
-                )
-                
+                val aiTool = AITool(name = fullToolName, parameters = toolParameters)
+
                 Log.d(TAG, "Executing tool (sync): $fullToolName")
-                
+
                 // 使用 AIToolHandler 执行工具
                 val result = toolHandler.executeTool(aiTool)
-                
+
                 // 记录执行结果
                 if (result.success) {
                     val resultString = result.result.toString()
-                    Log.d(TAG, "[Sync] Tool execution succeeded: ${resultString.take(10000)}${if (resultString.length > 10000) "..." else ""}")
+                    Log.d(
+                            TAG,
+                            "[Sync] Tool execution succeeded: ${resultString.take(10000)}${if (resultString.length > 10000) "..." else ""}"
+                    )
                 } else {
                     Log.e(TAG, "[Sync] Tool execution failed: ${result.error}")
                 }
-                
+
                 // 返回结果
                 return if (result.success) {
                     // Convert tool result to JSON for proper handling of structured data
-                    val resultJson = Json.encodeToString(
-                        JsonElement.serializer(),
-                        buildJsonObject {
-                            put("success", JsonPrimitive(true))
-                            
-                            // Handle different result data types
-                            when (val resultData = result.result) {
-                                is StringResultData -> put("data", JsonPrimitive(resultData.value))
-                                is BooleanResultData -> put("data", JsonPrimitive(resultData.value))
-                                is IntResultData -> put("data", JsonPrimitive(resultData.value))
-                                else -> {
-                                    // 使用 toJson 方法获取 JSON 字符串
-                                    val jsonString = resultData.toJson()
-                                    // 确保获取的是有效的 JSON
-                                    try {
-                                        put("data", Json.parseToJsonElement(jsonString))
-                                    } catch (e: Exception) {
-                                        put("data", JsonPrimitive(jsonString))
+                    val resultJson =
+                            Json.encodeToString(
+                                    JsonElement.serializer(),
+                                    buildJsonObject {
+                                        put("success", JsonPrimitive(true))
+
+                                        // Handle different result data types
+                                        when (val resultData = result.result) {
+                                            is StringResultData ->
+                                                    put("data", JsonPrimitive(resultData.value))
+                                            is BooleanResultData ->
+                                                    put("data", JsonPrimitive(resultData.value))
+                                            is IntResultData ->
+                                                    put("data", JsonPrimitive(resultData.value))
+                                            else -> {
+                                                // 使用 toJson 方法获取 JSON 字符串
+                                                val jsonString = resultData.toJson()
+                                                // 确保获取的是有效的 JSON
+                                                try {
+                                                    put("data", Json.parseToJsonElement(jsonString))
+                                                } catch (e: Exception) {
+                                                    put("data", JsonPrimitive(jsonString))
+                                                }
+                                            }
+                                        }
                                     }
-                                }
-                            }
-                        }
-                    )
+                            )
                     resultJson
                 } else {
                     // Return error as JSON
                     Json.encodeToString(
-                        JsonElement.serializer(),
-                        buildJsonObject {
-                            put("success", JsonPrimitive(false))
-                            put("error", JsonPrimitive(result.error ?: "Unknown error"))
-                        }
+                            JsonElement.serializer(),
+                            buildJsonObject {
+                                put("success", JsonPrimitive(false))
+                                put("error", JsonPrimitive(result.error ?: "Unknown error"))
+                            }
                     )
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "[Sync] Error in tool call: ${e.message}", e)
                 return Json.encodeToString(
-                    JsonElement.serializer(),
-                    buildJsonObject {
-                        put("success", JsonPrimitive(false))
-                        put("error", JsonPrimitive("Error: ${e.message}"))
-                    }
+                        JsonElement.serializer(),
+                        buildJsonObject {
+                            put("success", JsonPrimitive(false))
+                            put("error", JsonPrimitive("Error: ${e.message}"))
+                        }
                 )
             }
         }
-        
-        /**
-         * 异步工具调用（新版本，使用Promise）
-         */
+
+        /** 异步工具调用（新版本，使用Promise） */
         @JavascriptInterface
-        fun callToolAsync(callbackId: String, toolType: String, toolName: String, paramsJson: String) {
+        fun callToolAsync(
+                callbackId: String,
+                toolType: String,
+                toolName: String,
+                paramsJson: String
+        ) {
             try {
                 // 解析参数
                 val params = mutableMapOf<String, String>()
@@ -1099,166 +1108,218 @@ class JsEngine(private val context: Context) {
                 jsonObject.keys().forEach { key ->
                     params[key] = jsonObject.opt(key)?.toString() ?: ""
                 }
-                
+
                 // 调用工具
-                Log.d(TAG, "[Async] JavaScript tool call: $toolType:$toolName with params: $params, callbackId: $callbackId")
-                
+                Log.d(
+                        TAG,
+                        "[Async] JavaScript tool call: $toolType:$toolName with params: $params, callbackId: $callbackId"
+                )
+
                 // 参数验证
                 if (toolName.isEmpty()) {
                     Log.e(TAG, "Tool name cannot be empty")
-                    val errorJson = Json.encodeToString(
-                        JsonElement.serializer(),
-                        buildJsonObject {
-                            put("success", JsonPrimitive(false))
-                            put("error", JsonPrimitive("Tool name cannot be empty"))
-                        }
-                    )
+                    val errorJson =
+                            Json.encodeToString(
+                                    JsonElement.serializer(),
+                                    buildJsonObject {
+                                        put("success", JsonPrimitive(false))
+                                        put("error", JsonPrimitive("Tool name cannot be empty"))
+                                    }
+                            )
                     sendToolResult(callbackId, errorJson, true)
                     return
                 }
-                
+
                 // 构建工具参数
-                val toolParameters = params.map { (name, value) ->
-                    ToolParameter(name = name, value = value)
-                }
-                
+                val toolParameters =
+                        params.map { (name, value) -> ToolParameter(name = name, value = value) }
+
                 // 构建完整工具名称 (如果有类型则使用类型:名称格式，否则直接使用名称)
-                val fullToolName = if (toolType.isNotEmpty() && toolType != "default") {
-                    "$toolType:$toolName"
-                } else {
-                    toolName
-                }
-                
+                val fullToolName =
+                        if (toolType.isNotEmpty() && toolType != "default") {
+                            "$toolType:$toolName"
+                        } else {
+                            toolName
+                        }
+
                 // 创建工具调用对象
-                val aiTool = AITool(
-                    name = fullToolName,
-                    parameters = toolParameters
-                )
-                
+                val aiTool = AITool(name = fullToolName, parameters = toolParameters)
+
                 Log.d(TAG, "Executing tool (async): $fullToolName")
-                
+
                 // 在后台线程中执行工具调用
                 Thread {
-                    try {
-                        // 使用 AIToolHandler 执行工具
-                        val result = toolHandler.executeTool(aiTool)
-                        
-                        // 记录执行结果
-                        if (result.success) {
-                            val resultString = result.result.toString()
-                            Log.d(TAG, "[Async] Tool execution succeeded: ${resultString.take(10000)}${if (resultString.length > 10000) "..." else ""}")
-                            // 发送成功结果回调
-                            val resultJson = Json.encodeToString(
-                                JsonElement.serializer(),
-                                buildJsonObject {
-                                    put("success", JsonPrimitive(true))
-                                    
-                                    // Handle different result data types
-                                    when (val resultData = result.result) {
-                                        is StringResultData -> put("data", JsonPrimitive(resultData.value))
-                                        is BooleanResultData -> put("data", JsonPrimitive(resultData.value))
-                                        is IntResultData -> put("data", JsonPrimitive(resultData.value))
-                                        else -> {
-                                            // 使用 toJson 方法获取 JSON 字符串
-                                            val jsonString = resultData.toJson()
-                                            // 确保获取的是有效的 JSON
-                                            try {
-                                                put("data", Json.parseToJsonElement(jsonString))
-                                            } catch (e: Exception) {
-                                                put("data", JsonPrimitive(jsonString))
-                                            }
-                                        }
-                                    }
+                            try {
+                                // 使用 AIToolHandler 执行工具
+                                val result = toolHandler.executeTool(aiTool)
+
+                                // 记录执行结果
+                                if (result.success) {
+                                    val resultString = result.result.toString()
+                                    Log.d(
+                                            TAG,
+                                            "[Async] Tool execution succeeded: ${resultString.take(10000)}${if (resultString.length > 10000) "..." else ""}"
+                                    )
+                                    // 发送成功结果回调
+                                    val resultJson =
+                                            Json.encodeToString(
+                                                    JsonElement.serializer(),
+                                                    buildJsonObject {
+                                                        put("success", JsonPrimitive(true))
+
+                                                        // Handle different result data types
+                                                        when (val resultData = result.result) {
+                                                            is StringResultData ->
+                                                                    put(
+                                                                            "data",
+                                                                            JsonPrimitive(
+                                                                                    resultData.value
+                                                                            )
+                                                                    )
+                                                            is BooleanResultData ->
+                                                                    put(
+                                                                            "data",
+                                                                            JsonPrimitive(
+                                                                                    resultData.value
+                                                                            )
+                                                                    )
+                                                            is IntResultData ->
+                                                                    put(
+                                                                            "data",
+                                                                            JsonPrimitive(
+                                                                                    resultData.value
+                                                                            )
+                                                                    )
+                                                            else -> {
+                                                                // 使用 toJson 方法获取 JSON 字符串
+                                                                val jsonString = resultData.toJson()
+                                                                // 确保获取的是有效的 JSON
+                                                                try {
+                                                                    put(
+                                                                            "data",
+                                                                            Json.parseToJsonElement(
+                                                                                    jsonString
+                                                                            )
+                                                                    )
+                                                                } catch (e: Exception) {
+                                                                    put(
+                                                                            "data",
+                                                                            JsonPrimitive(
+                                                                                    jsonString
+                                                                            )
+                                                                    )
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                            )
+                                    sendToolResult(callbackId, resultJson, false)
+                                } else {
+                                    Log.e(TAG, "[Async] Tool execution failed: ${result.error}")
+                                    // 发送错误结果回调
+                                    val errorJson =
+                                            Json.encodeToString(
+                                                    JsonElement.serializer(),
+                                                    buildJsonObject {
+                                                        put("success", JsonPrimitive(false))
+                                                        put(
+                                                                "error",
+                                                                JsonPrimitive(
+                                                                        result.error
+                                                                                ?: "Unknown error"
+                                                                )
+                                                        )
+                                                    }
+                                            )
+                                    sendToolResult(callbackId, errorJson, true)
                                 }
-                            )
-                            sendToolResult(callbackId, resultJson, false)
-                        } else {
-                            Log.e(TAG, "[Async] Tool execution failed: ${result.error}")
-                            // 发送错误结果回调
-                            val errorJson = Json.encodeToString(
+                            } catch (e: Exception) {
+                                Log.e(TAG, "[Async] Error in async tool execution: ${e.message}", e)
+                                // 发送异常结果回调
+                                val errorJson =
+                                        Json.encodeToString(
+                                                JsonElement.serializer(),
+                                                buildJsonObject {
+                                                    put("success", JsonPrimitive(false))
+                                                    put(
+                                                            "error",
+                                                            JsonPrimitive("Error: ${e.message}")
+                                                    )
+                                                }
+                                        )
+                                sendToolResult(callbackId, errorJson, true)
+                            }
+                        }
+                        .start()
+            } catch (e: Exception) {
+                Log.e(TAG, "[Async] Error setting up async tool call: ${e.message}", e)
+                val errorJson =
+                        Json.encodeToString(
                                 JsonElement.serializer(),
                                 buildJsonObject {
                                     put("success", JsonPrimitive(false))
-                                    put("error", JsonPrimitive(result.error ?: "Unknown error"))
+                                    put("error", JsonPrimitive("Error: ${e.message}"))
                                 }
-                            )
-                            sendToolResult(callbackId, errorJson, true)
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "[Async] Error in async tool execution: ${e.message}", e)
-                        // 发送异常结果回调
-                        val errorJson = Json.encodeToString(
-                            JsonElement.serializer(),
-                            buildJsonObject {
-                                put("success", JsonPrimitive(false))
-                                put("error", JsonPrimitive("Error: ${e.message}"))
-                            }
                         )
-                        sendToolResult(callbackId, errorJson, true)
-                    }
-                }.start()
-            } catch (e: Exception) {
-                Log.e(TAG, "[Async] Error setting up async tool call: ${e.message}", e)
-                val errorJson = Json.encodeToString(
-                    JsonElement.serializer(),
-                    buildJsonObject {
-                        put("success", JsonPrimitive(false))
-                        put("error", JsonPrimitive("Error: ${e.message}"))
-                    }
-                )
                 sendToolResult(callbackId, errorJson, true)
             }
         }
-        
-        /**
-         * 向JavaScript发送工具调用结果
-         */
+
+        /** 向JavaScript发送工具调用结果 */
         private fun sendToolResult(callbackId: String, result: String, isError: Boolean) {
             ContextCompat.getMainExecutor(context).execute {
                 try {
                     // If the result is already a JSON string, don't escape it further
-                    val jsCode = if (result.trim().startsWith("{") || result.trim().startsWith("[")) {
-                        """
+                    val jsCode =
+                            if (result.trim().startsWith("{") || result.trim().startsWith("[")) {
+                                """
                             if (typeof window['$callbackId'] === 'function') {
                                 window['$callbackId'](${result}, $isError);
                             } else {
                                 console.error("Callback not found: $callbackId");
                             }
                         """.trimIndent()
-                    } else {
-                        val escapedResult = result.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r")
-                        """
+                            } else {
+                                val escapedResult =
+                                        result.replace("\\", "\\\\")
+                                                .replace("\"", "\\\"")
+                                                .replace("\n", "\\n")
+                                                .replace("\r", "\\r")
+                                """
                             if (typeof window['$callbackId'] === 'function') {
                                 window['$callbackId']("$escapedResult", $isError);
                             } else {
                                 console.error("Callback not found: $callbackId");
                             }
                         """.trimIndent()
-                    }
+                            }
                     webView?.evaluateJavascript(jsCode, null)
                 } catch (e: Exception) {
                     Log.e(TAG, "Error sending tool result to JavaScript: ${e.message}", e)
                 }
             }
         }
-        
+
         @JavascriptInterface
         fun setResult(result: String) {
             try {
                 // 加入更详细的日志，帮助排查异步问题
-                Log.d(TAG, "Setting result from JavaScript: length=${result.length}, callback=${resultCallback != null}, isDone=${resultCallback?.isDone}")
-                
+                Log.d(
+                        TAG,
+                        "Setting result from JavaScript: length=${result.length}, callback=${resultCallback != null}, isDone=${resultCallback?.isDone}"
+                )
+
                 // 确保回调仍然有效
                 if (resultCallback == null) {
                     Log.e(TAG, "Result callback is null when trying to complete")
                     return
                 }
-                
+
                 if (resultCallback!!.isDone) {
                     Log.w(TAG, "Result callback is already completed when trying to set result")
                     return
                 }
-                
+
                 // 使用主线程执行complete操作，避免可能的线程问题
                 ContextCompat.getMainExecutor(context).execute {
                     try {
@@ -1281,24 +1342,27 @@ class JsEngine(private val context: Context) {
                 resultCallback?.completeExceptionally(e)
             }
         }
-        
+
         @JavascriptInterface
         fun setError(error: String) {
             try {
                 // 加入更详细的日志
-                Log.d(TAG, "Setting error from JavaScript: $error, callback=${resultCallback != null}, isDone=${resultCallback?.isDone}")
-                
+                Log.d(
+                        TAG,
+                        "Setting error from JavaScript: $error, callback=${resultCallback != null}, isDone=${resultCallback?.isDone}"
+                )
+
                 // 确保回调仍然有效
                 if (resultCallback == null) {
                     Log.e(TAG, "Result callback is null when trying to complete with error")
                     return
                 }
-                
+
                 if (resultCallback!!.isDone) {
                     Log.w(TAG, "Result callback is already completed when trying to set error")
                     return
                 }
-                
+
                 // 使用主线程执行complete操作
                 ContextCompat.getMainExecutor(context).execute {
                     // 返回错误结果
@@ -1311,37 +1375,43 @@ class JsEngine(private val context: Context) {
                 resultCallback?.completeExceptionally(e)
             }
         }
-        
+
         @JavascriptInterface
         fun logInfo(message: String) {
             Log.i(TAG, "JS: $message")
         }
-        
+
         @JavascriptInterface
         fun logError(message: String) {
             Log.e(TAG, "JS ERROR: $message")
         }
-        
+
         @JavascriptInterface
         fun logDebug(message: String, data: String) {
             Log.d(TAG, "JS DEBUG: $message | $data")
         }
-        
+
         @JavascriptInterface
-        fun reportError(errorType: String, errorMessage: String, errorLine: Int, errorStack: String) {
-            Log.e(TAG, "DETAILED JS ERROR: \nType: $errorType\nMessage: $errorMessage\nLine: $errorLine\nStack: $errorStack")
+        fun reportError(
+                errorType: String,
+                errorMessage: String,
+                errorLine: Int,
+                errorStack: String
+        ) {
+            Log.e(
+                    TAG,
+                    "DETAILED JS ERROR: \nType: $errorType\nMessage: $errorMessage\nLine: $errorLine\nStack: $errorStack"
+            )
         }
     }
-    
-    /**
-     * 销毁引擎资源
-     */
+
+    /** 销毁引擎资源 */
     fun destroy() {
         try {
             // 确保任何挂起的回调被完成
             resultCallback?.complete("Engine destroyed")
             resultCallback = null
-            
+
             // 清理所有待处理的工具调用回调
             toolCallbacks.forEach { (_, future) ->
                 if (!future.isDone) {
@@ -1349,7 +1419,7 @@ class JsEngine(private val context: Context) {
                 }
             }
             toolCallbacks.clear()
-            
+
             // 在主线程中销毁 WebView
             ContextCompat.getMainExecutor(context).execute {
                 try {
@@ -1369,38 +1439,34 @@ class JsEngine(private val context: Context) {
             Log.e(TAG, "Error during JsEngine destruction: ${e.message}", e)
         }
     }
-    
-    /**
-     * 处理引擎异常
-     */
+
+    /** 处理引擎异常 */
     private fun handleException(e: Exception): String {
         Log.e(TAG, "JsEngine exception: ${e.message}", e)
-        
+
         // 尝试重置当前状态
         try {
             resetState()
         } catch (resetEx: Exception) {
             Log.e(TAG, "Failed to reset state after exception: ${resetEx.message}", resetEx)
         }
-        
+
         return "Error: ${e.message}"
     }
-    
-    /**
-     * 诊断引擎状态
-     * 用于调试目的，记录当前状态信息
-     */
+
+    /** 诊断引擎状态 用于调试目的，记录当前状态信息 */
     fun diagnose() {
         try {
             Log.d(TAG, "=== JsEngine Diagnostics ===")
             Log.d(TAG, "WebView initialized: ${webView != null}")
             Log.d(TAG, "Result callback: ${resultCallback?.isDone ?: "null"}")
             Log.d(TAG, "Tool callbacks pending: ${toolCallbacks.size}")
-            
+
             // 检查WebView状态
             if (webView != null) {
                 ContextCompat.getMainExecutor(context).execute {
-                    webView?.evaluateJavascript("""
+                    webView?.evaluateJavascript(
+                            """
                         (function() {
                             var result = {
                                 memory: (window.performance && window.performance.memory) 
@@ -1423,15 +1489,14 @@ class JsEngine(private val context: Context) {
                             
                             return JSON.stringify(result);
                         })();
-                    """) { diagResult ->
-                        Log.d(TAG, "WebView diagnostics: $diagResult")
-                    }
+                    """
+                    ) { diagResult -> Log.d(TAG, "WebView diagnostics: $diagResult") }
                 }
             }
-            
+
             Log.d(TAG, "=========================")
         } catch (e: Exception) {
             Log.e(TAG, "Error during diagnostics: ${e.message}", e)
         }
     }
-} 
+}

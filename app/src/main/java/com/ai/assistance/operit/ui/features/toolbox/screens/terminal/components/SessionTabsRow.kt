@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.features.terminal.components
+package com.ai.assistance.operit.ui.features.toolbox.screens.terminal.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -17,8 +17,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ai.assistance.operit.ui.features.terminal.model.TerminalSessionManager
-import com.ai.assistance.operit.ui.features.terminal.utils.TerminalColors
+import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.model.TerminalSessionManager
+import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.utils.TerminalColors
 
 /**
  * 会话选项卡行

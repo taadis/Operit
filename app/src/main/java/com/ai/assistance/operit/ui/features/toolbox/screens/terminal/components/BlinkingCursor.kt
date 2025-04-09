@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.features.terminal.components
+package com.ai.assistance.operit.ui.features.toolbox.screens.terminal.components
 
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Animatable
@@ -13,7 +13,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ai.assistance.operit.ui.features.terminal.utils.TerminalColors
+import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.utils.TerminalColors
 
 /**
  * 为终端提示符添加闪烁效果

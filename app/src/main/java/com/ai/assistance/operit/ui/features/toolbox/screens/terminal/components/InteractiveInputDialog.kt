@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.features.terminal.components
+package com.ai.assistance.operit.ui.features.toolbox.screens.terminal.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -20,7 +20,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.ai.assistance.operit.ui.features.terminal.utils.TerminalColors
+import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.utils.TerminalColors
 
 /**
  * 交互式输入对话框

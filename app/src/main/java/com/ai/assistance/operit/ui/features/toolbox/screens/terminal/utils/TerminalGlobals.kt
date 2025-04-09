@@ -1,6 +1,6 @@
-package com.ai.assistance.operit.ui.features.terminal.utils
+package com.ai.assistance.operit.ui.features.toolbox.screens.terminal.utils
 
-import com.ai.assistance.operit.ui.features.terminal.model.TerminalSessionManager
+import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.model.TerminalSessionManager
 
 /**
  * 全局终端工具类

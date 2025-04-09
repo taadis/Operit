@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.features.terminal.utils
+package com.ai.assistance.operit.ui.features.toolbox.screens.terminal.utils
 
 import androidx.compose.ui.graphics.Color
 

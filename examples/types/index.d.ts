@@ -162,11 +162,11 @@ interface FileConversionResultData {
     targetPath: string;
     sourceFormat: string;
     targetFormat: string;
-    conversionType: string;  // "document", "image", "audio", "video", "archive"
+    conversionType: string;  // "document", "image", "audio", "video", "archive", "extract"
     quality?: string;
     fileSize: number;
     duration: number;
-    metadata: Record<string, string>;
+    metadata: Record<string, string>; // Contains extra info like error details, password status for encrypted archives
     toString(): string;
 }
 
@@ -817,6 +817,7 @@ declare namespace Tools {
             resolution?: FFmpegResolution;
             bitrate?: FFmpegBitrate;
             extra_params?: string;
+            password?: string;
         }): Promise<FileConversionResultData>;
 
         /**

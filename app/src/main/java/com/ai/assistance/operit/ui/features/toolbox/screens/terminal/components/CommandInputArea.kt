@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.features.terminal.components
+package com.ai.assistance.operit.ui.features.toolbox.screens.terminal.components
 
 import android.content.Context
 import android.widget.Toast
@@ -31,9 +31,9 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ai.assistance.operit.ui.features.terminal.model.TerminalLine
-import com.ai.assistance.operit.ui.features.terminal.model.TerminalSession
-import com.ai.assistance.operit.ui.features.terminal.utils.TerminalColors
+import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.model.TerminalLine
+import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.model.TerminalSession
+import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.utils.TerminalColors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
