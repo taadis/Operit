@@ -70,13 +70,13 @@ fun AiMessageComposable(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(vertical = 8.dp)
     ) {
         Text(
             text = "Response",
             style = MaterialTheme.typography.labelSmall,
             color = textColor.copy(alpha = 0.7f),
-            modifier = Modifier.padding(bottom = 8.dp)
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
         )
 
         // Parse the message content to identify tool markup
@@ -160,6 +160,7 @@ fun AiMessageComposable(
                         Box(
                                 modifier =
                                         Modifier.fillMaxWidth()
+                                                .padding(horizontal = 16.dp)
                                                 .combinedClickable(
                                                         interactionSource =
                                                                 remember {
@@ -244,7 +245,8 @@ fun AiMessageComposable(
                     val finalState = toolFinalStates[toolName]
 
                     // 使用共享的ToolStatusDisplay组件
-                    ToolStatusDisplay(
+                    Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                        ToolStatusDisplay(
                             toolName = toolName,
                             isProcessing = finalState?.first ?: false,
                             isError = finalState?.third ?: false,
@@ -271,7 +273,8 @@ fun AiMessageComposable(
                                     clipboardManager.setText(AnnotatedString(result))
                                 }
                             }
-                    )
+                        )
+                    }
                 }
                 is ContentSegment.ToolExecution -> {
                     val toolName = segment.name
@@ -285,7 +288,8 @@ fun AiMessageComposable(
                         val finalState = toolFinalStates[toolName]
 
                         // 使用共享的ToolStatusDisplay组件
-                        ToolStatusDisplay(
+                        Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                            ToolStatusDisplay(
                                 toolName = toolName,
                                 isProcessing = finalState?.first ?: true,
                                 isError = finalState?.third ?: false,
@@ -306,7 +310,8 @@ fun AiMessageComposable(
                                         clipboardManager.setText(AnnotatedString(result))
                                     }
                                 }
-                        )
+                            )
+                        }
                     }
                 }
                 is ContentSegment.ToolResult -> {
@@ -328,7 +333,8 @@ fun AiMessageComposable(
                     completedTools.add(toolName)
 
                     // 使用共享的ToolStatusDisplay组件
-                    ToolStatusDisplay(
+                    Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                        ToolStatusDisplay(
                             toolName = toolName,
                             isProcessing = false,
                             isError = segment.isError,
@@ -344,7 +350,8 @@ fun AiMessageComposable(
                             onCopyResult = {
                                 clipboardManager.setText(AnnotatedString(segment.content))
                             }
-                    )
+                        )
+                    }
                 }
                 is ContentSegment.Status -> {
                     if (segment.toolName.isNotBlank()) {
@@ -360,7 +367,8 @@ fun AiMessageComposable(
                                 val finalState = toolFinalStates[toolName]
 
                                 // 使用共享的ToolStatusDisplay组件
-                                ToolStatusDisplay(
+                                Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                                    ToolStatusDisplay(
                                         toolName = toolName,
                                         isProcessing = finalState?.first ?: true,
                                         isError = finalState?.third ?: false,
@@ -384,7 +392,8 @@ fun AiMessageComposable(
                                                 )
                                             }
                                         }
-                                )
+                                    )
+                                }
                             }
                         }
                         // 如果是结果状态
@@ -406,6 +415,7 @@ fun AiMessageComposable(
                                 Card(
                                         modifier =
                                                 Modifier.fillMaxWidth()
+                                                        .padding(horizontal = 16.dp)
                                                         .padding(vertical = 4.dp),
                                         colors =
                                                 CardDefaults.cardColors(
@@ -438,6 +448,7 @@ fun AiMessageComposable(
                                 Card(
                                         modifier =
                                                 Modifier.fillMaxWidth()
+                                                        .padding(horizontal = 16.dp)
                                                         .padding(vertical = 4.dp),
                                         colors =
                                                 CardDefaults.cardColors(
@@ -470,6 +481,7 @@ fun AiMessageComposable(
                                 Card(
                                         modifier =
                                                 Modifier.fillMaxWidth()
+                                                        .padding(horizontal = 16.dp)
                                                         .padding(vertical = 4.dp)
                                                         .combinedClickable(
                                                                 interactionSource =
@@ -539,7 +551,7 @@ fun AiMessageComposable(
                         id = segment.id,
                         status = segment.status,
                         content = segment.message ?: "",
-                        isUpdate = true
+                        isUpdate = false
                     )
                 }
             }
@@ -567,7 +579,8 @@ private fun UnifiedPlanDisplay(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp),
+                        .padding(vertical = 4.dp)
+                        .padding(horizontal = 16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
@@ -743,7 +756,8 @@ private fun UnifiedPlanDisplay(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 4.dp),
+                    .padding(vertical = 4.dp)
+                    .padding(horizontal = 16.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = when (status.lowercase()) {
                         "failed" -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f)
