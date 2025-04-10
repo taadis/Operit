@@ -44,6 +44,22 @@ import java.io.InputStream
 import java.net.URL
 import java.util.concurrent.Executors
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.distinctUntilChanged
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.input.pointer.consumePositionChange
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlin.math.absoluteValue
+import kotlin.math.roundToInt
 
 // Define category strings for filtering
 object MCPCategories {
@@ -82,6 +98,7 @@ fun MCPScreen(mcpRepository: MCPRepository) {
     var selectedTabIndex by remember { mutableStateOf(0) }
     val categories = remember { MCPCategories.values }
     val isLoading by mcpRepository.isLoading.collectAsState()
+    val hasMore by mcpRepository.hasMore.collectAsState()
     val error by mcpRepository.errorMessage.collectAsState()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -206,9 +223,7 @@ fun MCPScreen(mcpRepository: MCPRepository) {
                                 IconButton(
                                         onClick = {
                                                 coroutineScope.launch {
-                                                        mcpRepository.fetchMCPServers(
-                                                                forceRefresh = true
-                                                        )
+                                                        mcpRepository.refresh()
                                                 }
                                         },
                                         modifier =
@@ -287,9 +302,7 @@ fun MCPScreen(mcpRepository: MCPRepository) {
                                 Button(
                                         onClick = {
                                                 coroutineScope.launch {
-                                                        mcpRepository.fetchMCPServers(
-                                                                forceRefresh = true
-                                                        )
+                                                        mcpRepository.refresh()
                                                 }
                                         },
                                         modifier = Modifier.padding(top = 16.dp)
@@ -303,55 +316,162 @@ fun MCPScreen(mcpRepository: MCPRepository) {
                                 textAlign = TextAlign.Center
                         )
                 } else {
-                        val state = rememberLazyListState()
-                        LazyColumn(
-                                state = state,
-                                modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(vertical = 8.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                                items(filteredServers) { server: MCPServer ->
-                                        MCPServerItem(server = server)
+                        val listState = rememberLazyListState()
+                        
+                        // Variable to track pull-to-refresh state
+                        var refreshing by remember { mutableStateOf(false) }
+                        var pullOffset by remember { mutableStateOf(0f) }
+                        val pullThreshold = 100f // Pull distance needed to trigger refresh
+                        
+                        // Check if we're at the end of the list to trigger loading more data
+                        LaunchedEffect(listState) {
+                            // Monitor list scroll position
+                            snapshotFlow {
+                                val layoutInfo = listState.layoutInfo
+                                val totalItemsCount = layoutInfo.totalItemsCount
+                                val visibleItemsInfo = layoutInfo.visibleItemsInfo
+                                
+                                if (visibleItemsInfo.isNotEmpty()) {
+                                    val lastVisibleItem = visibleItemsInfo.last()
+                                    lastVisibleItem.index >= totalItemsCount - 2 && // Load more when user is within 2 items of the end
+                                            hasMore && !isLoading
+                                } else false
+                            }.distinctUntilChanged().collect { shouldLoadMore ->
+                                if (shouldLoadMore) {
+                                    mcpRepository.fetchMCPServers()
                                 }
+                            }
                         }
-
-                        // Replace CircularProgressIndicator with a simpler loading indicator for bottom loading
-                        if (isLoading && mcpServers.isNotEmpty()) {
-                                Row(
-                                        modifier = Modifier.align(Alignment.BottomCenter)
-                                                .padding(bottom = 16.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.Center
+                        
+                        // Handle refresh completion
+                        LaunchedEffect(isLoading) {
+                            if (!isLoading && refreshing) {
+                                refreshing = false
+                                pullOffset = 0f
+                            }
+                        }
+                        
+                        Box(
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            // Custom pull-to-refresh header
+                            if (pullOffset > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height((pullOffset / 2).roundToInt().dp)
+                                        .align(Alignment.TopCenter),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                        Surface(
-                                                modifier = Modifier.size(24.dp),
-                                                shape = CircleShape,
-                                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                                    val progress = (pullOffset / pullThreshold).coerceIn(0f, 1f)
+                                    
+                                    // Show different UI based on pull progress
+                                    if (refreshing) {
+                                        // Show loading indicator when refreshing
+                                        Row(
+                                            horizontalArrangement = Arrangement.Center,
+                                            verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                                Box(
-                                                        modifier = Modifier.fillMaxSize(),
-                                                        contentAlignment = Alignment.Center
-                                                ) {
-                                                        Text(
-                                                                text = "•••",
-                                                                color = MaterialTheme.colorScheme.onPrimary,
-                                                                style = MaterialTheme.typography.labelSmall,
-                                                                fontWeight = FontWeight.Bold,
-                                                                textAlign = TextAlign.Center
-                                                        )
-                                                }
-                                        }
-                                        
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                                text = "加载更多...",
-                                                style = MaterialTheme.typography.bodySmall,
+                                            RefreshingIndicator()
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                "刷新中...",
+                                                style = MaterialTheme.typography.bodyMedium,
                                                 color = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    } else {
+                                        // Show pull progress
+                                        Text(
+                                            text = if (progress >= 1f) "释放刷新" else "下拉刷新",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.primary
                                         )
+                                    }
                                 }
+                            }
+                            
+                            LazyColumn(
+                                    state = listState,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .offset(y = pullOffset.roundToInt().dp)
+                                        .pointerInput(Unit) {
+                                            // Only allow pull gesture when at the top of the list
+                                            detectVerticalDragGestures(
+                                                onVerticalDrag = { change, dragAmount ->
+                                                    change.consumePositionChange()
+                                                    if (listState.firstVisibleItemIndex == 0 && 
+                                                        (listState.firstVisibleItemScrollOffset == 0 || pullOffset > 0)) {
+                                                        if (!refreshing) {
+                                                            // Update pull offset, ensuring it doesn't go negative
+                                                            pullOffset = (pullOffset + dragAmount).coerceAtLeast(0f)
+                                                        }
+                                                    }
+                                                },
+                                                onDragEnd = {
+                                                    // Check if pulled enough to trigger refresh
+                                                    if (pullOffset > pullThreshold && !refreshing) {
+                                                        refreshing = true
+                                                        coroutineScope.launch {
+                                                            mcpRepository.refresh()
+                                                        }
+                                                    } else if (!refreshing) {
+                                                        // Reset pull offset if not refreshing
+                                                        pullOffset = 0f
+                                                    }
+                                                }
+                                            )
+                                        },
+                                    contentPadding = PaddingValues(vertical = 8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                    items(filteredServers) { server: MCPServer ->
+                                            MCPServerItem(server = server)
+                                    }
+                                    
+                                    // Add a loading item at the bottom if more items are available
+                                    if (hasMore) {
+                                        item {
+                                            LoadingItem(isLoading = isLoading)
+                                        }
+                                    }
+                            }
                         }
                 }
         }
+    }
+}
+
+@Composable
+private fun RefreshingIndicator() {
+    val rotation by rememberInfiniteTransition(label = "refreshRotation").animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "refreshRotation"
+    )
+    
+    Box(
+        modifier = Modifier
+            .size(24.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.primaryContainer),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.Refresh,
+            contentDescription = "Refreshing",
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier
+                .size(16.dp)
+                .graphicsLayer { 
+                    rotationZ = rotation
+                }
+        )
     }
 }
 
@@ -586,5 +706,74 @@ fun MCPServerItem(server: MCPServer) {
                             }
                     }
             }
+    }
+}
+
+@Composable
+private fun LoadingItem(isLoading: Boolean) {
+    if (isLoading) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            val animatedAlpha by rememberInfiniteTransition(label = "loadingAlpha").animateFloat(
+                initialValue = 0.4f,
+                targetValue = 0.8f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(800, easing = LinearEasing),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "loadingAlpha"
+            )
+            
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                // Custom loading animation with three dots
+                Row(
+                    modifier = Modifier
+                        .background(
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                            RoundedCornerShape(12.dp)
+                        )
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Three animated dots
+                    for (i in 0..2) {
+                        val dotDelay = i * 200
+                        val dotAlpha by rememberInfiniteTransition(label = "dot$i").animateFloat(
+                            initialValue = 0.4f,
+                            targetValue = 1f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(600, easing = FastOutSlowInEasing, delayMillis = dotDelay),
+                                repeatMode = RepeatMode.Reverse
+                            ),
+                            label = "dot$i"
+                        )
+                        
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = dotAlpha))
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "加载更多内容中",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = animatedAlpha)
+                    )
+                }
+            }
+        }
+    } else {
+        Spacer(modifier = Modifier.height(8.dp))
     }
 }

@@ -3,9 +3,13 @@ package com.ai.assistance.operit.api.library
 import android.content.Context
 import android.util.Log
 import com.ai.assistance.operit.api.AIService
+import com.ai.assistance.operit.data.model.AITool
+import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.preferencesManager
 import com.ai.assistance.operit.tools.AIToolHandler
+import com.ai.assistance.operit.tools.StringResultData
+import com.ai.assistance.operit.tools.ToolExecutor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -17,6 +21,7 @@ import kotlinx.coroutines.flow.take
 import org.json.JSONObject
 import com.ai.assistance.operit.util.TextSegmenter
 import com.ai.assistance.operit.tools.defaultTool.ProblemLibraryTool
+import com.ai.assistance.operit.ui.permissions.ToolCategory
 
 /**
  * 问题库管理类 - 提供分析对话内容并存储问题记录的功能
@@ -112,28 +117,7 @@ object ProblemLibrary {
         }
     }
     
-    /**
-     * 分析对话内容并生成摘要（异步，带回调）
-     */
-    fun analyzeQueryAsync(
-        context: Context, 
-        query: String, 
-        response: String,
-        aiService: AIService,
-        callback: (AnalysisResults) -> Unit
-    ) {
-        ensureInitialized(context)
-        
-        coroutineScope.launch {
-            try {
-                val result = generateAnalysis(aiService, query, response, emptyList())
-                callback(result)
-            } catch (e: Exception) {
-                Log.e(TAG, "分析对话失败", e)
-                callback(AnalysisResults())
-            }
-        }
-    }
+
     
     /**
      * 确保已初始化
@@ -552,4 +536,4 @@ object ProblemLibrary {
             Log.d(TAG, "未从文本中提取到新的用户偏好信息")
         }
     }
-} 
+}

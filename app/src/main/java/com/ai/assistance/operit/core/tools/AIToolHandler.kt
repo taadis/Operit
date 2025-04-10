@@ -73,10 +73,10 @@ class AIToolHandler private constructor(
     
     // Tool permission system
     private val toolPermissionSystem = ToolPermissionSystem.getInstance(context)
-    
+
     // 问题库工具实例（在工具注册时设置）
     private var problemLibraryTool: ProblemLibraryTool? = null
-    
+
     /**
      * 设置问题库工具实例
      * @param tool 问题库工具实例
@@ -84,7 +84,7 @@ class AIToolHandler private constructor(
     fun setProblemLibraryTool(tool: ProblemLibraryTool) {
         this.problemLibraryTool = tool
     }
-    
+
     /**
      * 获取问题库工具实例
      * @return 问题库工具实例，如果没有则返回null

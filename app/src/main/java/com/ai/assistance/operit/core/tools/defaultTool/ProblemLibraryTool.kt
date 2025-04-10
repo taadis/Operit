@@ -39,9 +39,9 @@ class ProblemLibraryTool private constructor(private val context: Context) {
          */
         fun getInstance(context: Context): ProblemLibraryTool {
             return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: ProblemLibraryTool(context.applicationContext).also { 
+                INSTANCE ?: ProblemLibraryTool(context.applicationContext).also {
                     INSTANCE = it
-                    
+
                     // 初始化向量索引（仅在第一次创建实例时调用）
                     it.initVectorIndex()
                     Log.d(TAG, "ProblemLibraryTool 单例实例已创建并初始化")
@@ -331,7 +331,6 @@ class ProblemLibraryTool private constructor(private val context: Context) {
             vectorDB.release()
         }
     }
-
     // 向AIToolHandler注册工具
     fun registerTools(toolHandler: AIToolHandler) {
         // 查询问题库工具
@@ -346,18 +345,18 @@ class ProblemLibraryTool private constructor(private val context: Context) {
             executor = object : ToolExecutor {
                 override fun invoke(tool: AITool): ToolResult {
                     val query = tool.parameters.find { it.name == "query" }?.value ?: ""
-                    
+
                     val result = kotlinx.coroutines.runBlocking {
                         queryProblemLibrary(query)
                     }
-                    
+
                     return ToolResult(
                         toolName = tool.name,
                         success = true,
                         result = StringResultData(result)
                     )
                 }
-                
+
                 override fun validateParameters(tool: AITool): ToolValidationResult {
                     val query = tool.parameters.find { it.name == "query" }?.value
                     if (query == null) {
@@ -368,34 +367,29 @@ class ProblemLibraryTool private constructor(private val context: Context) {
                     }
                     return ToolValidationResult(valid = true)
                 }
-                
+
                 override fun getCategory(): ToolCategory {
                     return ToolCategory.FILE_READ
                 }
             }
         )
     }
-}
 
+}
 /**
  * 向AIToolHandler注册问题库工具
  */
 fun registerProblemLibraryTool(toolHandler: AIToolHandler, context: Context) {
     // 添加顶级函数自己的TAG常量
     val TAG = "ProblemLibraryTool_Reg"
-    
+
     // 获取单例实例
     val problemLibraryTool = ProblemLibraryTool.getInstance(context)
-    
-    // 防止多次注册
-    if (toolHandler.getProblemLibraryTool() != null) {
-        return
-    }
-    
+
     // 向AIToolHandler中注册问题库工具
     problemLibraryTool.registerTools(toolHandler)
-    
+
     // 保存ProblemLibraryTool实例到AIToolHandler中
     toolHandler.setProblemLibraryTool(problemLibraryTool)
     Log.d(TAG, "ProblemLibraryTool 已注册到 AIToolHandler")
-} 
+}

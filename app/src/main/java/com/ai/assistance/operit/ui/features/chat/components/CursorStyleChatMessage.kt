@@ -35,8 +35,7 @@ fun CursorStyleChatMessage(
                 message = message,
                 backgroundColor = aiMessageColor,
                 textColor = aiTextColor,
-                supportToolMarkup = supportToolMarkup,
-                collapseExecution = collapseExecution
+                supportToolMarkup = supportToolMarkup
             )
         }
         "think" -> {

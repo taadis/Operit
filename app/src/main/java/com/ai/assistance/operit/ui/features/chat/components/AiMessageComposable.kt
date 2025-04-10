@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
@@ -524,12 +525,22 @@ fun AiMessageComposable(
 
                 // 新增：处理计划项显示
                 is ContentSegment.PlanItem -> {
-                    PlanItemDisplay(segment.id, segment.status, segment.description)
+                    UnifiedPlanDisplay(
+                        id = segment.id,
+                        status = segment.status,
+                        content = segment.description,
+                        isUpdate = false
+                    )
                 }
 
                 // 新增：处理计划更新显示
                 is ContentSegment.PlanUpdate -> {
-                    PlanUpdateDisplay(segment.id, segment.status, segment.message)
+                    UnifiedPlanDisplay(
+                        id = segment.id,
+                        status = segment.status,
+                        content = segment.message ?: "",
+                        isUpdate = true
+                    )
                 }
             }
 
@@ -541,220 +552,246 @@ fun AiMessageComposable(
     }
 }
 
-/** 计划项的显示组件 */
+/** 统一的计划显示组件 - 同时处理计划项和计划更新 */
 @Composable
-private fun PlanItemDisplay(id: String, status: String, description: String) {
+private fun UnifiedPlanDisplay(
+    id: String,
+    status: String,
+    content: String,
+    isUpdate: Boolean
+) {
     when (status.lowercase()) {
         "todo" -> {
-            // TODO plans: Display in a smaller size
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.RadioButtonUnchecked,
-                    contentDescription = "Todo task",
-                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                    modifier = Modifier.size(14.dp)
-                )
-                
-                Spacer(modifier = Modifier.width(8.dp))
-                
-                Text(
-                    text = description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                    modifier = Modifier.padding(vertical = 2.dp)
-                )
+            if (!isUpdate) { // Only show TODO items for plan items, not updates
+                // TODO plans: Display in a smaller size
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.RadioButtonUnchecked,
+                        contentDescription = "Todo task",
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        modifier = Modifier.size(14.dp)
+                    )
+                    
+                    Spacer(modifier = Modifier.width(8.dp))
+                    
+                    Text(
+                        text = content,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                        modifier = Modifier.padding(vertical = 2.dp)
+                    )
+                }
             }
         }
         "in_progress" -> {
-            // IN_PROGRESS plans: Display as a small heading with UI spanning horizontally
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 6.dp)
-            ) {
-                // Heading with indicator
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-                    ),
-                    shape = RoundedCornerShape(4.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+            // If this is a plan item or update with content, show the indicator
+            if (!isUpdate || content.isNotBlank()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
                 ) {
+                    // Divider with play icon and status in the middle
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.PlayArrow,
-                            contentDescription = "Task in progress",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp)
+                        Divider(
+                            modifier = Modifier.weight(1f),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
+                            thickness = 1.dp
                         )
                         
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                            ),
+                            border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+                            modifier = Modifier.padding(horizontal = 8.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.PlayArrow,
+                                    contentDescription = "Plan in progress",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                
+                                Spacer(modifier = Modifier.width(6.dp))
+                                
+                                Text(
+                                    text = "计划 #$id 执行中",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
                         
+                        Divider(
+                            modifier = Modifier.weight(1f),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
+                            thickness = 1.dp
+                        )
+                    }
+                    
+                    // Show content (description or message) if available
+                    if (content.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        Card(
+                            shape = RoundedCornerShape(6.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
+                            ),
+                            border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = content,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontWeight = FontWeight.Normal,
+                                modifier = Modifier.padding(12.dp)
+                            )
+                        }
+                    }
+                }
+            } else {
+                // Empty update - don't show anything
+            }
+        }
+        "completed", "done" -> {
+            // For plan items, show completion with description
+            // For updates, show a simple divider
+            if (!isUpdate || content.isNotBlank()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Divider(
+                            modifier = Modifier.weight(1f),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
+                            thickness = 1.5.dp
+                        )
+                        
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer
+                            ),
+                            modifier = Modifier.padding(horizontal = 8.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.CheckCircle,
+                                    contentDescription = "Plan completed",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                
+                                Spacer(modifier = Modifier.width(6.dp))
+                                
+                                Text(
+                                    text = "计划完成",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                        
+                        Divider(
+                            modifier = Modifier.weight(1f),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
+                            thickness = 1.5.dp
+                        )
+                    }
+                    
+                    // Show content (description or message) if available
+                    if (content.isNotBlank() && content != "Completed" && content != "Done") {
                         Text(
-                            text = "任务 #$id 进行中",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.primary
+                            text = content,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            modifier = Modifier.padding(top = 4.dp, start = 16.dp, bottom = if (isUpdate) 8.dp else 0.dp),
+                            fontWeight = FontWeight.Normal
                         )
                     }
                 }
-                
-                // Description (optionally displayed below the heading)
-                Text(
-                    text = description,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(top = 4.dp, start = 4.dp)
-                )
-            }
-        }
-        "completed", "done" -> {
-            // Completed tasks: Display as a simple line
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Divider(
-                    modifier = Modifier.weight(0.3f),
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                )
-                
-                Text(
-                    text = " 任务完成 ",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                    modifier = Modifier.padding(horizontal = 4.dp)
-                )
-                
-                Divider(
-                    modifier = Modifier.weight(0.7f),
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                )
             }
         }
         else -> {
-            // For other statuses (failed, cancelled, etc.) - use a simpler display
-            Row(
+            // For other statuses (failed, cancelled, etc.)
+            Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
+                colors = CardDefaults.cardColors(
+                    containerColor = when (status.lowercase()) {
+                        "failed" -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f)
+                        "cancelled" -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f)
+                    }
+                ),
+                shape = RoundedCornerShape(6.dp)
             ) {
-                val (icon, color) = when (status.lowercase()) {
-                    "failed" -> Icons.Filled.Error to Color(0xFFF44336) // Red
-                    "cancelled" -> Icons.Filled.Cancel to Color(0xFF9E9E9E) // Gray
-                    else -> Icons.Filled.RadioButtonUnchecked to MaterialTheme.colorScheme.onSurface
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val (icon, color) = when (status.lowercase()) {
+                        "failed" -> Icons.Filled.Error to Color(0xFFC62828) // Dark red
+                        "cancelled" -> Icons.Filled.Cancel to Color(0xFF757575) // Gray
+                        else -> Icons.Filled.RadioButtonUnchecked to MaterialTheme.colorScheme.onSurface
+                    }
+                    
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = "Plan status: $status",
+                        tint = color,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    
+                    Spacer(modifier = Modifier.width(8.dp))
+                    
+                    Column {
+                        Text(
+                            text = "计划 #$id: ${status.uppercase()}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = color,
+                            fontWeight = FontWeight.Medium
+                        )
+                        
+                        if (content.isNotBlank()) {
+                            Text(
+                                text = content,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
+                    }
                 }
-                
-                Icon(
-                    imageVector = icon,
-                    contentDescription = "Plan item status: $status",
-                    tint = color,
-                    modifier = Modifier.size(16.dp)
-                )
-                
-                Spacer(modifier = Modifier.width(8.dp))
-                
-                Text(
-                    text = "$description (${status.uppercase()})",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = color,
-                    modifier = Modifier.padding(vertical = 2.dp)
-                )
-            }
-        }
-    }
-}
-
-/** 计划更新的显示组件 */
-@Composable
-private fun PlanUpdateDisplay(id: String, status: String, message: String?) {
-    when (status.lowercase()) {
-        "in_progress" -> {
-            // In Progress update: small highlight
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.PlayArrow,
-                    contentDescription = "Task started",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(14.dp)
-                )
-                
-                Spacer(modifier = Modifier.width(8.dp))
-                
-                Text(
-                    text = "Plan #$id: Started",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Medium
-                )
-            }
-            
-            // Show message if available
-            if (!message.isNullOrBlank()) {
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                    modifier = Modifier.padding(start = 22.dp, bottom = 4.dp)
-                )
-            }
-        }
-        "completed", "done" -> {
-            // Completed update: simple line
-            Divider(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-            )
-        }
-        else -> {
-            // For other status updates (failed, cancelled, etc.)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val (icon, color) = when (status.lowercase()) {
-                    "failed" -> Icons.Filled.Error to Color(0xFFC62828) // Dark red
-                    "cancelled" -> Icons.Filled.Cancel to Color(0xFF9E9E9E) // Gray
-                    else -> Icons.Filled.RadioButtonUnchecked to MaterialTheme.colorScheme.onSurface
-                }
-                
-                Icon(
-                    imageVector = icon,
-                    contentDescription = "Plan status: $status",
-                    tint = color,
-                    modifier = Modifier.size(14.dp)
-                )
-                
-                Spacer(modifier = Modifier.width(8.dp))
-                
-                Text(
-                    text = "Plan #$id: ${status.uppercase()}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = color
-                )
             }
         }
     }
