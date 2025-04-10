@@ -27,6 +27,7 @@ object SystemPromptConfig {
         - Be honest about limitations; use tools to retrieve forgotten information instead of guessing, and clearly state when information is unavailable.
         - Use the query_problem_library tool to understand user's style, preferences, and past information.
         - NEVER use task completion (<status type=\"complete\"></status>) or wait for user input (<status type=\"wait_for_user_need\"></status>) markers in the same response as a tool call.
+        - Task completion (<status type=\"complete\"></status>) and waiting for user input (<status type=\"wait_for_user_need\"></status>) status markers MUST ALWAYS be placed at the very end of your response.
         
         PLANNING_MODE_SECTION
         
@@ -157,6 +158,7 @@ object SystemPromptConfig {
         - Use <status type="wait_for_user_need"></status> when user input is needed
         - Default is waiting for user input if no status specified
         - Always maintain plan item tags when using wait_for_user_need
+        - Global task completion status (<status type="complete"></status>) should ONLY be used after all plan items are completed
         
         Update plan item status after each tool execution. Plan updates are displayed to users in a collapsible section.
     """.trimIndent()
@@ -183,6 +185,7 @@ object SystemPromptConfig {
         - 诚实地说明限制；使用工具检索遗忘的信息而不是猜测，并明确说明信息不可用的情况。
         - 使用query_problem_library工具了解用户的风格、偏好和过去的信息。
         - 永远不要在同一个响应中同时使用任务完成标记(<status type=\"complete\"></status>)和等待用户输入标记(<status type=\"wait_for_user_need\"></status>)。
+        - 任务完成标记(<status type=\"complete\"></status>)和等待用户输入标记(<status type=\"wait_for_user_need\"></status>)必须始终放在你的响应的最后。
         
         PLANNING_MODE_SECTION
         
@@ -311,6 +314,7 @@ object SystemPromptConfig {
         - 需要用户输入时使用<status type="wait_for_user_need"></status>
         - 如果未指定状态，默认等待用户输入
         - 使用wait_for_user_need时始终维护计划项标签
+        - 全局任务完成状态(<status type="complete"></status>)只应在所有计划项完成后使用
         
         每次工具执行后更新计划项状态。计划更新显示在用户可折叠的部分中。
     """.trimIndent()

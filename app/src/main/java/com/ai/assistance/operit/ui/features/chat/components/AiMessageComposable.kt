@@ -3,6 +3,7 @@ package com.ai.assistance.operit.ui.features.chat.components
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -11,9 +12,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Cancel
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material3.*
@@ -27,7 +25,6 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.ui.common.displays.MessageContentParser
@@ -67,21 +64,16 @@ fun AiMessageComposable(
     }
 
     // Removed the Card background - Direct Column for AI response
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp)
-    ) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
         Text(
-            text = "Response",
-            style = MaterialTheme.typography.labelSmall,
-            color = textColor.copy(alpha = 0.7f),
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
+                text = "Response",
+                style = MaterialTheme.typography.labelSmall,
+                color = textColor.copy(alpha = 0.7f),
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
         )
 
         // Parse the message content to identify tool markup
-        val contentSegments =
-                MessageContentParser.parseContent(message.content, supportToolMarkup)
+        val contentSegments = MessageContentParser.parseContent(message.content, supportToolMarkup)
 
         // 跟踪已经显示过的工具请求和执行
         val displayedTools = mutableSetOf<String>() // 已经显示过的工具名称集合
@@ -101,8 +93,12 @@ fun AiMessageComposable(
         // 跟踪已完成的工具调用（显示过结果的工具）
         val completedTools = mutableSetOf<String>() // 已经显示过结果的工具名称集合
 
-        // 预处理分析所有工具的最终状态
-        // 第一遍：找出所有工具的最终状态
+        // 计划跟踪相关数据结构
+        val planStatus = mutableMapOf<String, Boolean>() // 跟踪计划的状态 <planId, isActive>
+        val currentActivePlanId = remember { mutableStateOf<String?>(null) }
+        val planSegments = mutableListOf<Pair<ContentSegment, @Composable () -> Unit>>()
+
+        // 预处理：初始化工具状态和计划状态
         contentSegments.forEach { segment ->
             when (segment) {
                 is ContentSegment.ToolRequest -> {
@@ -141,226 +137,116 @@ fun AiMessageComposable(
                         }
                     }
                 }
-                // 添加缺失的分支以使when表达式穷尽
-                is ContentSegment.Text,
-                is ContentSegment.ToolExecution,
-                is ContentSegment.PlanItem,
+                is ContentSegment.PlanItem -> {
+                    val planId = segment.id
+                    if (segment.status.lowercase() == "in_progress") {
+                        planStatus[planId] = true
+                    } else if (segment.status.lowercase() == "completed" ||
+                                    segment.status.lowercase() == "done"
+                    ) {
+                        planStatus[planId] = false
+                    }
+                }
                 is ContentSegment.PlanUpdate -> {
-                    // 这些类型不影响工具的最终状态，无需处理
+                    val planId = segment.id
+                    if (segment.status.lowercase() == "in_progress") {
+                        planStatus[planId] = true
+                    } else if (segment.status.lowercase() == "completed" ||
+                                    segment.status.lowercase() == "done"
+                    ) {
+                        planStatus[planId] = false
+                    }
+                }
+                else -> {
+                    /* 其他段落不影响工具和计划状态 */
                 }
             }
         }
 
-        // Render each segment
+        // 第二遍：按顺序渲染所有段落，同时处理计划分组
         contentSegments.forEach { segment ->
-            when (segment) {
-                is ContentSegment.Text -> {
-                    // Render regular text content
-                    if (segment.content.isNotBlank()) {
-                        Box(
-                                modifier =
-                                        Modifier.fillMaxWidth()
-                                                .padding(horizontal = 16.dp)
-                                                .combinedClickable(
-                                                        interactionSource =
-                                                                remember {
-                                                                    MutableInteractionSource()
-                                                                },
-                                                        indication = null,
-                                                        onClick = { /* Do nothing on normal click */
-                                                        },
-                                                        onLongClick = {
-                                                            clipboardManager.setText(
-                                                                    AnnotatedString(
-                                                                            segment.content
-                                                                    )
-                                                            )
-                                                            haptic.performHapticFeedback(
-                                                                    HapticFeedbackType.LongPress
-                                                            )
-                                                        }
-                                                )
-                        ) {
-                            TextWithCodeBlocksComposable(
-                                    text = segment.content,
-                                    textColor = textColor
-                            )
-                        }
-                    }
-                }
-                is ContentSegment.ToolRequest -> {
-                    val toolName = segment.name
-
-                    // 如果是多次调用同一工具，则每次都显示
-                    // 检查该工具是否已经显示过并已有结果
-                    if (completedTools.contains(toolName) && displayedTools.contains(toolName)
-                    ) {
-                        // 如果该工具已经完成并且显示过，则我们要么跳过它（如果它只是另一个请求）
-                        // 要么重置状态开始新一轮显示（如果后面有新的结果）
-
-                        // 查找这个请求之后是否还有该工具的结果
-                        var hasMoreResults = false
-                        var hasFoundCurrentRequest = false
-
-                        contentSegments.forEach { s ->
-                            // 找到当前请求后才开始检查
-                            if (s === segment) {
-                                hasFoundCurrentRequest = true
-                                return@forEach
-                            }
-
-                            // 当前请求之后有该工具的结果
-                            if (hasFoundCurrentRequest &&
-                                            ((s is ContentSegment.ToolResult &&
-                                                    s.name == toolName) ||
-                                                    (s is ContentSegment.Status &&
-                                                            s.toolName == toolName &&
-                                                            s.type == "result"))
+            // 创建当前段落的可组合项
+            val composable: @Composable () -> Unit = {
+                when (segment) {
+                    is ContentSegment.Text -> {
+                        // Render regular text content
+                        if (segment.content.isNotBlank()) {
+                            Box(
+                                    modifier =
+                                            Modifier.fillMaxWidth()
+                                                    .padding(horizontal = 16.dp)
+                                                    .combinedClickable(
+                                                            interactionSource =
+                                                                    remember {
+                                                                        MutableInteractionSource()
+                                                                    },
+                                                            indication = null,
+                                                            onClick = { /* Do nothing on normal click */
+                                                            },
+                                                            onLongClick = {
+                                                                clipboardManager.setText(
+                                                                        AnnotatedString(
+                                                                                segment.content
+                                                                        )
+                                                                )
+                                                                haptic.performHapticFeedback(
+                                                                        HapticFeedbackType.LongPress
+                                                                )
+                                                            }
+                                                    )
                             ) {
-                                hasMoreResults = true
-                                return@forEach
+                                TextWithCodeBlocksComposable(
+                                        text = segment.content,
+                                        textColor = textColor
+                                )
                             }
                         }
-
-                        // 如果没有更多结果，则跳过这个请求
-                        if (!hasMoreResults) {
-                            return@forEach
-                        }
-
-                        // 如果有更多结果，则重置该工具的状态，开始新一轮显示
-                        displayedTools.remove(toolName)
-                        completedTools.remove(toolName)
                     }
+                    is ContentSegment.ToolRequest -> {
+                        val toolName = segment.name
 
-                    // 如果这个工具已经显示过但尚未完成，则跳过（状态会被后续的执行或结果更新）
-                    if (displayedTools.contains(toolName) && !completedTools.contains(toolName)
-                    ) {
-                        return@forEach
-                    }
+                        // 如果是多次调用同一工具，则每次都显示
+                        // 检查该工具是否已经显示过并已有结果
+                        if (completedTools.contains(toolName) && displayedTools.contains(toolName)
+                        ) {
+                            // 如果该工具已经完成并且显示过，则我们要么跳过它（如果它只是另一个请求）
+                            // 要么重置状态开始新一轮显示（如果后面有新的结果）
 
-                    // 添加到已显示工具集合
-                    displayedTools.add(toolName)
+                            // 查找这个请求之后是否还有该工具的结果
+                            var hasMoreResults = false
+                            var hasFoundCurrentRequest = false
 
-                    // 获取该工具的最终状态
-                    val finalState = toolFinalStates[toolName]
+                            // 使用for循环替代forEach，以避免return@forEach
+                            for (s in contentSegments) {
+                                // 找到当前请求后才开始检查
+                                if (s === segment) {
+                                    hasFoundCurrentRequest = true
+                                    continue
+                                }
 
-                    // 使用共享的ToolStatusDisplay组件
-                    Box(modifier = Modifier.padding(horizontal = 16.dp)) {
-                        ToolStatusDisplay(
-                            toolName = toolName,
-                            isProcessing = finalState?.first ?: false,
-                            isError = finalState?.third ?: false,
-                            result = finalState?.second,
-                            params = segment.params,
-                            onShowResult = {
-                                // 显示结果对话框
-                                resultDialogTitle = toolName
-                                // 如果有工具结果，显示结果，否则显示请求参数
-                                resultDialogContent =
-                                        if (finalState?.second == null ||
-                                                        finalState.second.toString().isBlank()
-                                        ) {
-                                            "Parameters:\n${segment.params}"
-                                        } else {
-                                            finalState.second.toString()
-                                        }
-                                resultDialogParams = segment.params
-                                showResultDialog = true
-                            },
-                            onCopyResult = {
-                                val result = finalState?.second
-                                if (result != null) {
-                                    clipboardManager.setText(AnnotatedString(result))
+                                // 当前请求之后有该工具的结果
+                                if (hasFoundCurrentRequest &&
+                                                ((s is ContentSegment.ToolResult &&
+                                                        s.name == toolName) ||
+                                                        (s is ContentSegment.Status &&
+                                                                s.toolName == toolName &&
+                                                                s.type == "result"))
+                                ) {
+                                    hasMoreResults = true
+                                    break
                                 }
                             }
-                        )
-                    }
-                }
-                is ContentSegment.ToolExecution -> {
-                    val toolName = segment.name
 
-                    // 在折叠模式下，只有当工具尚未显示过时才显示
-                    if (!displayedTools.contains(toolName)) {
-                        // 添加到已显示工具集合
-                        displayedTools.add(toolName)
+                            // 如果没有更多结果，则不显示这个请求
+                            if (!hasMoreResults) {
+                                // 这里使用Unit返回而不是非局部返回
+                                Unit
+                            } else {
+                                // 如果有更多结果，则重置该工具的状态，开始新一轮显示
+                                displayedTools.remove(toolName)
+                                completedTools.remove(toolName)
 
-                        // 获取该工具的最终状态
-                        val finalState = toolFinalStates[toolName]
-
-                        // 使用共享的ToolStatusDisplay组件
-                        Box(modifier = Modifier.padding(horizontal = 16.dp)) {
-                            ToolStatusDisplay(
-                                toolName = toolName,
-                                isProcessing = finalState?.first ?: true,
-                                isError = finalState?.third ?: false,
-                                result = finalState?.second,
-                                params = toolParams[toolName],
-                                onShowResult = {
-                                    val result = finalState?.second
-                                    if (result != null) {
-                                        resultDialogTitle = toolName
-                                        resultDialogContent = result.toString()
-                                        resultDialogParams = toolParams[toolName] ?: ""
-                                        showResultDialog = true
-                                    }
-                                },
-                                onCopyResult = {
-                                    val result = finalState?.second
-                                    if (result != null) {
-                                        clipboardManager.setText(AnnotatedString(result))
-                                    }
-                                }
-                            )
-                        }
-                    }
-                }
-                is ContentSegment.ToolResult -> {
-                    val toolName = segment.name
-
-                    // 检查该工具是否已经显示过
-                    if (displayedTools.contains(toolName)) {
-                        // 如果已经显示过但尚未完成，则不需要再显示
-                        // 因为该工具的最终状态已经在预处理时更新为结果状态
-                        // 效果会通过之前显示的组件更新
-
-                        // 标记该工具已完成
-                        completedTools.add(toolName)
-                        return@forEach
-                    }
-
-                    // 如果工具尚未显示过，则显示结果
-                    displayedTools.add(toolName)
-                    completedTools.add(toolName)
-
-                    // 使用共享的ToolStatusDisplay组件
-                    Box(modifier = Modifier.padding(horizontal = 16.dp)) {
-                        ToolStatusDisplay(
-                            toolName = toolName,
-                            isProcessing = false,
-                            isError = segment.isError,
-                            result = segment.content,
-                            params = toolParams[toolName],
-                            onShowResult = {
-                                // 显示结果对话框
-                                resultDialogTitle = toolName
-                                resultDialogContent = segment.content
-                                resultDialogParams = toolParams[toolName] ?: ""
-                                showResultDialog = true
-                            },
-                            onCopyResult = {
-                                clipboardManager.setText(AnnotatedString(segment.content))
-                            }
-                        )
-                    }
-                }
-                is ContentSegment.Status -> {
-                    if (segment.toolName.isNotBlank()) {
-                        val toolName = segment.toolName
-
-                        // 如果是执行状态
-                        if (segment.type == "executing") {
-                            // 如果工具尚未显示过，则显示
-                            if (!displayedTools.contains(toolName)) {
+                                // 添加到已显示工具集合
                                 displayedTools.add(toolName)
 
                                 // 获取该工具的最终状态
@@ -369,6 +255,103 @@ fun AiMessageComposable(
                                 // 使用共享的ToolStatusDisplay组件
                                 Box(modifier = Modifier.padding(horizontal = 16.dp)) {
                                     ToolStatusDisplay(
+                                            toolName = toolName,
+                                            isProcessing = finalState?.first ?: false,
+                                            isError = finalState?.third ?: false,
+                                            result = finalState?.second,
+                                            params = segment.params,
+                                            onShowResult = {
+                                                // 显示结果对话框
+                                                resultDialogTitle = toolName
+                                                // 如果有工具结果，显示结果，否则显示请求参数
+                                                resultDialogContent =
+                                                        if (finalState?.second == null ||
+                                                                        finalState
+                                                                                .second
+                                                                                .toString()
+                                                                                .isBlank()
+                                                        ) {
+                                                            "Parameters:\n${segment.params}"
+                                                        } else {
+                                                            finalState.second.toString()
+                                                        }
+                                                resultDialogParams = segment.params
+                                                showResultDialog = true
+                                            },
+                                            onCopyResult = {
+                                                val result = finalState?.second
+                                                if (result != null) {
+                                                    clipboardManager.setText(
+                                                            AnnotatedString(result)
+                                                    )
+                                                }
+                                            }
+                                    )
+                                }
+                            }
+                        } else if (displayedTools.contains(toolName) &&
+                                        !completedTools.contains(toolName)
+                        ) {
+                            // 如果这个工具已经显示过但尚未完成，则跳过（状态会被后续的执行或结果更新）
+                            // 这里使用Unit返回而不是非局部返回
+                            Unit
+                        } else {
+                            // 添加到已显示工具集合
+                            displayedTools.add(toolName)
+
+                            // 获取该工具的最终状态
+                            val finalState = toolFinalStates[toolName]
+
+                            // 使用共享的ToolStatusDisplay组件
+                            Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                                ToolStatusDisplay(
+                                        toolName = toolName,
+                                        isProcessing = finalState?.first ?: false,
+                                        isError = finalState?.third ?: false,
+                                        result = finalState?.second,
+                                        params = segment.params,
+                                        onShowResult = {
+                                            // 显示结果对话框
+                                            resultDialogTitle = toolName
+                                            // 如果有工具结果，显示结果，否则显示请求参数
+                                            resultDialogContent =
+                                                    if (finalState?.second == null ||
+                                                                    finalState
+                                                                            .second
+                                                                            .toString()
+                                                                            .isBlank()
+                                                    ) {
+                                                        "Parameters:\n${segment.params}"
+                                                    } else {
+                                                        finalState.second.toString()
+                                                    }
+                                            resultDialogParams = segment.params
+                                            showResultDialog = true
+                                        },
+                                        onCopyResult = {
+                                            val result = finalState?.second
+                                            if (result != null) {
+                                                clipboardManager.setText(AnnotatedString(result))
+                                            }
+                                        }
+                                )
+                            }
+                        }
+                    }
+                    is ContentSegment.ToolExecution -> {
+                        val toolName = segment.name
+
+                        // 在折叠模式下，只有当工具尚未显示过时才显示
+                        if (!displayedTools.contains(toolName)) {
+                            // 添加到已显示工具集合
+                            displayedTools.add(toolName)
+
+                            // 获取该工具的最终状态
+                            val finalState = toolFinalStates[toolName]
+
+                            // 使用共享的ToolStatusDisplay组件
+                            Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                                ToolStatusDisplay(
                                         toolName = toolName,
                                         isProcessing = finalState?.first ?: true,
                                         isError = finalState?.third ?: false,
@@ -376,8 +359,7 @@ fun AiMessageComposable(
                                         params = toolParams[toolName],
                                         onShowResult = {
                                             val result = finalState?.second
-                                            if (result != null && result.toString().isNotBlank()
-                                            ) {
+                                            if (result != null) {
                                                 resultDialogTitle = toolName
                                                 resultDialogContent = result.toString()
                                                 resultDialogParams = toolParams[toolName] ?: ""
@@ -387,178 +369,412 @@ fun AiMessageComposable(
                                         onCopyResult = {
                                             val result = finalState?.second
                                             if (result != null) {
-                                                clipboardManager.setText(
-                                                        AnnotatedString(result)
-                                                )
+                                                clipboardManager.setText(AnnotatedString(result))
                                             }
                                         }
-                                    )
-                                }
+                                )
                             }
                         }
-                        // 如果是结果状态
-                        else if (segment.type == "result") {
-                            // 如果工具尚未显示过，则显示
-                            if (!displayedTools.contains(toolName)) {
-                                displayedTools.add(toolName)
-                            }
+                    }
+                    is ContentSegment.ToolResult -> {
+                        val toolName = segment.name
+
+                        // 检查该工具是否已经显示过
+                        if (displayedTools.contains(toolName)) {
+                            // 如果已经显示过但尚未完成，则不需要再显示
+                            // 因为该工具的最终状态已经在预处理时更新为结果状态
+                            // 效果会通过之前显示的组件更新
 
                             // 标记该工具已完成
                             completedTools.add(toolName)
+                            // 这里使用Unit返回而不是非局部返回
+                            Unit
+                        } else {
+                            // 如果工具尚未显示过，则显示结果
+                            displayedTools.add(toolName)
+                            completedTools.add(toolName)
+
+                            // 使用共享的ToolStatusDisplay组件
+                            Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                                ToolStatusDisplay(
+                                        toolName = toolName,
+                                        isProcessing = false,
+                                        isError = segment.isError,
+                                        result = segment.content,
+                                        params = toolParams[toolName],
+                                        onShowResult = {
+                                            // 显示结果对话框
+                                            resultDialogTitle = toolName
+                                            resultDialogContent = segment.content
+                                            resultDialogParams = toolParams[toolName] ?: ""
+                                            showResultDialog = true
+                                        },
+                                        onCopyResult = {
+                                            clipboardManager.setText(
+                                                    AnnotatedString(segment.content)
+                                            )
+                                        }
+                                )
+                            }
                         }
-                        // 其他状态不处理
-                    } else {
-                        // 处理其他类型的状态
-                        when (segment.type) {
-                            "completion", "complete" -> {
-                                // Task completion indicator
-                                Card(
-                                        modifier =
-                                                Modifier.fillMaxWidth()
-                                                        .padding(horizontal = 16.dp)
-                                                        .padding(vertical = 4.dp),
-                                        colors =
-                                                CardDefaults.cardColors(
-                                                        containerColor =
-                                                                MaterialTheme.colorScheme
-                                                                        .primaryContainer.copy(
-                                                                        alpha = 0.3f
-                                                                )
-                                                ),
-                                        border =
-                                                BorderStroke(
-                                                        1.dp,
-                                                        MaterialTheme.colorScheme.primary.copy(
-                                                                alpha = 0.3f
+                    }
+                    is ContentSegment.Status -> {
+                        if (segment.toolName.isNotBlank()) {
+                            val toolName = segment.toolName
+
+                            // 如果是执行状态
+                            if (segment.type == "executing") {
+                                // 如果工具尚未显示过，则显示
+                                if (!displayedTools.contains(toolName)) {
+                                    displayedTools.add(toolName)
+
+                                    // 获取该工具的最终状态
+                                    val finalState = toolFinalStates[toolName]
+
+                                    // 使用共享的ToolStatusDisplay组件
+                                    Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                                        ToolStatusDisplay(
+                                                toolName = toolName,
+                                                isProcessing = finalState?.first ?: true,
+                                                isError = finalState?.third ?: false,
+                                                result = finalState?.second,
+                                                params = toolParams[toolName],
+                                                onShowResult = {
+                                                    val result = finalState?.second
+                                                    if (result != null &&
+                                                                    result.toString().isNotBlank()
+                                                    ) {
+                                                        resultDialogTitle = toolName
+                                                        resultDialogContent = result.toString()
+                                                        resultDialogParams =
+                                                                toolParams[toolName] ?: ""
+                                                        showResultDialog = true
+                                                    }
+                                                },
+                                                onCopyResult = {
+                                                    val result = finalState?.second
+                                                    if (result != null) {
+                                                        clipboardManager.setText(
+                                                                AnnotatedString(result)
                                                         )
-                                                )
-                                ) {
-                                    SelectionContainer {
-                                        Text(
-                                                text = "✓ Task completed",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.padding(12.dp)
+                                                    }
+                                                }
                                         )
                                     }
                                 }
                             }
-                            "wait_for_user_need" -> {
-                                // Wait for user need indicator
-                                Card(
-                                        modifier =
-                                                Modifier.fillMaxWidth()
-                                                        .padding(horizontal = 16.dp)
-                                                        .padding(vertical = 4.dp),
-                                        colors =
-                                                CardDefaults.cardColors(
-                                                        containerColor =
-                                                                MaterialTheme.colorScheme
-                                                                        .tertiaryContainer.copy(
-                                                                        alpha = 0.3f
-                                                                )
-                                                ),
-                                        border =
-                                                BorderStroke(
-                                                        1.dp,
-                                                        MaterialTheme.colorScheme.tertiary.copy(
-                                                                alpha = 0.3f
-                                                        )
-                                                )
-                                ) {
-                                    SelectionContainer {
-                                        Text(
-                                                text = "✓ Ready for further assistance",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.tertiary,
-                                                modifier = Modifier.padding(12.dp)
-                                        )
+                            // 如果是结果状态
+                            else if (segment.type == "result") {
+                                // 如果工具尚未显示过，则显示
+                                if (!displayedTools.contains(toolName)) {
+                                    displayedTools.add(toolName)
+                                }
+
+                                // 标记该工具已完成
+                                completedTools.add(toolName)
+                            }
+                            // 其他状态不处理
+                        } else {
+                            // 处理其他类型的状态
+                            when (segment.type) {
+                                "completion", "complete" -> {
+                                    // Task completion indicator
+                                    Card(
+                                            modifier =
+                                                    Modifier.fillMaxWidth()
+                                                            .padding(horizontal = 16.dp)
+                                                            .padding(vertical = 4.dp),
+                                            colors =
+                                                    CardDefaults.cardColors(
+                                                            containerColor =
+                                                                    MaterialTheme.colorScheme
+                                                                            .primaryContainer.copy(
+                                                                            alpha = 0.3f
+                                                                    )
+                                                    ),
+                                            border =
+                                                    BorderStroke(
+                                                            1.dp,
+                                                            MaterialTheme.colorScheme.primary.copy(
+                                                                    alpha = 0.3f
+                                                            )
+                                                    )
+                                    ) {
+                                        SelectionContainer {
+                                            Text(
+                                                    text = "✓ Task completed",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.padding(12.dp)
+                                            )
+                                        }
                                     }
                                 }
-                            }
-                            "warning" -> {
-                                // Warning information
-                                Card(
-                                        modifier =
-                                                Modifier.fillMaxWidth()
-                                                        .padding(horizontal = 16.dp)
-                                                        .padding(vertical = 4.dp)
-                                                        .combinedClickable(
-                                                                interactionSource =
-                                                                        remember {
-                                                                            MutableInteractionSource()
-                                                                        },
-                                                                indication = null,
-                                                                onClick = { /* Do nothing on normal click */
-                                                                },
-                                                                onLongClick = {
-                                                                    clipboardManager.setText(
-                                                                            AnnotatedString(
-                                                                                    segment.content
-                                                                            )
+                                "wait_for_user_need" -> {
+                                    // Wait for user need indicator
+                                    Card(
+                                            modifier =
+                                                    Modifier.fillMaxWidth()
+                                                            .padding(horizontal = 16.dp)
+                                                            .padding(vertical = 4.dp),
+                                            colors =
+                                                    CardDefaults.cardColors(
+                                                            containerColor =
+                                                                    MaterialTheme.colorScheme
+                                                                            .tertiaryContainer.copy(
+                                                                            alpha = 0.3f
                                                                     )
-                                                                    haptic.performHapticFeedback(
-                                                                            HapticFeedbackType
-                                                                                    .LongPress
+                                                    ),
+                                            border =
+                                                    BorderStroke(
+                                                            1.dp,
+                                                            MaterialTheme.colorScheme.tertiary.copy(
+                                                                    alpha = 0.3f
+                                                            )
+                                                    )
+                                    ) {
+                                        SelectionContainer {
+                                            Text(
+                                                    text = "✓ Ready for further assistance",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.tertiary,
+                                                    modifier = Modifier.padding(12.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                                "warning" -> {
+                                    // Warning information
+                                    Card(
+                                            modifier =
+                                                    Modifier.fillMaxWidth()
+                                                            .padding(horizontal = 16.dp)
+                                                            .padding(vertical = 4.dp)
+                                                            .combinedClickable(
+                                                                    interactionSource =
+                                                                            remember {
+                                                                                MutableInteractionSource()
+                                                                            },
+                                                                    indication = null,
+                                                                    onClick = { /* Do nothing on normal click */
+                                                                    },
+                                                                    onLongClick = {
+                                                                        clipboardManager.setText(
+                                                                                AnnotatedString(
+                                                                                        segment.content
+                                                                                )
+                                                                        )
+                                                                        haptic.performHapticFeedback(
+                                                                                HapticFeedbackType
+                                                                                        .LongPress
+                                                                        )
+                                                                    }
+                                                            ),
+                                            colors =
+                                                    CardDefaults.cardColors(
+                                                            containerColor =
+                                                                    MaterialTheme.colorScheme
+                                                                            .errorContainer.copy(
+                                                                            alpha = 0.3f
                                                                     )
-                                                                }
-                                                        ),
-                                        colors =
-                                                CardDefaults.cardColors(
-                                                        containerColor =
-                                                                MaterialTheme.colorScheme
-                                                                        .errorContainer.copy(
-                                                                        alpha = 0.3f
-                                                                )
-                                                ),
-                                        border =
-                                                BorderStroke(
-                                                        1.dp,
-                                                        MaterialTheme.colorScheme.error.copy(
-                                                                alpha = 0.3f
-                                                        )
-                                                )
-                                ) {
-                                    SelectionContainer {
-                                        Text(
-                                                text = segment.content,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color =
-                                                        MaterialTheme.colorScheme
-                                                                .onErrorContainer,
-                                                modifier = Modifier.padding(12.dp)
-                                        )
+                                                    ),
+                                            border =
+                                                    BorderStroke(
+                                                            1.dp,
+                                                            MaterialTheme.colorScheme.error.copy(
+                                                                    alpha = 0.3f
+                                                            )
+                                                    )
+                                    ) {
+                                        SelectionContainer {
+                                            Text(
+                                                    text = segment.content,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color =
+                                                            MaterialTheme.colorScheme
+                                                                    .onErrorContainer,
+                                                    modifier = Modifier.padding(12.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
                     }
+                    is ContentSegment.PlanItem -> {
+                        UnifiedPlanDisplay(
+                                id = segment.id,
+                                status = segment.status,
+                                content = segment.description,
+                                isUpdate = false
+                        )
+                    }
+                    is ContentSegment.PlanUpdate -> {
+                        UnifiedPlanDisplay(
+                                id = segment.id,
+                                status = segment.status,
+                                content = segment.message ?: "",
+                                isUpdate = false
+                        )
+                    }
                 }
 
-                // 新增：处理计划项显示
-                is ContentSegment.PlanItem -> {
-                    UnifiedPlanDisplay(
-                        id = segment.id,
-                        status = segment.status,
-                        content = segment.description,
-                        isUpdate = false
-                    )
-                }
-
-                // 新增：处理计划更新显示
-                is ContentSegment.PlanUpdate -> {
-                    UnifiedPlanDisplay(
-                        id = segment.id,
-                        status = segment.status,
-                        content = segment.message ?: "",
-                        isUpdate = false
-                    )
+                // Add spacing between segments
+                if (segment != contentSegments.last()) {
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
             }
 
-            // Add spacing between segments
-            if (segment != contentSegments.last()) {
-                Spacer(modifier = Modifier.height(8.dp))
+            // 处理计划相关的逻辑
+            when (segment) {
+                is ContentSegment.PlanItem, is ContentSegment.PlanUpdate -> {
+                    val planId =
+                            when (segment) {
+                                is ContentSegment.PlanItem -> segment.id
+                                is ContentSegment.PlanUpdate -> segment.id
+                                else -> ""
+                            }
+
+                    val status =
+                            when (segment) {
+                                is ContentSegment.PlanItem -> segment.status
+                                is ContentSegment.PlanUpdate -> segment.status
+                                else -> ""
+                            }
+
+                    // 处理计划状态变化
+                    if (status.lowercase() == "in_progress") {
+                        // 如果有正在进行的计划，先完成它
+                        if (currentActivePlanId.value != null && currentActivePlanId.value != planId
+                        ) {
+                            if (planSegments.isNotEmpty()) {
+                                // 渲染当前活动计划
+                                renderPlanWithTimeline(
+                                        currentActivePlanId.value!!,
+                                        planSegments.map { it.second }
+                                )
+                                planSegments.clear()
+                            }
+                        }
+
+                        // 先渲染计划开始标记
+                        composable()
+
+                        // 设置当前活动计划ID
+                        currentActivePlanId.value = planId
+
+                        // 不将开始标记添加到计划段落中
+                    } else if (status.lowercase() == "completed" || status.lowercase() == "done") {
+                        // 如果计划完成并且正在追踪这个计划
+                        if (currentActivePlanId.value == planId) {
+                            // 如果有收集到的段落，渲染它们
+                            if (planSegments.isNotEmpty()) {
+                                renderPlanWithTimeline(planId, planSegments.map { it.second })
+                                planSegments.clear()
+                            }
+
+                            // 单独渲染计划结束标记
+                            composable()
+
+                            // 清空当前活动计划
+                            currentActivePlanId.value = null
+                        } else {
+                            // 如果不是当前跟踪的计划，直接渲染
+                            composable()
+                        }
+                    } else {
+                        // 其他状态（比如 todo、failed 等），直接渲染
+                        composable()
+                    }
+                }
+                else -> {
+                    // 对于非计划相关的段落
+                    if (currentActivePlanId.value != null) {
+                        // 如果有活动计划，添加到计划中
+                        planSegments.add(Pair(segment, composable))
+                    } else {
+                        // 否则直接渲染
+                        composable()
+                    }
+                }
+            }
+        }
+
+        // 渲染任何剩余的活动计划
+        if (currentActivePlanId.value != null && planSegments.isNotEmpty()) {
+            renderPlanWithTimeline(currentActivePlanId.value!!, planSegments.map { it.second })
+        }
+    }
+}
+
+/** 使用时间线渲染一个计划的所有段落 */
+@Composable
+private fun renderPlanWithTimeline(planId: String, composables: List<@Composable () -> Unit>) {
+    // 如果没有内容，不渲染时间线
+    if (composables.isEmpty()) return
+
+    // 使用Row布局来更精确控制时间线和内容
+    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp, horizontal = 4.dp)) {
+        Row(
+                modifier =
+                        Modifier.fillMaxWidth()
+                                .height(IntrinsicSize.Min), // 使用IntrinsicSize.Min确保高度跟随内容
+                verticalAlignment = Alignment.Top // 确保从顶部对齐
+        ) {
+            // 左侧时间线区域
+            Box(modifier = Modifier.width(30.dp).fillMaxHeight()) {
+                // 竖线 (时间线) - 降低不透明度使其更淡
+                Box(
+                        modifier =
+                                Modifier.width(3.dp)
+                                        .fillMaxHeight()
+                                        .align(Alignment.Center)
+                                        .background(
+                                                color =
+                                                        MaterialTheme.colorScheme.primary.copy(
+                                                                alpha = 0.25f
+                                                        ),
+                                                shape = RoundedCornerShape(1.5.dp)
+                                        )
+                )
+
+                // 开始节点 (顶部) - 更小的圆点且降低不透明度
+                Box(
+                        modifier =
+                                Modifier.size(6.dp)
+                                        .align(Alignment.TopCenter)
+                                        .background(
+                                                color =
+                                                        MaterialTheme.colorScheme.primary.copy(
+                                                                alpha = 0.3f
+                                                        ),
+                                                shape = CircleShape
+                                        )
+                )
+
+                // 结束节点 (底部) - 更小的圆点且降低不透明度
+                Box(
+                        modifier =
+                                Modifier.size(6.dp)
+                                        .align(Alignment.BottomCenter)
+                                        .background(
+                                                color =
+                                                        MaterialTheme.colorScheme.primary.copy(
+                                                                alpha = 0.3f
+                                                        ),
+                                                shape = CircleShape
+                                        )
+                                        .border(
+                                                width = 1.dp,
+                                                color = MaterialTheme.colorScheme.surface,
+                                                shape = CircleShape
+                                        )
+                )
+            }
+
+            // 在Box中渲染该计划的所有段落
+            Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                composables.forEach { composable -> composable() }
             }
         }
     }
@@ -566,37 +782,32 @@ fun AiMessageComposable(
 
 /** 统一的计划显示组件 - 同时处理计划项和计划更新 */
 @Composable
-private fun UnifiedPlanDisplay(
-    id: String,
-    status: String,
-    content: String,
-    isUpdate: Boolean
-) {
+private fun UnifiedPlanDisplay(id: String, status: String, content: String, isUpdate: Boolean) {
     when (status.lowercase()) {
         "todo" -> {
             if (!isUpdate) { // Only show TODO items for plan items, not updates
                 // TODO plans: Display in a smaller size
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                        .padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        modifier =
+                                Modifier.fillMaxWidth()
+                                        .padding(vertical = 2.dp) // 减少垂直间距
+                                        .padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.RadioButtonUnchecked,
-                        contentDescription = "Todo task",
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                        modifier = Modifier.size(14.dp)
+                            imageVector = Icons.Filled.RadioButtonUnchecked,
+                            contentDescription = "Todo task",
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            modifier = Modifier.size(14.dp)
                     )
-                    
+
                     Spacer(modifier = Modifier.width(8.dp))
-                    
+
                     Text(
-                        text = content,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                        modifier = Modifier.padding(vertical = 2.dp)
+                            text = content,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                            modifier = Modifier.padding(vertical = 2.dp)
                     )
                 }
             }
@@ -605,76 +816,76 @@ private fun UnifiedPlanDisplay(
             // If this is a plan item or update with content, show the indicator
             if (!isUpdate || content.isNotBlank()) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp)
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp) // 减少垂直间距
                 ) {
-                    // Divider with play icon and status in the middle
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
+                    // 靠左对齐的计划开始标记，减少左内边距
+                    Box(
+                            modifier = Modifier.padding(start = 8.dp, end = 16.dp) // 减少左侧内边距
                     ) {
-                        Divider(
-                            modifier = Modifier.weight(1f),
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
-                            thickness = 1.dp
-                        )
-                        
                         Card(
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                            ),
-                            border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
-                            modifier = Modifier.padding(horizontal = 8.dp)
-                        ) {
+                                shape = RoundedCornerShape(16.dp),
+                                colors =
+                                        CardDefaults.cardColors(
+                                                containerColor =
+                                                        MaterialTheme.colorScheme.primary.copy(
+                                                                alpha = 0.15f
+                                                        )
+                                        ),
+                                // 删除边框
+                                ) {
                             Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier =
+                                            Modifier.padding(
+                                                    horizontal = 12.dp,
+                                                    vertical = 3.dp
+                                            ) // 减少垂直内边距
                             ) {
                                 Icon(
-                                    imageVector = Icons.Filled.PlayArrow,
-                                    contentDescription = "Plan in progress",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
+                                        imageVector = Icons.Filled.PlayArrow,
+                                        contentDescription = "Plan in progress",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
                                 )
-                                
+
                                 Spacer(modifier = Modifier.width(6.dp))
-                                
+
                                 Text(
-                                    text = "计划 #$id 执行中",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.primary
+                                        text = "计划 #$id 执行中",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.primary
                                 )
                             }
                         }
-                        
-                        Divider(
-                            modifier = Modifier.weight(1f),
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
-                            thickness = 1.dp
-                        )
                     }
-                    
+
                     // Show content (description or message) if available
                     if (content.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
+                        Spacer(modifier = Modifier.height(4.dp)) // 减少垂直间距
+
                         Card(
-                            shape = RoundedCornerShape(6.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
-                            ),
-                            border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
-                            modifier = Modifier.fillMaxWidth()
+                                shape = RoundedCornerShape(6.dp),
+                                colors =
+                                        CardDefaults.cardColors(
+                                                containerColor =
+                                                        MaterialTheme.colorScheme.surface.copy(
+                                                                alpha = 0.7f
+                                                        )
+                                        ),
+                                border =
+                                        BorderStroke(
+                                                0.5.dp,
+                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                        ),
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
                         ) {
                             Text(
-                                text = content,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontWeight = FontWeight.Normal,
-                                modifier = Modifier.padding(12.dp)
+                                    text = content,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = FontWeight.Normal,
+                                    modifier = Modifier.padding(12.dp)
                             )
                         }
                     }
@@ -684,126 +895,147 @@ private fun UnifiedPlanDisplay(
             }
         }
         "completed", "done" -> {
-            // For plan items, show completion with description
-            // For updates, show a simple divider
+            // For plan items, show a horizontal line with content in gray
             if (!isUpdate || content.isNotBlank()) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp)
-                ) {
+                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    // 横线代替计划完成卡片 - 移除左侧圆点
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // 横线 - 横跨整个宽度
                         Divider(
-                            modifier = Modifier.weight(1f),
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
-                            thickness = 1.5.dp
-                        )
-                        
-                        Card(
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer
-                            ),
-                            modifier = Modifier.padding(horizontal = 8.dp)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.CheckCircle,
-                                    contentDescription = "Plan completed",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                
-                                Spacer(modifier = Modifier.width(6.dp))
-                                
-                                Text(
-                                    text = "计划完成",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
-                        
-                        Divider(
-                            modifier = Modifier.weight(1f),
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
-                            thickness = 1.5.dp
+                                modifier = Modifier.weight(1f),
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
+                                thickness = 1.5.dp
                         )
                     }
-                    
-                    // Show content (description or message) if available
+
+                    // 直接在线上方显示内容（灰色文字）
                     if (content.isNotBlank() && content != "Completed" && content != "Done") {
                         Text(
-                            text = content,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                            modifier = Modifier.padding(top = 4.dp, start = 16.dp, bottom = if (isUpdate) 8.dp else 0.dp),
-                            fontWeight = FontWeight.Normal
+                                text = content,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                modifier =
+                                        Modifier.padding(
+                                                top = 2.dp,
+                                                start = 16.dp,
+                                                bottom = if (isUpdate) 4.dp else 0.dp
+                                        ),
+                                fontWeight = FontWeight.Normal
+                        )
+                    }
+                }
+            }
+        }
+        "failed", "cancelled" -> {
+            // Failed and cancelled plans should have same visual treatment as completed
+            if (!isUpdate || content.isNotBlank()) {
+                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    // 横线代替状态卡片 - 移除左侧圆点
+                    Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // 确定线的颜色
+                        val lineColor =
+                                when (status.lowercase()) {
+                                    "failed" ->
+                                            Color(0xFFC62828)
+                                                    .copy(alpha = 0.25f) // Dark red with opacity
+                                    else ->
+                                            Color(0xFF757575)
+                                                    .copy(alpha = 0.25f) // Gray with opacity
+                                }
+
+                        // 横线 - 横跨整个宽度
+                        Divider(
+                                modifier = Modifier.weight(1f),
+                                color = lineColor,
+                                thickness = 1.5.dp
+                        )
+                    }
+
+                    // 状态文本 (红色表示失败，灰色表示取消)
+                    val statusText =
+                            when (status.lowercase()) {
+                                "failed" -> "计划失败"
+                                else -> "计划取消"
+                            }
+
+                    val textColor =
+                            when (status.lowercase()) {
+                                "failed" -> Color(0xFFC62828).copy(alpha = 0.7f) // Dark red
+                                else -> Color(0xFF757575).copy(alpha = 0.7f) // Gray
+                            }
+
+                    Text(
+                            text = statusText,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = textColor,
+                            modifier = Modifier.padding(top = 2.dp, start = 16.dp),
+                            fontWeight = FontWeight.Medium
+                    )
+
+                    // 显示内容（如果有）
+                    if (content.isNotBlank()) {
+                        Text(
+                                text = content,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                modifier =
+                                        Modifier.padding(
+                                                top = 2.dp,
+                                                start = 16.dp,
+                                                bottom = if (isUpdate) 4.dp else 0.dp
+                                        ),
+                                fontWeight = FontWeight.Normal
                         )
                     }
                 }
             }
         }
         else -> {
-            // For other statuses (failed, cancelled, etc.)
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-                    .padding(horizontal = 16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = when (status.lowercase()) {
-                        "failed" -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f)
-                        "cancelled" -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f)
-                    }
-                ),
-                shape = RoundedCornerShape(6.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val (icon, color) = when (status.lowercase()) {
-                        "failed" -> Icons.Filled.Error to Color(0xFFC62828) // Dark red
-                        "cancelled" -> Icons.Filled.Cancel to Color(0xFF757575) // Gray
-                        else -> Icons.Filled.RadioButtonUnchecked to MaterialTheme.colorScheme.onSurface
-                    }
-                    
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = "Plan status: $status",
-                        tint = color,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    
-                    Spacer(modifier = Modifier.width(8.dp))
-                    
-                    Column {
-                        Text(
-                            text = "计划 #$id: ${status.uppercase()}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = color,
-                            fontWeight = FontWeight.Medium
+            // For other statuses (未分类的其他状态), use horizontal line as well
+            if (!isUpdate || content.isNotBlank()) {
+                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    // 横线代替状态卡片 - 移除左侧圆点
+                    Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // 横线 - 横跨整个宽度
+                        Divider(
+                                modifier = Modifier.weight(1f),
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
+                                thickness = 1.5.dp
                         )
-                        
-                        if (content.isNotBlank()) {
-                            Text(
+                    }
+
+                    // 显示状态文本
+                    Text(
+                            text = "计划: ${status.uppercase()}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            modifier = Modifier.padding(top = 2.dp, start = 16.dp),
+                            fontWeight = FontWeight.Medium
+                    )
+
+                    // 显示内容（如果有）
+                    if (content.isNotBlank()) {
+                        Text(
                                 text = content,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
-                        }
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                modifier =
+                                        Modifier.padding(
+                                                top = 2.dp,
+                                                start = 16.dp,
+                                                bottom = if (isUpdate) 4.dp else 0.dp
+                                        ),
+                                fontWeight = FontWeight.Normal
+                        )
                     }
                 }
             }
