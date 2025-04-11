@@ -1,7 +1,7 @@
 # Operit AI - 智能助手应用
 
 <div align="center">
-  <img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" width="120" height="120" alt="Operit Logo">
+  <img src="app/src/main/res/playstore-icon.png" width="120" height="120" alt="Operit Logo">
 </div>
 
 ## 🌟 项目简介
