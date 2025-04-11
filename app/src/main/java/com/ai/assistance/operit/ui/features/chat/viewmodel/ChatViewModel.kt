@@ -19,6 +19,8 @@ import com.ai.assistance.operit.data.model.ToolExecutionState
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.repository.ChatHistoryManager
 import com.ai.assistance.operit.services.FloatingChatService
+import com.ai.assistance.operit.ui.permissions.PermissionLevel
+import com.ai.assistance.operit.ui.permissions.ToolPermissionSystem
 import com.ai.assistance.operit.util.NetworkUtils
 import java.time.LocalDateTime
 import java.util.UUID
@@ -32,6 +34,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     // Preferences and managers
     private val apiPreferences = ApiPreferences(context)
     private val chatHistoryManager = ChatHistoryManager(context)
+    private val toolPermissionSystem = ToolPermissionSystem.getInstance(context)
 
     // API service
     private var enhancedAiService: EnhancedAIService? = null
@@ -136,6 +139,10 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     private val _collapseExecution = MutableStateFlow(ApiPreferences.DEFAULT_COLLAPSE_EXECUTION)
     val collapseExecution: StateFlow<Boolean> = _collapseExecution.asStateFlow()
 
+    // Permission level for master switch (auto approve toggle)
+    private val _masterPermissionLevel = MutableStateFlow(PermissionLevel.ASK)
+    val masterPermissionLevel: StateFlow<PermissionLevel> = _masterPermissionLevel.asStateFlow()
+
     // Add a reference to the floating service
     private var floatingService: FloatingChatService? = null
     private val serviceConnection =
@@ -173,6 +180,13 @@ class ChatViewModel(private val context: Context) : ViewModel() {
             apiPreferences.modelNameFlow.collect { model ->
                 _modelName.value = model
                 checkAndInitializeService()
+            }
+        }
+
+        // Collect master permission level
+        viewModelScope.launch {
+            toolPermissionSystem.masterSwitchFlow.collect { level ->
+                _masterPermissionLevel.value = level
             }
         }
 
@@ -298,53 +312,10 @@ class ChatViewModel(private val context: Context) : ViewModel() {
 
         if (key.isNotBlank() && endpoint.isNotBlank() && model.isNotBlank()) {
             // 始终重建服务以确保使用最新设置
-            // 之前的代码只在服务为 null 时才创建，现在我们总是重建它
             enhancedAiService = EnhancedAIService(endpoint, key, model, context)
 
-            // Set up tool progress collection
-            viewModelScope.launch {
-                enhancedAiService?.getToolProgressFlow()?.collect { progress ->
-                    _toolProgress.value = progress
-                }
-            }
-
-            // Set up references collection
-            viewModelScope.launch {
-                enhancedAiService?.references?.collect { refs -> _aiReferences.value = refs }
-            }
-
-            // Set up input processing state
-            viewModelScope.launch {
-                enhancedAiService?.inputProcessingState?.collect { state ->
-                    when (state) {
-                        InputProcessingState.Idle -> {
-                            _isProcessingInput.value = false
-                            _inputProcessingMessage.value = ""
-                        }
-                        is InputProcessingState.Processing -> {
-                            _isProcessingInput.value = true
-                            _inputProcessingMessage.value = state.message
-                        }
-                        is InputProcessingState.Connecting -> {
-                            _isProcessingInput.value = true
-                            _inputProcessingMessage.value = state.message
-                        }
-                        is InputProcessingState.Receiving -> {
-                            _isProcessingInput.value = true
-                            _inputProcessingMessage.value = state.message
-                        }
-                        InputProcessingState.Completed -> {
-                            _isProcessingInput.value = false
-                        }
-                    }
-                }
-            }
-
-            viewModelScope.launch {
-                enhancedAiService?.planItems?.collect { items: List<PlanItem> ->
-                    saveApiSettings(items)
-                }
-            }
+            // 使用提取的方法设置服务相关的流收集
+            setupServiceCollectors()
 
             _isConfigured.value = true
 
@@ -369,8 +340,95 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         _modelName.value = model
     }
 
+    /**
+     * 使用当前默认配置而不保存用户的输入
+     * 当用户点击"继续使用默认"按钮时调用
+     */
+    fun useDefaultConfig() {
+        // 检查是否有可用的默认配置
+        if (_apiEndpoint.value.isNotBlank() && 
+            _apiKey.value.isNotBlank() && 
+            _modelName.value.isNotBlank()) {
+            
+            // 直接标记为已配置，无需保存用户的输入
+            _isConfigured.value = true
+            
+            // 初始化AI服务
+            enhancedAiService = EnhancedAIService(_apiEndpoint.value, _apiKey.value, _modelName.value, context)
+            
+            // 设置服务相关的流收集
+            setupServiceCollectors()
+            
+            // 检查是否应该创建新对话
+            checkIfShouldCreateNewChat()
+            
+            // 显示使用默认配置的提示
+            showToast("使用默认配置继续")
+        } else {
+            showErrorMessage("默认配置不完整，请填写必要信息")
+        }
+    }
+    
+    /**
+     * 显示错误消息
+     */
+    fun showErrorMessage(message: String) {
+        _errorMessage.value = message
+    }
+
     fun toggleChatHistorySelector() {
         _showChatHistorySelector.value = !_showChatHistorySelector.value
+    }
+    
+    /**
+     * 设置服务相关的流收集逻辑
+     * 提取为单独方法以避免代码重复
+     */
+    private fun setupServiceCollectors() {
+        // Set up tool progress collection
+        viewModelScope.launch {
+            enhancedAiService?.getToolProgressFlow()?.collect { progress ->
+                _toolProgress.value = progress
+            }
+        }
+
+        // Set up references collection
+        viewModelScope.launch {
+            enhancedAiService?.references?.collect { refs -> _aiReferences.value = refs }
+        }
+
+        // Set up input processing state
+        viewModelScope.launch {
+            enhancedAiService?.inputProcessingState?.collect { state ->
+                when (state) {
+                    InputProcessingState.Idle -> {
+                        _isProcessingInput.value = false
+                        _inputProcessingMessage.value = ""
+                    }
+                    is InputProcessingState.Processing -> {
+                        _isProcessingInput.value = true
+                        _inputProcessingMessage.value = state.message
+                    }
+                    is InputProcessingState.Connecting -> {
+                        _isProcessingInput.value = true
+                        _inputProcessingMessage.value = state.message
+                    }
+                    is InputProcessingState.Receiving -> {
+                        _isProcessingInput.value = true
+                        _inputProcessingMessage.value = state.message
+                    }
+                    InputProcessingState.Completed -> {
+                        _isProcessingInput.value = false
+                    }
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            enhancedAiService?.planItems?.collect { items: List<PlanItem> ->
+                saveApiSettings(items)
+            }
+        }
     }
 
     fun saveApiSettings() {
@@ -380,50 +438,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
             enhancedAiService =
                     EnhancedAIService(_apiEndpoint.value, _apiKey.value, _modelName.value, context)
 
-            // Set up tool progress collection
-            viewModelScope.launch {
-                enhancedAiService?.getToolProgressFlow()?.collect { progress ->
-                    _toolProgress.value = progress
-                }
-            }
-
-            // Set up references collection
-            viewModelScope.launch {
-                enhancedAiService?.references?.collect { refs -> _aiReferences.value = refs }
-            }
-
-            // Set up input processing state
-            viewModelScope.launch {
-                enhancedAiService?.inputProcessingState?.collect { state ->
-                    when (state) {
-                        InputProcessingState.Idle -> {
-                            _isProcessingInput.value = false
-                            _inputProcessingMessage.value = ""
-                        }
-                        is InputProcessingState.Processing -> {
-                            _isProcessingInput.value = true
-                            _inputProcessingMessage.value = state.message
-                        }
-                        is InputProcessingState.Connecting -> {
-                            _isProcessingInput.value = true
-                            _inputProcessingMessage.value = state.message
-                        }
-                        is InputProcessingState.Receiving -> {
-                            _isProcessingInput.value = true
-                            _inputProcessingMessage.value = state.message
-                        }
-                        InputProcessingState.Completed -> {
-                            _isProcessingInput.value = false
-                        }
-                    }
-                }
-            }
-
-            viewModelScope.launch {
-                enhancedAiService?.planItems?.collect { items: List<PlanItem> ->
-                    saveApiSettings(items)
-                }
-            }
+            // 使用提取的方法设置服务相关的流收集
+            setupServiceCollectors()
 
             _isConfigured.value = true
 
@@ -1030,10 +1046,9 @@ class ChatViewModel(private val context: Context) : ViewModel() {
             val newValue = !_enableAiPlanning.value
             apiPreferences.saveEnableAiPlanning(newValue)
             _enableAiPlanning.value = newValue
-
-            // Show toast to confirm change
-            val message = if (newValue) "AI计划模式已开启" else "AI计划模式已关闭"
-            _toastEvent.value = message
+            
+            // Remove toast notification
+            // _toastEvent.value = if (newValue) "AI计划模式已开启" else "AI计划模式已关闭"
         }
     }
 
@@ -1057,9 +1072,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
             apiPreferences.saveMemoryOptimization(newValue)
             _memoryOptimization.value = newValue
 
-            // Show toast to confirm change
-            val message = if (newValue) "记忆优化已开启" else "记忆优化已关闭"
-            _toastEvent.value = message
+            // Remove toast notification
+            // _toastEvent.value = if (newValue) "记忆优化已开启" else "记忆优化已关闭"
         }
     }
 
@@ -1183,6 +1197,27 @@ class ChatViewModel(private val context: Context) : ViewModel() {
 
                 _planItems.value = items
             }
+        }
+    }
+
+    /** Toggle the master permission level between ASK and ALLOW */
+    fun toggleMasterPermission() {
+        viewModelScope.launch {
+            val newLevel =
+                    if (_masterPermissionLevel.value == PermissionLevel.ASK) {
+                        PermissionLevel.ALLOW
+                    } else {
+                        PermissionLevel.ASK
+                    }
+            toolPermissionSystem.saveMasterSwitch(newLevel)
+            
+            // Remove toast notification
+            // _toastEvent.value =
+            //        if (newLevel == PermissionLevel.ALLOW) {
+            //            "已开启自动批准，工具执行将不再询问"
+            //        } else {
+            //            "已恢复询问模式，工具执行将询问批准"
+            //        }
         }
     }
 }

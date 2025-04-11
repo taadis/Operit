@@ -1,6 +1,5 @@
 package com.ai.assistance.operit.ui.main
 
-import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,15 +32,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.compose.rememberNavController
 import com.ai.assistance.operit.R
+import com.ai.assistance.operit.data.mcp.MCPRepository
+import com.ai.assistance.operit.data.preferences.AgreementPreferences
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.repository.ChatHistoryManager
-import com.ai.assistance.operit.data.mcp.MCPRepository
 import com.ai.assistance.operit.tools.AIToolHandler
 import com.ai.assistance.operit.ui.common.NavItem
 import com.ai.assistance.operit.ui.common.displays.FpsCounter
 import com.ai.assistance.operit.ui.features.about.screens.AboutScreen
+import com.ai.assistance.operit.ui.features.agreement.screens.AgreementScreen
 import com.ai.assistance.operit.ui.features.chat.screens.AIChatScreen
 import com.ai.assistance.operit.ui.features.demo.screens.ShizukuDemoScreen
+import com.ai.assistance.operit.ui.features.help.screens.HelpScreen
 import com.ai.assistance.operit.ui.features.mcp.screens.MCPScreen
 import com.ai.assistance.operit.ui.features.packages.screens.PackageManagerScreen
 import com.ai.assistance.operit.ui.features.problems.screens.ProblemLibraryScreen
@@ -78,6 +80,8 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
 
     var isLoading by remember { mutableStateOf(false) }
 
+    var isHelpScreen by remember { mutableStateOf(false) }
+
     val navItems =
             listOf(
                     NavItem.AiChat,
@@ -87,6 +91,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                     NavItem.Settings,
                     NavItem.Packages,
                     NavItem.ProblemLibrary,
+                    NavItem.Help,
                     NavItem.About
             )
     val context = LocalContext.current
@@ -94,6 +99,12 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
     // 网络状态 - 使用remember记住状态，避免每次重组时重新获取
     var isNetworkAvailable by remember { mutableStateOf(NetworkUtils.isNetworkAvailable(context)) }
     var networkType by remember { mutableStateOf(NetworkUtils.getNetworkType(context)) }
+
+    // 用户协议状态检查
+    val agreementPreferences = remember { AgreementPreferences(context) }
+    var showAgreementScreen by remember {
+        mutableStateOf(!agreementPreferences.isAgreementAccepted())
+    }
 
     // 周期性检查网络状态 - 每10秒更新一次，而不是每次重组都更新
     LaunchedEffect(Unit) {
@@ -129,6 +140,17 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
 
     // Create an instance of MCPRepository
     val mcpRepository = remember { MCPRepository(context) }
+
+    // 如果需要显示协议页面，先显示协议页面
+    if (showAgreementScreen) {
+        AgreementScreen(
+                onAgreementAccepted = {
+                    agreementPreferences.setAgreementAccepted(true)
+                    showAgreementScreen = false
+                }
+        )
+        return
+    }
 
     // 应用整体结构
     Box(modifier = Modifier.fillMaxSize()) {
@@ -272,6 +294,17 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                         selectedItem == NavItem.Settings && !isToolPermissionScreen,
                                 onClick = {
                                     selectedItem = NavItem.Settings
+                                    scope.launch { drawerState.close() }
+                                }
+                        )
+
+                        // 帮助中心
+                        CompactNavigationDrawerItem(
+                                icon = NavItem.Help.icon,
+                                label = stringResource(id = NavItem.Help.titleResId),
+                                selected = selectedItem == NavItem.Help && !isToolPermissionScreen,
+                                onClick = {
+                                    selectedItem = NavItem.Help
                                     scope.launch { drawerState.close() }
                                 }
                         )
@@ -431,32 +464,32 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                 contentAlignment = Alignment.Center
                         ) {
                             Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
                             ) {
                                 Surface(
-                                    modifier = Modifier.size(48.dp),
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    contentColor = MaterialTheme.colorScheme.onPrimary
+                                        modifier = Modifier.size(48.dp),
+                                        shape = CircleShape,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        contentColor = MaterialTheme.colorScheme.onPrimary
                                 ) {
                                     Box(
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentAlignment = Alignment.Center
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentAlignment = Alignment.Center
                                     ) {
                                         Text(
-                                            text = "...",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold
+                                                text = "...",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold
                                         )
                                     }
                                 }
-                                
+
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text(
-                                    text = "正在加载...",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                        text = "正在加载...",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface
                                 )
                             }
                         }
@@ -565,6 +598,11 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                         // MCP 屏幕
                                         MCPScreen(mcpRepository = mcpRepository)
                                     }
+                                    NavItem.Help -> HelpScreen(
+                                        onBackPressed = {
+                                            selectedItem = NavItem.AiChat
+                                        }
+                                    )
                                     else -> {
                                         // 处理其他情况
                                         selectedItem = NavItem.AiChat

@@ -33,7 +33,6 @@ import com.ai.assistance.operit.tools.system.TermuxCommandExecutor
 import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.model.TerminalSessionManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import com.ai.assistance.operit.ui.features.terminal.components.*
 import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.utils.TerminalColors
 import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.components.CommandInputArea
 import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.components.CommandOutputDisplay

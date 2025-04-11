@@ -79,6 +79,13 @@ dependencies {
     implementation("com.itextpdf:itextpdf:5.5.13.3") // iText for PDF creation
     implementation("org.apache.pdfbox:pdfbox:2.0.27") // PDFBox for PDF operations
     
+    // Markdown rendering libraries
+    implementation("com.github.jeziellago:compose-markdown:0.3.6") // Compose Markdown renderer
+    implementation("org.jetbrains:markdown:0.4.1") // JetBrains Markdown parser
+    
+    // LaTeX support - RenderX提供原生LaTeX渲染
+    implementation("com.github.tech-pw:RenderX:1.0.0") // 支持原生LaTeX渲染
+    
     // Base Android dependencies
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)

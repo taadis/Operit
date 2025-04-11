@@ -27,9 +27,9 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.data.model.ChatMessage
+import com.ai.assistance.operit.ui.common.displays.MarkdownTextComposable
 import com.ai.assistance.operit.ui.common.displays.MessageContentParser
 import com.ai.assistance.operit.ui.common.displays.MessageContentParser.Companion.ContentSegment
-import com.ai.assistance.operit.ui.common.displays.TextWithCodeBlocksComposable
 
 /**
  * A composable function for rendering AI response messages in a Cursor IDE style. Supports text
@@ -64,14 +64,12 @@ fun AiMessageComposable(
     }
 
     // Removed the Card background - Direct Column for AI response
-    Column(modifier = Modifier
-            .fillMaxWidth()
-        .padding(vertical = 8.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
         Text(
-            text = "Response",
-            style = MaterialTheme.typography.labelSmall,
-            color = textColor.copy(alpha = 0.7f),
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
+                text = "Response",
+                style = MaterialTheme.typography.labelSmall,
+                color = textColor.copy(alpha = 0.7f),
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
         )
 
         // Parse the message content to identify tool markup
@@ -112,7 +110,6 @@ fun AiMessageComposable(
                         toolFinalStates[toolName] = Triple(true, null, false)
                     }
                 }
-
                 is ContentSegment.ToolResult -> {
                     val toolName = segment.name
                     // 更新为结果状态（优先级高于请求和执行状态）
@@ -120,7 +117,6 @@ fun AiMessageComposable(
                     // 标记该工具已完成
                     completedTools.add(toolName)
                 }
-
                 is ContentSegment.Status -> {
                     if (segment.toolName.isNotBlank()) {
                         val toolName = segment.toolName
@@ -131,7 +127,6 @@ fun AiMessageComposable(
                                     toolFinalStates[toolName] = Triple(true, null, false)
                                 }
                             }
-
                             "result" -> {
                                 // 更新为结果状态
                                 toolFinalStates[toolName] =
@@ -142,29 +137,26 @@ fun AiMessageComposable(
                         }
                     }
                 }
-
                 is ContentSegment.PlanItem -> {
                     val planId = segment.id
                     if (segment.status.lowercase() == "in_progress") {
                         planStatus[planId] = true
                     } else if (segment.status.lowercase() == "completed" ||
-                        segment.status.lowercase() == "done"
+                                    segment.status.lowercase() == "done"
                     ) {
                         planStatus[planId] = false
                     }
                 }
-
                 is ContentSegment.PlanUpdate -> {
                     val planId = segment.id
                     if (segment.status.lowercase() == "in_progress") {
                         planStatus[planId] = true
                     } else if (segment.status.lowercase() == "completed" ||
-                        segment.status.lowercase() == "done"
+                                    segment.status.lowercase() == "done"
                     ) {
                         planStatus[planId] = false
                     }
                 }
-
                 else -> {
                     /* 其他段落不影响工具和计划状态 */
                 }
@@ -181,8 +173,7 @@ fun AiMessageComposable(
                         if (segment.content.isNotBlank()) {
                             Box(
                                     modifier =
-                                Modifier
-                                    .fillMaxWidth()
+                                            Modifier.fillMaxWidth()
                                                     .padding(horizontal = 16.dp)
                                                     .combinedClickable(
                                                             interactionSource =
@@ -204,14 +195,13 @@ fun AiMessageComposable(
                                                             }
                                                     )
                             ) {
-                                TextWithCodeBlocksComposable(
+                                MarkdownTextComposable(
                                         text = segment.content,
                                         textColor = textColor
                                 )
                             }
                         }
                     }
-
                     is ContentSegment.ToolRequest -> {
                         val toolName = segment.name
 
@@ -255,7 +245,7 @@ fun AiMessageComposable(
                                 // 如果有更多结果，则重置该工具的状态，开始新一轮显示
                                 displayedTools.remove(toolName)
                                 completedTools.remove(toolName)
-                            
+
                                 // 添加到已显示工具集合
                                 displayedTools.add(toolName)
 
@@ -276,10 +266,10 @@ fun AiMessageComposable(
                                                 // 如果有工具结果，显示结果，否则显示请求参数
                                                 resultDialogContent =
                                                         if (finalState?.second == null ||
-                                                    finalState
-                                                        .second
-                                                        .toString()
-                                                        .isBlank()
+                                                                        finalState
+                                                                                .second
+                                                                                .toString()
+                                                                                .isBlank()
                                                         ) {
                                                             "Parameters:\n${segment.params}"
                                                         } else {
@@ -291,16 +281,16 @@ fun AiMessageComposable(
                                             onCopyResult = {
                                                 val result = finalState?.second
                                                 if (result != null) {
-                                                clipboardManager.setText(
-                                                    AnnotatedString(result)
-                                                )
+                                                    clipboardManager.setText(
+                                                            AnnotatedString(result)
+                                                    )
                                                 }
                                             }
                                     )
                                 }
                             }
                         } else if (displayedTools.contains(toolName) &&
-                            !completedTools.contains(toolName)
+                                        !completedTools.contains(toolName)
                         ) {
                             // 如果这个工具已经显示过但尚未完成，则跳过（状态会被后续的执行或结果更新）
                             // 这里使用Unit返回而不是非局部返回
@@ -326,10 +316,10 @@ fun AiMessageComposable(
                                             // 如果有工具结果，显示结果，否则显示请求参数
                                             resultDialogContent =
                                                     if (finalState?.second == null ||
-                                                finalState
-                                                    .second
-                                                    .toString()
-                                                    .isBlank()
+                                                                    finalState
+                                                                            .second
+                                                                            .toString()
+                                                                            .isBlank()
                                                     ) {
                                                         "Parameters:\n${segment.params}"
                                                     } else {
@@ -348,7 +338,6 @@ fun AiMessageComposable(
                             }
                         }
                     }
-
                     is ContentSegment.ToolExecution -> {
                         val toolName = segment.name
 
@@ -387,7 +376,6 @@ fun AiMessageComposable(
                             }
                         }
                     }
-
                     is ContentSegment.ToolResult -> {
                         val toolName = segment.name
 
@@ -422,15 +410,14 @@ fun AiMessageComposable(
                                             showResultDialog = true
                                         },
                                         onCopyResult = {
-                                        clipboardManager.setText(
-                                            AnnotatedString(segment.content)
-                                        )
+                                            clipboardManager.setText(
+                                                    AnnotatedString(segment.content)
+                                            )
                                         }
                                 )
                             }
                         }
                     }
-
                     is ContentSegment.Status -> {
                         if (segment.toolName.isNotBlank()) {
                             val toolName = segment.toolName
@@ -454,22 +441,22 @@ fun AiMessageComposable(
                                                 params = toolParams[toolName],
                                                 onShowResult = {
                                                     val result = finalState?.second
-                                                if (result != null &&
-                                                    result.toString().isNotBlank()
-                                                ) {
+                                                    if (result != null &&
+                                                                    result.toString().isNotBlank()
+                                                    ) {
                                                         resultDialogTitle = toolName
                                                         resultDialogContent = result.toString()
-                                                    resultDialogParams =
-                                                        toolParams[toolName] ?: ""
+                                                        resultDialogParams =
+                                                                toolParams[toolName] ?: ""
                                                         showResultDialog = true
                                                     }
                                                 },
                                                 onCopyResult = {
                                                     val result = finalState?.second
                                                     if (result != null) {
-                                                    clipboardManager.setText(
-                                                        AnnotatedString(result)
-                                                    )
+                                                        clipboardManager.setText(
+                                                                AnnotatedString(result)
+                                                        )
                                                     }
                                                 }
                                         )
@@ -494,8 +481,7 @@ fun AiMessageComposable(
                                     // Task completion indicator
                                     Card(
                                             modifier =
-                                        Modifier
-                                            .fillMaxWidth()
+                                                    Modifier.fillMaxWidth()
                                                             .padding(horizontal = 16.dp)
                                                             .padding(vertical = 4.dp),
                                             colors =
@@ -524,13 +510,11 @@ fun AiMessageComposable(
                                         }
                                     }
                                 }
-
                                 "wait_for_user_need" -> {
                                     // Wait for user need indicator
                                     Card(
                                             modifier =
-                                        Modifier
-                                            .fillMaxWidth()
+                                                    Modifier.fillMaxWidth()
                                                             .padding(horizontal = 16.dp)
                                                             .padding(vertical = 4.dp),
                                             colors =
@@ -559,13 +543,11 @@ fun AiMessageComposable(
                                         }
                                     }
                                 }
-
                                 "warning" -> {
                                     // Warning information
                                     Card(
                                             modifier =
-                                        Modifier
-                                            .fillMaxWidth()
+                                                    Modifier.fillMaxWidth()
                                                             .padding(horizontal = 16.dp)
                                                             .padding(vertical = 4.dp)
                                                             .combinedClickable(
@@ -619,22 +601,20 @@ fun AiMessageComposable(
                             }
                         }
                     }
-
                     is ContentSegment.PlanItem -> {
                         UnifiedPlanDisplay(
-                            id = segment.id,
-                            status = segment.status,
-                            content = segment.description,
-                            isUpdate = false
+                                id = segment.id,
+                                status = segment.status,
+                                content = segment.description,
+                                isUpdate = false
                         )
                     }
-
                     is ContentSegment.PlanUpdate -> {
                         UnifiedPlanDisplay(
-                            id = segment.id,
-                            status = segment.status,
-                            content = segment.message ?: "",
-                            isUpdate = false
+                                id = segment.id,
+                                status = segment.status,
+                                content = segment.message ?: "",
+                                isUpdate = false
                         )
                     }
                 }
@@ -649,18 +629,18 @@ fun AiMessageComposable(
             when (segment) {
                 is ContentSegment.PlanItem, is ContentSegment.PlanUpdate -> {
                     val planId =
-                        when (segment) {
-                            is ContentSegment.PlanItem -> segment.id
-                            is ContentSegment.PlanUpdate -> segment.id
-                            else -> ""
-                        }
+                            when (segment) {
+                                is ContentSegment.PlanItem -> segment.id
+                                is ContentSegment.PlanUpdate -> segment.id
+                                else -> ""
+                            }
 
                     val status =
-                        when (segment) {
-                            is ContentSegment.PlanItem -> segment.status
-                            is ContentSegment.PlanUpdate -> segment.status
-                            else -> ""
-                        }
+                            when (segment) {
+                                is ContentSegment.PlanItem -> segment.status
+                                is ContentSegment.PlanUpdate -> segment.status
+                                else -> ""
+                            }
 
                     // 处理计划状态变化
                     if (status.lowercase() == "in_progress") {
@@ -670,8 +650,8 @@ fun AiMessageComposable(
                             if (planSegments.isNotEmpty()) {
                                 // 渲染当前活动计划
                                 renderPlanWithTimeline(
-                                    currentActivePlanId.value!!,
-                                    planSegments.map { it.second }
+                                        currentActivePlanId.value!!,
+                                        planSegments.map { it.second }
                                 )
                                 planSegments.clear()
                             }
@@ -707,7 +687,6 @@ fun AiMessageComposable(
                         composable()
                     }
                 }
-
                 else -> {
                     // 对于非计划相关的段落
                     if (currentActivePlanId.value != null) {
@@ -735,76 +714,66 @@ private fun renderPlanWithTimeline(planId: String, composables: List<@Composable
     if (composables.isEmpty()) return
 
     // 使用Row布局来更精确控制时间线和内容
-    Box(modifier = Modifier
-                        .fillMaxWidth()
-        .padding(vertical = 8.dp, horizontal = 4.dp)) {
+    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp, horizontal = 4.dp)) {
         Row(
-            modifier =
-            Modifier
-                .fillMaxWidth()
-                .height(IntrinsicSize.Min), // 使用IntrinsicSize.Min确保高度跟随内容
-            verticalAlignment = Alignment.Top // 确保从顶部对齐
+                modifier =
+                        Modifier.fillMaxWidth()
+                                .height(IntrinsicSize.Min), // 使用IntrinsicSize.Min确保高度跟随内容
+                verticalAlignment = Alignment.Top // 确保从顶部对齐
         ) {
             // 左侧时间线区域
-            Box(modifier = Modifier
-                .width(30.dp)
-                .fillMaxHeight()) {
+            Box(modifier = Modifier.width(30.dp).fillMaxHeight()) {
                 // 竖线 (时间线) - 降低不透明度使其更淡
                 Box(
-                    modifier =
-                    Modifier
-                        .width(3.dp)
-                        .fillMaxHeight()
-                        .align(Alignment.Center)
-                        .background(
-                            color =
-                            MaterialTheme.colorScheme.primary.copy(
-                                alpha = 0.25f
-                            ),
-                            shape = RoundedCornerShape(1.5.dp)
-                        )
+                        modifier =
+                                Modifier.width(3.dp)
+                                        .fillMaxHeight()
+                                        .align(Alignment.Center)
+                                        .background(
+                                                color =
+                                                        MaterialTheme.colorScheme.primary.copy(
+                                                                alpha = 0.25f
+                                                        ),
+                                                shape = RoundedCornerShape(1.5.dp)
+                                        )
                 )
 
                 // 开始节点 (顶部) - 更小的圆点且降低不透明度
                 Box(
-                    modifier =
-                    Modifier
-                        .size(6.dp)
-                        .align(Alignment.TopCenter)
-                        .background(
-                            color =
-                            MaterialTheme.colorScheme.primary.copy(
-                                alpha = 0.3f
-                            ),
-                            shape = CircleShape
-                        )
+                        modifier =
+                                Modifier.size(6.dp)
+                                        .align(Alignment.TopCenter)
+                                        .background(
+                                                color =
+                                                        MaterialTheme.colorScheme.primary.copy(
+                                                                alpha = 0.3f
+                                                        ),
+                                                shape = CircleShape
+                                        )
                 )
 
                 // 结束节点 (底部) - 更小的圆点且降低不透明度
                 Box(
-                    modifier =
-                    Modifier
-                        .size(6.dp)
-                        .align(Alignment.BottomCenter)
-                        .background(
-                            color =
-                            MaterialTheme.colorScheme.primary.copy(
-                                alpha = 0.3f
-                            ),
-                            shape = CircleShape
-                        )
-                        .border(
-                            width = 1.dp,
-                            color = MaterialTheme.colorScheme.surface,
-                            shape = CircleShape
-                        )
+                        modifier =
+                                Modifier.size(6.dp)
+                                        .align(Alignment.BottomCenter)
+                                        .background(
+                                                color =
+                                                        MaterialTheme.colorScheme.primary.copy(
+                                                                alpha = 0.3f
+                                                        ),
+                                                shape = CircleShape
+                                        )
+                                        .border(
+                                                width = 1.dp,
+                                                color = MaterialTheme.colorScheme.surface,
+                                                shape = CircleShape
+                                        )
                 )
             }
 
             // 在Box中渲染该计划的所有段落
-            Column(modifier = Modifier
-                .weight(1f)
-                .padding(end = 16.dp)) {
+            Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
                 composables.forEach { composable -> composable() }
             }
         }
@@ -819,111 +788,83 @@ private fun UnifiedPlanDisplay(id: String, status: String, content: String, isUp
             if (!isUpdate) { // Only show TODO items for plan items, not updates
                 // TODO plans: Display in a smaller size
                 Row(
-                    modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 2.dp) // 减少垂直间距
-                        .padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        modifier =
+                                Modifier.fillMaxWidth()
+                                        .padding(vertical = 2.dp) // 减少垂直间距
+                                        .padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.RadioButtonUnchecked,
-                        contentDescription = "Todo task",
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                        modifier = Modifier.size(14.dp)
+                            imageVector = Icons.Filled.RadioButtonUnchecked,
+                            contentDescription = "Todo task",
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            modifier = Modifier.size(14.dp)
                     )
-                    
+
                     Spacer(modifier = Modifier.width(8.dp))
-                    
+
                     Text(
-                        text = content,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                        modifier = Modifier.padding(vertical = 2.dp)
+                            text = content,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                            modifier = Modifier.padding(vertical = 2.dp)
                     )
                 }
             }
         }
-
         "in_progress" -> {
             // If this is a plan item or update with content, show the indicator
             if (!isUpdate || content.isNotBlank()) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp) // 减少垂直间距
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp) // 减少垂直间距
                 ) {
                     // 靠左对齐的计划开始标记，减少左内边距
                     Box(
-                        modifier = Modifier.padding(start = 8.dp, end = 16.dp) // 减少左侧内边距
+                            modifier = Modifier.padding(start = 8.dp, end = 16.dp) // 减少左侧内边距
                     ) {
                         Card(
-                            shape = RoundedCornerShape(16.dp),
-                            colors =
-                            CardDefaults.cardColors(
-                                containerColor =
-                                MaterialTheme.colorScheme.primary.copy(
-                                    alpha = 0.15f
-                                )
-                            ),
-                            // 删除边框
-                        ) {
+                                shape = RoundedCornerShape(16.dp),
+                                colors =
+                                        CardDefaults.cardColors(
+                                                containerColor =
+                                                        MaterialTheme.colorScheme.primary.copy(
+                                                                alpha = 0.15f
+                                                        )
+                                        ),
+                                // 删除边框
+                                ) {
                             Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier =
-                                Modifier.padding(
-                                    horizontal = 12.dp,
-                                    vertical = 3.dp
-                                ) // 减少垂直内边距
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Filled.PlayArrow,
-                                    contentDescription = "Plan in progress",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
+                                        imageVector = Icons.Filled.PlayArrow,
+                                        contentDescription = "Plan in progress",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
                                 )
-                                
+
                                 Spacer(modifier = Modifier.width(6.dp))
-                                
-                                Text(
-                                    text = "计划 #$id 执行中",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
+
+                                // 当有内容时只显示内容，否则显示"计划 #X 执行中"
+                                if (content.isNotBlank()) {
+                                    // 直接显示内容，使用与标题相同的样式
+                                    Text(
+                                            text = content,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.primary
+                                    )
+                                } else {
+                                    // 没有内容时显示默认标题
+                                    Text(
+                                            text = "计划 #$id 执行中",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
                             }
-                        }
-                    }
-                    
-                    // Show content (description or message) if available
-                    if (content.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(4.dp)) // 减少垂直间距
-                        
-                        Card(
-                            shape = RoundedCornerShape(6.dp),
-                            colors =
-                            CardDefaults.cardColors(
-                                containerColor =
-                                MaterialTheme.colorScheme.surface.copy(
-                                    alpha = 0.7f
-                                )
-                            ),
-                            border =
-                            BorderStroke(
-                                0.5.dp,
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp)
-                        ) {
-                            Text(
-                                text = content,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontWeight = FontWeight.Normal,
-                                modifier = Modifier.padding(12.dp)
-                            )
                         }
                     }
                 }
@@ -931,162 +872,147 @@ private fun UnifiedPlanDisplay(id: String, status: String, content: String, isUp
                 // Empty update - don't show anything
             }
         }
-
         "completed", "done" -> {
             // For plan items, show a horizontal line with content in gray
             if (!isUpdate || content.isNotBlank()) {
-                Column(modifier = Modifier
-                        .fillMaxWidth()
-                    .padding(vertical = 4.dp)) {
+                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     // 横线代替计划完成卡片 - 移除左侧圆点
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically
                     ) {
                         // 横线 - 横跨整个宽度
                         Divider(
-                            modifier = Modifier.weight(1f),
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
-                            thickness = 1.5.dp
+                                modifier = Modifier.weight(1f),
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
+                                thickness = 1.5.dp
                         )
                     }
 
                     // 直接在线上方显示内容（灰色文字）
                     if (content.isNotBlank() && content != "Completed" && content != "Done") {
                         Text(
-                            text = content,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                            modifier =
-                            Modifier.padding(
-                                top = 2.dp,
-                                start = 16.dp,
-                                bottom = if (isUpdate) 4.dp else 0.dp
-                            ),
-                            fontWeight = FontWeight.Normal
+                                text = content,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                modifier =
+                                        Modifier.padding(
+                                                top = 2.dp,
+                                                start = 16.dp,
+                                                bottom = if (isUpdate) 4.dp else 0.dp
+                                        ),
+                                fontWeight = FontWeight.Normal
                         )
                     }
                 }
             }
         }
-
         "failed", "cancelled" -> {
             // Failed and cancelled plans should have same visual treatment as completed
             if (!isUpdate || content.isNotBlank()) {
-                Column(modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)) {
+                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     // 横线代替状态卡片 - 移除左侧圆点
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically
                     ) {
                         // 确定线的颜色
                         val lineColor =
-                            when (status.lowercase()) {
-                                "failed" ->
-                                    Color(0xFFC62828)
-                                        .copy(alpha = 0.25f) // Dark red with opacity
-                                else ->
-                                    Color(0xFF757575)
-                                        .copy(alpha = 0.25f) // Gray with opacity
-                            }
+                                when (status.lowercase()) {
+                                    "failed" ->
+                                            Color(0xFFC62828)
+                                                    .copy(alpha = 0.25f) // Dark red with opacity
+                                    else ->
+                                            Color(0xFF757575)
+                                                    .copy(alpha = 0.25f) // Gray with opacity
+                                }
 
                         // 横线 - 横跨整个宽度
                         Divider(
-                            modifier = Modifier.weight(1f),
-                            color = lineColor,
-                            thickness = 1.5.dp
+                                modifier = Modifier.weight(1f),
+                                color = lineColor,
+                                thickness = 1.5.dp
                         )
                     }
-                    
+
                     // 状态文本 (红色表示失败，灰色表示取消)
                     val statusText =
-                        when (status.lowercase()) {
-                            "failed" -> "计划失败"
-                            else -> "计划取消"
-                        }
+                            when (status.lowercase()) {
+                                "failed" -> "计划失败"
+                                else -> "计划取消"
+                            }
 
                     val textColor =
-                        when (status.lowercase()) {
-                            "failed" -> Color(0xFFC62828).copy(alpha = 0.7f) // Dark red
-                            else -> Color(0xFF757575).copy(alpha = 0.7f) // Gray
-                        }
+                            when (status.lowercase()) {
+                                "failed" -> Color(0xFFC62828).copy(alpha = 0.7f) // Dark red
+                                else -> Color(0xFF757575).copy(alpha = 0.7f) // Gray
+                            }
 
                     Text(
-                        text = statusText,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = textColor,
-                        modifier = Modifier.padding(top = 2.dp, start = 16.dp),
-                        fontWeight = FontWeight.Medium
+                            text = statusText,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = textColor,
+                            modifier = Modifier.padding(top = 2.dp, start = 16.dp),
+                            fontWeight = FontWeight.Medium
                     )
 
                     // 显示内容（如果有）
                     if (content.isNotBlank()) {
                         Text(
-                            text = content,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                            modifier =
-                            Modifier.padding(
-                                top = 2.dp,
-                                start = 16.dp,
-                                bottom = if (isUpdate) 4.dp else 0.dp
-                            ),
-                            fontWeight = FontWeight.Normal
+                                text = content,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                modifier =
+                                        Modifier.padding(
+                                                top = 2.dp,
+                                                start = 16.dp,
+                                                bottom = if (isUpdate) 4.dp else 0.dp
+                                        ),
+                                fontWeight = FontWeight.Normal
                         )
                     }
                 }
             }
         }
-
         else -> {
             // For other statuses (未分类的其他状态), use horizontal line as well
             if (!isUpdate || content.isNotBlank()) {
-                Column(modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)) {
+                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     // 横线代替状态卡片 - 移除左侧圆点
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                    Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                    ) {
                         // 横线 - 横跨整个宽度
                         Divider(
-                            modifier = Modifier.weight(1f),
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
-                            thickness = 1.5.dp
+                                modifier = Modifier.weight(1f),
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
+                                thickness = 1.5.dp
                         )
                     }
 
                     // 显示状态文本
-                        Text(
-                        text = "计划: ${status.uppercase()}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                        modifier = Modifier.padding(top = 2.dp, start = 16.dp),
+                    Text(
+                            text = "计划: ${status.uppercase()}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            modifier = Modifier.padding(top = 2.dp, start = 16.dp),
                             fontWeight = FontWeight.Medium
-                        )
-                        
+                    )
+
                     // 显示内容（如果有）
-                        if (content.isNotBlank()) {
-                            Text(
+                    if (content.isNotBlank()) {
+                        Text(
                                 text = content,
                                 style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                            modifier =
-                            Modifier.padding(
-                                top = 2.dp,
-                                start = 16.dp,
-                                bottom = if (isUpdate) 4.dp else 0.dp
-                            ),
-                            fontWeight = FontWeight.Normal
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                modifier =
+                                        Modifier.padding(
+                                                top = 2.dp,
+                                                start = 16.dp,
+                                                bottom = if (isUpdate) 4.dp else 0.dp
+                                        ),
+                                fontWeight = FontWeight.Normal
                         )
                     }
                 }

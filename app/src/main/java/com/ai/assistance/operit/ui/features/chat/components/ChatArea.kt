@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -44,6 +45,17 @@ fun ChatArea(
         collapseExecution: Boolean = false,
         modifier: Modifier = Modifier
 ) {
+    // 创建一个基于当前聊天内容的键，用于在聊天切换时重置内部状态
+    val chatContentKey =
+            remember(chatHistory) {
+                // 使用第一条消息的内容哈希或时间戳作为键，如果没有消息则使用随机值
+                chatHistory.firstOrNull()?.content?.hashCode()?.toString() 
+                        ?: System.currentTimeMillis().toString()
+            }
+
+    // 使用键重置存储计划活动状态的缓存
+    val activePlanCache = remember(chatContentKey) { mutableMapOf<String, Boolean>() }
+
     Column(modifier = modifier) {
         // References display
         ReferencesDisplay(references = aiReferences, modifier = Modifier.fillMaxWidth())
@@ -61,15 +73,22 @@ fun ChatArea(
         // Chat messages list
         LazyColumn(
                 state = listState,
-                modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp),
+                modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp)
         ) {
-            items(chatHistory.withIndex().toList()) { (index, message) ->
+            items(
+                    items = chatHistory.withIndex().toList(),
+                    // 为每个消息项生成唯一键，确保在聊天切换时重新渲染
+                    key = { (index, message) -> 
+                        "$chatContentKey-${message.content.hashCode()}-$index" 
+                    }
+            ) { (index, message) ->
                 // 判断当前消息类型
                 val isUserMessage = message.sender == "user"
 
                 if (isUserMessage) {
                     // 对于用户消息，检查之前的AI消息是否有活动计划
-                    val shouldWrapUserMessage = shouldWrapUserMessage(chatHistory, index)
+                    val shouldWrapUserMessage =
+                            shouldWrapUserMessage(chatHistory, index, activePlanCache)
 
                     if (shouldWrapUserMessage) {
                         // 包装用户消息，采用与计划相同的时间线样式
@@ -219,7 +238,11 @@ fun ChatArea(
  * @param currentIndex 当前消息的索引
  * @return 如果用户消息应该被包装，返回true
  */
-private fun shouldWrapUserMessage(chatHistory: List<ChatMessage>, currentIndex: Int): Boolean {
+private fun shouldWrapUserMessage(
+        chatHistory: List<ChatMessage>,
+        currentIndex: Int,
+        activePlanCache: MutableMap<String, Boolean>
+): Boolean {
     // 如果是第一条消息，不需要包装
     if (currentIndex == 0) return false
 
@@ -230,7 +253,7 @@ private fun shouldWrapUserMessage(chatHistory: List<ChatMessage>, currentIndex: 
         val message = chatHistory[i]
         if (message.sender == "ai") {
             // 检查这条AI消息是否有活动计划
-            if (hasActivePlan(message.content)) {
+            if (hasActivePlan(message.content, activePlanCache)) {
                 return true
             }
             break
@@ -241,7 +264,15 @@ private fun shouldWrapUserMessage(chatHistory: List<ChatMessage>, currentIndex: 
 }
 
 /** 检查消息内容中是否有活动计划（in_progress但未completed） */
-private fun hasActivePlan(content: String): Boolean {
+private fun hasActivePlan(content: String, activePlanCache: MutableMap<String, Boolean>): Boolean {
+    // 使用消息内容的哈希作为缓存键
+    val cacheKey = content.hashCode().toString()
+
+    // 检查缓存中是否已存在结果
+    if (activePlanCache.containsKey(cacheKey)) {
+        return activePlanCache[cacheKey] ?: false
+    }
+
     val contentSegments = MessageContentParser.parseContent(content, true)
 
     var foundInProgress = false
@@ -273,6 +304,10 @@ private fun hasActivePlan(content: String): Boolean {
 
     // 如果找到in_progress但没有completed，表示有活动计划
     val hasActive = foundInProgress && !foundCompleted
+
+    // 将结果存入缓存
+    activePlanCache[cacheKey] = hasActive
+
     Log.d(
             "ChatArea",
             "Has active plan: $hasActive (inProgress=$foundInProgress, completed=$foundCompleted)"
