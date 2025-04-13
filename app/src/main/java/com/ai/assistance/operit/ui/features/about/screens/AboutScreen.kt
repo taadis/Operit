@@ -234,10 +234,19 @@ fun AboutScreen() {
 
     // 注册和取消注册广播接收器
     DisposableEffect(Unit) {
-        context.registerReceiver(
-            downloadCompleteReceiver,
-            IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
-        )
+        // 添加RECEIVER_NOT_EXPORTED标志，以避免在Android 13+上的SecurityException
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.registerReceiver(
+                downloadCompleteReceiver,
+                IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
+                Context.RECEIVER_NOT_EXPORTED
+            )
+        } else {
+            context.registerReceiver(
+                downloadCompleteReceiver,
+                IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
+            )
+        }
         
         onDispose {
             context.unregisterReceiver(downloadCompleteReceiver)

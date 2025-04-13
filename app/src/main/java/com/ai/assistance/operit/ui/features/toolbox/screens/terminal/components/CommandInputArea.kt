@@ -403,7 +403,11 @@ private suspend fun handleCommand(
             val outputFlow = session.executeCommand(
                 context = context,
                 command = command,
-                scope = scope
+                scope = scope,
+                onCompletion = { exitCode, success ->
+                    // 记录命令执行完成状态
+                    android.util.Log.d("TerminalScreen", "命令执行完成: 退出码=$exitCode, 成功=$success")
+                }
             )
             
             // 收集输出流并更新UI

@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.ai.assistance.operit.ui.features.toolbox.screens.filemanager.FileManagerScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.screens.TerminalScreen
+import com.ai.assistance.operit.ui.features.toolbox.screens.terminalconfig.TerminalAutoConfigScreen
 
 data class Tool(
     val name: String,
@@ -31,7 +32,8 @@ fun ToolboxScreen(
     navController: NavController,
     onFormatConverterSelected: () -> Unit,
     onFileManagerSelected: () -> Unit,
-    onTerminalSelected: () -> Unit
+    onTerminalSelected: () -> Unit,
+    onTerminalAutoConfigSelected: () -> Unit
 ) {
     val tools = listOf(
         Tool(
@@ -51,6 +53,12 @@ fun ToolboxScreen(
             icon = Icons.Default.Terminal,
             description = "工具箱内置的命令行终端",
             onClick = onTerminalSelected
+        ),
+        Tool(
+            name = "终端自动配置",
+            icon = Icons.Default.Build,
+            description = "自动安装配置Python、PIP等开发工具",
+            onClick = onTerminalAutoConfigSelected
         )
     )
 
@@ -101,6 +109,17 @@ fun TerminalToolScreen(navController: NavController) {
     Scaffold() { paddingValues ->
         Box(modifier = Modifier.padding(paddingValues)) {
             TerminalScreen()
+        }
+    }
+}
+
+/** 显示终端自动配置工具屏幕 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TerminalAutoConfigToolScreen(navController: NavController) {
+    Scaffold() { paddingValues ->
+        Box(modifier = Modifier.padding(paddingValues)) {
+            TerminalAutoConfigScreen(navController = navController)
         }
     }
 }

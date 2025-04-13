@@ -6,16 +6,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Menu
@@ -27,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -34,7 +35,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.compose.rememberNavController
-import androidx.compose.ui.platform.LocalConfiguration
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.mcp.MCPRepository
 import com.ai.assistance.operit.data.preferences.AgreementPreferences
@@ -57,6 +57,7 @@ import com.ai.assistance.operit.ui.features.settings.screens.UserPreferencesGuid
 import com.ai.assistance.operit.ui.features.settings.screens.UserPreferencesSettingsScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.FileManagerToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.FormatConverterToolScreen
+import com.ai.assistance.operit.ui.features.toolbox.screens.TerminalAutoConfigToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.TerminalToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.ToolboxScreen
 import com.ai.assistance.operit.util.NetworkUtils
@@ -81,6 +82,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
     var isFormatConverterScreen by remember { mutableStateOf(false) }
     var isFileManagerScreen by remember { mutableStateOf(false) }
     var isTerminalToolScreen by remember { mutableStateOf(false) }
+    var isTerminalAutoConfigScreen by remember { mutableStateOf(false) }
 
     var isLoading by remember { mutableStateOf(false) }
 
@@ -111,7 +113,9 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                 .padding(horizontal = 12.dp, vertical = 4.dp)
                                 .height(40.dp),
                 onClick = onClick,
-                color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                color =
+                        if (selected) MaterialTheme.colorScheme.primaryContainer
+                        else Color.Transparent,
                 shape = MaterialTheme.shapes.small
         ) {
             Row(
@@ -143,11 +147,11 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
 
     // 计算窗口尺寸类别 - 用于适配不同屏幕尺寸
     val configuration = LocalConfiguration.current
-    
+
     // 直接基于屏幕宽度判断设备类型，避免使用WindowSizeClass的私有构造函数
     val screenWidthDp = configuration.screenWidthDp
     val screenHeightDp = configuration.screenHeightDp
-    
+
     // 确定是使用永久导航抽屉（平板）还是模态导航抽屉（手机）
     // 使用Material Design 3指南中的断点：
     // - 小于600dp：手机
@@ -229,10 +233,10 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
     fun DrawerContent() {
         // 添加滚动功能的Column
         Column(
-            modifier = Modifier
-                .fillMaxHeight()
-                .verticalScroll(rememberScrollState())
-                .padding(end = if (useTabletLayout) 8.dp else 0.dp) // 在平板模式下增加右边距
+                modifier =
+                        Modifier.fillMaxHeight()
+                                .verticalScroll(rememberScrollState())
+                                .padding(end = if (useTabletLayout) 8.dp else 0.dp) // 在平板模式下增加右边距
         ) {
             // 抽屉标题
             Spacer(modifier = Modifier.height(24.dp))
@@ -255,8 +259,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                 else Icons.Default.WifiOff,
                         contentDescription = "网络状态",
                         tint =
-                                if (isNetworkAvailable)
-                                        MaterialTheme.colorScheme.primary
+                                if (isNetworkAvailable) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(20.dp)
                 )
@@ -265,8 +268,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                         text = networkType,
                         style = MaterialTheme.typography.bodyMedium,
                         color =
-                                if (isNetworkAvailable)
-                                        MaterialTheme.colorScheme.primary
+                                if (isNetworkAvailable) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.error
                 )
             }
@@ -284,8 +286,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
             CompactNavigationDrawerItem(
                     icon = NavItem.AiChat.icon,
                     label = stringResource(id = NavItem.AiChat.titleResId),
-                    selected =
-                            selectedItem == NavItem.AiChat && !isToolPermissionScreen,
+                    selected = selectedItem == NavItem.AiChat && !isToolPermissionScreen,
                     onClick = {
                         selectedItem = NavItem.AiChat
                         scope.launch { drawerState.close() }
@@ -296,9 +297,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
             CompactNavigationDrawerItem(
                     icon = NavItem.ProblemLibrary.icon,
                     label = stringResource(id = NavItem.ProblemLibrary.titleResId),
-                    selected =
-                            selectedItem == NavItem.ProblemLibrary &&
-                                    !isToolPermissionScreen,
+                    selected = selectedItem == NavItem.ProblemLibrary && !isToolPermissionScreen,
                     onClick = {
                         selectedItem = NavItem.ProblemLibrary
                         scope.launch { drawerState.close() }
@@ -309,8 +308,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
             CompactNavigationDrawerItem(
                     icon = NavItem.Packages.icon,
                     label = stringResource(id = NavItem.Packages.titleResId),
-                    selected =
-                            selectedItem == NavItem.Packages && !isToolPermissionScreen,
+                    selected = selectedItem == NavItem.Packages && !isToolPermissionScreen,
                     onClick = {
                         selectedItem = NavItem.Packages
                         scope.launch { drawerState.close() }
@@ -326,8 +324,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
             CompactNavigationDrawerItem(
                     icon = NavItem.Toolbox.icon,
                     label = stringResource(id = NavItem.Toolbox.titleResId),
-                    selected =
-                            selectedItem == NavItem.Toolbox && !isToolPermissionScreen,
+                    selected = selectedItem == NavItem.Toolbox && !isToolPermissionScreen,
                     onClick = {
                         selectedItem = NavItem.Toolbox
                         scope.launch { drawerState.close() }
@@ -338,9 +335,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
             CompactNavigationDrawerItem(
                     icon = NavItem.ShizukuCommands.icon,
                     label = stringResource(id = NavItem.ShizukuCommands.titleResId),
-                    selected =
-                            selectedItem == NavItem.ShizukuCommands &&
-                                    !isToolPermissionScreen,
+                    selected = selectedItem == NavItem.ShizukuCommands && !isToolPermissionScreen,
                     onClick = {
                         selectedItem = NavItem.ShizukuCommands
                         scope.launch { drawerState.close() }
@@ -367,8 +362,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
             CompactNavigationDrawerItem(
                     icon = NavItem.Settings.icon,
                     label = stringResource(id = NavItem.Settings.titleResId),
-                    selected =
-                            selectedItem == NavItem.Settings && !isToolPermissionScreen,
+                    selected = selectedItem == NavItem.Settings && !isToolPermissionScreen,
                     onClick = {
                         selectedItem = NavItem.Settings
                         scope.launch { drawerState.close() }
@@ -396,7 +390,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                         scope.launch { drawerState.close() }
                     }
             )
-            
+
             // 为了在底部留出一些空间，避免最后一个选项贴底
             Spacer(modifier = Modifier.height(16.dp))
         }
@@ -418,9 +412,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                         isToolPermissionScreen ->
                                                 stringResource(id = R.string.tool_permissions)
                                         isUserPreferencesGuideScreen ->
-                                                stringResource(
-                                                        id = R.string.user_preferences_guide
-                                                )
+                                                stringResource(id = R.string.user_preferences_guide)
                                         isUserPreferencesSettingsScreen ->
                                                 stringResource(
                                                         id = R.string.user_preferences_settings
@@ -428,6 +420,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                         isFormatConverterScreen -> "万能格式转换"
                                         isFileManagerScreen -> "文件管理器"
                                         isTerminalToolScreen -> "命令终端"
+                                        isTerminalAutoConfigScreen -> "终端自动配置"
                                         else -> stringResource(id = selectedItem.titleResId)
                                     },
                                     fontWeight = FontWeight.SemiBold,
@@ -443,6 +436,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                             !isFormatConverterScreen &&
                                             !isFileManagerScreen &&
                                             !isTerminalToolScreen &&
+                                            !isTerminalAutoConfigScreen &&
                                             currentChatTitle.isNotBlank()
                             ) {
                                 Text(
@@ -457,9 +451,15 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                     },
                     navigationIcon = {
                         // 在平板模式下不显示菜单图标，因为侧边栏是永久显示的
-                        if (!useTabletLayout || isToolPermissionScreen || 
-                            isUserPreferencesGuideScreen || isUserPreferencesSettingsScreen || 
-                            isFormatConverterScreen || isFileManagerScreen || isTerminalToolScreen) {
+                        if (!useTabletLayout ||
+                                        isToolPermissionScreen ||
+                                        isUserPreferencesGuideScreen ||
+                                        isUserPreferencesSettingsScreen ||
+                                        isFormatConverterScreen ||
+                                        isFileManagerScreen ||
+                                        isTerminalToolScreen ||
+                                        isTerminalAutoConfigScreen
+                        ) {
                             IconButton(
                                     onClick = {
                                         when {
@@ -490,6 +490,10 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                                 // 如果在终端工具页面，点击返回按钮返回到工具箱页面
                                                 isTerminalToolScreen = false
                                             }
+                                            isTerminalAutoConfigScreen -> {
+                                                // 如果在终端自动配置页面，点击返回按钮返回到工具箱页面
+                                                isTerminalAutoConfigScreen = false
+                                            }
                                             else -> {
                                                 // 仅在非平板模式下打开抽屉
                                                 if (!useTabletLayout) {
@@ -505,7 +509,8 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                                         isUserPreferencesSettingsScreen ||
                                                         isFormatConverterScreen ||
                                                         isFileManagerScreen ||
-                                                        isTerminalToolScreen
+                                                        isTerminalToolScreen ||
+                                                        isTerminalAutoConfigScreen
                                         )
                                                 Icons.Default.ArrowBack
                                         else Icons.Default.Menu,
@@ -525,7 +530,8 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                                             )
                                                     isFormatConverterScreen ||
                                                             isFileManagerScreen ||
-                                                            isTerminalToolScreen -> "返回工具箱"
+                                                            isTerminalToolScreen ||
+                                                            isTerminalAutoConfigScreen -> "返回工具箱"
                                                     else -> stringResource(id = R.string.menu)
                                                 },
                                         tint = Color.White
@@ -547,10 +553,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
             ) {
                 if (isLoading) {
                     // 加载中状态 - 使用简单的Text替代CircularProgressIndicator
-                    Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                    ) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center
@@ -607,9 +610,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                             )
                         } else if (isUserPreferencesSettingsScreen) {
                             UserPreferencesSettingsScreen(
-                                    onNavigateBack = {
-                                        isUserPreferencesSettingsScreen = false
-                                    },
+                                    onNavigateBack = { isUserPreferencesSettingsScreen = false },
                                     onNavigateToGuide = { profileName, profileId ->
                                         // 导航到引导页并传递配置信息
                                         isUserPreferencesGuideScreen = true
@@ -630,6 +631,9 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                         } else if (isTerminalToolScreen) {
                             // 终端工具屏幕
                             TerminalToolScreen(navController = navController)
+                        } else if (isTerminalAutoConfigScreen) {
+                            // 终端自动配置屏幕
+                            TerminalAutoConfigToolScreen(navController = navController)
                         } else {
                             // 主导航页面
                             when (selectedItem) {
@@ -642,10 +646,11 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                             onFormatConverterSelected = {
                                                 isFormatConverterScreen = true
                                             },
-                                            onFileManagerSelected = {
-                                                isFileManagerScreen = true
-                                            },
-                                            onTerminalSelected = { isTerminalToolScreen = true }
+                                            onFileManagerSelected = { isFileManagerScreen = true },
+                                            onTerminalSelected = { isTerminalToolScreen = true },
+                                            onTerminalAutoConfigSelected = {
+                                                isTerminalAutoConfigScreen = true
+                                            }
                                     )
                                 }
                                 NavItem.Settings ->
@@ -686,11 +691,10 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                     // MCP 屏幕
                                     MCPScreen(mcpRepository = mcpRepository)
                                 }
-                                NavItem.Help -> HelpScreen(
-                                    onBackPressed = {
-                                        selectedItem = NavItem.AiChat
-                                    }
-                                )
+                                NavItem.Help ->
+                                        HelpScreen(
+                                                onBackPressed = { selectedItem = NavItem.AiChat }
+                                        )
                                 else -> {
                                     // 处理其他情况
                                     selectedItem = NavItem.AiChat
@@ -708,28 +712,16 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
         if (useTabletLayout) {
             // 平板布局 - 使用永久导航抽屉
             PermanentNavigationDrawer(
-                drawerContent = {
-                    PermanentDrawerSheet(
-                        modifier = Modifier.width(280.dp)
-                    ) {
-                        DrawerContent()
+                    drawerContent = {
+                        PermanentDrawerSheet(modifier = Modifier.width(280.dp)) { DrawerContent() }
                     }
-                }
-            ) {
-                AppContent()
-            }
+            ) { AppContent() }
         } else {
             // 手机布局 - 使用模态导航抽屉
             ModalNavigationDrawer(
-                drawerContent = {
-                    ModalDrawerSheet {
-                        DrawerContent()
-                    }
-                },
-                drawerState = drawerState
-            ) {
-                AppContent()
-            }
+                    drawerContent = { ModalDrawerSheet { DrawerContent() } },
+                    drawerState = drawerState
+            ) { AppContent() }
         }
 
         // 帧率计数器 - 放在右上角
