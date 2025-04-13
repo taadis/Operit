@@ -75,6 +75,12 @@ dependencies {
     // Desugaring support for modern Java APIs on older Android
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
     
+    // Material 3 Window Size Class
+    implementation("androidx.compose.material3:material3-window-size-class:1.2.0")
+    
+    // Window metrics library for foldables and adaptive layouts
+    implementation("androidx.window:window:1.1.0")
+    
     // Document conversion libraries
     implementation("com.itextpdf:itextpdf:5.5.13.3") // iText for PDF creation
     implementation("org.apache.pdfbox:pdfbox:2.0.27") // PDFBox for PDF operations
