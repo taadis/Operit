@@ -49,6 +49,26 @@ data class ADBResultData(val command: String, val output: String, val exitCode: 
     }
 }
 
+/** 终端命令执行结果数据 */
+@Serializable
+data class TerminalCommandResultData(
+        val command: String, 
+        val output: String, 
+        val exitCode: Int,
+        val sessionId: String
+) : ToolResultData() {
+    override fun toString(): String {
+        val sb = StringBuilder()
+        sb.appendLine("终端命令执行结果:")
+        sb.appendLine("命令: $command")
+        sb.appendLine("会话: $sessionId")
+        sb.appendLine("退出码: $exitCode")
+        sb.appendLine("\n输出:")
+        sb.appendLine(output)
+        return sb.toString()
+    }
+}
+
 /** 计算结果结构化数据 */
 @Serializable
 data class CalculationResultData(

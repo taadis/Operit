@@ -296,7 +296,8 @@ class Intent {
             this.packageName,
             componentName,
             flags,
-            Object.keys(combinedExtras).length > 0 ? combinedExtras : null
+            Object.keys(combinedExtras).length > 0 ? combinedExtras : null,
+            'activity' // Explicitly specify that this is an activity intent
         );
 
         return result;
@@ -311,9 +312,8 @@ class Intent {
             throw new Error("Action not set. Call setAction() first.");
         }
 
-        // For broadcasts, we add a special flag to the extras
+        // Prepare extras with categories added
         const combinedExtras = { ...this.extras };
-        combinedExtras['__broadcast'] = true;
 
         // Add categories if we have any
         if (this.categories.length > 0) {
@@ -325,14 +325,23 @@ class Intent {
             combinedExtras['type'] = this.type;
         }
 
-        // Use the direct Tools.System.intent interface with broadcast flag
+        // Prepare component format
+        let componentName = null;
+        if (this.component) {
+            componentName = this.component.includes('/') ?
+                this.component :
+                `${this.packageName}/${this.component}`;
+        }
+
+        // Use the direct Tools.System.intent interface with broadcast type
         return await Tools.System.intent(
             this.action,
             this.uri,
             this.packageName,
-            this.component ? `${this.packageName}/${this.component}` : null,
-            null,
-            combinedExtras
+            componentName,
+            null, // No special flags needed for broadcast
+            Object.keys(combinedExtras).length > 0 ? combinedExtras : null,
+            'broadcast' // Explicitly specify that this is a broadcast intent
         );
     }
 
@@ -345,9 +354,13 @@ class Intent {
             throw new Error("Component not set. Call setComponent() first.");
         }
 
-        // For service, we add a special flag to the extras
+        // Prepare component format
+        const componentName = this.component.includes('/') ?
+            this.component :
+            `${this.packageName}/${this.component}`;
+
+        // Prepare extras with categories added
         const combinedExtras = { ...this.extras };
-        combinedExtras['__startService'] = true;
 
         // Add categories if we have any
         if (this.categories.length > 0) {
@@ -359,14 +372,15 @@ class Intent {
             combinedExtras['type'] = this.type;
         }
 
-        // Use the direct Tools.System.intent interface with service flag
+        // Use the direct Tools.System.intent interface with service type
         return await Tools.System.intent(
             this.action,
             this.uri,
             this.packageName,
-            `${this.packageName}/${this.component}`,
-            null,
-            combinedExtras
+            componentName,
+            null, // No special flags needed for service
+            Object.keys(combinedExtras).length > 0 ? combinedExtras : null,
+            'service' // Explicitly specify that this is a service intent
         );
     }
 }

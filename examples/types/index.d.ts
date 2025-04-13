@@ -165,6 +165,7 @@ interface IntentResultData {
     flags: number;
     extras_count: number;
     result: string;
+    type: 'activity' | 'broadcast' | 'service';
     toString(): string;
 }
 
@@ -480,15 +481,43 @@ interface IntentResult extends BaseResult {
 }
 
 /**
+ * Terminal command execution result data
+ */
+interface TerminalCommandResultData {
+    /** The command that was executed */
+    command: string;
+
+    /** The output from the command execution */
+    output: string;
+
+    /** Exit code from the command (0 typically means success) */
+    exitCode: number;
+
+    /** ID of the terminal session used for execution */
+    sessionId: string;
+
+    /** Returns a formatted string representation of the terminal execution result */
+    toString(): string;
+}
+
+/**
+ * Terminal command result
+ */
+interface TerminalCommandResult extends BaseResult {
+    data: TerminalCommandResultData;
+}
+
+/**
  * Generic tool result type
  */
 type ToolResult = StringResult | BooleanResult | NumberResult |
     CalculationResult | DateResult | ConnectionResult |
     DirectoryListingResult | FileContentResult | FileOperationResult |
     HttpResponseResult | WebPageResult | WebSearchResult |
-    SystemSettingResult | AppOperationResult | AppListResult |
+    SystemSettingResult | AppOperationResult | AppListData |
     UIPageResult | UIActionResult | CombinedOperationResult | DeviceInfoResult |
     FileConversionResult | FileFormatConversionsResult | ADBResult | IntentResult |
+    TerminalCommandResult |
     (BaseResult & { data: any });
 
 // ============================================================================
@@ -513,7 +542,7 @@ type NetToolName = 'http_request' | 'web_search' | 'fetch_web_page';
  */
 type SystemToolName = 'sleep' | 'get_system_setting' | 'modify_system_setting' |
     'install_app' | 'uninstall_app' | 'list_installed_apps' | 'start_app' | 'stop_app' |
-    'device_info' | 'execute_adb' | 'execute_intent';
+    'device_info' | 'execute_adb' | 'execute_intent' | 'execute_terminal';
 
 /**
  * UI tool names
@@ -722,6 +751,9 @@ interface ToolResultMap {
 
     // Intent operations
     'execute_intent': IntentResultData;
+
+    // Terminal operations
+    'execute_terminal': TerminalCommandResultData;
 }
 
 /**
@@ -971,6 +1003,7 @@ declare namespace Tools {
          * @param component - Component name
          * @param flags - Intent flags
          * @param extras - Intent extras (as object or stringified JSON)
+         * @param type - Intent execution type: 'activity' (default), 'broadcast', or 'service'
          */
         function intent(
             action?: string,
@@ -978,8 +1011,18 @@ declare namespace Tools {
             pkg?: string,
             component?: string,
             flags?: number | string,
-            extras?: Record<string, any> | string
+            extras?: Record<string, any> | string,
+            type?: 'activity' | 'broadcast' | 'service'
         ): Promise<IntentResultData>;
+
+        /**
+         * Execute a terminal command and collect the output
+         * @param command The command to execute
+         * @param sessionId Optional session ID to use a specific terminal session
+         * @param timeoutMs Optional timeout in milliseconds
+         * @returns Promise resolving to the result of the terminal command execution
+         */
+        function terminal(command: string, sessionId?: string, timeoutMs?: number): Promise<TerminalCommandResultData>;
     }
 
     /**

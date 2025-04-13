@@ -21,6 +21,11 @@ class IntentToolExecutor(private val context: Context) {
 
     companion object {
         private const val TAG = "IntentToolExecutor"
+        
+        // Intent execution types
+        const val TYPE_ACTIVITY = "activity"
+        const val TYPE_BROADCAST = "broadcast"
+        const val TYPE_SERVICE = "service"
     }
 
     fun invoke(tool: AITool): ToolResult {
@@ -41,6 +46,7 @@ class IntentToolExecutor(private val context: Context) {
         val flags = tool.parameters.find { it.name == "flags" }?.value
         val extras = tool.parameters.find { it.name == "extras" }?.value
         val componentName = tool.parameters.find { it.name == "component" }?.value
+        val type = tool.parameters.find { it.name == "type" }?.value ?: TYPE_ACTIVITY
 
         return try {
             // Create the intent
@@ -157,44 +163,38 @@ class IntentToolExecutor(private val context: Context) {
                 )
             }
 
-            // Add FLAG_ACTIVITY_NEW_TASK for safety if not already set
+            // Add FLAG_ACTIVITY_NEW_TASK for safety if not already set when starting activity
             // This is needed when starting activities from non-activity contexts
-            if (intent.action?.startsWith("android.intent.action.") == true &&
+            if (type == TYPE_ACTIVITY && 
                 intent.flags and Intent.FLAG_ACTIVITY_NEW_TASK == 0
             ) {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
 
-            // Execute the intent
+            // Execute the intent based on the requested type
             try {
-                val result =
-                    when {
-                        action?.startsWith("android.intent.action.SEND") == true ||
-                            action?.startsWith("android.intent.action.VIEW") == true ||
-                            action?.startsWith("android.intent.action.MAIN") == true ||
-                            action?.startsWith("android.intent.action.DIAL") == true ||
-                            action?.startsWith("android.intent.action.CALL") == true ||
-                            action?.startsWith("android.intent.action.INSERT") == true -> {
-                            // Activities that should be shown to the user
-                            context.startActivity(intent)
-                            "Activity started successfully"
-                        }
-
-                        action?.startsWith("android.intent.action.PICK") == true ||
-                            action?.startsWith("android.intent.action.GET_CONTENT") ==
-                            true -> {
-                            // For content pickers, we can't easily get the result in this
-                            // context
-                            context.startActivity(intent)
-                            "Picker activity started"
-                        }
-
-                        else -> {
-                            // For other intents, we can use sendBroadcast
-                            context.sendBroadcast(intent)
-                            "Broadcast sent successfully"
-                        }
+                val result = when (type) {
+                    TYPE_BROADCAST -> {
+                        context.sendBroadcast(intent)
+                        "Broadcast sent successfully"
                     }
+                    TYPE_SERVICE -> {
+                        if (componentName.isNullOrBlank()) {
+                            return ToolResult(
+                                toolName = tool.name,
+                                success = false,
+                                result = StringResultData(""),
+                                error = "Component must be specified when starting a service"
+                            )
+                        }
+                        context.startService(intent)
+                        "Service started successfully"
+                    }
+                    else -> { // Default to activity
+                        context.startActivity(intent)
+                        "Activity started successfully"
+                    }
+                }
 
                 // Bundle up the intent details for the response
                 val extras = Bundle()
@@ -203,8 +203,7 @@ class IntentToolExecutor(private val context: Context) {
                 return ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result =
-                    IntentResultData(
+                    result = IntentResultData(
                         action = intent.action ?: "null",
                         uri = intent.data?.toString() ?: "null",
                         package_name = intent.`package` ?: "null",
@@ -237,11 +236,31 @@ class IntentToolExecutor(private val context: Context) {
     fun validateParameters(tool: AITool): ToolValidationResult {
         val action = tool.parameters.find { it.name == "action" }?.value
         val component = tool.parameters.find { it.name == "component" }?.value
+        val type = tool.parameters.find { it.name == "type" }?.value
 
         if (action.isNullOrBlank() && component.isNullOrBlank()) {
             return ToolValidationResult(
                 valid = false,
                 errorMessage = "Either action or component parameter is required"
+            )
+        }
+
+        // Validate type parameter if provided
+        if (!type.isNullOrBlank() && 
+            type != TYPE_ACTIVITY && 
+            type != TYPE_BROADCAST && 
+            type != TYPE_SERVICE) {
+            return ToolValidationResult(
+                valid = false,
+                errorMessage = "Type must be one of: activity, broadcast, service"
+            )
+        }
+
+        // If type is service, component must be provided
+        if (type == TYPE_SERVICE && component.isNullOrBlank()) {
+            return ToolValidationResult(
+                valid = false,
+                errorMessage = "Component parameter is required when type is 'service'"
             )
         }
 

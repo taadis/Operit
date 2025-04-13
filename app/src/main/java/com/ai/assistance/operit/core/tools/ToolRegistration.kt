@@ -3,7 +3,9 @@ package com.ai.assistance.operit.tools
 import android.content.Context
 import com.ai.assistance.operit.core.tools.defaultTool.ADBToolExecutor
 import com.ai.assistance.operit.core.tools.defaultTool.IntentToolExecutor
+import com.ai.assistance.operit.core.tools.defaultTool.TerminalCommandExecutor
 import com.ai.assistance.operit.data.model.ToolResult
+import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.tools.defaultTool.*
 import com.ai.assistance.operit.ui.permissions.ToolCategory
 
@@ -30,6 +32,26 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             executor = { tool ->
                 val adbTool = ADBToolExecutor(context)
                 adbTool.invoke(tool)
+            }
+    )
+
+    // 终端命令执行工具 - 一次性收集输出
+    handler.registerTool(
+            name = "execute_terminal",
+            category = ToolCategory.SYSTEM_OPERATION,
+            dangerCheck = { true }, // 总是危险操作
+            descriptionGenerator = { tool ->
+                val command = tool.parameters.find { it.name == "command" }?.value ?: ""
+                val sessionId = tool.parameters.find { it.name == "session_id" }?.value
+                if (sessionId != null) {
+                    "执行终端命令 (会话: $sessionId): $command"
+                } else {
+                    "执行终端命令: $command"
+                }
+            },
+            executor = { tool ->
+                val terminalTool = TerminalCommandExecutor(context)
+                terminalTool.invoke(tool)
             }
     )
 
@@ -130,13 +152,14 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
                 val action = tool.parameters.find { it.name == "action" }?.value
                 val packageName = tool.parameters.find { it.name == "package" }?.value
                 val component = tool.parameters.find { it.name == "component" }?.value
+                val type = tool.parameters.find { it.name == "type" }?.value ?: "activity"
 
                 when {
-                    !component.isNullOrBlank() -> "执行Intent: 组件 $component"
+                    !component.isNullOrBlank() -> "执行Intent: 组件 $component (${type})"
                     !packageName.isNullOrBlank() && !action.isNullOrBlank() ->
-                            "执行Intent: $action (包: $packageName)"
-                    !action.isNullOrBlank() -> "执行Intent: $action"
-                    else -> "执行Android Intent"
+                            "执行Intent: $action (包: $packageName, 类型: ${type})"
+                    !action.isNullOrBlank() -> "执行Intent: $action (类型: ${type})"
+                    else -> "执行Android Intent (类型: ${type})"
                 }
             },
             executor = { tool ->

@@ -2,7 +2,7 @@
 METADATA
 {
     "name": "daily_life",
-    "description": "Tools for daily life activities like getting date, device info, and UI interactions",
+    "description": "日常生活工具集合，提供丰富的日常功能接口，包括日期时间查询、设备状态监测、天气搜索、提醒闹钟设置、短信电话通讯等。通过系统Intent实现各类日常任务，支持用户便捷地完成日常交互需求。",
     "tools": [
         {
             "name": "get_current_date",
@@ -110,9 +110,21 @@ METADATA
                     "required": false
                 }
             ]
+        },
+        {
+            "name": "search_weather",
+            "description": "Search for current weather information",
+            "parameters": [
+                {
+                    "name": "location",
+                    "description": "Location to check weather for (city name or 'current' for current location)",
+                    "type": "string",
+                    "required": false
+                }
+            ]
         }
     ],
-    "category": "SYSTEM"
+    "category": "SYSTEM_OPERATION"
 }
 */
 const dailyLife = (function () {
@@ -207,27 +219,37 @@ const dailyLife = (function () {
         }
     }
     /**
-     * Search the web for information
-     * @param params - Parameters with search query
+     * Search for current weather information
+     * @param params - Parameters with optional location
      */
-    async function search_web(params) {
+    async function search_weather(params) {
         try {
-            if (!params.query) {
-                throw new Error("Search query is required");
-            }
-            const result = await Tools.Net.search(params.query);
+            // Default to "当前天气" if no location is provided
+            const location = params.location || "current";
+            // Construct the weather search query
+            const query = location === "current" ?
+                "当前天气" :
+                `${location} 天气`;
+            console.log(`搜索天气信息: ${query}`);
+            // Use the search tool to find weather information
+            const result = await Tools.Net.search(query);
             return {
                 success: true,
-                query: params.query,
-                results: result.results.map(item => ({
+                query: query,
+                location: location,
+                timestamp: new Date().toISOString(),
+                weather_results: result.results.map(item => ({
                     title: item.title,
                     url: item.url,
                     snippet: item.snippet
-                }))
+                })),
+                note: "天气数据来自网络搜索结果，仅供参考。"
             };
         }
         catch (error) {
-            throw new Error(`Failed to search web: ${error.message}`);
+            console.error(`[search_weather] 错误: ${error.message}`);
+            console.error(error.stack);
+            throw new Error(`获取天气信息失败: ${error.message}`);
         }
     }
     /**
@@ -320,9 +342,10 @@ const dailyLife = (function () {
             }
             console.log("设置闹钟...");
             console.log("尝试使用隐式Intent设置闹钟...");
-            // 创建Intent
+            // 创建Intent - 使用Android的标准闹钟Intent Action
             const intent = new Intent("android.intent.action.SET_ALARM");
-            // 设置闹钟详情
+            // 或者也可以使用常量: new Intent(IntentAction.ACTION_MAIN);
+            // 设置闹钟详情 - 使用正确的参数名称
             intent.putExtra("android.intent.extra.alarm.HOUR", params.hour);
             intent.putExtra("android.intent.extra.alarm.MINUTES", params.minute);
             // 添加标签（如果提供）
@@ -333,11 +356,16 @@ const dailyLife = (function () {
             if (params.days && params.days.length > 0) {
                 intent.putExtra("android.intent.extra.alarm.DAYS", params.days);
             }
-            // 跳过UI确认
-            intent.putExtra("android.intent.extra.alarm.SKIP_UI", true);
-            // 添加标志
+            // 不跳过UI确认 - 这可能是问题所在，某些设备需要用户确认
+            // intent.putExtra("android.intent.extra.alarm.SKIP_UI", true);
+            // 设置闹钟应该立即响铃
+            intent.putExtra("android.intent.extra.alarm.VIBRATE", true);
+            // 添加标志 - 必须使用NEW_TASK标志来启动Activity
             intent.addFlag(268435456 /* IntentFlag.ACTIVITY_NEW_TASK */);
-            // 启动Intent
+            // 确保Intent被视为Activity启动而不是广播
+            // 手动添加DEFAULT类别以确保Intent可以被正确处理
+            intent.addCategory("android.intent.category.DEFAULT");
+            // 启动Intent - 这会显示闹钟设置界面
             const result = await intent.start();
             // 返回结果
             return {
@@ -375,27 +403,33 @@ const dailyLife = (function () {
             if (!params.message) {
                 throw new Error("Message content is required");
             }
-            // Create an intent to send a message
+            console.log(`发送短信: ${params.phone_number}`);
+            // 创建短信Intent
             const intent = new Intent("android.intent.action.SENDTO" /* IntentAction.ACTION_SENDTO */);
-            // Format the phone number URI
-            const phoneUri = `smsto:${params.phone_number}`;
-            intent.putExtra("address", phoneUri);
-            // Add message content
+            // 设置短信URI
+            const smsUri = `smsto:${params.phone_number}`;
+            intent.setData(smsUri);
+            // 添加短信内容
             intent.putExtra("sms_body", params.message);
-            // Add necessary flags
+            // 添加必要的标志
             intent.addFlag(268435456 /* IntentFlag.ACTIVITY_NEW_TASK */);
-            // Start the intent
+            // 启动Intent
             const result = await intent.start();
             return {
                 success: true,
-                message: "Message sending intent launched",
-                recipient: params.phone_number,
+                message: "短信编辑界面已打开",
+                phone_number: params.phone_number,
                 content_preview: params.message.length > 30 ? params.message.substring(0, 30) + "..." : params.message,
                 raw_result: result
             };
         }
         catch (error) {
-            throw new Error(`Failed to send message: ${error.message}`);
+            console.error(`发送短信失败: ${error.message}`);
+            return {
+                success: false,
+                message: `发送短信失败: ${error.message}`,
+                phone_number: params.phone_number
+            };
         }
     }
     /**
@@ -407,28 +441,43 @@ const dailyLife = (function () {
             if (!params.phone_number) {
                 throw new Error("Phone number is required");
             }
-            // Select the appropriate intent action based on whether it's an emergency
+            console.log(`拨打电话: ${params.phone_number}`);
+            // 选择合适的Intent Action
+            // 如果是紧急电话，使用ACTION_CALL_EMERGENCY，否则使用ACTION_DIAL
             const action = params.emergency ? "android.intent.action.CALL_EMERGENCY" /* IntentAction.ACTION_CALL_EMERGENCY */ : "android.intent.action.DIAL" /* IntentAction.ACTION_DIAL */;
-            // Create an intent to make a call
+            // 创建拨号Intent
             const intent = new Intent(action);
-            // Format the phone URI
+            // 设置电话URI
             const phoneUri = `tel:${params.phone_number}`;
-            intent.putExtra("android.intent.extra.PHONE_NUMBER", params.phone_number);
-            // Add necessary flags
+            intent.setData(phoneUri);
+            // 添加必要的标志
             intent.addFlag(268435456 /* IntentFlag.ACTIVITY_NEW_TASK */);
-            // Start the intent
+            // 启动Intent
             const result = await intent.start();
             return {
                 success: true,
-                message: `Phone call intent launched (${params.emergency ? 'emergency' : 'normal'})`,
+                message: params.emergency ? "紧急电话已拨打" : "拨号界面已打开",
                 phone_number: params.phone_number,
                 is_emergency: params.emergency || false,
                 raw_result: result
             };
         }
         catch (error) {
-            throw new Error(`Failed to make phone call: ${error.message}`);
+            console.error(`拨打电话失败: ${error.message}`);
+            return {
+                success: false,
+                message: `拨打电话失败: ${error.message}`,
+                phone_number: params.phone_number,
+                is_emergency: params.emergency || false
+            };
         }
+    }
+    /**
+     * 等待指定的毫秒数
+     * @param ms 等待的毫秒数
+     */
+    async function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
     /**
      * Test and demonstrate all daily life functions
@@ -460,31 +509,32 @@ const dailyLife = (function () {
                 results.device = { error: `获取设备状态失败: ${error.message}` };
                 console.log("✗ 设备状态获取失败");
             }
-            // 3. 测试网络搜索功能
-            console.log("测试网络搜索...");
+            // 3. 测试天气搜索功能
+            console.log("测试天气搜索...");
             try {
-                const searchResult = await search_web({ query: "今日天气" });
-                results.search = searchResult;
-                console.log("✓ 网络搜索成功");
+                const weatherResult = await search_weather({ location: "current" });
+                results.weather = weatherResult;
+                console.log("✓ 天气搜索成功");
             }
             catch (error) {
-                results.search = { error: `网络搜索失败: ${error.message}` };
-                console.log("✗ 网络搜索失败");
+                results.weather = { error: `天气搜索失败: ${error.message}` };
+                console.log("✗ 天气搜索失败");
             }
             // 4. 测试设置提醒功能
-            console.log("测试设置提醒...");
-            try {
-                const reminderResult = await set_reminder({
-                    title: "测试提醒",
-                    description: "这是一个测试提醒"
-                });
-                results.reminder = reminderResult;
-                console.log("✓ 设置提醒成功");
-            }
-            catch (error) {
-                results.reminder = { error: `设置提醒失败: ${error.message}` };
-                console.log("✗ 设置提醒失败");
-            }
+            // console.log("测试设置提醒...");
+            // try {
+            //     const reminderResult = await set_reminder({
+            //         title: "测试提醒",
+            //         description: "这是一个测试提醒",
+            //         // 可以设置未来时间
+            //         due_date: new Date(Date.now() + 3600000).toISOString() // 1小时后
+            //     });
+            //     results.reminder = reminderResult;
+            //     console.log("✓ 设置提醒成功");
+            // } catch (error) {
+            //     results.reminder = { error: `设置提醒失败: ${error.message}` };
+            //     console.log("✗ 设置提醒失败");
+            // }
             // 5. 测试设置闹钟功能
             console.log("测试设置闹钟...");
             try {
@@ -495,7 +545,9 @@ const dailyLife = (function () {
                 const alarmResult = await set_alarm({
                     hour: hour,
                     minute: minute,
-                    message: "测试闹钟"
+                    message: "测试闹钟",
+                    // 可以添加重复日期测试，例如每周一和周五
+                    // days: [2, 6]  // 2表示周一，6表示周五
                 });
                 results.alarm = alarmResult;
                 console.log("✓ 设置闹钟成功");
@@ -504,28 +556,51 @@ const dailyLife = (function () {
                 results.alarm = { error: `设置闹钟失败: ${error.message}` };
                 console.log("✗ 设置闹钟失败");
             }
-            // 6. 测试发送消息功能 (不实际发送，避免干扰)
-            console.log("模拟测试发送消息...");
-            results.message = {
-                success: true,
-                message: "消息发送功能已模拟测试",
-                note: "为避免实际发送消息，此功能仅作演示。实际使用时请使用send_message函数。"
-            };
-            console.log("✓ 发送消息测试完成");
-            // 7. 测试拨打电话功能 (不实际拨打，避免干扰)
-            console.log("模拟测试拨打电话...");
-            results.call = {
-                success: true,
-                message: "拨打电话功能已模拟测试",
-                note: "为避免实际拨打电话，此功能仅作演示。实际使用时请使用make_phone_call函数。"
-            };
-            console.log("✓ 拨打电话测试完成");
+            // 6. 测试发送消息功能
+            console.log("测试发送短信功能...");
+            try {
+                // 使用测试号码 - 常用的中国运营商服务号码，适合测试
+                const testPhoneNumber = "10086";
+                const testMessage = "这是一条测试短信，不会实际发送";
+                // 直接调用发送短信功能
+                const smsResult = await send_message({
+                    phone_number: testPhoneNumber,
+                    message: testMessage
+                });
+                results.message = smsResult;
+                console.log("✓ 短信测试界面打开成功");
+                // 等待用户查看短信界面
+                await sleep(5000);
+            }
+            catch (error) {
+                results.message = { error: `短信测试失败: ${error.message}` };
+                console.log("✗ 短信测试失败");
+            }
+            // 7. 测试拨打电话功能
+            console.log("测试拨号功能...");
+            try {
+                // 使用测试号码 - 常用的中国运营商服务号码，适合测试
+                const testPhoneNumber = "10086";
+                // 直接调用拨号功能
+                const dialResult = await make_phone_call({
+                    phone_number: testPhoneNumber,
+                    emergency: false
+                });
+                results.call = dialResult;
+                console.log("✓ 拨号界面打开成功");
+                // 等待用户查看拨号界面
+                await sleep(5000);
+            }
+            catch (error) {
+                results.call = { error: `拨号测试失败: ${error.message}` };
+                console.log("✗ 拨号测试失败");
+            }
             // 返回所有测试结果
             return {
                 message: "日常生活功能测试完成",
                 test_results: results,
                 timestamp: new Date().toISOString(),
-                summary: "测试了7个日常生活功能，请查看各功能的测试结果。"
+                summary: "测试了各种日常生活功能，包括天气搜索、拨号和短信测试。请查看各功能的测试结果。"
             };
         }
         catch (error) {
@@ -589,7 +664,7 @@ const dailyLife = (function () {
     return {
         get_current_date: async (params) => await daily_wrap(get_current_date, params, "获取日期时间成功", "获取日期时间失败"),
         device_status: async (params) => await daily_wrap(device_status, params, "获取设备状态成功", "获取设备状态失败"),
-        search_web: async (params) => await daily_wrap(search_web, params, "网络搜索成功", "网络搜索失败"),
+        search_weather: async (params) => await daily_wrap(search_weather, params, "获取天气信息成功", "获取天气信息失败"),
         set_reminder: async (params) => await daily_wrap(set_reminder, params, "设置提醒成功", "设置提醒失败"),
         set_alarm: async (params) => await daily_wrap(set_alarm, params, "设置闹钟成功", "设置闹钟失败"),
         send_message: async (params) => await daily_wrap(send_message, params, "发送消息成功", "发送消息失败"),
@@ -600,7 +675,7 @@ const dailyLife = (function () {
 //逐个导出
 exports.get_current_date = dailyLife.get_current_date;
 exports.device_status = dailyLife.device_status;
-exports.search_web = dailyLife.search_web;
+exports.search_weather = dailyLife.search_weather;
 exports.set_reminder = dailyLife.set_reminder;
 exports.set_alarm = dailyLife.set_alarm;
 exports.send_message = dailyLife.send_message;

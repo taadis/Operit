@@ -28,9 +28,7 @@ import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.model.Termi
 import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.model.TerminalSessionManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 
 private const val TAG = "TerminalAutoConfig"
@@ -580,189 +578,6 @@ suspend fun checkTunaSourceEnabled(context: Context, onResult: (Boolean) -> Unit
     }
 }
 
-// 使用会话执行命令的通用函数
-suspend fun executeSessionCommand(
-        context: Context,
-        session:
-                com.ai.assistance.operit.ui.features.toolbox.screens.terminal.model.TerminalSession,
-        command: String,
-        onOutput: (String) -> Unit,
-        onInteractivePrompt: (String, Int) -> Unit,
-        onComplete: ((exitCode: Int, success: Boolean) -> Unit)? = null
-) {
-    var executionId = -1
-    var commandCompleted = false
-    var exitCode = 0
-    var isSuccess = true
-    val completionLock = Mutex(locked = true)
-
-    // 添加命令到会话历史
-    session.commandHistory.add(TerminalLine.Input(command, session.getPrompt()))
-
-    // 记录命令开始执行时间用于超时检测
-    val startTime = System.currentTimeMillis()
-
-    // 创建一个可由多个来源触发解锁的函数
-    fun signalCompletion(code: Int, success: Boolean, source: String) {
-        if (!commandCompleted) {
-            commandCompleted = true
-            exitCode = code
-            isSuccess = success
-            Log.d(TAG, "命令完成信号 (来源:$source) - 退出码=$code, 成功=$success")
-
-            try {
-                completionLock.unlock()
-            } catch (e: IllegalStateException) {
-                // 互斥锁可能已经被解锁，忽略异常
-                Log.w(TAG, "尝试解锁已解锁的互斥锁: ${e.message}")
-            }
-        }
-    }
-
-    // 跟踪捕获到的交互式提示
-    val outputFlow =
-            session.executeCommand(
-                    context = context,
-                    command = command,
-                    scope = CoroutineScope(Dispatchers.IO),
-                    onCompletion = { code, success ->
-                        // 将命令完成状态传递给调用者
-                        Log.d(TAG, "命令正式完成回调: 退出码=$code, 成功=$success")
-                        signalCompletion(code, success, "onCompletion回调")
-                    }
-            )
-
-    // 创建一个协程来收集输出
-    val collectJob =
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    var noOutputTime = startTime
-
-                    outputFlow.collect { output ->
-                        // 每收到输出，重置无输出计时器
-                        noOutputTime = System.currentTimeMillis()
-
-                        withContext(Dispatchers.Main) {
-                            when {
-                                // 检查是否为执行ID信息
-                                output.text.contains("EXECUTION_ID:") -> {
-                                    val idMatch = "EXECUTION_ID:(\\d+)".toRegex().find(output.text)
-                                    idMatch?.groupValues?.get(1)?.toIntOrNull()?.let { id ->
-                                        executionId = id
-                                        Log.d(TAG, "捕获命令执行ID: $executionId")
-                                    }
-                                }
-                                // 检查输出中的完成标记
-                                output.text.contains("COMMAND_COMPLETE:") -> {
-                                    val codeMatch =
-                                            "COMMAND_COMPLETE:(\\d+)".toRegex().find(output.text)
-                                    codeMatch?.groupValues?.get(1)?.toIntOrNull()?.let { code ->
-                                        signalCompletion(code, code == 0, "COMMAND_COMPLETE标记")
-                                    }
-                                }
-                                // 检查是否为交互式提示
-                                output.text.startsWith("INTERACTIVE_PROMPT:") -> {
-                                    val promptText =
-                                            output.text.substringAfter("INTERACTIVE_PROMPT:").trim()
-                                    Log.d(TAG, "捕获交互式提示: $promptText")
-
-                                    if (executionId != -1) {
-                                        onInteractivePrompt(promptText, executionId)
-                                    } else {
-                                        onOutput("[无法处理交互式提示] $promptText")
-                                    }
-                                }
-                                // 过滤控制输出
-                                output.text.contains("COMMAND_START") ||
-                                        output.text.contains("COMMAND_END") ||
-                                        output.text.contains("COMMAND_EXIT_CODE:") ||
-                                        output.text.startsWith("STARTED:") -> {
-                                    // 这些是控制输出，不显示给用户
-                                    Log.d(TAG, "过滤控制输出: ${output.text}")
-
-                                    // 检查是否包含完成标记
-                                    when {
-                                        output.text.contains("COMMAND_COMPLETE:") -> {
-                                            val codeMatch =
-                                                    "COMMAND_COMPLETE:(\\d+)"
-                                                            .toRegex()
-                                                            .find(output.text)
-                                            codeMatch?.let {
-                                                val code = it.groupValues[1].toIntOrNull() ?: 0
-                                                signalCompletion(
-                                                        code,
-                                                        code == 0,
-                                                        "COMMAND_COMPLETE标记"
-                                                )
-                                            }
-                                        }
-                                        // 退出码信息也可以作为备选完成信号
-                                        output.text.contains("COMMAND_EXIT_CODE:") -> {
-                                            val codeMatch =
-                                                    "COMMAND_EXIT_CODE:(\\d+)"
-                                                            .toRegex()
-                                                            .find(output.text)
-                                            codeMatch?.let {
-                                                val code = it.groupValues[1].toIntOrNull() ?: 0
-                                                signalCompletion(code, code == 0, "EXIT_CODE标记")
-                                            }
-                                        }
-                                        // 确保when是完整的
-                                        else -> {
-                                            // 其他控制输出，仅记录不处理
-                                            Log.d(TAG, "其他控制输出: ${output.text}")
-                                        }
-                                    }
-                                }
-                                else -> {
-                                    // 普通输出
-                                    onOutput(output.text)
-                                }
-                            }
-                        }
-
-                        // 检查超时 - 如果已经很久没收到任何输出，可能命令已经完成但没有触发完成回调
-                        val currentTime = System.currentTimeMillis()
-                        if (!commandCompleted && (currentTime - noOutputTime > 10000)
-                        ) { // 10秒无输出视为完成
-                            signalCompletion(0, true, "输出流无活动超时")
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "收集命令输出时出错: ${e.message}")
-                    signalCompletion(-1, false, "输出流收集异常")
-                }
-            }
-
-    // 启动一个超时监控协程
-    val timeoutJob =
-            CoroutineScope(Dispatchers.IO).launch {
-                // 总超时时间2分钟
-                delay(120000)
-                if (!commandCompleted) {
-                    Log.w(TAG, "命令执行总超时: $command")
-                    signalCompletion(-1, false, "命令总执行超时")
-                }
-            }
-
-    try {
-        // 等待命令完成信号
-        completionLock.lock()
-        Log.d(TAG, "命令执行完成，退出等待: $command")
-    } catch (e: Exception) {
-        Log.e(TAG, "等待命令完成时出错: ${e.message}")
-    } finally {
-        // 确保清理所有协程
-        timeoutJob.cancel()
-        // 给收集作业一点时间处理最终输出
-        delay(500)
-        collectJob.cancel()
-
-        // 确保在主线程上调用完成回调
-        withContext(Dispatchers.Main) { onComplete?.invoke(exitCode, isSuccess) }
-    }
-}
-
 // 切换至清华源
 suspend fun switchToTunaMirror(
         context: Context,
@@ -789,7 +604,7 @@ suspend fun switchToTunaMirror(
 
             // 1. 备份原始sources.list
             onOutput("正在备份原始软件源配置...")
-            executeSessionCommand(
+            TerminalSessionManager.executeSessionCommand(
                     context,
                     session,
                     backupCommand,
@@ -807,7 +622,7 @@ suspend fun switchToTunaMirror(
 
             // 2. 修改sources.list
             onOutput("正在修改软件源配置...")
-            executeSessionCommand(
+            TerminalSessionManager.executeSessionCommand(
                     context,
                     session,
                     sedCommand,
@@ -825,7 +640,7 @@ suspend fun switchToTunaMirror(
 
             // 3. 更新软件包信息
             onOutput("正在更新软件包信息...")
-            executeSessionCommand(
+            TerminalSessionManager.executeSessionCommand(
                     context,
                     session,
                     updateCommand,
@@ -967,7 +782,7 @@ suspend fun installPython(
 
         if (session != null) {
             // 使用终端会话执行命令
-            executeSessionCommand(
+            TerminalSessionManager.executeSessionCommand(
                     context,
                     session,
                     "pkg update -y && pkg install python -y",
@@ -1056,7 +871,7 @@ suspend fun installPip(
 
         if (session != null) {
             // 使用终端会话执行命令
-            executeSessionCommand(
+            TerminalSessionManager.executeSessionCommand(
                     context,
                     session,
                     "pkg update -y && pip install --upgrade pip",
@@ -1108,7 +923,7 @@ suspend fun installNodejs(
 
         if (session != null) {
             // 使用终端会话执行命令
-            executeSessionCommand(
+            TerminalSessionManager.executeSessionCommand(
                     context,
                     session,
                     "pkg update -y && pkg install nodejs -y",
@@ -1160,7 +975,7 @@ suspend fun installGit(
 
         if (session != null) {
             // 使用终端会话执行命令
-            executeSessionCommand(
+            TerminalSessionManager.executeSessionCommand(
                     context,
                     session,
                     "pkg update -y && pkg install git -y",
@@ -1212,7 +1027,7 @@ suspend fun updatePackages(
 
         if (session != null) {
             // 使用终端会话执行命令
-            executeSessionCommand(
+            TerminalSessionManager.executeSessionCommand(
                     context,
                     session,
                     "pkg update -y && pkg upgrade -y",

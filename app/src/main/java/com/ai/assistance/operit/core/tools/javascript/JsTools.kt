@@ -54,8 +54,15 @@ fun getJsToolsDefinition(): String {
                 listApps: (includeSystem) => toolCall("list_installed_apps", { include_system: !!includeSystem }),
                 adb: (command, timeoutMs) => toolCall("execute_adb", { command: command, timeout_ms: timeoutMs || 15000 
                 }),
+                // 执行终端命令 - 一次性收集输出
+                terminal: (command, sessionId, timeoutMs) => {
+                    const params = { command };
+                    if (sessionId) params.session_id = sessionId;
+                    if (timeoutMs) params.timeout_ms = timeoutMs;
+                    return toolCall("execute_terminal", params);
+                },
                 // 执行Intent
-                intent: (action, uri, pkg, component, flags, extras) => {
+                intent: (action, uri, pkg, component, flags, extras, type) => {
                     const params = {};
                     if (action) params.action = action;
                     if (uri) params.uri = uri;
@@ -63,6 +70,7 @@ fun getJsToolsDefinition(): String {
                     if (component) params.component = component;
                     if (flags) params.flags = flags;
                     if (extras) params.extras = typeof extras === 'object' ? JSON.stringify(extras) : extras;
+                    if (type) params.type = type;
                     return toolCall("execute_intent", params);
                 }
             },
