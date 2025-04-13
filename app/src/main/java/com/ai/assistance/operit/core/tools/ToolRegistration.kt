@@ -1,7 +1,8 @@
 package com.ai.assistance.operit.tools
 
 import android.content.Context
-import com.ai.assistance.operit.data.model.AITool
+import com.ai.assistance.operit.core.tools.defaultTool.ADBToolExecutor
+import com.ai.assistance.operit.core.tools.defaultTool.IntentToolExecutor
 import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.tools.defaultTool.*
 import com.ai.assistance.operit.ui.permissions.ToolCategory
@@ -17,6 +18,21 @@ import com.ai.assistance.operit.ui.permissions.ToolCategory
  * @param context Application context for tools that need it
  */
 fun registerAllTools(handler: AIToolHandler, context: Context) {
+    // 不在提示词加入的工具
+    handler.registerTool(
+            name = "execute_adb",
+            category = ToolCategory.SYSTEM_OPERATION,
+            dangerCheck = { true }, // 总是危险操作
+            descriptionGenerator = { tool ->
+                val command = tool.parameters.find { it.name == "command" }?.value ?: ""
+                "执行ADB命令: $command"
+            },
+            executor = { tool ->
+                val adbTool = ADBToolExecutor(context)
+                adbTool.invoke(tool)
+            }
+    )
+
     // 注册问题库工具
     registerProblemLibraryTool(handler, context)
 
@@ -34,6 +50,8 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
                 ToolResult(toolName = tool.name, success = true, result = StringResultData(result))
             }
     )
+
+    // ADB命令执行工具
 
     // 计算器工具
     handler.registerTool(
@@ -100,6 +118,30 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
                         success = true,
                         result = StringResultData("Slept for ${limitedDuration}ms")
                 )
+            }
+    )
+
+    // Intent工具
+    handler.registerTool(
+            name = "execute_intent",
+            category = ToolCategory.SYSTEM_OPERATION,
+            dangerCheck = { true }, // 总是危险操作
+            descriptionGenerator = { tool ->
+                val action = tool.parameters.find { it.name == "action" }?.value
+                val packageName = tool.parameters.find { it.name == "package" }?.value
+                val component = tool.parameters.find { it.name == "component" }?.value
+
+                when {
+                    !component.isNullOrBlank() -> "执行Intent: 组件 $component"
+                    !packageName.isNullOrBlank() && !action.isNullOrBlank() ->
+                            "执行Intent: $action (包: $packageName)"
+                    !action.isNullOrBlank() -> "执行Intent: $action"
+                    else -> "执行Android Intent"
+                }
+            },
+            executor = { tool ->
+                val intentTool = IntentToolExecutor(context)
+                intentTool.invoke(tool)
             }
     )
 

@@ -269,4 +269,73 @@ After the package is loaded, you can use any of its tools:
 <tool name="your_package_name:your_tool_name">
   <param name="param1">value1</param>
 </tool>
-``` 
+```
+
+## Function Name Duplication Issue
+
+Currently, these example scripts have a common issue: they contain duplicate function names across different files, even though the scripts are designed to operate independently. This can cause problems if:
+
+1. Multiple scripts are imported into the same project
+2. The scripts are executed in an environment where name collisions matter
+3. Future integration of these scripts is planned
+
+### Recommended Solutions:
+
+#### 1. Namespace Pattern
+
+Wrap all functions in a namespace object to avoid global namespace pollution:
+
+```javascript
+// Instead of:
+function get_history(params) { /* ... */ }
+
+// Use:
+const QQTools = {
+  get_history: function(params) { /* ... */ },
+  reply: function(params) { /* ... */ }
+};
+
+// Then call as:
+QQTools.get_history(params);
+```
+
+#### 2. Module Pattern (IIFE)
+
+Use the module pattern to encapsulate functions:
+
+```javascript
+const QQIntelligent = (function() {
+  // Private functions
+  function close_keyboard() { /* ... */ }
+  
+  // Public API
+  return {
+    get_history: function(params) { /* ... */ },
+    reply: function(params) { /* ... */ }
+  };
+})();
+```
+
+#### 3. ES6 Modules (For TypeScript files)
+
+Convert the scripts to proper ES6 modules:
+
+```typescript
+// In qq_intelligent.ts
+export function get_history(params) { /* ... */ }
+export function reply(params) { /* ... */ }
+
+// In another file that needs these functions
+import { get_history, reply } from './qq_intelligent';
+```
+
+#### 4. Function Prefix
+
+If modifying the code structure is difficult, prefix all functions with a unique identifier:
+
+```javascript
+function qq_get_history(params) { /* ... */ }
+function qq_reply(params) { /* ... */ }
+```
+
+Adopting one of these approaches would resolve the function name duplication issue while maintaining the independence of each script. 

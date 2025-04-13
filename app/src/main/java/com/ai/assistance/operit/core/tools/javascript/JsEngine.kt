@@ -6,6 +6,10 @@ import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import androidx.annotation.Keep
 import androidx.core.content.ContextCompat
+import com.ai.assistance.operit.core.tools.javascript.getJsThirdPartyLibraries
+import com.ai.assistance.operit.core.tools.javascript.getJsToolsDefinition
+import com.ai.assistance.operit.core.tools.javascript.loadAndroidUtilsJs
+import com.ai.assistance.operit.core.tools.javascript.loadUINodeJs
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolParameter
 import com.ai.assistance.operit.tools.*
@@ -130,6 +134,71 @@ class JsEngine(private val context: Context) {
                     console.error("Error in error handler:", e);
                     return false;
                 }
+            };
+            
+            // 添加异常对象扩展方法，用于格式化错误信息
+            window.formatErrorDetails = function(error) {
+                if (!error) return "Unknown error";
+                
+                try {
+                    // 尝试提取完整的错误信息
+                    var details = {
+                        name: error.name || "Error",
+                        message: error.message || String(error),
+                        stack: error.stack || "No stack trace available",
+                        fileName: error.fileName || "Unknown file",
+                        lineNumber: error.lineNumber || "Unknown line",
+                        columnNumber: error.columnNumber || "Unknown column"
+                    };
+                    
+                    // 尝试从堆栈信息中提取更多信息
+                    if (details.stack && (!details.fileName || details.fileName === "Unknown file")) {
+                        var stackMatch = details.stack.match(/at\s+.*?\s+\((.+):(\d+):(\d+)\)/);
+                        if (stackMatch) {
+                            details.fileName = stackMatch[1] || details.fileName;
+                            details.lineNumber = stackMatch[2] || details.lineNumber;
+                            details.columnNumber = stackMatch[3] || details.columnNumber;
+                        }
+                    }
+                    
+                    // 生成详细的错误消息
+                    var formattedMessage = details.name + ": " + details.message + "\n" +
+                                          "File: " + details.fileName + "\n" +
+                                          "Line: " + details.lineNumber + ", Column: " + details.columnNumber + "\n" +
+                                          "Stack Trace:\n" + details.stack;
+                    
+                    return {
+                        formatted: formattedMessage,
+                        details: details
+                    };
+                } catch (e) {
+                    console.error("Error formatting error details:", e);
+                    return {
+                        formatted: String(error),
+                        details: { message: String(error) }
+                    };
+                }
+            };
+            
+            // 添加一个专用的方法来报告详细错误
+            window.reportDetailedError = function(error, context) {
+                var errorDetails = window.formatErrorDetails(error);
+                console.error("DETAILED ERROR (" + (context || "unknown context") + "):", errorDetails.formatted);
+                
+                if (typeof NativeInterface !== 'undefined' && NativeInterface.reportError) {
+                    try {
+                        NativeInterface.reportError(
+                            errorDetails.details.name || "Error",
+                            errorDetails.details.message || String(error),
+                            errorDetails.details.lineNumber || 0,
+                            errorDetails.details.stack || "No stack trace"
+                        );
+                    } catch (e) {
+                        console.error("Failed to report error to native interface:", e);
+                    }
+                }
+                
+                return errorDetails;
             };
             
             // 增强console功能，将所有控制台输出发送到Android
@@ -313,130 +382,8 @@ class JsEngine(private val context: Context) {
                 });
             }
             
-            // 工具调用的便捷方法
-            var Tools = {
-                // 文件系统操作
-                Files: {
-                    list: (path) => toolCall("list_files", { path }),
-                    read: (path) => toolCall("read_file", { path }),
-                    write: (path, content) => toolCall("write_file", { path, content }),
-                    deleteFile: (path) => toolCall("delete_file", { path }),
-                    exists: (path) => toolCall("file_exists", { path }),
-                    move: (source, destination) => toolCall("move_file", { source, destination }),
-                    copy: (source, destination) => toolCall("copy_file", { source, destination }),
-                    mkdir: (path) => toolCall("make_directory", { path }),
-                    find: (path, pattern) => toolCall("find_files", { path, pattern }),
-                    info: (path) => toolCall("file_info", { path }),
-                    zip: (source, destination) => toolCall("zip_files", { source, destination }),
-                    unzip: (source, destination) => toolCall("unzip_files", { source, destination }),
-                    open: (path) => toolCall("open_file", { path }),
-                    share: (path) => toolCall("share_file", { path }),
-                    download: (url, destination) => toolCall("download_file", { url, destination }),
-                    convert: (sourcePath, targetPath, options = {}) => {
-                        const params = {
-                            source_path: sourcePath,
-                            target_path: targetPath,
-                            ...options
-                        };
-                        return toolCall("convert_file", params);
-                    },
-                    // 获取支持的文件转换格式
-                    getSupportedConversions: (formatType = null) => {
-                        const params = formatType ? { format_type: formatType } : {};
-                        return toolCall("get_supported_conversions", params);
-                    }
-                },
-                // 网络操作
-                Net: {
-                    httpGet: (url) => toolCall("http_request", { url, method: "GET" }),
-                    httpPost: (url, data) => toolCall("http_request", { url, method: "POST", data }),
-                    search: (query) => toolCall("web_search", { query }),
-                    fetchPage: (url) => toolCall("fetch_web_page", { url })
-                },
-                // 系统操作
-                System: {
-                    exec: (command) => toolCall("execute_comma nd", { command }),
-                    sleep: (milliseconds) => toolCall("sleep", { duration_ms: parseInt(milliseconds) }),
-                    getSetting: (setting, namespace) => toolCall("get_system_setting", { key: setting, namespace }),
-                    setSetting: (setting, value, namespace) => toolCall("modify_system_setting", { key: setting, value, namespace }),
-                    getDeviceInfo: () => toolCall("device_info"),
-                    startApp: (packageName, activity) => toolCall("start_app", { package_name: packageName, activity: activity }),
-                    stopApp: (packageName) => toolCall("stop_app", { package_name: packageName }),
-                    listApps: (includeSystem) => toolCall("list_installed_apps", { include_system: !!includeSystem })
-                },
-                // UI操作
-                UI: {
-                    getPageInfo: () => toolCall("get_page_info"),
-                    tap: (x, y) => toolCall("tap", { x, y }),
-                    // 增强的clickElement方法，支持多种参数类型
-                    clickElement: function(param1, param2, param3) {
-                        // 根据参数类型和数量判断调用方式
-                        if (typeof param1 === 'object') {
-                            // 如果第一个参数是对象，直接传递参数对象
-                            return toolCall("click_element", param1);
-                        } else if (arguments.length === 1) {
-                            // 单参数，假定为resourceId
-                            if (param1.startsWith('[') && param1.includes('][')) {
-                                // 参数看起来像bounds格式 [x,y][x,y]
-                                return toolCall("click_element", { bounds: param1 });
-                            }
-                            return toolCall("click_element", { resourceId: param1 });
-                        } else if (arguments.length === 2) {
-                            // 两个参数，假定为(resourceId, index)或(className, index)
-                            if (param1 === 'resourceId') {
-                                return toolCall("click_element", { resourceId: param2 });
-                            } else if (param1 === 'className') {
-                                return toolCall("click_element", { className: param2 });
-                            } else if (param1 === 'bounds') {
-                                return toolCall("click_element", { bounds: param2 });
-                            } else {
-                                return toolCall("click_element", { resourceId: param1, index: param2 });
-                            }
-                        } else if (arguments.length === 3) {
-                            // 三个参数，假定为(type, value, index)
-                            if (param1 === 'resourceId') {
-                                return toolCall("click_element", { resourceId: param2, index: param3 });
-                            } else if (param1 === 'className') {
-                                return toolCall("click_element", { className: param2, index: param3 });
-                            } else {
-                                return toolCall("click_element", { resourceId: param1, className: param2, index: param3 });
-                            }
-                        }
-                        // 默认情况
-                        return toolCall("click_element", { resourceId: param1 });
-                    },
-                    // 查找UI元素方法
-                    findElement: function(params) {
-                        return toolCall("find_element", params);
-                    },
-                    setText: (text) => toolCall("set_input_text", { text }),
-                    swipe: (startX, startY, endX, endY) => toolCall("swipe", { start_x: startX, start_y: startY, end_x: endX, end_y: endY }),
-                    pressKey: (keyCode) => toolCall("press_key", { key_code: keyCode }),
-                    // 组合操作
-                    combinedOperation: (operation, delayMs) => toolCall("combined_operation", { operation, delay_ms: delayMs || 1000 })
-                },
-                // 计算功能
-                calc: (expression) => toolCall("calculate", { expression }),
-                
-                // FFmpeg工具
-                FFmpeg: {
-                    // 执行自定义FFmpeg命令
-                    execute: (command) => toolCall("ffmpeg_execute", { command }),
-                    
-                    // 获取FFmpeg系统信息
-                    info: () => toolCall("ffmpeg_info"),
-                    
-                    // 转换视频文件
-                    convert: (inputPath, outputPath, options = {}) => {
-                        const params = {
-                            input_path: inputPath,
-                            output_path: outputPath,
-                            ...options
-                        };
-                        return toolCall("ffmpeg_convert", params);
-                    }
-                }
-            };
+            // 加载工具调用的便捷方法
+            ${getJsToolsDefinition()}
             
             // 定义完成回调
             function complete(result) {
@@ -492,10 +439,13 @@ class JsEngine(private val context: Context) {
             }
             
             // 加载第三方库支持
-            $THIRD_PARTY_LIBS
+            ${getJsThirdPartyLibraries()}
             
             // 加载 UINode 库
-            ${loadUINodeJs()}
+            ${loadUINodeJs(context)}
+            
+            // 加载 AndroidUtils 库
+            ${loadAndroidUtilsJs(context)}
             
             // 函数处理异步Promise的辅助函数
             function __handleAsync(possiblePromise) {
@@ -556,26 +506,32 @@ class JsEngine(private val context: Context) {
                         })
                         .catch(error => {
                             clearTimeout(asyncTimeout);
-                            console.error("Async Promise rejected:", error);
+                            
+                            // 使用我们新的详细错误报告功能
+                            const errorReport = window.reportDetailedError(error, "Async Promise Rejection");
+                            
                             if (!window._hasCompleted) {
                                 try {
                                     window._hasCompleted = true;
-                                    // 安全地序列化结果
-                                    let serializedResult;
-                                    try {
-                                        serializedResult = JSON.stringify(error);
-                                    } catch (serializeError) {
-                                        console.error("Failed to serialize Promise error:", serializeError);
-                                        serializedResult = JSON.stringify({
-                                            error: "Failed to serialize error",
-                                            message: String(error),
-                                            result: String(error).substring(0, 1000)
-                                        });
-                                    }
-                                    NativeInterface.setError(serializedResult);
-                                    console.log("Error set from Promise rejection");
+                                    
+                                    // 使用格式化的错误信息
+                                    NativeInterface.setError(JSON.stringify({
+                                        error: "Promise rejection",
+                                        details: errorReport.details,
+                                        formatted: errorReport.formatted
+                                    }));
+                                    
+                                    console.log("Detailed error information reported from Promise rejection");
                                 } catch (errorHandlingError) {
                                     console.error("Error during async error handling:", errorHandlingError);
+                                    
+                                    // 尝试更简单的错误报告方式作为后备
+                                    try {
+                                        NativeInterface.setError("Error in Promise: " + String(error) + 
+                                                               "\nError handling failed: " + String(errorHandlingError));
+                                    } catch (e) {
+                                        console.error("Complete failure in error handling chain:", e);
+                                    }
                                 }
                             }
                         });
@@ -879,112 +835,6 @@ class JsEngine(private val context: Context) {
         }
     }
 
-    /** 加载 UINode.js 文件 从 assets 目录读取并返回 JS 代码 */
-    private fun loadUINodeJs(): String {
-        return try {
-            val inputStream = context.assets.open("js/UINode.js")
-            val size = inputStream.available()
-            val buffer = ByteArray(size)
-            inputStream.read(buffer)
-            inputStream.close()
-            String(buffer)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error loading UINode.js: ${e.message}", e)
-            // 如果加载失败，返回空字符串
-            ""
-        }
-    }
-
-    /** 加载常用的第三方 JavaScript 库 可以根据需要添加更多库 */
-    private val THIRD_PARTY_LIBS =
-            """
-        // Lodash 核心功能
-        // 轻量级版本，包含最常用的工具函数
-        var _ = (function() {
-            // 简单的 Lodash 核心实现
-            return {
-                isEmpty: function(value) {
-                    return value === null || value === undefined || 
-                           (Array.isArray(value) && value.length === 0) ||
-                           (typeof value === 'object' && Object.keys(value).length === 0);
-                },
-                isString: function(value) {
-                    return typeof value === 'string';
-                },
-                isNumber: function(value) {
-                    return typeof value === 'number' && !isNaN(value);
-                },
-                isBoolean: function(value) {
-                    return typeof value === 'boolean';
-                },
-                isObject: function(value) {
-                    return typeof value === 'object' && value !== null && !Array.isArray(value);
-                },
-                isArray: function(value) {
-                    return Array.isArray(value);
-                },
-                forEach: function(collection, iteratee) {
-                    if (Array.isArray(collection)) {
-                        for (let i = 0; i < collection.length; i++) {
-                            iteratee(collection[i], i, collection);
-                        }
-                    } else if (typeof collection === 'object' && collection !== null) {
-                        for (let key in collection) {
-                            if (collection.hasOwnProperty(key)) {
-                                iteratee(collection[key], key, collection);
-                            }
-                        }
-                    }
-                    return collection;
-                },
-                map: function(collection, iteratee) {
-                    const result = [];
-                    if (Array.isArray(collection)) {
-                        for (let i = 0; i < collection.length; i++) {
-                            result.push(iteratee(collection[i], i, collection));
-                        }
-                    } else if (typeof collection === 'object' && collection !== null) {
-                        for (let key in collection) {
-                            if (collection.hasOwnProperty(key)) {
-                                result.push(iteratee(collection[key], key, collection));
-                            }
-                        }
-                    }
-                    return result;
-                }
-            };
-        })();
-        
-        // 简单的数据处理库
-        var dataUtils = {
-            parseJson: function(jsonString) {
-                try {
-                    return JSON.parse(jsonString);
-                } catch (e) {
-                    return null;
-                }
-            },
-            stringifyJson: function(obj) {
-                try {
-                    return JSON.stringify(obj);
-                } catch (e) {
-                    return "{}";
-                }
-            },
-            formatDate: function(date) {
-                if (!date) date = new Date();
-                if (typeof date === 'string') date = new Date(date);
-                
-                return date.getFullYear() + '-' + 
-                       String(date.getMonth() + 1).padStart(2, '0') + '-' + 
-                       String(date.getDate()).padStart(2, '0') + ' ' + 
-                       String(date.getHours()).padStart(2, '0') + ':' + 
-                       String(date.getMinutes()).padStart(2, '0') + ':' + 
-                       String(date.getSeconds()).padStart(2, '0');
-            }
-        };
-    """.trimIndent()
-
     /** JavaScript 接口，提供 Native 调用方法 */
     @Keep
     inner class JsToolCallInterface {
@@ -1158,7 +1008,7 @@ class JsEngine(private val context: Context) {
                                     val resultString = result.result.toString()
                                     Log.d(
                                             TAG,
-                                            "[Async] Tool execution succeeded: ${resultString.take(10000)}${if (resultString.length > 10000) "..." else ""}"
+                                            "[Async] Tool execution succeeded: ${resultString.take(300)}${if (resultString.length > 300) "..." else ""}"
                                     )
                                     // 发送成功结果回调
                                     val resultJson =
@@ -1351,6 +1201,41 @@ class JsEngine(private val context: Context) {
                         TAG,
                         "Setting error from JavaScript: $error, callback=${resultCallback != null}, isDone=${resultCallback?.isDone}"
                 )
+
+                // 尝试解析错误信息，看是否是JSON格式
+                var logMessage = error
+                try {
+                    if (error.startsWith("{") && error.endsWith("}")) {
+                        val errorJson = JSONObject(error)
+                        if (errorJson.has("formatted")) {
+                            // 如果是我们格式化的错误对象，使用formatted字段作为日志
+                            logMessage = errorJson.getString("formatted")
+                        } else if (errorJson.has("error") && errorJson.has("message")) {
+                            // 基本的错误对象
+                            val errorType = errorJson.getString("error")
+                            val errorMsg = errorJson.getString("message")
+                            logMessage = "$errorType: $errorMsg"
+
+                            // 添加更多详情如果有的话
+                            if (errorJson.has("details")) {
+                                val details = errorJson.getJSONObject("details")
+                                if (details.has("fileName") && details.has("lineNumber")) {
+                                    logMessage +=
+                                            "\nAt ${details.getString("fileName")}:${details.getString("lineNumber")}"
+                                }
+                                if (details.has("stack")) {
+                                    logMessage += "\nStack: ${details.getString("stack")}"
+                                }
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    // 不是有效的JSON或解析失败，使用原始错误字符串
+                    Log.d(TAG, "Error parsing error message as JSON: ${e.message}")
+                }
+
+                // 记录错误日志
+                Log.e(TAG, "JS ERROR: $logMessage")
 
                 // 确保回调仍然有效
                 if (resultCallback == null) {

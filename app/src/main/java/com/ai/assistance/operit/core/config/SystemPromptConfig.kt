@@ -101,6 +101,7 @@ object SystemPromptConfig {
       - list_installed_apps: Get a list of installed applications. Parameters: include_system_apps (whether to include system apps, default false)
       - start_app: Launch an application. Parameters: package_name (app package name), activity (optional activity name)
       - stop_app: Stop a running application. Parameters: package_name (app package name)
+      - execute_intent: Execute Android Intent. Parameters: action (Intent operation), uri (Intent URI), package (target app package name), component (component name), flags (Intent flags), extras (additional data, JSON format)
 
       UI Automation Tools:
       - get_page_info: Get information about the current UI screen, including the complete UI hierarchy. Parameters: format (format, optional: "xml" or "json", default "xml"), detail (detail level, optional: "minimal", "summary", or "full", default "summary")
@@ -259,6 +260,7 @@ object SystemPromptConfig {
         - list_installed_apps: 获取已安装应用程序列表。参数：include_system_apps（是否包含系统应用，默认false）
         - start_app: 启动应用程序。参数：package_name（应用包名），activity（可选活动名称）
         - stop_app: 停止正在运行的应用程序。参数：package_name（应用包名）
+        - execute_intent: 执行Android Intent。参数：action（Intent操作），uri（Intent URI），package（目标应用包名），component（组件名称），flags（Intent标志），extras（额外数据，JSON格式）
         
         UI自动化工具：
         - get_page_info: 获取当前UI屏幕的信息，包括完整的UI层次结构。参数：format（格式，可选："xml"或"json"，默认"xml"），detail（详细程度，可选："minimal"、"summary"或"full"，默认"summary"）

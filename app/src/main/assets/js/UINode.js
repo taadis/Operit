@@ -10,7 +10,7 @@
  * - Chain search operations with results maintaining full functionality
  * - Extract text content from elements and their children
  * - Interact with elements (click, set text, etc.)
- * - Traverse element hierarchies
+ * - Traverse element hierarchies (including parent references and node paths)
  * 
  * Example usage:
  * ```javascript
@@ -31,16 +31,24 @@
  * 
  * // Get complete formatted page info (application, activity and UI elements)
  * console.log(ui.toFormattedString());
+ * 
+ * // Get node path
+ * console.log(loginBtn.path);
+ * 
+ * // Navigate to parent
+ * const parent = loginBtn.parent;
  * ```
  */
 class UINode {
     /**
      * Create a new UINode instance
      * @param {Object} node - The SimplifiedUINode object to wrap
+     * @param {UINode|null} parent - The parent UINode (null for root)
      */
-    constructor(node) {
+    constructor(node, parent = null) {
         this._node = node || {};
         this._children = undefined;
+        this._parent = parent;
     }
 
     // ===== Core Properties =====
@@ -102,6 +110,91 @@ class UINode {
     }
 
     /**
+     * Get the parent node
+     * @return {UINode|null} Parent node or null if this is the root
+     */
+    get parent() {
+        return this._parent;
+    }
+
+    /**
+     * Get the path from root to this node
+     * @return {string} Path representation as a string
+     */
+    get path() {
+        // Start with this node's identifier
+        let identifier = this._getNodeIdentifier();
+
+        // Build path by traversing up the parent chain
+        let currentNode = this;
+        let pathParts = [identifier];
+
+        while (currentNode.parent) {
+            currentNode = currentNode.parent;
+            identifier = currentNode._getNodeIdentifier();
+            pathParts.unshift(identifier);
+        }
+
+        return pathParts.join(" > ");
+    }
+
+    /**
+     * Get a string identifier for this node to use in the path
+     * @private
+     * @return {string} A string identifying this node
+     */
+    _getNodeIdentifier() {
+        // Try to use resourceId first as it's most specific
+        if (this.resourceId) {
+            // Extract just the ID name without the package
+            const idParts = this.resourceId.split('/');
+            return `#${idParts[idParts.length - 1]}`;
+        }
+
+        // Use text content if available
+        if (this.text) {
+            // Truncate long text
+            const displayText = this.text.length > 20
+                ? this.text.substring(0, 17) + "..."
+                : this.text;
+            return `"${displayText}"`;
+        }
+
+        // Use content description
+        if (this.contentDesc) {
+            const displayDesc = this.contentDesc.length > 20
+                ? this.contentDesc.substring(0, 17) + "..."
+                : this.contentDesc;
+            return `[desc="${displayDesc}"]`;
+        }
+
+        // Fall back to class name with index
+        if (this.className) {
+            // Get last part of class name (e.g., "android.widget.Button" -> "Button")
+            const classNameParts = this.className.split('.');
+            const shortClassName = classNameParts[classNameParts.length - 1];
+
+            // If we have a parent, try to determine our index among siblings of same class
+            if (this.parent) {
+                const siblingsOfSameClass = this.parent.children.filter(
+                    child => child.className === this.className
+                );
+                if (siblingsOfSameClass.length > 1) {
+                    const index = siblingsOfSameClass.indexOf(this);
+                    if (index !== -1) {
+                        return `${shortClassName}[${index}]`;
+                    }
+                }
+            }
+
+            return shortClassName;
+        }
+
+        // Last resort
+        return "Node";
+    }
+
+    /**
      * Get the center point coordinates based on bounds
      * @return {Object|undefined} Object with x and y coordinates or undefined if bounds not available
      */
@@ -137,7 +230,7 @@ class UINode {
             this._children = [];
 
             if (Array.isArray(this._node.children)) {
-                this._children = this._node.children.map(child => new UINode(child));
+                this._children = this._node.children.map(child => new UINode(child, this));
             }
         }
 
@@ -471,6 +564,30 @@ class UINode {
      */
     findClickable() {
         return this.findAll({ clickable: true });
+    }
+
+    /**
+     * Find closest ancestor that matches the criteria
+     * @param {Object|Function} criteria - Search criteria or predicate function
+     * @return {UINode|null} The matching ancestor or null if none found
+     */
+    closest(criteria) {
+        let currentNode = this.parent;
+
+        // Convert object criteria to a predicate function if needed
+        const predicate = typeof criteria === 'function'
+            ? criteria
+            : this._createPredicateFromCriteria(criteria);
+
+        // Traverse up the ancestry chain
+        while (currentNode) {
+            if (predicate(currentNode)) {
+                return currentNode;
+            }
+            currentNode = currentNode.parent;
+        }
+
+        return null;
     }
 
     // ===== Actions =====

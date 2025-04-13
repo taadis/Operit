@@ -113,63 +113,77 @@ METADATA
     "category": "UI_AUTOMATION"
 }
 */
-async function close_keyboard() {
-    await Tools.UI.pressKey("KEYCODE_BACK");
+
+interface Array<T> {
+    at(index: number): T | undefined;
 }
 
-async function is_in_group() {
-    let page = await UINode.getCurrentPage();
-    return page.findById('com.tencent.mobileqq:id/xcf') === undefined;
-}
-
-async function get_history(params: { message_num: number }) {
-    const message_num = params.message_num || 10;
-    let page = await UINode.getCurrentPage();
-
-    //获取群名称
-    const chat_title = page.findById('com.tencent.mobileqq:id/ywf')?.text ?? "";
-    const is_group = await is_in_group();
-
-    //先滑动到最底部
-    let tryMax = 0;
-    while (tryMax < 1) {
-        tryMax++;
-        await Tools.UI.swipe(100, 1000, 100, 200);
-        await Tools.System.sleep(500);
+const QQIntelligent = (function () {
+    async function close_keyboard() {
+        await Tools.UI.pressKey("KEYCODE_BACK");
     }
 
-    let messageList: { message: string, sender: string, time: string }[] = [];
-    let allMessages: { message: string, sender: string, time: string }[] = [];
+    async function is_in_group() {
+        let page = await UINode.getCurrentPage();
+        return page.findAllByContentDesc('语音').findIndex(e => e.className?.includes('ImageButton') && (e.centerPoint?.y ?? 0) > 1000) === -1;
+    }
 
-    //获取历史消息
-    tryMax = 0;
-    while (tryMax < 5) {
-        tryMax++;
 
-        page = await UINode.getCurrentPage();
-        const list_view = page.findByClass('RecyclerView');
-        if (!list_view) {
-            return undefined;
+
+
+    Array.prototype.at = function (index: number) {
+        if (index < 0) {
+            index = this.length + index;
+        }
+        return this[index];
+    }
+
+    async function get_history(params: { message_num: number }) {
+        const message_num = params.message_num || 10;
+        let page = await UINode.getCurrentPage();
+
+        //获取群名称
+        const chat_title = page.findById('com.tencent.mobileqq:id/ivTitleBtnLeft')?.parent?.allTexts()[0] ?? "";
+        // const is_group = await is_in_group();
+        console.log("chat_title", chat_title);
+        // console.log("is_group", is_group);
+        //先滑动到最底部
+        let tryMax = 0;
+        while (tryMax < 1) {
+            tryMax++;
+            await Tools.UI.swipe(100, 1000, 100, 200);
+            await Tools.System.sleep(500);
         }
 
-        // 清空临时消息列表
-        messageList = [];
+        let messageList: { message: string, sender: string }[] = [];
+        let allMessages: { message: string, sender: string }[] = [];
 
-        // 获取当前可见的消息列表
-        for (const message of list_view.children) {
-            let message_text = message.findById('com.tencent.mobileqq:id/kad')?.text ?? "";
-            if (message_text == "") {
-                message_text = message.findById('com.tencent.mobileqq:id/kqn') ? '图片' : '';
+        //获取历史消息
+        tryMax = 0;
+        while (tryMax < 5) {
+            tryMax++;
+
+            page = await UINode.getCurrentPage();
+            console.log("page", page.toFormattedString!());
+            const list_view = page.findByClass('RecyclerView');
+            if (!list_view) {
+                return undefined;
             }
 
-            let sender = message.findById('com.tencent.mobileqq:id/kap')?.text ?? "";
-            if (!is_group) {
+            // 清空临时消息列表
+            messageList = [];
+
+            // 获取当前可见的消息列表
+            for (const message of list_view.children) {
+                let message_text = message.allTexts().join('/');
+
+                let sender = "other";
                 //判断头像再左边还是右边
-                const avatar = message.findById('com.tencent.mobileqq:id/b0x');
+                const avatar = message.findByClass('ImageView');
                 if (avatar) {
                     if ((avatar.centerPoint?.x ?? 0) < 300) {
-                        sender = chat_title;
-                        console.log("opps", avatar.centerPoint?.x);
+                        sender = "other";
+                        console.log("other", avatar.centerPoint?.x);
                     } else {
                         sender = "self";
                         console.log("self", avatar.centerPoint?.x);
@@ -178,217 +192,216 @@ async function get_history(params: { message_num: number }) {
                     sender = "self";
                     console.log("self");
                 }
+                messageList.push({ message: message_text, sender: sender });
             }
-            const time = message.findById('com.tencent.mobileqq:id/f24')?.allTexts().join('') ?? "";
-            messageList.push({ message: message_text, sender: sender, time: time });
-        }
 
-        // 将当前视图中的消息添加到总集合中，保持顺序
-        // 从下往上滑动时，将新获取的消息放在前面（保持旧消息在前，新消息在后的顺序）
-        allMessages = [...messageList, ...allMessages];
+            // 将当前视图中的消息添加到总集合中，保持顺序
+            // 从下往上滑动时，将新获取的消息放在前面（保持旧消息在前，新消息在后的顺序）
+            allMessages = [...messageList, ...allMessages];
 
-        // 如果已经获取了足够多的消息，停止滚动
-        if (allMessages.length >= message_num) {
-            break;
-        }
-        await Tools.UI.swipe(100, 300, 100, 1000);
-        await Tools.System.sleep(500);
-    }
-
-    // 删除重复的消息，但保持原始顺序
-    const uniqueMessages: { message: string, sender: string, time: string }[] = [];
-    const seen = new Set();
-
-    for (const msg of allMessages) {
-        const key = `${msg.message}-${msg.sender}-${msg.time}`;
-        if (!seen.has(key)) {
-            seen.add(key);
-            uniqueMessages.push(msg);
-        }
-    }
-
-    // 填充空白时间
-    let lastTime = "";
-    for (const msg of uniqueMessages) {
-        if (msg.time == "") {
-            msg.time = lastTime;
-        }
-        lastTime = msg.time;
-    }
-
-    // 返回符合数量要求的消息列表（保持原始顺序）
-    return uniqueMessages.slice(0, message_num);
-}
-
-async function reply(params: { message: string, click_send: boolean }) {
-    // 提取参数
-    const message = params.message || "";
-    const click_send = params.click_send || false;
-    await Tools.UI.setText(message);
-    await Tools.System.sleep(500);
-
-    if (click_send) {
-        await Tools.UI.clickElement({
-            resourceId: "com.tencent.mobileqq:id/send_btn",
-            index: "0"
-        });
-    }
-    return true;
-}
-
-async function find_and_reply(params: { message: string, user_name: string, user_type: "contacts" | "groups", click_send: boolean }) {
-    // 提取参数
-    const message = params.message || "";
-    const user_name = params.user_name || "";
-    const user_type = params.user_type || "contacts";
-    const click_send = params.click_send || false;
-    let result = await find_user({ user_name: user_name, user_type: user_type });
-    if (!result) {
-        return false;
-    }
-    await Tools.System.sleep(1000);
-    return await reply({ message: message, click_send: click_send });
-}
-
-async function find_user(params: { user_name: string, user_type: "contacts" | "groups" }) {
-    // 提取参数
-    const user_name = params.user_name || "";
-    const user_type = params.user_type || "contacts";
-
-    // 检查是否已在QQ中
-    let pageInfo = await Tools.UI.getPageInfo();
-
-    // 如果不在QQ中，启动QQ
-    if (!pageInfo.packageName.includes("com.tencent.mobileqq")) {
-        await Tools.System.startApp("com.tencent.mobileqq", "com.tencent.mobileqq.activity.SplashActivity");
-        await Tools.System.sleep(1000);
-        pageInfo = await Tools.UI.getPageInfo();
-    }
-
-    // 如果不在SplashActivity中，返回主界面
-    if (!pageInfo.activityName.includes("com.tencent.mobileqq.activity.SplashActivity")) {
-        for (let i = 0; i < 2; i++) {
-            await Tools.UI.pressKey("KEYCODE_BACK");
-            await Tools.System.sleep(500);
-        }
-        pageInfo = await Tools.UI.getPageInfo();
-    }
-
-    // 如果还是不在SplashActivity中，重启应用，重新调用函数
-    if (!pageInfo.activityName.includes("com.tencent.mobileqq.activity.SplashActivity")) {
-        await Tools.System.stopApp("com.tencent.mobileqq");
-        await Tools.System.sleep(1000);
-        return await find_user({ user_name: user_name, user_type: user_type });
-    }
-
-    //向上滑动
-    if ((await Tools.UI.findElement({ resourceId: "com.tencent.mobileqq:id/wsg" }))
-        .uiElements.children.length == 0) {
-        await Tools.System.stopApp("com.tencent.mobileqq");
-        await Tools.System.sleep(1000);
-        return await find_user({ user_name: user_name, user_type: user_type });
-    }
-
-    await Tools.System.sleep(500);
-
-    // 点击搜索框
-    await Tools.UI.clickElement({
-        resourceId: "com.tencent.mobileqq:id/wsg",
-        index: "0"
-    });
-    await Tools.System.sleep(500);
-
-    let firstTarget: UINode | undefined = undefined;
-    let tryMax = 0;
-    while (tryMax < 2) {
-        tryMax++;
-
-        // 输入搜索内容
-        await Tools.UI.setText(user_name);
-        await Tools.System.sleep(2000 * tryMax);
-        await close_keyboard();
-
-        const currentPage = await UINode.getCurrentPage();
-        const searchResult = currentPage.findById('com.tencent.mobileqq:id/eap');
-
-        let isNeedToCatch = false;
-        for (const child of searchResult!.children) {
-            if (isNeedToCatch) {
-                firstTarget = child.findById('com.tencent.mobileqq:id/image');
+            // 如果已经获取了足够多的消息，停止滚动
+            if (allMessages.length >= message_num) {
                 break;
             }
-            const title = child.findById('com.tencent.mobileqq:id/title');
-            if (title) {
-                if (user_type == "contacts" && title.text == "联系人") {
-                    isNeedToCatch = true;
-                } else if (user_type == "groups" && title.text == "群聊") {
-                    isNeedToCatch = true;
+            await Tools.UI.swipe(100, 300, 100, 1000);
+            await Tools.System.sleep(500);
+        }
+
+        // 删除重复的消息，但保持原始顺序
+        const uniqueMessages: { message: string, sender: string }[] = [];
+        const seen = new Set();
+
+        for (const msg of allMessages) {
+            const key = `${msg.message}-${msg.sender}`;
+            if (!seen.has(key)) {
+                seen.add(key);
+                uniqueMessages.push(msg);
+            }
+        }
+
+        // 返回符合数量要求的消息列表（保持原始顺序）
+        return { messages: uniqueMessages.slice(0, message_num), chat_title: chat_title };
+    }
+
+    async function reply(params: { message: string, click_send: boolean }) {
+        // 提取参数
+        const message = params.message || "";
+        const click_send = params.click_send || false;
+        await Tools.UI.setText(message);
+        await Tools.System.sleep(500);
+
+        if (click_send) {
+            await Tools.UI.clickElement({
+                resourceId: "com.tencent.mobileqq:id/send_btn",
+                index: "0"
+            });
+        }
+        return true;
+    }
+
+    async function find_and_reply(params: { message: string, user_name: string, user_type: "contacts" | "groups", click_send: boolean }) {
+        // 提取参数
+        const message = params.message || "";
+        const user_name = params.user_name || "";
+        const user_type = params.user_type || "contacts";
+        const click_send = params.click_send || false;
+        let result = await find_user({ user_name: user_name, user_type: user_type });
+        if (!result) {
+            return false;
+        }
+        await Tools.System.sleep(1000);
+        return await reply({ message: message, click_send: click_send });
+    }
+
+    async function ensureActivity(activityName: string = "", packageName: string = "com.tencent.mobileqq", enterActivity: () => Promise<boolean> = async () => true, tryMax: number = 1) {
+        let android = new Android();
+        let activity = await Tools.UI.getPageInfo();
+        if (activity.activityName?.includes(activityName)) {
+            return true;
+        }
+
+        while (tryMax > 0) {
+            tryMax--;
+            await Tools.System.stopApp(packageName);
+            await Tools.System.sleep(2000);
+            await Tools.System.startApp(packageName);
+            // let intent = android.createIntent();
+            // intent.setComponent(packageName, activityName);
+            // await intent.start();
+            await Tools.System.sleep(3000); // Give some time for app to launch
+            if (await enterActivity()) {
+                activity = await Tools.UI.getPageInfo();
+                if (activity.activityName?.includes(activityName)) {
+                    return true;
                 }
             }
         }
+        return false;
+    }
 
-        if (firstTarget) {
-            await firstTarget.click();
-            return true;
+    async function find_user(params: { user_name: string, user_type: "contacts" | "groups" }) {
+        // 提取参数
+        const user_name = params.user_name || "";
+        const user_type = params.user_type || "contacts";
+
+        if (!await ensureActivity("com.tencent.mobileqq.search.activity.UniteSearchActivity", "com.tencent.mobileqq", async () => {
+            const search_btn = (await UINode.getCurrentPage()).findByText("搜索");
+            if (search_btn) {
+                await search_btn.click();
+                return true;
+            }
+            return false;
+        })) {
+            return false;
+        }
+
+        let firstTarget: UINode | undefined = undefined;
+        let tryMax = 0;
+        while (tryMax < 2) {
+            tryMax++;
+            const search_btn = (await UINode.getCurrentPage()).findByText("搜索");
+            if (search_btn) {
+                await search_btn.click();
+                await Tools.System.sleep(500);
+            }
+            // 输入搜索内容
+            await Tools.UI.setText(user_name);
+            await Tools.System.sleep(3000 * tryMax);
+            await close_keyboard();
+
+            const currentPage = await UINode.getCurrentPage();
+            const searchResult = currentPage.findAllById('com.tencent.mobileqq:id/title');
+
+            let isNeedToCatch = false;
+            for (const child of searchResult!) {
+                if (isNeedToCatch) {
+                    firstTarget = child;
+                    break;
+                }
+                // const title = child.findById('com.tencent.mobileqq:id/title');
+                const title = child;
+                if (title) {
+                    if (user_type == "contacts" && title.text == "联系人") {
+                        isNeedToCatch = true;
+                    } else if (user_type == "groups" && title.text == "群聊") {
+                        isNeedToCatch = true;
+                    }
+                }
+            }
+
+            if (firstTarget) {
+                await firstTarget.click();
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    async function find_and_get_history(params: { user_name: string, user_type: "contacts" | "groups", message_num: number }) {
+        const user_name = params.user_name || "";
+        const user_type = params.user_type || "contacts";
+        const message_num = params.message_num || 10;
+        let result = await find_user({ user_name: user_name, user_type: user_type });
+        if (!result) {
+            return undefined;
+        }
+        await Tools.System.sleep(1000);
+        return await get_history({ message_num: message_num });
+    }
+
+    async function main() {
+        // let result = await find_and_reply({ message: "你好你好！我是OPERIT，很高兴认识你！", user_name: "韩韩韩", user_type: "contacts", click_send: true });
+        // await find_user({ user_name: "Wind", user_type: "contacts" });
+        // await find_user({ user_name: "Dec", user_type: "groups" });
+        // await Tools.System.sleep(1000);
+        let result = await find_and_get_history({ user_name: "Dec", user_type: "groups", message_num: 20 });
+        console.log(result);
+        complete({
+            success: result
+        });
+    }
+
+    async function wrap_bool(func: (params: any) => Promise<boolean>, params: any, successMessage: string, failMessage: string, additionalMessage: string = "") {
+        if (await func(params)) {
+            complete({
+                success: true,
+                message: successMessage,
+                additionalMessage: additionalMessage
+            })
+        } else {
+            complete({
+                success: false,
+                message: failMessage,
+                additionalMessage: additionalMessage
+            })
         }
     }
 
-    return false;
-}
-
-async function find_and_get_history(params: { user_name: string, user_type: "contacts" | "groups", message_num: number }) {
-    const user_name = params.user_name || "";
-    const user_type = params.user_type || "contacts";
-    const message_num = params.message_num || 10;
-    let result = await find_user({ user_name: user_name, user_type: user_type });
-    if (!result) {
-        return undefined;
-    }
-    await Tools.System.sleep(1000);
-    return await get_history({ message_num: message_num });
-}
-
-async function main() {
-    // let result = await find_and_reply({ message: "你好你好！我是OPERIT，很高兴认识你！", user_name: "韩韩韩", user_type: "contacts", click_send: true });
-    await find_user({ user_name: "Wind", user_type: "contacts" });
-    // await find_user({ user_name: "Dec", user_type: "groups" });
-    await Tools.System.sleep(1000);
-    let result = await get_history({ message_num: 10 });
-    console.log(result);
-    complete({
-        success: result
-    });
-}
-
-async function wrap_bool(func: (params: any) => Promise<boolean>, params: any, successMessage: string, failMessage: string, additionalMessage: string = "") {
-    if (await func(params)) {
+    async function wrap_data(func: (params: any) => Promise<any>, params: any, successMessage: string, failMessage: string, additionalMessage: string = "") {
+        const result = await func(params);
         complete({
             success: true,
             message: successMessage,
-            additionalMessage: additionalMessage
-        })
-    } else {
-        complete({
-            success: false,
-            message: failMessage,
-            additionalMessage: additionalMessage
+            additionalMessage: additionalMessage,
+            data: result
         })
     }
-}
 
-async function wrap_data(func: (params: any) => Promise<any>, params: any, successMessage: string, failMessage: string, additionalMessage: string = "") {
-    const result = await func(params);
-    complete({
-        success: true,
-        message: successMessage,
-        additionalMessage: additionalMessage,
-        data: result
-    })
-}
+    return {
+        main: main,
+        reply: async (params) => await wrap_bool(reply, params, "发送成功", "发送失败"),
+        find_user: async (params) => await wrap_bool(find_user, params, "查找成功", "查找失败，停留在界面", (await UINode.getCurrentPage()).toFormattedString!()),
+        find_and_reply: async (params) => await wrap_bool(find_and_reply, params, "发送成功", "发送失败，停留在界面", (await UINode.getCurrentPage()).toFormattedString!()),
+        get_history: async (params) => await wrap_data(get_history, params, "获取历史消息成功", "获取历史消息失败"),
+        find_and_get_history: async (params) => await wrap_data(find_and_get_history, params, "获取历史消息成功", "获取历史消息失败")
+    }
+})();
 
-exports.main = main;
-exports.reply = async (params) => await wrap_bool(reply, params, "发送成功", "发送失败");
-exports.find_user = async (params) => await wrap_bool(find_user, params, "查找成功", "查找失败，停留在界面", (await UINode.getCurrentPage()).toFormattedString!());
-exports.find_and_reply = async (params) => await wrap_bool(find_and_reply, params, "发送成功", "发送失败，停留在界面", (await UINode.getCurrentPage()).toFormattedString!());
-exports.get_history = async (params) => await wrap_data(get_history, params, "获取历史消息成功", "获取历史消息失败");
-exports.find_and_get_history = async (params) => await wrap_data(find_and_get_history, params, "获取历史消息成功", "获取历史消息失败");
+//逐个导出
+exports.reply = QQIntelligent.reply;
+exports.find_user = QQIntelligent.find_user;
+exports.find_and_reply = QQIntelligent.find_and_reply;
+exports.get_history = QQIntelligent.get_history;
+exports.find_and_get_history = QQIntelligent.find_and_get_history;
+exports.main = QQIntelligent.main;
