@@ -6,11 +6,11 @@ METADATA
     "tools": [
         {
             "name": "get_current_date",
-            "description": "Get the current date and time in various formats",
+            "description": "获取当前日期和时间，支持多种格式展示",
             "parameters": [
                 {
                     "name": "format",
-                    "description": "Date format ('short', 'medium', 'long', or custom pattern)",
+                    "description": "日期格式（'short'简短格式, 'medium'中等格式, 'long'完整格式，或自定义格式）",
                     "type": "string",
                     "required": false
                 }
@@ -18,28 +18,28 @@ METADATA
         },
         {
             "name": "device_status",
-            "description": "Get device status information including battery and memory",
+            "description": "获取设备状态信息，包括电池和内存使用情况",
             "parameters": []
         },
         {
             "name": "set_reminder",
-            "description": "Create a reminder or to-do item",
+            "description": "创建提醒或待办事项。使用需要先调用一次get_current_date。",
             "parameters": [
                 {
                     "name": "title",
-                    "description": "Title of the reminder or to-do",
+                    "description": "提醒或待办事项的标题",
                     "type": "string",
                     "required": true
                 },
                 {
                     "name": "description",
-                    "description": "Additional details for the reminder",
+                    "description": "提醒的附加详细信息",
                     "type": "string",
                     "required": false
                 },
                 {
                     "name": "due_date",
-                    "description": "Due date for the reminder (ISO string format)",
+                    "description": "提醒的到期日期（ISO字符串格式）",
                     "type": "string",
                     "required": false
                 }
@@ -47,29 +47,29 @@ METADATA
         },
         {
             "name": "set_alarm",
-            "description": "Set an alarm on the device",
+            "description": "在设备上设置闹钟。使用需要先调用一次get_current_date。",
             "parameters": [
                 {
                     "name": "hour",
-                    "description": "Hour for the alarm (0-23)",
+                    "description": "闹钟小时（0-23）",
                     "type": "number",
                     "required": true
                 },
                 {
                     "name": "minute",
-                    "description": "Minute for the alarm (0-59)",
+                    "description": "闹钟分钟（0-59）",
                     "type": "number",
                     "required": true
                 },
                 {
                     "name": "message",
-                    "description": "Label for the alarm",
+                    "description": "闹钟标签",
                     "type": "string",
                     "required": false
                 },
                 {
                     "name": "days",
-                    "description": "Days to repeat the alarm (array of numbers, 1=Sunday, 7=Saturday)",
+                    "description": "重复闹钟的天数（数字数组，1=周日，7=周六）",
                     "type": "array",
                     "required": false
                 }
@@ -77,17 +77,17 @@ METADATA
         },
         {
             "name": "send_message",
-            "description": "Send a text message",
+            "description": "发送短信",
             "parameters": [
                 {
                     "name": "phone_number",
-                    "description": "Recipient phone number",
+                    "description": "接收者电话号码",
                     "type": "string",
                     "required": true
                 },
                 {
                     "name": "message",
-                    "description": "Message content",
+                    "description": "短信内容",
                     "type": "string",
                     "required": true
                 }
@@ -95,17 +95,17 @@ METADATA
         },
         {
             "name": "make_phone_call",
-            "description": "Make a phone call",
+            "description": "拨打电话",
             "parameters": [
                 {
                     "name": "phone_number",
-                    "description": "Phone number to call",
+                    "description": "要拨打的电话号码",
                     "type": "string",
                     "required": true
                 },
                 {
                     "name": "emergency",
-                    "description": "Whether this is an emergency call",
+                    "description": "是否为紧急呼叫",
                     "type": "boolean",
                     "required": false
                 }
@@ -113,11 +113,11 @@ METADATA
         },
         {
             "name": "search_weather",
-            "description": "Search for current weather information",
+            "description": "搜索当前天气信息",
             "parameters": [
                 {
                     "name": "location",
-                    "description": "Location to check weather for (city name or 'current' for current location)",
+                    "description": "要查询天气的位置（城市名称或'current'表示当前位置）",
                     "type": "string",
                     "required": false
                 }
