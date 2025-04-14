@@ -178,402 +178,461 @@ fun TerminalAutoConfigScreen(navController: NavController) {
         )
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        // 标题
-        Text(
-                text = "终端自动配置",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 16.dp)
-        )
-
-        // 命令输出区域
-        Surface(
-                modifier = Modifier.fillMaxWidth().weight(1f),
-                shape = RoundedCornerShape(8.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                tonalElevation = 2.dp
+    // 使用Box作为根容器，确保滚动可以覆盖整个屏幕
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+                modifier =
+                        Modifier.fillMaxSize()
+                                .verticalScroll(scrollState) // 添加对整个界面的滚动支持
+                                .padding(16.dp)
         ) {
-            Box(modifier = Modifier.fillMaxSize().padding(8.dp)) {
-                Text(
-                        text = outputText,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 14.sp,
-                        modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(8.dp)
-                )
+            // 标题
+            Text(
+                    text = "终端自动配置",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 16.dp)
+            )
 
-                if (isExecuting) {
-                    LinearProgressIndicator(
-                            modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter)
-                    )
-
+            // 命令输出区域 - 设置固定高度确保可见
+            Surface(
+                    modifier = Modifier.fillMaxWidth().height(200.dp), // 固定高度确保输出区域可见
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    tonalElevation = 2.dp
+            ) {
+                Box(modifier = Modifier.fillMaxSize().padding(8.dp)) {
+                    // 使用Modifier.fillMaxWidth()而不是fillMaxSize()，避免挤压高度
                     Text(
-                            text = "正在执行: $currentTask",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier =
-                                    Modifier.align(Alignment.BottomCenter)
-                                            .padding(bottom = 16.dp)
-                                            .background(
-                                                    color =
-                                                            MaterialTheme.colorScheme.surfaceVariant
-                                                                    .copy(alpha = 0.8f),
-                                                    shape = RoundedCornerShape(4.dp)
-                                            )
-                                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                            text = outputText,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 14.sp,
+                            modifier = Modifier.fillMaxWidth().padding(8.dp)
                     )
+
+                    if (isExecuting) {
+                        LinearProgressIndicator(
+                                modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter)
+                        )
+
+                        Text(
+                                text = "正在执行: $currentTask",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier =
+                                        Modifier.align(Alignment.BottomCenter)
+                                                .padding(bottom = 16.dp)
+                                                .background(
+                                                        color =
+                                                                MaterialTheme.colorScheme
+                                                                        .surfaceVariant.copy(
+                                                                        alpha = 0.8f
+                                                                ),
+                                                        shape = RoundedCornerShape(4.dp)
+                                                )
+                                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
                 }
             }
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-        // 安装选项
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                    text = "安装选项",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 8.dp)
-            )
-
-            // 清华源设置选项
-            InstallOptionCard(
-                    title = "清华源镜像",
-                    description = "切换至清华大学开源镜像站，提高下载速度",
-                    icon = Icons.Default.Speed,
-                    installed = tunaSourceEnabled,
-                    isExecuting = isExecuting,
-                    onClick = {
-                        scope.launch {
-                            isExecuting = true
-                            currentTask = "切换软件源"
-                            switchToTunaMirror(
-                                    context,
-                                    sessionId,
-                                    onOutput = { output -> outputText += "\n$output" },
-                                    onInteractivePrompt = { prompt, executionId ->
-                                        interactivePrompt = prompt
-                                        currentExecutionId = executionId
-                                        showInputDialog = true
-                                    },
-                                    onComplete = { success ->
-                                        isExecuting = false
-                                        tunaSourceEnabled = success
-                                        if (success) {
-                                            Toast.makeText(context, "清华源设置成功", Toast.LENGTH_SHORT)
-                                                    .show()
-                                        } else {
-                                            Toast.makeText(context, "清华源设置失败", Toast.LENGTH_SHORT)
-                                                    .show()
-                                        }
-                                    }
-                            )
-                        }
-                    }
-            )
-
-            InstallOptionCard(
-                    title = "Python 环境",
-                    description = "安装 Python 3 和相关依赖",
-                    icon = Icons.Default.Code,
-                    installed = pythonInstalled,
-                    isExecuting = isExecuting,
-                    onClick = {
-                        scope.launch {
-                            isExecuting = true
-                            currentTask = "安装 Python"
-                            installPython(
-                                    context,
-                                    sessionId,
-                                    onOutput = { output -> outputText += "\n$output" },
-                                    onInteractivePrompt = { prompt, executionId ->
-                                        interactivePrompt = prompt
-                                        currentExecutionId = executionId
-                                        showInputDialog = true
-                                    },
-                                    onComplete = { success ->
-                                        isExecuting = false
-                                        pythonInstalled = success
-                                        if (success) {
-                                            Toast.makeText(
-                                                            context,
-                                                            "Python 安装成功",
-                                                            Toast.LENGTH_SHORT
-                                                    )
-                                                    .show()
-                                        } else {
-                                            Toast.makeText(
-                                                            context,
-                                                            "Python 安装失败",
-                                                            Toast.LENGTH_SHORT
-                                                    )
-                                                    .show()
-                                        }
-                                    }
-                            )
-                        }
-                    }
-            )
-
-            // PIP 清华源选项卡 - 用于选择并安装 PIP 包
-            InstallOptionCard(
-                    title = "PIP 清华源",
-                    description = "通过清华源安装 Python 包",
-                    icon = Icons.Default.Settings,
-                    installed = pipInstalled,
-                    isExecuting = isExecuting,
-                    onClick = {
-                        // 显示 PIP 包选择对话框
-                        showPipPackageDialog = true
-                    }
-            )
-
-            InstallOptionCard(
-                    title = "Node.js 环境",
-                    description = "安装 Node.js 和 NPM",
-                    icon = Icons.Default.Code,
-                    installed = nodeInstalled,
-                    isExecuting = isExecuting,
-                    onClick = {
-                        scope.launch {
-                            isExecuting = true
-                            currentTask = "安装 Node.js"
-                            installNodejs(
-                                    context,
-                                    sessionId,
-                                    onOutput = { output -> outputText += "\n$output" },
-                                    onInteractivePrompt = { prompt, executionId ->
-                                        interactivePrompt = prompt
-                                        currentExecutionId = executionId
-                                        showInputDialog = true
-                                    },
-                                    onComplete = { success ->
-                                        isExecuting = false
-                                        nodeInstalled = success
-                                        if (success) {
-                                            Toast.makeText(
-                                                            context,
-                                                            "Node.js 安装成功",
-                                                            Toast.LENGTH_SHORT
-                                                    )
-                                                    .show()
-                                        } else {
-                                            Toast.makeText(
-                                                            context,
-                                                            "Node.js 安装失败",
-                                                            Toast.LENGTH_SHORT
-                                                    )
-                                                    .show()
-                                        }
-                                    }
-                            )
-                        }
-                    }
-            )
-
-            InstallOptionCard(
-                    title = "Git 版本控制",
-                    description = "安装 Git 版本控制系统",
-                    icon = Icons.Default.Code,
-                    installed = gitInstalled,
-                    isExecuting = isExecuting,
-                    onClick = {
-                        scope.launch {
-                            isExecuting = true
-                            currentTask = "安装 Git"
-                            installGit(
-                                    context,
-                                    sessionId,
-                                    onOutput = { output -> outputText += "\n$output" },
-                                    onInteractivePrompt = { prompt, executionId ->
-                                        interactivePrompt = prompt
-                                        currentExecutionId = executionId
-                                        showInputDialog = true
-                                    },
-                                    onComplete = { success ->
-                                        isExecuting = false
-                                        gitInstalled = success
-                                        if (success) {
-                                            Toast.makeText(context, "Git 安装成功", Toast.LENGTH_SHORT)
-                                                    .show()
-                                        } else {
-                                            Toast.makeText(context, "Git 安装失败", Toast.LENGTH_SHORT)
-                                                    .show()
-                                        }
-                                    }
-                            )
-                        }
-                    }
-            )
-
-            // 添加 Ruby 环境选项
-            InstallOptionCard(
-                    title = "Ruby 环境",
-                    description = "安装 Ruby 语言和 Gem 包管理器",
-                    icon = Icons.Default.Code,
-                    installed = rubyInstalled,
-                    isExecuting = isExecuting,
-                    onClick = {
-                        scope.launch {
-                            isExecuting = true
-                            currentTask = "安装 Ruby"
-                            installRuby(
-                                    context,
-                                    sessionId,
-                                    onOutput = { output -> outputText += "\n$output" },
-                                    onInteractivePrompt = { prompt, executionId ->
-                                        interactivePrompt = prompt
-                                        currentExecutionId = executionId
-                                        showInputDialog = true
-                                    },
-                                    onComplete = { success ->
-                                        isExecuting = false
-                                        rubyInstalled = success
-                                        if (success) {
-                                            Toast.makeText(context, "Ruby 安装成功", Toast.LENGTH_SHORT)
-                                                    .show()
-                                        } else {
-                                            Toast.makeText(context, "Ruby 安装失败", Toast.LENGTH_SHORT)
-                                                    .show()
-                                        }
-                                    }
-                            )
-                        }
-                    }
-            )
-
-            // 添加 Go 环境选项
-            InstallOptionCard(
-                    title = "Go 环境",
-                    description = "安装 Go 语言及开发环境",
-                    icon = Icons.Default.Code,
-                    installed = goInstalled,
-                    isExecuting = isExecuting,
-                    onClick = {
-                        scope.launch {
-                            isExecuting = true
-                            currentTask = "安装 Go"
-                            installGo(
-                                    context,
-                                    sessionId,
-                                    onOutput = { output -> outputText += "\n$output" },
-                                    onInteractivePrompt = { prompt, executionId ->
-                                        interactivePrompt = prompt
-                                        currentExecutionId = executionId
-                                        showInputDialog = true
-                                    },
-                                    onComplete = { success ->
-                                        isExecuting = false
-                                        goInstalled = success
-                                        if (success) {
-                                            Toast.makeText(context, "Go 安装成功", Toast.LENGTH_SHORT)
-                                                    .show()
-                                        } else {
-                                            Toast.makeText(context, "Go 安装失败", Toast.LENGTH_SHORT)
-                                                    .show()
-                                        }
-                                    }
-                            )
-                        }
-                    }
-            )
-
-            // 添加 Rust 环境选项
-            InstallOptionCard(
-                    title = "Rust 环境",
-                    description = "安装 Rust 语言及 Cargo 包管理器",
-                    icon = Icons.Default.Code,
-                    installed = rustInstalled,
-                    isExecuting = isExecuting,
-                    onClick = {
-                        scope.launch {
-                            isExecuting = true
-                            currentTask = "安装 Rust"
-                            installRust(
-                                    context,
-                                    sessionId,
-                                    onOutput = { output -> outputText += "\n$output" },
-                                    onInteractivePrompt = { prompt, executionId ->
-                                        interactivePrompt = prompt
-                                        currentExecutionId = executionId
-                                        showInputDialog = true
-                                    },
-                                    onComplete = { success ->
-                                        isExecuting = false
-                                        rustInstalled = success
-                                        if (success) {
-                                            Toast.makeText(context, "Rust 安装成功", Toast.LENGTH_SHORT)
-                                                    .show()
-                                        } else {
-                                            Toast.makeText(context, "Rust 安装失败", Toast.LENGTH_SHORT)
-                                                    .show()
-                                        }
-                                    }
-                            )
-                        }
-                    }
-            )
-
-            Button(
-                    onClick = {
-                        scope.launch {
-                            isExecuting = true
-                            currentTask = "更新软件包"
-                            updatePackages(
-                                    context,
-                                    sessionId,
-                                    onOutput = { output -> outputText += "\n$output" },
-                                    onInteractivePrompt = { prompt, executionId ->
-                                        interactivePrompt = prompt
-                                        currentExecutionId = executionId
-                                        showInputDialog = true
-                                    },
-                                    onComplete = { success ->
-                                        isExecuting = false
-                                        if (success) {
-                                            Toast.makeText(context, "软件包更新成功", Toast.LENGTH_SHORT)
-                                                    .show()
-                                            // 更新后重新检查安装状态
-                                            scope.launch {
-                                                checkInstalledComponents(
-                                                        context,
-                                                        onResult = {
-                                                                python,
-                                                                pip,
-                                                                node,
-                                                                git,
-                                                                ruby,
-                                                                go,
-                                                                rust ->
-                                                            pythonInstalled = python
-                                                            pipInstalled = pip
-                                                            nodeInstalled = node
-                                                            gitInstalled = git
-                                                            rubyInstalled = ruby
-                                                            goInstalled = go
-                                                            rustInstalled = rust
-                                                        }
-                                                )
-                                            }
-                                        } else {
-                                            Toast.makeText(context, "软件包更新失败", Toast.LENGTH_SHORT)
-                                                    .show()
-                                        }
-                                    }
-                            )
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                    enabled = !isExecuting
-            ) {
-                Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = "更新",
-                        modifier = Modifier.size(20.dp)
+            // 安装选项
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                        text = "安装选项",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 8.dp)
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("更新所有软件包")
+
+                // 清华源设置选项
+                InstallOptionCard(
+                        title = "清华源镜像",
+                        description = "切换至清华大学开源镜像站，提高下载速度",
+                        icon = Icons.Default.Speed,
+                        installed = tunaSourceEnabled,
+                        isExecuting = isExecuting,
+                        onClick = {
+                            scope.launch {
+                                isExecuting = true
+                                currentTask = "切换软件源"
+                                switchToTunaMirror(
+                                        context,
+                                        sessionId,
+                                        onOutput = { output -> outputText += "\n$output" },
+                                        onInteractivePrompt = { prompt, executionId ->
+                                            interactivePrompt = prompt
+                                            currentExecutionId = executionId
+                                            showInputDialog = true
+                                        },
+                                        onComplete = { success ->
+                                            isExecuting = false
+                                            tunaSourceEnabled = success
+                                            if (success) {
+                                                Toast.makeText(
+                                                                context,
+                                                                "清华源设置成功",
+                                                                Toast.LENGTH_SHORT
+                                                        )
+                                                        .show()
+                                            } else {
+                                                Toast.makeText(
+                                                                context,
+                                                                "清华源设置失败",
+                                                                Toast.LENGTH_SHORT
+                                                        )
+                                                        .show()
+                                            }
+                                        }
+                                )
+                            }
+                        }
+                )
+
+                InstallOptionCard(
+                        title = "Python 环境",
+                        description = "安装 Python 3 和相关依赖",
+                        icon = Icons.Default.Code,
+                        installed = pythonInstalled,
+                        isExecuting = isExecuting,
+                        onClick = {
+                            scope.launch {
+                                isExecuting = true
+                                currentTask = "安装 Python"
+                                installPython(
+                                        context,
+                                        sessionId,
+                                        onOutput = { output -> outputText += "\n$output" },
+                                        onInteractivePrompt = { prompt, executionId ->
+                                            interactivePrompt = prompt
+                                            currentExecutionId = executionId
+                                            showInputDialog = true
+                                        },
+                                        onComplete = { success ->
+                                            isExecuting = false
+                                            pythonInstalled = success
+                                            if (success) {
+                                                Toast.makeText(
+                                                                context,
+                                                                "Python 安装成功",
+                                                                Toast.LENGTH_SHORT
+                                                        )
+                                                        .show()
+                                            } else {
+                                                Toast.makeText(
+                                                                context,
+                                                                "Python 安装失败",
+                                                                Toast.LENGTH_SHORT
+                                                        )
+                                                        .show()
+                                            }
+                                        }
+                                )
+                            }
+                        }
+                )
+
+                // PIP 清华源选项卡 - 用于选择并安装 PIP 包
+                InstallOptionCard(
+                        title = "PIP 清华源",
+                        description = "通过清华源安装 Python 包",
+                        icon = Icons.Default.Settings,
+                        installed = pipInstalled,
+                        isExecuting = isExecuting,
+                        onClick = {
+                            // 显示 PIP 包选择对话框
+                            showPipPackageDialog = true
+                        }
+                )
+
+                InstallOptionCard(
+                        title = "Node.js 环境",
+                        description = "安装 Node.js 和 NPM",
+                        icon = Icons.Default.Code,
+                        installed = nodeInstalled,
+                        isExecuting = isExecuting,
+                        onClick = {
+                            scope.launch {
+                                isExecuting = true
+                                currentTask = "安装 Node.js"
+                                installNodejs(
+                                        context,
+                                        sessionId,
+                                        onOutput = { output -> outputText += "\n$output" },
+                                        onInteractivePrompt = { prompt, executionId ->
+                                            interactivePrompt = prompt
+                                            currentExecutionId = executionId
+                                            showInputDialog = true
+                                        },
+                                        onComplete = { success ->
+                                            isExecuting = false
+                                            nodeInstalled = success
+                                            if (success) {
+                                                Toast.makeText(
+                                                                context,
+                                                                "Node.js 安装成功",
+                                                                Toast.LENGTH_SHORT
+                                                        )
+                                                        .show()
+                                            } else {
+                                                Toast.makeText(
+                                                                context,
+                                                                "Node.js 安装失败",
+                                                                Toast.LENGTH_SHORT
+                                                        )
+                                                        .show()
+                                            }
+                                        }
+                                )
+                            }
+                        }
+                )
+
+                InstallOptionCard(
+                        title = "Git 版本控制",
+                        description = "安装 Git 版本控制系统",
+                        icon = Icons.Default.Code,
+                        installed = gitInstalled,
+                        isExecuting = isExecuting,
+                        onClick = {
+                            scope.launch {
+                                isExecuting = true
+                                currentTask = "安装 Git"
+                                installGit(
+                                        context,
+                                        sessionId,
+                                        onOutput = { output -> outputText += "\n$output" },
+                                        onInteractivePrompt = { prompt, executionId ->
+                                            interactivePrompt = prompt
+                                            currentExecutionId = executionId
+                                            showInputDialog = true
+                                        },
+                                        onComplete = { success ->
+                                            isExecuting = false
+                                            gitInstalled = success
+                                            if (success) {
+                                                Toast.makeText(
+                                                                context,
+                                                                "Git 安装成功",
+                                                                Toast.LENGTH_SHORT
+                                                        )
+                                                        .show()
+                                            } else {
+                                                Toast.makeText(
+                                                                context,
+                                                                "Git 安装失败",
+                                                                Toast.LENGTH_SHORT
+                                                        )
+                                                        .show()
+                                            }
+                                        }
+                                )
+                            }
+                        }
+                )
+
+                // 添加 Ruby 环境选项
+                InstallOptionCard(
+                        title = "Ruby 环境",
+                        description = "安装 Ruby 语言和 Gem 包管理器",
+                        icon = Icons.Default.Code,
+                        installed = rubyInstalled,
+                        isExecuting = isExecuting,
+                        onClick = {
+                            scope.launch {
+                                isExecuting = true
+                                currentTask = "安装 Ruby"
+                                installRuby(
+                                        context,
+                                        sessionId,
+                                        onOutput = { output -> outputText += "\n$output" },
+                                        onInteractivePrompt = { prompt, executionId ->
+                                            interactivePrompt = prompt
+                                            currentExecutionId = executionId
+                                            showInputDialog = true
+                                        },
+                                        onComplete = { success ->
+                                            isExecuting = false
+                                            rubyInstalled = success
+                                            if (success) {
+                                                Toast.makeText(
+                                                                context,
+                                                                "Ruby 安装成功",
+                                                                Toast.LENGTH_SHORT
+                                                        )
+                                                        .show()
+                                            } else {
+                                                Toast.makeText(
+                                                                context,
+                                                                "Ruby 安装失败",
+                                                                Toast.LENGTH_SHORT
+                                                        )
+                                                        .show()
+                                            }
+                                        }
+                                )
+                            }
+                        }
+                )
+
+                // 添加 Go 环境选项
+                InstallOptionCard(
+                        title = "Go 环境",
+                        description = "安装 Go 语言及开发环境",
+                        icon = Icons.Default.Code,
+                        installed = goInstalled,
+                        isExecuting = isExecuting,
+                        onClick = {
+                            scope.launch {
+                                isExecuting = true
+                                currentTask = "安装 Go"
+                                installGo(
+                                        context,
+                                        sessionId,
+                                        onOutput = { output -> outputText += "\n$output" },
+                                        onInteractivePrompt = { prompt, executionId ->
+                                            interactivePrompt = prompt
+                                            currentExecutionId = executionId
+                                            showInputDialog = true
+                                        },
+                                        onComplete = { success ->
+                                            isExecuting = false
+                                            goInstalled = success
+                                            if (success) {
+                                                Toast.makeText(
+                                                                context,
+                                                                "Go 安装成功",
+                                                                Toast.LENGTH_SHORT
+                                                        )
+                                                        .show()
+                                            } else {
+                                                Toast.makeText(
+                                                                context,
+                                                                "Go 安装失败",
+                                                                Toast.LENGTH_SHORT
+                                                        )
+                                                        .show()
+                                            }
+                                        }
+                                )
+                            }
+                        }
+                )
+
+                // 添加 Rust 环境选项
+                InstallOptionCard(
+                        title = "Rust 环境",
+                        description = "安装 Rust 语言及 Cargo 包管理器",
+                        icon = Icons.Default.Code,
+                        installed = rustInstalled,
+                        isExecuting = isExecuting,
+                        onClick = {
+                            scope.launch {
+                                isExecuting = true
+                                currentTask = "安装 Rust"
+                                installRust(
+                                        context,
+                                        sessionId,
+                                        onOutput = { output -> outputText += "\n$output" },
+                                        onInteractivePrompt = { prompt, executionId ->
+                                            interactivePrompt = prompt
+                                            currentExecutionId = executionId
+                                            showInputDialog = true
+                                        },
+                                        onComplete = { success ->
+                                            isExecuting = false
+                                            rustInstalled = success
+                                            if (success) {
+                                                Toast.makeText(
+                                                                context,
+                                                                "Rust 安装成功",
+                                                                Toast.LENGTH_SHORT
+                                                        )
+                                                        .show()
+                                            } else {
+                                                Toast.makeText(
+                                                                context,
+                                                                "Rust 安装失败",
+                                                                Toast.LENGTH_SHORT
+                                                        )
+                                                        .show()
+                                            }
+                                        }
+                                )
+                            }
+                        }
+                )
+
+                Button(
+                        onClick = {
+                            scope.launch {
+                                isExecuting = true
+                                currentTask = "更新软件包"
+                                updatePackages(
+                                        context,
+                                        sessionId,
+                                        onOutput = { output -> outputText += "\n$output" },
+                                        onInteractivePrompt = { prompt, executionId ->
+                                            interactivePrompt = prompt
+                                            currentExecutionId = executionId
+                                            showInputDialog = true
+                                        },
+                                        onComplete = { success ->
+                                            isExecuting = false
+                                            if (success) {
+                                                Toast.makeText(
+                                                                context,
+                                                                "软件包更新成功",
+                                                                Toast.LENGTH_SHORT
+                                                        )
+                                                        .show()
+                                                // 更新后重新检查安装状态
+                                                scope.launch {
+                                                    checkInstalledComponents(
+                                                            context,
+                                                            onResult = {
+                                                                    python,
+                                                                    pip,
+                                                                    node,
+                                                                    git,
+                                                                    ruby,
+                                                                    go,
+                                                                    rust ->
+                                                                pythonInstalled = python
+                                                                pipInstalled = pip
+                                                                nodeInstalled = node
+                                                                gitInstalled = git
+                                                                rubyInstalled = ruby
+                                                                goInstalled = go
+                                                                rustInstalled = rust
+                                                            }
+                                                    )
+                                                }
+                                            } else {
+                                                Toast.makeText(
+                                                                context,
+                                                                "软件包更新失败",
+                                                                Toast.LENGTH_SHORT
+                                                        )
+                                                        .show()
+                                            }
+                                        }
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        enabled = !isExecuting
+                ) {
+                    Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "更新",
+                            modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("更新所有软件包")
+                }
             }
         }
     }

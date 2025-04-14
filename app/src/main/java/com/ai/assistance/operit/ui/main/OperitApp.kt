@@ -55,6 +55,7 @@ import com.ai.assistance.operit.ui.features.settings.screens.SettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ToolPermissionSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.UserPreferencesGuideScreen
 import com.ai.assistance.operit.ui.features.settings.screens.UserPreferencesSettingsScreen
+import com.ai.assistance.operit.ui.features.toolbox.screens.AppPermissionsToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.FileManagerToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.FormatConverterToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.TerminalAutoConfigToolScreen
@@ -64,29 +65,62 @@ import com.ai.assistance.operit.util.NetworkUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+// Hierarchical screen representation to replace multiple boolean flags
+sealed class Screen {
+    // Main screens (primary)
+    data object AiChat : Screen()
+    data object ProblemLibrary : Screen()
+    data object Packages : Screen()
+    data object Toolbox : Screen()
+    data object ShizukuCommands : Screen()
+    data object Mcp : Screen()
+    data object Settings : Screen()
+    data object Help : Screen()
+    data object About : Screen()
+
+    // Secondary screens
+    data object ToolPermission : Screen()
+    data object UserPreferencesGuide : Screen() {
+        var profileName: String = ""
+        var profileId: String = ""
+    }
+    data object UserPreferencesSettings : Screen()
+
+    // Toolbox secondary screens
+    data object FormatConverter : Screen()
+    data object FileManager : Screen()
+    data object Terminal : Screen()
+    data object TerminalAutoConfig : Screen()
+    data object AppPermissions : Screen()
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandler? = null) {
     val navController = rememberNavController()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-    var selectedItem by remember { mutableStateOf<NavItem>(initialNavItem) }
-    var isToolPermissionScreen by remember { mutableStateOf(false) }
-    var isUserPreferencesGuideScreen by remember {
-        mutableStateOf(initialNavItem == NavItem.UserPreferencesGuide)
-    }
-    var isUserPreferencesSettingsScreen by remember { mutableStateOf(false) }
-    var isMcpScreen by remember { mutableStateOf(false) }
 
-    // 工具箱相关状态
-    var isFormatConverterScreen by remember { mutableStateOf(false) }
-    var isFileManagerScreen by remember { mutableStateOf(false) }
-    var isTerminalToolScreen by remember { mutableStateOf(false) }
-    var isTerminalAutoConfigScreen by remember { mutableStateOf(false) }
+    var selectedItem by remember { mutableStateOf<NavItem>(initialNavItem) }
+    var currentScreen by remember {
+        mutableStateOf<Screen>(
+                when (initialNavItem) {
+                    NavItem.AiChat -> Screen.AiChat
+                    NavItem.ProblemLibrary -> Screen.ProblemLibrary
+                    NavItem.Packages -> Screen.Packages
+                    NavItem.Toolbox -> Screen.Toolbox
+                    NavItem.ShizukuCommands -> Screen.ShizukuCommands
+                    NavItem.Mcp -> Screen.Mcp
+                    NavItem.Settings -> Screen.Settings
+                    NavItem.Help -> Screen.Help
+                    NavItem.About -> Screen.About
+                    NavItem.UserPreferencesGuide -> Screen.UserPreferencesGuide
+                    else -> Screen.AiChat
+                }
+        )
+    }
 
     var isLoading by remember { mutableStateOf(false) }
-
-    var isHelpScreen by remember { mutableStateOf(false) }
 
     // 定义导航抽屉组件
     @Composable
@@ -206,10 +240,6 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                 }
             }
 
-    // 用户偏好配置导航参数
-    var userPreferencesProfileName by remember { mutableStateOf("") }
-    var userPreferencesProfileId by remember { mutableStateOf("") }
-
     // 获取FPS显示设置
     val apiPreferences = remember { ApiPreferences(context) }
     val showFpsCounter = apiPreferences.showFpsCounterFlow.collectAsState(initial = false).value
@@ -286,9 +316,10 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
             CompactNavigationDrawerItem(
                     icon = NavItem.AiChat.icon,
                     label = stringResource(id = NavItem.AiChat.titleResId),
-                    selected = selectedItem == NavItem.AiChat && !isToolPermissionScreen,
+                    selected = currentScreen is Screen.AiChat,
                     onClick = {
                         selectedItem = NavItem.AiChat
+                        currentScreen = Screen.AiChat
                         scope.launch { drawerState.close() }
                     }
             )
@@ -297,9 +328,10 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
             CompactNavigationDrawerItem(
                     icon = NavItem.ProblemLibrary.icon,
                     label = stringResource(id = NavItem.ProblemLibrary.titleResId),
-                    selected = selectedItem == NavItem.ProblemLibrary && !isToolPermissionScreen,
+                    selected = currentScreen is Screen.ProblemLibrary,
                     onClick = {
                         selectedItem = NavItem.ProblemLibrary
+                        currentScreen = Screen.ProblemLibrary
                         scope.launch { drawerState.close() }
                     }
             )
@@ -308,9 +340,10 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
             CompactNavigationDrawerItem(
                     icon = NavItem.Packages.icon,
                     label = stringResource(id = NavItem.Packages.titleResId),
-                    selected = selectedItem == NavItem.Packages && !isToolPermissionScreen,
+                    selected = currentScreen is Screen.Packages,
                     onClick = {
                         selectedItem = NavItem.Packages
+                        currentScreen = Screen.Packages
                         scope.launch { drawerState.close() }
                     }
             )
@@ -324,9 +357,10 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
             CompactNavigationDrawerItem(
                     icon = NavItem.Toolbox.icon,
                     label = stringResource(id = NavItem.Toolbox.titleResId),
-                    selected = selectedItem == NavItem.Toolbox && !isToolPermissionScreen,
+                    selected = currentScreen is Screen.Toolbox,
                     onClick = {
                         selectedItem = NavItem.Toolbox
+                        currentScreen = Screen.Toolbox
                         scope.launch { drawerState.close() }
                     }
             )
@@ -335,9 +369,10 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
             CompactNavigationDrawerItem(
                     icon = NavItem.ShizukuCommands.icon,
                     label = stringResource(id = NavItem.ShizukuCommands.titleResId),
-                    selected = selectedItem == NavItem.ShizukuCommands && !isToolPermissionScreen,
+                    selected = currentScreen is Screen.ShizukuCommands,
                     onClick = {
                         selectedItem = NavItem.ShizukuCommands
+                        currentScreen = Screen.ShizukuCommands
                         scope.launch { drawerState.close() }
                     }
             )
@@ -346,9 +381,10 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
             CompactNavigationDrawerItem(
                     icon = NavItem.Mcp.icon,
                     label = stringResource(id = NavItem.Mcp.titleResId),
-                    selected = selectedItem == NavItem.Mcp && !isToolPermissionScreen,
+                    selected = currentScreen is Screen.Mcp,
                     onClick = {
                         selectedItem = NavItem.Mcp
+                        currentScreen = Screen.Mcp
                         scope.launch { drawerState.close() }
                     }
             )
@@ -362,9 +398,10 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
             CompactNavigationDrawerItem(
                     icon = NavItem.Settings.icon,
                     label = stringResource(id = NavItem.Settings.titleResId),
-                    selected = selectedItem == NavItem.Settings && !isToolPermissionScreen,
+                    selected = currentScreen is Screen.Settings,
                     onClick = {
                         selectedItem = NavItem.Settings
+                        currentScreen = Screen.Settings
                         scope.launch { drawerState.close() }
                     }
             )
@@ -373,9 +410,10 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
             CompactNavigationDrawerItem(
                     icon = NavItem.Help.icon,
                     label = stringResource(id = NavItem.Help.titleResId),
-                    selected = selectedItem == NavItem.Help && !isToolPermissionScreen,
+                    selected = currentScreen is Screen.Help,
                     onClick = {
                         selectedItem = NavItem.Help
+                        currentScreen = Screen.Help
                         scope.launch { drawerState.close() }
                     }
             )
@@ -384,9 +422,10 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
             CompactNavigationDrawerItem(
                     icon = NavItem.About.icon,
                     label = stringResource(id = NavItem.About.titleResId),
-                    selected = selectedItem == NavItem.About && !isToolPermissionScreen,
+                    selected = currentScreen is Screen.About,
                     onClick = {
                         selectedItem = NavItem.About
+                        currentScreen = Screen.About
                         scope.launch { drawerState.close() }
                     }
             )
@@ -408,19 +447,20 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Text(
-                                    when {
-                                        isToolPermissionScreen ->
+                                    when (currentScreen) {
+                                        is Screen.ToolPermission ->
                                                 stringResource(id = R.string.tool_permissions)
-                                        isUserPreferencesGuideScreen ->
+                                        is Screen.UserPreferencesGuide ->
                                                 stringResource(id = R.string.user_preferences_guide)
-                                        isUserPreferencesSettingsScreen ->
+                                        is Screen.UserPreferencesSettings ->
                                                 stringResource(
                                                         id = R.string.user_preferences_settings
                                                 )
-                                        isFormatConverterScreen -> "万能格式转换"
-                                        isFileManagerScreen -> "文件管理器"
-                                        isTerminalToolScreen -> "命令终端"
-                                        isTerminalAutoConfigScreen -> "终端自动配置"
+                                        is Screen.FormatConverter -> "万能格式转换"
+                                        is Screen.FileManager -> "文件管理器"
+                                        is Screen.Terminal -> "命令终端"
+                                        is Screen.TerminalAutoConfig -> "终端自动配置"
+                                        is Screen.AppPermissions -> "应用权限管理"
                                         else -> stringResource(id = selectedItem.titleResId)
                                     },
                                     fontWeight = FontWeight.SemiBold,
@@ -428,17 +468,8 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                     color = Color.White
                             )
 
-                            // 显示当前聊天标题（仅在AI对话页面且不在工具权限设置页面）
-                            if (selectedItem == NavItem.AiChat &&
-                                            !isToolPermissionScreen &&
-                                            !isUserPreferencesGuideScreen &&
-                                            !isUserPreferencesSettingsScreen &&
-                                            !isFormatConverterScreen &&
-                                            !isFileManagerScreen &&
-                                            !isTerminalToolScreen &&
-                                            !isTerminalAutoConfigScreen &&
-                                            currentChatTitle.isNotBlank()
-                            ) {
+                            // 显示当前聊天标题（仅在AI对话页面)
+                            if (currentScreen is Screen.AiChat && currentChatTitle.isNotBlank()) {
                                 Text(
                                         text = "- $currentChatTitle",
                                         style = MaterialTheme.typography.bodySmall,
@@ -450,49 +481,42 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                         }
                     },
                     navigationIcon = {
-                        // 在平板模式下不显示菜单图标，因为侧边栏是永久显示的
+                        // 在平板模式下只在二级界面显示返回按钮
                         if (!useTabletLayout ||
-                                        isToolPermissionScreen ||
-                                        isUserPreferencesGuideScreen ||
-                                        isUserPreferencesSettingsScreen ||
-                                        isFormatConverterScreen ||
-                                        isFileManagerScreen ||
-                                        isTerminalToolScreen ||
-                                        isTerminalAutoConfigScreen
+                                        currentScreen is Screen.ToolPermission ||
+                                        currentScreen is Screen.UserPreferencesGuide ||
+                                        currentScreen is Screen.UserPreferencesSettings ||
+                                        currentScreen is Screen.FormatConverter ||
+                                        currentScreen is Screen.FileManager ||
+                                        currentScreen is Screen.Terminal ||
+                                        currentScreen is Screen.TerminalAutoConfig ||
+                                        currentScreen is Screen.AppPermissions
                         ) {
                             IconButton(
                                     onClick = {
-                                        when {
-                                            isToolPermissionScreen -> {
-                                                // 如果在工具权限设置页面，点击返回按钮返回到设置页面
-                                                isToolPermissionScreen = false
+                                        when (currentScreen) {
+                                            is Screen.ToolPermission -> {
+                                                // 如果在工具权限设置页面，返回到设置页面
+                                                currentScreen = Screen.Settings
                                                 selectedItem = NavItem.Settings
                                             }
-                                            isUserPreferencesGuideScreen -> {
-                                                // 如果在用户偏好引导页面，点击返回按钮返回到设置页面
-                                                isUserPreferencesGuideScreen = false
+                                            is Screen.UserPreferencesGuide -> {
+                                                // 如果在用户偏好引导页面，返回到设置页面
+                                                currentScreen = Screen.Settings
                                                 selectedItem = NavItem.Settings
                                             }
-                                            isUserPreferencesSettingsScreen -> {
-                                                // 如果在用户偏好设置页面，点击返回按钮返回到设置页面
-                                                isUserPreferencesSettingsScreen = false
+                                            is Screen.UserPreferencesSettings -> {
+                                                // 如果在用户偏好设置页面，返回到设置页面
+                                                currentScreen = Screen.Settings
                                                 selectedItem = NavItem.Settings
                                             }
-                                            isFormatConverterScreen -> {
-                                                // 如果在格式转换工具页面，点击返回按钮返回到工具箱页面
-                                                isFormatConverterScreen = false
-                                            }
-                                            isFileManagerScreen -> {
-                                                // 如果在文件管理器工具页面，点击返回按钮返回到工具箱页面
-                                                isFileManagerScreen = false
-                                            }
-                                            isTerminalToolScreen -> {
-                                                // 如果在终端工具页面，点击返回按钮返回到工具箱页面
-                                                isTerminalToolScreen = false
-                                            }
-                                            isTerminalAutoConfigScreen -> {
-                                                // 如果在终端自动配置页面，点击返回按钮返回到工具箱页面
-                                                isTerminalAutoConfigScreen = false
+                                            is Screen.FormatConverter,
+                                            is Screen.FileManager,
+                                            is Screen.Terminal,
+                                            is Screen.TerminalAutoConfig,
+                                            is Screen.AppPermissions -> {
+                                                // 如果在工具箱二级页面，返回到工具箱页面
+                                                currentScreen = Screen.Toolbox
                                             }
                                             else -> {
                                                 // 仅在非平板模式下打开抽屉
@@ -504,34 +528,33 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                     }
                             ) {
                                 Icon(
-                                        if (isToolPermissionScreen ||
-                                                        isUserPreferencesGuideScreen ||
-                                                        isUserPreferencesSettingsScreen ||
-                                                        isFormatConverterScreen ||
-                                                        isFileManagerScreen ||
-                                                        isTerminalToolScreen ||
-                                                        isTerminalAutoConfigScreen
+                                        if (currentScreen is Screen.ToolPermission ||
+                                                        currentScreen is
+                                                                Screen.UserPreferencesGuide ||
+                                                        currentScreen is
+                                                                Screen.UserPreferencesSettings ||
+                                                        currentScreen is Screen.FormatConverter ||
+                                                        currentScreen is Screen.FileManager ||
+                                                        currentScreen is Screen.Terminal ||
+                                                        currentScreen is
+                                                                Screen.TerminalAutoConfig ||
+                                                        currentScreen is Screen.AppPermissions
                                         )
                                                 Icons.Default.ArrowBack
                                         else Icons.Default.Menu,
                                         contentDescription =
-                                                when {
-                                                    isToolPermissionScreen ->
+                                                when (currentScreen) {
+                                                    is Screen.ToolPermission,
+                                                    is Screen.UserPreferencesGuide,
+                                                    is Screen.UserPreferencesSettings ->
                                                             stringResource(
                                                                     id = R.string.nav_settings
                                                             )
-                                                    isUserPreferencesGuideScreen ->
-                                                            stringResource(
-                                                                    id = R.string.nav_settings
-                                                            )
-                                                    isUserPreferencesSettingsScreen ->
-                                                            stringResource(
-                                                                    id = R.string.nav_settings
-                                                            )
-                                                    isFormatConverterScreen ||
-                                                            isFileManagerScreen ||
-                                                            isTerminalToolScreen ||
-                                                            isTerminalAutoConfigScreen -> "返回工具箱"
+                                                    is Screen.FormatConverter,
+                                                    is Screen.FileManager,
+                                                    is Screen.Terminal,
+                                                    is Screen.TerminalAutoConfig,
+                                                    is Screen.AppPermissions -> "返回工具箱"
                                                     else -> stringResource(id = R.string.menu)
                                                 },
                                         tint = Color.White
@@ -586,120 +609,111 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                     }
                 } else {
                     Box(modifier = Modifier.fillMaxSize()) {
-                        if (isToolPermissionScreen) {
-                            // 工具权限设置页面
-                            ToolPermissionSettingsScreen(
-                                    navigateBack = {
-                                        isToolPermissionScreen = false
-                                        selectedItem = NavItem.Settings
-                                    }
-                            )
-                        } else if (isUserPreferencesGuideScreen) {
-                            // 用户偏好引导页面
-                            UserPreferencesGuideScreen(
-                                    profileName = userPreferencesProfileName,
-                                    profileId = userPreferencesProfileId,
-                                    onComplete = {
-                                        isUserPreferencesGuideScreen = false
-                                        selectedItem = NavItem.Settings
-                                    },
-                                    navigateToPermissions = {
-                                        isUserPreferencesGuideScreen = false
-                                        selectedItem = NavItem.ShizukuCommands // 直接跳转到权限授予界面
-                                    }
-                            )
-                        } else if (isUserPreferencesSettingsScreen) {
-                            UserPreferencesSettingsScreen(
-                                    onNavigateBack = { isUserPreferencesSettingsScreen = false },
-                                    onNavigateToGuide = { profileName, profileId ->
-                                        // 导航到引导页并传递配置信息
-                                        isUserPreferencesGuideScreen = true
-                                        isUserPreferencesSettingsScreen = false
-
-                                        // 创建一个包含profileName和profileId的导航，
-                                        // 这需要在UserPreferencesGuideScreen中接收这些参数
-                                        userPreferencesProfileName = profileName
-                                        userPreferencesProfileId = profileId
-                                    }
-                            )
-                        } else if (isFormatConverterScreen) {
-                            // 格式转换工具屏幕
-                            FormatConverterToolScreen(navController = navController)
-                        } else if (isFileManagerScreen) {
-                            // 文件管理器屏幕
-                            FileManagerToolScreen(navController = navController)
-                        } else if (isTerminalToolScreen) {
-                            // 终端工具屏幕
-                            TerminalToolScreen(navController = navController)
-                        } else if (isTerminalAutoConfigScreen) {
-                            // 终端自动配置屏幕
-                            TerminalAutoConfigToolScreen(navController = navController)
-                        } else {
-                            // 主导航页面
-                            when (selectedItem) {
-                                NavItem.AiChat -> AIChatScreen()
-                                NavItem.ShizukuCommands -> ShizukuDemoScreen()
-                                NavItem.Toolbox -> {
-                                    // 工具箱页面
-                                    ToolboxScreen(
-                                            navController = navController,
-                                            onFormatConverterSelected = {
-                                                isFormatConverterScreen = true
+                        when (currentScreen) {
+                            is Screen.ToolPermission -> {
+                                // 工具权限设置页面
+                                ToolPermissionSettingsScreen(
+                                        navigateBack = {
+                                            currentScreen = Screen.Settings
+                                            selectedItem = NavItem.Settings
+                                        }
+                                )
+                            }
+                            is Screen.UserPreferencesGuide -> {
+                                // 用户偏好引导页面
+                                val screen = currentScreen as Screen.UserPreferencesGuide
+                                UserPreferencesGuideScreen(
+                                        profileName = screen.profileName,
+                                        profileId = screen.profileId,
+                                        onComplete = {
+                                            currentScreen = Screen.Settings
+                                            selectedItem = NavItem.Settings
+                                        },
+                                        navigateToPermissions = {
+                                            currentScreen = Screen.ShizukuCommands
+                                            selectedItem = NavItem.ShizukuCommands // 直接跳转到权限授予界面
+                                        }
+                                )
+                            }
+                            is Screen.UserPreferencesSettings -> {
+                                UserPreferencesSettingsScreen(
+                                        onNavigateBack = { currentScreen = Screen.Settings },
+                                        onNavigateToGuide = { profileName, profileId ->
+                                            // 导航到引导页并传递配置信息
+                                            val guide = Screen.UserPreferencesGuide
+                                            guide.profileName = profileName
+                                            guide.profileId = profileId
+                                            currentScreen = guide
+                                        }
+                                )
+                            }
+                            is Screen.FormatConverter -> {
+                                // 格式转换工具屏幕
+                                FormatConverterToolScreen(navController = navController)
+                            }
+                            is Screen.FileManager -> {
+                                // 文件管理器屏幕
+                                FileManagerToolScreen(navController = navController)
+                            }
+                            is Screen.Terminal -> {
+                                // 终端工具屏幕
+                                TerminalToolScreen(navController = navController)
+                            }
+                            is Screen.TerminalAutoConfig -> {
+                                // 终端自动配置屏幕
+                                TerminalAutoConfigToolScreen(navController = navController)
+                            }
+                            is Screen.AppPermissions -> {
+                                // 应用权限管理屏幕
+                                AppPermissionsToolScreen(navController = navController)
+                            }
+                            is Screen.AiChat -> AIChatScreen()
+                            is Screen.ShizukuCommands -> ShizukuDemoScreen()
+                            is Screen.Toolbox -> {
+                                // 工具箱页面
+                                ToolboxScreen(
+                                        navController = navController,
+                                        onFormatConverterSelected = {
+                                            currentScreen = Screen.FormatConverter
+                                        },
+                                        onFileManagerSelected = {
+                                            currentScreen = Screen.FileManager
+                                        },
+                                        onTerminalSelected = { currentScreen = Screen.Terminal },
+                                        onTerminalAutoConfigSelected = {
+                                            currentScreen = Screen.TerminalAutoConfig
+                                        },
+                                        onAppPermissionsSelected = {
+                                            currentScreen = Screen.AppPermissions
+                                        }
+                                )
+                            }
+                            is Screen.Settings ->
+                                    SettingsScreen(
+                                            navigateToToolPermissions = {
+                                                currentScreen = Screen.ToolPermission
                                             },
-                                            onFileManagerSelected = { isFileManagerScreen = true },
-                                            onTerminalSelected = { isTerminalToolScreen = true },
-                                            onTerminalAutoConfigSelected = {
-                                                isTerminalAutoConfigScreen = true
+                                            onNavigateToUserPreferences = {
+                                                currentScreen = Screen.UserPreferencesSettings
                                             }
                                     )
-                                }
-                                NavItem.Settings ->
-                                        SettingsScreen(
-                                                navigateToToolPermissions = {
-                                                    isToolPermissionScreen = true
-                                                    isUserPreferencesSettingsScreen = false
-                                                },
-                                                onNavigateToUserPreferences = {
-                                                    isUserPreferencesSettingsScreen = true
-                                                    isUserPreferencesGuideScreen = false
-                                                }
-                                        )
-                                NavItem.Packages -> PackageManagerScreen()
-                                NavItem.ToolPermissions -> {
-                                    // 不应该直接导航到这里
-                                    selectedItem = NavItem.Settings
-                                }
-                                NavItem.UserPreferencesGuide -> {
-                                    // 不应该直接导航到这里
-                                    selectedItem = NavItem.Settings
-                                }
-                                NavItem.UserPreferencesSettings -> {
-                                    // 不应该直接导航到这里
-                                    selectedItem = NavItem.Settings
-                                }
-                                NavItem.ProblemLibrary -> {
-                                    // 问题库页面
-                                    ProblemLibraryScreen()
-                                }
-                                NavItem.About -> AboutScreen()
-                                NavItem.Terminal -> {
-                                    // 转到工具箱中的终端工具
-                                    selectedItem = NavItem.Toolbox
-                                    isTerminalToolScreen = true
-                                }
-                                NavItem.Mcp -> {
-                                    // MCP 屏幕
-                                    MCPScreen(mcpRepository = mcpRepository)
-                                }
-                                NavItem.Help ->
-                                        HelpScreen(
-                                                onBackPressed = { selectedItem = NavItem.AiChat }
-                                        )
-                                else -> {
-                                    // 处理其他情况
-                                    selectedItem = NavItem.AiChat
-                                }
+                            is Screen.Packages -> PackageManagerScreen()
+                            is Screen.ProblemLibrary -> {
+                                // 问题库页面
+                                ProblemLibraryScreen()
                             }
+                            is Screen.About -> AboutScreen()
+                            is Screen.Mcp -> {
+                                // MCP 屏幕
+                                MCPScreen(mcpRepository = mcpRepository)
+                            }
+                            is Screen.Help ->
+                                    HelpScreen(
+                                            onBackPressed = {
+                                                currentScreen = Screen.AiChat
+                                                selectedItem = NavItem.AiChat
+                                            }
+                                    )
                         }
                     }
                 }

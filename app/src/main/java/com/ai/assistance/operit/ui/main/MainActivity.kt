@@ -15,10 +15,15 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.preferences.AgreementPreferences
+import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.data.repository.UIHierarchyManager
+import com.ai.assistance.operit.data.updates.UpdateManager
+import com.ai.assistance.operit.data.updates.UpdateStatus
 import com.ai.assistance.operit.tools.AIToolHandler
 import com.ai.assistance.operit.tools.system.AdbCommandExecutor
 import com.ai.assistance.operit.tools.system.ShizukuInstaller
@@ -26,166 +31,109 @@ import com.ai.assistance.operit.ui.common.NavItem
 import com.ai.assistance.operit.ui.theme.OperitTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     private val TAG = "MainActivity"
 
-    // 共享权限状态
-    private var permissionsRequested = false
+    // ======== 状态追踪 ========
+    private data class PermissionState(
+            var basicPermissionsRequested: Boolean = false,
+            var storagePermissionRequested: Boolean = false,
+            var overlayPermissionRequested: Boolean = false,
+            var batteryOptimizationRequested: Boolean = false,
+            var accessibilityServiceRequested: Boolean = false
+    )
 
-    // 悬浮窗权限请求状态
-    private var overlayPermissionRequested = false
+    private val permissionState = PermissionState()
 
-    // 电池优化豁免请求状态
-    private var batteryOptimizationExemptionRequested = false
-
-    // 无障碍服务请求状态
-    private var accessibilityServiceRequested = false
-
-    // 初始化导航控制标志
+    // ======== 导航状态 ========
     private var navigateToShizukuScreen = false
-
-    // 偏好设置引导标志
     private var showPreferencesGuide = false
 
-    // 工具处理器
+    // ======== 工具和管理器 ========
     private lateinit var toolHandler: AIToolHandler
-
-    // 用户偏好管理器
     private lateinit var preferencesManager: UserPreferencesManager
-
-    // 协议偏好管理器
     private lateinit var agreementPreferences: AgreementPreferences
-
-    // Shizuku状态变化监听器
     private lateinit var shizukuStateListener: () -> Unit
+    private var updateCheckPerformed = false
 
-    private val requiredPermissions =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                arrayOf(
-                        Manifest.permission.READ_MEDIA_IMAGES,
-                        Manifest.permission.READ_MEDIA_VIDEO,
-                        Manifest.permission.READ_MEDIA_AUDIO,
-                        Manifest.permission.POST_NOTIFICATIONS,
-                        Manifest.permission.QUERY_ALL_PACKAGES,
-                        Manifest.permission.ACCESS_FINE_LOCATION,
-                        Manifest.permission.ACCESS_COARSE_LOCATION
-                )
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                arrayOf(
-                        Manifest.permission.READ_EXTERNAL_STORAGE,
-                        Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                        Manifest.permission.QUERY_ALL_PACKAGES,
-                        Manifest.permission.ACCESS_FINE_LOCATION,
-                        Manifest.permission.ACCESS_COARSE_LOCATION
-                )
-            } else {
-                arrayOf(
-                        Manifest.permission.READ_EXTERNAL_STORAGE,
-                        Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                        Manifest.permission.ACCESS_FINE_LOCATION,
-                        Manifest.permission.ACCESS_COARSE_LOCATION
-                )
+    // ======== 权限定义 ========
+    private val requiredPermissions = getRequiredPermissionsForAndroidVersion()
+
+    // UpdateManager实例
+    private lateinit var updateManager: UpdateManager
+
+    private fun getRequiredPermissionsForAndroidVersion() =
+            when {
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ->
+                        arrayOf(
+                                Manifest.permission.READ_MEDIA_IMAGES,
+                                Manifest.permission.READ_MEDIA_VIDEO,
+                                Manifest.permission.READ_MEDIA_AUDIO,
+                                Manifest.permission.POST_NOTIFICATIONS,
+                                Manifest.permission.QUERY_ALL_PACKAGES,
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                        )
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.R ->
+                        arrayOf(
+                                Manifest.permission.READ_EXTERNAL_STORAGE,
+                                Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                                Manifest.permission.QUERY_ALL_PACKAGES,
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                        )
+                else ->
+                        arrayOf(
+                                Manifest.permission.READ_EXTERNAL_STORAGE,
+                                Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                        )
             }
 
+    // ======== 权限请求回调 ========
     private val requestPermissionLauncher =
             registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
                     permissions ->
-                Log.d(TAG, "Permission results: $permissions")
-                val allGranted = permissions.entries.all { it.value }
-                permissionsRequested = true
+                Log.d(TAG, "Basic permission results: $permissions")
+                permissionState.basicPermissionsRequested = true
 
-                // 检查是否已经有管理所有文件的权限（Android 11+）
-                val hasAllFilesPermission =
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                            Environment.isExternalStorageManager()
-                        } else {
-                            false
-                        }
-
-                if (allGranted || hasAllFilesPermission) {
-                    // 权限已全部授予或者已有管理所有文件权限，继续检查存储管理权限
-                    checkManageExternalStoragePermission()
-                } else {
-                    Toast.makeText(this, "需要授予存储权限才能正常使用Shizuku功能", Toast.LENGTH_LONG).show()
-                    // 尝试继续流程，检查存储权限
-                    checkManageExternalStoragePermission()
-                }
+                // 继续下一步权限检查流程
+                continuePermissionFlow()
             }
 
     private val storagePermissionLauncher =
             registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
                 Log.d(TAG, "Storage permission result: ${it.resultCode}")
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    if (Environment.isExternalStorageManager()) {
-                        // 所有权限都已授予，检查悬浮窗权限
-                        checkOverlayPermission()
-                    } else {
-                        // 检查用户是否已经授予了基本存储权限
-                        val hasBasicStoragePermissions =
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                    ContextCompat.checkSelfPermission(
-                                            this,
-                                            Manifest.permission.READ_MEDIA_IMAGES
-                                    ) == PackageManager.PERMISSION_GRANTED &&
-                                            ContextCompat.checkSelfPermission(
-                                                    this,
-                                                    Manifest.permission.READ_MEDIA_VIDEO
-                                            ) == PackageManager.PERMISSION_GRANTED &&
-                                            ContextCompat.checkSelfPermission(
-                                                    this,
-                                                    Manifest.permission.READ_MEDIA_AUDIO
-                                            ) == PackageManager.PERMISSION_GRANTED
-                                } else {
-                                    ContextCompat.checkSelfPermission(
-                                            this,
-                                            Manifest.permission.READ_EXTERNAL_STORAGE
-                                    ) == PackageManager.PERMISSION_GRANTED &&
-                                            ContextCompat.checkSelfPermission(
-                                                    this,
-                                                    Manifest.permission.WRITE_EXTERNAL_STORAGE
-                                            ) == PackageManager.PERMISSION_GRANTED
-                                }
+                permissionState.storagePermissionRequested = true
 
-                        if (!hasBasicStoragePermissions) {
-                            Toast.makeText(this, "未获得所有文件访问权限，某些功能可能受限", Toast.LENGTH_LONG).show()
-                        }
-
-                        // 继续检查悬浮窗权限
-                        checkOverlayPermission()
-                    }
-                } else {
-                    // 对于低版本Android，继续检查悬浮窗权限
-                    checkOverlayPermission()
-                }
+                // 继续下一步权限检查流程
+                continuePermissionFlow()
             }
 
-    // 悬浮窗权限请求结果
     private val overlayPermissionLauncher =
             registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
                 Log.d(TAG, "Overlay permission result: ${it.resultCode}")
-                overlayPermissionRequested = true
-                if (Settings.canDrawOverlays(this)) {
-                    Log.d(TAG, "Overlay permission granted")
-                } else {
-                    Log.d(TAG, "Overlay permission denied")
+                permissionState.overlayPermissionRequested = true
+
+                if (!Settings.canDrawOverlays(this)) {
                     Toast.makeText(this, "未获得悬浮窗权限，某些功能可能受限", Toast.LENGTH_LONG).show()
                 }
-                // 无论结果如何，继续初始化Shizuku
-                initializeShizuku()
+
+                // 继续下一步
+                continuePermissionFlow()
             }
 
-    // 忽略电池优化权限请求结果
     private val batteryOptimizationLauncher =
             registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
                 Log.d(TAG, "Battery optimization exemption result: ${it.resultCode}")
-                batteryOptimizationExemptionRequested = true
+                permissionState.batteryOptimizationRequested = true
 
                 val powerManager = getSystemService(POWER_SERVICE) as PowerManager
-                val packageName = packageName
-
                 if (powerManager.isIgnoringBatteryOptimizations(packageName)) {
                     Log.d(TAG, "Battery optimization exemption granted")
                     Toast.makeText(this, "已获得电池优化豁免权限", Toast.LENGTH_SHORT).show()
@@ -193,339 +141,36 @@ class MainActivity : ComponentActivity() {
                     Log.d(TAG, "Battery optimization exemption denied")
                     Toast.makeText(this, "未获得电池优化豁免权限，后台运行可能受限", Toast.LENGTH_LONG).show()
                 }
+
+                // 继续下一步
+                continuePermissionFlow()
             }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate: Android SDK version: ${Build.VERSION.SDK_INT}")
 
-        // 初始化工具处理器
-        toolHandler = AIToolHandler.getInstance(this)
-        toolHandler.registerDefaultTools()
+        initializeComponents()
+        setupShizukuListener()
+        setupPreferencesListener()
+        configureDisplaySettings()
 
-        // 初始化用户偏好管理器并直接检查初始化状态
-        preferencesManager = UserPreferencesManager(this)
-        showPreferencesGuide = !preferencesManager.isPreferencesInitialized()
-        Log.d(
-                TAG,
-                "初始化检查: 用户偏好已初始化=${!showPreferencesGuide}，将${if(showPreferencesGuide) "" else "不"}显示引导界面"
-        )
+        // 初始化并设置更新管理器
+        setupUpdateManager()
 
-        // 初始化协议偏好管理器
-        agreementPreferences = AgreementPreferences(this)
+        // 启动权限流程
+        startPermissionFlow()
 
-        // 保存监听器引用以便稍后移除
-        val shizukuStateListener = {
-            Log.d(TAG, "Shizuku状态变化，检查是否可以启用无障碍服务")
-            // 在Shizuku状态变化时，尝试启用无障碍服务
-            if (AdbCommandExecutor.isShizukuServiceRunning() &&
-                            AdbCommandExecutor.hasShizukuPermission()
-            ) {
-                if (!accessibilityServiceRequested &&
-                                !UIHierarchyManager.isAccessibilityServiceEnabled(this)
-                ) {
-                    Log.d(TAG, "Shizuku已授权，尝试通过ADB启用无障碍服务")
-                    tryEnableAccessibilityViaAdb()
-                }
-            }
-        }
-
-        // 注册Shizuku状态变化监听器
-        AdbCommandExecutor.addStateChangeListener(shizukuStateListener)
-
-        // 保存监听器引用作为类成员变量
-        this.shizukuStateListener = shizukuStateListener
-
-        // 检查无障碍服务是否已启用
-        checkAccessibilityServiceEnabled()
-
-        // 监听偏好变化
-        lifecycleScope.launch {
-            preferencesManager.getUserPreferencesFlow().collect { profile ->
-                // 只有当状态变化时才更新UI
-                val newValue = !profile.isInitialized
-                if (showPreferencesGuide != newValue) {
-                    Log.d(TAG, "偏好变更: 从 $showPreferencesGuide 变为 $newValue")
-                    showPreferencesGuide = newValue
-                    recreateContentView()
-                }
-            }
-        }
-
-        // 启动权限状态检查任务
-        startPermissionRefreshTask()
-
-        // Enable high FPS rendering
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.attributes.preferredDisplayModeId = getHighestRefreshRate()
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            window.attributes.preferredRefreshRate = getDeviceRefreshRate()
-        }
-
-        // For smoother animations with Compose
-        window.setFlags(
-                android.view.WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
-                android.view.WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
-        )
-
-        // 请求必要的权限
-        requestRequiredPermissions()
-
-        setContent {
-            OperitTheme {
-                OperitApp(
-                        initialNavItem =
-                                when {
-                                    showPreferencesGuide -> NavItem.UserPreferencesGuide
-                                    navigateToShizukuScreen -> NavItem.ShizukuCommands
-                                    else -> NavItem.AiChat
-                                },
-                        toolHandler = toolHandler
-                )
-            }
-        }
+        // 设置初始界面
+        setAppContent()
     }
 
     override fun onResume() {
         super.onResume()
         Log.d(TAG, "onResume called")
 
-        // 如果还没请求过权限，在onResume中再次尝试请求
-        if (!permissionsRequested) {
-            requestRequiredPermissions()
-        } else if (!overlayPermissionRequested && !Settings.canDrawOverlays(this)) {
-            // 如果基本权限已请求但悬浮窗权限尚未请求
-            checkOverlayPermission()
-        } else if (!batteryOptimizationExemptionRequested) {
-            // 检查电池优化豁免
-            checkBatteryOptimizationExemption()
-        } else {
-            // 检查Shizuku状态
-            lifecycleScope.launch {
-                delay(500) // 稍微延迟，等待界面完全加载
-                checkShizukuStatus()
-            }
-        }
-    }
-
-    private fun checkShizukuStatus() {
-        if (AdbCommandExecutor.isShizukuInstalled(this)) {
-            val isRunning = AdbCommandExecutor.isShizukuServiceRunning()
-            val hasPermission = AdbCommandExecutor.hasShizukuPermission()
-            Log.d(
-                    TAG,
-                    "Shizuku status: installed=${true}, running=${isRunning}, permission=${hasPermission}"
-            )
-
-            // 如果已经安装但未运行或没有权限，设置标志以便自动导航到Shizuku页面
-            if (!isRunning || !hasPermission) {
-                navigateToShizukuScreen = true
-                // 重新创建内容视图以应用导航更改
-                recreateContentView()
-            }
-        }
-    }
-
-    private fun recreateContentView() {
-        // 重新设置内容视图以触发导航更改
-        setContent {
-            OperitTheme {
-                OperitApp(
-                        initialNavItem =
-                                when {
-                                    showPreferencesGuide -> NavItem.UserPreferencesGuide
-                                    navigateToShizukuScreen -> NavItem.ShizukuCommands
-                                    else -> NavItem.AiChat
-                                },
-                        toolHandler = toolHandler
-                )
-            }
-        }
-    }
-
-    private fun requestRequiredPermissions() {
-        Log.d(TAG, "Requesting permissions for SDK ${Build.VERSION.SDK_INT}")
-        permissionsRequested = true
-
-        if (Build.VERSION.SDK_INT >= 33) { // Android 13+
-            val permissionsToRequest =
-                    requiredPermissions
-                            .filter {
-                                ContextCompat.checkSelfPermission(this, it) !=
-                                        PackageManager.PERMISSION_GRANTED
-                            }
-                            .toTypedArray()
-
-            if (permissionsToRequest.isNotEmpty()) {
-                Log.d(TAG, "Requesting permissions: ${permissionsToRequest.joinToString()}")
-                requestPermissionLauncher.launch(permissionsToRequest)
-            } else {
-                // 基本权限已授予，检查存储管理权限
-                checkManageExternalStoragePermission()
-            }
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) { // Android 6-12
-            val permissionsToRequest =
-                    requiredPermissions
-                            .filter {
-                                ContextCompat.checkSelfPermission(this, it) !=
-                                        PackageManager.PERMISSION_GRANTED
-                            }
-                            .toTypedArray()
-
-            if (permissionsToRequest.isNotEmpty()) {
-                Log.d(TAG, "Requesting permissions: ${permissionsToRequest.joinToString()}")
-                requestPermissionLauncher.launch(permissionsToRequest)
-            } else {
-                // 基本权限已授予，检查存储管理权限
-                checkManageExternalStoragePermission()
-            }
-        } else {
-            // 低于Android 6.0，权限在安装时已授予
-            checkManageExternalStoragePermission()
-        }
-    }
-
-    private fun checkManageExternalStoragePermission() {
-        // Android 11+需要特殊存储权限
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            Log.d(TAG, "Checking MANAGE_EXTERNAL_STORAGE permission")
-
-            // 检查基本存储权限是否已授予
-            val hasBasicStoragePermissions =
-                    requiredPermissions.all {
-                        ContextCompat.checkSelfPermission(this, it) ==
-                                PackageManager.PERMISSION_GRANTED
-                    }
-
-            // 如果已经有管理所有文件权限，或已经有足够的基本权限，则跳过请求
-            if (Environment.isExternalStorageManager() || hasBasicStoragePermissions) {
-                Log.d(
-                        TAG,
-                        "MANAGE_EXTERNAL_STORAGE permission already granted or basic permissions sufficient"
-                )
-                // 已有足够的存储权限，检查悬浮窗权限
-                checkOverlayPermission()
-                return
-            }
-
-            // 否则，请求管理所有文件权限
-            try {
-                Log.d(TAG, "Requesting MANAGE_EXTERNAL_STORAGE permission")
-                val intent =
-                        Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
-                            addCategory("android.intent.category.DEFAULT")
-                            data = Uri.parse("package:$packageName")
-                        }
-                storagePermissionLauncher.launch(intent)
-            } catch (e: Exception) {
-                Log.e(TAG, "Error requesting app specific storage permission", e)
-                try {
-                    val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
-                    storagePermissionLauncher.launch(intent)
-                } catch (ex: Exception) {
-                    Log.e(TAG, "Error requesting general storage permission", ex)
-                    Toast.makeText(this, "无法打开存储权限设置", Toast.LENGTH_LONG).show()
-                    // 检查悬浮窗权限
-                    checkOverlayPermission()
-                }
-            }
-        } else {
-            Log.d(TAG, "MANAGE_EXTERNAL_STORAGE not needed for this Android version")
-            // Android 10及以下不需要特殊的存储管理权限，检查悬浮窗权限
-            checkOverlayPermission()
-        }
-    }
-
-    /** 检查悬浮窗权限并请求 */
-    private fun checkOverlayPermission() {
-        if (!overlayPermissionRequested) {
-            Log.d(TAG, "Checking SYSTEM_ALERT_WINDOW permission")
-            if (!Settings.canDrawOverlays(this)) {
-                Log.d(TAG, "Requesting SYSTEM_ALERT_WINDOW permission")
-                try {
-                    val intent =
-                            Intent(
-                                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                    Uri.parse("package:$packageName")
-                            )
-                    overlayPermissionLauncher.launch(intent)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error requesting overlay permission", e)
-                    Toast.makeText(this, "无法打开悬浮窗权限设置", Toast.LENGTH_LONG).show()
-                    // 继续初始化Shizuku
-                    initializeShizuku()
-                }
-            } else {
-                Log.d(TAG, "SYSTEM_ALERT_WINDOW permission already granted")
-                // 已有悬浮窗权限，继续初始化Shizuku
-                initializeShizuku()
-            }
-        } else {
-            Log.d(TAG, "Overlay permission already requested, continuing")
-            // 已经请求过悬浮窗权限，继续初始化Shizuku
-            initializeShizuku()
-        }
-    }
-
-    private fun initializeShizuku() {
-        Log.d(TAG, "Initializing Shizuku")
-        // 初始化Shizuku绑定
-        AdbCommandExecutor.initializeShizuku()
-
-        // 检查是否需要预提取内置的Shizuku APK
-        try {
-            // 如果文件不存在，预先提取以加速后续安装过程
-            if (!ShizukuInstaller.isApkExtracted(this)) {
-                lifecycleScope.launch {
-                    Log.d(TAG, "Extracting bundled Shizuku APK...")
-                    ShizukuInstaller.extractApkFromAssets(this@MainActivity)
-                    Log.d(TAG, "Bundled Shizuku APK extracted")
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error preparing bundled Shizuku APK", e)
-        }
-
-        // 如果没有安装Shizuku，提示安装
-        if (!AdbCommandExecutor.isShizukuInstalled(this)) {
-            Log.d(TAG, "Shizuku not installed")
-            Toast.makeText(this, "请先安装Shizuku应用", Toast.LENGTH_LONG).show()
-            // 设置导航标志，自动跳转到Shizuku页面
-            navigateToShizukuScreen = true
-        } else {
-            val isRunning = AdbCommandExecutor.isShizukuServiceRunning()
-            val hasPermission = AdbCommandExecutor.hasShizukuPermission()
-            Log.d(TAG, "Shizuku service running: $isRunning, has permission: $hasPermission")
-
-            // 如果Shizuku已运行并且有权限，尝试启用无障碍服务
-            if (isRunning && hasPermission) {
-                // 检查无障碍服务是否已启用，如果未启用则尝试通过ADB启用
-                if (!UIHierarchyManager.isAccessibilityServiceEnabled(this) &&
-                                !accessibilityServiceRequested
-                ) {
-                    Log.d(TAG, "Shizuku已可用，尝试启用无障碍服务")
-                    tryEnableAccessibilityViaAdb()
-                }
-            }
-            // 如果已安装但未运行或没有权限，自动跳转到Shizuku页面
-            else if (!isRunning || !hasPermission) {
-                navigateToShizukuScreen = true
-
-                if (!isRunning) {
-                    Toast.makeText(this, "Shizuku服务未运行，请启动服务", Toast.LENGTH_LONG).show()
-                } else if (!hasPermission) {
-                    Toast.makeText(this, "请授予Shizuku权限", Toast.LENGTH_LONG).show()
-                }
-            }
-        }
-
-        // 重新创建内容视图以应用导航更改
-        if (navigateToShizukuScreen) {
-            lifecycleScope.launch {
-                delay(500) // 延迟一下确保初始化完成
-                recreateContentView()
-            }
-        }
+        // 如果权限流程未完成，继续处理
+        continuePermissionFlow()
     }
 
     override fun onDestroy() {
@@ -542,17 +187,574 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** Get the highest refresh rate mode available on the device (Android 11+) */
+    // ======== 初始化组件 ========
+    private fun initializeComponents() {
+        // 初始化工具处理器
+        toolHandler = AIToolHandler.getInstance(this)
+        toolHandler.registerDefaultTools()
+
+        // 初始化用户偏好管理器并直接检查初始化状态
+        preferencesManager = UserPreferencesManager(this)
+        showPreferencesGuide = !preferencesManager.isPreferencesInitialized()
+        Log.d(
+                TAG,
+                "初始化检查: 用户偏好已初始化=${!showPreferencesGuide}，将${if(showPreferencesGuide) "" else "不"}显示引导界面"
+        )
+
+        // 初始化协议偏好管理器
+        agreementPreferences = AgreementPreferences(this)
+    }
+
+    // ======== Shizuku监听器设置 ========
+    private fun setupShizukuListener() {
+        // 创建Shizuku状态变化监听器
+        val listener = {
+            Log.d(TAG, "Shizuku状态变化，检查是否可以启用无障碍服务")
+            if (isShizukuFullyAvailable() &&
+                            !permissionState.accessibilityServiceRequested &&
+                            !UIHierarchyManager.isAccessibilityServiceEnabled(this)
+            ) {
+
+                // 检查设置并在适当时启用无障碍服务
+                lifecycleScope.launch {
+                    val apiPreferences = ApiPreferences(this@MainActivity)
+                    val autoGrantAccessibility = apiPreferences.autoGrantAccessibilityFlow.first()
+
+                    if (autoGrantAccessibility) {
+                        Log.d(TAG, "Shizuku已授权，自动授权设置已开启，尝试启用无障碍服务")
+                        tryEnableAccessibilityViaAdb()
+                    } else {
+                        Log.d(TAG, "Shizuku已授权，但自动授权设置已关闭，不尝试自动启用无障碍服务")
+                        permissionState.accessibilityServiceRequested = true
+                    }
+                }
+            }
+        }
+
+        // 注册Shizuku状态变化监听器
+        AdbCommandExecutor.addStateChangeListener(listener)
+        this.shizukuStateListener = listener
+
+        // 检查无障碍服务状态
+        checkAccessibilityServiceEnabled()
+    }
+
+    // ======== 偏好监听器设置 ========
+    private fun setupPreferencesListener() {
+        // 监听偏好变化
+        lifecycleScope.launch {
+            preferencesManager.getUserPreferencesFlow().collect { profile ->
+                // 只有当状态变化时才更新UI
+                val newValue = !profile.isInitialized
+                if (showPreferencesGuide != newValue) {
+                    Log.d(TAG, "偏好变更: 从 $showPreferencesGuide 变为 $newValue")
+                    showPreferencesGuide = newValue
+                    setAppContent()
+                }
+            }
+        }
+
+        // 启动权限状态检查任务
+        startPermissionRefreshTask()
+    }
+
+    // ======== 显示设置配置 ========
+    private fun configureDisplaySettings() {
+        // 设置高刷新率
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.attributes.preferredDisplayModeId = getHighestRefreshRate()
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            window.attributes.preferredRefreshRate = getDeviceRefreshRate()
+        }
+
+        // 硬件加速以获得更流畅的动画
+        window.setFlags(
+                android.view.WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
+                android.view.WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
+        )
+    }
+
+    // ======== 设置应用内容 ========
+    private fun setAppContent() {
+        setContent {
+            OperitTheme {
+                OperitApp(
+                        initialNavItem =
+                                when {
+                                    showPreferencesGuide -> NavItem.UserPreferencesGuide
+                                    navigateToShizukuScreen -> NavItem.ShizukuCommands
+                                    else -> NavItem.AiChat
+                                },
+                        toolHandler = toolHandler
+                )
+            }
+        }
+    }
+
+    // ======== 统一权限流程管理 ========
+    private fun startPermissionFlow() {
+        Log.d(TAG, "Starting permission flow")
+        requestBasicPermissions()
+    }
+
+    private fun continuePermissionFlow() {
+        when {
+            !permissionState.basicPermissionsRequested -> requestBasicPermissions()
+            !permissionState.storagePermissionRequested -> checkManageExternalStoragePermission()
+            !permissionState.overlayPermissionRequested -> checkOverlayPermission()
+            !permissionState.batteryOptimizationRequested -> checkBatteryOptimizationExemption()
+            else -> initializeShizuku() // 所有权限流程完成后初始化Shizuku
+        }
+    }
+
+    private fun requestBasicPermissions() {
+        Log.d(TAG, "Requesting basic permissions for SDK ${Build.VERSION.SDK_INT}")
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            // 低于Android 6.0，权限在安装时已授予
+            permissionState.basicPermissionsRequested = true
+            continuePermissionFlow()
+            return
+        }
+
+        val permissionsToRequest =
+                requiredPermissions
+                        .filter {
+                            ContextCompat.checkSelfPermission(this, it) !=
+                                    PackageManager.PERMISSION_GRANTED
+                        }
+                        .toTypedArray()
+
+        if (permissionsToRequest.isEmpty()) {
+            Log.d(TAG, "All basic permissions already granted")
+            permissionState.basicPermissionsRequested = true
+            continuePermissionFlow()
+        } else {
+            Log.d(TAG, "Requesting permissions: ${permissionsToRequest.joinToString()}")
+            requestPermissionLauncher.launch(permissionsToRequest)
+        }
+    }
+
+    private fun checkManageExternalStoragePermission() {
+        // Android 11+需要特殊存储权限
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Log.d(TAG, "Checking MANAGE_EXTERNAL_STORAGE permission")
+
+            // 检查是否已有足够权限
+            if (hasStoragePermissions()) {
+                Log.d(TAG, "Storage permissions already sufficient")
+                permissionState.storagePermissionRequested = true
+                continuePermissionFlow()
+                return
+            }
+
+            // 请求管理所有文件权限
+            try {
+                val intent =
+                        Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                            addCategory("android.intent.category.DEFAULT")
+                            data = Uri.parse("package:$packageName")
+                        }
+                storagePermissionLauncher.launch(intent)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error requesting app specific storage permission", e)
+                try {
+                    val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                    storagePermissionLauncher.launch(intent)
+                } catch (ex: Exception) {
+                    Log.e(TAG, "Error requesting general storage permission", ex)
+                    Toast.makeText(this, "无法打开存储权限设置", Toast.LENGTH_LONG).show()
+
+                    // 标记为已处理并继续流程
+                    permissionState.storagePermissionRequested = true
+                    continuePermissionFlow()
+                }
+            }
+        } else {
+            // Android 10及以下不需要特殊的存储管理权限
+            Log.d(TAG, "MANAGE_EXTERNAL_STORAGE not needed for this Android version")
+            permissionState.storagePermissionRequested = true
+            continuePermissionFlow()
+        }
+    }
+
+    private fun hasStoragePermissions(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Android 11+ 检查 MANAGE_EXTERNAL_STORAGE 权限
+            Environment.isExternalStorageManager() || hasBasicStoragePermissions()
+        } else {
+            // 低版本 Android 检查基本存储权限
+            hasBasicStoragePermissions()
+        }
+    }
+
+    private fun hasBasicStoragePermissions(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // Android 13+
+            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) ==
+                    PackageManager.PERMISSION_GRANTED &&
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO) ==
+                            PackageManager.PERMISSION_GRANTED &&
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO) ==
+                            PackageManager.PERMISSION_GRANTED
+        } else {
+            // Android 6-12
+            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) ==
+                    PackageManager.PERMISSION_GRANTED &&
+                    ContextCompat.checkSelfPermission(
+                            this,
+                            Manifest.permission.WRITE_EXTERNAL_STORAGE
+                    ) == PackageManager.PERMISSION_GRANTED
+        }
+    }
+
+    private fun checkOverlayPermission() {
+        Log.d(TAG, "Checking overlay permission")
+
+        if (Settings.canDrawOverlays(this)) {
+            Log.d(TAG, "Overlay permission already granted")
+            permissionState.overlayPermissionRequested = true
+            continuePermissionFlow()
+            return
+        }
+
+        try {
+            val intent =
+                    Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:$packageName")
+                    )
+            overlayPermissionLauncher.launch(intent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error requesting overlay permission", e)
+            Toast.makeText(this, "无法打开悬浮窗权限设置", Toast.LENGTH_LONG).show()
+
+            // 标记为已处理并继续流程
+            permissionState.overlayPermissionRequested = true
+            continuePermissionFlow()
+        }
+    }
+
+    private fun checkBatteryOptimizationExemption() {
+        Log.d(TAG, "Checking battery optimization exemption")
+
+        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+        val packageName = packageName
+
+        if (powerManager.isIgnoringBatteryOptimizations(packageName)) {
+            Log.d(TAG, "Battery optimization already exempted")
+            permissionState.batteryOptimizationRequested = true
+            continuePermissionFlow()
+            return
+        }
+
+        try {
+            val intent =
+                    Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                        data = Uri.parse("package:$packageName")
+                    }
+
+            if (intent.resolveActivity(packageManager) != null) {
+                batteryOptimizationLauncher.launch(intent)
+            } else {
+                Log.e(TAG, "Device does not support ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS")
+                Toast.makeText(this, "您的设备不支持请求电池优化豁免，后台运行可能受限", Toast.LENGTH_LONG).show()
+
+                // 标记为已处理并继续流程
+                permissionState.batteryOptimizationRequested = true
+                continuePermissionFlow()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error requesting battery optimization exemption", e)
+            Toast.makeText(this, "请求电池优化豁免时出错: ${e.message}", Toast.LENGTH_LONG).show()
+
+            // 标记为已处理并继续流程
+            permissionState.batteryOptimizationRequested = true
+            continuePermissionFlow()
+        }
+    }
+
+    // ======== Shizuku相关功能 ========
+    private fun initializeShizuku() {
+        Log.d(TAG, "Initializing Shizuku")
+
+        // 初始化Shizuku绑定
+        AdbCommandExecutor.initializeShizuku()
+
+        // 预先提取Shizuku APK以加速安装
+        extractShizukuApkIfNeeded()
+
+        // 检查Shizuku状态并决定下一步操作
+        updateShizukuStatus()
+    }
+
+    private fun extractShizukuApkIfNeeded() {
+        try {
+            if (!ShizukuInstaller.isApkExtracted(this)) {
+                lifecycleScope.launch {
+                    Log.d(TAG, "Extracting bundled Shizuku APK...")
+                    ShizukuInstaller.extractApkFromAssets(this@MainActivity)
+                    Log.d(TAG, "Bundled Shizuku APK extracted")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error preparing bundled Shizuku APK", e)
+        }
+    }
+
+    private fun updateShizukuStatus() {
+        if (!AdbCommandExecutor.isShizukuInstalled(this)) {
+            Log.d(TAG, "Shizuku not installed")
+            Toast.makeText(this, "请先安装Shizuku应用", Toast.LENGTH_LONG).show()
+            navigateToShizukuScreen = true
+            setAppContent()
+            return
+        }
+
+        val isRunning = AdbCommandExecutor.isShizukuServiceRunning()
+        val hasPermission = AdbCommandExecutor.hasShizukuPermission()
+        Log.d(TAG, "Shizuku status: running=$isRunning, permission=$hasPermission")
+
+        if (isRunning && hasPermission) {
+            // Shizuku正常运行，尝试启用无障碍服务
+            if (!UIHierarchyManager.isAccessibilityServiceEnabled(this) &&
+                            !permissionState.accessibilityServiceRequested
+            ) {
+                checkAndEnableAccessibilityService()
+            }
+        } else if (!isRunning || !hasPermission) {
+            // Shizuku未运行或无权限，跳转到Shizuku页面
+            navigateToShizukuScreen = true
+
+            if (!isRunning) {
+                Toast.makeText(this, "Shizuku服务未运行，请启动服务", Toast.LENGTH_LONG).show()
+            } else if (!hasPermission) {
+                Toast.makeText(this, "请授予Shizuku权限", Toast.LENGTH_LONG).show()
+            }
+
+            setAppContent()
+        }
+    }
+
+    private fun isShizukuFullyAvailable(): Boolean {
+        return AdbCommandExecutor.isShizukuServiceRunning() &&
+                AdbCommandExecutor.hasShizukuPermission()
+    }
+
+    private fun checkShizukuStatus() {
+        if (AdbCommandExecutor.isShizukuInstalled(this)) {
+            val isRunning = AdbCommandExecutor.isShizukuServiceRunning()
+            val hasPermission = AdbCommandExecutor.hasShizukuPermission()
+
+            // 仅当状态变化时才更新UI
+            if (!isRunning || !hasPermission) {
+                navigateToShizukuScreen = true
+                setAppContent()
+            }
+        }
+    }
+
+    // ======== 无障碍服务相关功能 ========
+    private fun checkAccessibilityServiceEnabled() {
+        // 如果服务已启用，直接返回
+        if (UIHierarchyManager.isAccessibilityServiceEnabled(this)) {
+            Log.d(TAG, "无障碍服务已启用")
+            return
+        }
+
+        // 检查设置并在适当时尝试启用
+        lifecycleScope.launch {
+            val apiPreferences = ApiPreferences(this@MainActivity)
+            val autoGrantAccessibility = apiPreferences.autoGrantAccessibilityFlow.first()
+
+            if (autoGrantAccessibility &&
+                            !permissionState.accessibilityServiceRequested &&
+                            isShizukuFullyAvailable()
+            ) {
+                Log.d(TAG, "自动授权设置已开启，尝试通过ADB启用无障碍服务")
+                tryEnableAccessibilityViaAdb()
+            } else if (!autoGrantAccessibility) {
+                Log.d(TAG, "自动授权设置已关闭，不尝试自动启用无障碍服务")
+            }
+
+            permissionState.accessibilityServiceRequested = true
+        }
+    }
+
+    private fun checkAndEnableAccessibilityService() {
+        lifecycleScope.launch {
+            val apiPreferences = ApiPreferences(this@MainActivity)
+            val autoGrantAccessibility = apiPreferences.autoGrantAccessibilityFlow.first()
+
+            if (autoGrantAccessibility) {
+                Log.d(TAG, "Shizuku已可用，自动授权设置已开启，尝试启用无障碍服务")
+                tryEnableAccessibilityViaAdb()
+            } else {
+                Log.d(TAG, "Shizuku已可用，但自动授权设置已关闭，不尝试自动启用无障碍服务")
+                permissionState.accessibilityServiceRequested = true
+            }
+        }
+    }
+
+    private fun tryEnableAccessibilityViaAdb() {
+        // 如果已启用，避免重复请求
+        if (UIHierarchyManager.isAccessibilityServiceEnabled(this)) {
+            Log.d(TAG, "无障碍服务已启用，无需再次启用")
+            return
+        }
+
+        // 如果Shizuku可用，尝试通过ADB启用
+        if (isShizukuFullyAvailable()) {
+            Log.d(TAG, "通过ADB尝试启用无障碍服务")
+            permissionState.accessibilityServiceRequested = true
+
+            lifecycleScope.launch(Dispatchers.IO) {
+                val success = UIHierarchyManager.enableAccessibilityServiceViaAdb(this@MainActivity)
+
+                withContext(Dispatchers.Main) {
+                    if (success) {
+                        Log.d(TAG, "通过ADB成功启用无障碍服务")
+                        Toast.makeText(this@MainActivity, "已自动启用无障碍服务", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Log.d(TAG, "通过ADB启用无障碍服务失败")
+                        permissionState.accessibilityServiceRequested = false
+                    }
+                }
+            }
+        }
+    }
+
+    // ======== 工具方法 ========
+    private fun startPermissionRefreshTask() {
+        lifecycleScope.launch {
+            try {
+                val hasRequest =
+                        toolHandler?.getToolPermissionSystem()?.hasActivePermissionRequest()
+                                ?: false
+                Log.d(TAG, "Permission check: hasRequest=$hasRequest")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error in permission check", e)
+            }
+        }
+    }
+
+    // ======== 设置更新管理器 ========
+    private fun setupUpdateManager() {
+        // 获取UpdateManager实例
+        updateManager = UpdateManager.getInstance(this)
+
+        // 观察更新状态
+        updateManager.updateStatus.observe(
+                this,
+                Observer { status ->
+                    if (status is UpdateStatus.Available) {
+                        showUpdateNotification(status)
+                    }
+                }
+        )
+
+        // 自动检查更新（在权限流程完成后执行）
+        lifecycleScope.launch {
+            // 延迟几秒，等待应用完全启动
+            delay(3000)
+            checkForUpdates()
+        }
+    }
+
+    private fun checkForUpdates() {
+        if (updateCheckPerformed) return
+        updateCheckPerformed = true
+
+        val appVersion =
+                try {
+                    packageManager.getPackageInfo(packageName, 0).versionName
+                } catch (e: PackageManager.NameNotFoundException) {
+                    "未知"
+                }
+
+        // 使用UpdateManager检查更新
+        lifecycleScope.launch {
+            try {
+                updateManager.checkForUpdates(appVersion)
+                // 不需要显式处理更新状态，因为我们已经设置了观察者
+            } catch (e: Exception) {
+                Log.e(TAG, "更新检查失败: ${e.message}")
+            }
+        }
+    }
+
+    private fun showUpdateNotification(updateInfo: UpdateStatus.Available) {
+        val currentVersion =
+                try {
+                    packageManager.getPackageInfo(packageName, 0).versionName
+                } catch (e: Exception) {
+                    "未知"
+                }
+
+        Log.d(TAG, "发现新版本: ${updateInfo.newVersion}，当前版本: $currentVersion")
+
+        // 显示更新提示
+        val updateMessage = "发现新版本 ${updateInfo.newVersion}，请前往「关于」页面查看详情"
+        Toast.makeText(this, updateMessage, Toast.LENGTH_LONG).show()
+
+        // 可选：显示更详细的通知
+        showUpdateDetailNotification(updateInfo)
+    }
+
+    // 显示系统通知以提醒用户有更新
+    private fun showUpdateDetailNotification(updateInfo: UpdateStatus.Available) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // 创建通知渠道
+            val channelId = "update_channel"
+            val channelName = "应用更新"
+            val importance = android.app.NotificationManager.IMPORTANCE_DEFAULT
+            val channel = android.app.NotificationChannel(channelId, channelName, importance)
+            val notificationManager = getSystemService(android.app.NotificationManager::class.java)
+            notificationManager.createNotificationChannel(channel)
+
+            // 创建打开关于页面的Intent
+            val aboutIntent =
+                    Intent(this, javaClass).apply {
+                        putExtra("NAVIGATE_TO_ABOUT", true)
+                        flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    }
+
+            // 创建PendingIntent
+            val pendingIntent =
+                    android.app.PendingIntent.getActivity(
+                            this,
+                            0,
+                            aboutIntent,
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                android.app.PendingIntent.FLAG_IMMUTABLE or
+                                        android.app.PendingIntent.FLAG_UPDATE_CURRENT
+                            } else {
+                                android.app.PendingIntent.FLAG_UPDATE_CURRENT
+                            }
+                    )
+
+            // 创建通知
+            val notification =
+                    android.app.Notification.Builder(this, channelId)
+                            .setContentTitle("发现新版本 ${updateInfo.newVersion}")
+                            .setContentText("点击此处前往更新")
+                            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+                            .setContentIntent(pendingIntent)
+                            .setAutoCancel(true)
+                            .build()
+
+            // 显示通知
+            notificationManager.notify(100, notification)
+        }
+    }
+
     private fun getHighestRefreshRate(): Int {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val displayModes = display?.supportedModes ?: return 0
             var maxRefreshRate = 60f // Default to 60Hz
             var highestModeId = 0
 
-            Log.d(TAG, "Display supported modes: ${display?.refreshRate}")
-
             for (mode in displayModes) {
-                Log.d(TAG, "Supported mode: ${mode.refreshRate} Hz")
                 if (mode.refreshRate > maxRefreshRate) {
                     maxRefreshRate = mode.refreshRate
                     highestModeId = mode.modeId
@@ -564,7 +766,6 @@ class MainActivity : ComponentActivity() {
         return 0
     }
 
-    /** Get the highest refresh rate available on the device (for Android M-Q) */
     private fun getDeviceRefreshRate(): Float {
         val windowManager = getSystemService(WINDOW_SERVICE) as android.view.WindowManager
         val display =
@@ -577,11 +778,9 @@ class MainActivity : ComponentActivity() {
         var refreshRate = 60f // Default refresh rate
 
         if (display != null) {
-            Log.d(TAG, "Display supported modes: ${display?.refreshRate}")
             try {
                 @Suppress("DEPRECATION") val modes = display.supportedModes
                 for (mode in modes) {
-                    Log.d(TAG, "Supported mode: ${mode.refreshRate} Hz")
                     if (mode.refreshRate > refreshRate) {
                         refreshRate = mode.refreshRate
                     }
@@ -593,153 +792,5 @@ class MainActivity : ComponentActivity() {
 
         Log.d(TAG, "Selected refresh rate: $refreshRate Hz")
         return refreshRate
-    }
-
-    /** 启动权限状态检查任务，确保权限对话框能正常显示 */
-    private fun startPermissionRefreshTask() {
-        lifecycleScope.launch {
-            try {
-                // 检查是否有待处理的权限请求
-                val hasRequest =
-                        toolHandler?.getToolPermissionSystem()?.hasActivePermissionRequest()
-                                ?: false
-                Log.d("MainActivity", "Permission check: hasRequest=$hasRequest")
-                if (hasRequest) {
-                    return@launch
-                }
-            } catch (e: Exception) {
-                Log.e("MainActivity", "Error in permission check", e)
-            }
-        }
-    }
-
-    /** 尝试通过ADB启用无障碍服务 */
-    private fun tryEnableAccessibilityViaAdb() {
-        // 检查是否已启用，避免重复请求
-        if (UIHierarchyManager.isAccessibilityServiceEnabled(this)) {
-            Log.d(TAG, "无障碍服务已启用，无需再次启用")
-            return
-        }
-
-        // 如果Shizuku可用且有权限，尝试通过ADB启用
-        if (AdbCommandExecutor.isShizukuServiceRunning() &&
-                        AdbCommandExecutor.hasShizukuPermission()
-        ) {
-            Log.d(TAG, "通过ADB尝试启用无障碍服务")
-
-            // 设置标志，避免同时显示对话框
-            accessibilityServiceRequested = true
-
-            lifecycleScope.launch(Dispatchers.IO) {
-                val success = UIHierarchyManager.enableAccessibilityServiceViaAdb(this@MainActivity)
-
-                withContext(Dispatchers.Main) {
-                    if (success) {
-                        Log.d(TAG, "通过ADB成功启用无障碍服务")
-                        Toast.makeText(this@MainActivity, "已自动启用无障碍服务", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Log.d(TAG, "通过ADB启用无障碍服务失败，显示手动设置对话框")
-                        // 重置标志，可以再次尝试
-                        accessibilityServiceRequested = false
-                        // 显示对话框
-                        showAccessibilityServiceDialog()
-                    }
-                }
-            }
-        }
-    }
-
-    /** 检查无障碍服务是否已启用，只在未请求过的情况下显示对话框 */
-    private fun checkAccessibilityServiceEnabled() {
-        // 如果服务已启用，直接返回
-        if (UIHierarchyManager.isAccessibilityServiceEnabled(this)) {
-            Log.d(TAG, "无障碍服务已启用")
-            return
-        }
-
-        // 如果未请求过且Shizuku可用，尝试通过ADB启用
-        if (!accessibilityServiceRequested &&
-                        AdbCommandExecutor.isShizukuServiceRunning() &&
-                        AdbCommandExecutor.hasShizukuPermission()
-        ) {
-
-            tryEnableAccessibilityViaAdb()
-        } else if (!accessibilityServiceRequested) {
-            // 如果无法通过ADB启用或已请求过，显示对话框
-            showAccessibilityServiceDialog()
-        }
-    }
-
-    /** 显示无障碍服务请求对话框 */
-    private fun showAccessibilityServiceDialog() {
-        // 设置标志，表示已经请求过
-        accessibilityServiceRequested = true
-
-        // 显示对话框提示用户启用无障碍服务
-        android.app.AlertDialog.Builder(this)
-                .setTitle("需要无障碍服务权限")
-                .setMessage("为了提供更快速的UI分析能力，请在设置中启用无障碍服务。这将使AI助手能够更高效地获取屏幕信息，节省您的等待时间。")
-                .setPositiveButton("去设置") { _, _ ->
-                    UIHierarchyManager.openAccessibilitySettings(this)
-                }
-                .setNegativeButton("稍后再说") { dialog, _ -> dialog.dismiss() }
-                .setCancelable(false)
-                .show()
-    }
-
-    /** 检查并请求电池优化豁免 */
-    private fun checkBatteryOptimizationExemption() {
-        Log.d(TAG, "Checking battery optimization exemption")
-
-        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
-        val packageName = packageName
-
-        if (!powerManager.isIgnoringBatteryOptimizations(packageName)) {
-            Log.d(TAG, "Requesting battery optimization exemption")
-            try {
-                // 创建请求忽略电池优化的Intent
-                val intent =
-                        Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                            data = Uri.parse("package:$packageName")
-                        }
-
-                // 检查Intent是否可以被处理
-                if (intent.resolveActivity(packageManager) != null) {
-                    batteryOptimizationLauncher.launch(intent)
-                } else {
-                    Log.e(
-                            TAG,
-                            "Device does not support ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
-                    )
-                    Toast.makeText(this, "您的设备不支持请求电池优化豁免，后台运行可能受限", Toast.LENGTH_LONG).show()
-                    batteryOptimizationExemptionRequested = true
-
-                    // 继续检查Shizuku状态
-                    lifecycleScope.launch {
-                        delay(500)
-                        checkShizukuStatus()
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error requesting battery optimization exemption", e)
-                Toast.makeText(this, "请求电池优化豁免时出错: ${e.message}", Toast.LENGTH_LONG).show()
-                batteryOptimizationExemptionRequested = true
-
-                // 继续检查Shizuku状态
-                lifecycleScope.launch {
-                    delay(500)
-                    checkShizukuStatus()
-                }
-            }
-        } else {
-            Log.d(TAG, "Battery optimization already ignored for this app")
-            batteryOptimizationExemptionRequested = true
-
-            // 已获得豁免，继续检查Shizuku状态
-            lifecycleScope.launch {
-                delay(500)
-                checkShizukuStatus()
-            }
-        }
     }
 }
