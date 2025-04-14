@@ -357,6 +357,14 @@ interface LocationData {
     timestamp: number;
     /** Raw location data from the system */
     rawData: string;
+    /** Street address determined from coordinates */
+    address?: string;
+    /** City name determined from coordinates */
+    city?: string;
+    /** Province/state name determined from coordinates */
+    province?: string;
+    /** Country name determined from coordinates */
+    country?: string;
     /** Returns a formatted string representation of the location */
     toString(): string;
 }

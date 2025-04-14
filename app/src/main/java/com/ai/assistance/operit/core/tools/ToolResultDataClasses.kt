@@ -731,7 +731,11 @@ data class LocationData(
         val accuracy: Float,
         val provider: String,
         val timestamp: Long,
-        val rawData: String
+        val rawData: String,
+        val address: String = "",
+        val city: String = "",
+        val province: String = "",
+        val country: String = ""
 ) : ToolResultData() {
     override fun toString(): String {
         val sb = StringBuilder()
@@ -743,6 +747,20 @@ data class LocationData(
         sb.appendLine(
                 "获取时间: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(java.util.Date(timestamp))}"
         )
+        
+        if (address.isNotEmpty()) {
+            sb.appendLine("地址: $address")
+        }
+        if (city.isNotEmpty()) {
+            sb.appendLine("城市: $city")
+        }
+        if (province.isNotEmpty()) {
+            sb.appendLine("省/州: $province")
+        }
+        if (country.isNotEmpty()) {
+            sb.appendLine("国家: $country")
+        }
+        
         return sb.toString()
     }
 }
