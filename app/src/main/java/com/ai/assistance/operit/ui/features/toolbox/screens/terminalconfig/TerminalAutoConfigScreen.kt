@@ -50,6 +50,9 @@ fun TerminalAutoConfigScreen(navController: NavController) {
     var pipInstalled by remember { mutableStateOf(false) }
     var nodeInstalled by remember { mutableStateOf(false) }
     var gitInstalled by remember { mutableStateOf(false) }
+    var rubyInstalled by remember { mutableStateOf(false) }
+    var goInstalled by remember { mutableStateOf(false) }
+    var rustInstalled by remember { mutableStateOf(false) }
     var tunaSourceEnabled by remember { mutableStateOf(false) }
 
     // 会话ID
@@ -60,6 +63,9 @@ fun TerminalAutoConfigScreen(navController: NavController) {
     var interactivePrompt by remember { mutableStateOf("") }
     var interactiveInputText by remember { mutableStateOf("") }
     var currentExecutionId by remember { mutableStateOf(-1) }
+
+    // PIP包选择对话框状态
+    var showPipPackageDialog by remember { mutableStateOf(false) }
 
     // 创建或获取会话
     LaunchedEffect(key1 = Unit) {
@@ -80,11 +86,14 @@ fun TerminalAutoConfigScreen(navController: NavController) {
     LaunchedEffect(key1 = Unit) {
         checkInstalledComponents(
                 context,
-                onResult = { python, pip, node, git ->
+                onResult = { python, pip, node, git, ruby, go, rust ->
                     pythonInstalled = python
                     pipInstalled = pip
                     nodeInstalled = node
                     gitInstalled = git
+                    rubyInstalled = ruby
+                    goInstalled = go
+                    rustInstalled = rust
                 }
         )
 
@@ -126,6 +135,43 @@ fun TerminalAutoConfigScreen(navController: NavController) {
                             }
                         } catch (e: Exception) {
                             Log.e(TAG, "发送用户输入时出错: ${e.message}", e)
+                        }
+                    }
+                }
+        )
+    }
+
+    // PIP包选择对话框
+    if (showPipPackageDialog) {
+        PipPackageSelectionDialog(
+                onDismissRequest = { showPipPackageDialog = false },
+                onPackagesSelected = { packages ->
+                    showPipPackageDialog = false
+                    if (packages.isNotEmpty()) {
+                        scope.launch {
+                            isExecuting = true
+                            currentTask = "安装 PIP 包"
+                            installPipPackages(
+                                    context,
+                                    sessionId,
+                                    packages,
+                                    onOutput = { output -> outputText += "\n$output" },
+                                    onInteractivePrompt = { prompt, executionId ->
+                                        interactivePrompt = prompt
+                                        currentExecutionId = executionId
+                                        showInputDialog = true
+                                    },
+                                    onComplete = { success ->
+                                        isExecuting = false
+                                        if (success) {
+                                            Toast.makeText(context, "PIP 包安装成功", Toast.LENGTH_SHORT)
+                                                    .show()
+                                        } else {
+                                            Toast.makeText(context, "PIP 包安装失败", Toast.LENGTH_SHORT)
+                                                    .show()
+                                        }
+                                    }
+                            )
                         }
                     }
                 }
@@ -270,38 +316,16 @@ fun TerminalAutoConfigScreen(navController: NavController) {
                     }
             )
 
+            // PIP 清华源选项卡 - 用于选择并安装 PIP 包
             InstallOptionCard(
-                    title = "PIP 包管理器",
-                    description = "安装 Python 包管理工具",
+                    title = "PIP 清华源",
+                    description = "通过清华源安装 Python 包",
                     icon = Icons.Default.Settings,
                     installed = pipInstalled,
                     isExecuting = isExecuting,
                     onClick = {
-                        scope.launch {
-                            isExecuting = true
-                            currentTask = "安装 PIP"
-                            installPip(
-                                    context,
-                                    sessionId,
-                                    onOutput = { output -> outputText += "\n$output" },
-                                    onInteractivePrompt = { prompt, executionId ->
-                                        interactivePrompt = prompt
-                                        currentExecutionId = executionId
-                                        showInputDialog = true
-                                    },
-                                    onComplete = { success ->
-                                        isExecuting = false
-                                        pipInstalled = success
-                                        if (success) {
-                                            Toast.makeText(context, "PIP 安装成功", Toast.LENGTH_SHORT)
-                                                    .show()
-                                        } else {
-                                            Toast.makeText(context, "PIP 安装失败", Toast.LENGTH_SHORT)
-                                                    .show()
-                                        }
-                                    }
-                            )
-                        }
+                        // 显示 PIP 包选择对话框
+                        showPipPackageDialog = true
                     }
             )
 
@@ -383,6 +407,114 @@ fun TerminalAutoConfigScreen(navController: NavController) {
                     }
             )
 
+            // 添加 Ruby 环境选项
+            InstallOptionCard(
+                    title = "Ruby 环境",
+                    description = "安装 Ruby 语言和 Gem 包管理器",
+                    icon = Icons.Default.Code,
+                    installed = rubyInstalled,
+                    isExecuting = isExecuting,
+                    onClick = {
+                        scope.launch {
+                            isExecuting = true
+                            currentTask = "安装 Ruby"
+                            installRuby(
+                                    context,
+                                    sessionId,
+                                    onOutput = { output -> outputText += "\n$output" },
+                                    onInteractivePrompt = { prompt, executionId ->
+                                        interactivePrompt = prompt
+                                        currentExecutionId = executionId
+                                        showInputDialog = true
+                                    },
+                                    onComplete = { success ->
+                                        isExecuting = false
+                                        rubyInstalled = success
+                                        if (success) {
+                                            Toast.makeText(context, "Ruby 安装成功", Toast.LENGTH_SHORT)
+                                                    .show()
+                                        } else {
+                                            Toast.makeText(context, "Ruby 安装失败", Toast.LENGTH_SHORT)
+                                                    .show()
+                                        }
+                                    }
+                            )
+                        }
+                    }
+            )
+
+            // 添加 Go 环境选项
+            InstallOptionCard(
+                    title = "Go 环境",
+                    description = "安装 Go 语言及开发环境",
+                    icon = Icons.Default.Code,
+                    installed = goInstalled,
+                    isExecuting = isExecuting,
+                    onClick = {
+                        scope.launch {
+                            isExecuting = true
+                            currentTask = "安装 Go"
+                            installGo(
+                                    context,
+                                    sessionId,
+                                    onOutput = { output -> outputText += "\n$output" },
+                                    onInteractivePrompt = { prompt, executionId ->
+                                        interactivePrompt = prompt
+                                        currentExecutionId = executionId
+                                        showInputDialog = true
+                                    },
+                                    onComplete = { success ->
+                                        isExecuting = false
+                                        goInstalled = success
+                                        if (success) {
+                                            Toast.makeText(context, "Go 安装成功", Toast.LENGTH_SHORT)
+                                                    .show()
+                                        } else {
+                                            Toast.makeText(context, "Go 安装失败", Toast.LENGTH_SHORT)
+                                                    .show()
+                                        }
+                                    }
+                            )
+                        }
+                    }
+            )
+
+            // 添加 Rust 环境选项
+            InstallOptionCard(
+                    title = "Rust 环境",
+                    description = "安装 Rust 语言及 Cargo 包管理器",
+                    icon = Icons.Default.Code,
+                    installed = rustInstalled,
+                    isExecuting = isExecuting,
+                    onClick = {
+                        scope.launch {
+                            isExecuting = true
+                            currentTask = "安装 Rust"
+                            installRust(
+                                    context,
+                                    sessionId,
+                                    onOutput = { output -> outputText += "\n$output" },
+                                    onInteractivePrompt = { prompt, executionId ->
+                                        interactivePrompt = prompt
+                                        currentExecutionId = executionId
+                                        showInputDialog = true
+                                    },
+                                    onComplete = { success ->
+                                        isExecuting = false
+                                        rustInstalled = success
+                                        if (success) {
+                                            Toast.makeText(context, "Rust 安装成功", Toast.LENGTH_SHORT)
+                                                    .show()
+                                        } else {
+                                            Toast.makeText(context, "Rust 安装失败", Toast.LENGTH_SHORT)
+                                                    .show()
+                                        }
+                                    }
+                            )
+                        }
+                    }
+            )
+
             Button(
                     onClick = {
                         scope.launch {
@@ -406,11 +538,21 @@ fun TerminalAutoConfigScreen(navController: NavController) {
                                             scope.launch {
                                                 checkInstalledComponents(
                                                         context,
-                                                        onResult = { python, pip, node, git ->
+                                                        onResult = {
+                                                                python,
+                                                                pip,
+                                                                node,
+                                                                git,
+                                                                ruby,
+                                                                go,
+                                                                rust ->
                                                             pythonInstalled = python
                                                             pipInstalled = pip
                                                             nodeInstalled = node
                                                             gitInstalled = git
+                                                            rubyInstalled = ruby
+                                                            goInstalled = go
+                                                            rustInstalled = rust
                                                         }
                                                 )
                                             }
@@ -511,13 +653,19 @@ suspend fun checkInstalledComponents(
                         pythonInstalled: Boolean,
                         pipInstalled: Boolean,
                         nodeInstalled: Boolean,
-                        gitInstalled: Boolean) -> Unit
+                        gitInstalled: Boolean,
+                        rubyInstalled: Boolean,
+                        goInstalled: Boolean,
+                        rustInstalled: Boolean) -> Unit
 ) {
     withContext(Dispatchers.IO) {
         var pythonInstalled = false
         var pipInstalled = false
         var nodeInstalled = false
         var gitInstalled = false
+        var rubyInstalled = false
+        var goInstalled = false
+        var rustInstalled = false
 
         // 检查Python
         val pythonResult =
@@ -555,8 +703,43 @@ suspend fun checkInstalledComponents(
                 )
         gitInstalled = gitResult.success && gitResult.stdout.contains("git")
 
+        // 检查Ruby
+        val rubyResult =
+                TermuxCommandExecutor.executeCommand(
+                        context = context,
+                        command = "command -v ruby",
+                        autoAuthorize = true
+                )
+        rubyInstalled = rubyResult.success && rubyResult.stdout.contains("ruby")
+
+        // 检查Go
+        val goResult =
+                TermuxCommandExecutor.executeCommand(
+                        context = context,
+                        command = "command -v go",
+                        autoAuthorize = true
+                )
+        goInstalled = goResult.success && goResult.stdout.contains("go")
+
+        // 检查Rust
+        val rustResult =
+                TermuxCommandExecutor.executeCommand(
+                        context = context,
+                        command = "command -v rustc",
+                        autoAuthorize = true
+                )
+        rustInstalled = rustResult.success && rustResult.stdout.contains("rustc")
+
         withContext(Dispatchers.Main) {
-            onResult(pythonInstalled, pipInstalled, nodeInstalled, gitInstalled)
+            onResult(
+                    pythonInstalled,
+                    pipInstalled,
+                    nodeInstalled,
+                    gitInstalled,
+                    rubyInstalled,
+                    goInstalled,
+                    rustInstalled
+            )
         }
     }
 }
@@ -855,58 +1038,6 @@ suspend fun installPython(
     }
 }
 
-// 安装PIP
-suspend fun installPip(
-        context: Context,
-        sessionId: String?,
-        onOutput: (String) -> Unit,
-        onInteractivePrompt: (String, Int) -> Unit,
-        onComplete: (Boolean) -> Unit
-) {
-    withContext(Dispatchers.IO) {
-        onOutput("开始安装 PIP...")
-
-        // 获取会话
-        val session = sessionId?.let { TerminalSessionManager.sessions.find { s -> s.id == it } }
-
-        if (session != null) {
-            // 使用终端会话执行命令
-            TerminalSessionManager.executeSessionCommand(
-                    context,
-                    session,
-                    "pkg update -y && pip install --upgrade pip",
-                    onOutput,
-                    onInteractivePrompt,
-                    onComplete = { exitCode, success ->
-                        onOutput("PIP 安装" + if (success) "成功" else "失败")
-                        onComplete(success)
-                    }
-            )
-        } else {
-            // 回退到直接执行命令
-            val result =
-                    TermuxCommandExecutor.executeCommand(
-                            context = context,
-                            command = "pkg update -y && pip install --upgrade pip",
-                            autoAuthorize = true,
-                            resultCallback = { result ->
-                                CoroutineScope(Dispatchers.Main).launch {
-                                    onOutput("PIP 安装" + if (result.success) "成功" else "失败")
-                                    onComplete(result.success)
-                                }
-                            }
-                    )
-
-            if (!result.success) {
-                CoroutineScope(Dispatchers.Main).launch {
-                    onOutput("命令发送失败: ${result.stderr}")
-                    onComplete(false)
-                }
-            }
-        }
-    }
-}
-
 // 安装Node.js
 suspend fun installNodejs(
         context: Context,
@@ -1048,6 +1179,325 @@ suspend fun updatePackages(
                             resultCallback = { result ->
                                 CoroutineScope(Dispatchers.Main).launch {
                                     onOutput("软件包更新" + if (result.success) "成功" else "失败")
+                                    onComplete(result.success)
+                                }
+                            }
+                    )
+
+            if (!result.success) {
+                CoroutineScope(Dispatchers.Main).launch {
+                    onOutput("命令发送失败: ${result.stderr}")
+                    onComplete(false)
+                }
+            }
+        }
+    }
+}
+
+// 添加 PIP 包选择对话框
+@Composable
+fun PipPackageSelectionDialog(
+        onDismissRequest: () -> Unit,
+        onPackagesSelected: (List<String>) -> Unit
+) {
+    val commonPipPackages =
+            listOf(
+                    "numpy",
+                    "pandas",
+                    "matplotlib",
+                    "scikit-learn",
+                    "tensorflow",
+                    "pytorch",
+                    "flask",
+                    "django",
+                    "requests",
+                    "beautifulsoup4",
+                    "selenium",
+                    "pillow",
+                    "openpyxl",
+                    "pymongo",
+                    "sqlalchemy"
+            )
+
+    val packageSelections = remember {
+        mutableStateMapOf<String, Boolean>().apply {
+            commonPipPackages.forEach { this[it] = false }
+        }
+    }
+
+    var customPackage by remember { mutableStateOf("") }
+
+    AlertDialog(
+            onDismissRequest = onDismissRequest,
+            title = { Text("选择要安装的PIP包") },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                    Text("从清华源安装以下PIP包:", modifier = Modifier.padding(bottom = 8.dp))
+
+                    // 常用包列表
+                    commonPipPackages.forEach { pkg ->
+                        Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                    checked = packageSelections[pkg] == true,
+                                    onCheckedChange = { selected ->
+                                        packageSelections[pkg] = selected
+                                    }
+                            )
+                            Text(pkg)
+                        }
+                    }
+
+                    // 自定义包输入
+                    OutlinedTextField(
+                            value = customPackage,
+                            onValueChange = { customPackage = it },
+                            label = { Text("其他包 (用空格分隔多个包)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth().padding(top = 16.dp)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                        onClick = {
+                            val selectedPackages =
+                                    commonPipPackages
+                                            .filter { packageSelections[it] == true }
+                                            .toMutableList()
+
+                            if (customPackage.isNotEmpty()) {
+                                selectedPackages.addAll(
+                                        customPackage.split(" ").filter { it.isNotEmpty() }
+                                )
+                            }
+
+                            onPackagesSelected(selectedPackages)
+                        }
+                ) { Text("安装") }
+            },
+            dismissButton = { TextButton(onClick = onDismissRequest) { Text("取消") } }
+    )
+}
+
+// 安装 PIP 包函数
+suspend fun installPipPackages(
+        context: Context,
+        sessionId: String?,
+        packages: List<String>,
+        onOutput: (String) -> Unit,
+        onInteractivePrompt: (String, Int) -> Unit,
+        onComplete: (Boolean) -> Unit
+) {
+    withContext(Dispatchers.IO) {
+        if (packages.isEmpty()) {
+            withContext(Dispatchers.Main) {
+                onOutput("未选择任何包")
+                onComplete(false)
+            }
+            return@withContext
+        }
+
+        val packagesList = packages.joinToString(" ")
+        onOutput("开始安装PIP包: $packagesList")
+
+        // 首先配置PIP清华源
+        val configPipMirrorCommand =
+                """
+            mkdir -p ~/.pip
+            echo '[global]
+            index-url = https://pypi.tuna.tsinghua.edu.cn/simple
+            trusted-host = pypi.tuna.tsinghua.edu.cn' > ~/.pip/pip.conf
+        """.trimIndent()
+
+        // 构建安装命令
+        val installCommand = "pip install --upgrade $packagesList"
+        val fullCommand = "$configPipMirrorCommand && $installCommand"
+
+        // 获取会话
+        val session = sessionId?.let { TerminalSessionManager.sessions.find { s -> s.id == it } }
+
+        if (session != null) {
+            // 使用终端会话执行命令
+            TerminalSessionManager.executeSessionCommand(
+                    context,
+                    session,
+                    fullCommand,
+                    onOutput,
+                    onInteractivePrompt,
+                    onComplete = { exitCode, success ->
+                        onOutput("PIP包安装" + if (success) "成功" else "失败")
+                        onComplete(success)
+                    }
+            )
+        } else {
+            // 回退到直接执行命令
+            val result =
+                    TermuxCommandExecutor.executeCommand(
+                            context = context,
+                            command = fullCommand,
+                            autoAuthorize = true,
+                            resultCallback = { result ->
+                                CoroutineScope(Dispatchers.Main).launch {
+                                    onOutput("PIP包安装" + if (result.success) "成功" else "失败")
+                                    onComplete(result.success)
+                                }
+                            }
+                    )
+
+            if (!result.success) {
+                CoroutineScope(Dispatchers.Main).launch {
+                    onOutput("命令发送失败: ${result.stderr}")
+                    onComplete(false)
+                }
+            }
+        }
+    }
+}
+
+// 安装 Ruby 环境
+suspend fun installRuby(
+        context: Context,
+        sessionId: String?,
+        onOutput: (String) -> Unit,
+        onInteractivePrompt: (String, Int) -> Unit,
+        onComplete: (Boolean) -> Unit
+) {
+    withContext(Dispatchers.IO) {
+        onOutput("开始安装 Ruby...")
+
+        // 获取会话
+        val session = sessionId?.let { TerminalSessionManager.sessions.find { s -> s.id == it } }
+
+        if (session != null) {
+            // 使用终端会话执行命令
+            TerminalSessionManager.executeSessionCommand(
+                    context,
+                    session,
+                    "pkg update -y && pkg install ruby -y",
+                    onOutput,
+                    onInteractivePrompt,
+                    onComplete = { exitCode, success ->
+                        onOutput("Ruby 安装" + if (success) "成功" else "失败")
+                        onComplete(success)
+                    }
+            )
+        } else {
+            // 回退到直接执行命令
+            val result =
+                    TermuxCommandExecutor.executeCommand(
+                            context = context,
+                            command = "pkg update -y && pkg install ruby -y",
+                            autoAuthorize = true,
+                            resultCallback = { result ->
+                                CoroutineScope(Dispatchers.Main).launch {
+                                    onOutput("Ruby 安装" + if (result.success) "成功" else "失败")
+                                    onComplete(result.success)
+                                }
+                            }
+                    )
+
+            if (!result.success) {
+                CoroutineScope(Dispatchers.Main).launch {
+                    onOutput("命令发送失败: ${result.stderr}")
+                    onComplete(false)
+                }
+            }
+        }
+    }
+}
+
+// 安装 Go 环境
+suspend fun installGo(
+        context: Context,
+        sessionId: String?,
+        onOutput: (String) -> Unit,
+        onInteractivePrompt: (String, Int) -> Unit,
+        onComplete: (Boolean) -> Unit
+) {
+    withContext(Dispatchers.IO) {
+        onOutput("开始安装 Go...")
+
+        // 获取会话
+        val session = sessionId?.let { TerminalSessionManager.sessions.find { s -> s.id == it } }
+
+        if (session != null) {
+            // 使用终端会话执行命令
+            TerminalSessionManager.executeSessionCommand(
+                    context,
+                    session,
+                    "pkg update -y && pkg install golang -y",
+                    onOutput,
+                    onInteractivePrompt,
+                    onComplete = { exitCode, success ->
+                        onOutput("Go 安装" + if (success) "成功" else "失败")
+                        onComplete(success)
+                    }
+            )
+        } else {
+            // 回退到直接执行命令
+            val result =
+                    TermuxCommandExecutor.executeCommand(
+                            context = context,
+                            command = "pkg update -y && pkg install golang -y",
+                            autoAuthorize = true,
+                            resultCallback = { result ->
+                                CoroutineScope(Dispatchers.Main).launch {
+                                    onOutput("Go 安装" + if (result.success) "成功" else "失败")
+                                    onComplete(result.success)
+                                }
+                            }
+                    )
+
+            if (!result.success) {
+                CoroutineScope(Dispatchers.Main).launch {
+                    onOutput("命令发送失败: ${result.stderr}")
+                    onComplete(false)
+                }
+            }
+        }
+    }
+}
+
+// 安装 Rust 环境
+suspend fun installRust(
+        context: Context,
+        sessionId: String?,
+        onOutput: (String) -> Unit,
+        onInteractivePrompt: (String, Int) -> Unit,
+        onComplete: (Boolean) -> Unit
+) {
+    withContext(Dispatchers.IO) {
+        onOutput("开始安装 Rust...")
+
+        // 获取会话
+        val session = sessionId?.let { TerminalSessionManager.sessions.find { s -> s.id == it } }
+
+        if (session != null) {
+            // 使用终端会话执行命令
+            TerminalSessionManager.executeSessionCommand(
+                    context,
+                    session,
+                    "pkg update -y && pkg install rust -y",
+                    onOutput,
+                    onInteractivePrompt,
+                    onComplete = { exitCode, success ->
+                        onOutput("Rust 安装" + if (success) "成功" else "失败")
+                        onComplete(success)
+                    }
+            )
+        } else {
+            // 回退到直接执行命令
+            val result =
+                    TermuxCommandExecutor.executeCommand(
+                            context = context,
+                            command = "pkg update -y && pkg install rust -y",
+                            autoAuthorize = true,
+                            resultCallback = { result ->
+                                CoroutineScope(Dispatchers.Main).launch {
+                                    onOutput("Rust 安装" + if (result.success) "成功" else "失败")
                                     onComplete(result.success)
                                 }
                             }

@@ -21,6 +21,7 @@ import com.ai.assistance.operit.data.preferences.ApiPreferences
 import kotlinx.coroutines.launch
 import com.ai.assistance.operit.data.repository.ChatHistoryManager
 import androidx.compose.ui.text.font.FontWeight
+import com.ai.assistance.operit.util.ModelEndPointFix
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,7 +93,16 @@ fun SettingsScreen(
                 
                 OutlinedTextField(
                     value = apiEndpointInput,
-                    onValueChange = { apiEndpointInput = it },
+                    onValueChange = { 
+                        apiEndpointInput = it
+                        
+                        // Try to fix the endpoint on-the-fly if user removes focus
+                        if (!ModelEndPointFix.isValidEndpoint(it) && it.isNotBlank()) {
+                            ModelEndPointFix.fixEndpoint(it)?.let { fixed ->
+                                apiEndpointInput = fixed
+                            }
+                        }
+                    },
                     label = { Text(stringResource(id = R.string.api_endpoint)) },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -121,9 +131,22 @@ fun SettingsScreen(
                 Button(
                     onClick = {
                         scope.launch {
+                            // Check and fix the endpoint before saving
+                            val endpointToSave = if (!ModelEndPointFix.isValidEndpoint(apiEndpointInput)) {
+                                // Try to fix the endpoint
+                                ModelEndPointFix.fixEndpoint(apiEndpointInput) ?: apiEndpointInput
+                            } else {
+                                apiEndpointInput
+                            }
+                            
+                            // Update the UI if endpoint was fixed
+                            if (endpointToSave != apiEndpointInput) {
+                                apiEndpointInput = endpointToSave
+                            }
+                            
                             apiPreferences.saveAllSettings(
                                 apiKeyInput,
-                                apiEndpointInput,
+                                endpointToSave,  // Use the potentially fixed endpoint
                                 modelNameInput,
                                 showThinkingInput,
                                 memoryOptimizationInput,

@@ -157,67 +157,6 @@ class ApiPreferences(private val context: Context) {
         }
     }
     
-    // Save all settings including show thinking
-    suspend fun saveAllSettings(apiKey: String, endpoint: String, modelName: String, showThinking: Boolean) {
-        context.apiDataStore.edit { preferences ->
-            preferences[API_KEY] = apiKey
-            preferences[API_ENDPOINT] = endpoint
-            preferences[MODEL_NAME] = modelName
-            preferences[SHOW_THINKING] = showThinking
-        }
-    }
-    
-    // Save all settings including show thinking and memory optimization
-    suspend fun saveAllSettings(apiKey: String, endpoint: String, modelName: String, showThinking: Boolean, memoryOptimization: Boolean) {
-        context.apiDataStore.edit { preferences ->
-            preferences[API_KEY] = apiKey
-            preferences[API_ENDPOINT] = endpoint
-            preferences[MODEL_NAME] = modelName
-            preferences[SHOW_THINKING] = showThinking
-            preferences[MEMORY_OPTIMIZATION] = memoryOptimization
-        }
-    }
-    
-    // Save all settings including new FPS counter setting
-    suspend fun saveAllSettings(
-        apiKey: String, 
-        endpoint: String, 
-        modelName: String, 
-        showThinking: Boolean, 
-        memoryOptimization: Boolean,
-        showFpsCounter: Boolean
-    ) {
-        context.apiDataStore.edit { preferences ->
-            preferences[API_KEY] = apiKey
-            preferences[API_ENDPOINT] = endpoint
-            preferences[MODEL_NAME] = modelName
-            preferences[SHOW_THINKING] = showThinking
-            preferences[MEMORY_OPTIMIZATION] = memoryOptimization
-            preferences[SHOW_FPS_COUNTER] = showFpsCounter
-        }
-    }
-    
-    // Update the saveAllSettings method to include the AI planning setting
-    suspend fun saveAllSettings(
-        apiKey: String, 
-        endpoint: String, 
-        modelName: String, 
-        showThinking: Boolean, 
-        memoryOptimization: Boolean,
-        showFpsCounter: Boolean,
-        enableAiPlanning: Boolean
-    ) {
-        context.apiDataStore.edit { preferences ->
-            preferences[API_KEY] = apiKey
-            preferences[API_ENDPOINT] = endpoint
-            preferences[MODEL_NAME] = modelName
-            preferences[SHOW_THINKING] = showThinking
-            preferences[MEMORY_OPTIMIZATION] = memoryOptimization
-            preferences[SHOW_FPS_COUNTER] = showFpsCounter
-            preferences[ENABLE_AI_PLANNING] = enableAiPlanning
-        }
-    }
-    
     // Update the saveAllSettings method to include the Collapse Execution setting
     suspend fun saveAllSettings(
         apiKey: String, 

@@ -52,8 +52,8 @@ data class ADBResultData(val command: String, val output: String, val exitCode: 
 /** 终端命令执行结果数据 */
 @Serializable
 data class TerminalCommandResultData(
-        val command: String, 
-        val output: String, 
+        val command: String,
+        val output: String,
         val exitCode: Int,
         val sessionId: String
 ) : ToolResultData() {
@@ -694,6 +694,55 @@ data class FileFormatConversionsResultData(
             }
         }
 
+        return sb.toString()
+    }
+}
+
+/** 通知数据结构 */
+@Serializable
+data class NotificationData(val notifications: List<Notification>, val timestamp: Long) :
+        ToolResultData() {
+    @Serializable
+    data class Notification(val packageName: String, val text: String, val timestamp: Long)
+
+    override fun toString(): String {
+        val sb = StringBuilder()
+        sb.appendLine("设备通知 (共 ${notifications.size} 条):")
+
+        notifications.forEachIndexed { index, notification ->
+            sb.appendLine("${index + 1}. 应用包名: ${notification.packageName}")
+            sb.appendLine("   内容: ${notification.text}")
+            sb.appendLine()
+        }
+
+        if (notifications.isEmpty()) {
+            sb.appendLine("当前没有通知")
+        }
+
+        return sb.toString()
+    }
+}
+
+/** 位置数据结构 */
+@Serializable
+data class LocationData(
+        val latitude: Double,
+        val longitude: Double,
+        val accuracy: Float,
+        val provider: String,
+        val timestamp: Long,
+        val rawData: String
+) : ToolResultData() {
+    override fun toString(): String {
+        val sb = StringBuilder()
+        sb.appendLine("设备位置信息:")
+        sb.appendLine("经度: $longitude")
+        sb.appendLine("纬度: $latitude")
+        sb.appendLine("精度: $accuracy 米")
+        sb.appendLine("提供者: $provider")
+        sb.appendLine(
+                "获取时间: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(java.util.Date(timestamp))}"
+        )
         return sb.toString()
     }
 }

@@ -52,6 +52,12 @@ fun getJsToolsDefinition(): String {
                 startApp: (packageName, activity) => toolCall("start_app", { package_name: packageName, activity: activity }),
                 stopApp: (packageName) => toolCall("stop_app", { package_name: packageName }),
                 listApps: (includeSystem) => toolCall("list_installed_apps", { include_system: !!includeSystem }),
+                // 获取设备通知
+                getNotifications: (limit = 10, includeOngoing = false) => 
+                    toolCall("get_notifications", { limit: parseInt(limit), include_ongoing: !!includeOngoing }),
+                // 获取设备位置
+                getLocation: (highAccuracy = false, timeout = 10) => 
+                    toolCall("get_device_location", { high_accuracy: !!highAccuracy, timeout: parseInt(timeout) }),
                 adb: (command, timeoutMs) => toolCall("execute_adb", { command: command, timeout_ms: timeoutMs || 15000 
                 }),
                 // 执行终端命令 - 一次性收集输出

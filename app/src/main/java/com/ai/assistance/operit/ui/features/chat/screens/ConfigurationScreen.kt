@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import com.ai.assistance.operit.util.ModelEndPointFix
 
 @Composable
 fun ConfigurationScreen(
@@ -78,6 +79,9 @@ fun ConfigurationScreen(
     var apiKeyInput by remember { mutableStateOf("") }
     var apiEndpointInput by remember { mutableStateOf(apiEndpoint) }
     var modelNameInput by remember { mutableStateOf(modelName) }
+    
+    // 添加标记表示是否显示端点修复提示
+    var showEndpointFixedInfo by remember { mutableStateOf(false) }
 
     // 添加一个标志，用于控制是否允许更新API密钥
     var shouldUpdateApiKey by remember { mutableStateOf(false) }
@@ -138,7 +142,23 @@ fun ConfigurationScreen(
                 value = apiEndpointInput,
                 onValueChange = {
                     apiEndpointInput = it
-                    onApiEndpointChange(it)
+                    
+                    // 检查并尝试自动修复端点格式
+                    if (!ModelEndPointFix.isValidEndpoint(it) && it.isNotBlank()) {
+                        ModelEndPointFix.fixEndpoint(it)?.let { fixed ->
+                            if (fixed != it) {
+                                apiEndpointInput = fixed
+                                showEndpointFixedInfo = true
+                                // 自动隐藏提示
+                                coroutineScope.launch {
+                                    kotlinx.coroutines.delay(3000)
+                                    showEndpointFixedInfo = false
+                                }
+                            }
+                        }
+                    }
+                    
+                    onApiEndpointChange(apiEndpointInput)
                 },
                 label = { Text("API接口地址", fontSize = 13.sp) },
                 placeholder = { Text("必须使用v1/chat/completions", fontSize = 12.sp) },
@@ -164,6 +184,17 @@ fun ConfigurationScreen(
                 singleLine = true,
                 maxLines = 1
             )
+            
+            // 显示端点修复提示
+            if (showEndpointFixedInfo) {
+                Text(
+                    text = "已自动添加必要的 v1/chat/completions 路径",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = 4.dp),
+                    fontSize = 11.sp
+                )
+            }
 
             // API密钥输入框
             OutlinedTextField(
@@ -234,6 +265,25 @@ fun ConfigurationScreen(
             // 保存按钮
             Button(
                 onClick = {
+                    // 在保存前尝试修复API端点
+                    val fixedEndpoint = if (!ModelEndPointFix.isValidEndpoint(apiEndpointInput)) {
+                        ModelEndPointFix.fixEndpoint(apiEndpointInput) ?: apiEndpointInput
+                    } else {
+                        apiEndpointInput
+                    }
+                    
+                    // 更新输入字段以显示修复后的值
+                    if (fixedEndpoint != apiEndpointInput) {
+                        apiEndpointInput = fixedEndpoint
+                        onApiEndpointChange(fixedEndpoint)
+                        showEndpointFixedInfo = true
+                        // 自动隐藏提示
+                        coroutineScope.launch {
+                            kotlinx.coroutines.delay(3000)
+                            showEndpointFixedInfo = false
+                        }
+                    }
+                    
                     if (apiEndpointInput.isNotBlank() &&
                            apiKeyInput.isNotBlank() &&
                            modelNameInput.isNotBlank()

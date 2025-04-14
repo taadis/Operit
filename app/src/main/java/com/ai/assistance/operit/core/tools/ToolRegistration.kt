@@ -5,7 +5,6 @@ import com.ai.assistance.operit.core.tools.defaultTool.ADBToolExecutor
 import com.ai.assistance.operit.core.tools.defaultTool.IntentToolExecutor
 import com.ai.assistance.operit.core.tools.defaultTool.TerminalCommandExecutor
 import com.ai.assistance.operit.data.model.ToolResult
-import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.tools.defaultTool.*
 import com.ai.assistance.operit.ui.permissions.ToolCategory
 
@@ -562,6 +561,37 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             },
             executor = { tool ->
                 kotlinx.coroutines.runBlocking { systemOperationTools.stopApp(tool) }
+            }
+    )
+
+    // 获取设备通知
+    handler.registerTool(
+            name = "get_notifications",
+            category = ToolCategory.SYSTEM_OPERATION,
+            descriptionGenerator = { tool ->
+                val limit = tool.parameters.find { it.name == "limit" }?.value ?: "10"
+                val includeOngoing =
+                        tool.parameters.find { it.name == "include_ongoing" }?.value == "true"
+
+                val description = "获取设备通知 (最多 $limit 条)"
+                if (includeOngoing) "$description，包括常驻通知" else description
+            },
+            executor = { tool ->
+                kotlinx.coroutines.runBlocking { systemOperationTools.getNotifications(tool) }
+            }
+    )
+
+    // 获取设备位置
+    handler.registerTool(
+            name = "get_device_location",
+            category = ToolCategory.SYSTEM_OPERATION,
+            descriptionGenerator = { tool ->
+                val highAccuracy =
+                        tool.parameters.find { it.name == "high_accuracy" }?.value == "true"
+                if (highAccuracy) "获取设备位置 (高精度)" else "获取设备位置"
+            },
+            executor = { tool ->
+                kotlinx.coroutines.runBlocking { systemOperationTools.getDeviceLocation(tool) }
             }
     )
 

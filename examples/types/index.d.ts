@@ -322,6 +322,45 @@ interface AppListData {
     toString(): string;
 }
 
+/**
+ * Notification data structure
+ */
+interface NotificationData {
+    /** List of notification objects */
+    notifications: Array<{
+        /** The package name of the application that posted the notification */
+        packageName: string;
+        /** The text content of the notification */
+        text: string;
+        /** Timestamp when the notification was captured */
+        timestamp: number;
+    }>;
+    /** Timestamp when the notifications were retrieved */
+    timestamp: number;
+    /** Returns a formatted string representation of the notifications */
+    toString(): string;
+}
+
+/**
+ * Location data structure
+ */
+interface LocationData {
+    /** Latitude coordinate in decimal degrees */
+    latitude: number;
+    /** Longitude coordinate in decimal degrees */
+    longitude: number;
+    /** Accuracy of the location in meters */
+    accuracy: number;
+    /** Location provider (e.g., "gps", "network", etc.) */
+    provider: string;
+    /** Timestamp when the location was retrieved */
+    timestamp: number;
+    /** Raw location data from the system */
+    rawData: string;
+    /** Returns a formatted string representation of the location */
+    toString(): string;
+}
+
 // ============================================================================
 // UI Types
 // ============================================================================
@@ -517,7 +556,7 @@ type ToolResult = StringResult | BooleanResult | NumberResult |
     SystemSettingResult | AppOperationResult | AppListData |
     UIPageResult | UIActionResult | CombinedOperationResult | DeviceInfoResult |
     FileConversionResult | FileFormatConversionsResult | ADBResult | IntentResult |
-    TerminalCommandResult |
+    TerminalCommandResult | NotificationData | LocationData |
     (BaseResult & { data: any });
 
 // ============================================================================
@@ -542,7 +581,8 @@ type NetToolName = 'http_request' | 'web_search' | 'fetch_web_page';
  */
 type SystemToolName = 'sleep' | 'get_system_setting' | 'modify_system_setting' |
     'install_app' | 'uninstall_app' | 'list_installed_apps' | 'start_app' | 'stop_app' |
-    'device_info' | 'execute_adb' | 'execute_intent' | 'execute_terminal';
+    'device_info' | 'execute_adb' | 'execute_intent' | 'execute_terminal' |
+    'get_notifications' | 'get_device_location';
 
 /**
  * UI tool names
@@ -723,6 +763,8 @@ interface ToolResultMap {
     'start_app': AppOperationData;
     'stop_app': AppOperationData;
     'device_info': DeviceInfoResultData;
+    'get_notifications': NotificationData;
+    'get_device_location': LocationData;
 
     // UI operations
     'get_page_info': UIPageResultData;
@@ -987,6 +1029,22 @@ declare namespace Tools {
          * @param activity - Optional specific activity to launch
          */
         function startApp(packageName: string, activity?: string): Promise<AppOperationData>;
+
+        /**
+         * Get device notifications
+         * @param limit - Maximum number of notifications to return (default: 10)
+         * @param includeOngoing - Whether to include ongoing notifications (default: false)
+         * @returns Promise resolving to notification data
+         */
+        function getNotifications(limit?: number, includeOngoing?: boolean): Promise<NotificationData>;
+
+        /**
+         * Get device location
+         * @param highAccuracy - Whether to use high accuracy mode (default: false)
+         * @param timeout - Timeout in seconds (default: 10)
+         * @returns Promise resolving to location data
+         */
+        function getLocation(highAccuracy?: boolean, timeout?: number): Promise<LocationData>;
 
         /**
          * Execute an ADB command (requires root access)

@@ -69,18 +69,24 @@ class MainActivity : ComponentActivity() {
                         Manifest.permission.READ_MEDIA_VIDEO,
                         Manifest.permission.READ_MEDIA_AUDIO,
                         Manifest.permission.POST_NOTIFICATIONS,
-                        Manifest.permission.QUERY_ALL_PACKAGES
+                        Manifest.permission.QUERY_ALL_PACKAGES,
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
                 )
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 arrayOf(
                         Manifest.permission.READ_EXTERNAL_STORAGE,
                         Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                        Manifest.permission.QUERY_ALL_PACKAGES
+                        Manifest.permission.QUERY_ALL_PACKAGES,
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
                 )
             } else {
                 arrayOf(
                         Manifest.permission.READ_EXTERNAL_STORAGE,
-                        Manifest.permission.WRITE_EXTERNAL_STORAGE
+                        Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
                 )
             }
 
