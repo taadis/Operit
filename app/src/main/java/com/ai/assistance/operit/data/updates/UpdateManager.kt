@@ -29,6 +29,7 @@ sealed class UpdateStatus {
             val downloadUrl: String = "" // 添加下载URL
     ) : UpdateStatus()
     data class Downloading(val progress: Float) : UpdateStatus() // 添加下载进度状态
+    object DownloadComplete : UpdateStatus() // 新增下载完成状态
     object UpToDate : UpdateStatus()
     data class Error(val message: String) : UpdateStatus()
 }
@@ -127,11 +128,15 @@ class UpdateManager private constructor(private val context: Context) {
                                         if (uriColumnIndex != -1) {
                                             val uriString = cursor.getString(uriColumnIndex)
                                             uri = Uri.parse(uriString)
+                                            // 更改状态为下载完成
+                                            _updateStatus.postValue(UpdateStatus.DownloadComplete)
+                                            Log.d(TAG, "Download completed, URI: $uri")
                                         }
                                     } else {
                                         _updateStatus.postValue(
                                                 UpdateStatus.Error("下载失败，状态码: $status")
                                         )
+                                        Log.e(TAG, "Download failed with status: $status")
                                     }
                                 }
                             }
@@ -324,15 +329,30 @@ class UpdateManager private constructor(private val context: Context) {
                                         if (bytesTotal > 0) {
                                             val progress =
                                                     bytesDownloaded.toFloat() / bytesTotal.toFloat()
+                                            // 确保进度不会超过1.0且当接近完成时不会卡在99%
+                                            val adjustedProgress =
+                                                    when {
+                                                        progress >= 0.99f && progress < 1f ->
+                                                                0.99f // 接近完成但未完成时保持在99%
+                                                        progress > 1f -> 1f // 确保不超过1.0
+                                                        else -> progress
+                                                    }
                                             _updateStatus.postValue(
-                                                    UpdateStatus.Downloading(progress)
+                                                    UpdateStatus.Downloading(adjustedProgress)
                                             )
                                         }
                                     }
                                 }
-                                DownloadManager.STATUS_SUCCESSFUL,
+                                DownloadManager.STATUS_SUCCESSFUL -> {
+                                    // 下载完成，设置进度为100%
+                                    _updateStatus.postValue(UpdateStatus.Downloading(1f))
+                                    downloading = false
+                                    // 给UI一点时间显示100%后，广播接收器会处理后续流程
+                                    kotlinx.coroutines.delay(500)
+                                }
                                 DownloadManager.STATUS_FAILED -> {
                                     downloading = false
+                                    _updateStatus.postValue(UpdateStatus.Error("下载失败"))
                                 }
                             }
                         }

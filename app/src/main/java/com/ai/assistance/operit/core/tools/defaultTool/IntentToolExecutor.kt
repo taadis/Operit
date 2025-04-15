@@ -10,6 +10,8 @@ import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.data.model.ToolValidationResult
 import com.ai.assistance.operit.tools.IntentResultData
 import com.ai.assistance.operit.tools.StringResultData
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -21,22 +23,22 @@ class IntentToolExecutor(private val context: Context) {
 
     companion object {
         private const val TAG = "IntentToolExecutor"
-        
+
         // Intent execution types
         const val TYPE_ACTIVITY = "activity"
         const val TYPE_BROADCAST = "broadcast"
         const val TYPE_SERVICE = "service"
     }
 
-    fun invoke(tool: AITool): ToolResult {
+    suspend fun invoke(tool: AITool): ToolResult {
         // Validate parameters
         val validationResult = validateParameters(tool)
         if (!validationResult.valid) {
             return ToolResult(
-                toolName = tool.name,
-                success = false,
-                result = StringResultData(""),
-                error = validationResult.errorMessage
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = validationResult.errorMessage
             )
         }
 
@@ -121,20 +123,18 @@ class IntentToolExecutor(private val context: Context) {
                                         when (firstItem) {
                                             is String -> {
                                                 val stringArray =
-                                                    Array(value.length()) { i ->
-                                                        value.getString(i)
-                                                    }
+                                                        Array(value.length()) { i ->
+                                                            value.getString(i)
+                                                        }
                                                 intent.putExtra(key, stringArray)
                                             }
-
                                             is Int -> {
                                                 val intArray =
-                                                    IntArray(value.length()) { i ->
-                                                        value.getInt(i)
-                                                    }
+                                                        IntArray(value.length()) { i ->
+                                                            value.getInt(i)
+                                                        }
                                                 intent.putExtra(key, intArray)
                                             }
-
                                             else -> {
                                                 // Convert to string if type is unsupported
                                                 intent.putExtra(key, value.toString())
@@ -156,44 +156,51 @@ class IntentToolExecutor(private val context: Context) {
             // Check if intent is valid
             if (intent.action == null && componentName.isNullOrBlank()) {
                 return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "Intent must have either an action or component specified"
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "Intent must have either an action or component specified"
                 )
             }
 
             // Add FLAG_ACTIVITY_NEW_TASK for safety if not already set when starting activity
             // This is needed when starting activities from non-activity contexts
-            if (type == TYPE_ACTIVITY && 
-                intent.flags and Intent.FLAG_ACTIVITY_NEW_TASK == 0
-            ) {
+            if (type == TYPE_ACTIVITY && intent.flags and Intent.FLAG_ACTIVITY_NEW_TASK == 0) {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
 
-            // Execute the intent based on the requested type
+            // Execute the intent based on the requested type using withContext to ensure main
+            // thread execution
             try {
-                val result = when (type) {
-                    TYPE_BROADCAST -> {
-                        context.sendBroadcast(intent)
-                        "Broadcast sent successfully"
-                    }
-                    TYPE_SERVICE -> {
-                        if (componentName.isNullOrBlank()) {
-                            return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result = StringResultData(""),
-                                error = "Component must be specified when starting a service"
-                            )
+                val result =
+                        withContext(Dispatchers.Main) {
+                            when (type) {
+                                TYPE_BROADCAST -> {
+                                    context.sendBroadcast(intent)
+                                    "Broadcast sent successfully"
+                                }
+                                TYPE_SERVICE -> {
+                                    if (componentName.isNullOrBlank()) {
+                                        return@withContext "ERROR: Component must be specified when starting a service"
+                                    }
+                                    context.startService(intent)
+                                    "Service started successfully"
+                                }
+                                else -> { // Default to activity
+                                    context.startActivity(intent)
+                                    "Activity started successfully"
+                                }
+                            }
                         }
-                        context.startService(intent)
-                        "Service started successfully"
-                    }
-                    else -> { // Default to activity
-                        context.startActivity(intent)
-                        "Activity started successfully"
-                    }
+
+                // Handle error from service component check
+                if (result.startsWith("ERROR:")) {
+                    return ToolResult(
+                            toolName = tool.name,
+                            success = false,
+                            result = StringResultData(""),
+                            error = result.substring(7) // Remove "ERROR: " prefix
+                    )
                 }
 
                 // Bundle up the intent details for the response
@@ -201,33 +208,34 @@ class IntentToolExecutor(private val context: Context) {
                 intent.extras?.let { extras.putAll(it) }
 
                 return ToolResult(
-                    toolName = tool.name,
-                    success = true,
-                    result = IntentResultData(
-                        action = intent.action ?: "null",
-                        uri = intent.data?.toString() ?: "null",
-                        package_name = intent.`package` ?: "null",
-                        component = intent.component?.flattenToString() ?: "null",
-                        flags = intent.flags,
-                        extras_count = extras.size(),
-                        result = result
-                    )
+                        toolName = tool.name,
+                        success = true,
+                        result =
+                                IntentResultData(
+                                        action = intent.action ?: "null",
+                                        uri = intent.data?.toString() ?: "null",
+                                        package_name = intent.`package` ?: "null",
+                                        component = intent.component?.flattenToString() ?: "null",
+                                        flags = intent.flags,
+                                        extras_count = extras.size(),
+                                        result = result
+                                )
                 )
             } catch (e: Exception) {
                 return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "Intent execution failed: ${e.message}"
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "Intent execution failed: ${e.message}"
                 )
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error executing Intent", e)
             ToolResult(
-                toolName = tool.name,
-                success = false,
-                result = StringResultData(""),
-                error = "Intent execution failed: ${e.message}"
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Intent execution failed: ${e.message}"
             )
         }
     }
@@ -240,27 +248,28 @@ class IntentToolExecutor(private val context: Context) {
 
         if (action.isNullOrBlank() && component.isNullOrBlank()) {
             return ToolValidationResult(
-                valid = false,
-                errorMessage = "Either action or component parameter is required"
+                    valid = false,
+                    errorMessage = "Either action or component parameter is required"
             )
         }
 
         // Validate type parameter if provided
-        if (!type.isNullOrBlank() && 
-            type != TYPE_ACTIVITY && 
-            type != TYPE_BROADCAST && 
-            type != TYPE_SERVICE) {
+        if (!type.isNullOrBlank() &&
+                        type != TYPE_ACTIVITY &&
+                        type != TYPE_BROADCAST &&
+                        type != TYPE_SERVICE
+        ) {
             return ToolValidationResult(
-                valid = false,
-                errorMessage = "Type must be one of: activity, broadcast, service"
+                    valid = false,
+                    errorMessage = "Type must be one of: activity, broadcast, service"
             )
         }
 
         // If type is service, component must be provided
         if (type == TYPE_SERVICE && component.isNullOrBlank()) {
             return ToolValidationResult(
-                valid = false,
-                errorMessage = "Component parameter is required when type is 'service'"
+                    valid = false,
+                    errorMessage = "Component parameter is required when type is 'service'"
             )
         }
 

@@ -163,7 +163,7 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             },
             executor = { tool ->
                 val intentTool = IntentToolExecutor(context)
-                intentTool.invoke(tool)
+                kotlinx.coroutines.runBlocking { intentTool.invoke(tool) }
             }
     )
 

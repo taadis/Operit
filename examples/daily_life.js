@@ -65,7 +65,7 @@ METADATA
                     "name": "message",
                     "description": "闹钟标签",
                     "type": "string",
-                    "required": false
+                    "required": true
                 },
                 {
                     "name": "days",
@@ -341,12 +341,21 @@ const dailyLife = (function () {
                 params.minute = Number(params.minute);
             }
             if (params.days) {
-                params.days = params.days.map(day => {
-                    if (typeof day === 'string') {
-                        return Number(day);
-                    }
-                    return day;
-                });
+                if (typeof params.days === 'string') {
+                    params.days = JSON.parse(params.days);
+                }
+                if (Array.isArray(params.days)) {
+                    params.days = params.days.map(day => {
+                        if (typeof day === 'string') {
+                            return Number(day);
+                        }
+                        return day;
+                    });
+                }
+                else {
+                    console.error("Invalid days format");
+                    params.days = [];
+                }
             }
             if (params.hour < 0 || params.hour > 23) {
                 throw new Error("Hour must be between 0 and 23");
@@ -354,7 +363,7 @@ const dailyLife = (function () {
             if (params.minute < 0 || params.minute > 59) {
                 throw new Error("Minute must be between 0 and 59");
             }
-            console.log("设置闹钟...");
+            console.log("设置闹钟..." + params.hour + ":" + params.minute);
             console.log("尝试使用隐式Intent设置闹钟...");
             // 创建Intent - 使用Android的标准闹钟Intent Action
             const intent = new Intent("android.intent.action.SET_ALARM");
@@ -362,10 +371,8 @@ const dailyLife = (function () {
             // 设置闹钟详情 - 使用正确的参数名称
             intent.putExtra("android.intent.extra.alarm.HOUR", params.hour);
             intent.putExtra("android.intent.extra.alarm.MINUTES", params.minute);
-            // 添加标签（如果提供）
-            if (params.message) {
-                intent.putExtra("android.intent.extra.alarm.MESSAGE", params.message);
-            }
+            // 添加标签
+            intent.putExtra("android.intent.extra.alarm.MESSAGE", params.message);
             // 设置重复日期（如果提供）
             if (params.days && params.days.length > 0) {
                 intent.putExtra("android.intent.extra.alarm.DAYS", params.days);
@@ -564,8 +571,8 @@ const dailyLife = (function () {
                 const hour = now.getHours();
                 const minute = (now.getMinutes() + 5) % 60;
                 const alarmResult = await set_alarm({
-                    hour: hour,
-                    minute: minute,
+                    hour: hour.toString(),
+                    minute: minute.toString(),
                     message: "测试闹钟",
                     // 可以添加重复日期测试，例如每周一和周五
                     // days: [2, 6]  // 2表示周一，6表示周五

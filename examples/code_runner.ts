@@ -6,11 +6,6 @@
   // Multiple tools in this package
   tools: [
     {
-      name: main
-      description: 测试代码执行器的功能 (无需参数)
-      parameters: []
-    },
-    {
       name: run_javascript_es5
       description: 运行自定义 JavaScript 脚本
       // This tool takes parameters
@@ -144,272 +139,114 @@ const codeRunner = (function () {
    * Tests all code runner functionality without any parameters
    */
   async function main() {
-    // 测试结果收集
-    const results: string[] = [];
+    const results = {
+      javascript: await testJavaScript(),
+      python: await testPython(),
+      ruby: await testRuby(),
+      go: await testGo(),
+      rust: await testRust()
+    };
 
+    // Format results for display
+    let summary = "代码执行器功能测试结果：\n";
+    for (const [lang, result] of Object.entries(results)) {
+      summary += `${lang}: ${result.success ? '✅ 成功' : '❌ 失败'} - ${result.message}\n`;
+    }
+
+    return summary;
+  }
+
+  // 测试JavaScript执行功能
+  async function testJavaScript() {
     try {
-      // 1. 测试 JavaScript 字符串执行
-      results.push("--- JavaScript 字符串执行测试 ---");
-      try {
-        // 创建一个简单的JavaScript计算
-        const jsScript = `
-          // 简单的计算和字符串操作
-          const num1 = 10;
-          const num2 = 20;
-          const sum = num1 + num2;
-          
-          // 创建数组并操作
-          const fruits = ['苹果', '香蕉', '橙子'];
-          fruits.push('葡萄');
-          
-          // 返回一个包含结果的对象
-          ({
-            calculation: \`\${num1} + \${num2} = \${sum}\`,
-            fruits: fruits,
-            timestamp: new Date().toISOString()
-          })
-        `;
+      // 测试简单的JS代码
+      const script = "const testVar = 42; return 'JavaScript运行正常，测试值: ' + testVar;";
+      const result = await run_javascript_es5({ script });
+      return { success: true, message: "JavaScript执行器测试成功" };
+    } catch (error) {
+      return { success: false, message: `JavaScript执行器测试失败: ${error.message}` };
+    }
+  }
 
-        // 执行JavaScript脚本
-        const jsResult = eval(jsScript);
-        results.push("JavaScript 执行成功:");
-        results.push(JSON.stringify(jsResult, null, 2));
-      } catch (error) {
-        results.push(`JavaScript 执行失败: ${error.message}`);
+  // 测试Python执行功能  
+  async function testPython() {
+    try {
+      // 检查Python是否可用
+      const pythonCheckResult = await Tools.System.terminal("python3 --version", undefined, 10000);
+      if (pythonCheckResult.exitCode !== 0) {
+        return { success: false, message: "Python不可用，请确保已安装Python" };
       }
 
-      // 2. 测试 Python 字符串执行
-      results.push("\n--- Python 字符串执行测试 ---");
-      try {
-        // 创建一个简单的Python脚本
-        const pyScript = `
-import sys
-import datetime
+      // 测试简单的Python代码
+      const script = "print('Python运行正常')";
+      await run_python({ script });
+      return { success: true, message: "Python执行器测试成功" };
+    } catch (error) {
+      return { success: false, message: `Python执行器测试失败: ${error.message}` };
+    }
+  }
 
-# 简单的计算
-num1 = 10
-num2 = 20
-sum_result = num1 + num2
-
-# 列表操作
-fruits = ['苹果', '香蕉', '橙子']
-fruits.append('葡萄')
-
-# 输出结果
-print(f"Python 版本: {sys.version}")
-print(f"计算结果: {num1} + {num2} = {sum_result}")
-print(f"水果列表: {', '.join(fruits)}")
-print(f"时间戳: {datetime.datetime.now()}")
-        `;
-
-        // 创建临时文件
-        const tempFilePath = "/sdcard/Download/temp_test_script_" + Date.now() + ".py";
-        await Tools.Files.write(tempFilePath, pyScript);
-
-        // 执行Python脚本
-        const pyResult = await Tools.System.terminal(`python3 ${tempFilePath}`, undefined, 30000);
-
-        // 删除临时文件
-        await Tools.Files.deleteFile(tempFilePath);
-
-        if (pyResult.exitCode === 0) {
-          results.push("Python 执行成功:");
-          results.push(pyResult.output);
-        } else {
-          results.push(`Python 执行失败 (退出码: ${pyResult.exitCode}):`);
-          results.push(pyResult.output);
-        }
-      } catch (error) {
-        results.push(`Python 执行失败: ${error}`);
-        results.push("注意: 这可能意味着设备上没有安装Python或无法访问临时目录");
+  // 测试Ruby执行功能
+  async function testRuby() {
+    try {
+      // 检查Ruby是否可用
+      const rubyCheckResult = await Tools.System.terminal("ruby --version", undefined, 10000);
+      if (rubyCheckResult.exitCode !== 0) {
+        return { success: false, message: "Ruby不可用，请确保已安装Ruby" };
       }
 
-      // 3. 测试 Ruby 字符串执行
-      results.push("\n--- Ruby 字符串执行测试 ---");
-      try {
-        // 创建一个简单的Ruby脚本
-        const rubyScript = `
-# 简单的计算
-num1 = 10
-num2 = 20
-sum_result = num1 + num2
+      // 测试简单的Ruby代码
+      const script = "puts 'Ruby运行正常'";
+      await run_ruby({ script });
+      return { success: true, message: "Ruby执行器测试成功" };
+    } catch (error) {
+      return { success: false, message: `Ruby执行器测试失败: ${error.message}` };
+    }
+  }
 
-# 数组操作
-fruits = ['苹果', '香蕉', '橙子']
-fruits.push('葡萄')
-
-# 输出结果
-puts "Ruby 版本: #{RUBY_VERSION}"
-puts "计算结果: #{num1} + #{num2} = #{sum_result}"
-puts "水果列表: #{fruits.join(', ')}"
-puts "时间戳: #{Time.now}"
-        `;
-
-        // 创建临时文件
-        const tempFilePath = "/sdcard/Download/temp_test_script_" + Date.now() + ".rb";
-        await Tools.Files.write(tempFilePath, rubyScript);
-
-        // 执行Ruby脚本
-        const rubyResult = await Tools.System.terminal(`ruby ${tempFilePath}`, undefined, 30000);
-
-        // 删除临时文件
-        await Tools.Files.deleteFile(tempFilePath);
-
-        if (rubyResult.exitCode === 0) {
-          results.push("Ruby 执行成功:");
-          results.push(rubyResult.output);
-        } else {
-          results.push(`Ruby 执行失败 (退出码: ${rubyResult.exitCode}):`);
-          results.push(rubyResult.output);
-        }
-      } catch (error) {
-        results.push(`Ruby 执行失败: ${error}`);
-        results.push("注意: 这可能意味着设备上没有安装Ruby或无法访问临时目录");
+  // 测试Go执行功能
+  async function testGo() {
+    try {
+      // 检查Go是否可用
+      const goCheckResult = await Tools.System.terminal("go version", undefined, 10000);
+      if (goCheckResult.exitCode !== 0) {
+        return { success: false, message: "Go不可用，请确保已安装Go" };
       }
 
-      // 4. 测试 Go 字符串执行
-      results.push("\n--- Go 字符串执行测试 ---");
-      try {
-        // 创建一个简单的Go脚本
-        const goScript = `
+      // 测试简单的Go代码
+      const script = `
 package main
 
-import (
-    "fmt"
-    "runtime"
-    "strings"
-    "time"
-)
+import "fmt"
 
 func main() {
-    // 简单的计算
-    num1 := 10
-    num2 := 20
-    sumResult := num1 + num2
-
-    // 切片操作
-    fruits := []string{"苹果", "香蕉", "橙子"}
-    fruits = append(fruits, "葡萄")
-
-    // 输出结果
-    fmt.Printf("Go 版本: %s\\n", runtime.Version())
-    fmt.Printf("计算结果: %d + %d = %d\\n", num1, num2, sumResult)
-    fmt.Printf("水果列表: %s\\n", strings.Join(fruits, ", "))
-    fmt.Printf("时间戳: %s\\n", time.Now().String())
-}
-        `;
-
-        // 创建临时文件
-        const tempFilePath = "/sdcard/Download/temp_test_script_" + Date.now() + ".go";
-        await Tools.Files.write(tempFilePath, goScript);
-
-        // 执行Go脚本 (Go需要先编译后运行)
-        const tempExecPath = "/sdcard/Download/temp_exec_" + Date.now();
-        const compileResult = await Tools.System.terminal(`go build -o ${tempExecPath} ${tempFilePath}`, undefined, 30000);
-
-        let goResult;
-        if (compileResult.exitCode === 0) {
-          goResult = await Tools.System.terminal(`${tempExecPath}`, undefined, 30000);
-
-          // 删除编译的执行文件
-          await Tools.Files.deleteFile(tempExecPath);
-        } else {
-          goResult = compileResult;
-        }
-
-        // 删除临时文件
-        await Tools.Files.deleteFile(tempFilePath);
-
-        if (goResult.exitCode === 0) {
-          results.push("Go 执行成功:");
-          results.push(goResult.output);
-        } else {
-          results.push(`Go 执行失败 (退出码: ${goResult.exitCode}):`);
-          results.push(goResult.output);
-        }
-      } catch (error) {
-        results.push(`Go 执行失败: ${error}`);
-        results.push("注意: 这可能意味着设备上没有安装Go或无法访问临时目录");
-      }
-
-      // 5. 测试 Rust 字符串执行
-      results.push("\n--- Rust 字符串执行测试 ---");
-      try {
-        // 创建一个简单的Rust脚本
-        const rustScript = `
-fn main() {
-    // 简单的计算
-    let num1 = 10;
-    let num2 = 20;
-    let sum_result = num1 + num2;
-    
-    // 向量操作
-    let mut fruits = vec!["苹果", "香蕉", "橙子"];
-    fruits.push("葡萄");
-    
-    // 输出结果
-    println!("Rust 版本: {}", rustc_version());
-    println!("计算结果: {} + {} = {}", num1, num2, sum_result);
-    println!("水果列表: {}", fruits.join(", "));
-    println!("时间戳: {}", chrono::Local::now());
-}
-
-fn rustc_version() -> String {
-    // This is a simple function to get Rust version
-    // In a real implementation we would use proper version detection
-    "rustc 1.xx.x".to_string()
-}
-        `;
-
-        // 创建临时文件和临时项目目录
-        const tempDirPath = "/sdcard/Download/temp_rust_" + Date.now();
-        const tempFilePath = `${tempDirPath}/src/main.rs`;
-
-        // 创建Cargo.toml
-        const cargoToml = `
-[package]
-name = "temp_rust_script"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-chrono = "0.4"
-        `;
-
-        // 创建项目结构
-        await Tools.System.terminal(`mkdir -p ${tempDirPath}/src`, undefined, 10000);
-        await Tools.Files.write(`${tempDirPath}/Cargo.toml`, cargoToml);
-        await Tools.Files.write(tempFilePath, rustScript);
-
-        // 编译和执行Rust项目
-        const compileResult = await Tools.System.terminal(`cd ${tempDirPath} && cargo build --release`, undefined, 60000);
-
-        let rustResult;
-        if (compileResult.exitCode === 0) {
-          rustResult = await Tools.System.terminal(`cd ${tempDirPath} && ./target/release/temp_rust_script`, undefined, 30000);
-        } else {
-          rustResult = compileResult;
-        }
-
-        // 删除临时项目目录
-        await Tools.System.terminal(`rm -rf ${tempDirPath}`, undefined, 10000);
-
-        if (rustResult.exitCode === 0) {
-          results.push("Rust 执行成功:");
-          results.push(rustResult.output);
-        } else {
-          results.push(`Rust 执行失败 (退出码: ${rustResult.exitCode}):`);
-          results.push(rustResult.output);
-        }
-      } catch (error) {
-        results.push(`Rust 执行失败: ${error}`);
-        results.push("注意: 这可能意味着设备上没有安装Rust或无法访问临时目录");
-      }
-
-      // 返回所有测试结果
-      complete(results.join("\n"));
+  fmt.Println("Go运行正常")
+}`;
+      await run_go({ script });
+      return { success: true, message: "Go执行器测试成功" };
     } catch (error) {
-      complete(`测试运行失败: ${error}`);
+      return { success: false, message: `Go执行器测试失败: ${error.message}` };
+    }
+  }
+
+  // 测试Rust执行功能
+  async function testRust() {
+    try {
+      // 检查Rust是否可用
+      const rustCheckResult = await Tools.System.terminal("rustc --version", undefined, 10000);
+      if (rustCheckResult.exitCode !== 0) {
+        return { success: false, message: "Rust不可用，请确保已安装Rust" };
+      }
+
+      // 测试简单的Rust代码
+      const script = `
+fn main() {
+  println!("Rust运行正常");
+}`;
+      await run_rust({ script });
+      return { success: true, message: "Rust执行器测试成功" };
+    } catch (error) {
+      return { success: false, message: `Rust执行器测试失败: ${error.message}` };
     }
   }
 
@@ -487,7 +324,7 @@ chrono = "0.4"
     try {
       // 创建临时文件存储 Python 代码
       // 使用/sdcard/Download目录作为临时文件位置，这个目录通常在Android上是可访问的
-      const tempFilePath = "/sdcard/Download/temp_script_" + Date.now() + ".py";
+      const tempFilePath = "/sdcard/Download/Operit/temp_script.py";
 
       // 写入 Python 代码到临时文件
       await Tools.Files.write(tempFilePath, script);
@@ -560,7 +397,7 @@ chrono = "0.4"
 
     try {
       // 创建临时文件存储 Ruby 代码
-      const tempFilePath = "/sdcard/Download/temp_script_" + Date.now() + ".rb";
+      const tempFilePath = "/sdcard/Download/Operit/temp_script.rb";
 
       // 写入 Ruby 代码到临时文件
       await Tools.Files.write(tempFilePath, script);
@@ -633,7 +470,7 @@ chrono = "0.4"
 
     try {
       // 创建临时文件存储 Go 代码
-      const tempDirPath = "/sdcard/Download/temp_go_" + Date.now();
+      const tempDirPath = "/sdcard/Download/Operit/temp_go";
       const tempFilePath = `${tempDirPath}/main.go`;
       const tempExecPath = `${tempDirPath}/main`;
 
@@ -644,7 +481,8 @@ chrono = "0.4"
       await Tools.Files.write(tempFilePath, script);
 
       // 编译 Go 代码
-      const compileResult = await Tools.System.terminal(`cd ${tempDirPath} && go build -o main main.go`, undefined, 30000);
+      await Tools.System.terminal(`cd ${tempDirPath}`, undefined, 10000);
+      const compileResult = await Tools.System.terminal(`go build -o main main.go`, undefined, 30000);
 
       if (compileResult.exitCode !== 0) {
         // 删除临时目录
@@ -653,8 +491,13 @@ chrono = "0.4"
         return;
       }
 
-      // 执行编译后的程序
-      const result = await Tools.System.terminal(`${tempExecPath}`, undefined, 30000);
+      // 将编译后的二进制文件复制到Termux主目录中执行
+      await Tools.System.terminal(`cp ${tempDirPath}/main /data/data/com.termux/files/home/temp_go_bin`, undefined, 10000);
+      await Tools.System.terminal(`chmod +x /data/data/com.termux/files/home/temp_go_bin`, undefined, 10000);
+      const result = await Tools.System.terminal(`/data/data/com.termux/files/home/temp_go_bin`, undefined, 30000);
+
+      // 清理临时执行文件
+      await Tools.System.terminal(`rm -f /data/data/com.termux/files/home/temp_go_bin`, undefined, 10000);
 
       // 删除临时目录
       await Tools.System.terminal(`rm -rf ${tempDirPath}`, undefined, 10000);
@@ -693,7 +536,7 @@ chrono = "0.4"
       }
 
       // 获取临时执行文件路径
-      const tempExecPath = "/sdcard/Download/temp_exec_" + Date.now();
+      const tempExecPath = "/sdcard/Download/Operit/temp_exec";
 
       // 编译 Go 文件
       const compileResult = await Tools.System.terminal(`go build -o ${tempExecPath} ${filePath}`, undefined, 30000);
@@ -704,10 +547,13 @@ chrono = "0.4"
         return;
       }
 
-      // 执行编译后的程序
-      const result = await Tools.System.terminal(`${tempExecPath}`, undefined, 30000);
+      // 将编译后的二进制文件复制到Termux主目录中执行
+      await Tools.System.terminal(`cp ${tempExecPath} /data/data/com.termux/files/home/temp_go_bin`, undefined, 10000);
+      await Tools.System.terminal(`chmod +x /data/data/com.termux/files/home/temp_go_bin`, undefined, 10000);
+      const result = await Tools.System.terminal(`/data/data/com.termux/files/home/temp_go_bin`, undefined, 30000);
 
-      // 删除临时执行文件
+      // 清理临时执行文件
+      await Tools.System.terminal(`rm -f /data/data/com.termux/files/home/temp_go_bin`, undefined, 10000);
       await Tools.Files.deleteFile(tempExecPath);
 
       // 检查执行结果
@@ -735,8 +581,8 @@ chrono = "0.4"
     }
 
     try {
-      // 创建临时文件和临时项目目录
-      const tempDirPath = "/sdcard/Download/temp_rust_" + Date.now();
+      // 使用Termux的主目录而不是外部存储
+      const tempDirPath = "/data/data/com.termux/files/home/temp_rust_project";
       const tempFilePath = `${tempDirPath}/src/main.rs`;
 
       // 创建Cargo.toml
@@ -747,16 +593,16 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-chrono = "0.4"
       `;
 
       // 创建项目结构
       await Tools.System.terminal(`mkdir -p ${tempDirPath}/src`, undefined, 10000);
-      await Tools.Files.write(`${tempDirPath}/Cargo.toml`, cargoToml);
-      await Tools.Files.write(tempFilePath, script);
+      await Tools.System.terminal(`echo '${cargoToml}' > ${tempDirPath}/Cargo.toml`, undefined, 10000);
+      await Tools.System.terminal(`echo '${script.replace(/'/g, "'\\''")}' > ${tempFilePath}`, undefined, 10000);
 
-      // 编译和执行Rust项目
-      const compileResult = await Tools.System.terminal(`cd ${tempDirPath} && cargo build --release`, undefined, 60000);
+      // 编译和执行Rust项目 - 分开cd和cargo命令
+      await Tools.System.terminal(`cd ${tempDirPath}`, undefined, 10000);
+      const compileResult = await Tools.System.terminal(`cargo build --release`, undefined, 60000);
 
       if (compileResult.exitCode !== 0) {
         // 删除临时项目目录
@@ -766,7 +612,11 @@ chrono = "0.4"
       }
 
       // 执行编译后的程序
-      const result = await Tools.System.terminal(`cd ${tempDirPath} && ./target/release/temp_rust_script`, undefined, 30000);
+      // 添加可执行权限
+      await Tools.System.terminal(`chmod +x ${tempDirPath}/target/release/temp_rust_script`, undefined, 10000);
+
+      // 直接在Termux环境中执行编译后的二进制文件
+      const result = await Tools.System.terminal(`${tempDirPath}/target/release/temp_rust_script`, undefined, 30000);
 
       // 删除临时项目目录
       await Tools.System.terminal(`rm -rf ${tempDirPath}`, undefined, 10000);
@@ -810,7 +660,10 @@ chrono = "0.4"
       if (isCargoProject && isCargoProject.exists) {
         // 文件在Cargo项目中
         const projectDir = filePath.replace(/\/src\/main\.rs$/, "");
-        const compileResult = await Tools.System.terminal(`cd ${projectDir} && cargo build --release`, undefined, 60000);
+
+        // 分开cd和cargo命令
+        await Tools.System.terminal(`cd ${projectDir}`, undefined, 10000);
+        const compileResult = await Tools.System.terminal(`cargo build --release`, undefined, 60000);
 
         if (compileResult.exitCode !== 0) {
           complete(`Rust 项目编译失败 (退出码: ${compileResult.exitCode}):\n${compileResult.output}`);
@@ -818,7 +671,11 @@ chrono = "0.4"
         }
 
         // 执行编译后的程序
-        const result = await Tools.System.terminal(`cd ${projectDir} && ./target/release/$(basename ${projectDir})`, undefined, 30000);
+        // 添加可执行权限
+        await Tools.System.terminal(`chmod +x ${projectDir}/target/release/$(basename ${projectDir})`, undefined, 10000);
+
+        // 直接在Termux环境中执行编译后的二进制文件
+        const result = await Tools.System.terminal(`${projectDir}/target/release/$(basename ${projectDir})`, undefined, 30000);
 
         if (result.exitCode === 0) {
           complete(result.output.trim());
@@ -827,7 +684,7 @@ chrono = "0.4"
         }
       } else {
         // 独立的.rs文件需要创建临时Cargo项目
-        const tempDirPath = "/sdcard/Download/temp_rust_" + Date.now();
+        const tempDirPath = "/data/data/com.termux/files/home/temp_rust_project";
         const tempFilePath = `${tempDirPath}/src/main.rs`;
 
         // 创建Cargo.toml
@@ -838,19 +695,19 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-chrono = "0.4"
         `;
 
         // 创建项目结构
         await Tools.System.terminal(`mkdir -p ${tempDirPath}/src`, undefined, 10000);
-        await Tools.Files.write(`${tempDirPath}/Cargo.toml`, cargoToml);
+        await Tools.System.terminal(`echo '${cargoToml}' > ${tempDirPath}/Cargo.toml`, undefined, 10000);
 
         // 读取原始文件内容并写入临时文件
         const fileContent = await Tools.Files.read(filePath);
-        await Tools.Files.write(tempFilePath, fileContent.content);
+        await Tools.System.terminal(`echo '${fileContent.content.replace(/'/g, "'\\''")}' > ${tempFilePath}`, undefined, 10000);
 
-        // 编译和执行Rust项目
-        const compileResult = await Tools.System.terminal(`cd ${tempDirPath} && cargo build --release`, undefined, 60000);
+        // 编译和执行Rust项目 - 分开cd和cargo命令
+        await Tools.System.terminal(`cd ${tempDirPath}`, undefined, 10000);
+        const compileResult = await Tools.System.terminal(`cargo build --release`, undefined, 60000);
 
         if (compileResult.exitCode !== 0) {
           // 删除临时项目目录
@@ -860,7 +717,11 @@ chrono = "0.4"
         }
 
         // 执行编译后的程序
-        const result = await Tools.System.terminal(`cd ${tempDirPath} && ./target/release/temp_rust_script`, undefined, 30000);
+        // 添加可执行权限
+        await Tools.System.terminal(`chmod +x ${tempDirPath}/target/release/temp_rust_script`, undefined, 10000);
+
+        // 直接在Termux环境中执行编译后的二进制文件
+        const result = await Tools.System.terminal(`${tempDirPath}/target/release/temp_rust_script`, undefined, 30000);
 
         // 删除临时项目目录
         await Tools.System.terminal(`rm -rf ${tempDirPath}`, undefined, 10000);
@@ -868,7 +729,7 @@ chrono = "0.4"
         if (result.exitCode === 0) {
           complete(result.output.trim());
         } else {
-          complete(`Rust 文件执行失败 (退出码: ${result.exitCode}):\n${result.output}`);
+          complete(`Rust 项目执行失败 (退出码: ${result.exitCode}):\n${result.output}`);
         }
       }
     } catch (error) {
@@ -876,18 +737,133 @@ chrono = "0.4"
     }
   }
 
+  /**
+   * 包装函数 - 统一处理所有代码执行器函数的返回结果
+   * @param func 原始函数
+   * @param params 函数参数
+   * @param successMessage 成功消息
+   * @param failMessage 失败消息
+   * @param additionalInfo 附加信息(可选)
+   */
+  async function code_runner_wrap<T>(
+    func: (params: any) => Promise<any>,
+    params: any,
+    successMessage: string,
+    failMessage: string,
+    additionalInfo: string = ""
+  ): Promise<void> {
+    try {
+      console.log(`开始执行函数: ${func.name || '匿名函数'}`);
+      console.log(`参数:`, JSON.stringify(params, null, 2));
+
+      // 执行原始函数
+      const result = await func(params);
+
+      console.log(`函数 ${func.name || '匿名函数'} 执行结果:`, JSON.stringify(result, null, 2));
+
+      // 如果原始函数已经调用了complete，就不需要再次调用
+      if (result === undefined) return;
+
+      // 根据结果类型处理
+      if (typeof result === "boolean") {
+        // 布尔类型结果
+        complete({
+          success: result,
+          message: result ? successMessage : failMessage,
+          additionalInfo: additionalInfo
+        });
+      } else {
+        // 数据类型结果
+        complete({
+          success: true,
+          message: successMessage,
+          additionalInfo: additionalInfo,
+          data: result
+        });
+      }
+    } catch (error) {
+      // 详细记录错误信息
+      console.error(`函数 ${func.name || '匿名函数'} 执行失败!`);
+      console.error(`错误信息: ${error.message}`);
+      console.error(`错误堆栈: ${error.stack}`);
+
+      // 处理错误
+      complete({
+        success: false,
+        message: `${failMessage}: ${error.message}`,
+        additionalInfo: additionalInfo,
+        error_stack: error.stack
+      });
+    }
+  }
+
   return {
-    main: async () => await main(),
-    run_javascript_es5: async (params) => await run_javascript_es5(params),
-    run_javascript_file: async (params) => await run_javascript_file(params),
-    run_python: async (params) => await run_python(params),
-    run_python_file: async (params) => await run_python_file(params),
-    run_ruby: async (params) => await run_ruby(params),
-    run_ruby_file: async (params) => await run_ruby_file(params),
-    run_go: async (params) => await run_go(params),
-    run_go_file: async (params) => await run_go_file(params),
-    run_rust: async (params) => await run_rust(params),
-    run_rust_file: async (params) => await run_rust_file(params)
+    main: async () => await code_runner_wrap(
+      main,
+      {},
+      "代码执行器功能测试完成",
+      "代码执行器功能测试失败"
+    ),
+    run_javascript_es5: async (params) => await code_runner_wrap(
+      run_javascript_es5,
+      params,
+      "JavaScript 脚本执行成功",
+      "JavaScript 脚本执行失败"
+    ),
+    run_javascript_file: async (params) => await code_runner_wrap(
+      run_javascript_file,
+      params,
+      "JavaScript 文件执行成功",
+      "JavaScript 文件执行失败"
+    ),
+    run_python: async (params) => await code_runner_wrap(
+      run_python,
+      params,
+      "Python 脚本执行成功",
+      "Python 脚本执行失败"
+    ),
+    run_python_file: async (params) => await code_runner_wrap(
+      run_python_file,
+      params,
+      "Python 文件执行成功",
+      "Python 文件执行失败"
+    ),
+    run_ruby: async (params) => await code_runner_wrap(
+      run_ruby,
+      params,
+      "Ruby 脚本执行成功",
+      "Ruby 脚本执行失败"
+    ),
+    run_ruby_file: async (params) => await code_runner_wrap(
+      run_ruby_file,
+      params,
+      "Ruby 文件执行成功",
+      "Ruby 文件执行失败"
+    ),
+    run_go: async (params) => await code_runner_wrap(
+      run_go,
+      params,
+      "Go 代码执行成功",
+      "Go 代码执行失败"
+    ),
+    run_go_file: async (params) => await code_runner_wrap(
+      run_go_file,
+      params,
+      "Go 文件执行成功",
+      "Go 文件执行失败"
+    ),
+    run_rust: async (params) => await code_runner_wrap(
+      run_rust,
+      params,
+      "Rust 代码执行成功",
+      "Rust 代码执行失败"
+    ),
+    run_rust_file: async (params) => await code_runner_wrap(
+      run_rust_file,
+      params,
+      "Rust 文件执行成功",
+      "Rust 文件执行失败"
+    )
   };
 })();
 

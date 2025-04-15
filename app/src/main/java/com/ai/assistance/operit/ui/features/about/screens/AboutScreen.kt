@@ -216,6 +216,7 @@ fun AboutScreen() {
                                 when (updateStatus) {
                                     is UpdateStatus.Available -> Icons.Default.Update
                                     is UpdateStatus.Downloading -> Icons.Default.Download
+                                    is UpdateStatus.DownloadComplete -> Icons.Default.CheckCircle
                                     is UpdateStatus.UpToDate -> Icons.Default.CheckCircle
                                     is UpdateStatus.Error -> Icons.Default.Error
                                     else -> Icons.Default.Update
@@ -225,6 +226,7 @@ fun AboutScreen() {
                                 when (updateStatus) {
                                     is UpdateStatus.Available -> MaterialTheme.colorScheme.primary
                                     is UpdateStatus.Downloading -> MaterialTheme.colorScheme.primary
+                                    is UpdateStatus.DownloadComplete -> Color(0xFF4CAF50) // Green
                                     is UpdateStatus.UpToDate -> Color(0xFF4CAF50) // Green
                                     is UpdateStatus.Error -> Color(0xFFF44336) // Red
                                     else -> MaterialTheme.colorScheme.primary
@@ -237,6 +239,7 @@ fun AboutScreen() {
                                         when (updateStatus) {
                                             is UpdateStatus.Available -> "发现新版本"
                                             is UpdateStatus.Downloading -> "正在下载更新"
+                                            is UpdateStatus.DownloadComplete -> "下载完成"
                                             is UpdateStatus.UpToDate -> "检查完成"
                                             is UpdateStatus.Error -> "检查失败"
                                             else -> "更新检查"
@@ -279,9 +282,13 @@ fun AboutScreen() {
                                         modifier = Modifier.padding(bottom = 12.dp)
                                 )
 
-                                // 进度条
+                                // 进度条 - 修复进度卡在99%的问题
                                 LinearProgressIndicator(
-                                        progress = status.progress,
+                                        progress =
+                                                if (status.progress >= 0.99f && status.progress < 1f
+                                                )
+                                                        1f
+                                                else status.progress,
                                         modifier =
                                                 Modifier.fillMaxWidth()
                                                         .height(8.dp)
@@ -291,11 +298,15 @@ fun AboutScreen() {
                                 )
 
                                 Text(
-                                        "${(status.progress * 100).toInt()}%",
+                                        // 如果进度接近100%但未到1，显示为100%
+                                        "${(if (status.progress >= 0.99f && status.progress < 1f) 100 else (status.progress * 100).toInt())}%",
                                         style = MaterialTheme.typography.bodySmall,
                                         modifier = Modifier.padding(top = 8.dp).align(Alignment.End)
                                 )
                             }
+                        }
+                        is UpdateStatus.DownloadComplete -> {
+                            Text("下载已完成，正在准备安装...", style = MaterialTheme.typography.bodyMedium)
                         }
                         is UpdateStatus.UpToDate -> {
                             Text("当前已是最新版本: $appVersion")
@@ -313,26 +324,32 @@ fun AboutScreen() {
                             onClick = {
                                 if (updateStatus is UpdateStatus.Available) {
                                     handleDownload()
-                                } else if (updateStatus !is UpdateStatus.Downloading) {
+                                } else if (updateStatus !is UpdateStatus.Downloading &&
+                                                updateStatus !is UpdateStatus.DownloadComplete
+                                ) {
                                     showUpdateDialog = false
                                 }
                             },
                             enabled =
                                     updateStatus is UpdateStatus.Available ||
                                             (updateStatus !is UpdateStatus.Downloading &&
-                                                    updateStatus !is UpdateStatus.Checking)
+                                                    updateStatus !is UpdateStatus.Checking &&
+                                                    updateStatus !is UpdateStatus.DownloadComplete)
                     ) {
                         Text(
                                 when (updateStatus) {
                                     is UpdateStatus.Available -> "立即更新"
                                     is UpdateStatus.Downloading -> "下载中..."
+                                    is UpdateStatus.DownloadComplete -> "安装中..."
                                     else -> "确定"
                                 }
                         )
                     }
                 },
                 dismissButton = {
-                    if (updateStatus !is UpdateStatus.Downloading) {
+                    if (updateStatus !is UpdateStatus.Downloading &&
+                                    updateStatus !is UpdateStatus.DownloadComplete
+                    ) {
                         TextButton(onClick = { showUpdateDialog = false }) { Text("关闭") }
                     }
                 }

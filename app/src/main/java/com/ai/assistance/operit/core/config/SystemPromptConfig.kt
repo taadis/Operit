@@ -6,7 +6,6 @@ import com.ai.assistance.operit.tools.packTool.PackageManager
 object SystemPromptConfig {
 
   /** Base system prompt template used by the enhanced AI service */
-  /*
   val SYSTEM_PROMPT_TEMPLATE =
           """
       You are Operit, an all-capable AI assistant, aimed at solving any task presented by the user. You have various tools at your disposal that you can call upon to efficiently complete complex requests.
@@ -21,6 +20,7 @@ object SystemPromptConfig {
       - Important Rules:
         • These three ending methods are mutually exclusive - only choose one for each response.
         • If both a tool call and a status marker appear in the same message, the tool will not be executed.
+        • When explicitly calling a tool, do not output task completion markers and waiting markers.
         • If no status is specified, the system will automatically default to waiting for user input.
         • Only use task completion status when you're absolutely certain the task is fully completed.
       - Only respond to the current step. Do NOT repeat all previous content in your new responses.
@@ -131,10 +131,8 @@ object SystemPromptConfig {
         • Precise: use bounds "[left,top][right,bottom]" or find_element first
         • Fallback: use "tap x y" for coordinate-based clicks
   """.trimIndent()
-  */
 
   /** Planning mode prompt section that will be inserted when planning feature is enabled */
-  /*
   val PLANNING_MODE_PROMPT =
           """
       PLANNING MODE GUIDELINES
@@ -162,7 +160,6 @@ object SystemPromptConfig {
 
       Update plan item status after each tool execution. Plan updates are displayed to users in a collapsible section.
   """.trimIndent()
-  */
 
   /** 中文版本系统提示模板 */
   val SYSTEM_PROMPT_TEMPLATE_CN =
@@ -178,7 +175,8 @@ object SystemPromptConfig {
           3. 等待用户输入标记：当需要用户进一步输入或有疑问时，在响应的最后使用<status type=\"wait_for_user_need\"></status>。
         - 重要规则：
           • 这三种结束方式互斥，每次响应末尾只能选择一种。
-          • 如果在同一条消息中同时使用工具调用和状态标记，工具将不会被执行。
+          • 如果在同一条消息中同时使用工具调用和标记，工具将不会被执行。
+          • 在明确要调用工具的时候，请不要输出任务完成标记和等待标记。
           • 如果未指定状态，系统将自动默认等待用户输入。
           • 只有在完全确定任务已完成时才使用任务完成标记。
         - 只响应当前步骤。不要在新的响应中重复之前的所有内容。
@@ -327,6 +325,27 @@ object SystemPromptConfig {
    * @return The complete system prompt with package information and planning details if enabled
    */
   fun getSystemPrompt(packageManager: PackageManager, enablePlanning: Boolean = false): String {
+    return getSystemPrompt(
+            packageManager,
+            enablePlanning,
+            false
+    ) // Default to using Chinese template for backward compatibility
+  }
+
+  /**
+   * Generates the system prompt with dynamic package information, planning mode and language
+   * selection
+   *
+   * @param packageManager The PackageManager instance to get package information from
+   * @param enablePlanning Whether planning mode is enabled
+   * @param useEnglish Whether to use English template instead of Chinese
+   * @return The complete system prompt with package information and planning details if enabled
+   */
+  fun getSystemPrompt(
+          packageManager: PackageManager,
+          enablePlanning: Boolean = false,
+          useEnglish: Boolean = false
+  ): String {
     val importedPackages = packageManager.getImportedPackages()
 
     // Build the available packages section
@@ -351,14 +370,17 @@ object SystemPromptConfig {
             "<tool name=\"use_package\"><param name=\"package_name\">package_name_here</param></tool>"
     )
 
+    // Select appropriate template based on language preference
+    val templateToUse = if (useEnglish) SYSTEM_PROMPT_TEMPLATE else SYSTEM_PROMPT_TEMPLATE_CN
+    val planningPromptToUse = if (useEnglish) PLANNING_MODE_PROMPT else PLANNING_MODE_PROMPT_CN
+
     // Build prompt with appropriate sections
-    var prompt =
-            SYSTEM_PROMPT_TEMPLATE_CN.replace("ACTIVE_PACKAGES_SECTION", packagesSection.toString())
+    var prompt = templateToUse.replace("ACTIVE_PACKAGES_SECTION", packagesSection.toString())
 
     // Add planning mode section if enabled
     prompt =
             if (enablePlanning) {
-              prompt.replace("PLANNING_MODE_SECTION", PLANNING_MODE_PROMPT_CN)
+              prompt.replace("PLANNING_MODE_SECTION", planningPromptToUse)
             } else {
               prompt.replace("PLANNING_MODE_SECTION", "")
             }
@@ -366,7 +388,7 @@ object SystemPromptConfig {
     return prompt
   }
 
-  /** Original met6hod for backward compatibility */
+  /** Original method for backward compatibility */
   fun getSystemPrompt(packageManager: PackageManager): String {
     return getSystemPrompt(packageManager, false)
   }
