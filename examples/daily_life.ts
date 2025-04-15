@@ -23,7 +23,7 @@ METADATA
         },
         {
             "name": "set_reminder",
-            "description": "创建提醒或待办事项。使用需要先调用一次get_current_date。",
+            "description": "创建提醒或待办事项。",
             "parameters": [
                 {
                     "name": "title",
@@ -47,7 +47,7 @@ METADATA
         },
         {
             "name": "set_alarm",
-            "description": "在设备上设置闹钟。使用需要先调用一次get_current_date。",
+            "description": "在设备上设置闹钟。",
             "parameters": [
                 {
                     "name": "hour",
@@ -349,10 +349,24 @@ const dailyLife = (function () {
      * Set an alarm on the device
      * @param params - Parameters with alarm details
      */
-    async function set_alarm(params: { hour: number; minute: number; message?: string; days?: number[] }): Promise<any> {
+    async function set_alarm(params: { hour: number | string; minute: number | string; message?: string; days?: (number | string)[] }): Promise<any> {
         try {
             if (params.hour === undefined || params.minute === undefined) {
                 throw new Error("Hour and minute are required for setting an alarm");
+            }
+            if (typeof params.hour === 'string') {
+                params.hour = Number(params.hour);
+            }
+            if (typeof params.minute === 'string') {
+                params.minute = Number(params.minute);
+            }
+            if (params.days) {
+                params.days = params.days.map(day => {
+                    if (typeof day === 'string') {
+                        return Number(day);
+                    }
+                    return day;
+                });
             }
 
             if (params.hour < 0 || params.hour > 23) {
@@ -478,7 +492,7 @@ const dailyLife = (function () {
      * Make a phone call
      * @param params - Parameters with call details
      */
-    async function make_phone_call(params: { phone_number: string; emergency?: boolean }): Promise<any> {
+    async function make_phone_call(params: { phone_number: string; emergency?: boolean | string }): Promise<any> {
         try {
             if (!params.phone_number) {
                 throw new Error("Phone number is required");
@@ -488,6 +502,10 @@ const dailyLife = (function () {
 
             // 选择合适的Intent Action
             // 如果是紧急电话，使用ACTION_CALL_EMERGENCY，否则使用ACTION_DIAL
+            if (typeof params.emergency === 'string') {
+                params.emergency = params.emergency === 'true';
+            }
+
             const action = params.emergency ? IntentAction.ACTION_CALL_EMERGENCY : IntentAction.ACTION_DIAL;
 
             // 创建拨号Intent
@@ -525,8 +543,12 @@ const dailyLife = (function () {
      * 等待指定的毫秒数
      * @param ms 等待的毫秒数
      */
-    async function sleep(ms: number): Promise<void> {
-        return new Promise(resolve => setTimeout(resolve, ms));
+    async function sleep(ms: number | string): Promise<void> {
+        const sleepTime = Number(ms);
+        if (isNaN(sleepTime)) {
+            throw new Error("Invalid sleep time");
+        }
+        return new Promise(resolve => setTimeout(resolve, sleepTime));
     }
 
     /**
@@ -602,6 +624,7 @@ const dailyLife = (function () {
                 const now = new Date();
                 const hour = now.getHours();
                 const minute = (now.getMinutes() + 5) % 60;
+
                 const alarmResult = await set_alarm({
                     hour: hour,
                     minute: minute,

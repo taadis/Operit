@@ -34,17 +34,14 @@ class ApiPreferences(private val context: Context) {
 
         // Default values
         const val DEFAULT_API_ENDPOINT = "https://api.deepseek.com/v1/chat/completions"
-        // const val DEFAULT_API_ENDPOINT =
-        // "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
         const val DEFAULT_MODEL_NAME = "deepseek-chat"
         const val DEFAULT_API_KEY = "sk-e565390c164c4cfa8820624ef47d68bf"
-        // const val DEFAULT_API_KEY = "sk-bcf2cbfa8c9144119de247db8fdb7af5"
         const val DEFAULT_SHOW_THINKING = true
         const val DEFAULT_MEMORY_OPTIMIZATION = true
         const val DEFAULT_SHOW_FPS_COUNTER = false
         const val DEFAULT_ENABLE_AI_PLANNING = false
         const val DEFAULT_COLLAPSE_EXECUTION = true
-        const val DEFAULT_AUTO_GRANT_ACCESSIBILITY = true
+        const val DEFAULT_AUTO_GRANT_ACCESSIBILITY = false
     }
 
     // Get API Key as Flow

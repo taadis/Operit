@@ -23,7 +23,7 @@ METADATA
         },
         {
             "name": "set_reminder",
-            "description": "创建提醒或待办事项。使用需要先调用一次get_current_date。",
+            "description": "创建提醒或待办事项。",
             "parameters": [
                 {
                     "name": "title",
@@ -47,7 +47,7 @@ METADATA
         },
         {
             "name": "set_alarm",
-            "description": "在设备上设置闹钟。使用需要先调用一次get_current_date。",
+            "description": "在设备上设置闹钟。",
             "parameters": [
                 {
                     "name": "hour",
@@ -334,6 +334,20 @@ const dailyLife = (function () {
             if (params.hour === undefined || params.minute === undefined) {
                 throw new Error("Hour and minute are required for setting an alarm");
             }
+            if (typeof params.hour === 'string') {
+                params.hour = Number(params.hour);
+            }
+            if (typeof params.minute === 'string') {
+                params.minute = Number(params.minute);
+            }
+            if (params.days) {
+                params.days = params.days.map(day => {
+                    if (typeof day === 'string') {
+                        return Number(day);
+                    }
+                    return day;
+                });
+            }
             if (params.hour < 0 || params.hour > 23) {
                 throw new Error("Hour must be between 0 and 23");
             }
@@ -444,6 +458,9 @@ const dailyLife = (function () {
             console.log(`拨打电话: ${params.phone_number}`);
             // 选择合适的Intent Action
             // 如果是紧急电话，使用ACTION_CALL_EMERGENCY，否则使用ACTION_DIAL
+            if (typeof params.emergency === 'string') {
+                params.emergency = params.emergency === 'true';
+            }
             const action = params.emergency ? "android.intent.action.CALL_EMERGENCY" /* IntentAction.ACTION_CALL_EMERGENCY */ : "android.intent.action.DIAL" /* IntentAction.ACTION_DIAL */;
             // 创建拨号Intent
             const intent = new Intent(action);
@@ -477,7 +494,11 @@ const dailyLife = (function () {
      * @param ms 等待的毫秒数
      */
     async function sleep(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
+        const sleepTime = Number(ms);
+        if (isNaN(sleepTime)) {
+            throw new Error("Invalid sleep time");
+        }
+        return new Promise(resolve => setTimeout(resolve, sleepTime));
     }
     /**
      * Test and demonstrate all daily life functions

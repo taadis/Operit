@@ -118,7 +118,8 @@ fun SettingsScreen(onNavigateToUserPreferences: () -> Unit, navigateToToolPermis
                         onValueChange = {
                             apiEndpointInput = it
 
-                            // Try to fix the endpoint on-the-fly if user removes focus
+                            // Try to fix the endpoint on-the-fly if user
+                            // removes focus
                             if (!ModelEndPointFix.isValidEndpoint(it) && it.isNotBlank()) {
                                 ModelEndPointFix.fixEndpoint(it)?.let { fixed ->
                                     apiEndpointInput = fixed
@@ -164,7 +165,9 @@ fun SettingsScreen(onNavigateToUserPreferences: () -> Unit, navigateToToolPermis
 
                                 apiPreferences.saveAllSettings(
                                         apiKeyInput,
-                                        endpointToSave, // Use the potentially fixed endpoint
+                                        endpointToSave, // Use the
+                                        // potentially fixed
+                                        // endpoint
                                         modelNameInput,
                                         showThinkingInput,
                                         memoryOptimizationInput,
@@ -322,7 +325,7 @@ fun SettingsScreen(onNavigateToUserPreferences: () -> Unit, navigateToToolPermis
                     Column {
                         Text(text = "自动授予无障碍权限", style = MaterialTheme.typography.bodyMedium)
                         Text(
-                                text = "使用Shizuku自动授予无障碍权限，关闭后需手动授权",
+                                text = "关闭后需每次打开软件手动授权",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

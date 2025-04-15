@@ -616,7 +616,7 @@ fun ShizukuDemoScreen() {
 
                 // 无障碍服务状态
                 PermissionStatusItem(
-                        title = "无障碍服务",
+                        title = "无障碍服务（非必需）",
                         isGranted = hasAccessibilityServiceEnabled,
                         onClick = { UIHierarchyManager.openAccessibilitySettings(context) }
                 )
@@ -785,7 +785,8 @@ fun ShizukuDemoScreen() {
 
         // 显示长按提示
         Text(
-                text = "提示：点击权限状态可设置权限，长按Shizuku服务可显示ADB命令执行器，长按Termux终端可显示Termux命令执行器",
+                text =
+                        "提示：无障碍启动时，ui操作可以进行加速，但是如果像避免手机部分软件检测可以不开。点击权限状态可设置权限，长按Shizuku服务可显示ADB命令执行器，长按Termux终端可显示Termux命令执行器",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 8.dp)

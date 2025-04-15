@@ -138,8 +138,8 @@ const QQIntelligent = (function () {
         return this[index];
     }
 
-    async function get_history(params: { message_num: number }) {
-        const message_num = params.message_num || 10;
+    async function get_history(params: { message_num: number | string }) {
+        const message_num = Number(params.message_num) || 10;
         let page = await UINode.getCurrentPage();
 
         //获取群名称

@@ -129,7 +129,7 @@ const QQIntelligent = (function () {
     };
     async function get_history(params) {
         var _a, _b, _c, _d, _e, _f, _g;
-        const message_num = params.message_num || 10;
+        const message_num = Number(params.message_num) || 10;
         let page = await UINode.getCurrentPage();
         //获取群名称
         const chat_title = (_c = (_b = (_a = page.findById('com.tencent.mobileqq:id/ivTitleBtnLeft')) === null || _a === void 0 ? void 0 : _a.parent) === null || _b === void 0 ? void 0 : _b.allTexts()[0]) !== null && _c !== void 0 ? _c : "";

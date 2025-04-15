@@ -399,6 +399,19 @@ class AIToolHandler private constructor(private val context: Context) {
         return "$before\n**Tool Result [${invocation.tool.name}]:** \n$result\n$after"
     }
 
+    /**
+     * Unescapes XML special characters
+     * @param input The XML escaped string
+     * @return Unescaped string
+     */
+    private fun unescapeXml(input: String): String {
+        return input.replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&amp;", "&")
+                .replace("&quot;", "\"")
+                .replace("&apos;", "'")
+    }
+
     /** Reset the tool execution state */
     fun reset() {
         _toolProgress.value = ToolExecutionProgress(state = ToolExecutionState.IDLE)
@@ -465,8 +478,12 @@ class AIToolHandler private constructor(private val context: Context) {
             while (paramMatcher.find()) {
                 val paramName = paramMatcher.group(1) ?: continue
                 val paramValue = paramMatcher.group(2) ?: continue
-                parameters.add(ToolParameter(paramName, paramValue))
-                Log.d(TAG, "  Parameter: $paramName = $paramValue")
+
+                // Unescape XML entities in the parameter value
+                val unescapedValue = unescapeXml(paramValue)
+
+                parameters.add(ToolParameter(paramName, unescapedValue))
+                Log.d(TAG, "  Parameter: $paramName = $unescapedValue (original: $paramValue)")
             }
 
             val tool = AITool(name = toolName, parameters = parameters)
@@ -510,8 +527,11 @@ class AIToolHandler private constructor(private val context: Context) {
                     val valueMatch = Regex(">([\\s\\S]*?)</param>").find(line)
                     val value = valueMatch?.groupValues?.get(1)?.trim() ?: continue
 
-                    parameters.add(ToolParameter(name, value))
-                    Log.d(TAG, "  Parameter (alt): $name = $value")
+                    // Unescape XML entities in the parameter value
+                    val unescapedValue = unescapeXml(value)
+
+                    parameters.add(ToolParameter(name, unescapedValue))
+                    Log.d(TAG, "  Parameter (alt): $name = $unescapedValue (original: $value)")
                 }
 
                 val tool = AITool(name = toolName, parameters = parameters)
