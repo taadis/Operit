@@ -18,7 +18,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.PictureInPicture
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.snapshotFlow
@@ -40,7 +39,9 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AIChatScreen() {
+fun AIChatScreen(
+        onNavigateToTokenConfig: () -> Unit = {} // 添加导航到Token配置页面的回调
+) {
         val context = LocalContext.current
 
         // Initialize ViewModel without using viewModel() function
@@ -186,7 +187,7 @@ fun AIChatScreen() {
         }
 
         // Launch floating window service when floating mode is enabled
-        LaunchedEffect(isFloatingMode, chatHistory.size) {
+        LaunchedEffect(isFloatingMode, chatHistory) {
                 if (isFloatingMode && canDrawOverlays.value) {
                         try {
                                 // Start floating chat service
@@ -205,6 +206,9 @@ fun AIChatScreen() {
                                         "AIChatScreen",
                                         "Started floating window service with ${filteredMessages.size} messages"
                                 )
+                                
+                                // Update the messages in the service when chatHistory changes
+                                viewModel.updateFloatingWindowMessages(filteredMessages)
                         } catch (e: Exception) {
                                 Log.e("AIChatScreen", "Error starting floating service", e)
                                 viewModel.toggleFloatingMode() // Turn off floating mode if it fails
@@ -568,27 +572,7 @@ fun AIChatScreen() {
                         }
                 },
                 floatingActionButton = {
-                        if (isConfigured) {
-                                SmallFloatingActionButton(
-                                        onClick = {
-                                                // Show reminder about system's small window feature
-                                                android.widget.Toast.makeText(
-                                                                context,
-                                                                "提示：您也可以使用系统自带的小窗功能，体验可能更佳。长按应用切换按钮或从最近任务中拖动可开启小窗模式。",
-                                                                android.widget.Toast.LENGTH_LONG
-                                                        )
-                                                        .show()
-                                        },
-                                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                ) {
-                                        Icon(
-                                                imageVector = Icons.Default.PictureInPicture,
-                                                contentDescription = "小窗模式",
-                                                modifier = Modifier.size(18.dp)
-                                        )
-                                }
-                        }
+                        // Remove the existing FAB since we now have the button in the header
                 }
         ) { paddingValues ->
                 // 判断是否有默认配置可用
@@ -628,7 +612,9 @@ fun AIChatScreen() {
                                         viewModel.saveApiSettings()
                                         // 确认后导航到聊天界面
                                         ConfigurationStateHolder.hasConfirmedDefaultInSession = true
-                                }
+                                },
+                                // 添加导航到Token配置页面的回调
+                                onNavigateToTokenConfig = onNavigateToTokenConfig
                         )
                 } else {
                         // Chat screen
@@ -672,7 +658,57 @@ fun AIChatScreen() {
                                                                         Modifier.align(
                                                                                 Alignment
                                                                                         .CenterStart
-                                                                        )
+                                                                        ),
+                                                                onLaunchFloatingWindow = {
+                                                                        // Check if we can draw
+                                                                        // overlays first
+                                                                        if (!Settings.canDrawOverlays(
+                                                                                        context
+                                                                                )
+                                                                        ) {
+                                                                                // Show message to
+                                                                                // user
+                                                                                android.widget.Toast
+                                                                                        .makeText(
+                                                                                                context,
+                                                                                                "需要悬浮窗权限。请前往设置授予权限后再试。",
+                                                                                                android.widget
+                                                                                                        .Toast
+                                                                                                        .LENGTH_SHORT
+                                                                                        )
+                                                                                        .show()
+
+                                                                                // Launch settings
+                                                                                // to grant
+                                                                                // permission
+                                                                                val intent =
+                                                                                        Intent(
+                                                                                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                                                                                android.net
+                                                                                                        .Uri
+                                                                                                        .parse(
+                                                                                                                "package:${context.packageName}"
+                                                                                                        )
+                                                                                        )
+                                                                                context.startActivity(
+                                                                                        intent
+                                                                                )
+                                                                        } else {
+                                                                                // Toggle floating
+                                                                                // mode
+                                                                                viewModel
+                                                                                        .toggleFloatingMode()
+                                                                                android.widget.Toast
+                                                                                        .makeText(
+                                                                                                context,
+                                                                                                "悬浮窗已启动",
+                                                                                                android.widget
+                                                                                                        .Toast
+                                                                                                        .LENGTH_SHORT
+                                                                                        )
+                                                                                        .show()
+                                                                        }
+                                                                }
                                                         )
 
                                                         // 右侧：统计信息

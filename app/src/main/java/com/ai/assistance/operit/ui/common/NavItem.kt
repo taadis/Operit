@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.Token
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.ai.assistance.operit.R
 
@@ -45,6 +46,8 @@ sealed class NavItem(val route: String, val titleResId: Int, val icon: ImageVect
         object Toolbox : NavItem("toolbox", R.string.toolbox, Icons.Default.Apps)
         object About : NavItem("about", R.string.nav_about, Icons.Default.Info)
         object Mcp : NavItem("mcp", R.string.mcp, Icons.Default.Cloud)
-        object Agreement : NavItem("agreement", R.string.nav_item_agreement, Icons.Default.Description)
+        object Agreement :
+                NavItem("agreement", R.string.nav_item_agreement, Icons.Default.Description)
         object Help : NavItem("help", R.string.nav_help, Icons.Default.Help)
+        object TokenConfig : NavItem("token_config", R.string.token_config, Icons.Default.Token)
 }

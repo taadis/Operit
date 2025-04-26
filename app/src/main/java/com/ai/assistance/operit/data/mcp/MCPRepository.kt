@@ -37,7 +37,7 @@ class MCPRepository(private val context: Context) {
 
     // 缓存文件
     private val cacheFile by lazy { File(context.cacheDir, "mcp_servers_cache.json") }
-    
+
     // 记录当前页码和是否有下一页
     private var currentPage = 1
     private var hasMorePages = true
@@ -45,7 +45,7 @@ class MCPRepository(private val context: Context) {
     // 存储加载状态
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
-    
+
     // 存储"是否有更多数据"的状态
     private val _hasMore = MutableStateFlow(true)
     val hasMore: StateFlow<Boolean> = _hasMore.asStateFlow()
@@ -60,9 +60,23 @@ class MCPRepository(private val context: Context) {
 
     // 记录上次加载时间
     private var lastLoadTime: Long = 0
-    
+
     // 所有已加载的服务器的ID集合，用于避免重复
     private val loadedServerIds = mutableSetOf<String>()
+
+    /** 安装已保存的插件列表 */
+    private val _installedPluginIds = MutableStateFlow<Set<String>>(emptySet())
+    val installedPluginIds: StateFlow<Set<String>> = _installedPluginIds.asStateFlow()
+
+    // 本地存储文件
+    private val installedPluginsFile by lazy {
+        File(context.filesDir, "installed_mcp_plugins.json")
+    }
+
+    init {
+        // 加载已安装的插件列表
+        loadInstalledPlugins()
+    }
 
     /** 从本地缓存或GitHub获取Cline MCP marketplace数据 */
     suspend fun fetchMCPServers(forceRefresh: Boolean = false) {
@@ -79,7 +93,7 @@ class MCPRepository(private val context: Context) {
                     _mcpServers.value = emptyList()
                     clearCache()
                 }
-                
+
                 // 如果是第一页且缓存有效，尝试从缓存加载
                 if (currentPage == 1 && !forceRefresh && isCacheValid()) {
                     val cachedServers = loadFromCache()
@@ -87,6 +101,10 @@ class MCPRepository(private val context: Context) {
                         cachedServers.forEach { loadedServerIds.add(it.id) }
                         _mcpServers.value = cachedServers
                         currentPage++ // 准备下一页的加载
+
+                        // 更新安装状态
+                        updateInstalledStatus()
+
                         _isLoading.value = false
                         return@withContext
                     }
@@ -101,6 +119,9 @@ class MCPRepository(private val context: Context) {
 
                 // 从网络获取下一页数据
                 fetchNextPage()
+
+                // 更新安装状态
+                updateInstalledStatus()
             } catch (e: Exception) {
                 Log.e(TAG, "获取MCP服务器列表失败", e)
 
@@ -111,6 +132,10 @@ class MCPRepository(private val context: Context) {
                         cachedServers.forEach { loadedServerIds.add(it.id) }
                         _mcpServers.value = cachedServers
                         currentPage++ // 准备下一页的加载
+
+                        // 更新安装状态
+                        updateInstalledStatus()
+
                         _errorMessage.value = "使用缓存数据：${e.message}"
                     } else {
                         _errorMessage.value = "获取数据失败: ${e.message}"
@@ -118,7 +143,7 @@ class MCPRepository(private val context: Context) {
                 } else {
                     _errorMessage.value = "加载更多失败: ${e.message}"
                 }
-                
+
                 _hasMore.value = false // 发生错误时假设没有更多数据
             } finally {
                 _isLoading.value = false
@@ -141,7 +166,7 @@ class MCPRepository(private val context: Context) {
         try {
             val pageUrl = "$GITHUB_API_BASE_URL?state=open&per_page=$PER_PAGE&page=$currentPage"
             Log.d(TAG, "正在获取第 $currentPage 页数据: $pageUrl")
-            
+
             val url = URL(pageUrl)
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
@@ -161,7 +186,7 @@ class MCPRepository(private val context: Context) {
 
                 // 解析当前页的数据
                 val responseStr = response.toString()
-                
+
                 // 检查是否为有效的JSON数组
                 if (!responseStr.trim().startsWith("[")) {
                     Log.e(TAG, "第 $currentPage 页返回了无效的JSON格式")
@@ -169,37 +194,40 @@ class MCPRepository(private val context: Context) {
                     _hasMore.value = false
                     return
                 }
-                
+
                 val pageArray = JSONArray(responseStr)
-                
+
                 // 解析新获取的服务器
                 val newServers = parseIssuesResponse(responseStr)
-                
+
                 // 过滤掉已经加载过的服务器
                 val uniqueNewServers = newServers.filter { !loadedServerIds.contains(it.id) }
-                
+
                 // 更新已加载的ID集合
                 uniqueNewServers.forEach { loadedServerIds.add(it.id) }
-                
+
                 // 将新服务器添加到当前列表
                 val updatedServers = _mcpServers.value + uniqueNewServers
                 _mcpServers.value = updatedServers
-                
+
                 // 第一页数据保存到缓存
                 if (currentPage == 1) {
                     saveToCache(responseStr)
                 }
-                
+
                 // 更新分页状态
                 hasMorePages = pageArray.length() >= PER_PAGE && uniqueNewServers.isNotEmpty()
                 _hasMore.value = hasMorePages
-                
+
                 // 只有在确定有更多页时才增加页码
                 if (hasMorePages) {
                     currentPage++
                 }
-                
-                Log.d(TAG, "第 $currentPage 页加载成功，获取了 ${uniqueNewServers.size} 个新服务器，总共 ${updatedServers.size} 个")
+
+                Log.d(
+                        TAG,
+                        "第 $currentPage 页加载成功，获取了 ${uniqueNewServers.size} 个新服务器，总共 ${updatedServers.size} 个"
+                )
             } else {
                 // 处理HTTP错误
                 val errorBody =
@@ -248,7 +276,7 @@ class MCPRepository(private val context: Context) {
                         Log.d(TAG, "Issue #${issue.optInt("number", -1)} 标题为空，跳过")
                         continue
                     }
-                    
+
                     if (!title.contains(SERVER_SUBMISSION_TAG, ignoreCase = true)) {
                         // 尝试通过标签检查是否为服务器提交
                         val isServerSubmission = isServerSubmissionByLabels(issue)
@@ -267,11 +295,12 @@ class MCPRepository(private val context: Context) {
                     // 清理标题，移除标记部分
                     var cleanTitle = title
                     if (title.contains(SERVER_SUBMISSION_TAG, ignoreCase = true)) {
-                        cleanTitle = title.replace(SERVER_SUBMISSION_TAG, "", ignoreCase = true)
-                                .replace(":", "")
-                                .trim()
+                        cleanTitle =
+                                title.replace(SERVER_SUBMISSION_TAG, "", ignoreCase = true)
+                                        .replace(":", "")
+                                        .trim()
                     }
-                    
+
                     // 如果清理后标题为空，使用issue编号作为标题
                     if (cleanTitle.isBlank()) {
                         cleanTitle = "MCP Server #$id"
@@ -285,17 +314,19 @@ class MCPRepository(private val context: Context) {
                     }
 
                     // 解析issue正文，提取关键信息
-                    val repoUrl = extractSectionContent(body, REPO_URL_SECTION) 
-                            ?: extractGitHubUrlFromText(body) // 尝试从文本中提取URL
-                            
+                    val repoUrl =
+                            extractSectionContent(body, REPO_URL_SECTION)
+                                    ?: extractGitHubUrlFromText(body) // 尝试从文本中提取URL
+
                     if (repoUrl.isNullOrBlank() || !repoUrl.startsWith("https://github.com/")) {
                         Log.d(TAG, "Issue #$id 没有有效的GitHub仓库URL，跳过")
                         continue
                     }
 
                     // 提取Logo URL (可选)
-                    val logoUrl = extractSectionContent(body, LOGO_SECTION) 
-                            ?: extractImageUrlFromText(body) // 尝试从文本中提取图片URL
+                    val logoUrl =
+                            extractSectionContent(body, LOGO_SECTION)
+                                    ?: extractImageUrlFromText(body) // 尝试从文本中提取图片URL
 
                     // 提取Description (可选)
                     val description = extractDescription(body, id)
@@ -358,29 +389,30 @@ class MCPRepository(private val context: Context) {
         Log.d(TAG, "共解析出${servers.size}个有效MCP服务器")
         return servers.sortedByDescending { it.stars }
     }
-    
+
     /** 通过检查issue的标签判断是否为服务器提交 */
     private fun isServerSubmissionByLabels(issue: JSONObject): Boolean {
         if (!issue.has("labels")) return false
-        
+
         try {
             val labels = issue.getJSONArray("labels")
             for (i in 0 until labels.length()) {
                 val label = labels.getJSONObject(i)
                 val labelName = label.optString("name", "")
                 if (labelName.contains("server", ignoreCase = true) ||
-                    labelName.contains("submission", ignoreCase = true) ||
-                    labelName.contains("mcp", ignoreCase = true)) {
+                                labelName.contains("submission", ignoreCase = true) ||
+                                labelName.contains("mcp", ignoreCase = true)
+                ) {
                     return true
                 }
             }
         } catch (e: Exception) {
             Log.e(TAG, "解析标签失败", e)
         }
-        
+
         return false
     }
-    
+
     /** 提取描述，尝试多种方式 */
     private fun extractDescription(body: String, issueId: String): String {
         // 首先尝试从Additional Information部分获取
@@ -388,38 +420,41 @@ class MCPRepository(private val context: Context) {
         if (!infoSection.isNullOrBlank() && infoSection != "_No response_") {
             return infoSection
         }
-        
+
         // 尝试从Testing部分获取额外信息
         val testingSection = extractSectionContent(body, TESTING_SECTION)
         if (!testingSection.isNullOrBlank() && testingSection != "_No response_") {
             return "测试状态: $testingSection"
         }
-        
+
         // 尝试从整个body提取有意义的描述
         val lines = body.split("\n")
-        val descLines = lines.filter { 
-            it.isNotBlank() && 
-            !it.startsWith("###") && 
-            !it.startsWith("http") &&
-            !it.startsWith("!") &&
-            !it.startsWith("-") 
-        }.take(3)
-        
+        val descLines =
+                lines
+                        .filter {
+                            it.isNotBlank() &&
+                                    !it.startsWith("###") &&
+                                    !it.startsWith("http") &&
+                                    !it.startsWith("!") &&
+                                    !it.startsWith("-")
+                        }
+                        .take(3)
+
         if (descLines.isNotEmpty()) {
             return descLines.joinToString(" ").take(150)
         }
-        
+
         // 如果没有找到描述，返回默认描述
         return "MCP服务器 #$issueId，提供额外功能"
     }
-    
+
     /** 从文本中提取GitHub URL */
     private fun extractGitHubUrlFromText(text: String): String? {
         val githubUrlRegex = "https://github\\.com/[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+".toRegex()
         val match = githubUrlRegex.find(text)
         return match?.value
     }
-    
+
     /** 从文本中提取图片URL */
     private fun extractImageUrlFromText(text: String): String? {
         // 查找markdown格式的图片
@@ -427,16 +462,17 @@ class MCPRepository(private val context: Context) {
         markdownImageRegex.find(text)?.let {
             return it.groupValues[1]
         }
-        
+
         // 查找一般URL，可能是图片
-        val urlRegex = "(https?://[^\\s]+\\.(png|jpg|jpeg|gif|svg))".toRegex(RegexOption.IGNORE_CASE)
+        val urlRegex =
+                "(https?://[^\\s]+\\.(png|jpg|jpeg|gif|svg))".toRegex(RegexOption.IGNORE_CASE)
         urlRegex.find(text)?.let {
             return it.groupValues[0]
         }
-        
+
         return null
     }
-    
+
     /** 获取stars数量，集合多种来源 */
     private fun getStarsCount(issue: JSONObject): Int {
         // 首先检查reactions
@@ -445,17 +481,17 @@ class MCPRepository(private val context: Context) {
             val totalCount = reactions.optInt("total_count", 0)
             if (totalCount > 0) return totalCount
         }
-        
+
         // 检查评论数作为参考
         val comments = issue.optInt("comments", 0)
         if (comments > 0) return comments * 5 + (1..10).random()
-        
+
         // 检查是否是验证过的或者来自cline
         val user = issue.optJSONObject("user")
         if (user != null && user.optString("login", "").equals("cline", ignoreCase = true)) {
             return (50..100).random()
         }
-        
+
         // 随机生成一个合理的数字
         return (5..50).random()
     }
@@ -627,13 +663,108 @@ class MCPRepository(private val context: Context) {
             Log.d(TAG, "已清除MCP服务器缓存")
         }
     }
-    
+
     /** 获取当前已知的所有分类 */
     fun getAllCategories(): List<String> {
         val servers = _mcpServers.value
         if (servers.isEmpty()) return emptyList()
-        
+
         return servers.map { it.category }.distinct().sortedBy { it }
+    }
+
+    /** 安装MCP插件 */
+    suspend fun installMCPServer(pluginId: String) {
+        withContext(Dispatchers.IO) {
+            try {
+                // 添加到已安装列表
+                val currentSet = _installedPluginIds.value.toMutableSet()
+                currentSet.add(pluginId)
+                _installedPluginIds.value = currentSet
+
+                // 更新服务器列表中的安装状态
+                updateInstalledStatus()
+
+                // 保存安装状态
+                saveInstalledPlugins()
+
+                Log.d(TAG, "插件 $pluginId 安装成功")
+            } catch (e: Exception) {
+                Log.e(TAG, "安装插件 $pluginId 失败", e)
+                _errorMessage.value = "安装失败: ${e.message}"
+            }
+        }
+    }
+
+    /** 卸载MCP插件 */
+    suspend fun uninstallMCPServer(pluginId: String) {
+        withContext(Dispatchers.IO) {
+            try {
+                // 从已安装列表移除
+                val currentSet = _installedPluginIds.value.toMutableSet()
+                currentSet.remove(pluginId)
+                _installedPluginIds.value = currentSet
+
+                // 更新服务器列表中的安装状态
+                updateInstalledStatus()
+
+                // 保存安装状态
+                saveInstalledPlugins()
+
+                Log.d(TAG, "插件 $pluginId 卸载成功")
+            } catch (e: Exception) {
+                Log.e(TAG, "卸载插件 $pluginId 失败", e)
+                _errorMessage.value = "卸载失败: ${e.message}"
+            }
+        }
+    }
+
+    /** 更新服务器列表中的安装状态 */
+    private fun updateInstalledStatus() {
+        val installedIds = _installedPluginIds.value
+        val updatedServers =
+                _mcpServers.value.map { server ->
+                    server.copy(isInstalled = installedIds.contains(server.id))
+                }
+        _mcpServers.value = updatedServers
+    }
+
+    /** 保存已安装的插件列表 */
+    private fun saveInstalledPlugins() {
+        try {
+            val jsonArray = JSONArray()
+            _installedPluginIds.value.forEach { jsonArray.put(it) }
+
+            installedPluginsFile.writeText(jsonArray.toString())
+            Log.d(TAG, "已保存安装的插件列表: ${_installedPluginIds.value.size} 个插件")
+        } catch (e: Exception) {
+            Log.e(TAG, "保存已安装插件列表失败", e)
+        }
+    }
+
+    /** 加载已安装的插件列表 */
+    private fun loadInstalledPlugins() {
+        try {
+            if (installedPluginsFile.exists()) {
+                val jsonStr = installedPluginsFile.readText()
+                val jsonArray = JSONArray(jsonStr)
+
+                val installedIds = mutableSetOf<String>()
+                for (i in 0 until jsonArray.length()) {
+                    installedIds.add(jsonArray.getString(i))
+                }
+
+                _installedPluginIds.value = installedIds
+                Log.d(TAG, "已加载安装的插件列表: ${installedIds.size} 个插件")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "加载已安装插件列表失败", e)
+        }
+    }
+
+    /** 获取所有已安装的插件 */
+    fun getInstalledPlugins(): List<MCPServer> {
+        val installedIds = _installedPluginIds.value
+        return _mcpServers.value.filter { installedIds.contains(it.id) }
     }
 }
 
@@ -650,7 +781,10 @@ data class MCPServer(
         val requiresApiKey: Boolean = false,
         val tags: List<String> = emptyList(),
         val isVerified: Boolean = false,
-        val logoUrl: String? = null
+        val logoUrl: String? = null,
+        val isInstalled: Boolean = false,
+        val version: String = "1.0.0",
+        val longDescription: String = ""
 )
 
 /** 字符串首字母大写扩展函数 */

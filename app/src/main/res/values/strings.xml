@@ -15,6 +15,7 @@
     <string name="nav_item_agreement">用户协议</string>
     <string name="nav_help">帮助中心</string>
     <string name="menu">菜单</string>
+    <string name="token_config">配置Token</string>
     
     <!-- 用于NavItem类的标识符 -->
     <string name="shizuku_commands">权限授予</string>
@@ -23,6 +24,7 @@
     <string name="terminal">终端</string>
     <string name="toolbox">工具箱</string>
     <string name="mcp">MCP 插件市场</string>
+    <string name="token_config_title">DeepSeek Token配置</string>
     
     <!-- Terminal Screen -->
     <string name="termux_not_installed">Termux 未安装</string>

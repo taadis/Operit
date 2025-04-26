@@ -153,6 +153,9 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                     _chatHistory.value.let { messages ->
                         floatingService?.updateChatMessages(messages)
                     }
+                    
+                    // Set up collection of messages from floating service
+                    setupFloatingServiceMessageCollection()
                 }
 
                 override fun onServiceDisconnected(name: ComponentName?) {
@@ -1219,5 +1222,30 @@ class ChatViewModel(private val context: Context) : ViewModel() {
             //            "已恢复询问模式，工具执行将询问批准"
             //        }
         }
+    }
+
+    // Add function to collect messages from floating service
+    private fun setupFloatingServiceMessageCollection() {
+        floatingService?.let { service ->
+            viewModelScope.launch {
+                try {
+                    service.messageToSend.collect { message ->
+                        Log.d("ChatViewModel", "Received message from floating window: $message")
+                        // Process the message as if it was entered by the user
+                        _userMessage.value = message
+                        sendUserMessage()
+                    }
+                } catch (e: Exception) {
+                    Log.e("ChatViewModel", "Error collecting messages from floating service", e)
+                }
+            }
+        }
+    }
+
+    /** 
+     * Updates the messages displayed in the floating window
+     */
+    fun updateFloatingWindowMessages(messages: List<ChatMessage>) {
+        floatingService?.updateChatMessages(messages)
     }
 }

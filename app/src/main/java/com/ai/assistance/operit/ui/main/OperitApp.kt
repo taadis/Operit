@@ -55,6 +55,7 @@ import com.ai.assistance.operit.ui.features.settings.screens.SettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ToolPermissionSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.UserPreferencesGuideScreen
 import com.ai.assistance.operit.ui.features.settings.screens.UserPreferencesSettingsScreen
+import com.ai.assistance.operit.ui.features.token.TokenConfigWebViewScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.AppPermissionsToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.FileManagerToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.FormatConverterToolScreen
@@ -77,6 +78,7 @@ sealed class Screen {
     data object Settings : Screen()
     data object Help : Screen()
     data object About : Screen()
+    data object TokenConfig : Screen() // New screen for token configuration
 
     // Secondary screens
     data object ToolPermission : Screen()
@@ -114,10 +116,17 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                     NavItem.Settings -> Screen.Settings
                     NavItem.Help -> Screen.Help
                     NavItem.About -> Screen.About
+                    NavItem.TokenConfig -> Screen.TokenConfig
                     NavItem.UserPreferencesGuide -> Screen.UserPreferencesGuide
                     else -> Screen.AiChat
                 }
         )
+    }
+
+    // 用于导航到TokenConfig屏幕的函数
+    fun navigateToTokenConfig() {
+        currentScreen = Screen.TokenConfig
+        selectedItem = NavItem.TokenConfig
     }
 
     var isLoading by remember { mutableStateOf(false) }
@@ -344,6 +353,18 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                     onClick = {
                         selectedItem = NavItem.Packages
                         currentScreen = Screen.Packages
+                        scope.launch { drawerState.close() }
+                    }
+            )
+
+            // 配置Token
+            CompactNavigationDrawerItem(
+                    icon = NavItem.TokenConfig.icon,
+                    label = stringResource(id = NavItem.TokenConfig.titleResId),
+                    selected = currentScreen is Screen.TokenConfig,
+                    onClick = {
+                        selectedItem = NavItem.TokenConfig
+                        currentScreen = Screen.TokenConfig
                         scope.launch { drawerState.close() }
                     }
             )
@@ -667,7 +688,8 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                 // 应用权限管理屏幕
                                 AppPermissionsToolScreen(navController = navController)
                             }
-                            is Screen.AiChat -> AIChatScreen()
+                            is Screen.AiChat ->
+                                    AIChatScreen(onNavigateToTokenConfig = ::navigateToTokenConfig)
                             is Screen.ShizukuCommands -> ShizukuDemoScreen()
                             is Screen.Toolbox -> {
                                 // 工具箱页面
@@ -714,6 +736,15 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                                 selectedItem = NavItem.AiChat
                                             }
                                     )
+                            is Screen.TokenConfig -> {
+                                // 显示TokenConfigWebViewScreen
+                                TokenConfigWebViewScreen(
+                                        onNavigateBack = {
+                                            currentScreen = Screen.AiChat
+                                            selectedItem = NavItem.AiChat
+                                        }
+                                )
+                            }
                         }
                     }
                 }
