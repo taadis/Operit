@@ -72,6 +72,7 @@ android {
     }
 }
 dependencies {
+    implementation(libs.androidx.ui.graphics.android)
     // Desugaring support for modern Java APIs on older Android
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
     
@@ -86,11 +87,16 @@ dependencies {
     implementation("org.apache.pdfbox:pdfbox:2.0.27") // PDFBox for PDF operations
     
     // Markdown rendering libraries
-    implementation("com.github.jeziellago:compose-markdown:0.3.6") // Compose Markdown renderer
-    implementation("org.jetbrains:markdown:0.4.1") // JetBrains Markdown parser
+    implementation("com.github.jeziellago:compose-markdown:0.5.7")
+    implementation("io.noties.markwon:core:4.6.2")
+    implementation("io.noties.markwon:html:4.6.2")
+    implementation("io.noties.markwon:linkify:4.6.2")
+    implementation("io.noties.markwon:ext-strikethrough:4.6.2")
+    implementation("io.noties.markwon:ext-tables:4.6.2")
     
-    // LaTeX support - RenderX提供原生LaTeX渲染
-    implementation("com.github.tech-pw:RenderX:1.0.0") // 支持原生LaTeX渲染
+    // LaTeX rendering libraries
+    implementation("ru.noties:jlatexmath-android:0.2.0")
+    implementation("com.github.tech-pw:RenderX:1.0.0") // RenderX library for LaTeX rendering
     
     // Base Android dependencies
     implementation(libs.androidx.core.ktx)
