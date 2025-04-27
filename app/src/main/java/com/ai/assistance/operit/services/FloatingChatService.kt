@@ -96,23 +96,30 @@ class FloatingChatService : Service() {
     // 添加悬浮球模式相关状态
     private val isBallMode = mutableStateOf(false)
     private val ballSize = mutableStateOf(56.dp) // 悬浮球的默认大小
-    
+
     // 记录窗口<->球转换的原始位置
     private var lastWindowPositionX: Int = 0
     private var lastWindowPositionY: Int = 0
     private var lastBallPositionX: Int = 0
     private var lastBallPositionY: Int = 0
-    
+
     // 用于计算中心对齐的转换
-    private fun calculateCenteredPosition(fromX: Int, fromY: Int, fromWidth: Int, fromHeight: Int, toWidth: Int, toHeight: Int): Pair<Int, Int> {
+    private fun calculateCenteredPosition(
+        fromX: Int,
+        fromY: Int,
+        fromWidth: Int,
+        fromHeight: Int,
+        toWidth: Int,
+        toHeight: Int
+    ): Pair<Int, Int> {
         // 计算原始形状的中心点
         val centerX = fromX + fromWidth / 2
         val centerY = fromY + fromHeight / 2
-        
+
         // 计算新位置，保持中心点对齐
         val newX = centerX - toWidth / 2
         val newY = centerY - toHeight / 2
-        
+
         return Pair(newX, newY)
     }
 
@@ -127,9 +134,9 @@ class FloatingChatService : Service() {
     // 全局异常处理器
     private val defaultExceptionHandler = Thread.getDefaultUncaughtExceptionHandler()
     private val customExceptionHandler =
-            Thread.UncaughtExceptionHandler { thread, throwable ->
-                handleServiceCrash(thread, throwable)
-            }
+        Thread.UncaughtExceptionHandler { thread, throwable ->
+            handleServiceCrash(thread, throwable)
+        }
 
     // Add SharedFlow for message updates
     private val messageUpdateFlow = MutableSharedFlow<List<ChatMessage>>(replay = 1)
@@ -238,10 +245,10 @@ class FloatingChatService : Service() {
             if (wakeLock == null) {
                 val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
                 wakeLock =
-                        powerManager.newWakeLock(
-                                PowerManager.PARTIAL_WAKE_LOCK,
-                                "OperitApp:FloatingChatServiceWakeLock"
-                        )
+                    powerManager.newWakeLock(
+                        PowerManager.PARTIAL_WAKE_LOCK,
+                        "OperitApp:FloatingChatServiceWakeLock"
+                    )
                 wakeLock?.setReferenceCounted(false)
             }
 
@@ -273,10 +280,10 @@ class FloatingChatService : Service() {
             val descriptionText = "显示AI助手的悬浮窗服务"
             val importance = NotificationManager.IMPORTANCE_LOW // 使用LOW级别减少视觉干扰
             val channel =
-                    NotificationChannel(CHANNEL_ID, name, importance).apply {
-                        description = descriptionText
-                        setShowBadge(false) // 不在启动器图标上显示通知角标
-                    }
+                NotificationChannel(CHANNEL_ID, name, importance).apply {
+                    description = descriptionText
+                    setShowBadge(false) // 不在启动器图标上显示通知角标
+                }
             val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
         }
@@ -284,27 +291,27 @@ class FloatingChatService : Service() {
 
     // 创建前台服务所需的通知
     private fun createNotification() =
-            NotificationCompat.Builder(this, CHANNEL_ID)
-                    .setSmallIcon(android.R.drawable.ic_dialog_info) // 替换为您的应用图标
-                    .setContentTitle("AI助手悬浮窗")
-                    .setContentText("AI助手正在后台运行")
-                    .setPriority(NotificationCompat.PRIORITY_LOW) // 低优先级减少视觉干扰
-                    .setOngoing(true) // 用户不能滑动删除
-                    .setCategory(NotificationCompat.CATEGORY_SERVICE)
-                    .setTimeoutAfter(60 * 1000) // 必须为短期服务设置超时，这里设置为60秒
-                    // 添加一个返回主应用的Intent
-                    .setContentIntent(getPendingIntent())
-                    .build()
+        NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_info) // 替换为您的应用图标
+            .setContentTitle("AI助手悬浮窗")
+            .setContentText("AI助手正在后台运行")
+            .setPriority(NotificationCompat.PRIORITY_LOW) // 低优先级减少视觉干扰
+            .setOngoing(true) // 用户不能滑动删除
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setTimeoutAfter(60 * 1000) // 必须为短期服务设置超时，这里设置为60秒
+            // 添加一个返回主应用的Intent
+            .setContentIntent(getPendingIntent())
+            .build()
 
     // 创建一个返回主应用的PendingIntent
     private fun getPendingIntent(): PendingIntent {
         val intent = packageManager.getLaunchIntentForPackage(packageName)
         return PendingIntent.getActivity(
-                this,
-                0,
-                intent,
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE
-                else 0
+            this,
+            0,
+            intent,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE
+            else 0
         )
     }
 
@@ -424,375 +431,408 @@ class FloatingChatService : Service() {
                 // appearance
                 MaterialTheme {
                     FloatingChatWindow(
-                            messages = chatMessages.value,
-                            width = windowWidth.value,
-                            height = windowHeight.value,
-                            initialWindowScale = windowScale.value,
-                            onClose = {
-                                Log.d(TAG, "Close button clicked, stopping service")
-                                // 延迟200毫秒后关闭
-                                Handler(Looper.getMainLooper())
-                                        .postDelayed(
-                                                {
-                                                    // 先移除视图，再停止服务
-                                                    if (isViewAdded) {
-                                                        try {
-                                                            composeView?.let {
-                                                                windowManager.removeView(it)
-                                                            }
-                                                            isViewAdded = false
-                                                        } catch (e: Exception) {
-                                                            Log.e(
-                                                                    TAG,
-                                                                    "Error removing floating view",
-                                                                    e
-                                                            )
-                                                        }
-                                                    }
-                                                    // 停止服务 不了
-                                                    stopSelf()
-                                                },
-                                                200
-                                        )
-                            },
-                            onResize = { newWidth, newHeight ->
-                                windowWidth.value = newWidth
-                                windowHeight.value = newHeight
+                        messages = chatMessages.value,
+                        width = windowWidth.value,
+                        height = windowHeight.value,
+                        initialWindowScale = windowScale.value,
+                        onClose = {
+                            Log.d(TAG, "Close button clicked, stopping service")
+                            // 延迟200毫秒后关闭
+                            Handler(Looper.getMainLooper())
+                                .postDelayed(
+                                    {
+                                        // 先移除视图，再停止服务
+                                        if (isViewAdded) {
+                                            try {
+                                                composeView?.let {
+                                                    windowManager.removeView(it)
+                                                }
+                                                isViewAdded = false
+                                            } catch (e: Exception) {
+                                                Log.e(
+                                                    TAG,
+                                                    "Error removing floating view",
+                                                    e
+                                                )
+                                            }
+                                        }
+                                        // 停止服务 不了
+                                        stopSelf()
+                                    },
+                                    200
+                                )
+                        },
+                        onResize = { newWidth, newHeight ->
+                            windowWidth.value = newWidth
+                            windowHeight.value = newHeight
 
-                                // 更新窗口大小
-                                val params = view.layoutParams as WindowManager.LayoutParams
-                                params.width = WindowManager.LayoutParams.WRAP_CONTENT
-                                params.height = WindowManager.LayoutParams.WRAP_CONTENT
-                                // 确保窗口参数仍然包含FLAG_LAYOUT_NO_LIMITS标志
-                                params.flags =
-                                        params.flags or
-                                                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-                                windowManager.updateViewLayout(view, params)
+                            // 更新窗口大小
+                            val params = view.layoutParams as WindowManager.LayoutParams
+                            params.width = WindowManager.LayoutParams.WRAP_CONTENT
+                            params.height = WindowManager.LayoutParams.WRAP_CONTENT
+                            // 确保窗口参数仍然包含FLAG_LAYOUT_NO_LIMITS标志
+                            params.flags =
+                                params.flags or
+                                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                            windowManager.updateViewLayout(view, params)
 
-                                // 保存调整后的窗口状态
-                                saveWindowState()
-                            },
-                            isBallMode = isBallMode.value,
-                            ballSize = ballSize.value,
-                            onToggleBallMode = {
-                                // 转换前判断防抖
-                                if (isTransitioning) {
-                                    Log.d(TAG, "转换中，忽略切换请求")
-                                    return@FloatingChatWindow
-                                }
-                                
-                                isTransitioning = true
-                                
-                                // 获取当前参数
-                                val currentParams = view.layoutParams as WindowManager.LayoutParams
-                                
-                                // 保存当前模式的位置
-                                if (isBallMode.value) {
-                                    lastBallPositionX = currentParams.x
-                                    lastBallPositionY = currentParams.y
+                            // 保存调整后的窗口状态
+                            saveWindowState()
+                        },
+                        isBallMode = isBallMode.value,
+                        ballSize = ballSize.value,
+                        onToggleBallMode = {
+                            // 转换前判断防抖
+                            if (isTransitioning) {
+                                Log.d(TAG, "转换中，忽略切换请求")
+                                return@FloatingChatWindow
+                            }
+
+                            isTransitioning = true
+
+                            // 获取当前参数
+                            val currentParams = view.layoutParams as WindowManager.LayoutParams
+
+                            // 保存当前模式的位置
+                            if (isBallMode.value) {
+                                lastBallPositionX = currentParams.x
+                                lastBallPositionY = currentParams.y
+                            } else {
+                                lastWindowPositionX = currentParams.x
+                                lastWindowPositionY = currentParams.y
+                            }
+
+                            val displayMetrics = resources.displayMetrics
+                            val screenWidth = displayMetrics.widthPixels
+                            val screenHeight = displayMetrics.heightPixels
+                            val density = displayMetrics.density
+
+                            // 计算当前视图的尺寸
+                            val currentWidth: Int
+                            val currentHeight: Int
+
+                            if (isBallMode.value) {
+                                // 当前是球模式，计算球的尺寸
+                                currentWidth = (ballSize.value.value * density).toInt()
+                                currentHeight = currentWidth
+                            } else {
+                                // 当前是窗口模式，计算窗口的尺寸
+                                currentWidth =
+                                    (windowWidth.value.value * density * windowScale.value).toInt()
+                                currentHeight =
+                                    (windowHeight.value.value * density * windowScale.value).toInt()
+                            }
+
+                            // 切换模式
+                            isBallMode.value = !isBallMode.value
+
+                            // 保存新状态
+                            saveWindowState()
+
+                            // 准备更新窗口参数
+                            val params = currentParams
+                            params.width = WindowManager.LayoutParams.WRAP_CONTENT
+                            params.height = WindowManager.LayoutParams.WRAP_CONTENT
+
+                            // 计算新模式的尺寸
+                            val newWidth: Int
+                            val newHeight: Int
+
+                            if (isBallMode.value) {
+                                // 切换到球模式
+                                val ballSizeInPx = (ballSize.value.value * density).toInt()
+                                newWidth = ballSizeInPx
+                                newHeight = ballSizeInPx
+
+                                // 如果有之前保存的球位置，优先使用
+                                if (lastBallPositionX != 0 && lastBallPositionY != 0) {
+                                    params.x = lastBallPositionX
+                                    params.y = lastBallPositionY
                                 } else {
-                                    lastWindowPositionX = currentParams.x
-                                    lastWindowPositionY = currentParams.y
+                                    // 否则计算保持中心对齐的位置
+                                    val (centeredX, centeredY) = calculateCenteredPosition(
+                                        params.x,
+                                        params.y,
+                                        currentWidth,
+                                        currentHeight,
+                                        newWidth,
+                                        newHeight
+                                    )
+                                    params.x = centeredX
+                                    params.y = centeredY
                                 }
-                                
+
+                                // 确保球完全在屏幕内可见，预留边距
+                                val margin = (16 * density).toInt()
+                                params.x =
+                                    params.x.coerceIn(
+                                        margin,
+                                        screenWidth - ballSizeInPx - margin
+                                    )
+                                params.y =
+                                    params.y.coerceIn(
+                                        margin,
+                                        screenHeight - ballSizeInPx - margin
+                                    )
+
+                                // 更新保存的位置
+                                initialX = params.x
+                                initialY = params.y
+
+                                // 调整窗口缩放以允许更小的球模式
+                                windowScale.value = windowScale.value.coerceIn(0.5f, 1.0f)
+
+                                Log.d(
+                                    TAG,
+                                    "切换到球模式，位置: x=${params.x}, y=${params.y}, 缩放: ${windowScale.value}"
+                                )
+                            } else {
+                                // 切换到窗口模式
+                                newWidth =
+                                    (windowWidth.value.value * density * windowScale.value).toInt()
+                                newHeight =
+                                    (windowHeight.value.value * density * windowScale.value).toInt()
+
+                                // 使用上一次保存的窗口位置，如果有的话
+                                if (lastWindowPositionX != 0 && lastWindowPositionY != 0) {
+                                    params.x = lastWindowPositionX
+                                    params.y = lastWindowPositionY
+                                } else {
+                                    // 否则计算保持中心对齐的位置
+                                    val (centeredX, centeredY) = calculateCenteredPosition(
+                                        params.x,
+                                        params.y,
+                                        currentWidth,
+                                        currentHeight,
+                                        newWidth,
+                                        newHeight
+                                    )
+                                    params.x = centeredX
+                                    params.y = centeredY
+                                }
+
+                                // 确保窗口位置合理
+                                val minVisibleWidth = newWidth / 3
+                                val minVisibleHeight = newHeight / 3
+
+                                params.x = params.x.coerceIn(
+                                    -newWidth + minVisibleWidth,
+                                    screenWidth - minVisibleWidth
+                                )
+
+                                params.y = params.y.coerceIn(
+                                    0, // 不允许超出顶部
+                                    screenHeight - minVisibleHeight
+                                )
+
+                                // 更新保存的位置
+                                initialX = params.x
+                                initialY = params.y
+
+                                // 确保窗口模式下的缩放合理
+                                windowScale.value = windowScale.value.coerceAtLeast(0.6f)
+
+                                Log.d(
+                                    TAG,
+                                    "切换到窗口模式，位置: x=${params.x}, y=${params.y}, 缩放: ${windowScale.value}"
+                                )
+                            }
+
+                            // 确保窗口参数仍然包含FLAG_LAYOUT_NO_LIMITS标志
+                            params.flags =
+                                params.flags or
+                                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                            windowManager.updateViewLayout(view, params)
+
+                            // 延迟重置转换标志以防止快速多次切换
+                            Handler(Looper.getMainLooper()).postDelayed({
+                                isTransitioning = false
+                            }, transitionDebounceTime)
+                        },
+                        // 处理移动回调
+                        onMove = { dx, dy, currentScale ->
+                            val params = view.layoutParams as WindowManager.LayoutParams
+
+                            try {
+                                // 获取屏幕尺寸
                                 val displayMetrics = resources.displayMetrics
                                 val screenWidth = displayMetrics.widthPixels
                                 val screenHeight = displayMetrics.heightPixels
                                 val density = displayMetrics.density
-                                
-                                // 计算当前视图的尺寸
-                                val currentWidth: Int
-                                val currentHeight: Int
-                                
-                                if (isBallMode.value) {
-                                    // 当前是球模式，计算球的尺寸
-                                    currentWidth = (ballSize.value.value * density).toInt()
-                                    currentHeight = currentWidth
-                                } else {
-                                    // 当前是窗口模式，计算窗口的尺寸
-                                    currentWidth = (windowWidth.value.value * density * windowScale.value).toInt()
-                                    currentHeight = (windowHeight.value.value * density * windowScale.value).toInt()
-                                }
-                                
-                                // 切换模式
-                                isBallMode.value = !isBallMode.value
-                                
-                                // 保存新状态
-                                saveWindowState()
 
-                                // 准备更新窗口参数
-                                val params = currentParams
-                                params.width = WindowManager.LayoutParams.WRAP_CONTENT
-                                params.height = WindowManager.LayoutParams.WRAP_CONTENT
+                                // 更新存储的缩放值
+                                windowScale.value = currentScale
 
-                                // 计算新模式的尺寸
-                                val newWidth: Int
-                                val newHeight: Int
-                                
-                                if (isBallMode.value) {
-                                    // 切换到球模式
-                                    val ballSizeInPx = (ballSize.value.value * density).toInt()
-                                    newWidth = ballSizeInPx
-                                    newHeight = ballSizeInPx
-                                    
-                                    // 如果有之前保存的球位置，优先使用
-                                    if (lastBallPositionX != 0 && lastBallPositionY != 0) {
-                                        params.x = lastBallPositionX
-                                        params.y = lastBallPositionY
+                                // 记录旧位置
+                                val oldX = params.x
+                                val oldY = params.y
+
+                                // 根据模式设置不同的移动灵敏度
+                                val sensitivity =
+                                    if (isBallMode.value) {
+                                        0.9f // 球模式使用固定灵敏度，不受缩放影响
                                     } else {
-                                        // 否则计算保持中心对齐的位置
-                                        val (centeredX, centeredY) = calculateCenteredPosition(
-                                            params.x, params.y, currentWidth, currentHeight, newWidth, newHeight
-                                        )
-                                        params.x = centeredX
-                                        params.y = centeredY
+                                        currentScale // 窗口模式灵敏度与缩放比例成正比
                                     }
 
-                                    // 确保球完全在屏幕内可见，预留边距
-                                    val margin = (16 * density).toInt()
+                                // 应用灵敏度并更新位置
+                                params.x += (dx * sensitivity).toInt()
+                                params.y += (dy * sensitivity).toInt()
+
+                                // 根据模式计算可移动边界
+                                if (isBallMode.value) {
+                                    // 球模式：确保球至少有一半在屏幕内
+                                    val ballSize = (ballSize.value.value * density).toInt()
+                                    val minVisible = ballSize / 2 // 确保至少一半球可见
+
+                                    // 更严格的边界限制
                                     params.x =
-                                            params.x.coerceIn(
-                                                    margin,
-                                                    screenWidth - ballSizeInPx - margin
-                                            )
-                                    params.y =
-                                            params.y.coerceIn(
-                                                    margin,
-                                                    screenHeight - ballSizeInPx - margin
-                                            )
-
-                                    // 更新保存的位置
-                                    initialX = params.x
-                                    initialY = params.y
-                                    
-                                    // 调整窗口缩放以允许更小的球模式
-                                    windowScale.value = windowScale.value.coerceIn(0.5f, 1.0f)
-
-                                    Log.d(TAG, "切换到球模式，位置: x=${params.x}, y=${params.y}, 缩放: ${windowScale.value}")
-                                } else {
-                                    // 切换到窗口模式
-                                    newWidth = (windowWidth.value.value * density * windowScale.value).toInt()
-                                    newHeight = (windowHeight.value.value * density * windowScale.value).toInt()
-                                    
-                                    // 使用上一次保存的窗口位置，如果有的话
-                                    if (lastWindowPositionX != 0 && lastWindowPositionY != 0) {
-                                        params.x = lastWindowPositionX
-                                        params.y = lastWindowPositionY
-                                    } else {
-                                        // 否则计算保持中心对齐的位置
-                                        val (centeredX, centeredY) = calculateCenteredPosition(
-                                            params.x, params.y, currentWidth, currentHeight, newWidth, newHeight
+                                        params.x.coerceIn(
+                                            -ballSize + minVisible, // 左边界
+                                            screenWidth - minVisible // 右边界
                                         )
-                                        params.x = centeredX
-                                        params.y = centeredY
-                                    }
-                                    
-                                    // 确保窗口位置合理
-                                    val minVisibleWidth = newWidth / 3
-                                    val minVisibleHeight = newHeight / 3
-                                    
-                                    params.x = params.x.coerceIn(
-                                        -newWidth + minVisibleWidth,
-                                        screenWidth - minVisibleWidth
-                                    )
-                                    
-                                    params.y = params.y.coerceIn(
-                                        0, // 不允许超出顶部
-                                        screenHeight - minVisibleHeight
-                                    )
-                                    
-                                    // 更新保存的位置
-                                    initialX = params.x
-                                    initialY = params.y
-                                    
-                                    // 确保窗口模式下的缩放合理
-                                    windowScale.value = windowScale.value.coerceAtLeast(0.6f)
-                                    
-                                    Log.d(TAG, "切换到窗口模式，位置: x=${params.x}, y=${params.y}, 缩放: ${windowScale.value}")
+
+                                    params.y =
+                                        params.y.coerceIn(
+                                            0, // 上边界 - 限制不超出顶部
+                                            screenHeight - minVisible // 下边界
+                                        )
+                                } else {
+                                    // 窗口模式：严格限制
+                                    val windowWidth =
+                                        (windowWidth.value.value * density * currentScale)
+                                            .toInt()
+                                    val windowHeight =
+                                        (windowHeight.value.value * density * currentScale)
+                                            .toInt()
+
+                                    // 确保2/3窗口内容可见
+                                    val minVisibleWidth = (windowWidth * 2 / 3)
+                                    val minVisibleHeight = (windowHeight * 2 / 3)
+
+                                    // 对称的边界限制 - 左右两边限制一致
+                                    params.x =
+                                        params.x.coerceIn(
+                                            -(windowWidth -
+                                                minVisibleWidth), // 左边界 - 允许1/3移出
+                                            screenWidth -
+                                                minVisibleWidth / 2 // 右边界 - 允许1/3移出
+                                        )
+
+                                    params.y =
+                                        params.y.coerceIn(
+                                            0, // 上边界 - 不允许超出顶部
+                                            screenHeight -
+                                                minVisibleHeight // 下边界 - 允许1/3移出
+                                        )
                                 }
 
-                                // 确保窗口参数仍然包含FLAG_LAYOUT_NO_LIMITS标志
+                                // 确保FLAG_LAYOUT_NO_LIMITS设置
                                 params.flags =
-                                        params.flags or
-                                                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                                    params.flags or
+                                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+
+                                // 更新窗口位置
                                 windowManager.updateViewLayout(view, params)
-                                
-                                // 延迟重置转换标志以防止快速多次切换
-                                Handler(Looper.getMainLooper()).postDelayed({
-                                    isTransitioning = false
-                                }, transitionDebounceTime)
-                            },
-                            // 处理移动回调
-                            onMove = { dx, dy, currentScale ->
+
+                                // 保存当前位置
+                                initialX = params.x
+                                initialY = params.y
+
+                                // 日志记录
+                                Log.d(
+                                    TAG,
+                                    "窗口移动: 当前位置(${params.x},${params.y}), 缩放:$currentScale, 灵敏度:$sensitivity"
+                                )
+                            } catch (e: Exception) {
+                                Log.e(TAG, "移动窗口失败: ${e.message}")
+                            }
+                        },
+                        // 添加保存窗口状态的回调
+                        saveWindowState = {
+                            // 保存当前窗口状态
+                            this@FloatingChatService.saveWindowState()
+                        },
+                        // Add message sending callback
+                        onSendMessage = { message ->
+                            sendMessage(message)
+                        },
+                        // 添加输入焦点切换回调
+                        onInputFocusRequest = { needsFocus ->
+                            Log.d(TAG, "输入框焦点请求: $needsFocus")
+
+                            try {
+                                // 获取当前窗口参数
                                 val params = view.layoutParams as WindowManager.LayoutParams
 
-                                try {
-                                    // 获取屏幕尺寸
-                                    val displayMetrics = resources.displayMetrics
-                                    val screenWidth = displayMetrics.widthPixels
-                                    val screenHeight = displayMetrics.heightPixels
-                                    val density = displayMetrics.density
-
-                                    // 更新存储的缩放值
-                                    windowScale.value = currentScale
-
-                                    // 记录旧位置
-                                    val oldX = params.x
-                                    val oldY = params.y
-
-                                    // 根据模式设置不同的移动灵敏度
-                                    val sensitivity =
-                                            if (isBallMode.value) {
-                                                0.9f // 球模式使用固定灵敏度，不受缩放影响
-                                            } else {
-                                                currentScale // 窗口模式灵敏度与缩放比例成正比
-                                            }
-
-                                    // 应用灵敏度并更新位置
-                                    params.x += (dx * sensitivity).toInt()
-                                    params.y += (dy * sensitivity).toInt()
-
-                                    // 根据模式计算可移动边界
-                                    if (isBallMode.value) {
-                                        // 球模式：确保球至少有一半在屏幕内
-                                        val ballSize = (ballSize.value.value * density).toInt()
-                                        val minVisible = ballSize / 2 // 确保至少一半球可见
-
-                                        // 更严格的边界限制
-                                        params.x =
-                                                params.x.coerceIn(
-                                                        -ballSize + minVisible, // 左边界
-                                                        screenWidth - minVisible // 右边界
-                                                )
-
-                                        params.y =
-                                                params.y.coerceIn(
-                                                        0, // 上边界 - 限制不超出顶部
-                                                        screenHeight - minVisible // 下边界
-                                                )
-                                    } else {
-                                        // 窗口模式：严格限制
-                                        val windowWidth =
-                                                (windowWidth.value.value * density * currentScale)
-                                                        .toInt()
-                                        val windowHeight =
-                                                (windowHeight.value.value * density * currentScale)
-                                                        .toInt()
-
-                                        // 确保2/3窗口内容可见
-                                        val minVisibleWidth = (windowWidth * 2 / 3)
-                                        val minVisibleHeight = (windowHeight * 2 / 3)
-
-                                        // 对称的边界限制 - 左右两边限制一致
-                                        params.x =
-                                                params.x.coerceIn(
-                                                        -(windowWidth -
-                                                                minVisibleWidth), // 左边界 - 允许1/3移出
-                                                        screenWidth -
-                                                                minVisibleWidth / 2 // 右边界 - 允许1/3移出
-                                                )
-
-                                        params.y =
-                                                params.y.coerceIn(
-                                                        0, // 上边界 - 不允许超出顶部
-                                                        screenHeight -
-                                                                minVisibleHeight // 下边界 - 允许1/3移出
-                                                )
-                                    }
-
-                                    // 确保FLAG_LAYOUT_NO_LIMITS设置
+                                if (needsFocus) {
+                                    // 如果需要焦点，移除不可聚焦标志
                                     params.flags =
-                                            params.flags or
-                                                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                                        params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+                                    Log.d(TAG, "移除不可聚焦标志，允许输入法显示")
 
-                                    // 更新窗口位置
+                                    // 确保窗口参数仍然包含FLAG_LAYOUT_NO_LIMITS标志
+                                    params.flags =
+                                        params.flags or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+
+                                    // 更新窗口参数
                                     windowManager.updateViewLayout(view, params)
 
-                                    // 保存当前位置
-                                    initialX = params.x
-                                    initialY = params.y
+                                    // 延迟处理确保布局更新完成后再请求焦点和显示键盘
+                                    Handler(Looper.getMainLooper()).postDelayed({
+                                        try {
+                                            // 请求焦点
+                                            view.requestFocus()
 
-                                    // 日志记录
-                                    Log.d(
-                                            TAG,
-                                            "窗口移动: 当前位置(${params.x},${params.y}), 缩放:$currentScale, 灵敏度:$sensitivity"
-                                    )
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "移动窗口失败: ${e.message}")
-                                }
-                            },
-                            // 添加保存窗口状态的回调
-                            saveWindowState = {
-                                // 保存当前窗口状态
-                                this@FloatingChatService.saveWindowState()
-                            },
-                            // Add message sending callback
-                            onSendMessage = { message ->
-                                sendMessage(message)
-                            },
-                            // 添加输入焦点切换回调
-                            onInputFocusRequest = { needsFocus ->
-                                Log.d(TAG, "输入框焦点请求: $needsFocus")
-                                
-                                try {
-                                    // 获取当前窗口参数
-                                    val params = view.layoutParams as WindowManager.LayoutParams
-                                    
-                                    if (needsFocus) {
-                                        // 如果需要焦点，移除不可聚焦标志
-                                        params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
-                                        Log.d(TAG, "移除不可聚焦标志，允许输入法显示")
-                                        
+                                            // 查找当前获得焦点的视图并显示键盘
+                                            view.findFocus()?.let { focused ->
+                                                val imm =
+                                                    getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+                                                imm?.showSoftInput(
+                                                    focused,
+                                                    InputMethodManager.SHOW_IMPLICIT
+                                                )
+                                                Log.d(TAG, "请求显示输入法")
+                                            } ?: run {
+                                                // 如果没有找到焦点视图，使用备用方式尝试显示键盘
+                                                val imm =
+                                                    getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+                                                imm?.toggleSoftInput(
+                                                    InputMethodManager.SHOW_FORCED,
+                                                    0
+                                                )
+                                                Log.d(TAG, "使用备用方式请求显示输入法")
+                                            }
+                                        } catch (e: Exception) {
+                                            Log.e(TAG, "请求焦点或显示输入法失败", e)
+                                        }
+                                    }, 200) // 增加延迟确保窗口参数已更新
+                                } else {
+                                    // 先隐藏输入法，再恢复不可聚焦标志
+                                    val imm =
+                                        getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+                                    imm?.hideSoftInputFromWindow(view.windowToken, 0)
+                                    Log.d(TAG, "隐藏输入法")
+
+                                    // 短暂延迟后恢复不可聚焦标志，确保输入法有时间隐藏
+                                    Handler(Looper.getMainLooper()).postDelayed({
+                                        // 恢复不可聚焦标志
+                                        params.flags =
+                                            params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                                        Log.d(TAG, "恢复不可聚焦标志")
+
                                         // 确保窗口参数仍然包含FLAG_LAYOUT_NO_LIMITS标志
-                                        params.flags = params.flags or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-                                        
+                                        params.flags =
+                                            params.flags or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+
                                         // 更新窗口参数
                                         windowManager.updateViewLayout(view, params)
-                                        
-                                        // 延迟处理确保布局更新完成后再请求焦点和显示键盘
-                                        Handler(Looper.getMainLooper()).postDelayed({
-                                            try {
-                                                // 请求焦点
-                                                view.requestFocus()
-                                                
-                                                // 查找当前获得焦点的视图并显示键盘
-                                                view.findFocus()?.let { focused ->
-                                                    val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
-                                                    imm?.showSoftInput(focused, InputMethodManager.SHOW_IMPLICIT)
-                                                    Log.d(TAG, "请求显示输入法")
-                                                } ?: run {
-                                                    // 如果没有找到焦点视图，使用备用方式尝试显示键盘
-                                                    val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
-                                                    imm?.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0)
-                                                    Log.d(TAG, "使用备用方式请求显示输入法")
-                                                }
-                                            } catch (e: Exception) {
-                                                Log.e(TAG, "请求焦点或显示输入法失败", e)
-                                            }
-                                        }, 200) // 增加延迟确保窗口参数已更新
-                                    } else {
-                                        // 先隐藏输入法，再恢复不可聚焦标志
-                                        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
-                                        imm?.hideSoftInputFromWindow(view.windowToken, 0)
-                                        Log.d(TAG, "隐藏输入法")
-                                        
-                                        // 短暂延迟后恢复不可聚焦标志，确保输入法有时间隐藏
-                                        Handler(Looper.getMainLooper()).postDelayed({
-                                            // 恢复不可聚焦标志
-                                            params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                                            Log.d(TAG, "恢复不可聚焦标志")
-                                            
-                                            // 确保窗口参数仍然包含FLAG_LAYOUT_NO_LIMITS标志
-                                            params.flags = params.flags or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-                                            
-                                            // 更新窗口参数
-                                            windowManager.updateViewLayout(view, params)
-                                        }, 100)
-                                    }
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "切换焦点模式失败", e)
+                                    }, 100)
                                 }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "切换焦点模式失败", e)
                             }
+                        }
                     )
                 }
             }
@@ -800,15 +840,15 @@ class FloatingChatService : Service() {
 
             // 设置WindowManager参数
             val params =
-                    WindowManager.LayoutParams(
-                            WindowManager.LayoutParams.WRAP_CONTENT,
-                            WindowManager.LayoutParams.WRAP_CONTENT,
-                            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                                    WindowManager.LayoutParams
-                                            .FLAG_LAYOUT_NO_LIMITS, // 添加FLAG_LAYOUT_NO_LIMITS允许窗口超出屏幕边界
-                            PixelFormat.TRANSLUCENT
-                    )
+                WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams
+                            .FLAG_LAYOUT_NO_LIMITS, // 添加FLAG_LAYOUT_NO_LIMITS允许窗口超出屏幕边界
+                    PixelFormat.TRANSLUCENT
+                )
 
             // 使用恢复的位置，但增加安全检查
             params.gravity = Gravity.TOP or Gravity.START
@@ -827,10 +867,10 @@ class FloatingChatService : Service() {
                 // 确保球至少1/2在屏幕内可见
                 val minVisible = ballSizeInPx / 2
                 initialX =
-                        initialX.coerceIn(
-                                -ballSizeInPx + minVisible + safeMargin,
-                                screenWidth - minVisible - safeMargin
-                        )
+                    initialX.coerceIn(
+                        -ballSizeInPx + minVisible + safeMargin,
+                        screenWidth - minVisible - safeMargin
+                    )
                 initialY = initialY.coerceIn(safeMargin, screenHeight - minVisible - safeMargin)
 
                 Log.d(TAG, "安全检查：确保球模式位置在屏幕内: x=${initialX}, y=${initialY}")
@@ -843,15 +883,15 @@ class FloatingChatService : Service() {
 
                 // 确保窗口至少2/3在屏幕内可见
                 initialX =
-                        initialX.coerceIn(
-                                -(windowWidth - minVisibleWidth) + safeMargin,
-                                screenWidth - minVisibleWidth - safeMargin
-                        )
+                    initialX.coerceIn(
+                        -(windowWidth - minVisibleWidth) + safeMargin,
+                        screenWidth - minVisibleWidth - safeMargin
+                    )
                 initialY =
-                        initialY.coerceIn(
-                                safeMargin,
-                                screenHeight - (windowHeight / 2) - safeMargin
-                        )
+                    initialY.coerceIn(
+                        safeMargin,
+                        screenHeight - (windowHeight / 2) - safeMargin
+                    )
 
                 Log.d(TAG, "安全检查：确保窗口模式位置在屏幕内: x=${initialX}, y=${initialY}")
             }
@@ -867,8 +907,8 @@ class FloatingChatService : Service() {
             windowManager.addView(view, params)
             isViewAdded = true
             Log.d(
-                    TAG,
-                    "Floating Compose view created and added at position x=${params.x}, y=${params.y}"
+                TAG,
+                "Floating Compose view created and added at position x=${params.x}, y=${params.y}"
             )
         } catch (e: Exception) {
             Log.e(TAG, "Error creating floating view", e)
@@ -880,21 +920,21 @@ class FloatingChatService : Service() {
 
                 // 延迟一秒后重试
                 Handler(Looper.getMainLooper())
-                        .postDelayed(
-                                {
-                                    try {
-                                        if (isViewAdded) return@postDelayed
-                                        Log.d(
-                                                TAG,
-                                                "Retrying view creation, attempt: ${retryCount + 1}"
-                                        )
-                                        createFloatingView()
-                                    } catch (e: Exception) {
-                                        Log.e(TAG, "Error in retry", e)
-                                    }
-                                },
-                                1000
-                        )
+                    .postDelayed(
+                        {
+                            try {
+                                if (isViewAdded) return@postDelayed
+                                Log.d(
+                                    TAG,
+                                    "Retrying view creation, attempt: ${retryCount + 1}"
+                                )
+                                createFloatingView()
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error in retry", e)
+                            }
+                        },
+                        1000
+                    )
             } else {
                 // 重试次数过多，停止服务
                 stopSelf()
