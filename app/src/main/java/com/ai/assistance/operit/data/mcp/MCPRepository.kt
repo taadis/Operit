@@ -2,669 +2,492 @@ package com.ai.assistance.operit.data.mcp
 
 import android.content.Context
 import android.util.Log
-import java.io.BufferedReader
+import com.ai.assistance.operit.data.mcp.MCPRepositoryConstants.GitHubConstants
+import com.ai.assistance.operit.data.mcp.MCPRepositoryConstants.MAX_PAGES
+import com.ai.assistance.operit.data.mcp.MCPRepositoryConstants.SortDirection
+import com.ai.assistance.operit.data.mcp.MCPRepositoryConstants.SortOptions
+import com.ai.assistance.operit.data.mcp.MCPRepositoryConstants.TAG
+import com.ai.assistance.operit.ui.features.mcp.model.MCPServer as UIMCPServer
 import java.io.File
-import java.io.InputStreamReader
-import java.net.HttpURLConnection
-import java.net.URL
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** MCP插件仓库，负责从GitHub获取Cline MCP marketplace数据 */
+/**
+ * MCP Repository - responsible for managing MCP server data from the GitHub Marketplace
+ *
+ * This class has been refactored to use specialized manager classes for different responsibilities:
+ * - MCPNetworkClient: Handles all network requests
+ * - MCPCacheManager: Handles caching of server data
+ * - MCPOfficialSourceManager: Manages official MCP servers
+ * - MCPPluginManager: Manages plugin installation and tracking
+ *
+ * The loading process follows a strict order:
+ * 1. Official plugins are loaded first
+ * 2. Third-party plugins from GitHub issues are loaded second
+ * 3. No merging logic is used - just sequential loading in priority order
+ */
 class MCPRepository(private val context: Context) {
-    private val TAG = "MCPRepository"
 
-    // GitHub API相关常量
-    private val GITHUB_API_BASE_URL = "https://api.github.com/repos/cline/mcp-marketplace/issues"
-    private val CACHE_DURATION_HOURS = 6L // 缓存时长（小时）
-    private val MAX_PAGES = 10 // 最多获取10页数据
-    private val PER_PAGE = 20 // 每页20条记录，降低单次获取量
+    // Specialized components
+    private val networkClient = MCPNetworkClient()
+    private val cacheManager = MCPCacheManager(context)
+    private val officialSourceManager = MCPOfficialSourceManager(networkClient, cacheManager)
+    private val pluginManager = MCPPluginManager(cacheManager, MCPInstaller(context))
 
-    // 标记服务器提交的关键字
-    private val SERVER_SUBMISSION_TAG = "[Server Submission]"
-
-    // Issue正文中的关键部分
-    private val REPO_URL_SECTION = "### GitHub Repository URL"
-    private val LOGO_SECTION = "### Logo Image"
-    private val TESTING_SECTION = "### Installation Testing"
-    private val INFO_SECTION = "### Additional Information"
-
-    // 缓存文件
-    private val cacheFile by lazy { File(context.cacheDir, "mcp_servers_cache.json") }
-
-    // 记录当前页码和是否有下一页
+    // Current page for third-party content (after official content)
     private var currentPage = 1
     private var hasMorePages = true
+    private val loadedServerIds = mutableSetOf<String>()
 
-    // 存储加载状态
+    // Official servers pagination
+    private var officialCurrentPage = 1
+    private var totalOfficialServers = 0
+    private var hasMoreOfficialPages = true
+    private val PAGE_SIZE = 50
+
+    // State flows
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    // 存储"是否有更多数据"的状态
     private val _hasMore = MutableStateFlow(true)
     val hasMore: StateFlow<Boolean> = _hasMore.asStateFlow()
 
-    // 存储错误信息
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
-    // 存储MCP服务器列表
-    private val _mcpServers = MutableStateFlow<List<MCPServer>>(emptyList())
-    val mcpServers: StateFlow<List<MCPServer>> = _mcpServers.asStateFlow()
+    private val _mcpServers = MutableStateFlow<List<UIMCPServer>>(emptyList())
+    val mcpServers: StateFlow<List<UIMCPServer>> = _mcpServers.asStateFlow()
 
-    // 记录上次加载时间
-    private var lastLoadTime: Long = 0
+    // Installed plugin IDs
+    val installedPluginIds: StateFlow<Set<String>> = pluginManager.installedPluginIds
 
-    // 所有已加载的服务器的ID集合，用于避免重复
-    private val loadedServerIds = mutableSetOf<String>()
-
-    /** 安装已保存的插件列表 */
-    private val _installedPluginIds = MutableStateFlow<Set<String>>(emptySet())
-    val installedPluginIds: StateFlow<Set<String>> = _installedPluginIds.asStateFlow()
-
-    // 本地存储文件
-    private val installedPluginsFile by lazy {
-        File(context.filesDir, "installed_mcp_plugins.json")
-    }
-
-    init {
-        // 加载已安装的插件列表
-        loadInstalledPlugins()
-    }
-
-    /** 从本地缓存或GitHub获取Cline MCP marketplace数据 */
-    suspend fun fetchMCPServers(forceRefresh: Boolean = false) {
+    /**
+     * Main method to fetch MCP servers - first loads official plugins, then third-party Uses a
+     * unified approach for initial load and pagination with no merging logic
+     *
+     * @param forceRefresh Whether to force a refresh from the network
+     * @param query Optional search query to filter results
+     * @param sortBy How to sort the results
+     * @param sortDirection Direction of sorting (ASC/DESC)
+     */
+    suspend fun fetchMCPServers(
+            forceRefresh: Boolean = false,
+            query: String = "",
+            sortBy: SortOptions = SortOptions.RECOMMENDED,
+            sortDirection: SortDirection = SortDirection.DESC
+    ) {
         withContext(Dispatchers.IO) {
             _isLoading.value = true
             _errorMessage.value = null
 
             try {
-                // 如果强制刷新，重置所有状态
+                // Reset state if force refreshing
                 if (forceRefresh) {
+                    Log.d(TAG, "Force refreshing MCP plugin data")
                     currentPage = 1
+                    officialCurrentPage = 1
                     hasMorePages = true
+                    hasMoreOfficialPages = true
+                    totalOfficialServers = 0
                     loadedServerIds.clear()
                     _mcpServers.value = emptyList()
-                    clearCache()
+                    cacheManager.clearAllCaches()
                 }
 
-                // 如果是第一页且缓存有效，尝试从缓存加载
-                if (currentPage == 1 && !forceRefresh && isCacheValid()) {
-                    val cachedServers = loadFromCache()
-                    if (cachedServers.isNotEmpty()) {
-                        cachedServers.forEach { loadedServerIds.add(it.id) }
-                        _mcpServers.value = cachedServers
-                        currentPage++ // 准备下一页的加载
+                // Step 1: Load official plugins with pagination
+                if (hasMoreOfficialPages && (currentPage == 1 || forceRefresh)) {
+                    Log.d(TAG, "Step 1: Loading official MCP plugins, page: $officialCurrentPage")
+                    val (officialServersPage, totalServers) =
+                            officialSourceManager.fetchOfficialServers(
+                                    forceRefresh,
+                                    officialCurrentPage,
+                                    PAGE_SIZE
+                            )
 
-                        // 更新安装状态
+                    totalOfficialServers = totalServers
+
+                    // Check if there are more official pages
+                    hasMoreOfficialPages = (officialCurrentPage * PAGE_SIZE) < totalOfficialServers
+
+                    // Filter official servers if there's a search query
+                    val filteredOfficialServers =
+                            if (query.isNotBlank()) {
+                                officialSourceManager.filterOfficialServers(
+                                        officialServersPage,
+                                        query
+                                )
+                            } else {
+                                officialServersPage
+                            }
+
+                    if (filteredOfficialServers.isNotEmpty()) {
+                        // Add official plugins to the list
+                        filteredOfficialServers.forEach { loadedServerIds.add(it.id) }
+
+                        // If it's the first page, just set the value
+                        if (officialCurrentPage == 1) {
+                            _mcpServers.value = filteredOfficialServers
+                        } else {
+                            // Otherwise append to existing list
+                            val updatedServers = _mcpServers.value + filteredOfficialServers
+                            _mcpServers.value = updatedServers
+                        }
+
+                        Log.d(
+                                TAG,
+                                "Loaded ${filteredOfficialServers.size} official plugins (page $officialCurrentPage of ${(totalOfficialServers + PAGE_SIZE - 1) / PAGE_SIZE})"
+                        )
+
+                        // Move to next page of official servers
+                        officialCurrentPage++
+
+                        // Update installation status
                         updateInstalledStatus()
 
-                        _isLoading.value = false
-                        return@withContext
+                        // If we've shown a reasonable number of servers already, we can stop for
+                        // this fetch
+                        if (_mcpServers.value.size >= PAGE_SIZE) {
+                            _isLoading.value = false
+                            _hasMore.value = hasMoreOfficialPages || hasMorePages
+                            return@withContext
+                        }
                     }
                 }
 
-                // 如果没有更多页面，直接返回
-                if (!hasMorePages) {
-                    _hasMore.value = false
+                // If we still have more official pages, we should stop here and let the user load
+                // more
+                if (hasMoreOfficialPages) {
                     _isLoading.value = false
+                    _hasMore.value = true
                     return@withContext
                 }
 
-                // 从网络获取下一页数据
-                fetchNextPage()
+                // Step 2: Only proceed to load third-party plugins if we've exhausted all official
+                // pages
+                if (hasMorePages) {
+                    Log.d(
+                            TAG,
+                            "Step 2: Loading third-party plugins from GitHub issues, page: $currentPage"
+                    )
 
-                // 更新安装状态
-                updateInstalledStatus()
-            } catch (e: Exception) {
-                Log.e(TAG, "获取MCP服务器列表失败", e)
+                    // Try cache first if it's first page and not forcing refresh
+                    if (currentPage == 1 && !forceRefresh && cacheManager.isMarketplaceCacheValid()
+                    ) {
+                        Log.d(TAG, "Trying to load third-party plugins from cache")
+                        val cachedServers = cacheManager.loadMarketplaceFromCache()
 
-                // 如果网络获取失败但有缓存且是第一页，尝试从缓存加载
-                if (_mcpServers.value.isEmpty() && currentPage == 1) {
-                    val cachedServers = loadFromCache()
-                    if (cachedServers.isNotEmpty()) {
-                        cachedServers.forEach { loadedServerIds.add(it.id) }
-                        _mcpServers.value = cachedServers
-                        currentPage++ // 准备下一页的加载
+                        if (cachedServers.isNotEmpty()) {
+                            // Filter cached servers that aren't already loaded (to avoid duplicates
+                            // with official servers)
+                            val newCachedServers =
+                                    cachedServers.filter { !loadedServerIds.contains(it.id) }
 
-                        // 更新安装状态
-                        updateInstalledStatus()
+                            if (newCachedServers.isNotEmpty()) {
+                                // Filter by search query if needed
+                                val filteredCachedServers =
+                                        if (query.isNotBlank()) {
+                                            newCachedServers.filter {
+                                                it.name.contains(query, ignoreCase = true) ||
+                                                        it.description.contains(
+                                                                query,
+                                                                ignoreCase = true
+                                                        ) ||
+                                                        it.author.contains(query, ignoreCase = true)
+                                            }
+                                        } else {
+                                            newCachedServers
+                                        }
 
-                        _errorMessage.value = "使用缓存数据：${e.message}"
-                    } else {
-                        _errorMessage.value = "获取数据失败: ${e.message}"
+                                // Add filtered cached servers to the list
+                                filteredCachedServers.forEach { loadedServerIds.add(it.id) }
+                                val updatedServers = _mcpServers.value + filteredCachedServers
+
+                                // Apply sort if needed
+                                val sortedServers =
+                                        if (sortBy == SortOptions.RECOMMENDED) {
+                                            MCPRepositoryUtils.sortServersByRecommended(
+                                                    updatedServers
+                                            )
+                                        } else {
+                                            updatedServers
+                                        }
+
+                                _mcpServers.value = sortedServers
+                                currentPage++ // Prepare for next page load
+
+                                Log.d(
+                                        TAG,
+                                        "Added ${filteredCachedServers.size} cached third-party plugins"
+                                )
+                            }
+
+                            // Update installation status
+                            updateInstalledStatus()
+
+                            // If we have enough data from cache, we can skip network fetch for now
+                            if (_mcpServers.value.size >= totalOfficialServers + PAGE_SIZE) {
+                                _isLoading.value = false
+                                return@withContext
+                            }
+                        }
                     }
+
+                    // Fetch third-party plugins directly from GitHub issues
+                    fetchThirdPartyServers(query, sortBy, sortDirection)
                 } else {
-                    _errorMessage.value = "加载更多失败: ${e.message}"
+                    _hasMore.value = false
                 }
 
-                _hasMore.value = false // 发生错误时假设没有更多数据
+                // Update installation status for all loaded plugins
+                updateInstalledStatus()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to fetch MCP plugin list", e)
+
+                // If network fetch fails but we have cache and it's the first page, try loading
+                // from cache
+                if (_mcpServers.value.isEmpty() && currentPage == 1 && officialCurrentPage == 1) {
+                    Log.d(TAG, "Network fetch failed, trying to load from cache")
+                    val cachedServers = cacheManager.loadMarketplaceFromCache()
+                    if (cachedServers.isNotEmpty()) {
+                        // Apply local sorting
+                        val sortedServers =
+                                MCPRepositoryUtils.sortServersByRecommended(cachedServers)
+
+                        sortedServers.forEach { loadedServerIds.add(it.id) }
+                        _mcpServers.value = sortedServers
+                        currentPage++ // Prepare for next page load
+
+                        // Update installation status
+                        updateInstalledStatus()
+
+                        _errorMessage.value = "Using cached data: ${e.message}"
+                    } else {
+                        Log.d(
+                                TAG,
+                                "Failed to load from cache, trying to load hardcoded official plugins"
+                        )
+
+                        // Try loading hardcoded official plugins
+                        val (hardcodedServers, _) = officialSourceManager.fetchOfficialServers()
+                        if (hardcodedServers.isNotEmpty()) {
+                            // Apply local sorting
+                            val sortedServers =
+                                    MCPRepositoryUtils.sortServersByRecommended(hardcodedServers)
+
+                            sortedServers.forEach { loadedServerIds.add(it.id) }
+                            _mcpServers.value = sortedServers
+
+                            // Update installation status
+                            updateInstalledStatus()
+
+                            Log.d(TAG, "Loaded ${hardcodedServers.size} hardcoded official plugins")
+                            _errorMessage.value =
+                                    "Unable to fetch data from network, showing official plugin list"
+                        } else {
+                            Log.e(TAG, "Cache load failed, no data available")
+                            _errorMessage.value = "Failed to get data: ${e.message}"
+                        }
+                    }
+                } else {
+                    _errorMessage.value = "Failed to load more: ${e.message}"
+                }
+
+                _hasMore.value = hasMoreOfficialPages || hasMorePages // Still might have more data
             } finally {
                 _isLoading.value = false
             }
         }
     }
 
-    /** 重置并重新加载数据 */
-    suspend fun refresh() {
-        currentPage = 1
-        hasMorePages = true
-        loadedServerIds.clear()
-        _mcpServers.value = emptyList()
-        _hasMore.value = true
-        fetchMCPServers(forceRefresh = true)
-    }
-
-    /** 获取下一页数据 */
-    private suspend fun fetchNextPage() {
+    /** Fetches third-party servers from GitHub issues */
+    private suspend fun fetchThirdPartyServers(
+            query: String = "",
+            sortBy: SortOptions = SortOptions.RECOMMENDED,
+            sortDirection: SortDirection = SortDirection.DESC
+    ) {
         try {
-            val pageUrl = "$GITHUB_API_BASE_URL?state=open&per_page=$PER_PAGE&page=$currentPage"
-            Log.d(TAG, "正在获取第 $currentPage 页数据: $pageUrl")
+            // If there are no more pages, return
+            if (!hasMorePages) {
+                Log.d(TAG, "No more pages, stopping fetch")
+                _hasMore.value = false
+                return
+            }
 
-            val url = URL(pageUrl)
-            val connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "GET"
-            connection.setRequestProperty("Accept", "application/vnd.github.v3+json")
-            connection.connectTimeout = 10000 // 10秒连接超时
-            connection.readTimeout = 15000 // 15秒读取超时
+            // For regular listings or search, fetch directly from the network client
+            val responseStr =
+                    if (query.isNotBlank() || sortBy != SortOptions.RECOMMENDED) {
+                        // Use direct network client search for custom queries
+                        networkClient.searchMCPServers(
+                                query = query,
+                                sortBy = sortBy.value,
+                                sortDirection = sortDirection.value,
+                                page = currentPage
+                        )
+                    } else {
+                        // For default sorting without query, fetch page directly
+                        networkClient.fetchMCPServersPage(
+                                currentPage,
+                                GitHubConstants.DEFAULT_PAGE_SIZE
+                        )
+                    }
 
-            val responseCode = connection.responseCode
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                val reader = BufferedReader(InputStreamReader(connection.inputStream))
-                val response = StringBuilder()
-                var line: String?
-                while (reader.readLine().also { line = it } != null) {
-                    response.append(line)
-                }
-                reader.close()
+            // Check response validity
+            if (responseStr.isNullOrBlank()) {
+                Log.e(TAG, "Received empty or null response for page $currentPage")
+                hasMorePages = false
+                _hasMore.value = false
+                return
+            }
 
-                // 解析当前页的数据
-                val responseStr = response.toString()
+            // Parse the response - it might be a search result or direct issue list
+            val (parsedServers, hasMore) =
+                    if (query.isNotBlank() || sortBy != SortOptions.RECOMMENDED) {
+                        // Parse search results from search API
+                        try {
+                            val jsonObject = JSONObject(responseStr)
+                            val totalCount = jsonObject.optInt("total_count", 0)
+                            val itemsArray = jsonObject.optJSONArray("items") ?: JSONArray()
 
-                // 检查是否为有效的JSON数组
-                if (!responseStr.trim().startsWith("[")) {
-                    Log.e(TAG, "第 $currentPage 页返回了无效的JSON格式")
-                    hasMorePages = false
-                    _hasMore.value = false
-                    return
-                }
+                            if (itemsArray.length() == 0) {
+                                Pair(emptyList<UIMCPServer>(), false)
+                            } else {
+                                // Parse search results into server objects
+                                val itemsStr = itemsArray.toString()
+                                val servers = MCPRepositoryUtils.parseIssuesResponse(itemsStr)
+                                Pair(
+                                        servers,
+                                        itemsArray.length() >= GitHubConstants.DEFAULT_PAGE_SIZE &&
+                                                currentPage < MAX_PAGES
+                                )
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to parse search results", e)
+                            Pair(emptyList<UIMCPServer>(), false)
+                        }
+                    } else {
+                        // Direct GitHub issues API response
+                        if (!responseStr.trim().startsWith("[")) {
+                            Log.e(TAG, "Page $currentPage returned invalid JSON format")
+                            Pair(emptyList<UIMCPServer>(), false)
+                        } else {
+                            val pageArray = JSONArray(responseStr)
+                            val servers = MCPRepositoryUtils.parseIssuesResponse(responseStr)
 
-                val pageArray = JSONArray(responseStr)
+                            // Cache if it's the first page
+                            if (currentPage == 1) {
+                                cacheManager.saveMarketplaceToCache(responseStr)
+                            }
 
-                // 解析新获取的服务器
-                val newServers = parseIssuesResponse(responseStr)
+                            Pair(
+                                    servers,
+                                    pageArray.length() >= GitHubConstants.DEFAULT_PAGE_SIZE &&
+                                            currentPage < MAX_PAGES
+                            )
+                        }
+                    }
 
-                // 过滤掉已经加载过的服务器
-                val uniqueNewServers = newServers.filter { !loadedServerIds.contains(it.id) }
+            // Filter out servers that have already been loaded
+            val uniqueNewServers = parsedServers.filter { !loadedServerIds.contains(it.id) }
 
-                // 更新已加载的ID集合
+            if (uniqueNewServers.isNotEmpty()) {
+                // Update loaded IDs set
                 uniqueNewServers.forEach { loadedServerIds.add(it.id) }
 
-                // 将新服务器添加到当前列表
+                // Add new servers to current list
                 val updatedServers = _mcpServers.value + uniqueNewServers
-                _mcpServers.value = updatedServers
 
-                // 第一页数据保存到缓存
-                if (currentPage == 1) {
-                    saveToCache(responseStr)
-                }
+                // Apply sorting if needed
+                val sortedServers =
+                        if (sortBy == SortOptions.RECOMMENDED) {
+                            MCPRepositoryUtils.sortServersByRecommended(updatedServers)
+                        } else {
+                            updatedServers
+                        }
 
-                // 更新分页状态
-                hasMorePages = pageArray.length() >= PER_PAGE && uniqueNewServers.isNotEmpty()
-                _hasMore.value = hasMorePages
+                _mcpServers.value = sortedServers
 
-                // 只有在确定有更多页时才增加页码
+                // Update pagination state
+                hasMorePages = hasMore && currentPage < MAX_PAGES
+
+                // Only increase page number if there are more pages
                 if (hasMorePages) {
                     currentPage++
                 }
 
                 Log.d(
                         TAG,
-                        "第 $currentPage 页加载成功，获取了 ${uniqueNewServers.size} 个新服务器，总共 ${updatedServers.size} 个"
+                        "Added ${uniqueNewServers.size} new third-party plugins, total: ${sortedServers.size}"
                 )
             } else {
-                // 处理HTTP错误
-                val errorBody =
-                        if (connection.errorStream != null) {
-                            BufferedReader(InputStreamReader(connection.errorStream)).use {
-                                it.readText()
-                            }
-                        } else {
-                            "No error details"
-                        }
-                Log.e(TAG, "获取第 $currentPage 页时HTTP错误: $responseCode, $errorBody")
-                hasMorePages = false
-                _hasMore.value = false
+                // No new unique servers were found
+                if (hasMore && currentPage < MAX_PAGES) {
+                    // Try next page if there might be more data
+                    currentPage++
+                    // Recursive call to fetch next page
+                    fetchThirdPartyServers(query, sortBy, sortDirection)
+                    return
+                } else {
+                    // No more unique servers and no more pages
+                    hasMorePages = false
+                }
             }
 
-            connection.disconnect()
+            // Update the hasMore state
+            _hasMore.value = hasMorePages
         } catch (e: Exception) {
-            Log.e(TAG, "获取第 $currentPage 页数据失败", e)
+            Log.e(TAG, "Failed to fetch third-party plugins for page $currentPage", e)
             hasMorePages = false
             _hasMore.value = false
             throw e
         }
     }
 
-    /** 解析GitHub issues响应，提取MCP服务器信息 */
-    private fun parseIssuesResponse(jsonResponse: String): List<MCPServer> {
-        val servers = mutableListOf<MCPServer>()
+    /**
+     * Simplified refresh method - resets state and fetches plugins again Maintains the same loading
+     * order: official plugins first, then third-party from GitHub issues
+     */
+    suspend fun refresh(
+            query: String = "",
+            sortBy: SortOptions = SortOptions.RECOMMENDED,
+            sortDirection: SortDirection = SortDirection.DESC
+    ) {
+        withContext(Dispatchers.IO) {
+            Log.d(TAG, "Starting refresh operation for MCP plugins")
 
-        try {
-            // 确保输入是有效的JSON数组
-            if (!jsonResponse.trim().startsWith("[")) {
-                Log.e(TAG, "无效的JSON响应格式，不是数组")
-                return emptyList()
-            }
+            // Reset state
+            currentPage = 1
+            hasMorePages = true
+            loadedServerIds.clear()
+            _mcpServers.value = emptyList()
+            _hasMore.value = true
 
-            val issuesArray = JSONArray(jsonResponse)
-            Log.d(TAG, "开始解析${issuesArray.length()}个issues")
+            // Reload data with force refresh - this will load official plugins first,
+            // then third-party plugins from GitHub issues
+            fetchMCPServers(
+                    forceRefresh = true,
+                    query = query,
+                    sortBy = sortBy,
+                    sortDirection = sortDirection
+            )
 
-            for (i in 0 until issuesArray.length()) {
-                try {
-                    val issue = issuesArray.getJSONObject(i)
+            // Update installation status
+            syncInstalledStatus()
 
-                    // 检查issue标题是否存在且包含MCP服务器提交的标记
-                    val title = issue.optString("title", "").trim()
-                    if (title.isBlank()) {
-                        Log.d(TAG, "Issue #${issue.optInt("number", -1)} 标题为空，跳过")
-                        continue
-                    }
-
-                    if (!title.contains(SERVER_SUBMISSION_TAG, ignoreCase = true)) {
-                        // 尝试通过标签检查是否为服务器提交
-                        val isServerSubmission = isServerSubmissionByLabels(issue)
-                        if (!isServerSubmission) {
-                            continue // 跳过非MCP服务器提交的issue
-                        }
-                    }
-
-                    // 提取基本信息
-                    val id = issue.optInt("number", -1).toString()
-                    if (id == "-1") {
-                        Log.d(TAG, "Issue ID无效，跳过")
-                        continue // 跳过没有有效ID的issue
-                    }
-
-                    // 清理标题，移除标记部分
-                    var cleanTitle = title
-                    if (title.contains(SERVER_SUBMISSION_TAG, ignoreCase = true)) {
-                        cleanTitle =
-                                title.replace(SERVER_SUBMISSION_TAG, "", ignoreCase = true)
-                                        .replace(":", "")
-                                        .trim()
-                    }
-
-                    // 如果清理后标题为空，使用issue编号作为标题
-                    if (cleanTitle.isBlank()) {
-                        cleanTitle = "MCP Server #$id"
-                    }
-
-                    // 获取issue正文
-                    val body = issue.optString("body", "")
-                    if (body.isBlank()) {
-                        Log.d(TAG, "Issue #$id 正文为空，跳过")
-                        continue
-                    }
-
-                    // 解析issue正文，提取关键信息
-                    val repoUrl =
-                            extractSectionContent(body, REPO_URL_SECTION)
-                                    ?: extractGitHubUrlFromText(body) // 尝试从文本中提取URL
-
-                    if (repoUrl.isNullOrBlank() || !repoUrl.startsWith("https://github.com/")) {
-                        Log.d(TAG, "Issue #$id 没有有效的GitHub仓库URL，跳过")
-                        continue
-                    }
-
-                    // 提取Logo URL (可选)
-                    val logoUrl =
-                            extractSectionContent(body, LOGO_SECTION)
-                                    ?: extractImageUrlFromText(body) // 尝试从文本中提取图片URL
-
-                    // 提取Description (可选)
-                    val description = extractDescription(body, id)
-
-                    // 确定类别
-                    val category = determineCategory(title, body)
-
-                    // 获取作者信息
-                    val authorName =
-                            if (issue.has("user") && !issue.isNull("user")) {
-                                issue.getJSONObject("user").optString("login", "Unknown")
-                            } else {
-                                "Unknown"
-                            }
-
-                    // 获取更新日期
-                    val updatedAt = issue.optString("updated_at", "")
-
-                    // 检查是否需要API密钥 (根据仓库内容可能更准确，这里只是基于描述进行简单推断)
-                    val requiresApiKey =
-                            body.contains("api key", ignoreCase = true) ||
-                                    body.contains("apikey", ignoreCase = true) ||
-                                    body.contains("api_key", ignoreCase = true) ||
-                                    body.contains("token", ignoreCase = true)
-
-                    // 获取stars数量
-                    val stars = getStarsCount(issue)
-
-                    // 提取标签
-                    val tags = extractTags(body, title, category)
-
-                    // 创建MCPServer对象并添加到列表
-                    val server =
-                            MCPServer(
-                                    id = id,
-                                    name = cleanTitle,
-                                    description = description,
-                                    repoUrl = repoUrl,
-                                    category = category,
-                                    stars = stars,
-                                    author = authorName,
-                                    updatedAt = updatedAt,
-                                    requiresApiKey = requiresApiKey,
-                                    tags = tags,
-                                    isVerified = authorName.equals("cline", ignoreCase = true),
-                                    logoUrl = logoUrl
-                            )
-
-                    Log.d(TAG, "成功解析服务器: ${server.name} (${server.repoUrl})")
-                    servers.add(server)
-                } catch (e: Exception) {
-                    // 单个issue解析失败，继续处理下一个
-                    Log.e(TAG, "解析单个issue失败", e)
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "解析JSON响应失败", e)
-        }
-
-        Log.d(TAG, "共解析出${servers.size}个有效MCP服务器")
-        return servers.sortedByDescending { it.stars }
-    }
-
-    /** 通过检查issue的标签判断是否为服务器提交 */
-    private fun isServerSubmissionByLabels(issue: JSONObject): Boolean {
-        if (!issue.has("labels")) return false
-
-        try {
-            val labels = issue.getJSONArray("labels")
-            for (i in 0 until labels.length()) {
-                val label = labels.getJSONObject(i)
-                val labelName = label.optString("name", "")
-                if (labelName.contains("server", ignoreCase = true) ||
-                                labelName.contains("submission", ignoreCase = true) ||
-                                labelName.contains("mcp", ignoreCase = true)
-                ) {
-                    return true
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "解析标签失败", e)
-        }
-
-        return false
-    }
-
-    /** 提取描述，尝试多种方式 */
-    private fun extractDescription(body: String, issueId: String): String {
-        // 首先尝试从Additional Information部分获取
-        val infoSection = extractSectionContent(body, INFO_SECTION)
-        if (!infoSection.isNullOrBlank() && infoSection != "_No response_") {
-            return infoSection
-        }
-
-        // 尝试从Testing部分获取额外信息
-        val testingSection = extractSectionContent(body, TESTING_SECTION)
-        if (!testingSection.isNullOrBlank() && testingSection != "_No response_") {
-            return "测试状态: $testingSection"
-        }
-
-        // 尝试从整个body提取有意义的描述
-        val lines = body.split("\n")
-        val descLines =
-                lines
-                        .filter {
-                            it.isNotBlank() &&
-                                    !it.startsWith("###") &&
-                                    !it.startsWith("http") &&
-                                    !it.startsWith("!") &&
-                                    !it.startsWith("-")
-                        }
-                        .take(3)
-
-        if (descLines.isNotEmpty()) {
-            return descLines.joinToString(" ").take(150)
-        }
-
-        // 如果没有找到描述，返回默认描述
-        return "MCP服务器 #$issueId，提供额外功能"
-    }
-
-    /** 从文本中提取GitHub URL */
-    private fun extractGitHubUrlFromText(text: String): String? {
-        val githubUrlRegex = "https://github\\.com/[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+".toRegex()
-        val match = githubUrlRegex.find(text)
-        return match?.value
-    }
-
-    /** 从文本中提取图片URL */
-    private fun extractImageUrlFromText(text: String): String? {
-        // 查找markdown格式的图片
-        val markdownImageRegex = "!\\[.*?\\]\\((https?://[^\\s)]+)\\)".toRegex()
-        markdownImageRegex.find(text)?.let {
-            return it.groupValues[1]
-        }
-
-        // 查找一般URL，可能是图片
-        val urlRegex =
-                "(https?://[^\\s]+\\.(png|jpg|jpeg|gif|svg))".toRegex(RegexOption.IGNORE_CASE)
-        urlRegex.find(text)?.let {
-            return it.groupValues[0]
-        }
-
-        return null
-    }
-
-    /** 获取stars数量，集合多种来源 */
-    private fun getStarsCount(issue: JSONObject): Int {
-        // 首先检查reactions
-        if (issue.has("reactions") && !issue.isNull("reactions")) {
-            val reactions = issue.getJSONObject("reactions")
-            val totalCount = reactions.optInt("total_count", 0)
-            if (totalCount > 0) return totalCount
-        }
-
-        // 检查评论数作为参考
-        val comments = issue.optInt("comments", 0)
-        if (comments > 0) return comments * 5 + (1..10).random()
-
-        // 检查是否是验证过的或者来自cline
-        val user = issue.optJSONObject("user")
-        if (user != null && user.optString("login", "").equals("cline", ignoreCase = true)) {
-            return (50..100).random()
-        }
-
-        // 随机生成一个合理的数字
-        return (5..50).random()
-    }
-
-    /** 从特定部分提取内容 */
-    private fun extractSectionContent(body: String, sectionTitle: String): String? {
-        val bodyLines = body.split("\n")
-        var inSection = false
-        val sectionContent = StringBuilder()
-
-        for (line in bodyLines) {
-            val trimmedLine = line.trim()
-
-            // 检查是否进入新的部分
-            if (trimmedLine.startsWith("###")) {
-                if (inSection) {
-                    // 如果已经在目标部分内且遇到新的部分标题，则结束
-                    break
-                }
-
-                // 检查是否是我们要找的部分
-                if (trimmedLine.startsWith(sectionTitle, ignoreCase = true)) {
-                    inSection = true
-                    continue // 跳过部分标题行
-                }
-            }
-
-            // 如果在目标部分内，添加内容
-            if (inSection) {
-                sectionContent.append(line).append("\n")
-            }
-        }
-
-        // 清理并返回结果
-        val result = sectionContent.toString().trim()
-        return if (result.isBlank()) null else result
-    }
-
-    /** 根据title和body确定MCP服务器的类别 */
-    private fun determineCategory(title: String, body: String): String {
-        val lowerTitle = title.lowercase()
-        val lowerBody = body.lowercase()
-
-        return when {
-            lowerTitle.contains("search") || lowerBody.contains("search") -> "Search"
-            lowerTitle.contains("file") ||
-                    lowerBody.contains("file system") ||
-                    lowerBody.contains("filesystem") -> "File System"
-            lowerTitle.contains("database") ||
-                    lowerBody.contains("database") ||
-                    lowerBody.contains("sql") -> "Database"
-            lowerTitle.contains("image") ||
-                    lowerBody.contains("image") ||
-                    lowerTitle.contains("vision") ||
-                    lowerBody.contains("dall-e") ||
-                    lowerBody.contains("stable diffusion") -> "Generation"
-            lowerTitle.contains("web") ||
-                    lowerBody.contains("browser") ||
-                    lowerBody.contains("scrape") ||
-                    lowerBody.contains("http") -> "Web"
-            lowerTitle.contains("api") || lowerBody.contains("api") -> "API"
-            lowerTitle.contains("github") ||
-                    lowerBody.contains("github") ||
-                    lowerBody.contains("git") ||
-                    lowerBody.contains("code") -> "Development"
-            lowerTitle.contains("weather") || lowerBody.contains("weather") -> "Weather"
-            lowerTitle.contains("mail") ||
-                    lowerBody.contains("mail") ||
-                    lowerBody.contains("messaging") ||
-                    lowerBody.contains("chat") -> "Communication"
-            lowerTitle.contains("chart") ||
-                    lowerBody.contains("chart") ||
-                    lowerBody.contains("graph") ||
-                    lowerBody.contains("plot") -> "Visualization"
-            lowerTitle.contains("docs") ||
-                    lowerBody.contains("document") ||
-                    lowerBody.contains("pdf") -> "Documents"
-            lowerTitle.contains("ai") ||
-                    lowerBody.contains("ai") ||
-                    lowerBody.contains("llm") ||
-                    lowerBody.contains("machine learning") -> "AI Tools"
-            else -> "Other"
+            Log.d(TAG, "Refresh complete, now have ${_mcpServers.value.size} MCP plugins")
         }
     }
 
-    /** 提取标签 */
-    private fun extractTags(body: String, title: String, category: String): List<String> {
-        val tags = mutableListOf<String>()
-
-        // 添加主类别作为第一个标签
-        tags.add(category)
-
-        // 根据内容提取其他潜在标签
-        val lowerBody = body.lowercase()
-        val lowerTitle = title.lowercase()
-
-        // 检查是否为开源
-        if (lowerBody.contains("open source") || lowerBody.contains("opensource")) {
-            tags.add("Open Source")
-        }
-
-        // 检查是否提及编程语言
-        val languages =
-                listOf(
-                        "python",
-                        "javascript",
-                        "typescript",
-                        "java",
-                        "kotlin",
-                        "go",
-                        "rust",
-                        "c#",
-                        "php"
-                )
-        for (lang in languages) {
-            if (lowerBody.contains(lang) || lowerTitle.contains(lang)) {
-                tags.add(lang.capitalize())
-                break // 只添加一种主要语言
-            }
-        }
-
-        // 检查特殊功能
-        if (lowerBody.contains("local") || lowerTitle.contains("local")) {
-            tags.add("Local")
-        }
-
-        if (lowerBody.contains("free") || lowerTitle.contains("free")) {
-            tags.add("Free")
-        }
-
-        // 限制标签数量
-        return tags.distinct().take(4)
-    }
-
-    /** 保存到缓存 */
-    private fun saveToCache(jsonResponse: String) {
-        try {
-            cacheFile.writeText(jsonResponse)
-            Log.d(TAG, "已将MCP服务器数据保存到缓存")
-        } catch (e: Exception) {
-            Log.e(TAG, "缓存MCP服务器数据失败", e)
-        }
-    }
-
-    /** 从缓存加载 */
-    private fun loadFromCache(): List<MCPServer> {
-        try {
-            if (cacheFile.exists()) {
-                val cachedJson = cacheFile.readText()
-                return parseIssuesResponse(cachedJson)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "从缓存加载MCP服务器数据失败", e)
-        }
-        return emptyList()
-    }
-
-    /** 检查缓存是否有效 */
-    private fun isCacheValid(): Boolean {
-        return cacheFile.exists() &&
-                System.currentTimeMillis() - cacheFile.lastModified() <
-                        TimeUnit.HOURS.toMillis(CACHE_DURATION_HOURS)
-    }
-
-    /** 清除缓存 */
-    fun clearCache() {
-        if (cacheFile.exists()) {
-            cacheFile.delete()
-            Log.d(TAG, "已清除MCP服务器缓存")
-        }
-    }
-
-    /** 获取当前已知的所有分类 */
+    /**
+     * Gets all known categories
+     *
+     * @return List of unique categories
+     */
     fun getAllCategories(): List<String> {
         val servers = _mcpServers.value
         if (servers.isEmpty()) return emptyList()
@@ -672,122 +495,452 @@ class MCPRepository(private val context: Context) {
         return servers.map { it.category }.distinct().sortedBy { it }
     }
 
-    /** 安装MCP插件 */
-    suspend fun installMCPServer(pluginId: String) {
+    /**
+     * Installs an MCP plugin
+     *
+     * @param pluginId ID of the plugin to install
+     * @param progressCallback Callback for installation progress
+     * @return Installation result
+     */
+    suspend fun installMCPServer(
+            pluginId: String,
+            progressCallback: (InstallProgress) -> Unit = {}
+    ): InstallResult {
+        return withContext(Dispatchers.IO) {
+            // Find corresponding server info
+            val server = _mcpServers.value.find { it.id == pluginId }
+            if (server == null) {
+                Log.e(TAG, "Couldn't find server with ID $pluginId")
+                return@withContext InstallResult.Error(
+                        "Couldn't find corresponding server information"
+                )
+            }
+
+            // Use plugin manager to install
+            val result = pluginManager.installPlugin(pluginId, server, progressCallback)
+
+            // Update installation status if needed
+            if (result is InstallResult.Success) {
+                updateInstalledStatus()
+            }
+
+            return@withContext result
+        }
+    }
+
+    /**
+     * Uninstalls an MCP plugin
+     *
+     * @param pluginId ID of the plugin to uninstall
+     * @return true if uninstallation was successful, false otherwise
+     */
+    suspend fun uninstallMCPServer(pluginId: String): Boolean {
+        val uninstallSuccess = pluginManager.uninstallPlugin(pluginId)
+
+        // Update installation status if needed
+        if (uninstallSuccess) {
+            updateInstalledStatus()
+        }
+
+        return uninstallSuccess
+    }
+
+    /**
+     * Gets the installed path of a plugin
+     *
+     * @param pluginId ID of the plugin
+     * @return Installed path or null if not installed
+     */
+    fun getInstalledPluginPath(pluginId: String): String? {
+        return pluginManager.getInstalledPluginPath(pluginId)
+    }
+
+    /**
+     * Checks if a plugin is installed
+     *
+     * @param pluginId ID of the plugin to check
+     * @return true if installed, false otherwise
+     */
+    fun isPluginInstalled(pluginId: String): Boolean {
+        return pluginManager.isPluginInstalled(pluginId)
+    }
+
+    /** Synchronizes installation status from physical state to memory state */
+    suspend fun syncInstalledStatus() {
         withContext(Dispatchers.IO) {
             try {
-                // 添加到已安装列表
-                val currentSet = _installedPluginIds.value.toMutableSet()
-                currentSet.add(pluginId)
-                _installedPluginIds.value = currentSet
-
-                // 更新服务器列表中的安装状态
+                pluginManager.scanInstalledPlugins()
                 updateInstalledStatus()
-
-                // 保存安装状态
-                saveInstalledPlugins()
-
-                Log.d(TAG, "插件 $pluginId 安装成功")
+                Log.d(
+                        TAG,
+                        "Synchronized plugin installation status, ${pluginManager.installedPluginIds.value.size} installed plugins"
+                )
             } catch (e: Exception) {
-                Log.e(TAG, "安装插件 $pluginId 失败", e)
-                _errorMessage.value = "安装失败: ${e.message}"
+                Log.e(TAG, "Failed to sync installation status", e)
             }
         }
     }
 
-    /** 卸载MCP插件 */
-    suspend fun uninstallMCPServer(pluginId: String) {
-        withContext(Dispatchers.IO) {
-            try {
-                // 从已安装列表移除
-                val currentSet = _installedPluginIds.value.toMutableSet()
-                currentSet.remove(pluginId)
-                _installedPluginIds.value = currentSet
-
-                // 更新服务器列表中的安装状态
-                updateInstalledStatus()
-
-                // 保存安装状态
-                saveInstalledPlugins()
-
-                Log.d(TAG, "插件 $pluginId 卸载成功")
-            } catch (e: Exception) {
-                Log.e(TAG, "卸载插件 $pluginId 失败", e)
-                _errorMessage.value = "卸载失败: ${e.message}"
-            }
-        }
-    }
-
-    /** 更新服务器列表中的安装状态 */
+    /** Updates installation status for all servers in the list */
     private fun updateInstalledStatus() {
-        val installedIds = _installedPluginIds.value
-        val updatedServers =
-                _mcpServers.value.map { server ->
-                    server.copy(isInstalled = installedIds.contains(server.id))
-                }
-        _mcpServers.value = updatedServers
-    }
-
-    /** 保存已安装的插件列表 */
-    private fun saveInstalledPlugins() {
         try {
-            val jsonArray = JSONArray()
-            _installedPluginIds.value.forEach { jsonArray.put(it) }
-
-            installedPluginsFile.writeText(jsonArray.toString())
-            Log.d(TAG, "已保存安装的插件列表: ${_installedPluginIds.value.size} 个插件")
+            val updatedServers = pluginManager.updateInstalledStatus(_mcpServers.value)
+            _mcpServers.value = updatedServers
         } catch (e: Exception) {
-            Log.e(TAG, "保存已安装插件列表失败", e)
+            Log.e(TAG, "Failed to update installation status", e)
         }
     }
 
-    /** 加载已安装的插件列表 */
-    private fun loadInstalledPlugins() {
-        try {
-            if (installedPluginsFile.exists()) {
-                val jsonStr = installedPluginsFile.readText()
-                val jsonArray = JSONArray(jsonStr)
+    /**
+     * Gets all installed plugins
+     *
+     * @return List of installed MCPServer objects
+     */
+    fun getInstalledPlugins(): List<UIMCPServer> {
+        return pluginManager.getInstalledPlugins(_mcpServers.value)
+    }
 
-                val installedIds = mutableSetOf<String>()
-                for (i in 0 until jsonArray.length()) {
-                    installedIds.add(jsonArray.getString(i))
+    /**
+     * Fetches an MCP server by its issue ID
+     *
+     * @param issueId The GitHub issue ID
+     * @return The MCPServer object or null if not found
+     */
+    suspend fun fetchMCPServerByIssueId(issueId: String): UIMCPServer? {
+        withContext(Dispatchers.IO) {
+            _isLoading.value = true
+            _errorMessage.value = null
+
+            try {
+                // First check already loaded servers
+                _mcpServers.value.find { it.id == issueId }?.let {
+                    Log.d(TAG, "Found server with ID $issueId in already loaded servers")
+                    return@withContext
                 }
 
-                _installedPluginIds.value = installedIds
-                Log.d(TAG, "已加载安装的插件列表: ${installedIds.size} 个插件")
+                // Use network client to fetch the issue
+                val responseStr = networkClient.fetchMCPServerByIssueId(issueId)
+                if (responseStr == null) {
+                    Log.e(TAG, "Failed to get issue $issueId from GitHub")
+                    _errorMessage.value = "Failed to find the specified MCP server: $issueId"
+                    return@withContext
+                }
+
+                // Wrap single issue response as an array to reuse existing parsing logic
+                val wrappedResponse = "[$responseStr]"
+                val parsedServers = MCPRepositoryUtils.parseIssuesResponse(wrappedResponse)
+
+                if (parsedServers.isNotEmpty()) {
+                    // Found server, add to list and update installation status
+                    val server = parsedServers.first()
+                    Log.d(TAG, "Successfully parsed server: ${server.name}")
+
+                    // Check if we already have this server ID
+                    if (!loadedServerIds.contains(server.id)) {
+                        loadedServerIds.add(server.id)
+
+                        // Add to current list
+                        val updatedServers = _mcpServers.value + server
+                        _mcpServers.value = updatedServers
+
+                        // Update installation status
+                        updateInstalledStatus()
+                    }
+                } else {
+                    Log.e(TAG, "Failed to parse server information from response")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to fetch issue ID $issueId", e)
+                _errorMessage.value = "Failed to get server information: ${e.message}"
+            } finally {
+                _isLoading.value = false
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "加载已安装插件列表失败", e)
+        }
+
+        // Return found server
+        return _mcpServers.value.find { it.id == issueId }
+    }
+
+    /**
+     * Extracts issue ID from a GitHub URL
+     *
+     * @param url GitHub issue URL
+     * @return Extracted issue ID or null if not a valid URL
+     */
+    fun extractIssueIdFromUrl(url: String): String? {
+        val issueUrlRegex = ".+/issues/(\\d+)".toRegex()
+        val match = issueUrlRegex.find(url)
+        return match?.groupValues?.get(1)
+    }
+
+    /**
+     * Fetches repository information
+     *
+     * @param repoUrl GitHub repository URL
+     * @return Repository information or null if fetch failed
+     */
+    suspend fun fetchRepositoryInfo(repoUrl: String): RepoInfo? {
+        withContext(Dispatchers.IO) {
+            try {
+                val responseStr =
+                        networkClient.fetchRepositoryInfo(repoUrl) ?: return@withContext null
+
+                // Parse repository information
+                val repoJson = JSONObject(responseStr)
+
+                // Extract repository information
+                val starCount = repoJson.optInt("stargazers_count", 0)
+                val watchCount = repoJson.optInt("watchers_count", 0)
+                val forkCount = repoJson.optInt("forks_count", 0)
+                val defaultBranch = repoJson.optString("default_branch", "main")
+                val description = repoJson.optString("description", "")
+                val lastUpdated =
+                        MCPRepositoryUtils.formatUpdatedAt(repoJson.optString("updated_at", ""))
+                val ownerName = repoJson.optJSONObject("owner")?.optString("login") ?: ""
+
+                return@withContext RepoInfo(
+                        owner = ownerName,
+                        name = repoJson.optString("name", ""),
+                        stars = starCount,
+                        watchers = watchCount,
+                        forks = forkCount,
+                        defaultBranch = defaultBranch,
+                        description = description,
+                        lastUpdated = lastUpdated,
+                        url = repoUrl
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to fetch repository information: $repoUrl", e)
+            }
+        }
+
+        return null
+    }
+
+    /**
+     * Checks if an MCP server has updates
+     *
+     * @param mcpServer The server to check
+     * @return Update information
+     */
+    suspend fun checkForUpdates(mcpServer: UIMCPServer): UpdateInfo {
+        val repoInfo =
+                fetchRepositoryInfo(mcpServer.repoUrl)
+                        ?: return UpdateInfo(
+                                hasUpdate = false,
+                                currentVersion = mcpServer.version,
+                                latestVersion = mcpServer.version,
+                                updateUrl = mcpServer.repoUrl
+                        )
+
+        // Check if this server's repository has been updated
+        val serverLastUpdated = MCPRepositoryUtils.parseDate(mcpServer.updatedAt)
+        val repoLastUpdated = MCPRepositoryUtils.parseDate(repoInfo.lastUpdated)
+
+        val hasUpdate =
+                serverLastUpdated != null &&
+                        repoLastUpdated != null &&
+                        repoLastUpdated.after(serverLastUpdated)
+
+        return UpdateInfo(
+                hasUpdate = hasUpdate,
+                currentVersion = mcpServer.version,
+                latestVersion = repoInfo.defaultBranch, // Use default branch as latest version
+                updateUrl = mcpServer.repoUrl,
+                updateInfo = repoInfo
+        )
+    }
+
+    /**
+     * Fetches an MCP server by URL
+     *
+     * @param url GitHub issue URL
+     * @return The MCPServer object or null if not found
+     */
+    suspend fun fetchMCPServerByUrl(url: String): UIMCPServer? {
+        val issueId = extractIssueIdFromUrl(url)
+        return if (issueId != null) {
+            fetchMCPServerByIssueId(issueId)
+        } else {
+            _errorMessage.value = "Invalid GitHub Issue URL: $url"
+            null
         }
     }
 
-    /** 获取所有已安装的插件 */
-    fun getInstalledPlugins(): List<MCPServer> {
-        val installedIds = _installedPluginIds.value
-        return _mcpServers.value.filter { installedIds.contains(it.id) }
+    /**
+     * Tests if a logo URL is accessible
+     *
+     * @param logoUrl The URL to test
+     * @return true if accessible, false otherwise
+     */
+    suspend fun testLogoUrl(logoUrl: String): Boolean {
+        return networkClient.testLogoUrl(logoUrl)
     }
-}
 
-/** MCP服务器数据模型 */
-data class MCPServer(
-        val id: String,
-        val name: String,
-        val description: String,
-        val repoUrl: String,
-        val category: String,
-        val stars: Int,
-        val author: String = "Unknown",
-        val updatedAt: String = "",
-        val requiresApiKey: Boolean = false,
-        val tags: List<String> = emptyList(),
-        val isVerified: Boolean = false,
-        val logoUrl: String? = null,
-        val isInstalled: Boolean = false,
-        val version: String = "1.0.0",
-        val longDescription: String = ""
-)
+    /** Cleans up orphaned plugins */
+    suspend fun cleanupOrphanedPlugins() {
+        pluginManager.cleanupOrphanedPlugins()
+    }
 
-/** 字符串首字母大写扩展函数 */
-private fun String.capitalize(): String {
-    return this.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+    /**
+     * Load more servers when user scrolls to bottom This handles both official and third-party
+     * servers in the correct order
+     */
+    suspend fun loadMoreServers(
+            query: String = "",
+            sortBy: SortOptions = SortOptions.RECOMMENDED,
+            sortDirection: SortDirection = SortDirection.DESC
+    ) {
+        withContext(Dispatchers.IO) {
+            // Don't do anything if already loading
+            if (_isLoading.value) return@withContext
+
+            _isLoading.value = true
+
+            try {
+                // First check if we have more official pages to load
+                if (hasMoreOfficialPages) {
+                    Log.d(TAG, "Loading more official servers, page: $officialCurrentPage")
+                    val (officialServersPage, totalServers) =
+                            officialSourceManager.fetchOfficialServers(
+                                    forceRefresh = false,
+                                    page = officialCurrentPage,
+                                    pageSize = PAGE_SIZE
+                            )
+
+                    totalOfficialServers = totalServers
+
+                    // Check if there are more official pages after this one
+                    hasMoreOfficialPages = (officialCurrentPage * PAGE_SIZE) < totalOfficialServers
+
+                    // Filter official servers if there's a search query
+                    val filteredOfficialServers =
+                            if (query.isNotBlank()) {
+                                officialSourceManager.filterOfficialServers(
+                                        officialServersPage,
+                                        query
+                                )
+                            } else {
+                                officialServersPage
+                            }
+
+                    if (filteredOfficialServers.isNotEmpty()) {
+                        // Add to loaded IDs
+                        filteredOfficialServers.forEach { loadedServerIds.add(it.id) }
+
+                        // Append to existing list
+                        val updatedServers = _mcpServers.value + filteredOfficialServers
+
+                        // Apply sort if needed
+                        val sortedServers =
+                                if (sortBy == SortOptions.RECOMMENDED) {
+                                    MCPRepositoryUtils.sortServersByRecommended(updatedServers)
+                                } else {
+                                    updatedServers
+                                }
+
+                        _mcpServers.value = sortedServers
+
+                        // Increment page for next load
+                        officialCurrentPage++
+
+                        Log.d(
+                                TAG,
+                                "Added ${filteredOfficialServers.size} more official servers (page ${officialCurrentPage-1} of ${(totalOfficialServers + PAGE_SIZE - 1) / PAGE_SIZE})"
+                        )
+                    }
+
+                    // Update _hasMore based on whether there are more pages of either type
+                    _hasMore.value = hasMoreOfficialPages || hasMorePages
+
+                    // Update installation status
+                    updateInstalledStatus()
+                } else if (hasMorePages) {
+                    // If no more official pages, load third-party servers
+                    Log.d(TAG, "Loading more third-party servers, page: $currentPage")
+
+                    // Use existing fetchThirdPartyServers method
+                    fetchThirdPartyServers(query, sortBy, sortDirection)
+                } else {
+                    // No more data to load
+                    _hasMore.value = false
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to load more servers", e)
+                _errorMessage.value = "Failed to load more: ${e.message}"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    // Initialize method to be called at app startup
+    suspend fun initialize() {
+        withContext(Dispatchers.IO) {
+            // First scan for locally installed plugins
+            syncInstalledStatus()
+            
+            // Then try to load MCP server list from cache
+            if (cacheManager.isMarketplaceCacheValid()) {
+                val cachedServers = cacheManager.loadMarketplaceFromCache()
+                if (cachedServers.isNotEmpty()) {
+                    loadedServerIds.addAll(cachedServers.map { it.id })
+                    _mcpServers.value = MCPRepositoryUtils.sortServersByRecommended(cachedServers)
+                    updateInstalledStatus()
+                    Log.d(TAG, "Loaded ${cachedServers.size} servers from cache during initialization")
+                }
+            }
+        }
+    }
+
+    // Read metadata from installed plugin directory
+    private fun readPluginMetadata(installPath: String, serverId: String): UIMCPServer? {
+        return try {
+            val pluginDir = File(installPath)
+
+            // Try to read README.md to get basic info
+            val readmeFile = File(pluginDir, "README.md")
+            var name = serverId
+            var description = ""
+
+            if (readmeFile.exists()) {
+                val readmeContent = readmeFile.readText()
+
+                // Try to extract server name and description from README
+                val titleMatch = Regex("# (.+)").find(readmeContent)
+                if (titleMatch != null) {
+                    name = titleMatch.groupValues[1].trim()
+                }
+
+                // Extract first paragraph as description
+                val descMatch =
+                        Regex("# .+\\s+(.+?)\\s*(?:##|$)", RegexOption.DOT_MATCHES_ALL)
+                                .find(readmeContent)
+                if (descMatch != null) {
+                    description = descMatch.groupValues[1].trim()
+                }
+            }
+
+            // Build locally discovered server object
+            UIMCPServer(
+                    id = serverId,
+                    name = name,
+                    description = description.ifEmpty { "Locally installed server" },
+                    logoUrl = "", // Locally discovered servers have no logo
+                    stars = 0,
+                    category = "Installed",
+                    requiresApiKey = false,
+                    author = "Local Installation",
+                    isVerified = false,
+                    isInstalled = true,
+                    version = "local",
+                    updatedAt = "",
+                    longDescription = description,
+                    repoUrl = ""
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to read plugin metadata: $serverId", e)
+            null
+        }
+    }
 }

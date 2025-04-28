@@ -187,147 +187,404 @@ private fun IntegratedMarkdownLatexRenderer(
 }
 
 /**
- * 预处理内容，确保Markdown列表项中的LaTeX表达式能被正确渲染
+ * 预处理内容，确保LaTeX表达式能被正确渲染
+ * 使用直接字符遍历而非正则表达式，提高性能
  */
 private fun preprocessLatexInMarkdown(content: String): String {
-    var processed = content
+    val result = StringBuilder(content.length + 50) // 预分配一些额外空间
     
-    // 更复杂的括号匹配方法
-    processed = processParenthesisLatex(processed)
+    // 存储已知的Markdown链接位置
+    val markdownLinkRanges = mutableListOf<IntRange>()
     
-    // 首先提取所有可能包含LaTeX的块 (支持嵌套的模式匹配)
-    // 移除小括号格式的匹配，因为已在上面处理过
-    val latexBlockFinder = Regex("(\\$\\$.*?\\$\\$|\\$.*?\\$|\\\\\\[.*?\\\\\\]|\\\\\\(.*?\\\\\\)|\\[((?!\\]\\()[^\\[\\]]+)\\])", RegexOption.DOT_MATCHES_ALL)
-    val latexBlocks = mutableListOf<MatchResult>()
-    latexBlockFinder.findAll(processed).forEach { 
-        latexBlocks.add(it)
-    }
+    // 存储处理过程中的各种状态
+    var i = 0
+    var isInsideCodeBlock = false
+    var isInsideInlineCode = false
+    var isInsideLatexBlock = false
+    var latexStartType = "" // 记录LaTeX开始分隔符类型: $$, $, \[, \(, [
+    var latexStartPos = -1
     
-    // 按照在原文本中的位置排序
-    val sortedBlocks = latexBlocks.sortedBy { it.range.first }
+    // 记录方括号状态，用于检测Markdown链接
+    var squareBracketStartPos = -1
+    var hasPotentialMdLink = false
     
-    // 创建一个StringBuilder来处理处理后的内容
-    val resultBuilder = StringBuilder(processed)
+    // 快速检查是否有可能是Markdown链接的起始
+    var lastExclamationPos = -1
     
-    // 从后向前处理，以避免修改后影响索引
-    for (i in sortedBlocks.indices.reversed()) {
-        val match = sortedBlocks[i]
-        val start = match.range.first
-        val end = match.range.last + 1
+    // 第一次遍历：标记所有Markdown链接
+    while (i < content.length) {
+        val c = content[i]
         
-        val originalLatex = match.value
-        
-        // 处理LaTeX块，清理换行符和特殊字符
-        val cleanedLatex = cleanLatexExpression(originalLatex)
-        
-        // 如果清理后的内容与原始内容不同，需要替换
-        if (cleanedLatex != originalLatex) {
-            resultBuilder.replace(start, end, cleanedLatex)
-        }
-    }
-    
-    processed = resultBuilder.toString()
-    
-    // 处理列表项中的LaTeX表达式
-    val listItemLatexPattern = Regex("(^|\\n)\\s*[-*+]\\s+.*?(\\$\\$.*?\\$\\$|\\$.*?\\$|\\\\\\[.*?\\\\\\]|\\\\\\(.*?\\\\\\)|\\[((?!\\]\\()[^\\[\\]]+)\\])", RegexOption.DOT_MATCHES_ALL)
-    processed = listItemLatexPattern.replace(processed) { matchResult ->
-        val fullMatch = matchResult.value
-        
-        // 检查这是否真的是一个LaTeX表达式，而不是Markdown链接
-        if (!fullMatch.contains("](") && !fullMatch.contains("![")) {
-            fullMatch
-        } else {
-            // 这是一个Markdown链接或图片，保持原样
-            fullMatch
-        }
-    }
-    
-    // 处理[...] 格式的LaTeX块
-    processed = processed.replace(Regex("\\[((?!\\]\\().*?)\\]", RegexOption.DOT_MATCHES_ALL)) { matchResult ->
-        val content = matchResult.groupValues[1]
-        // 清理内容中的换行符和空白符
-        val cleanedContent = cleanLatexExpression(content)
-        
-        if (cleanedContent.contains("\\begin{cases}") || cleanedContent.contains("\\end{cases}")) {
-            "$$${cleanedContent}$$"
-        } else {
-            "$${cleanedContent}$"
-        }
-    }
-    
-    return processed
-}
-
-/**
- * 使用更细致的方法处理小括号格式的LaTeX表达式
- */
-private fun processParenthesisLatex(text: String): String {
-    val result = StringBuilder(text)
-    var searchIndex = 0
-    
-    // 使用迭代方法处理所有小括号
-    while (searchIndex < result.length) {
-        // 寻找可能的LaTeX开始小括号
-        val openIndex = result.indexOf('(', searchIndex)
-        if (openIndex == -1 || openIndex + 1 >= result.length) {
-            break  // 没有找到更多的开括号
+        // 检测代码块，避免在代码块内处理LaTeX
+        if (i + 2 < content.length && c == '`' && content[i+1] == '`' && content[i+2] == '`') {
+            isInsideCodeBlock = !isInsideCodeBlock
+            i += 3
+            continue
         }
         
-        // 检查括号内的第一个字符，判断是否为LaTeX表达式
-        val firstChar = result[openIndex + 1]
-        val isLikelyLatex = firstChar == '\\' || firstChar == '{' || 
-                            (firstChar.isLetter() && "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".contains(firstChar))
-        
-        if (!isLikelyLatex) {
-            searchIndex = openIndex + 1
-            continue  // 不是LaTeX表达式，继续搜索
+        // 检测行内代码，避免在代码内处理LaTeX
+        if (!isInsideCodeBlock && c == '`') {
+            isInsideInlineCode = !isInsideInlineCode
+            i++
+            continue
         }
         
-        // 寻找匹配的闭括号，同时考虑嵌套括号和花括号
-        var depth = 1
-        var closeIndex = -1
-        var i = openIndex + 1
+        // 在代码块或行内代码内，跳过LaTeX处理
+        if (isInsideCodeBlock || isInsideInlineCode) {
+            i++
+            continue
+        }
         
-        while (i < result.length) {
-            val currentChar = result[i]
+        // 记录感叹号位置（用于检测图片语法 ![...](...)）
+        if (c == '!') {
+            lastExclamationPos = i
+        }
+        
+        // 检测方括号开始
+        if (c == '[') {
+            squareBracketStartPos = i
+            hasPotentialMdLink = (lastExclamationPos == i - 1) // 可能是图片语法的开始
+        } 
+        // 检测方括号结束，后跟圆括号开始（确认为Markdown链接或图片）
+        else if (c == ']' && squareBracketStartPos != -1 && i + 1 < content.length && content[i+1] == '(') {
+            // 查找对应的圆括号结束位置
+            var parenDepth = 0
+            var closeParenPos = -1
             
-            when (currentChar) {
-                '(' -> depth++
-                ')' -> {
-                    depth--
-                    if (depth == 0) {
-                        closeIndex = i
-                        break
+            for (j in i + 1 until content.length) {
+                when (content[j]) {
+                    '(' -> parenDepth++
+                    ')' -> {
+                        parenDepth--
+                        if (parenDepth == 0) {
+                            closeParenPos = j
+                            break
+                        }
                     }
                 }
             }
             
-            i++
+            if (closeParenPos != -1) {
+                // 确认为Markdown链接，记录整个链接范围
+                val linkStart = if (hasPotentialMdLink) lastExclamationPos else squareBracketStartPos
+                markdownLinkRanges.add(linkStart..closeParenPos)
+                
+                // 直接跳到链接结束位置
+                i = closeParenPos + 1
+                squareBracketStartPos = -1
+                hasPotentialMdLink = false
+                continue
+            }
         }
         
-        if (closeIndex == -1) {
-            // 没有找到匹配的闭括号
-            searchIndex = openIndex + 1
+        i++
+    }
+    
+    // 重置索引，开始第二次遍历，实际处理文本
+    i = 0
+    
+    // 辅助函数：检查当前位置是否在Markdown链接内
+    fun isInsideMarkdownLink(pos: Int): Boolean {
+        return markdownLinkRanges.any { pos in it }
+    }
+    
+    // 辅助函数：处理找到的LaTeX块
+    fun processLatexBlock(startPos: Int, endPos: Int, startDelim: String, endDelim: String, content: String): String {
+        // 提取LaTeX内容（不含分隔符）
+        val latexContent = content.substring(
+            startPos + startDelim.length,
+            endPos - endDelim.length + 1
+        )
+        
+        // 根据分隔符类型检查是否真的是LaTeX
+        if ((startDelim == "[" && endDelim == "]") || (startDelim == "(" && endDelim == ")")) {
+            if (!isLikelyLatexContent(latexContent)) {
+                return content.substring(startPos, endPos + 1) // 原样返回
+            }
+        }
+        
+        // 清理和平衡LaTeX内容
+        val cleanedContent = latexContent
+            .replace("\n", " ") // 换行符替换为空格
+            .replace("\\\\", " \\\\ ") // 确保换行命令前后有空格
+            .replace(Regex("\\s+"), " ") // 多个空白符替换为单个空格
+            .trim() // 去除开头和结尾的空白
+            .let { balanceLeftRightCommands(it) } // 平衡\left和\right命令
+        
+        // 根据LaTeX类型选择合适的输出格式
+        return when (startDelim) {
+            "$$" -> "$$${cleanedContent}$$"
+            "$" -> "$${cleanedContent}$"
+            "\\[" -> "\\[${cleanedContent}\\]"
+            "\\(" -> "\\(${cleanedContent}\\)"
+            "[" -> {
+                if (cleanedContent.contains("\\begin{cases}") || cleanedContent.contains("\\end{cases}")) {
+                    "$$${cleanedContent}$$" // 复杂的情况使用块级公式
+                } else {
+                    "$${cleanedContent}$" // 简单公式使用行内公式
+                }
+            }
+            "(" -> {
+                // 小括号格式转换为标准LaTeX，使用行内公式格式
+                "$${cleanedContent}$"
+            }
+            else -> "$${cleanedContent}$" // 默认使用行内公式格式
+        }
+    }
+    
+    // 第二次遍历：处理文本内容
+    while (i < content.length) {
+        // 如果当前位置在已知的Markdown链接内，直接复制字符而不处理
+        if (isInsideMarkdownLink(i)) {
+            result.append(content[i])
+            i++
             continue
         }
         
-        // 提取可能的LaTeX内容
-        val content = result.substring(openIndex + 1, closeIndex)
-        
-        // 进行更详细的检查，确认是否为LaTeX表达式
-        if (isLikelyLatexContent(content)) {
-            // 将小括号替换为LaTeX标准格式 \(...\)
-            result.replace(openIndex, openIndex + 1, "\\(")
-            // 调整closeIndex，因为替换后字符串长度变化了
-            closeIndex += 1
-            result.replace(closeIndex, closeIndex + 1, "\\)")
-            
-            // 更新搜索位置
-            searchIndex = closeIndex + 2
-        } else {
-            // 不是LaTeX表达式，继续搜索
-            searchIndex = openIndex + 1
+        // 处理代码块标记
+        if (i + 2 < content.length && content[i] == '`' && content[i+1] == '`' && content[i+2] == '`') {
+            isInsideCodeBlock = !isInsideCodeBlock
+            result.append("```")
+            i += 3
+            continue
         }
+        
+        // 处理行内代码标记
+        if (!isInsideCodeBlock && content[i] == '`') {
+            isInsideInlineCode = !isInsideInlineCode
+            result.append('`')
+            i++
+            continue
+        }
+        
+        // 在代码块或行内代码内，原样复制字符
+        if (isInsideCodeBlock || isInsideInlineCode) {
+            result.append(content[i])
+            i++
+            continue
+        }
+        
+        // 检测LaTeX块开始
+        if (!isInsideLatexBlock) {
+            // 检查各种LaTeX分隔符
+            when {
+                // 块级公式: $$...$$
+                i + 1 < content.length && content[i] == '$' && content[i+1] == '$' -> {
+                    isInsideLatexBlock = true
+                    latexStartType = "$$"
+                    latexStartPos = i
+                    i += 2
+                }
+                // 行内公式: $...$
+                content[i] == '$' -> {
+                    isInsideLatexBlock = true
+                    latexStartType = "$"
+                    latexStartPos = i
+                    i++
+                }
+                // 块级公式: \[...\]
+                i + 1 < content.length && content[i] == '\\' && content[i+1] == '[' -> {
+                    isInsideLatexBlock = true
+                    latexStartType = "\\["
+                    latexStartPos = i
+                    i += 2
+                }
+                // 行内公式: \(...\)
+                i + 1 < content.length && content[i] == '\\' && content[i+1] == '(' -> {
+                    isInsideLatexBlock = true
+                    latexStartType = "\\("
+                    latexStartPos = i
+                    i += 2
+                }
+                // 可能的LaTeX表达式: [...] (需要后续检查内容)
+                content[i] == '[' && !isInsideMarkdownLink(i) -> {
+                    // 先记录位置，稍后再判断内容是否为LaTeX
+                    isInsideLatexBlock = true
+                    latexStartType = "["
+                    latexStartPos = i
+                    i++
+                }
+                // 可能的LaTeX表达式: (...) - 直接处理而不是通过processParenthesisLatex
+                content[i] == '(' && !isInsideMarkdownLink(i) -> {
+                    // 检查是否可能是LaTeX内容（而不是普通小括号）
+                    if (i + 1 < content.length) {
+                        val nextChar = content[i + 1]
+                        // 快速检查是否可能是LaTeX表达式
+                        val mightBeLaTeX = nextChar == '\\' || nextChar == '{' || 
+                                         (nextChar.isLetter() && nextChar.isLowerCase()) || 
+                                         "\\{}_^".contains(nextChar)
+                        
+                        if (mightBeLaTeX) {
+                            isInsideLatexBlock = true
+                            latexStartType = "("
+                            latexStartPos = i
+                            i++
+                            continue
+                        }
+                    }
+                    // 不是LaTeX，原样添加
+                    result.append(content[i])
+                    i++
+                }
+                else -> {
+                    result.append(content[i])
+                    i++
+                }
+            }
+        } 
+        // 在LaTeX块内寻找结束分隔符
+        else {
+            val endFound = when (latexStartType) {
+                "$$" -> i + 1 < content.length && content[i] == '$' && content[i+1] == '$'
+                "$" -> content[i] == '$'
+                "\\[" -> i + 1 < content.length && content[i] == '\\' && content[i+1] == ']'
+                "\\(" -> i + 1 < content.length && content[i] == '\\' && content[i+1] == ')'
+                "[" -> content[i] == ']'
+                "(" -> content[i] == ')'
+                else -> false
+            }
+            
+            if (endFound) {
+                // 根据分隔符类型确定结束位置
+                val endPos = when (latexStartType) {
+                    "$$", "\\[", "\\(" -> i + 1  // 双字符分隔符
+                    else -> i  // 单字符分隔符
+                }
+                
+                // 获取处理后的LaTeX块
+                val endDelim = when (latexStartType) {
+                    "$$" -> "$$"
+                    "$" -> "$"
+                    "\\[" -> "\\]"
+                    "\\(" -> "\\)"
+                    "[" -> "]"
+                    "(" -> ")"
+                    else -> ""
+                }
+                
+                val processedLatex = processLatexBlock(latexStartPos, endPos, latexStartType, endDelim, content)
+                result.append(processedLatex)
+                
+                // 更新位置
+                i = when (latexStartType) {
+                    "$$", "\\[", "\\(" -> endPos + 1
+                    else -> endPos + 1
+                }
+                
+                // 重置LaTeX状态
+                isInsideLatexBlock = false
+                latexStartType = ""
+                latexStartPos = -1
+            } else {
+                // 继续寻找结束分隔符
+                i++
+            }
+        }
+    }
+    
+    // 检查是否有未闭合的LaTeX块
+    if (isInsideLatexBlock && latexStartPos != -1) {
+        // 将未闭合的LaTeX块原样复制
+        result.append(content.substring(latexStartPos))
+    }
+    
+    return result.toString()
+}
+
+/**
+ * 使用字符遍历方法处理小括号格式的LaTeX表达式
+ * 直接遍历字符而非使用StringBuilder的索引操作，提高性能
+ */
+private fun processParenthesisLatex(text: String): String {
+    // 如果文本不包含括号，直接返回
+    if (!text.contains('(')) {
+        return text
+    }
+    
+    val result = StringBuilder(text.length + 10) // 预分配一些额外空间
+    var i = 0
+    
+    // 跟踪代码块和内联代码状态
+    var isInsideCodeBlock = false
+    var isInsideInlineCode = false
+    
+    while (i < text.length) {
+        val currentChar = text[i]
+        
+        // 检测代码块
+        if (i + 2 < text.length && currentChar == '`' && text[i+1] == '`' && text[i+2] == '`') {
+            isInsideCodeBlock = !isInsideCodeBlock
+            result.append("```")
+            i += 3
+            continue
+        }
+        
+        // 检测行内代码
+        if (!isInsideCodeBlock && currentChar == '`') {
+            isInsideInlineCode = !isInsideInlineCode
+            result.append('`')
+            i++
+            continue
+        }
+        
+        // 在代码内部，直接复制字符
+        if (isInsideCodeBlock || isInsideInlineCode) {
+            result.append(currentChar)
+            i++
+            continue
+        }
+        
+        // 检查是否是可能的LaTeX开始括号
+        if (currentChar == '(' && i + 1 < text.length) {
+            val openParenPos = i
+            val nextChar = text[i + 1]
+            
+            // 快速检查括号后的字符是否可能是LaTeX
+            val mightBeLaTeX = nextChar == '\\' || nextChar == '{' || 
+                              (nextChar.isLetter() && nextChar.isLowerCase()) || 
+                              "\\{}_^".contains(nextChar)
+            
+            if (mightBeLaTeX) {
+                // 查找对应的闭括号，考虑嵌套
+                var parenDepth = 1
+                var closeParenPos = -1
+                var j = openParenPos + 1
+                
+                while (j < text.length) {
+                    when (text[j]) {
+                        '(' -> parenDepth++
+                        ')' -> {
+                            parenDepth--
+                            if (parenDepth == 0) {
+                                closeParenPos = j
+                                break
+                            }
+                        }
+                    }
+                    j++
+                }
+                
+                if (closeParenPos != -1) {
+                    // 提取括号内容并检查是否确实是LaTeX
+                    val possibleLatex = text.substring(openParenPos + 1, closeParenPos)
+                    
+                    if (isLikelyLatexContent(possibleLatex)) {
+                        // 确认为LaTeX，添加转义的LaTeX分隔符
+                        result.append("\\(")
+                        result.append(possibleLatex)
+                        result.append("\\)")
+                        
+                        // 跳到闭括号之后
+                        i = closeParenPos + 1
+                        continue
+                    }
+                }
+            }
+        }
+        
+        // 正常字符，直接添加
+        result.append(currentChar)
+        i++
     }
     
     return result.toString()
@@ -335,30 +592,52 @@ private fun processParenthesisLatex(text: String): String {
 
 /**
  * 检查内容是否可能是LaTeX表达式
+ * 更严格地识别LaTeX内容，避免误判普通Markdown语法
  */
 private fun isLikelyLatexContent(content: String): Boolean {
-    // 检查一些常见的LaTeX命令和结构
-    return content.contains("\\") || 
-           content.contains("{") || 
-           content.contains("}") ||
-           content.contains("^") ||
-           content.contains("_") ||
-           content.contains("frac") ||
-           content.contains("sum") ||
-           content.contains("int") ||
-           content.contains("sqrt") ||
-           // 添加更多LaTeX特定标记的检查
-           content.contains("\\mathbf") ||
-           content.contains("\\mathrm") ||
-           content.contains("\\mathcal") ||
-           content.contains("\\begin") ||
-           content.contains("\\end") ||
-           content.contains("\\alpha") ||
-           content.contains("\\beta") ||
-           content.contains("\\gamma") ||
-           content.contains("\\delta") ||
-           content.contains("\\theta") ||
-           content.contains("\\pi")
+    // 如果内容为空或只是普通文本，不可能是LaTeX
+    if (content.isBlank() || content.length < 2) {
+        return false
+    }
+    
+    // 检查是否是Markdown链接或者图片
+    // 如果内容包含URL格式的字符，很可能是链接而非LaTeX
+    if (content.contains("http") || content.contains("www.") || content.contains(".com") || 
+        content.contains(".org") || content.contains(".net") || content.contains(".io")) {
+        return false
+    }
+    
+    // 检查是否包含LaTeX特定命令前缀 - 这是最强有力的证据
+    if (content.contains("\\")) {
+        return true
+    }
+    
+    // 检查数学符号和结构
+    // 至少需要包含以下一种特定的LaTeX数学符号或结构
+    val mathStructures = listOf(
+        "{", "}", // 花括号
+        "^", "_",  // 上标和下标
+        "\\frac", "\\sqrt", "\\sum", "\\int", "\\prod", // 常见数学函数
+        "\\mathbf", "\\mathrm", "\\mathcal", // 数学字体命令
+        "\\begin", "\\end", // 环境
+        "\\alpha", "\\beta", "\\gamma", "\\delta", "\\theta", "\\pi", // 希腊字母
+        "\\infty", "\\partial", "\\nabla", "\\times", "\\div", // 数学符号
+        "=", "+", "-", "*", "/", ">", "<", "\\leq", "\\geq" // 基本运算符
+    )
+    
+    // 检查是否包含多个数学特征 - 一个特征可能是偶然的，但多个的话很可能是LaTeX
+    var mathFeatureCount = 0
+    for (structure in mathStructures) {
+        if (content.contains(structure)) {
+            mathFeatureCount++
+            if (mathFeatureCount >= 2) { // 至少需要两个数学特征
+                return true
+            }
+        }
+    }
+    
+    // 不太可能是LaTeX表达式
+    return false
 }
 
 /**
@@ -462,6 +741,7 @@ private fun balanceLeftRightCommands(latex: String): String {
 
 /**
  * 在渲染后的Markdown内容中处理LaTeX表达式
+ * 使用字符遍历方法而非正则表达式，提高性能
  */
 private fun renderLatexInMarkdown(
     markdownContent: CharSequence,
@@ -471,77 +751,393 @@ private fun renderLatexInMarkdown(
 ): Spannable {
     val spannableContent = SpannableStringBuilder(markdownContent)
     
-    // LaTeX表达式模式，按照优先级排序（从高到低）
-    val patterns = listOf(
-        Regex("\\$\\$(.*?)\\$\\$", RegexOption.DOT_MATCHES_ALL),  // 块级公式: $$...$$
-        Regex("\\\\\\[(.*?)\\\\\\]", RegexOption.DOT_MATCHES_ALL), // 块级公式: \[...\]
-        Regex("\\\\\\((.*?)\\\\\\)", RegexOption.DOT_MATCHES_ALL), // 行内公式: \(...\)
-        Regex("\\$(.*?)\\$", RegexOption.DOT_MATCHES_ALL)         // 行内公式: $...$
-        // 移除小括号模式，因为在预处理阶段已经转换为 \(...\) 格式
-    )
-    
     // 已处理范围集合，用于防止重复处理
     val processedRanges = mutableSetOf<IntRange>()
     
-    // 对每种模式进行处理
-    for (pattern in patterns) {
-        val matches = pattern.findAll(spannableContent)
-        for (match in matches) {
-            val start = match.range.first
-            val end = match.range.last + 1
-            val range = start..end-1
-            
-            // 检查是否已处理过该范围或与之重叠的范围
-            if (processedRanges.any { it.intersect(range).isNotEmpty() }) {
-                continue
+    // 跟踪LaTeX分隔符的结构
+    data class LatexDelimiterInfo(
+        val startIndex: Int,
+        val endIndex: Int,
+        val startDelimiter: String,
+        val endDelimiter: String,
+        val isBlockFormula: Boolean
+    )
+    
+    // 保存找到的所有LaTeX分隔符
+    val foundLatexBlocks = mutableListOf<LatexDelimiterInfo>()
+    
+    // 用于检测Markdown链接的状态变量
+    val potentialMarkdownLinks = mutableListOf<Pair<Int, Int>>() // (startIndex, endIndex)
+    
+    // 先识别所有可能的Markdown链接，避免误识别为LaTeX
+    run {
+        var i = 0
+        val text = markdownContent.toString()
+        var squareBracketStart = -1
+        
+        while (i < text.length) {
+            when {
+                // 检测开方括号，可能是链接/图片的开始
+                text[i] == '[' -> {
+                    squareBracketStart = i
+                    i++
+                }
+                // 检测闭方括号后跟开圆括号，确认为Markdown链接
+                squareBracketStart != -1 && text[i] == ']' && i + 1 < text.length && text[i + 1] == '(' -> {
+                    // 查找对应的闭圆括号
+                    var depth = 0
+                    var linkEnd = -1
+                    
+                    for (j in (i + 1) until text.length) {
+                        when (text[j]) {
+                            '(' -> depth++
+                            ')' -> {
+                                depth--
+                                if (depth == 0) {
+                                    linkEnd = j
+                                    break
+                                }
+                            }
+                        }
+                    }
+                    
+                    if (linkEnd != -1) {
+                        // 记录整个链接的范围
+                        potentialMarkdownLinks.add(Pair(squareBracketStart, linkEnd))
+                        i = linkEnd + 1
+                        squareBracketStart = -1
+                        continue
+                    }
+                    i++
+                }
+                else -> i++
             }
-            
-            // 提取LaTeX表达式
-            val expr = match.value
-            
-            try {
-                // 渲染LaTeX表达式
-                val isBlockFormula = expr.startsWith("$$") || expr.startsWith("\\[")
+        }
+    }
+    
+    // 字符遍历扫描LaTeX块
+    var i = 0
+    val text = markdownContent.toString()
+    var isInsideCodeBlock = false
+    var isInsideInlineCode = false
+    
+    // 辅助函数：检查位置是否在Markdown链接内
+    fun isInsideMarkdownLink(pos: Int): Boolean {
+        return potentialMarkdownLinks.any { (start, end) -> pos in start..end }
+    }
+    
+    while (i < text.length) {
+        // 代码块和代码内容不处理LaTeX
+        if (i + 2 < text.length && text[i] == '`' && text[i+1] == '`' && text[i+2] == '`') {
+            isInsideCodeBlock = !isInsideCodeBlock
+            i += 3
+            continue
+        }
+        
+        if (!isInsideCodeBlock && text[i] == '`') {
+            isInsideInlineCode = !isInsideInlineCode
+            i++
+            continue
+        }
+        
+        if (isInsideCodeBlock || isInsideInlineCode || isInsideMarkdownLink(i)) {
+            i++
+            continue
+        }
+        
+        // 检查是否是LaTeX的开始标记
+        when {
+            // $$...$$
+            i + 1 < text.length && text[i] == '$' && text[i+1] == '$' -> {
+                val startPos = i
+                i += 2  // 跳过开始分隔符
                 
-                // 获取公式内容 (去除分隔符)
-                val formulaContent = when {
-                    expr.startsWith("$$") && expr.endsWith("$$") -> expr.substring(2, expr.length - 2)
-                    expr.startsWith("$") && expr.endsWith("$") -> expr.substring(1, expr.length - 1)
-                    expr.startsWith("\\[") && expr.endsWith("\\]") -> expr.substring(2, expr.length - 2)
-                    expr.startsWith("\\(") && expr.endsWith("\\)") -> expr.substring(2, expr.length - 2)
-                    else -> expr
+                // 寻找对应的结束标记
+                var endPos = -1
+                while (i + 1 < text.length) {
+                    if (text[i] == '$' && text[i+1] == '$') {
+                        endPos = i
+                        i += 2  // 跳过结束分隔符
+                        break
+                    }
+                    i++
                 }
                 
-                // 额外的安全检查：确保公式内容是有效的
-                val cleanedFormula = balanceLeftRightCommands(formulaContent.trim())
+                if (endPos != -1) {
+                    // 提取内容，确保真实是LaTeX而不是其他语义
+                    val content = text.substring(startPos + 2, endPos)
+                    if (content.isNotBlank() && !isInsideMarkdownLink(startPos)) {
+                        foundLatexBlocks.add(LatexDelimiterInfo(
+                            startPos, endPos + 2,
+                            "$$", "$$", true
+                        ))
+                    }
+                }
+            }
+            // $...$
+            text[i] == '$' -> {
+                val startPos = i
+                i++  // 跳过开始分隔符
                 
-                // 创建LaTeX渲染器
-                val builder = JLatexMathDrawable.builder(cleanedFormula)
+                // 寻找对应的结束标记
+                var endPos = -1
+                while (i < text.length) {
+                    if (text[i] == '$') {
+                        endPos = i
+                        i++  // 跳过结束分隔符
+                        break
+                    }
+                    i++
+                }
+                
+                if (endPos != -1) {
+                    // 提取内容，确保真实是LaTeX而不是价格标记
+                    val content = text.substring(startPos + 1, endPos)
+                    if (content.isNotBlank() && !isInsideMarkdownLink(startPos)) {
+                        foundLatexBlocks.add(LatexDelimiterInfo(
+                            startPos, endPos + 1,
+                            "$", "$", false
+                        ))
+                    }
+                }
+            }
+            // \[...\]
+            i + 1 < text.length && text[i] == '\\' && text[i+1] == '[' -> {
+                val startPos = i
+                i += 2  // 跳过开始分隔符
+                
+                // 寻找对应的结束标记
+                var endPos = -1
+                while (i + 1 < text.length) {
+                    if (text[i] == '\\' && text[i+1] == ']') {
+                        endPos = i
+                        i += 2  // 跳过结束分隔符
+                        break
+                    }
+                    i++
+                }
+                
+                if (endPos != -1 && !isInsideMarkdownLink(startPos)) {
+                    foundLatexBlocks.add(LatexDelimiterInfo(
+                        startPos, endPos + 2,
+                        "\\[", "\\]", true
+                    ))
+                }
+            }
+            // \(...\)
+            i + 1 < text.length && text[i] == '\\' && text[i+1] == '(' -> {
+                val startPos = i
+                i += 2  // 跳过开始分隔符
+                
+                // 寻找对应的结束标记
+                var endPos = -1
+                while (i + 1 < text.length) {
+                    if (text[i] == '\\' && text[i+1] == ')') {
+                        endPos = i
+                        i += 2  // 跳过结束分隔符
+                        break
+                    }
+                    i++
+                }
+                
+                if (endPos != -1 && !isInsideMarkdownLink(startPos)) {
+                    foundLatexBlocks.add(LatexDelimiterInfo(
+                        startPos, endPos + 2,
+                        "\\(", "\\)", false
+                    ))
+                }
+            }
+            // [...] - 特殊格式，只有在内容确实是LaTeX时才处理
+            text[i] == '[' && !isInsideMarkdownLink(i) -> {
+                val startPos = i
+                i++  // 跳过开始分隔符
+                
+                // 先寻找对应的结束方括号
+                var squareDepth = 1
+                var endPos = -1
+                
+                while (i < text.length) {
+                    when (text[i]) {
+                        '[' -> squareDepth++
+                        ']' -> {
+                            squareDepth--
+                            if (squareDepth == 0) {
+                                endPos = i
+                                i++  // 跳过结束分隔符
+                                break
+                            }
+                        }
+                    }
+                    i++
+                }
+                
+                if (endPos != -1) {
+                    // 如果闭方括号后面紧跟'('，这可能是Markdown链接的一部分
+                    if (i < text.length && text[i] == '(') {
+                        // 跳过，这是Markdown链接，不是LaTeX
+                        continue
+                    }
+                    
+                    // 检查方括号内的内容是否为LaTeX
+                    val bracketContent = text.substring(startPos + 1, endPos)
+                    if (isLikelyLatexContent(bracketContent)) {
+                        foundLatexBlocks.add(LatexDelimiterInfo(
+                            startPos, endPos + 1,
+                            "[", "]", false
+                        ))
+                    }
+                }
+            }
+            // (...) - 行内小括号，检查是否包含LaTeX表达式
+            text[i] == '(' && !isInsideMarkdownLink(i) -> {
+                val startPos = i
+                i++  // 跳过开始分隔符
+                
+                // 先检查下一个字符是否可能是LaTeX表达式的开始
+                if (i < text.length) {
+                    val nextChar = text[i]
+                    val mightBeLaTeX = nextChar == '\\' || nextChar == '{' || 
+                                    (nextChar.isLetter() && nextChar.isLowerCase()) || 
+                                    "\\{}_^".contains(nextChar)
+                    
+                    if (!mightBeLaTeX) {
+                        // 不太可能是LaTeX，继续查找
+                        continue
+                    }
+                }
+                
+                // 查找对应的闭括号
+                var parenDepth = 1
+                var endPos = -1
+                
+                while (i < text.length) {
+                    when (text[i]) {
+                        '(' -> parenDepth++
+                        ')' -> {
+                            parenDepth--
+                            if (parenDepth == 0) {
+                                endPos = i
+                                i++  // 跳过结束分隔符
+                                break
+                            }
+                        }
+                    }
+                    i++
+                }
+                
+                if (endPos != -1) {
+                    // 检查内容是否为LaTeX
+                    val content = text.substring(startPos + 1, endPos)
+                    if (isLikelyLatexContent(content)) {
+                        foundLatexBlocks.add(LatexDelimiterInfo(
+                            startPos, endPos + 1,
+                            "(", ")", false
+                        ))
+                    }
+                }
+            }
+            else -> i++
+        }
+    }
+    
+    // 按起始位置排序所有找到的LaTeX块
+    val sortedBlocks = foundLatexBlocks.sortedBy { it.startIndex }
+    
+    // 处理找到的所有LaTeX块
+    for (block in sortedBlocks) {
+        val start = block.startIndex
+        val end = block.endIndex
+        val range = start until end
+        
+        // 检查是否已处理过该范围或与之重叠的范围
+        if (processedRanges.any { it.intersect(range).isNotEmpty() }) {
+            continue
+        }
+        
+        // 提取LaTeX表达式
+        val expr = text.substring(start, end)
+        
+        try {
+            // 获取公式内容 (去除分隔符)
+            val formulaContent = text.substring(
+                start + block.startDelimiter.length,
+                end - block.endDelimiter.length
+            )
+            
+            // 额外的安全检查：确保公式内容是有效的
+            val cleanedFormula = balanceLeftRightCommands(formulaContent.trim())
+            
+            // 创建LaTeX渲染器
+            val builder = JLatexMathDrawable.builder(cleanedFormula)
+                .textSize(textSize)
+                .color(textColor)
+            
+            // 为块级公式添加额外的样式
+            if (block.isBlockFormula) {
+                builder.padding(12) // 块级公式使用更大的内边距
+                    .background(0x10000000) // 轻微的背景色
+                    .align(JLatexMathDrawable.ALIGN_CENTER) // 居中对齐
+            } else {
+                builder.padding(4) // 行内公式使用较小的内边距
+            }
+            
+            val drawable = builder.build()
+            
+            // 设置绘图边界
+            drawable.setBounds(
+                0, 
+                0, 
+                drawable.intrinsicWidth, 
+                drawable.intrinsicHeight
+            )
+            
+            // 替换文本为LaTeX绘制的Span
+            spannableContent.setSpan(
+                LatexDrawableSpan(drawable, block.isBlockFormula),
+                start,
+                end,
+                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+            
+            // 标记该范围已处理
+            processedRanges.add(range)
+            
+            // 记录日志
+            Log.d("MarkdownLatex", "渲染LaTeX公式: '${cleanedFormula.take(20)}${if (cleanedFormula.length > 20) "..." else ""}'")
+            
+        } catch (e: ParseException) {
+            // 特殊处理ParseException - 尝试修复公式并重新渲染
+            try {
+                Log.w("MarkdownLatex", "LaTeX解析错误: ${e.message} 尝试修复公式...")
+                
+                // 提取原始公式内容
+                val originalContent = text.substring(
+                    start + block.startDelimiter.length,
+                    end - block.endDelimiter.length
+                )
+                
+                // 尝试更激进的修复方法
+                val fixedContent = repairLatexExpression(originalContent, e.message ?: "")
+                
+                // 创建修复后的LaTeX渲染器
+                val builder = JLatexMathDrawable.builder(fixedContent)
                     .textSize(textSize)
                     .color(textColor)
                 
-                // 为块级公式添加额外的样式
-                if (isBlockFormula) {
-                    builder.padding(12) // 块级公式使用更大的内边距
-                        .background(0x10000000) // 轻微的背景色
-                        .align(JLatexMathDrawable.ALIGN_CENTER) // 居中对齐
+                if (block.isBlockFormula) {
+                    builder.padding(12)
+                        .background(0x10000000)
+                        .align(JLatexMathDrawable.ALIGN_CENTER)
                 } else {
-                    builder.padding(4) // 行内公式使用较小的内边距
+                    builder.padding(4)
                 }
                 
                 val drawable = builder.build()
+                drawable.setBounds(0, 0, drawable.intrinsicWidth, drawable.intrinsicHeight)
                 
-                // 设置绘图边界
-                drawable.setBounds(
-                    0, 
-                    0, 
-                    drawable.intrinsicWidth, 
-                    drawable.intrinsicHeight
-                )
-                
-                // 替换文本为LaTeX绘制的Span
+                // 替换文本为修复后的LaTeX Span
                 spannableContent.setSpan(
-                    LatexDrawableSpan(drawable, isBlockFormula),
+                    LatexDrawableSpan(drawable, block.isBlockFormula),
                     start,
                     end,
                     Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -550,68 +1146,19 @@ private fun renderLatexInMarkdown(
                 // 标记该范围已处理
                 processedRanges.add(range)
                 
-                // 记录日志
-                Log.d("MarkdownLatex", "渲染LaTeX公式: '${cleanedFormula.take(20)}${if (cleanedFormula.length > 20) "..." else ""}'")
+                Log.d("MarkdownLatex", "成功修复并渲染LaTeX公式: '$fixedContent'")
                 
-            } catch (e: ParseException) {
-                // 特殊处理ParseException - 尝试修复公式并重新渲染
-                try {
-                    Log.w("MarkdownLatex", "LaTeX解析错误: ${e.message} 尝试修复公式...")
-                    
-                    // 提取原始公式内容
-                    val originalContent = when {
-                        expr.startsWith("$$") && expr.endsWith("$$") -> expr.substring(2, expr.length - 2)
-                        expr.startsWith("$") && expr.endsWith("$") -> expr.substring(1, expr.length - 1)
-                        expr.startsWith("\\[") && expr.endsWith("\\]") -> expr.substring(2, expr.length - 2)
-                        expr.startsWith("\\(") && expr.endsWith("\\)") -> expr.substring(2, expr.length - 2)
-                        else -> expr
-                    }
-                    
-                    // 尝试更激进的修复方法
-                    val fixedContent = repairLatexExpression(originalContent, e.message ?: "")
-                    
-                    // 创建修复后的LaTeX渲染器
-                    val isBlockFormula = expr.startsWith("$$") || expr.startsWith("\\[")
-                    val builder = JLatexMathDrawable.builder(fixedContent)
-                        .textSize(textSize)
-                        .color(textColor)
-                    
-                    if (isBlockFormula) {
-                        builder.padding(12)
-                            .background(0x10000000)
-                            .align(JLatexMathDrawable.ALIGN_CENTER)
-    } else {
-                        builder.padding(4)
-                    }
-                    
-                    val drawable = builder.build()
-                    drawable.setBounds(0, 0, drawable.intrinsicWidth, drawable.intrinsicHeight)
-                    
-                    // 替换文本为修复后的LaTeX Span
-                    spannableContent.setSpan(
-                        LatexDrawableSpan(drawable, isBlockFormula),
-                        start,
-                        end,
-                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                    )
-                    
-                    // 标记该范围已处理
-                    processedRanges.add(range)
-                    
-                    Log.d("MarkdownLatex", "成功修复并渲染LaTeX公式: '$fixedContent'")
-                    
-                } catch (e2: Exception) {
-                    // 如果修复也失败，记录错误并继续处理其他表达式
-                    Log.e("MarkdownLatex", "修复LaTeX失败: ${e2.message}", e2)
-                    
-                    // 显示原始文本而不是渲染的LaTeX
-                    // 这里不做任何操作，将保留原始文本
-                }
-            } catch (e: Exception) {
-                // 处理其他类型的错误
-                Log.e("MarkdownLatex", "渲染LaTeX出错: ${e.message} in '${expr.take(30)}...'", e)
-                // 保留原始文本
+            } catch (e2: Exception) {
+                // 如果修复也失败，记录错误并继续处理其他表达式
+                Log.e("MarkdownLatex", "修复LaTeX失败: ${e2.message}", e2)
+                
+                // 显示原始文本而不是渲染的LaTeX
+                // 这里不做任何操作，将保留原始文本
             }
+        } catch (e: Exception) {
+            // 处理其他类型的错误
+            Log.e("MarkdownLatex", "渲染LaTeX出错: ${e.message} in '${expr.take(30)}...'", e)
+            // 保留原始文本
         }
     }
     
@@ -755,3 +1302,4 @@ private class LatexDrawableSpan(
         canvas.restore()
     }
 }
+

@@ -92,6 +92,31 @@ class TerminalSession(
                     return@launch
                 }
                 command.trim().startsWith("cd ") -> {
+                    // Check if this is a combined command with &&
+                    if (command.contains(" && ")) {
+                        val parts = command.split(" && ", limit = 2)
+                        val cdCommand = parts[0].trim()
+                        val remainingCommand = parts[1].trim()
+
+                        // Extract cd argument
+                        val cdArg = cdCommand.substring(2).trim()
+
+                        // Handle cd part first
+                        handleCdCommand(context, cdArg, outputFlow)
+
+                        // Then execute the remaining command with updated working directory
+                        if (remainingCommand.isNotEmpty()) {
+                            scope.launch {
+                                executeCommand(context, remainingCommand, scope, onCompletion)
+                            }
+                            return@launch
+                        } else {
+                            onCompletion(0, true)
+                            return@launch
+                        }
+                    }
+
+                    // Original cd handling for simple cd commands without &&
                     // 处理cd命令，更新工作目录
                     // 确保即使是单个字符的参数也不会丢失
                     val cdArg = command.trim().substring(2).trim()

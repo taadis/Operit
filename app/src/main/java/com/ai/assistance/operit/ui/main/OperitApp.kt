@@ -256,6 +256,16 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
     // Create an instance of MCPRepository
     val mcpRepository = remember { MCPRepository(context) }
 
+    // 应用启动后立即初始化MCP插件状态，确保已安装的插件在首次打开前就被加载
+    LaunchedEffect(Unit) {
+        launch {
+            // 首先扫描本地已安装的插件
+            mcpRepository.syncInstalledStatus()
+            // 从缓存加载服务器列表
+            mcpRepository.fetchMCPServers(forceRefresh = false)
+        }
+    }
+
     // 如果需要显示协议页面，先显示协议页面
     if (showAgreementScreen) {
         AgreementScreen(
