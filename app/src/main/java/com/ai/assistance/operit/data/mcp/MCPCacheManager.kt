@@ -6,7 +6,7 @@ import android.util.Log
 import com.ai.assistance.operit.data.mcp.MCPRepositoryConstants.CACHE_DURATION_HOURS
 import com.ai.assistance.operit.data.mcp.MCPRepositoryConstants.OfficialMCPConstants
 import com.ai.assistance.operit.data.mcp.MCPRepositoryConstants.TAG
-import com.ai.assistance.operit.ui.features.mcp.model.MCPServer
+import com.ai.assistance.operit.ui.features.packages.screens.mcp.model.MCPServer
 import java.io.File
 import java.util.concurrent.TimeUnit
 import org.json.JSONArray

@@ -11,7 +11,7 @@ import com.ai.assistance.operit.data.mcp.MCPRepositoryConstants.TESTING_CHECKBOX
 import com.ai.assistance.operit.data.mcp.MCPRepositoryConstants.TESTING_CHECKBOX_STABLE
 import com.ai.assistance.operit.data.mcp.MCPRepositoryConstants.TESTING_SECTION
 import com.ai.assistance.operit.data.mcp.MCPRepositoryConstants.WHY_ADD_SECTION
-import com.ai.assistance.operit.ui.features.mcp.model.MCPServer
+import com.ai.assistance.operit.ui.features.packages.screens.mcp.model.MCPServer
 import java.net.HttpURLConnection
 import java.net.URL
 import org.json.JSONArray

@@ -1,6 +1,5 @@
 package com.ai.assistance.operit.ui.main
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,7 +47,6 @@ import com.ai.assistance.operit.ui.features.agreement.screens.AgreementScreen
 import com.ai.assistance.operit.ui.features.chat.screens.AIChatScreen
 import com.ai.assistance.operit.ui.features.demo.screens.ShizukuDemoScreen
 import com.ai.assistance.operit.ui.features.help.screens.HelpScreen
-import com.ai.assistance.operit.ui.features.mcp.screens.MCPScreen
 import com.ai.assistance.operit.ui.features.packages.screens.PackageManagerScreen
 import com.ai.assistance.operit.ui.features.problems.screens.ProblemLibraryScreen
 import com.ai.assistance.operit.ui.features.settings.screens.SettingsScreen
@@ -74,7 +72,6 @@ sealed class Screen {
     data object Packages : Screen()
     data object Toolbox : Screen()
     data object ShizukuCommands : Screen()
-    data object Mcp : Screen()
     data object Settings : Screen()
     data object Help : Screen()
     data object About : Screen()
@@ -112,7 +109,6 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                     NavItem.Packages -> Screen.Packages
                     NavItem.Toolbox -> Screen.Toolbox
                     NavItem.ShizukuCommands -> Screen.ShizukuCommands
-                    NavItem.Mcp -> Screen.Mcp
                     NavItem.Settings -> Screen.Settings
                     NavItem.Help -> Screen.Help
                     NavItem.About -> Screen.About
@@ -206,7 +202,6 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                     NavItem.AiChat,
                     NavItem.ShizukuCommands,
                     NavItem.Toolbox,
-                    NavItem.Mcp,
                     NavItem.Settings,
                     NavItem.Packages,
                     NavItem.ProblemLibrary,
@@ -404,18 +399,6 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                     onClick = {
                         selectedItem = NavItem.ShizukuCommands
                         currentScreen = Screen.ShizukuCommands
-                        scope.launch { drawerState.close() }
-                    }
-            )
-
-            // MCP 插件市场
-            CompactNavigationDrawerItem(
-                    icon = NavItem.Mcp.icon,
-                    label = stringResource(id = NavItem.Mcp.titleResId),
-                    selected = currentScreen is Screen.Mcp,
-                    onClick = {
-                        selectedItem = NavItem.Mcp
-                        currentScreen = Screen.Mcp
                         scope.launch { drawerState.close() }
                     }
             )
@@ -735,10 +718,6 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                 ProblemLibraryScreen()
                             }
                             is Screen.About -> AboutScreen()
-                            is Screen.Mcp -> {
-                                // MCP 屏幕
-                                MCPScreen(mcpRepository = mcpRepository)
-                            }
                             is Screen.Help ->
                                     HelpScreen(
                                             onBackPressed = {

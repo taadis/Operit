@@ -23,7 +23,7 @@
     <string name="about">关于</string>
     <string name="terminal">终端</string>
     <string name="toolbox">工具箱</string>
-    <string name="mcp">MCP 插件市场</string>
+    <string name="mcp">MCP</string>
     <string name="token_config_title">DeepSeek Token配置</string>
     
     <!-- Terminal Screen -->

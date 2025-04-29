@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.features.packages.screens.mcp.screens
+package com.ai.assistance.operit.ui.features.packages.screens
 
 import android.util.Log
 import androidx.compose.animation.core.LinearEasing
@@ -38,11 +38,9 @@ import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.data.mcp.MCPRepository
 import com.ai.assistance.operit.data.mcp.MCPRepositoryConstants.SortDirection
 import com.ai.assistance.operit.data.mcp.MCPRepositoryConstants.SortOptions
-import com.ai.assistance.operit.ui.features.packages.screens.mcp.components.LoadingItem
+import com.ai.assistance.operit.ui.features.packages.components.dialogs.MCPServerDetailsDialog
 import com.ai.assistance.operit.ui.features.packages.screens.mcp.components.MCPInstallProgressDialog
-import com.ai.assistance.operit.ui.features.packages.screens.mcp.components.MCPServerDetailsDialog
 import com.ai.assistance.operit.ui.features.packages.screens.mcp.components.MCPServerItem
-import com.ai.assistance.operit.ui.features.packages.screens.mcp.components.RefreshingIndicator
 import com.ai.assistance.operit.ui.features.packages.screens.mcp.model.MCPServer
 import com.ai.assistance.operit.ui.features.packages.screens.mcp.viewmodel.MCPViewModel
 import kotlin.math.roundToInt
@@ -102,7 +100,6 @@ fun MCPScreen(mcpRepository: MCPRepository) {
 
         // 搜索和筛选状态
         val searchText = remember { mutableStateOf("") }
-        var showInstalledOnly by remember { mutableStateOf(false) }
 
         // Add debounced search text state
         var debouncedSearchText by remember { mutableStateOf("") }
@@ -120,18 +117,13 @@ fun MCPScreen(mcpRepository: MCPRepository) {
 
         // 仅在本地过滤已安装的插件
         val displayedServers =
-                remember(mcpServers, showInstalledOnly, debouncedSearchText) {
-                        val filtered =
-                                if (showInstalledOnly) {
-                                        mcpServers.filter { it.isInstalled }
-                                } else {
-                                        mcpServers
-                                }
+                remember(mcpServers, debouncedSearchText) {
+                        // 删除 if (showInstalledOnly) 的条件过滤
 
                         // Apply local search if text is present
                         if (debouncedSearchText.isNotBlank()) {
                                 val searchTerms = debouncedSearchText.lowercase().split(" ")
-                                filtered.filter { server ->
+                                mcpServers.filter { server ->
                                         searchTerms.all { term ->
                                                 server.name.lowercase().contains(term) ||
                                                         server.description
@@ -145,7 +137,7 @@ fun MCPScreen(mcpRepository: MCPRepository) {
                                         }
                                 }
                         } else {
-                                filtered
+                                mcpServers
                         }
                 }
 
@@ -207,55 +199,49 @@ fun MCPScreen(mcpRepository: MCPRepository) {
                 snapshotFlow {
                         val layoutInfo = listState.layoutInfo
                         val totalItemsCount = layoutInfo.totalItemsCount
-                        val lastVisibleItemIndex = (layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0)
-                        
-                        // 如果只显示已安装插件，则不需要加载更多，因为已安装插件都是本地的
-                        val shouldConsiderLoadingMore = !showInstalledOnly && 
-                                                       hasMore &&
-                                                       displayedServers.isNotEmpty()
-                        
+                        val lastVisibleItemIndex =
+                                (layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0)
+
+                        // 删除 showInstalledOnly 相关的条件
+                        val shouldConsiderLoadingMore = hasMore && displayedServers.isNotEmpty()
+
                         // 提前检测 - 当滚动到距离底部更远的位置时触发加载
                         // 增加阈值为10，确保有足够的提前量
                         val isNearBottom = lastVisibleItemIndex >= totalItemsCount - 10
-                        
+
                         shouldConsiderLoadingMore && isNearBottom && !isLoading
                 }
-                .distinctUntilChanged()
-                .collect { shouldLoadMore ->
-                        if (shouldLoadMore) {
-                                Log.d("MCPScreen", "触发自动加载更多内容")
-                                coroutineScope.launch {
-                                    try {
-                                        mcpRepository.fetchMCPServers(
-                                                forceRefresh = false,
-                                                query = debouncedSearchText,
-                                                sortBy = sortOption,
-                                                sortDirection = sortDirection
-                                        )
-                                        Log.d("MCPScreen", "加载更多内容成功")
-                                    } catch (e: Exception) {
-                                        Log.e("MCPScreen", "加载更多内容失败: ${e.message}")
-                                    }
+                        .distinctUntilChanged()
+                        .collect { shouldLoadMore ->
+                                if (shouldLoadMore) {
+                                        Log.d("MCPScreen", "触发自动加载更多内容")
+                                        coroutineScope.launch {
+                                                try {
+                                                        mcpRepository.fetchMCPServers(
+                                                                forceRefresh = false,
+                                                                query = debouncedSearchText,
+                                                                sortBy = sortOption,
+                                                                sortDirection = sortDirection
+                                                        )
+                                                        Log.d("MCPScreen", "加载更多内容成功")
+                                                } catch (e: Exception) {
+                                                        Log.e("MCPScreen", "加载更多内容失败: ${e.message}")
+                                                }
+                                        }
                                 }
                         }
-                }
         }
 
         // 根据刷新状态重置pullOffset
         LaunchedEffect(refreshing) {
                 if (refreshing) {
                         delay(1000)
-                        // 如果只显示已安装插件，则只需要刷新本地插件状态
-                        if (showInstalledOnly) {
-                                mcpRepository.syncInstalledStatus()
-                        } else {
-                                mcpRepository.fetchMCPServers(
-                                        forceRefresh = true,
-                                        query = searchText.value,
-                                        sortBy = sortOption,
-                                        sortDirection = sortDirection
-                                )
-                        }
+                        mcpRepository.fetchMCPServers(
+                                forceRefresh = true,
+                                query = searchText.value,
+                                sortBy = sortOption,
+                                sortDirection = sortDirection
+                        )
                         delay(500)
                         refreshing = false
                         pullOffset = 0f
@@ -477,106 +463,6 @@ fun MCPScreen(mcpRepository: MCPRepository) {
                                         )
                                 }
                         }
-
-                        // 安装状态筛选器 - 更简洁紧凑
-                        Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                                Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.Start
-                                ) {
-                                        Text(
-                                                text = "查看:",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-
-                                        Row(
-                                                modifier =
-                                                        Modifier.clip(RoundedCornerShape(20.dp))
-                                                                .background(
-                                                                        MaterialTheme.colorScheme
-                                                                                .surfaceVariant
-                                                                                .copy(alpha = 0.3f)
-                                                                )
-                                                                .padding(
-                                                                        horizontal = 4.dp,
-                                                                        vertical = 2.dp
-                                                                )
-                                        ) {
-                                                FilterChip(
-                                                        selected = !showInstalledOnly,
-                                                        onClick = { showInstalledOnly = false },
-                                                        label = {
-                                                                Text(
-                                                                        "全部",
-                                                                        style =
-                                                                                MaterialTheme
-                                                                                        .typography
-                                                                                        .bodySmall
-                                                                )
-                                                        },
-                                                        colors =
-                                                                FilterChipDefaults.filterChipColors(
-                                                                        selectedContainerColor =
-                                                                                MaterialTheme
-                                                                                        .colorScheme
-                                                                                        .primaryContainer,
-                                                                        selectedLabelColor =
-                                                                                MaterialTheme
-                                                                                        .colorScheme
-                                                                                        .onPrimaryContainer
-                                                                ),
-                                                        border = null,
-                                                        modifier = Modifier.height(30.dp)
-                                                )
-
-                                                Spacer(modifier = Modifier.width(2.dp))
-
-                                                FilterChip(
-                                                        selected = showInstalledOnly,
-                                                        onClick = { showInstalledOnly = true },
-                                                        label = {
-                                                                Text(
-                                                                        "已安装",
-                                                                        style =
-                                                                                MaterialTheme
-                                                                                        .typography
-                                                                                        .bodySmall
-                                                                )
-                                                        },
-                                                        colors =
-                                                                FilterChipDefaults.filterChipColors(
-                                                                        selectedContainerColor =
-                                                                                MaterialTheme
-                                                                                        .colorScheme
-                                                                                        .primaryContainer,
-                                                                        selectedLabelColor =
-                                                                                MaterialTheme
-                                                                                        .colorScheme
-                                                                                        .onPrimaryContainer
-                                                                ),
-                                                        border = null,
-                                                        modifier = Modifier.height(30.dp)
-                                                )
-                                        }
-                                }
-
-                                // 当前排序显示
-                                Text(
-                                        text =
-                                                when (sortOption) {
-                                                        SortOptions.RECOMMENDED -> "推荐"
-                                                        else -> sortOption.name
-                                                } + "排序",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                        }
                 }
 
                 Box(modifier = Modifier.fillMaxSize()) {
@@ -796,72 +682,149 @@ fun MCPScreen(mcpRepository: MCPRepository) {
 
                                                 // 显示加载中指示器 - 更新条件，让它在滚动到底部且hasMore时就显示
                                                 item {
-                                                    if (!showInstalledOnly && hasMore) {
-                                                        Box(
-                                                            modifier = Modifier
-                                                                .fillMaxWidth()
-                                                                .padding(vertical = 12.dp)
-                                                                .height(60.dp),
-                                                            contentAlignment = Alignment.Center
-                                                        ) {
-                                                            Row(
-                                                                verticalAlignment = Alignment.CenterVertically,
-                                                                horizontalArrangement = Arrangement.Center,
-                                                                modifier = Modifier.clickable(onClick = {
-                                                                    if (!isLoading && hasMore) {
-                                                                        Log.d("MCPScreen", "手动点击加载更多")
-                                                                        coroutineScope.launch {
-                                                                            mcpRepository.fetchMCPServers(
-                                                                                forceRefresh = false,
-                                                                                query = debouncedSearchText,
-                                                                                sortBy = sortOption,
-                                                                                sortDirection = sortDirection
-                                                                            )
-                                                                        }
-                                                                    }
-                                                                })
-                                                            ) {
-                                                                // 加载中指示器
-                                                                val rotation by
-                                                                    rememberInfiniteTransition(label = "loadingRotation")
-                                                                        .animateFloat(
-                                                                            initialValue = 0f,
-                                                                            targetValue = 360f,
-                                                                            animationSpec =
-                                                                                infiniteRepeatable(
-                                                                                    animation =
-                                                                                        tween(1000, easing = LinearEasing),
-                                                                                    repeatMode = RepeatMode.Restart
-                                                                                ),
-                                                                            label = "loadingRotation"
-                                                                        )
-                                                                
+                                                        if (!hasMore) {
                                                                 Box(
-                                                                    modifier = Modifier
-                                                                        .size(24.dp)
-                                                                        .clip(CircleShape)
-                                                                        .background(MaterialTheme.colorScheme.primaryContainer),
-                                                                    contentAlignment = Alignment.Center
+                                                                        modifier =
+                                                                                Modifier.fillMaxWidth()
+                                                                                        .padding(
+                                                                                                vertical =
+                                                                                                        12.dp
+                                                                                        )
+                                                                                        .height(
+                                                                                                60.dp
+                                                                                        ),
+                                                                        contentAlignment =
+                                                                                Alignment.Center
                                                                 ) {
-                                                                    Icon(
-                                                                        imageVector = Icons.Default.Refresh,
-                                                                        contentDescription = "加载中",
-                                                                        tint = MaterialTheme.colorScheme.primary,
-                                                                        modifier = Modifier.size(16.dp).graphicsLayer {
-                                                                            rotationZ = if (isLoading) rotation else 0f
+                                                                        Row(
+                                                                                verticalAlignment =
+                                                                                        Alignment
+                                                                                                .CenterVertically,
+                                                                                horizontalArrangement =
+                                                                                        Arrangement
+                                                                                                .Center,
+                                                                                modifier =
+                                                                                        Modifier.clickable(
+                                                                                                onClick = {
+                                                                                                        if (!isLoading &&
+                                                                                                                        hasMore
+                                                                                                        ) {
+                                                                                                                Log.d(
+                                                                                                                        "MCPScreen",
+                                                                                                                        "手动点击加载更多"
+                                                                                                                )
+                                                                                                                coroutineScope
+                                                                                                                        .launch {
+                                                                                                                                mcpRepository
+                                                                                                                                        .fetchMCPServers(
+                                                                                                                                                forceRefresh =
+                                                                                                                                                        false,
+                                                                                                                                                query =
+                                                                                                                                                        debouncedSearchText,
+                                                                                                                                                sortBy =
+                                                                                                                                                        sortOption,
+                                                                                                                                                sortDirection =
+                                                                                                                                                        sortDirection
+                                                                                                                                        )
+                                                                                                                        }
+                                                                                                        }
+                                                                                                }
+                                                                                        )
+                                                                        ) {
+                                                                                // 加载中指示器
+                                                                                val rotation by
+                                                                                        rememberInfiniteTransition(
+                                                                                                        label =
+                                                                                                                "loadingRotation"
+                                                                                                )
+                                                                                                .animateFloat(
+                                                                                                        initialValue =
+                                                                                                                0f,
+                                                                                                        targetValue =
+                                                                                                                360f,
+                                                                                                        animationSpec =
+                                                                                                                infiniteRepeatable(
+                                                                                                                        animation =
+                                                                                                                                tween(
+                                                                                                                                        1000,
+                                                                                                                                        easing =
+                                                                                                                                                LinearEasing
+                                                                                                                                ),
+                                                                                                                        repeatMode =
+                                                                                                                                RepeatMode
+                                                                                                                                        .Restart
+                                                                                                                ),
+                                                                                                        label =
+                                                                                                                "loadingRotation"
+                                                                                                )
+
+                                                                                Box(
+                                                                                        modifier =
+                                                                                                Modifier.size(
+                                                                                                                24.dp
+                                                                                                        )
+                                                                                                        .clip(
+                                                                                                                CircleShape
+                                                                                                        )
+                                                                                                        .background(
+                                                                                                                MaterialTheme
+                                                                                                                        .colorScheme
+                                                                                                                        .primaryContainer
+                                                                                                        ),
+                                                                                        contentAlignment =
+                                                                                                Alignment
+                                                                                                        .Center
+                                                                                ) {
+                                                                                        Icon(
+                                                                                                imageVector =
+                                                                                                        Icons.Default
+                                                                                                                .Refresh,
+                                                                                                contentDescription =
+                                                                                                        "加载中",
+                                                                                                tint =
+                                                                                                        MaterialTheme
+                                                                                                                .colorScheme
+                                                                                                                .primary,
+                                                                                                modifier =
+                                                                                                        Modifier.size(
+                                                                                                                        16.dp
+                                                                                                                )
+                                                                                                                .graphicsLayer {
+                                                                                                                        rotationZ =
+                                                                                                                                if (isLoading
+                                                                                                                                )
+                                                                                                                                        rotation
+                                                                                                                                else
+                                                                                                                                        0f
+                                                                                                                }
+                                                                                        )
+                                                                                }
+
+                                                                                Spacer(
+                                                                                        modifier =
+                                                                                                Modifier.width(
+                                                                                                        8.dp
+                                                                                                )
+                                                                                )
+                                                                                Text(
+                                                                                        text =
+                                                                                                if (isLoading
+                                                                                                )
+                                                                                                        "加载更多内容中..."
+                                                                                                else
+                                                                                                        "自动加载更多中...",
+                                                                                        style =
+                                                                                                MaterialTheme
+                                                                                                        .typography
+                                                                                                        .bodyMedium,
+                                                                                        color =
+                                                                                                MaterialTheme
+                                                                                                        .colorScheme
+                                                                                                        .primary
+                                                                                )
                                                                         }
-                                                                    )
                                                                 }
-                                                                
-                                                                Spacer(modifier = Modifier.width(8.dp))
-                                                                Text(
-                                                                    text = if (isLoading) "加载更多内容中..." else "自动加载更多中...",
-                                                                    style = MaterialTheme.typography.bodyMedium,
-                                                                    color = MaterialTheme.colorScheme.primary
-                                                                )
-                                                            }
                                                         }
-                                                    }
                                                 }
                                         }
 
@@ -931,8 +894,8 @@ fun MCPScreen(mcpRepository: MCPRepository) {
                 MCPServerDetailsDialog(
                         server = selectedServer!!,
                         onDismiss = { selectedServer = null },
-                        onInstall = { viewModel.installServer(it) },
-                        onUninstall = { viewModel.uninstallServer(it) },
+                        onInstall = { server -> viewModel.installServer(server) },
+                        onUninstall = { server -> viewModel.uninstallServer(server) },
                         installedPath = installedPath
                 )
         }

@@ -2,7 +2,7 @@ package com.ai.assistance.operit.data.mcp
 
 import android.util.Log
 import com.ai.assistance.operit.data.mcp.MCPRepositoryConstants.TAG
-import com.ai.assistance.operit.ui.features.mcp.model.MCPServer
+import com.ai.assistance.operit.ui.features.packages.screens.mcp.model.MCPServer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -179,14 +179,46 @@ class MCPPluginManager(
     }
 
     /**
-     * Gets all installed plugins
+     * Gets the installed plugin info including original metadata
+     *
+     * @param pluginId The ID of the plugin
+     * @return The installed plugin info or null if not installed
+     */
+    fun getInstalledPluginInfo(pluginId: String): MCPInstaller.InstalledPluginInfo? {
+        return mcpInstaller.getInstalledPluginInfo(pluginId)
+    }
+
+    /**
+     * Gets the original plugin name from metadata if available
+     *
+     * @param pluginId The ID of the plugin
+     * @return The original name or null if metadata not found
+     */
+    fun getOriginalPluginName(pluginId: String): String? {
+        return mcpInstaller.getInstalledPluginInfo(pluginId)?.getOriginalName()
+    }
+
+    /**
+     * Gets all installed plugins with original metadata restored where available
      *
      * @param allServers List of all known servers
-     * @return List of installed servers
+     * @return List of installed servers with original metadata
      */
     fun getInstalledPlugins(allServers: List<MCPServer>): List<MCPServer> {
         val installedIds = _installedPluginIds.value
-        return allServers.filter { installedIds.contains(it.id) }
+        return allServers.filter { installedIds.contains(it.id) }.map { server ->
+            // Try to restore original metadata for better display
+            val pluginInfo = mcpInstaller.getInstalledPluginInfo(server.id)
+            if (pluginInfo?.metadata != null) {
+                // If we have metadata, use the original name and description
+                server.copy(
+                        name = pluginInfo.getOriginalName() ?: server.name,
+                        description = pluginInfo.getOriginalDescription() ?: server.description
+                )
+            } else {
+                server
+            }
+        }
     }
 
     /**

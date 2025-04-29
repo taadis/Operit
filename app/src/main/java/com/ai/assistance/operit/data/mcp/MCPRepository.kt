@@ -7,13 +7,13 @@ import com.ai.assistance.operit.data.mcp.MCPRepositoryConstants.MAX_PAGES
 import com.ai.assistance.operit.data.mcp.MCPRepositoryConstants.SortDirection
 import com.ai.assistance.operit.data.mcp.MCPRepositoryConstants.SortOptions
 import com.ai.assistance.operit.data.mcp.MCPRepositoryConstants.TAG
-import com.ai.assistance.operit.ui.features.mcp.model.MCPServer as UIMCPServer
+import com.ai.assistance.operit.ui.features.packages.screens.mcp.model.MCPServer as UIMCPServer
+import com.google.gson.Gson
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -582,9 +582,58 @@ class MCPRepository(private val context: Context) {
     }
 
     /** Updates installation status for all servers in the list */
-    private fun updateInstalledStatus() {
+    private suspend fun updateInstalledStatus() {
         try {
-            val updatedServers = pluginManager.updateInstalledStatus(_mcpServers.value)
+            // Get current installed plugin IDs
+            val installedIds = pluginManager.installedPluginIds.value
+
+            // Update in-memory installation status
+            val updatedServers =
+                    _mcpServers.value.map { server ->
+                        val isInstalled = installedIds.contains(server.id)
+
+                        // Check installation status changed
+                        if (server.isInstalled != isInstalled) {
+                            // Installation status changed
+                            if (isInstalled) {
+                                // Server was installed - try to get original name and description
+                                // from metadata
+                                val pluginInfo = pluginManager.getInstalledPluginInfo(server.id)
+                                if (pluginInfo?.metadata != null) {
+                                    // Use original metadata from installation
+                                    server.copy(
+                                            name = pluginInfo.getOriginalName() ?: server.name,
+                                            description = pluginInfo.getOriginalDescription()
+                                                            ?: server.description,
+                                            isInstalled = true
+                                    )
+                                } else {
+                                    // No metadata, just update installation status
+                                    server.copy(isInstalled = true)
+                                }
+                            } else {
+                                // Server was uninstalled
+                                server.copy(isInstalled = false)
+                            }
+                        } else if (isInstalled) {
+                            // Already installed - make sure to use original metadata if available
+                            val pluginInfo = pluginManager.getInstalledPluginInfo(server.id)
+                            if (pluginInfo?.metadata != null) {
+                                // Use original metadata from installation
+                                server.copy(
+                                        name = pluginInfo.getOriginalName() ?: server.name,
+                                        description = pluginInfo.getOriginalDescription()
+                                                        ?: server.description
+                                )
+                            } else {
+                                server
+                            }
+                        } else {
+                            // Not installed, no change needed
+                            server
+                        }
+                    }
+
             _mcpServers.value = updatedServers
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update installation status", e)
@@ -879,7 +928,7 @@ class MCPRepository(private val context: Context) {
         withContext(Dispatchers.IO) {
             // First scan for locally installed plugins
             syncInstalledStatus()
-            
+
             // Then try to load MCP server list from cache
             if (cacheManager.isMarketplaceCacheValid()) {
                 val cachedServers = cacheManager.loadMarketplaceFromCache()
@@ -887,7 +936,10 @@ class MCPRepository(private val context: Context) {
                     loadedServerIds.addAll(cachedServers.map { it.id })
                     _mcpServers.value = MCPRepositoryUtils.sortServersByRecommended(cachedServers)
                     updateInstalledStatus()
-                    Log.d(TAG, "Loaded ${cachedServers.size} servers from cache during initialization")
+                    Log.d(
+                            TAG,
+                            "Loaded ${cachedServers.size} servers from cache during initialization"
+                    )
                 }
             }
         }
@@ -895,52 +947,232 @@ class MCPRepository(private val context: Context) {
 
     // Read metadata from installed plugin directory
     private fun readPluginMetadata(installPath: String, serverId: String): UIMCPServer? {
-        return try {
+        try {
+            Log.d(TAG, "Reading metadata from installed plugin: $serverId at $installPath")
             val pluginDir = File(installPath)
+            if (!pluginDir.exists() || !pluginDir.isDirectory) {
+                Log.e(TAG, "Plugin directory doesn't exist: $installPath")
+                return null
+            }
 
-            // Try to read README.md to get basic info
-            val readmeFile = File(pluginDir, "README.md")
+            // Default values
             var name = serverId
             var description = ""
+            var longDescription = ""
+            var version = "local"
+            var author = "Local Installation"
+            var category = "Installed"
+            var repoUrl = ""
 
+            // Check for metadata.json first (added by MCPInstaller)
+            val metadataFile = File(pluginDir, "metadata.json")
+            if (metadataFile.exists()) {
+                try {
+                    Log.d(TAG, "Reading metadata.json for plugin $serverId")
+                    val metadataJson = metadataFile.readText()
+                    val metadata = Gson().fromJson(metadataJson, PluginMetadata::class.java)
+
+                    // Use values from metadata.json if available
+                    if (metadata.originalTitle.isNotEmpty()) {
+                        name = metadata.originalTitle
+                        Log.d(TAG, "Using original title from metadata.json: $name")
+                    }
+
+                    if (metadata.description.isNotEmpty()) {
+                        description = metadata.description
+                        Log.d(TAG, "Using description from metadata.json")
+                    }
+
+                    if (metadata.version.isNotEmpty()) {
+                        version = metadata.version
+                        Log.d(TAG, "Using version from metadata.json: $version")
+                    }
+
+                    if (metadata.author.isNotEmpty()) {
+                        author = metadata.author
+                        Log.d(TAG, "Using author from metadata.json: $author")
+                    }
+
+                    if (metadata.repoUrl.isNotEmpty()) {
+                        repoUrl = metadata.repoUrl
+                        Log.d(TAG, "Using repository URL from metadata.json: $repoUrl")
+                    }
+
+                    if (metadata.longDescription.isNotEmpty()) {
+                        longDescription = metadata.longDescription
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error parsing metadata.json for plugin $serverId", e)
+                }
+            }
+
+            // Try to read README.md to get basic info if values are still default
+            val readmeFile = File(pluginDir, "README.md")
             if (readmeFile.exists()) {
+                Log.d(TAG, "Reading README.md for plugin $serverId")
                 val readmeContent = readmeFile.readText()
 
-                // Try to extract server name and description from README
-                val titleMatch = Regex("# (.+)").find(readmeContent)
-                if (titleMatch != null) {
-                    name = titleMatch.groupValues[1].trim()
+                // Extract title (plugin name) if not set from metadata
+                if (name == serverId) {
+                    val titleMatch = Regex("# (.+)").find(readmeContent)
+                    if (titleMatch != null) {
+                        name = titleMatch.groupValues[1].trim()
+                        Log.d(TAG, "Extracted plugin name from README: $name")
+                    }
                 }
 
-                // Extract first paragraph as description
-                val descMatch =
-                        Regex("# .+\\s+(.+?)\\s*(?:##|$)", RegexOption.DOT_MATCHES_ALL)
-                                .find(readmeContent)
-                if (descMatch != null) {
-                    description = descMatch.groupValues[1].trim()
+                // Extract first paragraph as description if not set from metadata
+                if (description.isEmpty()) {
+                    val descMatch =
+                            Regex("# .+\\s+(.+?)\\s*(?:##|$)", RegexOption.DOT_MATCHES_ALL)
+                                    .find(readmeContent)
+                    if (descMatch != null) {
+                        description = descMatch.groupValues[1].trim()
+                        Log.d(TAG, "Extracted plugin description from README")
+                    }
+                }
+
+                // Try to extract version if present and not set from metadata
+                if (version == "local") {
+                    val versionMatch =
+                            Regex("(?:version|版本)[:\\s]*(\\S+)", RegexOption.IGNORE_CASE)
+                                    .find(readmeContent)
+                    if (versionMatch != null) {
+                        version = versionMatch.groupValues[1].trim()
+                        Log.d(TAG, "Extracted plugin version from README: $version")
+                    }
+                }
+
+                // Try to extract author if present and not set from metadata
+                if (author == "Local Installation") {
+                    val authorMatch =
+                            Regex(
+                                            "(?:author|作者)[:\\s]*(\\S+(?:\\s+\\S+)*)",
+                                            RegexOption.IGNORE_CASE
+                                    )
+                                    .find(readmeContent)
+                    if (authorMatch != null) {
+                        author = authorMatch.groupValues[1].trim()
+                        Log.d(TAG, "Extracted plugin author from README: $author")
+                    }
+                }
+
+                // Try to extract repository URL if present and not set from metadata
+                if (repoUrl.isEmpty()) {
+                    val repoMatch =
+                            Regex(
+                                            "(?:(?:github|gitlab|repo|repository)\\s*(?:url|link)?)[:\\s]*(https?://\\S+)",
+                                            RegexOption.IGNORE_CASE
+                                    )
+                                    .find(readmeContent)
+                    if (repoMatch != null) {
+                        repoUrl = repoMatch.groupValues[1].trim()
+                        Log.d(TAG, "Extracted repository URL from README: $repoUrl")
+                    }
+                }
+
+                // The full README content becomes the long description if not set from metadata
+                if (longDescription.isEmpty()) {
+                    longDescription = readmeContent
+                }
+            } else {
+                Log.d(TAG, "README.md not found for plugin $serverId")
+            }
+
+            // Try to read package.json if it exists
+            val packageJsonFile = File(pluginDir, "package.json")
+            if (packageJsonFile.exists()) {
+                try {
+                    Log.d(TAG, "Reading package.json for plugin $serverId")
+                    val packageJsonContent = packageJsonFile.readText()
+                    val jsonObject = org.json.JSONObject(packageJsonContent)
+
+                    // Override values if found in package.json and not set from metadata or README
+                    if (jsonObject.has("name") && name == serverId) {
+                        name = jsonObject.getString("name")
+                        Log.d(TAG, "Using name from package.json: $name")
+                    }
+
+                    if (jsonObject.has("description") && description.isEmpty()) {
+                        description = jsonObject.getString("description")
+                        Log.d(TAG, "Using description from package.json")
+                    }
+
+                    if (jsonObject.has("version") && version == "local") {
+                        version = jsonObject.getString("version")
+                        Log.d(TAG, "Using version from package.json: $version")
+                    }
+
+                    if (jsonObject.has("author") && author == "Local Installation") {
+                        val authorObj = jsonObject.opt("author")
+                        author =
+                                when {
+                                    authorObj is org.json.JSONObject && authorObj.has("name") ->
+                                            authorObj.getString("name")
+                                    authorObj is String -> authorObj
+                                    else -> author
+                                }
+                        Log.d(TAG, "Using author from package.json: $author")
+                    }
+
+                    if (jsonObject.has("repository") && repoUrl.isEmpty()) {
+                        val repoObj = jsonObject.opt("repository")
+                        repoUrl =
+                                when {
+                                    repoObj is org.json.JSONObject && repoObj.has("url") ->
+                                            repoObj.getString("url")
+                                    repoObj is String -> repoObj
+                                    else -> repoUrl
+                                }
+                        Log.d(TAG, "Using repository URL from package.json: $repoUrl")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error parsing package.json for plugin $serverId", e)
                 }
             }
 
             // Build locally discovered server object
-            UIMCPServer(
+            Log.d(TAG, "Creating UIMCPServer object for local plugin $serverId")
+            return UIMCPServer(
                     id = serverId,
                     name = name,
                     description = description.ifEmpty { "Locally installed server" },
-                    logoUrl = "", // Locally discovered servers have no logo
+                    logoUrl = "", // Locally discovered servers typically have no logo
                     stars = 0,
-                    category = "Installed",
+                    category = category,
                     requiresApiKey = false,
-                    author = "Local Installation",
+                    author = author,
                     isVerified = false,
                     isInstalled = true,
-                    version = "local",
+                    version = version,
                     updatedAt = "",
-                    longDescription = description,
-                    repoUrl = ""
+                    longDescription = longDescription,
+                    repoUrl = repoUrl
             )
         } catch (e: Exception) {
             Log.e(TAG, "Failed to read plugin metadata: $serverId", e)
-            null
+            return null
         }
     }
+
+    // 暴露插件安装器的功能
+    /**
+     * 获取已安装插件的信息
+     *
+     * @param pluginId 插件ID
+     * @return 插件信息，包含路径和元数据信息
+     */
+    fun getInstalledPluginInfo(pluginId: String): MCPInstaller.InstalledPluginInfo? {
+        return pluginManager.getInstalledPluginInfo(pluginId)
+    }
 }
+
+/** Plugin metadata saved during installation to preserve original metadata */
+data class PluginMetadata(
+        val originalTitle: String = "",
+        val description: String = "",
+        val version: String = "",
+        val author: String = "",
+        val repoUrl: String = "",
+        val longDescription: String = ""
+)

@@ -3,11 +3,14 @@ package com.ai.assistance.operit.data.mcp
 import android.content.Context
 import android.os.Environment
 import android.util.Log
+import com.google.gson.Gson
+import com.google.gson.annotations.SerializedName
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.zip.ZipFile
 import java.util.zip.ZipInputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -30,7 +33,22 @@ class MCPInstaller(private val context: Context) {
         private const val PLUGINS_DIR_NAME = "mcp_plugins"
         // 外部存储 Operit 目录名称
         private const val OPERIT_DIR_NAME = "Operit"
+        // 元数据文件名
+        private const val METADATA_FILE_NAME = "mcp_metadata.json"
     }
+
+    /** 插件元数据类，用于保存原始插件信息 */
+    data class PluginMetadata(
+            @SerializedName("original_name") val originalName: String,
+            @SerializedName("original_description") val originalDescription: String,
+            @SerializedName("category") val category: String,
+            @SerializedName("author") val author: String = "",
+            @SerializedName("version") val version: String = "",
+            @SerializedName("repo_url") val repoUrl: String = "",
+            @SerializedName("long_description") val longDescription: String = "",
+            @SerializedName("installed_timestamp")
+            val installedTimestamp: Long = System.currentTimeMillis()
+    )
 
     // 获取插件目录
     val pluginsBaseDir by lazy {
@@ -79,13 +97,12 @@ class MCPInstaller(private val context: Context) {
         progressCallback(InstallProgress.Preparing)
 
         try {
-            val repoOwnerAndName = extractOwnerAndRepo(server.repoUrl)
-            if (repoOwnerAndName == null) {
-                Log.e(TAG, "无法从 URL 提取仓库所有者和名称: ${server.repoUrl}")
-                return InstallResult.Error("无效的 GitHub 仓库 URL")
-            }
-
-            val (owner, repoName) = repoOwnerAndName
+            // 检查是否为官方插件 - 使用新的前缀格式
+            val isOfficialPlugin = server.repoUrl.startsWith("mcp-official:")
+            Log.d(
+                    TAG,
+                    "安装插件 - 名称: ${server.name}, URL: ${server.repoUrl}, 是否官方插件: $isOfficialPlugin"
+            )
 
             // 创建目标目录
             val pluginDir = File(pluginsBaseDir, server.id)
@@ -95,52 +112,123 @@ class MCPInstaller(private val context: Context) {
             }
             pluginDir.mkdirs()
 
-            // 构建 ZIP 下载 URL
-            Log.d(TAG, "准备下载仓库: $owner/$repoName")
-
-            // 下载并解压
             progressCallback(InstallProgress.Downloading(0))
-            // 尝试多种下载方式
-            val zipFile =
-                    tryDownloadZipWithMultipleMethods(owner, repoName, server.id, progressCallback)
 
-            if (zipFile == null || !zipFile.exists()) {
-                return InstallResult.Error("下载仓库 ZIP 文件失败")
-            }
+            if (isOfficialPlugin) {
+                // 处理官方插件 - 从子目录下载
+                val subfolderPath = server.repoUrl.substring("mcp-official:".length)
+                if (subfolderPath.isBlank()) {
+                    Log.e(TAG, "官方插件路径为空: ${server.repoUrl}")
+                    return InstallResult.Error("无效的官方插件路径: ${server.repoUrl}")
+                }
 
-            progressCallback(InstallProgress.Extracting(0))
-            val extractSuccess = extractZipFile(zipFile, pluginDir, progressCallback)
+                Log.d(TAG, "准备下载官方插件子目录: $subfolderPath")
 
-            // 删除 ZIP 文件
-            zipFile.delete()
+                // 下载官方插件特定子目录
+                val downloadResult =
+                        downloadOfficialPlugin(
+                                "modelcontextprotocol",
+                                "servers",
+                                subfolderPath,
+                                server.id,
+                                progressCallback
+                        )
 
-            if (!extractSuccess) {
-                // 清理失败的安装
-                pluginDir.deleteRecursively()
-                return InstallResult.Error("解压仓库文件失败")
-            }
+                if (downloadResult == null) {
+                    Log.e(TAG, "官方插件下载失败: ${server.name}")
+                    return InstallResult.Error("下载官方插件失败: ${server.name}")
+                }
 
-            // 获取解压后的根目录（GitHub ZIP 解压后会有一个目录层次）
-            val extractedDirs = pluginDir.listFiles()?.filter { it.isDirectory } ?: emptyList()
-            if (extractedDirs.isEmpty()) {
-                return InstallResult.Error("解压后没有找到仓库目录")
-            }
+                // 解压文件
+                progressCallback(InstallProgress.Extracting(0))
+                Log.d(TAG, "开始解压官方插件: ${downloadResult.path}, 子目录: $subfolderPath")
+                val extractSuccess =
+                        extractZipFile(downloadResult, pluginDir, progressCallback, subfolderPath)
 
-            // 一般格式是 {repoName}-{branch}，如 "WireMCP-main"
-            val mainDir = extractedDirs.first()
-            Log.d(TAG, "插件解压成功，主目录: ${mainDir.path}")
+                // 删除ZIP文件
+                downloadResult.delete()
 
-            // 查找插件配置文件
-            val configFile = findConfigFile(mainDir)
-            if (configFile == null) {
-                // 不要清理，可能是有效插件但没有找到配置文件
-                Log.w(TAG, "未找到插件配置文件")
+                if (!extractSuccess) {
+                    // 清理失败的安装
+                    Log.e(TAG, "官方插件解压失败: ${server.name}")
+                    pluginDir.deleteRecursively()
+                    return InstallResult.Error("解压官方插件文件失败")
+                }
+
+                // 获取插件目录
+                val extractedDir = pluginDir
+                Log.d(TAG, "官方插件解压成功，目录: ${extractedDir.path}")
+
+                // 保存原始插件元数据
+                savePluginMetadata(extractedDir, server)
+
+                progressCallback(InstallProgress.Finished)
+                return InstallResult.Success(extractedDir.path)
             } else {
-                Log.d(TAG, "找到插件配置文件: ${configFile.path}")
-            }
+                // 处理常规第三方插件 - 原有逻辑
+                val repoOwnerAndName = extractOwnerAndRepo(server.repoUrl)
+                if (repoOwnerAndName == null) {
+                    Log.e(TAG, "无法从 URL 提取仓库所有者和名称: ${server.repoUrl}")
+                    return InstallResult.Error("无效的 GitHub 仓库 URL")
+                }
 
-            progressCallback(InstallProgress.Finished)
-            return InstallResult.Success(mainDir.path)
+                val (owner, repoName) = repoOwnerAndName
+
+                // 构建 ZIP 下载 URL
+                Log.d(TAG, "准备下载仓库: $owner/$repoName")
+
+                // 下载并解压
+                progressCallback(InstallProgress.Downloading(0))
+                // 尝试多种下载方式
+                val zipFile =
+                        tryDownloadZipWithMultipleMethods(
+                                owner,
+                                repoName,
+                                server.id,
+                                progressCallback
+                        )
+
+                if (zipFile == null || !zipFile.exists()) {
+                    return InstallResult.Error("下载仓库 ZIP 文件失败")
+                }
+
+                progressCallback(InstallProgress.Extracting(0))
+                val extractSuccess = extractZipFile(zipFile, pluginDir, progressCallback)
+
+                // 删除 ZIP 文件
+                zipFile.delete()
+
+                if (!extractSuccess) {
+                    // 清理失败的安装
+                    pluginDir.deleteRecursively()
+                    return InstallResult.Error("解压仓库文件失败")
+                }
+
+                // 获取解压后的根目录（GitHub ZIP 解压后会有一个目录层次）
+                val extractedDirs = pluginDir.listFiles()?.filter { it.isDirectory } ?: emptyList()
+                if (extractedDirs.isEmpty()) {
+                    return InstallResult.Error("解压后没有找到仓库目录")
+                }
+
+                // 一般格式是 {repoName}-{branch}，如 "WireMCP-main"
+                val mainDir = extractedDirs.first()
+                Log.d(TAG, "插件解压成功，主目录: ${mainDir.path}")
+
+                // 查找插件配置文件
+                val configFile = findConfigFile(mainDir)
+                if (configFile == null) {
+                    // 不要清理，可能是有效插件但没有找到配置文件
+                    Log.w(TAG, "未找到插件配置文件")
+                } else {
+                    Log.d(TAG, "找到插件配置文件: ${configFile.path}")
+                }
+
+                // 保存原始插件元数据
+                savePluginMetadata(mainDir, server)
+
+                progressCallback(InstallProgress.Finished)
+                return InstallResult.Success(mainDir.path)
+            }
         } catch (e: Exception) {
             Log.e(TAG, "安装插件失败", e)
             return InstallResult.Error("安装插件时出错: ${e.message}")
@@ -352,81 +440,246 @@ class MCPInstaller(private val context: Context) {
         return null
     }
 
-    /**
-     * 解压 ZIP 文件到目标目录
-     *
-     * @param zipFile ZIP 文件
-     * @param targetDir 目标目录
-     * @param progressCallback 进度回调
-     * @return 解压是否成功
-     */
+    /** 从zip文件中提取内容到目标目录 */
     private suspend fun extractZipFile(
             zipFile: File,
             targetDir: File,
-            progressCallback: (InstallProgress) -> Unit
+            progressCallback: (InstallProgress) -> Unit,
+            subfolderToExtract: String? = null
     ): Boolean =
             withContext(Dispatchers.IO) {
                 try {
-                    val inputStream = zipFile.inputStream()
-                    val zipInputStream = ZipInputStream(BufferedInputStream(inputStream))
+                    // 确保目标目录存在
+                    targetDir.mkdirs()
 
-                    var entry = zipInputStream.nextEntry
-                    val totalEntries = countZipEntries(zipFile)
-                    var extractedCount = 0
-
-                    while (entry != null) {
-                        val entryName = entry.name
-                        val outFile = File(targetDir, entryName)
-
-                        // 跳过以下类型的文件
-                        if (entryName.contains("__MACOSX") || entryName.endsWith(".DS_Store")) {
-                            zipInputStream.closeEntry()
-                            entry = zipInputStream.nextEntry
-                            continue
-                        }
-
-                        // 创建必要的目录
-                        if (entry.isDirectory) {
-                            outFile.mkdirs()
-                        } else {
-                            // 确保父目录存在
-                            outFile.parentFile?.mkdirs()
-
-                            // 写出文件
-                            val outputStream = FileOutputStream(outFile)
-                            val buffer = ByteArray(BUFFER_SIZE)
-                            var len: Int
-
-                            while (zipInputStream.read(buffer).also { len = it } > 0) {
-                                outputStream.write(buffer, 0, len)
-                            }
-
-                            outputStream.close()
-                        }
-
-                        zipInputStream.closeEntry()
-                        entry = zipInputStream.nextEntry
-
-                        // 更新解压进度
-                        extractedCount++
-                        val progress =
-                                if (totalEntries > 0) {
-                                    (extractedCount * 100 / totalEntries).toInt()
-                                } else {
-                                    -1
-                                }
-
-                        // 每10%更新一次进度
-                        if (progress % 10 == 0 || progress == 100) {
-                            progressCallback(InstallProgress.Extracting(progress))
-                        }
+                    Log.d(TAG, "开始从${zipFile.path}提取文件到${targetDir.path}")
+                    if (subfolderToExtract != null) {
+                        Log.d(TAG, "仅提取子目录: $subfolderToExtract")
                     }
 
-                    zipInputStream.close()
-                    inputStream.close()
+                    ZipFile(zipFile).use { zip ->
+                        val inputStream = zipFile.inputStream()
+                        val zipInputStream = ZipInputStream(BufferedInputStream(inputStream))
 
-                    Log.d(TAG, "解压完成，文件解压到: ${targetDir.path}")
-                    return@withContext true
+                        var entry = zipInputStream.nextEntry
+                        val totalEntries = countZipEntries(zipFile)
+                        var extractedCount = 0
+
+                        // 追踪基础路径 - 通常是"repo名-branch名/"，例如"servers-main/"
+                        var basePath = ""
+                        if (subfolderToExtract != null) {
+                            // 查找第一个目录条目以确定基础路径
+                            while (entry != null && basePath.isEmpty()) {
+                                if (entry.isDirectory && entry.name.count { it == '/' } == 1) {
+                                    basePath = entry.name
+                                    Log.d(TAG, "找到基础路径: $basePath")
+                                }
+                                zipInputStream.closeEntry()
+                                entry = zipInputStream.nextEntry
+                            }
+
+                            // 重新打开ZIP流
+                            zipInputStream.close()
+                            inputStream.close()
+                            val newInputStream = zipFile.inputStream()
+                            val newZipStream = ZipInputStream(BufferedInputStream(newInputStream))
+
+                            // 继续使用新的流
+                            entry = newZipStream.nextEntry
+
+                            // 官方插件可能位于多个路径中，我们需要检查所有可能的位置
+                            // 可能的路径包括：
+                            // 1. 根目录: basePath + subfolderToExtract/
+                            // 2. src目录: basePath + src/subfolderToExtract/
+                            // 3. src/servers目录: basePath + src/servers/subfolderToExtract/
+                            // 4. 任何包含subfolderToExtract的路径
+
+                            val possiblePaths = mutableListOf<String>()
+                            possiblePaths.add("$basePath$subfolderToExtract/")
+                            possiblePaths.add("${basePath}src/$subfolderToExtract/")
+                            possiblePaths.add("${basePath}src/servers/$subfolderToExtract/")
+
+                            Log.d(TAG, "检查以下可能的路径: $possiblePaths")
+
+                            // 首先检查这些路径中是否有任何存在于zip中
+                            var officialPluginPath = ""
+                            val allEntries = mutableListOf<String>()
+
+                            // 预扫描所有条目以查找可能的匹配
+                            while (entry != null) {
+                                allEntries.add(entry.name)
+                                newZipStream.closeEntry()
+                                entry = newZipStream.nextEntry
+                            }
+
+                            // 重新打开流
+                            newZipStream.close()
+                            newInputStream.close()
+                            val finalInputStream = zipFile.inputStream()
+                            val finalZipStream =
+                                    ZipInputStream(BufferedInputStream(finalInputStream))
+
+                            // 查找最匹配的路径
+                            for (path in possiblePaths) {
+                                if (allEntries.any { it.startsWith(path) }) {
+                                    officialPluginPath = path
+                                    Log.d(TAG, "找到匹配的插件路径: $officialPluginPath")
+                                    break
+                                }
+                            }
+
+                            // 如果未找到精确匹配，查找包含子文件夹名称的任何路径
+                            if (officialPluginPath.isEmpty()) {
+                                Log.d(TAG, "未找到精确匹配的路径，尝试查找包含 '$subfolderToExtract' 的路径")
+                                // 查找包含子文件夹名称的任何目录条目
+                                val matchingPaths =
+                                        allEntries.filter {
+                                            it.contains("/$subfolderToExtract/") && it.endsWith("/")
+                                        }
+
+                                if (matchingPaths.isNotEmpty()) {
+                                    // 使用第一个匹配项
+                                    officialPluginPath = matchingPaths.first()
+                                    Log.d(TAG, "找到匹配的路径: $officialPluginPath")
+                                } else {
+                                    // 仍然使用默认路径，即使它不存在
+                                    officialPluginPath = "$basePath$subfolderToExtract/"
+                                    Log.d(TAG, "未找到匹配路径，使用默认路径: $officialPluginPath")
+                                }
+                            }
+
+                            // 现在继续使用最终流和找到的路径
+                            entry = finalZipStream.nextEntry
+                            Log.d(TAG, "提取路径: $officialPluginPath")
+
+                            while (entry != null) {
+                                val entryName = entry.name
+
+                                // 跳过不在指定子文件夹内的文件
+                                if (!entryName.startsWith(officialPluginPath)) {
+                                    finalZipStream.closeEntry()
+                                    entry = finalZipStream.nextEntry
+                                    continue
+                                }
+
+                                // 计算相对路径 - 从子文件夹开始
+                                val relativePath = entryName.substring(officialPluginPath.length)
+                                if (relativePath.isEmpty()) {
+                                    finalZipStream.closeEntry()
+                                    entry = finalZipStream.nextEntry
+                                    continue
+                                }
+
+                                val outFile = File(targetDir, relativePath)
+
+                                // 跳过以下类型的文件
+                                if (relativePath.contains("__MACOSX") ||
+                                                relativePath.endsWith(".DS_Store")
+                                ) {
+                                    finalZipStream.closeEntry()
+                                    entry = finalZipStream.nextEntry
+                                    continue
+                                }
+
+                                // 创建必要的目录
+                                if (entry.isDirectory) {
+                                    outFile.mkdirs()
+                                } else {
+                                    // 确保父目录存在
+                                    outFile.parentFile?.mkdirs()
+
+                                    // 写出文件
+                                    val outputStream = FileOutputStream(outFile)
+                                    val buffer = ByteArray(BUFFER_SIZE)
+                                    var len: Int
+
+                                    while (finalZipStream.read(buffer).also { len = it } > 0) {
+                                        outputStream.write(buffer, 0, len)
+                                    }
+
+                                    outputStream.close()
+                                }
+
+                                finalZipStream.closeEntry()
+                                entry = finalZipStream.nextEntry
+
+                                // 更新解压进度
+                                extractedCount++
+                                val progress =
+                                        if (totalEntries > 0) {
+                                            (extractedCount * 100 / totalEntries).toInt()
+                                        } else {
+                                            -1
+                                        }
+
+                                // 每10%更新一次进度
+                                if (progress % 10 == 0 || progress == 100) {
+                                    progressCallback(InstallProgress.Extracting(progress))
+                                }
+                            }
+
+                            finalZipStream.close()
+                            finalInputStream.close()
+                        } else {
+                            // 正常提取整个ZIP - 原有逻辑
+                            while (entry != null) {
+                                val entryName = entry.name
+
+                                // 跳过以下类型的文件
+                                if (entryName.contains("__MACOSX") ||
+                                                entryName.endsWith(".DS_Store")
+                                ) {
+                                    zipInputStream.closeEntry()
+                                    entry = zipInputStream.nextEntry
+                                    continue
+                                }
+
+                                val outFile = File(targetDir, entryName)
+
+                                // 创建必要的目录
+                                if (entry.isDirectory) {
+                                    outFile.mkdirs()
+                                } else {
+                                    // 确保父目录存在
+                                    outFile.parentFile?.mkdirs()
+
+                                    // 写出文件
+                                    val outputStream = FileOutputStream(outFile)
+                                    val buffer = ByteArray(BUFFER_SIZE)
+                                    var len: Int
+
+                                    while (zipInputStream.read(buffer).also { len = it } > 0) {
+                                        outputStream.write(buffer, 0, len)
+                                    }
+
+                                    outputStream.close()
+                                }
+
+                                zipInputStream.closeEntry()
+                                entry = zipInputStream.nextEntry
+
+                                // 更新解压进度
+                                extractedCount++
+                                val progress =
+                                        if (totalEntries > 0) {
+                                            (extractedCount * 100 / totalEntries).toInt()
+                                        } else {
+                                            -1
+                                        }
+
+                                // 每10%更新一次进度
+                                if (progress % 10 == 0 || progress == 100) {
+                                    progressCallback(InstallProgress.Extracting(progress))
+                                }
+                            }
+
+                            zipInputStream.close()
+                            inputStream.close()
+                        }
+
+                        Log.d(TAG, "解压完成，文件解压到: ${targetDir.path}")
+                        return@withContext true
+                    }
                 } catch (e: Exception) {
                     Log.e(TAG, "解压ZIP文件失败", e)
                     return@withContext false
@@ -517,24 +770,240 @@ class MCPInstaller(private val context: Context) {
     }
 
     /**
-     * 获取已安装插件的路径
+     * 获取已安装插件的信息
+     *
+     * @param serverId 服务器 ID
+     * @return 插件信息，包含路径和元数据信息
+     */
+    fun getInstalledPluginInfo(serverId: String): InstalledPluginInfo? {
+        try {
+            val pluginDir = File(pluginsBaseDir, serverId)
+            if (!pluginDir.exists() || !pluginDir.isDirectory) {
+                Log.d(TAG, "插件目录不存在: $serverId")
+                return null
+            }
+
+            // 检查是否为官方插件（官方插件的ID以official_开头）
+            val isOfficialPlugin = serverId.startsWith("official_")
+            var pluginPath: String
+            var metadata: PluginMetadata? = null
+
+            if (isOfficialPlugin) {
+                // 对于官方插件，直接使用插件目录
+                Log.d(TAG, "使用官方插件目录: $serverId")
+                pluginPath = pluginDir.path
+
+                // 尝试读取元数据
+                metadata = loadPluginMetadata(pluginDir)
+            } else {
+                // 查找实际的插件目录（GitHub ZIP 解压后会有一个目录层次）
+                val extractedDirs = pluginDir.listFiles()?.filter { it.isDirectory } ?: emptyList()
+                if (extractedDirs.isEmpty()) {
+                    Log.d(TAG, "未找到插件子目录: $serverId")
+
+                    // 如果没有子目录，检查是否目录本身就是插件目录
+                    val readmeFile = File(pluginDir, "README.md")
+                    if (readmeFile.exists()) {
+                        Log.d(TAG, "使用插件根目录作为插件路径: $serverId")
+                        pluginPath = pluginDir.path
+
+                        // 尝试读取元数据
+                        metadata = loadPluginMetadata(pluginDir)
+                    } else {
+                        return null
+                    }
+                } else {
+                    // 首先尝试找到与仓库名相关的目录
+                    val repoDir =
+                            extractedDirs.find {
+                                it.name.lowercase().contains(serverId.lowercase())
+                            }
+
+                    if (repoDir != null) {
+                        Log.d(TAG, "找到仓库目录: $serverId: ${repoDir.path}")
+                        pluginPath = repoDir.path
+
+                        // 尝试读取元数据
+                        metadata = loadPluginMetadata(repoDir)
+                    } else {
+                        // 如果找不到相关目录，使用第一个目录
+                        val firstDir = extractedDirs.first()
+                        Log.d(TAG, "使用第一个目录作为插件路径: $serverId: ${firstDir.path}")
+                        pluginPath = firstDir.path
+
+                        // 尝试读取元数据
+                        metadata = loadPluginMetadata(firstDir)
+                    }
+                }
+            }
+
+            return InstalledPluginInfo(pluginPath, metadata)
+        } catch (e: Exception) {
+            Log.e(TAG, "查找插件路径时出错: $serverId", e)
+            return null
+        }
+    }
+
+    /**
+     * 获取已安装插件的路径 注意: 推荐使用getInstalledPluginInfo方法获取更完整的插件信息
      *
      * @param serverId 服务器 ID
      * @return 插件路径，未安装则返回 null
      */
     fun getInstalledPluginPath(serverId: String): String? {
-        val pluginDir = File(pluginsBaseDir, serverId)
-        if (!pluginDir.exists() || !pluginDir.isDirectory) {
-            return null
+        return getInstalledPluginInfo(serverId)?.pluginPath
+    }
+
+    /** 已安装插件的信息 */
+    data class InstalledPluginInfo(val pluginPath: String, val metadata: PluginMetadata?) {
+        /** 获取原始插件名称，如果元数据不存在则返回null */
+        fun getOriginalName(): String? {
+            return metadata?.originalName
         }
 
-        // 查找实际的插件目录（GitHub ZIP 解压后会有一个目录层次）
-        val extractedDirs = pluginDir.listFiles()?.filter { it.isDirectory } ?: emptyList()
-        if (extractedDirs.isEmpty()) {
-            return null
+        /** 获取原始描述，如果元数据不存在则返回null */
+        fun getOriginalDescription(): String? {
+            return metadata?.originalDescription
         }
 
-        return extractedDirs.first().path
+        /** 获取作者信息，如果元数据不存在则返回null */
+        fun getAuthor(): String? {
+            return metadata?.author
+        }
+
+        /** 获取版本信息，如果元数据不存在则返回null */
+        fun getVersion(): String? {
+            return metadata?.version
+        }
+
+        /** 获取仓库URL，如果元数据不存在则返回null */
+        fun getRepoUrl(): String? {
+            return metadata?.repoUrl
+        }
+
+        /** 获取详细描述，如果元数据不存在则返回null */
+        fun getLongDescription(): String? {
+            return metadata?.longDescription
+        }
+    }
+
+    /** 下载官方插件的特定子目录 */
+    private suspend fun downloadOfficialPlugin(
+            owner: String,
+            repoName: String,
+            subfolderPath: String,
+            serverId: String,
+            progressCallback: (InstallProgress) -> Unit
+    ): File? =
+            withContext(Dispatchers.IO) {
+                try {
+                    // 使用GitHub API下载特定子目录内容
+                    val tempFile = File(context.cacheDir, "mcp_${serverId}_official.zip")
+                    val contentUrl =
+                            "https://github.com/$owner/$repoName/archive/refs/heads/main.zip"
+
+                    Log.d(TAG, "下载官方插件子目录: $subfolderPath")
+                    Log.d(TAG, "通过URL: $contentUrl")
+
+                    // 下载整个仓库，然后只提取我们需要的子目录
+                    val zipFile = downloadRepositoryZip(contentUrl, serverId, progressCallback)
+
+                    if (zipFile != null && zipFile.exists()) {
+                        // 将下载的ZIP文件复制成临时文件
+                        zipFile.copyTo(tempFile, overwrite = true)
+
+                        // 删除原始ZIP文件
+                        zipFile.delete()
+
+                        return@withContext tempFile
+                    }
+
+                    // 方法2: 尝试通过codeload.github.com
+                    val codeloadUrl =
+                            "https://codeload.github.com/$owner/$repoName/zip/refs/heads/main"
+                    Log.d(TAG, "尝试备选下载官方插件: $codeloadUrl")
+
+                    val codeloadFile =
+                            downloadRepositoryZip(codeloadUrl, serverId, progressCallback)
+                    if (codeloadFile != null && codeloadFile.exists()) {
+                        codeloadFile.copyTo(tempFile, overwrite = true)
+                        codeloadFile.delete()
+                        return@withContext tempFile
+                    }
+
+                    // 方法3: 尝试使用GitHub API
+                    val apiUrl = "https://api.github.com/repos/$owner/$repoName/tarball/main"
+                    Log.d(TAG, "尝试通过GitHub API下载官方插件: $apiUrl")
+
+                    val apiFile = downloadRepositoryZip(apiUrl, serverId, progressCallback)
+                    if (apiFile != null && apiFile.exists()) {
+                        apiFile.copyTo(tempFile, overwrite = true)
+                        apiFile.delete()
+                        return@withContext tempFile
+                    }
+
+                    return@withContext null
+                } catch (e: Exception) {
+                    Log.e(TAG, "下载官方插件失败: $e")
+                    return@withContext null
+                }
+            }
+
+    /**
+     * 保存插件元数据到文件
+     *
+     * @param pluginDir 插件目录
+     * @param server 服务器信息
+     * @return 是否保存成功
+     */
+    private fun savePluginMetadata(pluginDir: File, server: MCPServer): Boolean {
+        try {
+            val metadata =
+                    PluginMetadata(
+                            originalName = server.name,
+                            originalDescription = server.description,
+                            category = server.category,
+                            author = server.author,
+                            version = server.version,
+                            repoUrl = server.repoUrl,
+                            longDescription = server.longDescription
+                    )
+
+            val metadataFile = File(pluginDir, METADATA_FILE_NAME)
+            val metadataJson = Gson().toJson(metadata)
+            metadataFile.writeText(metadataJson)
+
+            Log.d(TAG, "保存插件元数据成功: ${server.name}, 作者: ${server.author}, 版本: ${server.version}")
+            return true
+        } catch (e: Exception) {
+            Log.e(TAG, "保存插件元数据失败", e)
+            return false
+        }
+    }
+
+    /**
+     * 读取插件元数据
+     *
+     * @param pluginDir 插件目录
+     * @return 元数据，如果不存在则返回null
+     */
+    private fun loadPluginMetadata(pluginDir: File): PluginMetadata? {
+        try {
+            val metadataFile = File(pluginDir, METADATA_FILE_NAME)
+            if (!metadataFile.exists()) {
+                Log.d(TAG, "插件元数据文件不存在: ${pluginDir.path}")
+                return null
+            }
+
+            val metadataJson = metadataFile.readText()
+            val metadata = Gson().fromJson(metadataJson, PluginMetadata::class.java)
+
+            Log.d(TAG, "读取到插件元数据: ${metadata.originalName}")
+            return metadata
+        } catch (e: Exception) {
+            Log.e(TAG, "读取插件元数据失败", e)
+            return null
+        }
     }
 }
 

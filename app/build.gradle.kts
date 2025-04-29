@@ -106,6 +106,9 @@ dependencies {
 
     // Kotlin Serialization
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.2")
+    
+    // Gson for JSON parsing
+    implementation("com.google.code.gson:gson:2.10.1")
 
     // HJSON dependency for human-friendly JSON parsing
     implementation("org.hjson:hjson:3.0.0")

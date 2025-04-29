@@ -3,7 +3,7 @@ package com.ai.assistance.operit.data.mcp
 import android.util.Log
 import com.ai.assistance.operit.data.mcp.MCPRepositoryConstants.OfficialMCPConstants
 import com.ai.assistance.operit.data.mcp.MCPRepositoryConstants.TAG
-import com.ai.assistance.operit.ui.features.mcp.model.MCPServer
+import com.ai.assistance.operit.ui.features.packages.screens.mcp.model.MCPServer
 
 /** Manages official MCP servers from the official repo and backup sources */
 class MCPOfficialSourceManager(
@@ -35,7 +35,10 @@ class MCPOfficialSourceManager(
                 // Return paginated results
                 val totalServers = cachedServers.size
                 val paginatedServers = cachedServers.paginateServers(page, pageSize)
-                Log.d(TAG, "Returning page $page (${paginatedServers.size} servers) out of $totalServers total servers")
+                Log.d(
+                        TAG,
+                        "Returning page $page (${paginatedServers.size} servers) out of $totalServers total servers"
+                )
                 return Pair(paginatedServers, totalServers)
             }
         }
@@ -50,11 +53,14 @@ class MCPOfficialSourceManager(
             if (servers.isNotEmpty()) {
                 cacheManager.saveOfficialToCache(servers)
                 Log.d(TAG, "Parsed and cached ${servers.size} servers from official repo")
-                
+
                 // Return paginated results
                 val totalServers = servers.size
                 val paginatedServers = servers.paginateServers(page, pageSize)
-                Log.d(TAG, "Returning page $page (${paginatedServers.size} servers) out of $totalServers total servers")
+                Log.d(
+                        TAG,
+                        "Returning page $page (${paginatedServers.size} servers) out of $totalServers total servers"
+                )
                 return Pair(paginatedServers, totalServers)
             }
         }
@@ -72,7 +78,10 @@ class MCPOfficialSourceManager(
         // Return paginated results
         val totalServers = hardcodedServers.size
         val paginatedServers = hardcodedServers.paginateServers(page, pageSize)
-        Log.d(TAG, "Returning page $page (${paginatedServers.size} servers) out of $totalServers total servers")
+        Log.d(
+                TAG,
+                "Returning page $page (${paginatedServers.size} servers) out of $totalServers total servers"
+        )
         return Pair(paginatedServers, totalServers)
     }
 
@@ -277,6 +286,33 @@ class MCPOfficialSourceManager(
                                 else -> category
                             }
 
+                    // First try to extract GitHub repository URL from the description
+                    var repoUrl = ""
+
+                    // Look for GitHub links in the description
+                    val githubUrlPattern = """https?://(?:www\.)?github\.com/[^)\s]+""".toRegex()
+                    val githubUrlMatch = githubUrlPattern.find(description)
+
+                    if (githubUrlMatch != null) {
+                        // Direct GitHub URL found in description
+                        repoUrl = githubUrlMatch.value
+                        Log.d(TAG, "Found GitHub URL in description for ${name}: ${repoUrl}")
+                    } else {
+                        // Check if there's a reference to modelcontextprotocol/servers in the
+                        // README
+                        val srcFolderName = name.lowercase().replace(" ", "-")
+
+                        // For reference servers, we know they're in the src directory
+                        if (category == "Reference") {
+                            repoUrl = "mcp-official:${srcFolderName}"
+                            Log.d(TAG, "Using reference path for ${name}: ${repoUrl}")
+                        } else {
+                            // For other servers, try the root directory or the src directory
+                            repoUrl = "mcp-official:${srcFolderName}"
+                            Log.d(TAG, "Using constructed path for ${name}: ${repoUrl}")
+                        }
+                    }
+
                     // Create server object
                     val server =
                             MCPServer(
@@ -296,12 +332,7 @@ class MCPOfficialSourceManager(
                                     updatedAt = "",
                                     longDescription =
                                             "$description\n\n*This server is from the official Model Context Protocol repository.*",
-                                    repoUrl =
-                                            if (name.contains(" ")) {
-                                                "https://github.com/modelcontextprotocol/servers/tree/main/${name.replace(" ", "-").lowercase()}"
-                                            } else {
-                                                OfficialMCPConstants.REPO_URL
-                                            }
+                                    repoUrl = repoUrl
                             )
 
                     Log.d(
@@ -371,6 +402,40 @@ class MCPOfficialSourceManager(
                         val logoUrl =
                                 OfficialMCPConstants.OfficialServerLogos.getLogoUrl(name, category)
 
+                        // First try to extract GitHub repository URL from the description
+                        var repoUrl = ""
+
+                        // Look for GitHub links in the description
+                        val githubUrlPattern =
+                                """https?://(?:www\.)?github\.com/[^)\s]+""".toRegex()
+                        val githubUrlMatch = githubUrlPattern.find(description)
+
+                        if (githubUrlMatch != null) {
+                            // Direct GitHub URL found in description
+                            repoUrl = githubUrlMatch.value
+                            Log.d(
+                                    TAG,
+                                    "Fallback: Found GitHub URL in description for ${name}: ${repoUrl}"
+                            )
+                        } else {
+                            // Check if there's a reference to modelcontextprotocol/servers in the
+                            // README
+                            val srcFolderName = name.lowercase().replace(" ", "-")
+
+                            // For reference servers, we know they're in the src directory
+                            if (category == "Reference") {
+                                repoUrl = "mcp-official:${srcFolderName}"
+                                Log.d(TAG, "Fallback: Using reference path for ${name}: ${repoUrl}")
+                            } else {
+                                // For other servers, try the root directory or the src directory
+                                repoUrl = "mcp-official:${srcFolderName}"
+                                Log.d(
+                                        TAG,
+                                        "Fallback: Using constructed path for ${name}: ${repoUrl}"
+                                )
+                            }
+                        }
+
                         val server =
                                 MCPServer(
                                         id = id,
@@ -389,12 +454,7 @@ class MCPOfficialSourceManager(
                                         updatedAt = "",
                                         longDescription =
                                                 "$description\n\n*This server is from the official Model Context Protocol repository.*",
-                                        repoUrl =
-                                                if (name.contains(" ")) {
-                                                    "https://github.com/modelcontextprotocol/servers/tree/main/${name.replace(" ", "-").lowercase()}"
-                                                } else {
-                                                    OfficialMCPConstants.REPO_URL
-                                                }
+                                        repoUrl = repoUrl
                                 )
 
                         Log.d(
@@ -457,10 +517,10 @@ class MCPOfficialSourceManager(
     private fun List<MCPServer>.paginateServers(page: Int, pageSize: Int): List<MCPServer> {
         if (this.isEmpty()) return emptyList()
         if (page < 1) return emptyList()
-        
+
         val startIndex = (page - 1) * pageSize
         if (startIndex >= this.size) return emptyList()
-        
+
         val endIndex = minOf(startIndex + pageSize, this.size)
         return this.subList(startIndex, endIndex)
     }
