@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.features.mcp.viewmodel
+package com.ai.assistance.operit.ui.features.packages.screens.mcp.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -6,7 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.ai.assistance.operit.data.mcp.InstallProgress
 import com.ai.assistance.operit.data.mcp.InstallResult
 import com.ai.assistance.operit.data.mcp.MCPRepository
-import com.ai.assistance.operit.ui.features.mcp.model.MCPServer
+import com.ai.assistance.operit.ui.features.packages.screens.mcp.model.MCPServer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -95,6 +95,27 @@ class MCPViewModel(private val repository: MCPRepository) : ViewModel() {
         val path = repository.getInstalledPluginPath(serverId)
         installedPathsCache[serverId] = path
         return path
+    }
+
+    /** 获取本地插件信息，无需网络请求 */
+    fun getLocalPluginDetails(serverId: String): MCPServer? {
+        // 如果插件没有安装，返回null
+        if (!repository.isPluginInstalled(serverId)) {
+            return null
+        }
+
+        // 从当前列表中查找，这里的信息已经通过updateInstalledStatus更新过，
+        // 包含了本地元数据
+        return repository.mcpServers.value.find { it.id == serverId }
+    }
+
+    /** 刷新本地插件列表 */
+    fun refreshLocalPlugins() {
+        viewModelScope.launch {
+            repository.syncInstalledStatus()
+            // 清除路径缓存，强制重新读取
+            installedPathsCache.clear()
+        }
     }
 
     /** 刷新插件列表 */

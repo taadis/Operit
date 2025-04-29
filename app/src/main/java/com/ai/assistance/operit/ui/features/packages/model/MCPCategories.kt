@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.features.mcp.model
+package com.ai.assistance.operit.ui.features.packages.screens.mcp.model
 
 /** MCP插件分类常量 */
 object MCPCategories {

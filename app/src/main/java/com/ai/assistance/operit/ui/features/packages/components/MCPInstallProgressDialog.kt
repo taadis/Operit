@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.features.mcp.components
+package com.ai.assistance.operit.ui.features.packages.screens.mcp.components
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column

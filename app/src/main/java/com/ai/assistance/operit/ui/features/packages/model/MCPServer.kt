@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.features.mcp.model
+package com.ai.assistance.operit.ui.features.packages.screens.mcp.model
 
 /** Data class representing an MCP (Mobile Code Plugin) server. */
 data class MCPServer(
