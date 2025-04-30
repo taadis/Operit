@@ -93,10 +93,52 @@ fun AiMessageComposable(
         // 跟踪已完成的工具调用（显示过结果的工具）
         val completedTools = mutableSetOf<String>() // 已经显示过结果的工具名称集合
 
+        // 跟踪模拟工具: 有请求但无执行和结果，同时存在完成或等待用户响应标签
+        val simulatedTools = mutableSetOf<String>() // 模拟工具名称集合
+
         // 计划跟踪相关数据结构
         val planStatus = mutableMapOf<String, Boolean>() // 跟踪计划的状态 <planId, isActive>
         val currentActivePlanId = remember { mutableStateOf<String?>(null) }
         val planSegments = mutableListOf<Pair<ContentSegment, @Composable () -> Unit>>()
+
+        // 第一遍预处理：收集工具请求
+        val toolRequests = mutableMapOf<String, Int>() // <toolName, position>
+        contentSegments.forEachIndexed { index, segment ->
+            if (segment is ContentSegment.ToolRequest) {
+                toolRequests[segment.name] = index
+            }
+        }
+
+        // 第二遍预处理：检查是否存在完成或等待用户响应标签
+        val hasCompletionStatus =
+                contentSegments.any { segment ->
+                    segment is ContentSegment.Status &&
+                            (segment.type == "completion" ||
+                                    segment.type == "complete" ||
+                                    segment.type == "wait_for_user_need")
+                }
+
+        // 第三遍预处理：识别模拟工具 - 有请求但无执行/结果状态，同时存在完成或等待用户响应标签
+        if (hasCompletionStatus) {
+            for ((toolName, position) in toolRequests) {
+                // 检查该工具在请求之后是否有执行或结果相关标签
+                val hasExecutionOrResult =
+                        contentSegments.drop(position + 1).any { segment ->
+                            (segment is ContentSegment.ToolExecution && segment.name == toolName) ||
+                                    (segment is ContentSegment.ToolResult &&
+                                            segment.name == toolName) ||
+                                    (segment is ContentSegment.Status &&
+                                            segment.toolName == toolName &&
+                                            (segment.type == "executing" ||
+                                                    segment.type == "result"))
+                        }
+
+                // 如果没有执行或结果，标记为模拟工具
+                if (!hasExecutionOrResult) {
+                    simulatedTools.add(toolName)
+                }
+            }
+        }
 
         // 预处理：初始化工具状态和计划状态
         contentSegments.forEach { segment ->
@@ -204,6 +246,8 @@ fun AiMessageComposable(
                     }
                     is ContentSegment.ToolRequest -> {
                         val toolName = segment.name
+                        // 检查是否为模拟工具
+                        val isSimulated = simulatedTools.contains(toolName)
 
                         // 如果是多次调用同一工具，则每次都显示
                         // 检查该工具是否已经显示过并已有结果
@@ -285,7 +329,8 @@ fun AiMessageComposable(
                                                             AnnotatedString(result)
                                                     )
                                                 }
-                                            }
+                                            },
+                                            isSimulated = isSimulated
                                     )
                                 }
                             }
@@ -333,13 +378,16 @@ fun AiMessageComposable(
                                             if (result != null) {
                                                 clipboardManager.setText(AnnotatedString(result))
                                             }
-                                        }
+                                        },
+                                        isSimulated = isSimulated
                                 )
                             }
                         }
                     }
                     is ContentSegment.ToolExecution -> {
                         val toolName = segment.name
+                        // 检查是否为模拟工具
+                        val isSimulated = simulatedTools.contains(toolName)
 
                         // 在折叠模式下，只有当工具尚未显示过时才显示
                         if (!displayedTools.contains(toolName)) {
@@ -371,13 +419,16 @@ fun AiMessageComposable(
                                             if (result != null) {
                                                 clipboardManager.setText(AnnotatedString(result))
                                             }
-                                        }
+                                        },
+                                        isSimulated = isSimulated
                                 )
                             }
                         }
                     }
                     is ContentSegment.ToolResult -> {
                         val toolName = segment.name
+                        // 检查是否为模拟工具
+                        val isSimulated = simulatedTools.contains(toolName)
 
                         // 检查该工具是否已经显示过
                         if (displayedTools.contains(toolName)) {
@@ -413,7 +464,8 @@ fun AiMessageComposable(
                                             clipboardManager.setText(
                                                     AnnotatedString(segment.content)
                                             )
-                                        }
+                                        },
+                                        isSimulated = isSimulated
                                 )
                             }
                         }
@@ -421,6 +473,8 @@ fun AiMessageComposable(
                     is ContentSegment.Status -> {
                         if (segment.toolName.isNotBlank()) {
                             val toolName = segment.toolName
+                            // 检查是否为模拟工具
+                            val isSimulated = simulatedTools.contains(toolName)
 
                             // 如果是执行状态
                             if (segment.type == "executing") {
@@ -458,7 +512,8 @@ fun AiMessageComposable(
                                                                 AnnotatedString(result)
                                                         )
                                                     }
-                                                }
+                                                },
+                                                isSimulated = isSimulated
                                         )
                                     }
                                 }

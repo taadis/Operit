@@ -15,7 +15,7 @@ import java.util.concurrent.ConcurrentHashMap
  * 处理MCP工具的调用，类似于已有的PackageToolExecutor
  */
 class MCPToolExecutor(private val context: Context, private val mcpManager: MCPManager) :
-        ToolExecutor {
+    ToolExecutor {
     companion object {
         private const val TAG = "MCPToolExecutor"
     }
@@ -26,10 +26,10 @@ class MCPToolExecutor(private val context: Context, private val mcpManager: MCPM
         val toolNameParts = tool.name.split(":")
         if (toolNameParts.size < 2) {
             return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "无效的MCP工具名称格式，应为 '服务器名称:工具名称'"
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "无效的MCP工具名称格式，应为 '服务器名称:工具名称'"
             )
         }
 
@@ -40,10 +40,10 @@ class MCPToolExecutor(private val context: Context, private val mcpManager: MCPM
         val mcpClient = mcpManager.getOrCreateClient(serverName)
         if (mcpClient == null) {
             return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "无法连接到MCP服务器: $serverName"
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "无法连接到MCP服务器: $serverName"
             )
         }
 
@@ -62,8 +62,8 @@ class MCPToolExecutor(private val context: Context, private val mcpManager: MCPM
         val toolNameParts = tool.name.split(":")
         if (toolNameParts.size < 2) {
             return ToolValidationResult(
-                    valid = false,
-                    errorMessage = "无效的MCP工具名称格式，应为 '服务器名称:工具名称'"
+                valid = false,
+                errorMessage = "无效的MCP工具名称格式，应为 '服务器名称:工具名称'"
             )
         }
 
@@ -81,13 +81,14 @@ class MCPManager(private val context: Context) {
     companion object {
         private const val TAG = "MCPManager"
 
-        @Volatile private var INSTANCE: MCPManager? = null
+        @Volatile
+        private var INSTANCE: MCPManager? = null
 
         fun getInstance(context: Context): MCPManager {
             return INSTANCE
-                    ?: synchronized(this) {
-                        INSTANCE ?: MCPManager(context.applicationContext).also { INSTANCE = it }
-                    }
+                ?: synchronized(this) {
+                    INSTANCE ?: MCPManager(context.applicationContext).also { INSTANCE = it }
+                }
         }
     }
 
@@ -128,12 +129,9 @@ class MCPManager(private val context: Context) {
         if (cachedClient != null) {
             // 检查客户端连接状态
             if (cachedClient.pingSync()) {
-                Log.d(TAG, "使用已缓存的MCP客户端: $serverName")
                 return cachedClient
             } else {
-                Log.d(TAG, "缓存的MCP客户端连接已断开，重新创建: $serverName")
                 clientCache.remove(serverName)
-                // 继续创建新客户端
             }
         }
 
@@ -142,33 +140,27 @@ class MCPManager(private val context: Context) {
 
         // 创建新客户端
         val client = MCPClient(context, serverConfig)
-        
+
         try {
-            Log.d(TAG, "初始化MCP客户端: $serverName")
             val initResult = client.initializeSync()
-            
-            Log.d(TAG, "获取到初始化结果: '$initResult'")
-            
-            // 检查连接成功的响应，多种成功模式都接受
-            if (initResult.startsWith("已连接到MCP服务器") || 
-                initResult.startsWith("已成功初始化") || 
-                initResult.contains("已建立连接")) {
-                
-                Log.d(TAG, "MCP客户端初始化成功: $initResult")
-                
+
+            // 检查连接成功的响应
+            if (initResult.startsWith("已连接到MCP服务器") ||
+                initResult.startsWith("已成功初始化") ||
+                initResult.contains("已建立连接")
+            ) {
+
                 // 缓存客户端
                 clientCache[serverName] = client
                 return client
-            } else {
-                Log.e(TAG, "MCP客户端初始化失败: $initResult")
-                client.shutdownSync()
-                return null
             }
         } catch (e: Exception) {
-            Log.e(TAG, "MCP客户端初始化异常", e)
-            client.shutdownSync()
-            return null
+            Log.e(TAG, "客户端初始化异常", e)
         }
+
+        // 确保资源释放
+        client.shutdownSync()
+        return null
     }
 
     /**
@@ -190,7 +182,7 @@ class MCPManager(private val context: Context) {
      */
     fun registerServer(serverName: String, endpoint: String, description: String = "") {
         val serverConfig =
-                MCPServerConfig(name = serverName, endpoint = endpoint, description = description)
+            MCPServerConfig(name = serverName, endpoint = endpoint, description = description)
         serverConfigCache[serverName] = serverConfig
     }
 

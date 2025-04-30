@@ -2,6 +2,7 @@ package com.ai.assistance.operit.tools
 
 import android.content.Context
 import android.util.Log
+import com.ai.assistance.operit.api.enhance.ConversationMarkupManager
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolExecutionProgress
 import com.ai.assistance.operit.data.model.ToolExecutionState
@@ -27,41 +28,47 @@ class AIToolHandler private constructor(private val context: Context) {
     companion object {
         private const val TAG = "AIToolHandler"
 
-        @Volatile private var INSTANCE: AIToolHandler? = null
+        @Volatile
+        private var INSTANCE: AIToolHandler? = null
 
         fun getInstance(context: Context): AIToolHandler {
             return INSTANCE
-                    ?: synchronized(this) {
-                        INSTANCE ?: AIToolHandler(context.applicationContext).also { INSTANCE = it }
-                    }
+                ?: synchronized(this) {
+                    INSTANCE
+                        ?: AIToolHandler(context.applicationContext).also {
+                            INSTANCE = it
+                        }
+                }
         }
 
-        // Updated and more robust regex patterns for tool extraction with improved robustness
+        // Updated and more robust regex patterns for tool extraction with improved
+        // robustness
         private val TOOL_PATTERN =
-                Pattern.compile(
-                        "<tool\\s+name=\\s*\"([^\"]+)\"(?:\\s+description=\\s*\"([^\"]+)\")?[^>]*>([\\s\\S]*?)</tool>",
-                        Pattern.DOTALL
-                )
+            Pattern.compile(
+                "<tool\\s+name=\\s*\"([^\"]+)\"(?:\\s+description=\\s*\"([^\"]+)\")?[^>]*>([\\s\\S]*?)</tool>",
+                Pattern.DOTALL
+            )
 
-        private val TOOL_NAME_PATTERN = Pattern.compile("name=\\s*\"([^\"]+)\"", Pattern.DOTALL)
+        private val TOOL_NAME_PATTERN =
+            Pattern.compile("name=\\s*\"([^\"]+)\"", Pattern.DOTALL)
 
         private val TOOL_PARAM_PATTERN =
-                Pattern.compile(
-                        "<param\\s+name=\\s*\"([^\"]+)\">([\\s\\S]*?)</param>",
-                        Pattern.DOTALL
-                )
+            Pattern.compile(
+                "<param\\s+name=\\s*\"([^\"]+)\">([\\s\\S]*?)</param>",
+                Pattern.DOTALL
+            )
 
         // Alternative pattern to match common edge cases with different spacing
         private val ALTERNATIVE_TOOL_PATTERN =
-                Pattern.compile(
-                        "<tool[\\s\\n]+name\\s*=\\s*[\"']([^\"']+)[\"'](?:[\\s\\n]+description\\s*=\\s*[\"']([^\"']+)[\"'])?[^>]*>([\\s\\S]*?)</tool>",
-                        Pattern.DOTALL
-                )
+            Pattern.compile(
+                "<tool[\\s\\n]+name\\s*=\\s*[\"']([^\"']+)[\"'](?:[\\s\\n]+description\\s*=\\s*[\"']([^\"']+)[\"'])?[^>]*>([\\s\\S]*?)</tool>",
+                Pattern.DOTALL
+            )
     }
 
     // Tool execution state
     private val _toolProgress =
-            MutableStateFlow(ToolExecutionProgress(state = ToolExecutionState.IDLE))
+        MutableStateFlow(ToolExecutionProgress(state = ToolExecutionState.IDLE))
     val toolProgress: StateFlow<ToolExecutionProgress> = _toolProgress.asStateFlow()
 
     // Available tools registry
@@ -103,41 +110,45 @@ class AIToolHandler private constructor(private val context: Context) {
         return toolPermissionSystem
     }
 
-    /** Force refresh permission request state Can be called if permission dialog is not showing */
+    /**
+     * Force refresh permission request state Can be called if permission dialog is not showing
+     */
     fun refreshPermissionState(): Boolean {
         return toolPermissionSystem.refreshPermissionRequestState()
     }
 
     // 工具注册的唯一方法 - 提供完整信息的注册
     fun registerTool(
-            name: String,
-            category: ToolCategory,
-            dangerCheck: ((AITool) -> Boolean)? = null,
-            descriptionGenerator: ((AITool) -> String)? = null,
-            executor: ToolExecutor
+        name: String,
+        category: ToolCategory,
+        dangerCheck: ((AITool) -> Boolean)? = null,
+        descriptionGenerator: ((AITool) -> String)? = null,
+        executor: ToolExecutor
     ) {
         // 注册工具的类别
         val wrappedExecutor =
-                object : ToolExecutor {
-                    override fun invoke(tool: AITool): ToolResult {
-                        // 创建一个带类别的工具实例（如果需要）
-                        val toolWithCategory =
-                                if (tool.category == null) {
-                                    tool.copy(category = category)
-                                } else {
-                                    tool
-                                }
-                        return executor.invoke(toolWithCategory)
-                    }
-
-                    override fun validateParameters(tool: AITool): ToolValidationResult {
-                        return executor.validateParameters(tool)
-                    }
-
-                    override fun getCategory(): ToolCategory {
-                        return category
-                    }
+            object : ToolExecutor {
+                override fun invoke(tool: AITool): ToolResult {
+                    // 创建一个带类别的工具实例（如果需要）
+                    val toolWithCategory =
+                        if (tool.category == null) {
+                            tool.copy(category = category)
+                        } else {
+                            tool
+                        }
+                    return executor.invoke(toolWithCategory)
                 }
+
+                override fun validateParameters(
+                    tool: AITool
+                ): ToolValidationResult {
+                    return executor.validateParameters(tool)
+                }
+
+                override fun getCategory(): ToolCategory {
+                    return category
+                }
+            }
 
         availableTools[name] = wrappedExecutor
 
@@ -148,24 +159,27 @@ class AIToolHandler private constructor(private val context: Context) {
 
         // 注册描述生成器（如果提供）
         if (descriptionGenerator != null) {
-            toolPermissionSystem.registerOperationDescription(name, descriptionGenerator)
+            toolPermissionSystem.registerOperationDescription(
+                name,
+                descriptionGenerator
+            )
         }
     }
 
     // 添加重载方法接受函数式接口作为executor的便捷写法
     fun registerTool(
-            name: String,
-            category: ToolCategory,
-            dangerCheck: ((AITool) -> Boolean)? = null,
-            descriptionGenerator: ((AITool) -> String)? = null,
-            executor: (AITool) -> ToolResult
+        name: String,
+        category: ToolCategory,
+        dangerCheck: ((AITool) -> Boolean)? = null,
+        descriptionGenerator: ((AITool) -> String)? = null,
+        executor: (AITool) -> ToolResult
     ) {
         registerTool(
-                name = name,
-                category = category,
-                dangerCheck = dangerCheck,
-                descriptionGenerator = descriptionGenerator,
-                executor = ToolExecutor { tool -> executor(tool) }
+            name = name,
+            category = category,
+            dangerCheck = dangerCheck,
+            descriptionGenerator = descriptionGenerator,
+            executor = ToolExecutor { tool -> executor(tool) }
         )
     }
 
@@ -183,10 +197,10 @@ class AIToolHandler private constructor(private val context: Context) {
     /** Gets or creates the package manager instance */
     fun getOrCreatePackageManager(): PackageManager {
         return packageManagerInstance
-                ?: run {
-                    packageManagerInstance = PackageManager.getInstance(context, this)
-                    packageManagerInstance!!
-                }
+            ?: run {
+                packageManagerInstance = PackageManager.getInstance(context, this)
+                packageManagerInstance!!
+            }
     }
 
     /**
@@ -196,10 +210,10 @@ class AIToolHandler private constructor(private val context: Context) {
      */
     suspend fun processResponse(response: String): String {
         _toolProgress.value =
-                ToolExecutionProgress(
-                        state = ToolExecutionState.EXTRACTING,
-                        message = "Extracting tools from response..."
-                )
+            ToolExecutionProgress(
+                state = ToolExecutionState.EXTRACTING,
+                message = "Extracting tools from response..."
+            )
 
         try {
             // Extract tool invocations
@@ -207,10 +221,10 @@ class AIToolHandler private constructor(private val context: Context) {
 
             if (toolInvocations.isEmpty()) {
                 _toolProgress.value =
-                        ToolExecutionProgress(
-                                state = ToolExecutionState.COMPLETED,
-                                message = "No tools to execute"
-                        )
+                    ToolExecutionProgress(
+                        state = ToolExecutionState.COMPLETED,
+                        message = "No tools to execute"
+                    )
                 return response
             }
 
@@ -219,24 +233,58 @@ class AIToolHandler private constructor(private val context: Context) {
             // Execute each tool and replace the invocation with the result
             toolInvocations.forEachIndexed { index, invocation ->
                 _toolProgress.value =
-                        ToolExecutionProgress(
-                                state = ToolExecutionState.EXECUTING,
-                                tool = invocation.tool,
-                                progress = index.toFloat() / toolInvocations.size,
-                                message = "Executing tool: ${invocation.tool.name}..."
-                        )
+                    ToolExecutionProgress(
+                        state = ToolExecutionState.EXECUTING,
+                        tool = invocation.tool,
+                        progress = index.toFloat() / toolInvocations.size,
+                        message =
+                        "Executing tool: ${invocation.tool.name}..."
+                    )
 
                 // Find the executor for this tool
                 val executor = availableTools[invocation.tool.name]
 
                 if (executor == null) {
-                    val errorResult = "Tool '${invocation.tool.name}' is not available"
+                    // Create a proper ToolResult for unavailable tool
+                    val toolNotAvailableResult =
+                        ToolResult(
+                            toolName = invocation.tool.name,
+                            success = false,
+                            result = StringResultData(""),
+                            error =
+                            "Tool '${invocation.tool.name}' is not available"
+                        )
+
+                    // Format using ConversationMarkupManager
+                    val errorResult =
+                        ConversationMarkupManager
+                            .formatToolResultForMessage(
+                                toolNotAvailableResult
+                            )
+
                     processedResponse =
-                            replaceToolInvocation(processedResponse, invocation, errorResult)
+                        replaceToolInvocation(
+                            processedResponse,
+                            invocation,
+                            errorResult
+                        )
+
+                    // Update tool progress state
+                    _toolProgress.value =
+                        ToolExecutionProgress(
+                            state = ToolExecutionState.FAILED,
+                            tool = invocation.tool,
+                            message =
+                            "Tool not available: ${invocation.tool.name}",
+                            result = toolNotAvailableResult
+                        )
                 } else {
                     try {
                         // Add permission check
-                        Log.d(TAG, "Starting permission check for tool: ${invocation.tool.name}")
+                        Log.d(
+                            TAG,
+                            "Starting permission check for tool: ${invocation.tool.name}"
+                        )
 
                         // Initialize permission variables
                         var permissionDenied = false
@@ -244,74 +292,122 @@ class AIToolHandler private constructor(private val context: Context) {
                         try {
                             // Perform permission check
                             val hasPermission =
-                                    kotlinx.coroutines.runBlocking {
-                                        toolPermissionSystem.checkToolPermission(invocation.tool)
-                                    }
+                                kotlinx.coroutines.runBlocking {
+                                    toolPermissionSystem
+                                        .checkToolPermission(
+                                            invocation
+                                                .tool
+                                        )
+                                }
                             Log.d(
-                                    TAG,
-                                    "Permission check result: ${invocation.tool.name}, result: $hasPermission"
+                                TAG,
+                                "Permission check result: ${invocation.tool.name}, result: $hasPermission"
                             )
 
                             if (!hasPermission) {
                                 // User denied permission
-                                val errorResult =
+                                val permissionDeniedResult =
+                                    ToolResult(
+                                        toolName =
+                                        invocation
+                                            .tool
+                                            .name,
+                                        success = false,
+                                        result =
+                                        StringResultData(
+                                            ""
+                                        ),
+                                        error =
                                         "Permission denied: Operation '${invocation.tool.name}' was not authorized"
+                                    )
+
+                                // Format using
+                                // ConversationMarkupManager
+                                val errorResult =
+                                    ConversationMarkupManager
+                                        .formatToolResultForMessage(
+                                            permissionDeniedResult
+                                        )
+
                                 Log.d(
-                                        TAG,
-                                        "Permission denied: ${invocation.tool.name}, replacing invocation"
+                                    TAG,
+                                    "Permission denied: ${invocation.tool.name}, replacing invocation"
                                 )
 
                                 processedResponse =
-                                        replaceToolInvocation(
-                                                processedResponse,
-                                                invocation,
-                                                errorResult
-                                        )
+                                    replaceToolInvocation(
+                                        processedResponse,
+                                        invocation,
+                                        errorResult
+                                    )
 
                                 _toolProgress.value =
-                                        ToolExecutionProgress(
-                                                state = ToolExecutionState.FAILED,
-                                                tool = invocation.tool,
-                                                message =
-                                                        "Permission denied for tool: ${invocation.tool.name}",
-                                                result =
-                                                        ToolResult(
-                                                                toolName = invocation.tool.name,
-                                                                success = false,
-                                                                result = StringResultData(""),
-                                                                error = "Permission denied"
-                                                        )
-                                        )
+                                    ToolExecutionProgress(
+                                        state =
+                                        ToolExecutionState
+                                            .FAILED,
+                                        tool =
+                                        invocation
+                                            .tool,
+                                        message =
+                                        "Permission denied for tool: ${invocation.tool.name}",
+                                        result =
+                                        permissionDeniedResult
+                                    )
 
-                                // Mark permission as denied due to error
+                                // Mark permission as denied due to
+                                // error
                                 permissionDenied = true
                             }
                         } catch (e: Exception) {
-                            Log.e(TAG, "Error during permission check", e)
+                            Log.e(
+                                TAG,
+                                "Error during permission check",
+                                e
+                            )
 
-                            // Handle errors in permission check
-                            val errorResult = "Error during permission check: ${e.message}"
-                            processedResponse =
-                                    replaceToolInvocation(
-                                            processedResponse,
-                                            invocation,
-                                            errorResult
+                            // Create a proper ToolResult for the
+                            // permission check error
+                            val permissionCheckErrorResult =
+                                ToolResult(
+                                    toolName =
+                                    invocation
+                                        .tool
+                                        .name,
+                                    success = false,
+                                    result =
+                                    StringResultData(
+                                        ""
+                                    ),
+                                    error =
+                                    "Permission check failed: ${e.message}"
+                                )
+
+                            // Format using ConversationMarkupManager
+                            val errorResult =
+                                ConversationMarkupManager
+                                    .formatToolResultForMessage(
+                                        permissionCheckErrorResult
                                     )
+
+                            processedResponse =
+                                replaceToolInvocation(
+                                    processedResponse,
+                                    invocation,
+                                    errorResult
+                                )
 
                             _toolProgress.value =
-                                    ToolExecutionProgress(
-                                            state = ToolExecutionState.FAILED,
-                                            tool = invocation.tool,
-                                            message = "Permission check failed: ${e.message}",
-                                            result =
-                                                    ToolResult(
-                                                            toolName = invocation.tool.name,
-                                                            success = false,
-                                                            result = StringResultData(""),
-                                                            error =
-                                                                    "Permission check error: ${e.message}"
-                                                    )
-                                    )
+                                ToolExecutionProgress(
+                                    state =
+                                    ToolExecutionState
+                                        .FAILED,
+                                    tool = invocation.tool,
+                                    message =
+                                    "Permission check failed: ${e.message}",
+                                    result =
+                                    permissionCheckErrorResult
+                                )
 
                             // Mark permission as denied due to error
                             permissionDenied = true
@@ -320,68 +416,94 @@ class AIToolHandler private constructor(private val context: Context) {
                         // If permission not denied, execute the tool
                         if (!permissionDenied) {
                             // Execute the tool
-                            val result = executor.invoke(invocation.tool)
+                            val result =
+                                executor.invoke(invocation.tool)
 
-                            // Replace the tool invocation with the result
+                            // Replace the tool invocation with the
+                            // result
                             processedResponse =
-                                    replaceToolInvocation(
-                                            processedResponse,
-                                            invocation,
-                                            result.result.toString()
-                                    )
+                                replaceToolInvocation(
+                                    processedResponse,
+                                    invocation,
+                                    result.result.toString()
+                                )
 
                             _toolProgress.value =
-                                    ToolExecutionProgress(
-                                            state = ToolExecutionState.COMPLETED,
-                                            tool = invocation.tool,
-                                            progress = (index + 1).toFloat() / toolInvocations.size,
-                                            message = "Tool executed: ${invocation.tool.name}",
-                                            result = result
-                                    )
+                                ToolExecutionProgress(
+                                    state =
+                                    ToolExecutionState
+                                        .COMPLETED,
+                                    tool = invocation.tool,
+                                    progress =
+                                    (index + 1)
+                                        .toFloat() /
+                                        toolInvocations
+                                            .size,
+                                    message =
+                                    "Tool executed: ${invocation.tool.name}",
+                                    result = result
+                                )
                         }
                     } catch (e: Exception) {
-                        Log.e(TAG, "Error executing tool: ${invocation.tool.name}", e)
+                        Log.e(
+                            TAG,
+                            "Error executing tool: ${invocation.tool.name}",
+                            e
+                        )
+
+                        // Create a proper ToolResult for the tool execution
+                        // error
+                        val toolExecutionErrorResult =
+                            ToolResult(
+                                toolName = invocation.tool.name,
+                                success = false,
+                                result = StringResultData(""),
+                                error =
+                                "Error executing tool: ${e.message}"
+                            )
+
+                        // Format using ConversationMarkupManager
+                        val errorResult =
+                            ConversationMarkupManager
+                                .formatToolResultForMessage(
+                                    toolExecutionErrorResult
+                                )
 
                         processedResponse =
-                                replaceToolInvocation(
-                                        processedResponse,
-                                        invocation,
-                                        "Error executing tool: ${e.message}"
-                                )
+                            replaceToolInvocation(
+                                processedResponse,
+                                invocation,
+                                errorResult
+                            )
 
                         _toolProgress.value =
-                                ToolExecutionProgress(
-                                        state = ToolExecutionState.FAILED,
-                                        tool = invocation.tool,
-                                        message = "Tool execution failed: ${e.message}",
-                                        result =
-                                                ToolResult(
-                                                        toolName = invocation.tool.name,
-                                                        success = false,
-                                                        result = StringResultData(""),
-                                                        error = e.message
-                                                )
-                                )
+                            ToolExecutionProgress(
+                                state = ToolExecutionState.FAILED,
+                                tool = invocation.tool,
+                                message =
+                                "Tool execution failed: ${e.message}",
+                                result = toolExecutionErrorResult
+                            )
                     }
                 }
             }
 
             _toolProgress.value =
-                    ToolExecutionProgress(
-                            state = ToolExecutionState.COMPLETED,
-                            progress = 1.0f,
-                            message = "All tools executed successfully"
-                    )
+                ToolExecutionProgress(
+                    state = ToolExecutionState.COMPLETED,
+                    progress = 1.0f,
+                    message = "All tools executed successfully"
+                )
 
             return processedResponse
         } catch (e: Exception) {
             Log.e(TAG, "Error processing tools", e)
 
             _toolProgress.value =
-                    ToolExecutionProgress(
-                            state = ToolExecutionState.FAILED,
-                            message = "Failed to process tools: ${e.message}"
-                    )
+                ToolExecutionProgress(
+                    state = ToolExecutionState.FAILED,
+                    message = "Failed to process tools: ${e.message}"
+                )
 
             return "$response\nError processing tools: ${e.message}"
         }
@@ -389,9 +511,9 @@ class AIToolHandler private constructor(private val context: Context) {
 
     /** Replace a tool invocation in the response with its result */
     private fun replaceToolInvocation(
-            response: String,
-            invocation: ToolInvocation,
-            result: String
+        response: String,
+        invocation: ToolInvocation,
+        result: String
     ): String {
         val before = response.substring(0, invocation.responseLocation.first)
         val after = response.substring(invocation.responseLocation.last + 1)
@@ -406,10 +528,10 @@ class AIToolHandler private constructor(private val context: Context) {
      */
     private fun unescapeXml(input: String): String {
         return input.replace("&lt;", "<")
-                .replace("&gt;", ">")
-                .replace("&amp;", "&")
-                .replace("&quot;", "\"")
-                .replace("&apos;", "'")
+            .replace("&gt;", ">")
+            .replace("&amp;", "&")
+            .replace("&quot;", "\"")
+            .replace("&apos;", "'")
     }
 
     /** Reset the tool execution state */
@@ -427,26 +549,30 @@ class AIToolHandler private constructor(private val context: Context) {
     }
 
     /**
-     * Extract tool invocations from the AI response Public method to be used by EnhancedAIService
+     * Extract tool invocations from the AI response Public method to be used by
+     * EnhancedAIService
      */
     fun extractToolInvocations(response: String): List<ToolInvocation> {
         // Add more comprehensive logging for debugging
-        Log.d(TAG, "Extracting tool invocations from response of length: ${response.length}")
+        Log.d(
+            TAG,
+            "Extracting tool invocations from response of length: ${response.length}"
+        )
 
         // Then check for regular tools
         val invocations = extractToolInvocationsInternal(response)
 
         Log.d(
-                TAG,
-                "Found ${invocations.size} tool invocations: ${invocations.map { it.tool.name }}"
+            TAG,
+            "Found ${invocations.size} tool invocations: ${invocations.map { it.tool.name }}"
         )
 
         return invocations
     }
 
     /**
-     * Internal implementation of tool invocation extraction Enhanced to better support streaming
-     * responses and handle edge cases
+     * Internal implementation of tool invocation extraction Enhanced to better support
+     * streaming responses and handle edge cases
      */
     private fun extractToolInvocationsInternal(response: String): List<ToolInvocation> {
         val invocations = mutableListOf<ToolInvocation>()
@@ -460,16 +586,21 @@ class AIToolHandler private constructor(private val context: Context) {
             val rawText = matcher.group(0) ?: continue
             val toolName = matcher.group(1) ?: continue
             val toolContent =
-                    matcher.group(3)
-                            ?: continue // Updated to use group 3 since group 2 is now the optional
+                matcher.group(3)
+                    ?: continue // Updated to use group 3 since group 2 is now
+            // the optional
             // description
             val start = matcher.start()
             val end = matcher.end()
 
-            // Create a unique ID for this tool invocation based on its position and content
+            // Create a unique ID for this tool invocation based on its position and
+            // content
             val invocationId = "$toolName:$start:$end"
 
-            Log.d(TAG, "Found tool invocation primary pattern: $toolName at position $start-$end")
+            Log.d(
+                TAG,
+                "Found tool invocation primary pattern: $toolName at position $start-$end"
+            )
 
             // Extract parameters
             val parameters = mutableListOf<ToolParameter>()
@@ -483,13 +614,20 @@ class AIToolHandler private constructor(private val context: Context) {
                 val unescapedValue = unescapeXml(paramValue)
 
                 parameters.add(ToolParameter(paramName, unescapedValue))
-                Log.d(TAG, "  Parameter: $paramName = $unescapedValue (original: $paramValue)")
+                Log.d(
+                    TAG,
+                    "  Parameter: $paramName = $unescapedValue (original: $paramValue)"
+                )
             }
 
             val tool = AITool(name = toolName, parameters = parameters)
 
             invocations.add(
-                    ToolInvocation(tool = tool, rawText = rawText, responseLocation = start..end)
+                ToolInvocation(
+                    tool = tool,
+                    rawText = rawText,
+                    responseLocation = start..end
+                )
             )
         }
 
@@ -505,12 +643,13 @@ class AIToolHandler private constructor(private val context: Context) {
                 val start = altMatcher.start()
                 val end = altMatcher.end()
 
-                // Create a unique ID for this tool invocation based on its position and content
+                // Create a unique ID for this tool invocation based on its position
+                // and content
                 val invocationId = "$toolName:$start:$end"
 
                 Log.d(
-                        TAG,
-                        "Found tool invocation with alternative pattern: $toolName at position $start-$end"
+                    TAG,
+                    "Found tool invocation with alternative pattern: $toolName at position $start-$end"
                 )
 
                 // Extract parameters (using more flexible parameter pattern)
@@ -521,27 +660,32 @@ class AIToolHandler private constructor(private val context: Context) {
                 for (line in paramLines) {
                     if (line.isBlank() || !line.contains("name=")) continue
 
-                    val nameMatch = Regex("name\\s*=\\s*[\"']([^\"']+)[\"']").find(line)
+                    val nameMatch =
+                        Regex("name\\s*=\\s*[\"']([^\"']+)[\"']").find(line)
                     val name = nameMatch?.groupValues?.get(1) ?: continue
 
                     val valueMatch = Regex(">([\\s\\S]*?)</param>").find(line)
-                    val value = valueMatch?.groupValues?.get(1)?.trim() ?: continue
+                    val value =
+                        valueMatch?.groupValues?.get(1)?.trim() ?: continue
 
                     // Unescape XML entities in the parameter value
                     val unescapedValue = unescapeXml(value)
 
                     parameters.add(ToolParameter(name, unescapedValue))
-                    Log.d(TAG, "  Parameter (alt): $name = $unescapedValue (original: $value)")
+                    Log.d(
+                        TAG,
+                        "  Parameter (alt): $name = $unescapedValue (original: $value)"
+                    )
                 }
 
                 val tool = AITool(name = toolName, parameters = parameters)
 
                 invocations.add(
-                        ToolInvocation(
-                                tool = tool,
-                                rawText = rawText,
-                                responseLocation = start..end
-                        )
+                    ToolInvocation(
+                        tool = tool,
+                        rawText = rawText,
+                        responseLocation = start..end
+                    )
                 )
             }
         }
@@ -555,10 +699,10 @@ class AIToolHandler private constructor(private val context: Context) {
 
         if (executor == null) {
             return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "Tool not found: ${tool.name}"
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "Tool not found: ${tool.name}"
             )
         }
 
@@ -566,10 +710,10 @@ class AIToolHandler private constructor(private val context: Context) {
         val validationResult = executor.validateParameters(tool)
         if (!validationResult.valid) {
             return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = validationResult.errorMessage
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = validationResult.errorMessage
             )
         }
 

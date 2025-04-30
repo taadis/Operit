@@ -32,7 +32,7 @@ data class MCPPackage(
             val mcpClient = MCPClient(context, serverConfig)
 
             try {
-                // 初始化连接 - 使用同步版本
+                // 初始化连接
                 val initResult = mcpClient.initializeSync()
                 if (!initResult.startsWith("已连接到MCP服务器") && 
                     !initResult.startsWith("已成功初始化") && 
@@ -41,7 +41,7 @@ data class MCPPackage(
                     return null
                 }
 
-                // 获取工具列表并关闭连接 - 使用一体化方法
+                // 获取工具列表并关闭连接
                 val tools = mcpClient.getToolsAndCloseSync()
                 if (tools.isEmpty()) {
                     return null
@@ -49,10 +49,7 @@ data class MCPPackage(
 
                 return MCPPackage(serverConfig, tools)
             } catch (e: Exception) {
-                // 确保关闭连接
-                try {
-                    mcpClient.shutdownSync()
-                } catch (_: Exception) {}
+                try { mcpClient.shutdownSync() } catch (_: Exception) {}
                 return null
             }
         }

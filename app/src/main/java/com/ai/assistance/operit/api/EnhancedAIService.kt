@@ -832,6 +832,8 @@ class EnhancedAIService(
 
             // If permission denied, add result and exit function
             if (!hasPermission) {
+                // Add both error status and a tool result status to ensure the UI shows the error
+                // properly
                 val errorDisplayContent =
                         roundManager.appendContent(
                                 ConversationMarkupManager.createErrorStatus(
@@ -839,7 +841,21 @@ class EnhancedAIService(
                                         "Operation '${invocation.tool.name}' was not authorized"
                                 )
                         )
-                responseCallback(errorDisplayContent, null)
+
+                // Also add a proper tool result status with error=true to ensure it shows up
+                // correctly in the UI
+                val toolResultStatusContent =
+                        roundManager.appendContent(
+                                ConversationMarkupManager.createToolResultStatus(
+                                        invocation.tool.name,
+                                        success = false,
+                                        resultText =
+                                                "Permission denied: Operation '${invocation.tool.name}' was not authorized"
+                                )
+                        )
+
+                // Update UI with the error content
+                responseCallback(toolResultStatusContent, null)
 
                 // Process error result and exit
                 if (errorResult != null) {

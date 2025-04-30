@@ -33,16 +33,17 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
         private const val IMPORTED_PACKAGES_KEY = "imported_packages"
         private const val ACTIVE_PACKAGES_KEY = "active_packages"
 
-        @Volatile private var INSTANCE: PackageManager? = null
+        @Volatile
+        private var INSTANCE: PackageManager? = null
 
         fun getInstance(context: Context, aiToolHandler: AIToolHandler): PackageManager {
             return INSTANCE
-                    ?: synchronized(this) {
-                        INSTANCE
-                                ?: PackageManager(context.applicationContext, aiToolHandler).also {
-                                    INSTANCE = it
-                                }
-                    }
+                ?: synchronized(this) {
+                    INSTANCE
+                        ?: PackageManager(context.applicationContext, aiToolHandler).also {
+                            INSTANCE = it
+                        }
+                }
         }
     }
 
@@ -89,8 +90,8 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
                 if (packageMetadata != null) {
                     availablePackages[packageMetadata.name] = packageMetadata
                     Log.d(
-                            TAG,
-                            "Loaded HJSON package from assets: ${packageMetadata.name} with description: ${packageMetadata.description}, tools: ${packageMetadata.tools.size}"
+                        TAG,
+                        "Loaded HJSON package from assets: ${packageMetadata.name} with description: ${packageMetadata.description}, tools: ${packageMetadata.tools.size}"
                     )
                 }
             } else if (fileName.endsWith(".js")) {
@@ -99,8 +100,8 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
                 if (packageMetadata != null) {
                     availablePackages[packageMetadata.name] = packageMetadata
                     Log.d(
-                            TAG,
-                            "Loaded JavaScript package from assets: ${packageMetadata.name} with description: ${packageMetadata.description}, tools: ${packageMetadata.tools.size}"
+                        TAG,
+                        "Loaded JavaScript package from assets: ${packageMetadata.name} with description: ${packageMetadata.description}, tools: ${packageMetadata.tools.size}"
                     )
                 }
             }
@@ -120,8 +121,8 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
 
                     availablePackages[packageMetadata.name] = packageMetadata
                     Log.d(
-                            TAG,
-                            "Loaded imported HJSON package from external storage: ${packageMetadata.name}"
+                        TAG,
+                        "Loaded imported HJSON package from external storage: ${packageMetadata.name}"
                     )
                 } catch (e: Exception) {
                     Log.e(TAG, "Error loading imported HJSON package from: ${file.path}", e)
@@ -133,8 +134,8 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
                     if (packageMetadata != null) {
                         availablePackages[packageMetadata.name] = packageMetadata
                         Log.d(
-                                TAG,
-                                "Loaded imported JavaScript package from external storage: ${packageMetadata.name}"
+                            TAG,
+                            "Loaded imported JavaScript package from external storage: ${packageMetadata.name}"
                         )
                     }
                 } catch (e: Exception) {
@@ -199,13 +200,13 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
 
             // 更新所有工具，使用相同的完整脚本内容，但记录每个工具的函数名
             val tools =
-                    packageMetadata.tools.map { tool ->
-                        // 检查函数是否存在于脚本中
-                        validateToolFunctionExists(jsContent, tool.name)
+                packageMetadata.tools.map { tool ->
+                    // 检查函数是否存在于脚本中
+                    validateToolFunctionExists(jsContent, tool.name)
 
-                        // 使用整个脚本，并记录函数名，而不是提取单个函数
-                        tool.copy(script = jsContent)
-                    }
+                    // 使用整个脚本，并记录函数名，而不是提取单个函数
+                    tool.copy(script = jsContent)
+                }
 
             return packageMetadata.copy(tools = tools)
         } catch (e: Exception) {
@@ -218,13 +219,13 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
     private fun validateToolFunctionExists(jsContent: String, toolName: String): Boolean {
         // 各种函数声明模式
         val patterns =
-                listOf(
-                        """async\s+function\s+$toolName\s*\(""",
-                        """function\s+$toolName\s*\(""",
-                        """exports\.$toolName\s*=\s*(?:async\s+)?function""",
-                        """(?:const|let|var)\s+$toolName\s*=\s*(?:async\s+)?\(""",
-                        """exports\.$toolName\s*=\s*(?:async\s+)?\(?"""
-                )
+            listOf(
+                """async\s+function\s+$toolName\s*\(""",
+                """function\s+$toolName\s*\(""",
+                """exports\.$toolName\s*=\s*(?:async\s+)?function""",
+                """(?:const|let|var)\s+$toolName\s*=\s*(?:async\s+)?\(""",
+                """exports\.$toolName\s*=\s*(?:async\s+)?\(?"""
+            )
 
         for (pattern in patterns) {
             if (pattern.toRegex().find(jsContent) != null) {
@@ -274,25 +275,25 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
 
             // Check if it's a supported file type
             if (!filePath.endsWith(".hjson") &&
-                            !filePath.endsWith(".js") &&
-                            !filePath.endsWith(".ts")
+                !filePath.endsWith(".js") &&
+                !filePath.endsWith(".ts")
             ) {
                 return "Only HJSON, JavaScript (.js) and TypeScript (.ts) package files are supported"
             }
 
             // Parse the file to get package metadata
             val packageMetadata =
-                    if (filePath.endsWith(".hjson")) {
-                        val hjsonContent = file.readText()
-                        val jsonString = JsonValue.readHjson(hjsonContent).toString()
+                if (filePath.endsWith(".hjson")) {
+                    val hjsonContent = file.readText()
+                    val jsonString = JsonValue.readHjson(hjsonContent).toString()
 
-                        val jsonConfig = Json { ignoreUnknownKeys = true }
-                        jsonConfig.decodeFromString<ToolPackage>(jsonString)
-                    } else {
-                        // Treat both .js and .ts files as JavaScript packages
-                        loadPackageFromJsFile(file)
-                                ?: return "Failed to parse ${if (filePath.endsWith(".ts")) "TypeScript" else "JavaScript"} package file"
-                    }
+                    val jsonConfig = Json { ignoreUnknownKeys = true }
+                    jsonConfig.decodeFromString<ToolPackage>(jsonString)
+                } else {
+                    // Treat both .js and .ts files as JavaScript packages
+                    loadPackageFromJsFile(file)
+                        ?: return "Failed to parse ${if (filePath.endsWith(".ts")) "TypeScript" else "JavaScript"} package file"
+                }
 
             // Check if package with same name already exists
             if (availablePackages.containsKey(packageMetadata.name)) {
@@ -374,8 +375,8 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
         if (importedPackages.contains(packageName)) {
             // Load the full package data for a standard package
             val toolPackage =
-                    getPackageTools(packageName)
-                            ?: return "Failed to load package data for: $packageName"
+                getPackageTools(packageName)
+                    ?: return "Failed to load package data for: $packageName"
 
             // Register the package tools with AIToolHandler
             registerPackageTools(toolPackage)
@@ -554,11 +555,13 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
 
         // 获取服务器配置
         val serverConfig =
-                mcpManager.getRegisteredServers()[serverName] ?: return "无法获取MCP服务器配置: $serverName"
+            mcpManager.getRegisteredServers()[serverName]
+                ?: return "无法获取MCP服务器配置: $serverName"
 
         // 创建MCP包
         val mcpPackage =
-                MCPPackage.fromServer(context, serverConfig) ?: return "无法连接到MCP服务器: $serverName"
+            MCPPackage.fromServer(context, serverConfig)
+                ?: return "无法连接到MCP服务器: $serverName"
 
         // 转换为标准工具包
         val toolPackage = mcpPackage.toToolPackage()
@@ -572,9 +575,9 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
 
             // 使用MCP特定的执行器注册工具
             aiToolHandler.registerTool(
-                    name = toolName,
-                    category = toolPackage.category,
-                    executor = mcpToolExecutor
+                name = toolName,
+                category = toolPackage.category,
+                executor = mcpToolExecutor
             )
 
             Log.d(TAG, "已注册MCP工具: $toolName")
