@@ -31,20 +31,30 @@ data class MCPPackage(
         fun fromServer(context: Context, serverConfig: MCPServerConfig): MCPPackage? {
             val mcpClient = MCPClient(context, serverConfig)
 
-            // 初始化连接
-            val initResult = mcpClient.initialize()
-            if (!initResult.startsWith("已成功初始化")) {
-                mcpClient.shutdown()
+            try {
+                // 初始化连接 - 使用同步版本
+                val initResult = mcpClient.initializeSync()
+                if (!initResult.startsWith("已连接到MCP服务器") && 
+                    !initResult.startsWith("已成功初始化") && 
+                    !initResult.contains("已建立连接")) {
+                    mcpClient.shutdownSync()
+                    return null
+                }
+
+                // 获取工具列表并关闭连接 - 使用一体化方法
+                val tools = mcpClient.getToolsAndCloseSync()
+                if (tools.isEmpty()) {
+                    return null
+                }
+
+                return MCPPackage(serverConfig, tools)
+            } catch (e: Exception) {
+                // 确保关闭连接
+                try {
+                    mcpClient.shutdownSync()
+                } catch (_: Exception) {}
                 return null
             }
-
-            // 获取工具列表
-            val tools = mcpClient.getTools()
-
-            // 关闭连接
-            mcpClient.shutdown()
-
-            return MCPPackage(serverConfig, tools)
         }
     }
 
