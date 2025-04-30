@@ -7,6 +7,8 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import com.ai.assistance.operit.tools.system.AdbCommandExecutor.CommandResult
 import com.ai.assistance.operit.tools.system.TermuxCommandExecutor
+import com.ai.assistance.operit.core.tools.system.termux.TermuxCommandOptions
+import com.ai.assistance.operit.core.tools.system.termux.TermuxCommandOutputReceiver
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -183,7 +185,7 @@ class TerminalSession(
 
                     // 创建输出接收器，以便实时更新终端
                     val outputReceiver =
-                            object : TermuxCommandExecutor.Companion.CommandOutputReceiver {
+                            object : TermuxCommandOutputReceiver {
                                 private val stdoutBuffer = StringBuilder()
                                 private val stderrBuffer = StringBuilder()
                                 private var lastOutputLine = ""
@@ -493,12 +495,10 @@ class TerminalSession(
             // 执行pwd命令，使用目标目录作为工作目录
             // 这将测试目录是否存在并可访问
             val options =
-                    TermuxCommandExecutor.Companion.CommandOptions(
+                    TermuxCommandOptions(
                             workingDirectory = targetDir, // 直接设置为目标目录
                             background = true,
-                            sessionAction =
-                                    TermuxCommandExecutor.Companion.SessionAction
-                                            .ACTION_NEW_SESSION,
+                            sessionAction = TermuxCommandOptions.SessionAction.ACTION_NEW_SESSION,
                             user = currentUser
                     )
 
@@ -553,16 +553,15 @@ class TerminalSession(
         // 执行su命令检查是否成功
         val checkCmd = "su $user -c 'whoami'"
         val options =
-                TermuxCommandExecutor.Companion.CommandOptions(
+                TermuxCommandOptions(
                         workingDirectory = workingDirectory,
                         background = true,
-                        sessionAction =
-                                TermuxCommandExecutor.Companion.SessionAction.ACTION_NEW_SESSION
+                        sessionAction = TermuxCommandOptions.SessionAction.ACTION_NEW_SESSION
                 )
 
         // 创建输出接收器
         val outputReceiver =
-                object : TermuxCommandExecutor.Companion.CommandOutputReceiver {
+                object : TermuxCommandOutputReceiver {
                     override fun onStdout(output: String, isComplete: Boolean) {
                         // 不需要处理中间输出
                     }
@@ -611,15 +610,13 @@ class TerminalSession(
     }
 
     /** 创建命令选项 */
-    private fun createCommandOptions(
-            command: String
-    ): TermuxCommandExecutor.Companion.CommandOptions {
+    private fun createCommandOptions(command: String): TermuxCommandOptions {
         // 确定会话操作模式
         val sessionAction =
                 if (termuxSessionId != null) {
-                    TermuxCommandExecutor.Companion.SessionAction.ACTION_USE_CURRENT_SESSION
+                    TermuxCommandOptions.SessionAction.ACTION_USE_CURRENT_SESSION
                 } else {
-                    TermuxCommandExecutor.Companion.SessionAction.ACTION_NEW_SESSION
+                    TermuxCommandOptions.SessionAction.ACTION_NEW_SESSION
                 }
 
         // 确保工作目录有效
@@ -636,7 +633,7 @@ class TerminalSession(
         )
 
         // 创建命令选项
-        return TermuxCommandExecutor.Companion.CommandOptions(
+        return TermuxCommandOptions(
                 workingDirectory = effectiveWorkingDir,
                 background = true,
                 sessionAction = sessionAction,

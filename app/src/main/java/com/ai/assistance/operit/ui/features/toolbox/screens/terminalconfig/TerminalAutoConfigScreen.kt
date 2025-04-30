@@ -22,7 +22,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.ai.assistance.operit.tools.system.AdbCommandExecutor.CommandResult
 import com.ai.assistance.operit.tools.system.TermuxCommandExecutor
+import com.ai.assistance.operit.core.tools.system.termux.TermuxCommandOutputReceiver
 import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.components.InteractiveInputDialog
 import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.model.TerminalLine
 import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.model.TerminalSessionManager
@@ -44,6 +46,9 @@ fun TerminalAutoConfigScreen(navController: NavController) {
     var outputText by remember { mutableStateOf("欢迎使用终端自动配置工具\n选择需要安装的组件点击按钮开始安装") }
     var isExecuting by remember { mutableStateOf(false) }
     var currentTask by remember { mutableStateOf("") }
+
+    // 添加初始化加载状态
+    var isInitialLoading by remember { mutableStateOf(true) }
 
     // 软件包安装状态
     var pythonInstalled by remember { mutableStateOf(false) }
@@ -84,6 +89,9 @@ fun TerminalAutoConfigScreen(navController: NavController) {
 
     // 检查已安装的组件
     LaunchedEffect(key1 = Unit) {
+        // 开始加载
+        isInitialLoading = true
+
         checkInstalledComponents(
                 context,
                 onResult = { python, pip, node, git, ruby, go, rust ->
@@ -98,7 +106,30 @@ fun TerminalAutoConfigScreen(navController: NavController) {
         )
 
         // 检查是否已启用清华源
-        checkTunaSourceEnabled(context) { enabled -> tunaSourceEnabled = enabled }
+        checkTunaSourceEnabled(context) { enabled ->
+            tunaSourceEnabled = enabled
+
+            // 所有检查完成，结束加载
+            isInitialLoading = false
+        }
+    }
+
+    // 加载对话框
+    if (isInitialLoading) {
+        AlertDialog(
+                onDismissRequest = { /* 不允许用户关闭 */},
+                title = { Text("正在加载") },
+                text = {
+                    Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.padding(vertical = 16.dp))
+                        Text("正在检查已安装的组件，请稍候...")
+                    }
+                },
+                confirmButton = {}
+        )
     }
 
     // 交互式输入对话框
@@ -806,17 +837,24 @@ suspend fun checkInstalledComponents(
 // 检查是否已启用清华源
 suspend fun checkTunaSourceEnabled(context: Context, onResult: (Boolean) -> Unit) {
     withContext(Dispatchers.IO) {
+        // 直接检查文件内容
         val result =
                 TermuxCommandExecutor.executeCommand(
                         context = context,
-                        command =
-                                "grep -q 'mirrors.tuna.tsinghua.edu.cn' \$PREFIX/etc/apt/sources.list && echo 'ENABLED' || echo 'DISABLED'",
+                        command = "cat \$PREFIX/etc/apt/sources.list",
                         autoAuthorize = true
                 )
 
-        val isEnabled = result.success && result.stdout.contains("ENABLED")
+        // 检查文件内容中是否包含清华源URL
+        val containsTuna =
+                result.success &&
+                        (result.stdout.contains("mirrors.tuna.tsinghua.edu.cn") ||
+                                result.stdout.contains("tsinghua.edu.cn"))
 
-        withContext(Dispatchers.Main) { onResult(isEnabled) }
+        Log.d(TAG, "源文件内容: ${result.stdout}")
+        Log.d(TAG, "检查清华源: $containsTuna")
+
+        withContext(Dispatchers.Main) { onResult(containsTuna) }
     }
 }
 
@@ -960,7 +998,7 @@ suspend fun switchToTunaMirror(
                                 }
                             },
                             outputReceiver =
-                                    object : TermuxCommandExecutor.Companion.CommandOutputReceiver {
+                                    object : TermuxCommandOutputReceiver {
                                         override fun onStdout(output: String, isComplete: Boolean) {
                                             CoroutineScope(Dispatchers.Main).launch {
                                                 onOutput(output)
@@ -983,10 +1021,7 @@ suspend fun switchToTunaMirror(
                                             }
                                         }
 
-                                        override fun onComplete(
-                                                result:
-                                                        com.ai.assistance.operit.tools.system.AdbCommandExecutor.CommandResult
-                                        ) {
+                                        override fun onComplete(result: CommandResult) {
                                             // 已在resultCallback中处理
                                         }
 
@@ -1049,7 +1084,7 @@ suspend fun installPython(
                                 }
                             },
                             outputReceiver =
-                                    object : TermuxCommandExecutor.Companion.CommandOutputReceiver {
+                                    object : TermuxCommandOutputReceiver {
                                         override fun onStdout(output: String, isComplete: Boolean) {
                                             CoroutineScope(Dispatchers.Main).launch {
                                                 onOutput(output)
@@ -1072,10 +1107,7 @@ suspend fun installPython(
                                             }
                                         }
 
-                                        override fun onComplete(
-                                                result:
-                                                        com.ai.assistance.operit.tools.system.AdbCommandExecutor.CommandResult
-                                        ) {
+                                        override fun onComplete(result: CommandResult) {
                                             // 已在resultCallback中处理
                                         }
 
@@ -1403,7 +1435,41 @@ suspend fun installPipPackages(
                                     onOutput("PIP包安装" + if (result.success) "成功" else "失败")
                                     onComplete(result.success)
                                 }
-                            }
+                            },
+                            outputReceiver =
+                                    object : TermuxCommandOutputReceiver {
+                                        override fun onStdout(output: String, isComplete: Boolean) {
+                                            CoroutineScope(Dispatchers.Main).launch {
+                                                onOutput(output)
+                                            }
+                                        }
+
+                                        override fun onStderr(error: String, isComplete: Boolean) {
+                                            // 检查是否是交互式提示
+                                            if (error.startsWith("INTERACTIVE_PROMPT:")) {
+                                                val promptText =
+                                                        error.substringAfter("INTERACTIVE_PROMPT:")
+                                                                .trim()
+                                                CoroutineScope(Dispatchers.Main).launch {
+                                                    onOutput("[需要输入] $promptText")
+                                                }
+                                            } else {
+                                                CoroutineScope(Dispatchers.Main).launch {
+                                                    onOutput(error)
+                                                }
+                                            }
+                                        }
+
+                                        override fun onComplete(result: CommandResult) {
+                                            // 已在resultCallback中处理
+                                        }
+
+                                        override fun onError(error: String, exitCode: Int) {
+                                            CoroutineScope(Dispatchers.Main).launch {
+                                                onOutput("错误: $error (退出码: $exitCode)")
+                                            }
+                                        }
+                                    }
                     )
 
             if (!result.success) {
