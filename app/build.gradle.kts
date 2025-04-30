@@ -68,6 +68,13 @@ android {
             excludes += "/META-INF/*.RSA"
             excludes += "/META-INF/*.kotlin_module"
             excludes += "META-INF/versions/9/module-info.class"
+            
+            // Fix for duplicate Netty files
+            excludes += "META-INF/io.netty.versions.properties"
+            excludes += "META-INF/INDEX.LIST"
+            
+            // Fix for any other potential duplicate files
+            pickFirsts += "**/*.so"
         }
     }
 }
@@ -105,7 +112,31 @@ dependencies {
     implementation(libs.lifecycle.runtime.ktx)
 
     // Kotlin Serialization
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.2")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
+    
+    // Ktor dependencies
+    implementation("io.ktor:ktor-client-core:2.3.7")
+    implementation("io.ktor:ktor-client-cio:2.3.7")
+    implementation("io.ktor:ktor-client-content-negotiation:2.3.7")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.7")
+    implementation("io.ktor:ktor-client-auth:2.3.7")
+    implementation("io.ktor:ktor-client-logging:2.3.7")
+    implementation("io.ktor:ktor-server-core:2.3.7")
+    implementation("io.ktor:ktor-server-netty:2.3.7")
+    implementation("io.ktor:ktor-server-content-negotiation:2.3.7")
+    implementation("io.ktor:ktor-client-websockets:2.3.7")
+    implementation("io.ktor:ktor-server-websockets:2.3.7")
+    implementation("io.ktor:ktor-server-status-pages:2.3.7")
+    
+    // Server-Sent Events (SSE) dependencies for Ktor
+    implementation("io.ktor:ktor-client-core-jvm:2.3.7")
+    implementation("io.ktor:ktor-server-servlet-jvm:2.3.7")
+    
+    // Additional Ktor dependencies for IO operations
+    implementation("io.ktor:ktor-io:2.3.7")
+    
+    // UUID dependencies
+    implementation("com.benasher44:uuid:0.8.2")
     
     // Gson for JSON parsing
     implementation("com.google.code.gson:gson:2.10.1")
@@ -176,4 +207,9 @@ dependencies {
     implementation("org.apache.poi:poi:5.2.3")
     implementation("org.apache.poi:poi-ooxml:5.2.3")
     implementation("org.apache.poi:poi-scratchpad:5.2.3")
+
+    // Kotlin logging
+    implementation("io.github.oshai:kotlin-logging-jvm:5.1.0")
+    implementation("org.slf4j:slf4j-api:2.0.9")
+    implementation("org.slf4j:slf4j-simple:2.0.9")
 }

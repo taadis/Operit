@@ -28,6 +28,8 @@ object SystemPromptConfig {
       - Be honest about limitations; use tools to retrieve forgotten information instead of guessing, and clearly state when information is unavailable.
       - Use the query_problem_library tool to understand user's style, preferences, and past information.
 
+      FORMULA FORMATTING: For mathematical formulas, use $ $ for inline LaTeX and $$ $$ for block/display LaTeX equations.
+
       PLANNING_MODE_SECTION
 
       When calling a tool, the user will see your response, and then will automatically send the tool results back to you in a follow-up message.
@@ -183,6 +185,8 @@ object SystemPromptConfig {
         - 自然地保持对话上下文，不要明确引用之前的交互。
         - 诚实地说明限制；使用工具检索遗忘的信息而不是猜测，并明确说明信息不可用的情况。
         - 使用query_problem_library工具了解用户的风格、偏好和过去的信息。
+        
+        公式格式化：对于数学公式，使用 $ $ 包裹行内LaTeX公式，使用 $$ $$ 包裹独立成行的LaTeX公式。
         
         PLANNING_MODE_SECTION
         
@@ -347,17 +351,27 @@ object SystemPromptConfig {
           useEnglish: Boolean = false
   ): String {
     val importedPackages = packageManager.getImportedPackages()
+    val mcpServers = packageManager.getAvailableServerPackages()
 
     // Build the available packages section
     val packagesSection = StringBuilder()
 
-    // List available packages without details
-    if (importedPackages.isNotEmpty()) {
+    // Check if any packages (JS or MCP) are available
+    val hasPackages = importedPackages.isNotEmpty() || mcpServers.isNotEmpty()
+
+    if (hasPackages) {
       packagesSection.appendLine("Available packages:")
+
+      // List imported JS packages
       for (packageName in importedPackages) {
         packagesSection.appendLine(
                 "- $packageName : ${packageManager.getPackageTools(packageName)?.description}"
         )
+      }
+
+      // List available MCP servers as regular packages
+      for ((serverName, serverConfig) in mcpServers) {
+        packagesSection.appendLine("- $serverName : ${serverConfig.description}")
       }
     } else {
       packagesSection.appendLine("No packages are currently available.")

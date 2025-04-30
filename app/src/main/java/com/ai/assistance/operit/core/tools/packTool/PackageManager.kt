@@ -2,6 +2,10 @@ package com.ai.assistance.operit.tools.packTool
 
 import android.content.Context
 import android.util.Log
+import com.ai.assistance.operit.core.tools.mcp.MCPManager
+import com.ai.assistance.operit.core.tools.mcp.MCPPackage
+import com.ai.assistance.operit.core.tools.mcp.MCPServerConfig
+import com.ai.assistance.operit.core.tools.mcp.MCPToolExecutor
 import com.ai.assistance.operit.tools.AIToolHandler
 import com.ai.assistance.operit.tools.PackageToolExecutor
 import com.ai.assistance.operit.tools.ToolPackage
@@ -47,6 +51,9 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
 
     // JavaScript engine for executing JS package code
     private val jsEngine by lazy { JsEngine(context) }
+
+    // MCP Manager instance (lazy loading)
+    private val mcpManager by lazy { MCPManager.getInstance(context) }
 
     // Get the external packages directory
     private val externalPackagesDir: File
@@ -362,24 +369,59 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
      * @return Package description and tools for AI prompt enhancement, or error message
      */
     fun usePackage(packageName: String): String {
-        // Check if package is imported
+        // First check if packageName is a standard imported package (priority)
         val importedPackages = getImportedPackages()
-        if (!importedPackages.contains(packageName)) {
-            return "Package not imported. Import it first with 'import package $packageName'"
+        if (importedPackages.contains(packageName)) {
+            // Load the full package data for a standard package
+            val toolPackage =
+                    getPackageTools(packageName)
+                            ?: return "Failed to load package data for: $packageName"
+
+            // Register the package tools with AIToolHandler
+            registerPackageTools(toolPackage)
+
+            Log.d(TAG, "Successfully loaded and activated package: $packageName")
+
+            // Generate and return the system prompt enhancement
+            return generatePackageSystemPrompt(toolPackage)
         }
 
-        // Load the full package data
-        val toolPackage =
-                getPackageTools(packageName)
-                        ?: return "Failed to load package data for: $packageName"
+        // Next check if it's an MCP server by checking with MCPManager
+        if (isRegisteredMCPServer(packageName)) {
+            return useMCPServer(packageName)
+        }
 
-        // Register the package tools with AIToolHandler
-        registerPackageTools(toolPackage)
+        return "Package not found: $packageName. Please import it first or register it as an MCP server."
+    }
 
-        Log.d(TAG, "Successfully loaded and activated package: $packageName")
+    /**
+     * 检查是否是已注册的MCP服务器
+     *
+     * @param serverName 服务器名称
+     * @return 如果是已注册的MCP服务器则返回true
+     */
+    private fun isRegisteredMCPServer(serverName: String): Boolean {
+        return mcpManager.isServerRegistered(serverName)
+    }
 
-        // Generate and return the system prompt enhancement
-        return generatePackageSystemPrompt(toolPackage)
+    /**
+     * 获取所有可用的MCP服务器包
+     *
+     * @return MCP服务器列表
+     */
+    fun getAvailableServerPackages(): Map<String, MCPServerConfig> {
+        return mcpManager.getRegisteredServers()
+    }
+
+    // Helper function to determine if a package is an MCP server
+    private fun isMCPServerPackage(toolPackage: ToolPackage): Boolean {
+        // Check if any tool has MCP script placeholder
+        return if (toolPackage.tools.isNotEmpty()) {
+            val script = toolPackage.tools[0].script
+            script.contains("/* MCPJS") // Check for MCP script marker
+        } else {
+            false
+        }
     }
 
     /** Registers all tools in a package with the AIToolHandler */
@@ -498,8 +540,78 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
         }
     }
 
+    /**
+     * 使用MCP服务器
+     *
+     * @param serverName 服务器名称
+     * @return 成功或失败的消息
+     */
+    fun useMCPServer(serverName: String): String {
+        // 检查服务器是否已注册
+        if (!mcpManager.isServerRegistered(serverName)) {
+            return "MCP服务器 '$serverName' 不存在或未注册。"
+        }
+
+        // 获取服务器配置
+        val serverConfig =
+                mcpManager.getRegisteredServers()[serverName] ?: return "无法获取MCP服务器配置: $serverName"
+
+        // 创建MCP包
+        val mcpPackage =
+                MCPPackage.fromServer(context, serverConfig) ?: return "无法连接到MCP服务器: $serverName"
+
+        // 转换为标准工具包
+        val toolPackage = mcpPackage.toToolPackage()
+
+        // 获取或创建MCP工具执行器
+        val mcpToolExecutor = MCPToolExecutor(context, mcpManager)
+
+        // 注册包中的每个工具 - 使用 serverName:toolName 格式
+        toolPackage.tools.forEach { packageTool ->
+            val toolName = "$serverName:${packageTool.name}"
+
+            // 使用MCP特定的执行器注册工具
+            aiToolHandler.registerTool(
+                    name = toolName,
+                    category = toolPackage.category,
+                    executor = mcpToolExecutor
+            )
+
+            Log.d(TAG, "已注册MCP工具: $toolName")
+        }
+
+        return generateMCPSystemPrompt(toolPackage, serverName)
+    }
+
+    /** 为MCP服务器生成系统提示 */
+    private fun generateMCPSystemPrompt(toolPackage: ToolPackage, serverName: String): String {
+        val sb = StringBuilder()
+
+        sb.appendLine("正在使用MCP服务器: $serverName")
+        sb.appendLine("使用时间: ${java.time.LocalDateTime.now()}")
+        sb.appendLine("描述: ${toolPackage.description}")
+        sb.appendLine()
+        sb.appendLine("可用工具列表:")
+
+        toolPackage.tools.forEach { tool ->
+            // 使用 serverName:toolName 格式
+            sb.appendLine("- $serverName:${tool.name}: ${tool.description}")
+            if (tool.parameters.isNotEmpty()) {
+                sb.appendLine("  参数:")
+                tool.parameters.forEach { param ->
+                    val requiredText = if (param.required) "(必需)" else "(可选)"
+                    sb.appendLine("  - ${param.name} ${requiredText}: ${param.description}")
+                }
+            }
+            sb.appendLine()
+        }
+
+        return sb.toString()
+    }
+
     /** Clean up resources when the manager is no longer needed */
     fun destroy() {
         jsEngine.destroy()
+        mcpManager.shutdown()
     }
 }
