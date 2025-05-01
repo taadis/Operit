@@ -23,12 +23,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import com.ai.assistance.operit.core.tools.system.termux.TermuxAuthorizer
+import com.ai.assistance.operit.core.tools.system.termux.TermuxInstaller
 import com.ai.assistance.operit.data.repository.UIHierarchyManager
 import com.ai.assistance.operit.tools.system.AdbCommandExecutor
 import com.ai.assistance.operit.tools.system.ShizukuInstaller
-import com.ai.assistance.operit.core.tools.system.termux.TermuxAuthorizer
 import com.ai.assistance.operit.tools.system.TermuxCommandExecutor
-import com.ai.assistance.operit.core.tools.system.termux.TermuxInstaller
 import com.ai.assistance.operit.ui.features.demo.components.*
 import com.ai.assistance.operit.ui.features.demo.model.ShizukuScreenState
 import com.ai.assistance.operit.ui.features.demo.wizards.ShizukuWizardCard
@@ -41,6 +41,34 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private const val TAG = "ShizukuDemoScreen"
+private const val TERMUX_CONFIG_PREFS = "termux_config_preferences"
+private const val KEY_TERMUX_FULLY_CONFIGURED = "termux_fully_configured"
+
+/**
+ * 保存Termux配置状态到持久化存储
+ * @param context 上下文
+ * @param isFullyConfigured 是否已完全配置
+ */
+private fun saveTermuxConfigStatus(context: Context, isFullyConfigured: Boolean) {
+    context.getSharedPreferences(TERMUX_CONFIG_PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_TERMUX_FULLY_CONFIGURED, isFullyConfigured)
+            .apply()
+    Log.d(TAG, "保存Termux配置状态: $isFullyConfigured")
+}
+
+/**
+ * 获取Termux配置状态
+ * @param context 上下文
+ * @return 是否已完全配置
+ */
+private fun getTermuxConfigStatus(context: Context): Boolean {
+    val status =
+            context.getSharedPreferences(TERMUX_CONFIG_PREFS, Context.MODE_PRIVATE)
+                    .getBoolean(KEY_TERMUX_FULLY_CONFIGURED, false)
+    Log.d(TAG, "获取Termux配置状态: $status")
+    return status
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,6 +85,14 @@ fun ShizukuDemoScreen() {
     val isPythonInstalled = remember { mutableStateOf(false) }
     val isNodeInstalled = remember { mutableStateOf(false) }
     val isTermuxConfiguring = remember { mutableStateOf(false) }
+
+    // 添加Termux配置持久化状态 - 在初始化阶段就读取，避免界面闪烁
+    val isTermuxFullyConfigured = remember {
+        // 立即读取持久化配置，避免LaunchedEffect中读取导致的UI闪烁
+        val savedStatus = getTermuxConfigStatus(context)
+        Log.d(TAG, "初始化时 - Termux持久化配置状态: $savedStatus")
+        mutableStateOf(savedStatus)
+    }
 
     // 输出文本
     var outputText by remember { mutableStateOf("欢迎使用Termux配置工具\n点击对应按钮开始配置") }
@@ -136,6 +172,41 @@ fun ShizukuDemoScreen() {
         }
     }
 
+    // 检查已安装的组件 - 只在初始加载和授权成功后调用一次
+    suspend fun checkInstalledComponents() {
+        withContext(Dispatchers.IO) {
+            // 只在Termux已安装且已授权时才检查
+            if (state.isTermuxInstalled.value && state.isTermuxAuthorized.value) {
+                checkTunaSourceEnabled()
+                checkPythonInstalled()
+                checkNodeInstalled()
+
+                // 检查完成后，更新持久化状态
+                val allConfigured =
+                        isTunaSourceEnabled.value &&
+                                isPythonInstalled.value &&
+                                isNodeInstalled.value
+
+                if (allConfigured) {
+                    // 如果所有组件都已配置好，保存持久化状态
+                    if (!isTermuxFullyConfigured.value) {
+                        saveTermuxConfigStatus(context, true)
+                        isTermuxFullyConfigured.value = true
+                        Log.d(TAG, "所有Termux组件配置完成，保存持久化状态")
+                    }
+                } else if (isTermuxFullyConfigured.value) {
+                    // 如果之前认为配置完成，但现在检测到有组件未配置，重置状态
+                    saveTermuxConfigStatus(context, false)
+                    isTermuxFullyConfigured.value = false
+                    Log.d(
+                            TAG,
+                            "检测到Termux组件配置不完整（清华源: ${isTunaSourceEnabled.value}, Python: ${isPythonInstalled.value}, Node: ${isNodeInstalled.value}），重置持久化状态"
+                    )
+                }
+            }
+        }
+    }
+
     // 配置清华源
     val configureTunaSource = {
         scope.launch {
@@ -172,6 +243,17 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
                     outputText += "\n清华源配置成功！"
                     // 重新检查，确保状态正确
                     checkTunaSourceEnabled()
+
+                    // 检查是否所有组件都已配置完成
+                    if (isTunaSourceEnabled.value &&
+                                    isPythonInstalled.value &&
+                                    isNodeInstalled.value
+                    ) {
+                        saveTermuxConfigStatus(context, true)
+                        isTermuxFullyConfigured.value = true
+                        outputText += "\n所有Termux组件已配置完成，配置状态已保存！"
+                    }
+
                     Toast.makeText(context, "清华源设置成功", Toast.LENGTH_SHORT).show()
                 } else {
                     outputText += "\n清华源配置失败，正在恢复备份..."
@@ -216,6 +298,17 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
 
                     isPythonInstalled.value = true
                     outputText += "\nPython环境安装成功！"
+
+                    // 检查是否所有组件都已配置完成
+                    if (isTunaSourceEnabled.value &&
+                                    isPythonInstalled.value &&
+                                    isNodeInstalled.value
+                    ) {
+                        saveTermuxConfigStatus(context, true)
+                        isTermuxFullyConfigured.value = true
+                        outputText += "\n所有Termux组件已配置完成，配置状态已保存！"
+                    }
+
                     Toast.makeText(context, "Python安装成功", Toast.LENGTH_SHORT).show()
                 } else {
                     outputText += "\nPython安装失败"
@@ -249,6 +342,17 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
                 if (installNodeResult.success) {
                     isNodeInstalled.value = true
                     outputText += "\nNode.js环境安装成功！"
+
+                    // 检查是否所有组件都已配置完成
+                    if (isTunaSourceEnabled.value &&
+                                    isPythonInstalled.value &&
+                                    isNodeInstalled.value
+                    ) {
+                        saveTermuxConfigStatus(context, true)
+                        isTermuxFullyConfigured.value = true
+                        outputText += "\n所有Termux组件已配置完成，配置状态已保存！"
+                    }
+
                     Toast.makeText(context, "Node.js安装成功", Toast.LENGTH_SHORT).show()
                 } else {
                     outputText += "\nNode.js安装失败"
@@ -263,18 +367,6 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
                 currentTask = ""
                 // 自动关闭对话框
                 state.showResultDialogState.value = false
-            }
-        }
-    }
-
-    // 检查已安装的组件 - 只在初始加载和授权成功后调用一次
-    suspend fun checkInstalledComponents() {
-        withContext(Dispatchers.IO) {
-            // 只在Termux已安装且已授权时才检查
-            if (state.isTermuxInstalled.value && state.isTermuxAuthorized.value) {
-                checkTunaSourceEnabled()
-                checkPythonInstalled()
-                checkNodeInstalled()
             }
         }
     }
@@ -331,6 +423,8 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
 
                 // 只有在授权通过后才检查各项配置
                 if (state.isTermuxAuthorized.value) {
+                    // 即使isTermuxFullyConfigured为true也执行检查，确保状态是最新的
+                    // 但不会影响初始UI显示，因为isTermuxFullyConfigured已经在初始化时设置
                     checkInstalledComponents()
                 }
             }
@@ -362,7 +456,22 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
     // 初始状态加载
     LaunchedEffect(Unit) {
         refreshStatus()
-        checkTermuxAuth()
+
+        // 我们已经在初始化阶段读取了持久化配置，这里不需要再设置
+        // 但仍然需要在后台验证组件实际状态
+
+        // 无论持久化状态如何，都验证Termux授权
+        if (state.isTermuxInstalled.value) {
+            state.isTermuxAuthorized.value = TermuxAuthorizer.isTermuxAuthorized(context)
+
+            // 但仅在授权成功时才进行下一步
+            if (state.isTermuxAuthorized.value) {
+                // 即使持久化状态显示已配置，仍然在后台检查组件状态
+                // 但这不会阻止界面以已配置状态显示
+                Log.d(TAG, "即使持久化记录显示Termux已配置，仍进行后台组件验证")
+                checkInstalledComponents() // 该函数会自动更新持久化状态
+            }
+        }
     }
 
     Column(
@@ -465,22 +574,21 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        // Termux向导卡片 - 如果Termux未完全设置则显示
+        // Termux向导卡片 - 只有在需要配置时才显示
         if (!state.isTermuxInstalled.value ||
                         !state.isTermuxAuthorized.value ||
-                        !isTunaSourceEnabled.value ||
-                        !isPythonInstalled.value ||
-                        !isNodeInstalled.value
+                        !isTermuxFullyConfigured.value
         ) {
             TermuxWizardCard(
                     isTermuxInstalled = state.isTermuxInstalled.value,
                     isTermuxAuthorized = state.isTermuxAuthorized.value,
                     showWizard = state.showTermuxWizard.value,
                     onToggleWizard = { state.showTermuxWizard.value = it },
-                    // 添加新的状态参数
-                    isTunaSourceEnabled = isTunaSourceEnabled.value,
-                    isPythonInstalled = isPythonInstalled.value,
-                    isNodeInstalled = isNodeInstalled.value,
+                    // 添加新的状态参数 - 如果持久化记录显示已配置，则直接显示为已配置
+                    isTunaSourceEnabled =
+                            isTermuxFullyConfigured.value || isTunaSourceEnabled.value,
+                    isPythonInstalled = isTermuxFullyConfigured.value || isPythonInstalled.value,
+                    isNodeInstalled = isTermuxFullyConfigured.value || isNodeInstalled.value,
                     // 添加新的回调函数
                     onConfigureTunaSource = {
                         if (!isTermuxConfiguring.value) {
@@ -599,8 +707,19 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
                                     // 授权成功后检查各项配置状态
                                     outputText += "\n正在检查Termux配置状态..."
                                     delay(1000) // 给授权一点时间完成
-                                    checkInstalledComponents()
-                                    outputText += "\n检查完成，请点击相应按钮进行配置"
+
+                                    // 先读取持久化状态
+                                    isTermuxFullyConfigured.value = getTermuxConfigStatus(context)
+
+                                    if (isTermuxFullyConfigured.value) {
+                                        outputText += "\n检测到Termux已完成所有配置（从持久化记录）"
+                                        // 即使有持久化记录，还是检查一下实际状态
+                                        checkInstalledComponents()
+                                    } else {
+                                        // 没有持久化记录，正常检查组件状态
+                                        checkInstalledComponents()
+                                        outputText += "\n检查完成，请点击相应按钮进行配置"
+                                    }
                                 } else {
                                     outputText += "\nTermux授权失败，请检查Shizuku权限"
                                     Toast.makeText(
@@ -634,43 +753,39 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
                     state.isRefreshing.value = true
                     scope.launch {
                         try {
+                            // 使用与初始页面加载相同的逻辑进行刷新
                             refreshStatus()
-                            // 强制立即重新检查Termux状态 - 使用包管理器直接检查
-                            try {
-                                val packageManager = context.packageManager
-                                try {
-                                    val packageInfo = packageManager.getPackageInfo("com.termux", 0)
-                                    state.isTermuxInstalled.value = packageInfo != null
-                                    Log.d(TAG, "刷新: Termux已安装状态: ${state.isTermuxInstalled.value}")
-                                } catch (e: Exception) {
-                                    state.isTermuxInstalled.value = false
-                                    Log.d(TAG, "刷新: Termux未安装: ${e.message}")
-                                }
-                            } catch (e: Exception) {
-                                Log.e(TAG, "检查Termux安装状态出错: ${e.message}")
-                                state.isTermuxInstalled.value = false
-                            }
 
-                            // 确保安装状态已经更新后，再检查授权状态
-                            delay(300) // 短暂延迟确保状态更新
-
-                            // 如果Termux已安装，检查授权状态
+                            // 与初始加载保持一致，检查Termux授权状态
                             if (state.isTermuxInstalled.value) {
-                                val authResult = TermuxAuthorizer.isTermuxAuthorized(context)
-                                Log.d(TAG, "刷新: Termux授权状态: $authResult")
-                                state.isTermuxAuthorized.value = authResult
+                                state.isTermuxAuthorized.value =
+                                        TermuxAuthorizer.isTermuxAuthorized(context)
 
-                                // 如果已授权，检查各项配置状态
+                                // 读取持久化配置状态
+                                isTermuxFullyConfigured.value = getTermuxConfigStatus(context)
+
+                                // 仅在授权成功时进行组件检查
                                 if (state.isTermuxAuthorized.value) {
+                                    // 检查组件状态，该函数会自动更新持久化状态
                                     checkInstalledComponents()
                                 }
                             } else {
                                 state.isTermuxAuthorized.value = false
-                                // 重置配置状态
+
+                                // 如果Termux未安装，重置配置状态
+                                if (isTermuxFullyConfigured.value) {
+                                    saveTermuxConfigStatus(context, false)
+                                    isTermuxFullyConfigured.value = false
+                                }
+
+                                // 重置组件状态
                                 isTunaSourceEnabled.value = false
                                 isPythonInstalled.value = false
                                 isNodeInstalled.value = false
                             }
+
+                            // 给UI更新一些时间
+                            delay(300)
                         } catch (e: Exception) {
                             Log.e(TAG, "刷新状态时出错: ${e.message}", e)
                             withContext(Dispatchers.Main) {
@@ -679,7 +794,6 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
                             }
                         } finally {
                             // 刷新完成
-                            delay(300) // 短暂延迟以确保UI更新
                             state.isRefreshing.value = false
                         }
                     }
@@ -781,9 +895,7 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
                     // 短按时处理Termux
                     if (!state.isTermuxInstalled.value ||
                                     !state.isTermuxAuthorized.value ||
-                                    !isTunaSourceEnabled.value ||
-                                    !isPythonInstalled.value ||
-                                    !isNodeInstalled.value
+                                    !isTermuxFullyConfigured.value
                     ) {
                         // 如果未完全配置，显示向导
                         state.showTermuxWizard.value = !state.showTermuxWizard.value
@@ -807,10 +919,10 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
                     state.showTermuxCommandExecutor.value = !state.showTermuxCommandExecutor.value
                 },
                 permissionErrorMessage = state.permissionErrorMessage.value,
-                // 添加Termux配置状态参数
-                isTunaSourceEnabled = isTunaSourceEnabled.value,
-                isPythonInstalled = isPythonInstalled.value,
-                isNodeInstalled = isNodeInstalled.value
+                // 添加Termux配置状态参数，将持久化状态融合进显示逻辑
+                isTunaSourceEnabled = isTunaSourceEnabled.value || isTermuxFullyConfigured.value,
+                isPythonInstalled = isPythonInstalled.value || isTermuxFullyConfigured.value,
+                isNodeInstalled = isNodeInstalled.value || isTermuxFullyConfigured.value
         )
 
         // 显示长按提示

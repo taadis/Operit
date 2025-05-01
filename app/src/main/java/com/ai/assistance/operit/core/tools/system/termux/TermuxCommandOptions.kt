@@ -2,21 +2,21 @@ package com.ai.assistance.operit.core.tools.system.termux
 
 /** 执行Termux命令的高级配置选项 */
 data class TermuxCommandOptions(
-    val executable: String = "/data/data/com.termux/files/usr/bin/bash",
-    val arguments: Array<String> = arrayOf(),
-    val workingDirectory: String = "/data/data/com.termux/files/home",
-    val background: Boolean = true,
-    val sessionAction: String = SessionAction.ACTION_NEW_SESSION,
-    val label: String? = null,
-    val description: String? = null,
-    val stdin: String? = null,
-    val user: String? = null,
-    val timeout: Long = DEFAULT_TIMEOUT,
-    val timeoutAsError: Boolean = false // 控制超时是否被视为错误
+        val executable: String = "/data/data/com.termux/files/usr/bin/bash",
+        val arguments: Array<String> = arrayOf(),
+        val workingDirectory: String = "/data/data/com.termux/files/home",
+        val background: Boolean = true,
+        val sessionAction: String = SessionAction.ACTION_NEW_SESSION,
+        val label: String? = null,
+        val description: String? = null,
+        val stdin: String? = null,
+        val user: String? = null,
+        val timeout: Long = DEFAULT_TIMEOUT,
+        val timeoutAsError: Boolean = false // 控制超时是否被视为错误
 ) {
     companion object {
-        const val DEFAULT_TIMEOUT = 120000L // 默认超时时间：120秒
-        const val INACTIVITY_TIMEOUT = 120000L // 无活动超时时间：120秒
+        const val DEFAULT_TIMEOUT = 360000L // 默认超时时间：360秒
+        const val INACTIVITY_TIMEOUT = 100000L // 无活动超时时间：100秒
     }
 
     /** 会话操作类型 */
