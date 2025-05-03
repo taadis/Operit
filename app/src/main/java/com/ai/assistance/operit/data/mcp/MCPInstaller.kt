@@ -35,6 +35,8 @@ class MCPInstaller(private val context: Context) {
         private const val OPERIT_DIR_NAME = "Operit"
         // 元数据文件名
         private const val METADATA_FILE_NAME = "mcp_metadata.json"
+        // 缓存刷新间隔（毫秒）
+        private const val CACHE_REFRESH_INTERVAL = 60000 // 1分钟
     }
 
     /** 插件元数据类，用于保存原始插件信息 */
@@ -48,6 +50,16 @@ class MCPInstaller(private val context: Context) {
             @SerializedName("long_description") val longDescription: String = "",
             @SerializedName("installed_timestamp")
             val installedTimestamp: Long = System.currentTimeMillis()
+    )
+
+    // 增加缓存支持
+    private val pluginInfoCache = mutableMapOf<String, CachedPluginInfo>()
+    private val pluginInstalledCache = mutableMapOf<String, Pair<Boolean, Long>>()
+
+    // 缓存的插件信息类
+    private data class CachedPluginInfo(
+            val info: InstalledPluginInfo,
+            val timestamp: Long = System.currentTimeMillis()
     )
 
     // 获取插件目录
@@ -163,6 +175,10 @@ class MCPInstaller(private val context: Context) {
                 savePluginMetadata(extractedDir, server)
 
                 progressCallback(InstallProgress.Finished)
+
+                // 清除缓存，确保下次读取时能获取新数据
+                clearPluginInfoCache()
+
                 return InstallResult.Success(extractedDir.path)
             } else {
                 // 处理常规第三方插件 - 原有逻辑
@@ -227,6 +243,10 @@ class MCPInstaller(private val context: Context) {
                 savePluginMetadata(mainDir, server)
 
                 progressCallback(InstallProgress.Finished)
+
+                // 清除缓存，确保下次读取时能获取新数据
+                clearPluginInfoCache()
+
                 return InstallResult.Success(mainDir.path)
             }
         } catch (e: Exception) {
@@ -739,24 +759,29 @@ class MCPInstaller(private val context: Context) {
      * @param serverId 服务器 ID
      * @return 是否成功卸载
      */
-    suspend fun uninstallPlugin(serverId: String): Boolean {
-        return withContext(Dispatchers.IO) {
-            try {
-                val pluginDir = File(pluginsBaseDir, serverId)
-                if (!pluginDir.exists()) {
-                    Log.w(TAG, "卸载插件失败：目录不存在 ${pluginDir.path}")
+    suspend fun uninstallPlugin(serverId: String): Boolean =
+            withContext(Dispatchers.IO) {
+                try {
+                    val pluginDir = File(pluginsBaseDir, serverId)
+                    if (!pluginDir.exists() || !pluginDir.isDirectory) {
+                        Log.d(TAG, "插件目录不存在，卸载成功: $serverId")
+                        return@withContext true
+                    }
+
+                    val result = pluginDir.deleteRecursively()
+                    Log.d(TAG, "插件卸载${if (result) "成功" else "失败"}: $serverId")
+
+                    // 清除缓存，确保下次读取时能获取新数据
+                    if (result) {
+                        clearPluginInfoCache()
+                    }
+
+                    return@withContext result
+                } catch (e: Exception) {
+                    Log.e(TAG, "卸载插件时发生错误", e)
                     return@withContext false
                 }
-
-                val result = pluginDir.deleteRecursively()
-                Log.d(TAG, "插件卸载${if (result) "成功" else "失败"}: $serverId")
-                return@withContext result
-            } catch (e: Exception) {
-                Log.e(TAG, "卸载插件时发生错误", e)
-                return@withContext false
             }
-        }
-    }
 
     /**
      * 检查插件是否已安装
@@ -765,8 +790,23 @@ class MCPInstaller(private val context: Context) {
      * @return 是否已安装
      */
     fun isPluginInstalled(serverId: String): Boolean {
+        // 检查缓存
+        val cachedResult = pluginInstalledCache[serverId]
+        if (cachedResult != null) {
+            val (isInstalled, timestamp) = cachedResult
+            // 如果缓存时间未过期，直接返回缓存值
+            if (System.currentTimeMillis() - timestamp < CACHE_REFRESH_INTERVAL) {
+                return isInstalled
+            }
+        }
+
         val pluginDir = File(pluginsBaseDir, serverId)
-        return pluginDir.exists() && pluginDir.isDirectory
+        val isInstalled = pluginDir.exists() && pluginDir.isDirectory
+
+        // 更新缓存
+        pluginInstalledCache[serverId] = Pair(isInstalled, System.currentTimeMillis())
+
+        return isInstalled
     }
 
     /**
@@ -777,6 +817,15 @@ class MCPInstaller(private val context: Context) {
      */
     fun getInstalledPluginInfo(serverId: String): InstalledPluginInfo? {
         try {
+            // 检查缓存
+            val cachedInfo = pluginInfoCache[serverId]
+            if (cachedInfo != null) {
+                // 如果缓存时间未过期，直接返回缓存值
+                if (System.currentTimeMillis() - cachedInfo.timestamp < CACHE_REFRESH_INTERVAL) {
+                    return cachedInfo.info
+                }
+            }
+
             val pluginDir = File(pluginsBaseDir, serverId)
             if (!pluginDir.exists() || !pluginDir.isDirectory) {
                 Log.d(TAG, "插件目录不存在: $serverId")
@@ -790,7 +839,11 @@ class MCPInstaller(private val context: Context) {
 
             if (isOfficialPlugin) {
                 // 对于官方插件，直接使用插件目录
-                Log.d(TAG, "使用官方插件目录: $serverId")
+                // 使用静态计数限制日志频率（每个官方插件只记录一次）
+                if (!loggedOfficialPlugins.contains(serverId)) {
+                    Log.d(TAG, "使用官方插件目录: $serverId")
+                    loggedOfficialPlugins.add(serverId)
+                }
                 pluginPath = pluginDir.path
 
                 // 尝试读取元数据
@@ -828,7 +881,13 @@ class MCPInstaller(private val context: Context) {
                     } else {
                         // 如果找不到相关目录，使用第一个目录
                         val firstDir = extractedDirs.first()
-                        Log.d(TAG, "使用第一个目录作为插件路径: $serverId: ${firstDir.path}")
+
+                        // 使用静态计数限制日志频率
+                        if (!loggedThirdPartyPlugins.contains(serverId)) {
+                            Log.d(TAG, "使用第一个目录作为插件路径: $serverId: ${firstDir.path}")
+                            loggedThirdPartyPlugins.add(serverId)
+                        }
+
                         pluginPath = firstDir.path
 
                         // 尝试读取元数据
@@ -837,11 +896,28 @@ class MCPInstaller(private val context: Context) {
                 }
             }
 
-            return InstalledPluginInfo(pluginPath, metadata)
+            val info = InstalledPluginInfo(pluginPath, metadata)
+
+            // 更新缓存
+            pluginInfoCache[serverId] = CachedPluginInfo(info)
+
+            return info
         } catch (e: Exception) {
             Log.e(TAG, "查找插件路径时出错: $serverId", e)
             return null
         }
+    }
+
+    // 静态集合用于限制日志输出频率
+    private val loggedOfficialPlugins = mutableSetOf<String>()
+    private val loggedThirdPartyPlugins = mutableSetOf<String>()
+
+    /** 清除插件信息缓存 在插件安装或卸载后调用此方法 */
+    fun clearPluginInfoCache() {
+        pluginInfoCache.clear()
+        pluginInstalledCache.clear()
+        loggedOfficialPlugins.clear()
+        loggedThirdPartyPlugins.clear()
     }
 
     /**
@@ -998,13 +1074,21 @@ class MCPInstaller(private val context: Context) {
             val metadataJson = metadataFile.readText()
             val metadata = Gson().fromJson(metadataJson, PluginMetadata::class.java)
 
-            Log.d(TAG, "读取到插件元数据: ${metadata.originalName}")
+            // 使用静态集合限制日志输出频率
+            if (!loggedMetadata.contains(metadata.originalName)) {
+                Log.d(TAG, "读取到插件元数据: ${metadata.originalName}")
+                loggedMetadata.add(metadata.originalName)
+            }
+
             return metadata
         } catch (e: Exception) {
             Log.e(TAG, "读取插件元数据失败", e)
             return null
         }
     }
+
+    // 用于限制元数据日志输出的集合
+    private val loggedMetadata = mutableSetOf<String>()
 }
 
 /** 安装进度状态 */

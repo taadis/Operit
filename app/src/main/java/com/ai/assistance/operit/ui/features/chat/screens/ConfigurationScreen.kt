@@ -469,7 +469,7 @@ fun ConfigurationScreen(
                                                         width = 1.dp,
                                                         color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.5f)
                                                 ),
-                                                contentPadding =
+                                                 contentPadding =
                                                         PaddingValues(
                                                                 horizontal = 8.dp,
                                                                 vertical = 8.dp

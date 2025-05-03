@@ -56,6 +56,9 @@ class MCPPluginManager(
 
             // Save to file for next startup
             cacheManager.saveInstalledPlugins(installedIds)
+            
+            // Clear plugin info cache to ensure fresh data
+            mcpInstaller.clearPluginInfoCache()
 
             Log.d(TAG, "Scanned installed plugins: ${installedIds.size}")
         } catch (e: Exception) {
@@ -96,21 +99,25 @@ class MCPPluginManager(
                             repoUrl = server.repoUrl
                     )
 
-            // Perform the installation
+            // Perform physical installation
             val result = mcpInstaller.installPlugin(dataServer, progressCallback)
 
             if (result is InstallResult.Success) {
-                // Rescan installed plugins after successful installation
+                // Scan installed plugins after successful installation
                 scanInstalledPlugins()
-                Log.d(TAG, "Plugin $pluginId installed successfully, path: ${result.pluginPath}")
-            } else if (result is InstallResult.Error) {
-                Log.e(TAG, "Failed to install plugin $pluginId: ${result.message}")
+                
+                // Clear plugin info cache
+                mcpInstaller.clearPluginInfoCache()
+                
+                Log.d(TAG, "Plugin $pluginId installed successfully")
+            } else {
+                Log.e(TAG, "Failed to install plugin $pluginId")
             }
 
             return result
         } catch (e: Exception) {
             Log.e(TAG, "Exception while installing plugin $pluginId", e)
-            return InstallResult.Error("Installation exception: ${e.message}")
+            return InstallResult.Error("Installation error: ${e.message}")
         }
     }
 
@@ -128,6 +135,10 @@ class MCPPluginManager(
             if (success) {
                 // Rescan installed plugins after successful uninstallation
                 scanInstalledPlugins()
+                
+                // Clear plugin info cache
+                mcpInstaller.clearPluginInfoCache()
+                
                 Log.d(TAG, "Plugin $pluginId uninstalled successfully")
             } else {
                 Log.e(TAG, "Failed to uninstall plugin $pluginId")
