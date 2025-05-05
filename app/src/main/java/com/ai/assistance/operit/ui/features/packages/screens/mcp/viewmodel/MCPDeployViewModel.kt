@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.ai.assistance.operit.data.mcp.MCPDeployer
+import com.ai.assistance.operit.data.mcp.plugins.MCPDeployer
 import com.ai.assistance.operit.data.mcp.MCPRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

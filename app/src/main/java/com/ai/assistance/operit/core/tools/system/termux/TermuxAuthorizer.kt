@@ -282,11 +282,12 @@ class TermuxAuthorizer {
                     }
                 }
 
-        /** 检查应用是否有Termux运行命令权限 */
+        /** 检查是否有Termux Run Command权限 */
         private suspend fun checkRunCommandPermission(context: Context): Boolean =
                 withContext(Dispatchers.IO) {
-                    // 这个权限是在AndroidManifest中声明的，只需要检查是否在manifest中声明了
-                    // 并且Termux已配置allow-external-apps=true（在checkTermuxConfig中已检查）
+                    // 这个权限是在AndroidManifest中声明的，需要检查两点：
+                    // 1. 应用在manifest中是否声明了该权限
+                    // 2. 用户是否授予了该权限
 
                     try {
                         // 检查应用清单中是否声明了权限
@@ -302,9 +303,22 @@ class TermuxAuthorizer {
                                 declaredPermissions.any { it == PERMISSION_TERMUX_RUN_COMMAND }
 
                         Log.d(TAG, "应用是否在Manifest中声明了Termux RUN_COMMAND权限: $hasPermissionDeclared")
-
-                        // 如果清单中声明了权限，且Termux允许外部应用访问（通过checkTermuxConfig校验），则认为有权限
-                        return@withContext hasPermissionDeclared
+                        
+                        // 如果清单中未声明权限，直接返回false
+                        if (!hasPermissionDeclared) {
+                            Log.w(TAG, "应用清单中未声明Termux RUN_COMMAND权限")
+                            return@withContext false
+                        }
+                        
+                        // 检查用户是否授予了该权限（使用checkCallingOrSelfPermission方法）
+                        val permissionResult = context.checkCallingOrSelfPermission(PERMISSION_TERMUX_RUN_COMMAND)
+                        val permissionGranted = permissionResult == PackageManager.PERMISSION_GRANTED
+                        
+                        Log.d(TAG, "用户是否授予了Termux RUN_COMMAND权限: $permissionGranted")
+                        
+                        // 总体授权判断：Manifest中声明且用户授予了权限，并且Termux配置允许外部应用访问
+                        // 配置检查已经在isTermuxAuthorized方法中通过checkTermuxConfig()实现
+                        return@withContext permissionGranted
                     } catch (e: Exception) {
                         Log.e(TAG, "检查Termux RUN_COMMAND权限失败: ${e.message}")
                         return@withContext false

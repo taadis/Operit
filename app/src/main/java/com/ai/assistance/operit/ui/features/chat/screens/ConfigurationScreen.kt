@@ -5,8 +5,12 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -40,10 +44,6 @@ import com.ai.assistance.operit.util.ModelEndPointFix
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.BorderStroke
 
 @Composable
 fun ConfigurationScreen(
@@ -155,7 +155,7 @@ fun ConfigurationScreen(
                                         // 说明文字 - 修改为更有感染力的表达，明确要求分享一次
                                         Text(
                                                 text =
-                                                        "作为开源项目，我们希望您的帮助让更多人发现这款AI助手！分享可获得完整功能与更多对话次数，您也可以选择直接使用基础功能。",
+                                                        "作为开源项目，我们希望您的帮助让更多人发现这款AI助手！分享的话，软件未来可能会更好哦！",
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 textAlign = TextAlign.Center,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -174,8 +174,16 @@ fun ConfigurationScreen(
                                                                                 .primaryContainer
                                                         )
                                         ) {
+                                                // 创建滚动状态
+                                                val promotionScrollState = rememberScrollState()
+
                                                 Column(
-                                                        modifier = Modifier.padding(16.dp),
+                                                        modifier =
+                                                                Modifier.padding(16.dp)
+                                                                        .height(160.dp) // 增加高度从120dp到160dp
+                                                                        .verticalScroll(
+                                                                                promotionScrollState
+                                                                        ), // 添加滚动功能
                                                         horizontalAlignment =
                                                                 Alignment.CenterHorizontally
                                                 ) {
@@ -198,7 +206,9 @@ fun ConfigurationScreen(
                                                                         style =
                                                                                 MaterialTheme
                                                                                         .typography
-                                                                                        .bodyLarge,
+                                                                                        .bodyMedium.copy(
+                                                                                            fontSize = 13.sp
+                                                                                        ), // 从bodyLarge改为bodyMedium并设置更小的字体大小
                                                                         textAlign =
                                                                                 TextAlign.Center,
                                                                         color =
@@ -465,11 +475,16 @@ fun ConfigurationScreen(
                                                                         MaterialTheme.colorScheme
                                                                                 .tertiary
                                                         ),
-                                                border = BorderStroke(
-                                                        width = 1.dp,
-                                                        color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.5f)
-                                                ),
-                                                 contentPadding =
+                                                border =
+                                                        BorderStroke(
+                                                                width = 1.dp,
+                                                                color =
+                                                                        MaterialTheme.colorScheme
+                                                                                .tertiary.copy(
+                                                                                alpha = 0.5f
+                                                                        )
+                                                        ),
+                                                contentPadding =
                                                         PaddingValues(
                                                                 horizontal = 8.dp,
                                                                 vertical = 8.dp

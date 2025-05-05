@@ -2,6 +2,7 @@ package com.ai.assistance.operit.ui.features.demo.screens
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -373,9 +374,49 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
 
     // 刷新状态函数 - 不要重复检查Termux配置，减少不必要的跳转
     val refreshStatus = {
+        Log.d(TAG, "刷新应用权限状态...")
+
+        // 检查Shizuku安装、运行和权限状态
         state.isShizukuInstalled.value = AdbCommandExecutor.isShizukuInstalled(context)
         state.isShizukuRunning.value = AdbCommandExecutor.isShizukuServiceRunning()
-        state.hasShizukuPermission.value = AdbCommandExecutor.hasShizukuPermission()
+
+        // 更明确地检查 moe.shizuku.manager.permission.API_V23 权限
+        val hasShizukuPermission =
+                if (state.isShizukuInstalled.value && state.isShizukuRunning.value) {
+                    AdbCommandExecutor.hasShizukuPermission()
+                } else {
+                    false
+                }
+        state.hasShizukuPermission.value = hasShizukuPermission
+
+        // 如果Shizuku权限检查失败，确保Shizuku向导卡片显示
+        if (!state.hasShizukuPermission.value) {
+            Log.d(TAG, "缺少Shizuku权限，显示Shizuku向导卡片")
+            // 强制显示Shizuku向导卡片
+            state.showShizukuWizard.value = true
+        }
+
+        // 检查Termux是否安装及检查清单中是否声明了RUN_COMMAND权限
+        state.isTermuxInstalled.value = TermuxInstaller.isTermuxInstalled(context)
+
+        // 检查应用清单中是否声明了RUN_COMMAND权限
+        var hasTermuxPermissionDeclared = false
+        try {
+            val packageInfo =
+                    context.packageManager.getPackageInfo(
+                            context.packageName,
+                            PackageManager.GET_PERMISSIONS
+                    )
+            val declaredPermissions = packageInfo.requestedPermissions ?: emptyArray()
+            hasTermuxPermissionDeclared =
+                    declaredPermissions.any { it == "com.termux.permission.RUN_COMMAND" }
+
+            if (!hasTermuxPermissionDeclared) {
+                Log.w(TAG, "应用清单中未声明Termux RUN_COMMAND权限，Termux功能将无法正常运行")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "检查应用权限声明时出错: ${e.message}")
+        }
 
         // 检查存储权限
         state.hasStoragePermission.value =
@@ -409,17 +450,21 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
         // 检查无障碍服务状态
         state.hasAccessibilityServiceEnabled.value =
                 UIHierarchyManager.isAccessibilityServiceEnabled(context)
-
-        // 检查Termux是否安装
-        state.isTermuxInstalled.value = TermuxInstaller.isTermuxInstalled(context)
     }
 
     // 检查Termux授权状态 - 单独优化
     fun checkTermuxAuth() {
         scope.launch {
             // 这里只在特定情况下检查，而不是无条件检查
-            if (state.isTermuxInstalled.value && !state.isTermuxAuthorized.value) {
+            if (state.isTermuxInstalled.value) {
+                // 更明确地检查Termux RUN_COMMAND权限
                 state.isTermuxAuthorized.value = TermuxAuthorizer.isTermuxAuthorized(context)
+
+                // 如果Termux未授权，确保Termux向导卡片显示
+                if (!state.isTermuxAuthorized.value) {
+                    // 强制显示Termux向导卡片
+                    state.showTermuxWizard.value = true
+                }
 
                 // 只有在授权通过后才检查各项配置
                 if (state.isTermuxAuthorized.value) {
@@ -455,22 +500,43 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
 
     // 初始状态加载
     LaunchedEffect(Unit) {
+        Log.d(TAG, "初始化时加载各项权限和配置状态")
+
+        // 先刷新基本状态（包括检查Shizuku是否安装、运行）
         refreshStatus()
 
-        // 我们已经在初始化阶段读取了持久化配置，这里不需要再设置
-        // 但仍然需要在后台验证组件实际状态
+        // 专门检查Shizuku API_V23权限
+        if (state.isShizukuInstalled.value && state.isShizukuRunning.value) {
+            // 明确检查 moe.shizuku.manager.permission.API_V23 权限
+            state.hasShizukuPermission.value = AdbCommandExecutor.hasShizukuPermission()
 
-        // 无论持久化状态如何，都验证Termux授权
+            // 如果没有Shizuku权限，强制显示Shizuku向导卡片
+            if (!state.hasShizukuPermission.value) {
+                Log.d(TAG, "缺少Shizuku API_V23权限，显示Shizuku向导卡片")
+                state.showShizukuWizard.value = true
+            }
+        } else {
+            state.hasShizukuPermission.value = false
+            state.showShizukuWizard.value = true
+        }
+
+        // 检查Termux安装和权限状态
+        // com.termux.permission.RUN_COMMAND权限检查包含在isTermuxAuthorized中
         if (state.isTermuxInstalled.value) {
             state.isTermuxAuthorized.value = TermuxAuthorizer.isTermuxAuthorized(context)
 
-            // 但仅在授权成功时才进行下一步
-            if (state.isTermuxAuthorized.value) {
-                // 即使持久化状态显示已配置，仍然在后台检查组件状态
-                // 但这不会阻止界面以已配置状态显示
-                Log.d(TAG, "即使持久化记录显示Termux已配置，仍进行后台组件验证")
+            // 如果Termux未授权，显示Termux向导卡片
+            if (!state.isTermuxAuthorized.value) {
+                Log.d(TAG, "缺少Termux RUN_COMMAND权限或配置，显示Termux向导卡片")
+                state.showTermuxWizard.value = true
+            } else {
+                // 如果Termux已获得权限，进行组件检查
+                Log.d(TAG, "Termux权限验证通过，验证组件配置状态")
                 checkInstalledComponents() // 该函数会自动更新持久化状态
             }
+        } else {
+            state.isTermuxAuthorized.value = false
+            state.showTermuxWizard.value = true
         }
     }
 
@@ -697,6 +763,40 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
                             state.showResultDialogState.value = true
 
                             try {
+                                // 先检查Shizuku权限
+                                if (!AdbCommandExecutor.hasShizukuPermission()) {
+                                    outputText += "\n缺少Shizuku API_V23权限，无法执行授权操作"
+                                    outputText += "\n请先点击Shizuku卡片，完成Shizuku设置和授权"
+                                    currentTask = "Termux授权失败"
+                                    state.resultDialogContent.value = outputText
+                                    delay(3000) // 给用户时间阅读错误信息
+                                    return@launch
+                                }
+
+                                // 再检查应用清单中是否声明了RUN_COMMAND权限
+                                val packageInfo =
+                                        context.packageManager.getPackageInfo(
+                                                context.packageName,
+                                                PackageManager.GET_PERMISSIONS
+                                        )
+                                val declaredPermissions =
+                                        packageInfo.requestedPermissions ?: emptyArray()
+                                val hasPermissionDeclared =
+                                        declaredPermissions.any {
+                                            it == "com.termux.permission.RUN_COMMAND"
+                                        }
+
+                                if (!hasPermissionDeclared) {
+                                    outputText += "\n应用清单中未声明Termux RUN_COMMAND权限"
+                                    outputText += "\n请联系开发者修复此问题"
+                                    currentTask = "Termux授权失败"
+                                    state.resultDialogContent.value = outputText
+                                    delay(3000) // 给用户时间阅读错误信息
+                                    return@launch
+                                }
+
+                                outputText += "\n开始授予Termux权限..."
+
                                 val success = TermuxAuthorizer.grantAllTermuxPermissions(context)
 
                                 if (success) {
@@ -721,7 +821,11 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
                                         outputText += "\n检查完成，请点击相应按钮进行配置"
                                     }
                                 } else {
-                                    outputText += "\nTermux授权失败，请检查Shizuku权限"
+                                    outputText += "\nTermux授权失败，请确认以下事项:"
+                                    outputText += "\n1. Shizuku服务是否正常运行"
+                                    outputText +=
+                                            "\n2. 应用是否在AndroidManifest中声明了com.termux.permission.RUN_COMMAND权限"
+                                    outputText += "\n3. Termux应用是否已正确安装"
                                     Toast.makeText(
                                                     context,
                                                     "授权Termux失败，请检查Termux设置",

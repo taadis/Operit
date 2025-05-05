@@ -17,14 +17,17 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.ai.assistance.operit.data.mcp.MCPDeployer
+import com.ai.assistance.operit.data.mcp.plugins.MCPDeployer
 import com.ai.assistance.operit.data.mcp.MCPLocalServer
 import com.ai.assistance.operit.data.mcp.MCPRepository
 import com.ai.assistance.operit.ui.features.packages.components.dialogs.MCPServerDetailsDialog
@@ -33,6 +36,8 @@ import com.ai.assistance.operit.ui.features.packages.screens.mcp.components.MCPI
 import com.ai.assistance.operit.ui.features.packages.screens.mcp.viewmodel.MCPDeployViewModel
 import com.ai.assistance.operit.ui.features.packages.screens.mcp.viewmodel.MCPViewModel
 import java.util.*
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /** MCP配置屏幕 - 极简风格界面，专注于插件快速部署 */
@@ -42,6 +47,9 @@ fun MCPConfigScreen() {
     val context = LocalContext.current
     val mcpLocalServer = remember { MCPLocalServer.getInstance(context) }
     val mcpRepository = remember { MCPRepository(context) }
+    val mcpConfigPreferences = remember {
+        com.ai.assistance.operit.data.mcp.MCPConfigPreferences(context)
+    }
     val scope = rememberCoroutineScope()
 
     // 实例化两个ViewModel
@@ -72,6 +80,37 @@ fun MCPConfigScreen() {
     val autoStart = mcpLocalServer.autoStart.collectAsState().value
     val logLevel = mcpLocalServer.logLevel.collectAsState().value
     val connectedClients = mcpLocalServer.connectedClients.collectAsState().value
+
+    // 标记是否已经执行过初始化时的自动启动
+    var initialAutoStartPerformed = remember { mutableStateOf(false) }
+
+    // 在应用启动时检查自动启动设置，而不是等待UI完全加载
+    LaunchedEffect(Unit) {
+        // 仅在首次加载时执行一次
+        if (!initialAutoStartPerformed.value) {
+            android.util.Log.d("MCPConfigScreen", "初始化 - 检查服务器状态")
+
+            // 只记录服务器状态，不再重复启动服务器(已由 Application 中的 initAndAutoStartPlugins 控制)
+            if (isServerRunning) {
+                android.util.Log.d("MCPConfigScreen", "MCP服务器已在运行")
+            } else {
+                android.util.Log.d("MCPConfigScreen", "MCP服务器未运行")
+            }
+
+            // 读取并记录已安装的MCP插件列表，但不执行任何操作
+            android.util.Log.d("MCPConfigScreen", "已安装的MCP插件列表:")
+            installedPlugins.forEach { pluginId ->
+                try {
+                    val isAutoDeploy = mcpConfigPreferences.getAutoDeployFlow(pluginId).first()
+                    android.util.Log.d("MCPConfigScreen", "插件ID: $pluginId, 自动部署: $isAutoDeploy")
+                } catch (e: Exception) {
+                    android.util.Log.e("MCPConfigScreen", "无法读取插件 $pluginId 的自动部署设置: ${e.message}")
+                }
+            }
+
+            initialAutoStartPerformed.value = true
+        }
+    }
 
     // 编辑状态
     var serverPortInput by remember { mutableStateOf(serverPort.toString()) }
@@ -183,7 +222,15 @@ fun MCPConfigScreen() {
             }
 
             mcpLocalServer.saveServerPath(serverPathInput)
-            mcpLocalServer.saveAutoStart(autoStartInput)
+
+            // 检查自动启动设置是否有变化
+            if (autoStartInput != autoStart) {
+                android.util.Log.d("MCPConfigScreen", "自动启动设置已更改: $autoStart -> $autoStartInput")
+                mcpLocalServer.saveAutoStart(autoStartInput)
+            } else {
+                mcpLocalServer.saveAutoStart(autoStartInput)
+            }
+
             mcpLocalServer.saveLogLevel(logLevelInput)
 
             scope.launch { snackbarHostState.showSnackbar("服务器设置已保存") }
@@ -287,7 +334,28 @@ fun MCPConfigScreen() {
                             IconButton(
                                     onClick = {
                                         viewModel.refreshLocalPlugins()
-                                        scope.launch { snackbarHostState.showSnackbar("已刷新") }
+                                        // 刷新插件列表后，检查并部署标记为自动部署的插件
+                                        scope.launch {
+                                            // 等待插件列表刷新完成
+                                            delay(500)
+                                            // 仅在服务器运行时执行自动部署
+                                            if (isServerRunning) {
+                                                installedPlugins.forEach { pluginId ->
+                                                    val isAutoDeploy =
+                                                            mcpConfigPreferences
+                                                                    .getAutoDeployFlow(pluginId)
+                                                                    .first()
+                                                    if (isAutoDeploy &&
+                                                                    currentDeployingPlugin == null
+                                                    ) {
+                                                        deployViewModel.deployPlugin(pluginId)
+                                                        // 部署一个后暂停，避免同时部署多个
+                                                        delay(300)
+                                                    }
+                                                }
+                                            }
+                                            snackbarHostState.showSnackbar("已刷新")
+                                        }
                                     }
                             ) { Icon(Icons.Default.Refresh, contentDescription = "刷新") }
                             IconButton(onClick = { showAdvancedOptions = !showAdvancedOptions }) {
@@ -321,6 +389,23 @@ fun MCPConfigScreen() {
                                 PaddingValues(bottom = if (showAdvancedOptions) 280.dp else 0.dp)
                 ) {
                     items(installedPlugins.toList()) { pluginId ->
+                        val autoDeployState =
+                                mcpConfigPreferences
+                                        .getAutoDeployFlow(pluginId)
+                                        .collectAsState(initial = false)
+
+                        // 获取插件部署成功状态
+                        val deploySuccessState =
+                                mcpConfigPreferences
+                                        .getDeploySuccessFlow(pluginId)
+                                        .collectAsState(initial = false)
+
+                        // 获取插件最后部署时间
+                        val lastDeployTimeState =
+                                mcpConfigPreferences
+                                        .getLastDeployTimeFlow(pluginId)
+                                        .collectAsState(initial = 0L)
+
                         PluginListItem(
                                 pluginId = pluginId,
                                 displayName = getPluginDisplayName(pluginId),
@@ -330,7 +415,15 @@ fun MCPConfigScreen() {
                                     pluginConfigJson = mcpLocalServer.getPluginConfig(pluginId)
                                     selectedPluginForDetails = getPluginAsServer(pluginId)
                                 },
-                                onDeploy = { pluginToDeploy = pluginId }
+                                onDeploy = { pluginToDeploy = pluginId },
+                                isAutoDeploy = autoDeployState.value,
+                                onAutoDeployChange = { isChecked ->
+                                    scope.launch {
+                                        mcpConfigPreferences.saveAutoDeploy(pluginId, isChecked)
+                                    }
+                                },
+                                isDeployed = deploySuccessState.value,
+                                lastDeployTime = lastDeployTimeState.value
                         )
                         Divider(modifier = Modifier.padding(horizontal = 4.dp))
                     }
@@ -507,8 +600,17 @@ fun MCPConfigScreen() {
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("自动启动服务器")
-                            Spacer(Modifier.weight(1f))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("自动启动服务器")
+                                Text(
+                                        "应用启动时自动启动MCP服务器",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color =
+                                                MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                                        alpha = 0.7f
+                                                )
+                                )
+                            }
                             Switch(
                                     checked = autoStartInput,
                                     onCheckedChange = { autoStartInput = it }
@@ -532,8 +634,17 @@ private fun PluginListItem(
         displayName: String,
         isOfficial: Boolean,
         onClick: () -> Unit,
-        onDeploy: () -> Unit
+        onDeploy: () -> Unit,
+        isAutoDeploy: Boolean,
+        onAutoDeployChange: (Boolean) -> Unit,
+        isDeployed: Boolean = false,
+        lastDeployTime: Long = 0L
 ) {
+    // 获取屏幕尺寸以优化开关大小
+    val configuration = LocalConfiguration.current
+    val isTablet = configuration.screenWidthDp > 600
+    val switchScale = if (isTablet) 0.8f else 0.7f
+
     Row(
             modifier =
                     Modifier.fillMaxWidth()
@@ -555,32 +666,145 @@ private fun PluginListItem(
                     tint = MaterialTheme.colorScheme.onPrimaryContainer,
                     modifier = Modifier.size(18.dp)
             )
-        }
 
-        // 名称和标签
-        Column(modifier = Modifier.weight(1f).padding(horizontal = 12.dp)) {
-            Text(
-                    text = displayName,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-            )
-
-            if (isOfficial) {
-                Text(
-                        "官方",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary
+            // 添加自动部署指示徽章
+            if (isAutoDeploy) {
+                Box(
+                        modifier =
+                                Modifier.size(10.dp)
+                                        .align(Alignment.TopEnd)
+                                        .offset(x = 4.dp, y = (-4).dp)
+                                        .background(
+                                                color = MaterialTheme.colorScheme.primary,
+                                                shape = RoundedCornerShape(5.dp)
+                                        )
                 )
             }
         }
 
-        // 部署按钮
+        // 名称和标签
+        Column(modifier = Modifier.weight(1f).padding(horizontal = 12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                        text = displayName,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                )
+
+                // 添加自动部署标签
+                if (isAutoDeploy) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                            "自动",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier =
+                                    Modifier.background(
+                                                    color =
+                                                            MaterialTheme.colorScheme
+                                                                    .primaryContainer,
+                                                    shape = RoundedCornerShape(4.dp)
+                                            )
+                                            .padding(horizontal = 4.dp, vertical = 1.dp)
+                    )
+                }
+
+                // 添加部署成功标签
+                if (isDeployed) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                            "已部署",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                            color = MaterialTheme.colorScheme.tertiary,
+                            modifier =
+                                    Modifier.background(
+                                                    color =
+                                                            MaterialTheme.colorScheme
+                                                                    .tertiaryContainer,
+                                                    shape = RoundedCornerShape(4.dp)
+                                            )
+                                            .padding(horizontal = 4.dp, vertical = 1.dp)
+                    )
+                }
+            }
+
+            if (isOfficial) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                            "官方",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary
+                    )
+
+                    // 显示最后部署时间
+                    if (lastDeployTime > 0) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        val dateStr =
+                                java.text.SimpleDateFormat(
+                                                "yyyy-MM-dd HH:mm",
+                                                java.util.Locale.getDefault()
+                                        )
+                                        .format(java.util.Date(lastDeployTime))
+                        Text(
+                                "最近部署: $dateStr",
+                                style = MaterialTheme.typography.labelSmall,
+                                color =
+                                        MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                                alpha = 0.7f
+                                        )
+                        )
+                    }
+                }
+            } else if (lastDeployTime > 0) {
+                // 非官方插件也显示最后部署时间
+                val dateStr =
+                        java.text.SimpleDateFormat(
+                                        "yyyy-MM-dd HH:mm",
+                                        java.util.Locale.getDefault()
+                                )
+                                .format(java.util.Date(lastDeployTime))
+                Text(
+                        "最近部署: $dateStr",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+            }
+        }
+
+        // 部署按钮 - 根据部署状态变化样式
         TextButton(
                 onClick = onDeploy,
                 contentPadding = PaddingValues(horizontal = 12.dp),
-                modifier = Modifier.height(36.dp)
-        ) { Text("部署") }
+                modifier = Modifier.height(36.dp),
+                colors =
+                        ButtonDefaults.textButtonColors(
+                                contentColor =
+                                        if (isDeployed) MaterialTheme.colorScheme.tertiary
+                                        else MaterialTheme.colorScheme.primary
+                        )
+        ) { Text(if (isDeployed) "重新部署" else "部署") }
+
+        Spacer(modifier = Modifier.width(4.dp))
+
+        // 自动部署开关 - 紧凑样式
+        Box(modifier = Modifier.padding(end = 4.dp), contentAlignment = Alignment.Center) {
+            Switch(
+                    checked = isAutoDeploy,
+                    onCheckedChange = onAutoDeployChange,
+                    modifier =
+                            Modifier.scale(switchScale) // 根据屏幕尺寸调整缩放比例
+                                    .padding(0.dp),
+                    colors =
+                            SwitchDefaults.colors(
+                                    checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                    checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
+                                    uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                                    uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+            )
+        }
     }
 }

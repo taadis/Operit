@@ -39,6 +39,12 @@ object TermuxCommandExecutionImpl {
         return EXECUTION_ID++
     }
 
+    /** 检查是否有Termux运行命令权限 */
+    private fun hasTermuxRunCommandPermission(context: Context): Boolean {
+        return context.checkCallingOrSelfPermission("com.termux.permission.RUN_COMMAND") == 
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+    }
+
     /**
      * 执行Termux命令 (使用流式输出) 该方法会默认使用流式输出模式，替代旧的executeCommand方法
      * @param context 上下文
@@ -474,7 +480,7 @@ object TermuxCommandExecutionImpl {
                             context.startService(intent)
                             Log.d(TAG, "已发送命令到Termux: $command, 执行ID: $executionId")
                         } catch (e: Exception) {
-                            Log.e(TAG, "启动Termux服务失败: ${e.message}, 尝试使用ADB强制启动", e)
+                            Log.e(TAG, "启动Termux服务失败: ${e.message}", e)
 
                             // 检查是否是后台服务启动限制异常
                             if (e.javaClass.name.contains(
@@ -503,7 +509,7 @@ object TermuxCommandExecutionImpl {
                                                 success = false,
                                                 stdout = "",
                                                 stderr =
-                                                        "无法在后台启动Termux服务: ${e.message}，请确保应用在前台运行或使用ADB命令直接执行",
+                                                        "无法在后台启动Termux服务: ${e.message}，请确保应用在前台运行",
                                                 exitCode = -1
                                         )
                                 )
@@ -513,38 +519,85 @@ object TermuxCommandExecutionImpl {
                                         success = false,
                                         stdout = "",
                                         stderr =
-                                                "无法在后台启动Termux服务: ${e.message}，请确保应用在前台运行或使用ADB命令直接执行",
+                                                "无法在后台启动Termux服务: ${e.message}，请确保应用在前台运行",
                                         exitCode = -1
                                 )
                             }
 
-                            // 尝试使用ADB方式启动
-                            val adbStartResult =
-                                TermuxFileMonitor.startTermuxViaAdb(
-                                    command = command,
-                                    wrappedCommand = wrappedCommand,
-                                    executionId = executionId,
-                                    tempOutputFile = tempOutputFile,
-                                    commandCompleted = commandCompleted,
-                                    commandIsRunning = commandIsRunning,
-                                    effectiveOutputReceiver = effectiveOutputReceiver,
-                                    stdoutBuilder = stdoutBuilder,
-                                    stderrBuilder = stderrBuilder
-                                )
+                            // 检查是否缺少Termux运行命令权限
+                            if (!hasTermuxRunCommandPermission(context)) {
+                                Log.e(TAG, "缺少Termux运行命令权限")
+                                
+                                // 移除之前注册的回调，避免回调落空
+                                TermuxCommandResultService.removeCallback(executionId)
 
-                            if (!adbStartResult) {
+                                // 注销广播接收器
+                                try {
+                                    context.unregisterReceiver(broadcastReceiver)
+                                } catch (e2: Exception) {
+                                    // 忽略注销失败
+                                }
+                                
+                                // 通知接收器出错
+                                effectiveOutputReceiver?.onError("缺少Termux运行命令权限，请确保已授予RUN_COMMAND权限", -1)
+                                
+                                // 完成延迟对象
+                                commandCompleted.complete(
+                                    CommandResult(
+                                        success = false,
+                                        stdout = "",
+                                        stderr = "缺少Termux运行命令权限，请确保已授予RUN_COMMAND权限",
+                                        exitCode = -1
+                                    )
+                                )
+                                
                                 // 清理资源
                                 TermuxCommandInteraction.unregisterCommandFile(executionId)
                                 return@withContext CommandResult(
+                                    success = false,
+                                    stdout = "",
+                                    stderr = "缺少Termux运行命令权限，请确保已授予RUN_COMMAND权限",
+                                    exitCode = -1
+                                )
+                            } else {
+                                // 有权限但Termux未启动
+                                Log.e(TAG, "Termux服务未启动或未响应")
+                                
+                                // 移除之前注册的回调，避免回调落空
+                                TermuxCommandResultService.removeCallback(executionId)
+
+                                // 注销广播接收器
+                                try {
+                                    context.unregisterReceiver(broadcastReceiver)
+                                } catch (e2: Exception) {
+                                    // 忽略注销失败
+                                }
+                                
+                                // 通知接收器出错
+                                effectiveOutputReceiver?.onError("Termux服务未启动或未响应，请先启动Termux应用", -1)
+                                
+                                // 完成延迟对象
+                                commandCompleted.complete(
+                                    CommandResult(
                                         success = false,
                                         stdout = "",
-                                        stderr = "无法启动Termux服务，所有尝试均失败",
+                                        stderr = "Termux服务未启动或未响应，请先启动Termux应用",
                                         exitCode = -1
+                                    )
+                                )
+                                
+                                // 清理资源
+                                TermuxCommandInteraction.unregisterCommandFile(executionId)
+                                return@withContext CommandResult(
+                                    success = false,
+                                    stdout = "",
+                                    stderr = "Termux服务未启动或未响应，请先启动Termux应用",
+                                    exitCode = -1
                                 )
                             }
                         }
 
-                        // 启动使用ADB的文件监控线程
+                        // 启动文件监控线程
                         TermuxFileMonitor.monitorCommandOutput(
                             tempOutputFile = tempOutputFile,
                             commandIsRunning = commandIsRunning,

@@ -48,6 +48,17 @@ class MCPConfigPreferences(private val context: Context) {
         // 自动更新
         val AUTO_UPDATE_PLUGINS = booleanPreferencesKey("auto_update_plugins")
         val DEFAULT_AUTO_UPDATE_PLUGINS = true
+
+        // 自动部署开关状态前缀 - 用于每个插件的自动部署开关状态
+        const val AUTO_DEPLOY_PREFIX = "auto_deploy_plugin_"
+        val DEFAULT_AUTO_DEPLOY = false
+
+        // 部署成功状态前缀 - 用于标记插件是否已成功部署
+        const val DEPLOY_SUCCESS_PREFIX = "deploy_success_plugin_"
+        val DEFAULT_DEPLOY_SUCCESS = false
+
+        // 最后部署时间前缀 - 记录插件最后一次成功部署的时间
+        const val LAST_DEPLOY_TIME_PREFIX = "last_deploy_time_plugin_"
     }
 
     // API Key Flow
@@ -89,6 +100,20 @@ class MCPConfigPreferences(private val context: Context) {
             context.mcpConfigDataStore.data.map { preferences ->
                 preferences[AUTO_UPDATE_PLUGINS] ?: DEFAULT_AUTO_UPDATE_PLUGINS
             }
+
+    // 获取插件的自动部署状态
+    fun getAutoDeployFlow(pluginId: String): Flow<Boolean> {
+        val key = booleanPreferencesKey("${AUTO_DEPLOY_PREFIX}${pluginId}")
+        return context.mcpConfigDataStore.data.map { preferences ->
+            preferences[key] ?: DEFAULT_AUTO_DEPLOY
+        }
+    }
+
+    // 保存插件的自动部署状态
+    suspend fun saveAutoDeploy(pluginId: String, autoDeploy: Boolean) {
+        val key = booleanPreferencesKey("${AUTO_DEPLOY_PREFIX}${pluginId}")
+        context.mcpConfigDataStore.edit { preferences -> preferences[key] = autoDeploy }
+    }
 
     // Save API Key
     suspend fun saveMcpApiKey(apiKey: String) {
@@ -144,5 +169,38 @@ class MCPConfigPreferences(private val context: Context) {
             preferences[AUTO_UPDATE_PLUGINS] = DEFAULT_AUTO_UPDATE_PLUGINS
             // API Key is not reset
         }
+    }
+
+    // 获取插件的部署成功状态
+    fun getDeploySuccessFlow(pluginId: String): Flow<Boolean> {
+        val key = booleanPreferencesKey("${DEPLOY_SUCCESS_PREFIX}${pluginId}")
+        return context.mcpConfigDataStore.data.map { preferences ->
+            preferences[key] ?: DEFAULT_DEPLOY_SUCCESS
+        }
+    }
+
+    // 保存插件的部署成功状态
+    suspend fun saveDeploySuccess(pluginId: String, deploySuccess: Boolean) {
+        val key = booleanPreferencesKey("${DEPLOY_SUCCESS_PREFIX}${pluginId}")
+        context.mcpConfigDataStore.edit { preferences -> preferences[key] = deploySuccess }
+
+        // 如果部署成功，同时更新最后部署时间
+        if (deploySuccess) {
+            saveLastDeployTime(pluginId, System.currentTimeMillis())
+        }
+    }
+
+    // 获取插件最后部署时间
+    fun getLastDeployTimeFlow(pluginId: String): Flow<Long> {
+        val key = stringPreferencesKey("${LAST_DEPLOY_TIME_PREFIX}${pluginId}")
+        return context.mcpConfigDataStore.data.map { preferences ->
+            preferences[key]?.toLongOrNull() ?: 0L
+        }
+    }
+
+    // 保存插件最后部署时间
+    private suspend fun saveLastDeployTime(pluginId: String, timestamp: Long) {
+        val key = stringPreferencesKey("${LAST_DEPLOY_TIME_PREFIX}${pluginId}")
+        context.mcpConfigDataStore.edit { preferences -> preferences[key] = timestamp.toString() }
     }
 }

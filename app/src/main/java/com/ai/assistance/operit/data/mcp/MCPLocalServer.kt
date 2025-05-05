@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.util.Log
 import com.ai.assistance.operit.core.tools.mcp.MCPManager
 import com.ai.assistance.operit.core.tools.mcp.MCPServerConfig
+import com.ai.assistance.operit.data.mcp.plugins.MCPStarter
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.PipedInputStream
@@ -17,9 +18,11 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
@@ -47,15 +50,14 @@ class MCPLocalServer private constructor(private val context: Context) {
         private const val DEFAULT_LOG_LEVEL = "info"
         private const val MAX_LOG_ENTRIES = 1000
 
-        @Volatile
-        private var INSTANCE: MCPLocalServer? = null
+        @Volatile private var INSTANCE: MCPLocalServer? = null
 
         fun getInstance(context: Context): MCPLocalServer {
             return INSTANCE
-                ?: synchronized(this) {
-                    INSTANCE
-                        ?: MCPLocalServer(context.applicationContext).also { INSTANCE = it }
-                }
+                    ?: synchronized(this) {
+                        INSTANCE
+                                ?: MCPLocalServer(context.applicationContext).also { INSTANCE = it }
+                    }
         }
     }
 
@@ -84,7 +86,7 @@ class MCPLocalServer private constructor(private val context: Context) {
 
     // 持久化配置
     private val prefs: SharedPreferences =
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     // 服务器状态流
     private val _isRunning = MutableStateFlow(false)
@@ -100,10 +102,10 @@ class MCPLocalServer private constructor(private val context: Context) {
 
     // 服务器路径
     private val _serverPath =
-        MutableStateFlow(
-            prefs.getString(KEY_SERVER_PATH, getDefaultServerPath())
-                ?: getDefaultServerPath()
-        )
+            MutableStateFlow(
+                    prefs.getString(KEY_SERVER_PATH, getDefaultServerPath())
+                            ?: getDefaultServerPath()
+            )
     val serverPath: StateFlow<String> = _serverPath.asStateFlow()
 
     // 是否自动启动
@@ -112,7 +114,7 @@ class MCPLocalServer private constructor(private val context: Context) {
 
     // 日志级别
     private val _logLevel =
-        MutableStateFlow(prefs.getString(KEY_LOG_LEVEL, DEFAULT_LOG_LEVEL) ?: DEFAULT_LOG_LEVEL)
+            MutableStateFlow(prefs.getString(KEY_LOG_LEVEL, DEFAULT_LOG_LEVEL) ?: DEFAULT_LOG_LEVEL)
     val logLevel: StateFlow<String> = _logLevel.asStateFlow()
 
     // 连接的客户端数
@@ -129,11 +131,54 @@ class MCPLocalServer private constructor(private val context: Context) {
 
     init {
         Log.d(TAG, "MCPLocalServer 初始化，默认端口: ${_serverPort.value}")
+    }
 
-        // 如果设置了自动启动，尝试启动服务器
-        if (_autoStart.value) {
-            scope.launch { startServer() }
+    /** 初始化MCP服务器并自动启动已部署的插件 在应用启动时执行，不依赖于界面加载 */
+    fun initAndAutoStartPlugins() {
+        Log.d(TAG, "开始初始化MCP服务器并检查自动启动插件")
+
+        scope.launch {
+            try {
+                // 判断是否设置了自动启动
+                val isAutoStart = autoStart.value
+
+                if (isAutoStart) {
+                    Log.d(TAG, "自动启动设置已启用，正在启动MCP服务器")
+                    val success = startServer()
+
+                    if (success) {
+                        Log.d(TAG, "MCP服务器启动成功，等待服务器就绪")
+                        // 等待服务器完全就绪
+                        delay(2000)
+
+                        // 检查服务器是否确实运行中
+                        val isServerRunning = isRunning.value
+
+                        if (isServerRunning) {
+                            Log.d(TAG, "MCP服务器运行中，准备启动已部署插件")
+                            
+                            // 使用MCPStarter启动所有已部署的插件
+                            val mcpStarter = MCPStarter(context)
+                            mcpStarter.startAllDeployedPlugins()
+                        } else {
+                            Log.e(TAG, "MCP服务器未能成功启动")
+                        }
+                    } else {
+                        Log.e(TAG, "MCP服务器启动失败")
+                    }
+                } else {
+                    Log.d(TAG, "MCP服务器自动启动未启用")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "MCP服务器自动启动过程中出错", e)
+            }
         }
+    }
+
+    /** 从配置中提取服务器名称 */
+    private fun extractServerNameFromConfig(configJson: String): String? {
+        // 使用MCPVscodeConfig解析服务器名称
+        return MCPVscodeConfig.extractServerName(configJson)
     }
 
     /** 获取默认服务器路径 */
@@ -174,12 +219,12 @@ class MCPLocalServer private constructor(private val context: Context) {
 
             // 4. 注册到MCPManager
             val serverConfig =
-                MCPServerConfig(
-                    name = SERVER_NAME,
-                    endpoint = "mcp://local",
-                    description = "本地MCP服务器",
-                    capabilities = listOf("tools", "resources")
-                )
+                    MCPServerConfig(
+                            name = SERVER_NAME,
+                            endpoint = "mcp://local",
+                            description = "本地MCP服务器",
+                            capabilities = listOf("tools", "resources")
+                    )
             mcpManager.registerServer(SERVER_NAME, serverConfig)
 
             _isRunning.value = true
@@ -268,11 +313,11 @@ class MCPLocalServer private constructor(private val context: Context) {
 
         // 创建服务器能力配置
         val capabilities =
-            ServerCapabilities(
-                resources =
-                ServerCapabilities.Resources(subscribe = true, listChanged = true),
-                tools = ServerCapabilities.Tools(listChanged = true)
-            )
+                ServerCapabilities(
+                        resources =
+                                ServerCapabilities.Resources(subscribe = true, listChanged = true),
+                        tools = ServerCapabilities.Tools(listChanged = true)
+                )
 
         // 创建服务器选项
         val options = ServerOptions(capabilities = capabilities, enforceStrictCapabilities = false)
@@ -294,25 +339,32 @@ class MCPLocalServer private constructor(private val context: Context) {
             Log.d(TAG, "收到工具列表请求，立即响应 ${_registeredTools.value.size} 个工具")
 
             // 直接从已注册工具列表构建工具对象
-            val serverTools = _registeredTools.value.map { toolInfo ->
-                // 创建参数模式
-                val params = toolInfo.parameters.associate { param ->
-                    param.name to JsonObject(
-                        mapOf(
-                            "type" to JsonPrimitive(param.type),
-                            "description" to JsonPrimitive(param.description),
-                            "required" to JsonPrimitive(param.required)
-                        )
-                    )
-                }
+            val serverTools =
+                    _registeredTools.value.map { toolInfo ->
+                        // 创建参数模式
+                        val params =
+                                toolInfo.parameters.associate { param ->
+                                    param.name to
+                                            JsonObject(
+                                                    mapOf(
+                                                            "type" to JsonPrimitive(param.type),
+                                                            "description" to
+                                                                    JsonPrimitive(
+                                                                            param.description
+                                                                    ),
+                                                            "required" to
+                                                                    JsonPrimitive(param.required)
+                                                    )
+                                            )
+                                }
 
-                // 创建工具对象
-                Tool(
-                    name = toolInfo.name,
-                    description = toolInfo.description,
-                    inputSchema = Tool.Input(JsonObject(params))
-                )
-            }
+                        // 创建工具对象
+                        Tool(
+                                name = toolInfo.name,
+                                description = toolInfo.description,
+                                inputSchema = Tool.Input(JsonObject(params))
+                        )
+                    }
 
             // 返回工具列表结果
             ListToolsResult(tools = serverTools, nextCursor = null)
@@ -327,17 +379,17 @@ class MCPLocalServer private constructor(private val context: Context) {
 
         // 系统信息工具
         server.addTool(
-            name = "system_info",
-            description = "获取系统信息",
-            inputSchema = Tool.Input(JsonObject(emptyMap()))
+                name = "system_info",
+                description = "获取系统信息",
+                inputSchema = Tool.Input(JsonObject(emptyMap()))
         ) { _ ->
             val systemInfo =
-                mapOf(
-                    "os" to System.getProperty("os.name"),
-                    "version" to System.getProperty("os.version"),
-                    "arch" to System.getProperty("os.arch"),
-                    "processors" to Runtime.getRuntime().availableProcessors()
-                )
+                    mapOf(
+                            "os" to System.getProperty("os.name"),
+                            "version" to System.getProperty("os.version"),
+                            "arch" to System.getProperty("os.arch"),
+                            "processors" to Runtime.getRuntime().availableProcessors()
+                    )
 
             val text = systemInfo.entries.joinToString("\n") { "${it.key}: ${it.value}" }
 
@@ -349,22 +401,22 @@ class MCPLocalServer private constructor(private val context: Context) {
 
         // 回显工具
         val echoParams =
-            JsonObject(
-                mapOf(
-                    "text" to
-                        JsonObject(
-                            mapOf(
-                                "type" to JsonPrimitive("string"),
-                                "description" to JsonPrimitive("要回显的文本")
-                            )
+                JsonObject(
+                        mapOf(
+                                "text" to
+                                        JsonObject(
+                                                mapOf(
+                                                        "type" to JsonPrimitive("string"),
+                                                        "description" to JsonPrimitive("要回显的文本")
+                                                )
+                                        )
                         )
                 )
-            )
 
         server.addTool(
-            name = "echo",
-            description = "回显输入的文本",
-            inputSchema = Tool.Input(echoParams)
+                name = "echo",
+                description = "回显输入的文本",
+                inputSchema = Tool.Input(echoParams)
         ) { request ->
             val text = request.arguments["text"]?.toString()?.removeSurrounding("\"") ?: ""
             Log.d(TAG, "执行回显工具: $text")
@@ -372,11 +424,7 @@ class MCPLocalServer private constructor(private val context: Context) {
         }
 
         tools.add(
-            ToolInfo(
-                "echo",
-                "回显输入的文本",
-                listOf(ToolParamInfo("text", "要回显的文本", "string", true))
-            )
+                ToolInfo("echo", "回显输入的文本", listOf(ToolParamInfo("text", "要回显的文本", "string", true)))
         )
 
         // 更新已注册工具列表
@@ -389,30 +437,30 @@ class MCPLocalServer private constructor(private val context: Context) {
     private fun registerSystemResources(server: Server) {
         // 系统信息资源
         server.addResource(
-            uri = "mcp://local/system_info",
-            name = "系统信息",
-            description = "系统信息资源",
-            mimeType = "text/plain"
+                uri = "mcp://local/system_info",
+                name = "系统信息",
+                description = "系统信息资源",
+                mimeType = "text/plain"
         ) { _ ->
             val systemInfo =
-                mapOf(
-                    "os" to System.getProperty("os.name"),
-                    "version" to System.getProperty("os.version"),
-                    "arch" to System.getProperty("os.arch"),
-                    "processors" to Runtime.getRuntime().availableProcessors()
-                )
+                    mapOf(
+                            "os" to System.getProperty("os.name"),
+                            "version" to System.getProperty("os.version"),
+                            "arch" to System.getProperty("os.arch"),
+                            "processors" to Runtime.getRuntime().availableProcessors()
+                    )
 
             val text = systemInfo.entries.joinToString("\n") { "${it.key}: ${it.value}" }
 
             ReadResourceResult(
-                contents =
-                listOf(
-                    TextResourceContents(
-                        text = text,
-                        uri = "mcp://local/system_info",
-                        mimeType = "text/plain"
-                    )
-                )
+                    contents =
+                            listOf(
+                                    TextResourceContents(
+                                            text = text,
+                                            uri = "mcp://local/system_info",
+                                            mimeType = "text/plain"
+                                    )
+                            )
             )
         }
     }
@@ -535,11 +583,11 @@ class MCPLocalServer private constructor(private val context: Context) {
     private fun log(level: LogLevel, message: String) {
         // 检查日志级别
         val currentLevel =
-            try {
-                LogLevel.valueOf(_logLevel.value.uppercase())
-            } catch (e: IllegalArgumentException) {
-                LogLevel.INFO
-            }
+                try {
+                    LogLevel.valueOf(_logLevel.value.uppercase())
+                } catch (e: IllegalArgumentException) {
+                    LogLevel.INFO
+                }
 
         // 如果日志级别小于当前设置的级别，不记录
         if (level.severity < currentLevel.severity) {
@@ -652,9 +700,8 @@ class MCPLocalServer private constructor(private val context: Context) {
                         Log.d(TAG, "连接服务器传输层")
                         server.connect(transport!!)
                         Log.d(TAG, "服务器连接已建立")
-                    } ?: run {
-                        Log.e(TAG, "服务器实例为空，无法连接")
                     }
+                            ?: run { Log.e(TAG, "服务器实例为空，无法连接") }
                 } catch (e: Exception) {
                     Log.e(TAG, "重新连接服务器传输层失败", e)
                 }
@@ -683,24 +730,24 @@ data class LogEntry(val timestamp: Long, val level: LogLevel, val message: Strin
 
 /** 工具参数定义 */
 data class ToolParam(
-    val description: String,
-    val type: String = "string",
-    val required: Boolean = false
+        val description: String,
+        val type: String = "string",
+        val required: Boolean = false
 )
 
 /** 工具信息 */
 @Serializable
 data class ToolInfo(
-    val name: String,
-    val description: String,
-    val parameters: List<ToolParamInfo> = emptyList()
+        val name: String,
+        val description: String,
+        val parameters: List<ToolParamInfo> = emptyList()
 )
 
 /** 工具参数信息 */
 @Serializable
 data class ToolParamInfo(
-    val name: String,
-    val description: String,
-    val type: String = "string",
-    val required: Boolean = false
+        val name: String,
+        val description: String,
+        val type: String = "string",
+        val required: Boolean = false
 )

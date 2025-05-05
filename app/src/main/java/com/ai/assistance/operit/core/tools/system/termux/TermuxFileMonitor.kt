@@ -24,120 +24,6 @@ import kotlinx.coroutines.launch
 object TermuxFileMonitor {
     private const val TAG = "TermuxFileMonitor"
 
-    /** 通过ADB启动Termux服务 */
-    suspend fun startTermuxViaAdb(
-        command: String,
-        wrappedCommand: String,
-        executionId: Int,
-        tempOutputFile: String,
-        commandCompleted: CompletableDeferred<CommandResult>,
-        commandIsRunning: AtomicBoolean,
-        effectiveOutputReceiver: TermuxCommandOutputReceiver?,
-        stdoutBuilder: StringBuilder,
-        stderrBuilder: StringBuilder
-    ): Boolean {
-        return try {
-            // 对于其他异常，尝试使用ADB方式启动Termux服务
-            GlobalScope.launch(Dispatchers.IO) {
-                try {
-                    // 准备执行的ADB命令
-                    // 1. 确保Termux应用存在
-                    val checkTermuxCmd = "pm path com.termux"
-                    val checkResult = AdbCommandExecutor.executeAdbCommand(checkTermuxCmd)
-                    if (!checkResult.stdout.contains("package:")) {
-                        Log.e(TAG, "Termux应用不存在，无法通过ADB启动服务")
-                        effectiveOutputReceiver?.onError("Termux应用不存在，无法通过ADB强制启动服务", -1)
-                        return@launch
-                    }
-
-                    // 2. 尝试通过ADB启动Termux服务
-                    val adbLaunchCmd =
-                            "am startservice -n com.termux/com.termux.app.RunCommandService --es com.termux.RUN_COMMAND_PATH /data/data/com.termux/files/usr/bin/bash --esa com.termux.RUN_COMMAND_ARGUMENTS \"-c,$wrappedCommand\" --es com.termux.RUN_COMMAND_WORKDIR /data/data/com.termux/files/home --ez com.termux.RUN_COMMAND_BACKGROUND true --es com.termux.RUN_COMMAND_SESSION_ACTION 0"
-
-                    val launchResult = AdbCommandExecutor.executeAdbCommand(adbLaunchCmd)
-                    if (launchResult.success) {
-                        Log.d(TAG, "通过ADB成功启动Termux服务: ${launchResult.stdout}")
-
-                        // 等待检查文件是否创建
-                        checkFileCreation(
-                                tempOutputFile,
-                                commandCompleted,
-                                commandIsRunning,
-                                effectiveOutputReceiver,
-                                stdoutBuilder.toString(),
-                                stderrBuilder.toString()
-                        )
-                    } else {
-                        Log.e(TAG, "通过ADB启动Termux服务失败: ${launchResult.stderr}")
-                        effectiveOutputReceiver?.onError(
-                                "通过ADB启动Termux服务失败: ${launchResult.stderr}",
-                                -1
-                        )
-
-                        // 3. 如果服务启动失败，尝试先启动主应用再启动服务
-                        Log.d(TAG, "尝试先启动Termux应用再启动服务")
-                        val startAppCmd =
-                                "monkey -p com.termux -c android.intent.category.LAUNCHER 1"
-                        AdbCommandExecutor.executeAdbCommand(startAppCmd)
-                        delay(2000) // 等待应用启动
-
-                        // 再次尝试启动服务
-                        val retryResult = AdbCommandExecutor.executeAdbCommand(adbLaunchCmd)
-                        if (!retryResult.success) {
-                            Log.e(TAG, "二次尝试通过ADB启动Termux服务失败: ${retryResult.stderr}")
-                            effectiveOutputReceiver?.onError("二次尝试通过ADB启动Termux服务失败", -1)
-
-                            // 命令无法执行，完成延迟对象并通知错误
-                            commandCompleted.complete(
-                                    CommandResult(
-                                            success = false,
-                                            stdout = stdoutBuilder.toString(),
-                                            stderr = "无法启动Termux服务，所有尝试均失败",
-                                            exitCode = -1
-                                    )
-                            )
-
-                            // 停止文件监控
-                            commandIsRunning.set(false)
-                        } else {
-                            Log.d(TAG, "二次尝试通过ADB成功启动Termux服务")
-
-                            // 等待检查文件是否创建
-                            checkFileCreation(
-                                    tempOutputFile,
-                                    commandCompleted,
-                                    commandIsRunning,
-                                    effectiveOutputReceiver,
-                                    stdoutBuilder.toString(),
-                                    stderrBuilder.toString()
-                            )
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "通过ADB启动Termux服务过程中出错: ${e.message}", e)
-                    effectiveOutputReceiver?.onError("通过ADB启动Termux服务出错: ${e.message}", -1)
-
-                    // 命令执行出错，完成延迟对象
-                    commandCompleted.complete(
-                            CommandResult(
-                                    success = false,
-                                    stdout = stdoutBuilder.toString(),
-                                    stderr = "启动Termux服务出错: ${e.message}",
-                                    exitCode = -1
-                            )
-                    )
-
-                    // 停止文件监控
-                    commandIsRunning.set(false)
-                }
-            }
-            true // 返回true表示已尝试通过ADB启动
-        } catch (e: Exception) {
-            Log.e(TAG, "启动ADB进程失败: ${e.message}")
-            false
-        }
-    }
-
     /** 检查临时文件是否创建成功 */
     private suspend fun checkFileCreation(
         tempOutputFile: String,
@@ -169,13 +55,13 @@ object TermuxFileMonitor {
         // 如果文件创建失败，通知错误并完成操作
         if (!fileCreated) {
             Log.e(TAG, "文件创建超时: $tempOutputFile")
-            outputReceiver?.onError("通过ADB启动Termux服务后未能创建输出文件，请检查Termux权限", -1)
+            outputReceiver?.onError("未能创建输出文件，请检查Termux权限", -1)
 
             commandCompleted.complete(
                     CommandResult(
                             success = false,
                             stdout = stdoutContent,
-                            stderr = "通过ADB启动Termux服务后未能创建输出文件，请检查Termux权限",
+                            stderr = "未能创建输出文件，请检查Termux权限",
                             exitCode = -1
                     )
             )

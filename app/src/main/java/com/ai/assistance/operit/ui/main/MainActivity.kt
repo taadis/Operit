@@ -1,20 +1,25 @@
 package com.ai.assistance.operit.ui.main
 
-import android.Manifest
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.os.PowerManager
-import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
 import com.ai.assistance.operit.R
+import com.ai.assistance.operit.data.mcp.MCPLocalServer
+import com.ai.assistance.operit.data.mcp.MCPRepository
+import com.ai.assistance.operit.data.mcp.plugins.MCPStarter
 import com.ai.assistance.operit.data.preferences.AgreementPreferences
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
@@ -25,12 +30,15 @@ import com.ai.assistance.operit.tools.AIToolHandler
 import com.ai.assistance.operit.tools.system.AdbCommandExecutor
 import com.ai.assistance.operit.tools.system.ShizukuInstaller
 import com.ai.assistance.operit.ui.common.NavItem
+import com.ai.assistance.operit.ui.features.startup.screens.PluginLoadingScreenWithState
+import com.ai.assistance.operit.ui.features.startup.screens.PluginLoadingState
 import com.ai.assistance.operit.ui.theme.OperitTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 
 class MainActivity : ComponentActivity() {
     private val TAG = "MainActivity"
@@ -57,6 +65,9 @@ class MainActivity : ComponentActivity() {
     private lateinit var shizukuStateListener: () -> Unit
     private var updateCheckPerformed = false
 
+    // ======== MCP插件状态 ========
+    private val pluginLoadingState = PluginLoadingState()
+
     // ======== 权限定义 ========
     // UpdateManager实例
     private lateinit var updateManager: UpdateManager
@@ -69,11 +80,20 @@ class MainActivity : ComponentActivity() {
         setupPreferencesListener()
         configureDisplaySettings()
 
+        // 设置上下文以便获取插件元数据
+        pluginLoadingState.setAppContext(applicationContext)
+        
+        // 显示插件加载界面
+        pluginLoadingState.show()
+
         // 初始化并设置更新管理器
         setupUpdateManager()
 
         // 启动权限流程
         initializeShizuku()
+
+        // 初始化MCP服务器并启动插件
+        initializeMCPServer()
 
         // 设置初始界面
         setAppContent()
@@ -114,6 +134,153 @@ class MainActivity : ComponentActivity() {
 
         // 初始化协议偏好管理器
         agreementPreferences = AgreementPreferences(this)
+    }
+
+    // ======== 初始化MCP服务器并启动插件 ========
+    private fun initializeMCPServer() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                // 获取MCPLocalServer实例
+                val mcpLocalServer = MCPLocalServer.getInstance(applicationContext)
+
+                // 更新状态
+                pluginLoadingState.updateMessage("正在启动MCP服务器...")
+                pluginLoadingState.updateProgress(0.1f)
+
+                // 启动MCP服务器
+                val serverStartSuccess = mcpLocalServer.startServer()
+
+                if (serverStartSuccess) {
+                    // 服务器启动成功，更新状态
+                    pluginLoadingState.updateMessage("MCP服务器启动成功，正在加载插件...")
+                    pluginLoadingState.updateProgress(0.3f)
+
+                    // 等待服务器完全就绪
+                    delay(200)
+
+                    try {
+                        // 获取MCPRepository实例
+                        val mcpRepository = MCPRepository(applicationContext)
+
+                        // 获取已安装的插件列表 (这是一个Set<String>)
+                        val installedPluginsSet = mcpRepository.installedPluginIds.first()
+
+                        // 显式转换为List<String>
+                        val installedPluginsList = installedPluginsSet.toList()
+
+                        if (installedPluginsSet.isEmpty()) {
+                            // 没有安装的插件，直接进入主界面
+                            Log.d(TAG, "没有检测到已安装的插件，直接进入主界面")
+                            pluginLoadingState.updateMessage("没有检测到已安装的插件")
+                            pluginLoadingState.updateProgress(1.0f)
+                            
+                            // 立即隐藏插件加载界面
+                            pluginLoadingState.hide()
+                            return@launch
+                        }
+
+                        // 设置插件列表，传入List<String>
+                        pluginLoadingState.setPlugins(installedPluginsList)
+                        
+                        // 有安装的插件，使用MCPStarter启动
+                        pluginLoadingState.updateMessage("正在启动插件...")
+                        pluginLoadingState.updateProgress(0.4f)
+
+                        val mcpStarter = MCPStarter(applicationContext)
+
+                        // 设置启动进度监听器
+                        val progressListener =
+                                object : MCPStarter.PluginStartProgressListener {
+                                    override fun onPluginStarting(
+                                            pluginId: String,
+                                            index: Int,
+                                            total: Int
+                                    ) {
+                                        // 更新总体状态
+                                        pluginLoadingState.updateMessage(
+                                                "正在启动插件 ($index/$total)..."
+                                        )
+                                        pluginLoadingState.updateProgress(
+                                                0.4f + 0.6f * (index.toFloat() / total)
+                                        )
+
+                                        // 更新特定插件状态
+                                        pluginLoadingState.startLoadingPlugin(pluginId)
+                                    }
+
+                                    override fun onPluginStarted(
+                                            pluginId: String,
+                                            success: Boolean,
+                                            index: Int,
+                                            total: Int
+                                    ) {
+                                        // 记录插件加载结果
+                                        if (success) {
+                                            pluginLoadingState.setPluginSuccess(pluginId, "加载成功")
+                                        } else {
+                                            pluginLoadingState.setPluginFailed(pluginId, "加载失败")
+                                        }
+
+                                        // 更新总体进度
+                                        pluginLoadingState.updateProgress(
+                                                0.4f + 0.6f * (index.toFloat() / total)
+                                        )
+                                    }
+
+                                    override fun onAllPluginsStarted(
+                                            successCount: Int,
+                                            totalCount: Int
+                                    ) {
+                                        // 所有插件加载完成
+                                        val successRate = (successCount * 100) / totalCount
+                                        pluginLoadingState.updateMessage("已完成启动，成功率: $successRate%")
+                                        pluginLoadingState.updateProgress(1.0f)
+
+                                        // 延迟一会儿后隐藏进度条
+                                        lifecycleScope.launch {
+                                            delay(400)
+                                            pluginLoadingState.hide()
+                                        }
+                                    }
+                                }
+
+                        // 启动所有插件
+                        mcpStarter.startAllDeployedPlugins(progressListener)
+                    } catch (e: Exception) {
+                        // 处理插件加载过程中的异常
+                        Log.e(TAG, "加载插件过程中出错", e)
+                        pluginLoadingState.updateMessage("加载插件出错: ${e.message}")
+                        pluginLoadingState.updateProgress(1.0f)
+                        
+                        // 延迟后隐藏
+                        lifecycleScope.launch {
+                            delay(400)
+                            pluginLoadingState.hide()
+                        }
+                    }
+                } else {
+                    // 服务器启动失败
+                    pluginLoadingState.updateMessage("MCP服务器启动失败")
+                    pluginLoadingState.updateProgress(1.0f)
+
+                    // 延迟一会儿后隐藏进度条
+                    lifecycleScope.launch {
+                        delay(400)
+                        pluginLoadingState.hide()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "启动MCP服务器和插件时出错", e)
+                pluginLoadingState.updateMessage("启动过程中出错: ${e.message}")
+                pluginLoadingState.updateProgress(1.0f)
+
+                // 延迟一会儿后隐藏进度条
+                lifecycleScope.launch {
+                    delay(400)
+                    pluginLoadingState.hide()
+                }
+            }
+        }
     }
 
     // ======== Shizuku监听器设置 ========
@@ -189,15 +356,23 @@ class MainActivity : ComponentActivity() {
     private fun setAppContent() {
         setContent {
             OperitTheme {
-                OperitApp(
-                        initialNavItem =
-                                when {
-                                    showPreferencesGuide -> NavItem.UserPreferencesGuide
-                                    navigateToShizukuScreen -> NavItem.ShizukuCommands
-                                    else -> NavItem.AiChat
-                                },
+                Box {
+                    // 主应用界面 (始终存在于底层)
+                    OperitApp(
+                        initialNavItem = when {
+                            showPreferencesGuide -> NavItem.UserPreferencesGuide
+                            navigateToShizukuScreen -> NavItem.ShizukuCommands
+                            else -> NavItem.AiChat
+                        },
                         toolHandler = toolHandler
-                )
+                    )
+
+                    // 插件加载界面 (带有淡出效果)
+                    PluginLoadingScreenWithState(
+                        loadingState = pluginLoadingState,
+                        modifier = Modifier.zIndex(10f) // 确保加载界面在最上层
+                    )
+                }
             }
         }
     }
@@ -339,12 +514,14 @@ class MainActivity : ComponentActivity() {
             permissionState.accessibilityServiceRequested = true
 
             // lifecycleScope.launch(Dispatchers.IO) {
-            //     val success = UIHierarchyManager.enableAccessibilityServiceViaAdb(this@MainActivity)
+            //     val success =
+            // UIHierarchyManager.enableAccessibilityServiceViaAdb(this@MainActivity)
 
             //     withContext(Dispatchers.Main) {
             //         if (success) {
             //             Log.d(TAG, "通过ADB成功启用无障碍服务")
-            //             Toast.makeText(this@MainActivity, "已自动启用无障碍服务", Toast.LENGTH_SHORT).show()
+            //             Toast.makeText(this@MainActivity, "已自动启用无障碍服务",
+            // Toast.LENGTH_SHORT).show()
             //         } else {
             //             Log.d(TAG, "通过ADB启用无障碍服务失败")
             //             permissionState.accessibilityServiceRequested = false

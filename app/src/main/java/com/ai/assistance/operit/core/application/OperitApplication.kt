@@ -53,5 +53,7 @@ class OperitApplication : Application() {
             // 简单访问数据库以触发初始化
             database.problemDao().getProblemCount()
         }
+
+        // MCP插件启动逻辑已移至MainActivity中处理
     }
 }
