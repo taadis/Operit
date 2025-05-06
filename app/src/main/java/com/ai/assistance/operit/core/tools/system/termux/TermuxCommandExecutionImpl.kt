@@ -41,8 +41,14 @@ object TermuxCommandExecutionImpl {
 
     /** 检查是否有Termux运行命令权限 */
     private fun hasTermuxRunCommandPermission(context: Context): Boolean {
-        return context.checkCallingOrSelfPermission("com.termux.permission.RUN_COMMAND") == 
+        return context.checkCallingOrSelfPermission("com.termux.permission.RUN_COMMAND") ==
                 android.content.pm.PackageManager.PERMISSION_GRANTED
+    }
+
+    /** 创建带有命令前缀的日志消息 */
+    private fun createLogMessage(command: String, message: String): String {
+        val shortCommand = if (command.length > 20) command.substring(0, 20) + "..." else command
+        return "[cmd: $shortCommand] $message"
     }
 
     /**
@@ -57,19 +63,19 @@ object TermuxCommandExecutionImpl {
      * @return 执行结果 (仅表示命令是否成功发送，不代表实际执行结果)
      */
     suspend fun executeCommandStreaming(
-        context: Context,
-        command: String,
-        autoAuthorize: Boolean = true,
-        background: Boolean = true,
-        outputReceiver: TermuxCommandOutputReceiver? = null,
-        resultCallback: ((CommandResult) -> Unit)? = null,
-        options: TermuxCommandOptions = TermuxCommandOptions()
+            context: Context,
+            command: String,
+            autoAuthorize: Boolean = true,
+            background: Boolean = true,
+            outputReceiver: TermuxCommandOutputReceiver? = null,
+            resultCallback: ((CommandResult) -> Unit)? = null,
+            options: TermuxCommandOptions = TermuxCommandOptions()
     ): CommandResult =
             withContext(Dispatchers.IO) {
                 try {
                     // 检查应用是否在前台运行
                     if (!TermuxUtils.isAppInForeground(context)) {
-                        Log.w(TAG, "应用在后台运行，无法启动Termux服务")
+                        Log.w(TAG, createLogMessage(command, "应用在后台运行，无法启动Termux服务"))
                         val errorResult =
                                 CommandResult(
                                         success = false,
@@ -81,10 +87,11 @@ object TermuxCommandExecutionImpl {
                         return@withContext errorResult
                     }
 
-                    Log.d(TAG, "执行命令: $command")
+                    Log.d(TAG, createLogMessage(command, "执行命令: $command"))
 
                     // 首先检查Termux是否已安装
                     if (!TermuxInstaller.isTermuxInstalled(context)) {
+                        Log.e(TAG, createLogMessage(command, "Termux未安装"))
                         val errorResult =
                                 CommandResult(
                                         success = false,
@@ -98,8 +105,10 @@ object TermuxCommandExecutionImpl {
 
                     // 检查是否已授权，如果需要则尝试授权
                     if (autoAuthorize && !TermuxAuthorizer.isTermuxAuthorized(context)) {
+                        Log.i(TAG, createLogMessage(command, "尝试授权Termux"))
                         val authorized = TermuxAuthorizer.authorizeTermux(context)
                         if (!authorized) {
+                            Log.e(TAG, createLogMessage(command, "授权Termux失败"))
                             val errorResult =
                                     CommandResult(
                                             success = false,
@@ -116,6 +125,7 @@ object TermuxCommandExecutionImpl {
                     try {
                         // 生成一个唯一的执行ID
                         val executionId = getNextExecutionId()
+                        Log.d(TAG, createLogMessage(command, "分配执行ID: $executionId"))
 
                         // 处理特殊用户权限
                         val finalCommand =
@@ -125,9 +135,14 @@ object TermuxCommandExecutionImpl {
                                     command
                                 }
 
+                        if (finalCommand != command) {
+                            Log.d(TAG, createLogMessage(command, "命令调整为: $finalCommand"))
+                        }
+
                         // 创建一个临时文件用于输出，使用ADB创建以确保权限正确
                         val tempOutputFile =
                                 "/data/data/com.termux/files/home/.termux_output_${executionId}.log"
+                        Log.d(TAG, createLogMessage(command, "创建临时输出文件: $tempOutputFile"))
 
                         // 创建一个不断回显的命令，使用stdbuf禁用缓冲
                         val wrappedCommand =
@@ -196,10 +211,7 @@ object TermuxCommandExecutionImpl {
                                 arrayOf("-c", wrappedCommand)
                         )
                         intent.putExtra("com.termux.RUN_COMMAND_WORKDIR", options.workingDirectory)
-                        intent.putExtra(
-                                "com.termux.RUN_COMMAND_BACKGROUND",
-                                background
-                        ) // 使用传入的background参数决定是否在后台执行
+                        intent.putExtra("com.termux.RUN_COMMAND_BACKGROUND", background)
                         intent.putExtra("com.termux.RUN_COMMAND_SESSION_ACTION", "0")
 
                         // 创建一个CompletableDeferred以等待命令完成
@@ -290,7 +302,7 @@ object TermuxCommandExecutionImpl {
 
                         // 创建结果处理回调
                         TermuxCommandResultService.registerCallback(executionId) { result ->
-                            Log.d(TAG, "收到命令执行结果回调: $result")
+                            Log.d(TAG, createLogMessage(command, "收到命令执行结果回调: $result"))
 
                             // 命令已完成，使用AdbCommandExecutor清理临时文件
                             GlobalScope.launch(Dispatchers.IO) {
@@ -300,21 +312,27 @@ object TermuxCommandExecutionImpl {
                                 // 使用AdbCommandExecutor删除临时文件，避免再次调用Termux
                                 try {
                                     AdbCommandExecutor.executeAdbCommand(
-                                        "run-as com.termux sh -c 'rm -f \"$tempOutputFile\"'"
+                                            "run-as com.termux sh -c 'rm -f \"$tempOutputFile\"'"
                                     )
-                                    Log.d(TAG, "临时文件已通过ADB删除: $tempOutputFile")
+                                    Log.d(
+                                            TAG,
+                                            createLogMessage(
+                                                    command,
+                                                    "临时文件已通过ADB删除: $tempOutputFile"
+                                            )
+                                    )
 
                                     // 尝试清理FIFO管道
                                     val fifoFile =
                                             "/data/data/com.termux/files/home/.termux_input_$executionId.fifo"
                                     AdbCommandExecutor.executeAdbCommand(
-                                        "run-as com.termux sh -c 'rm -f \"$fifoFile\" 2>/dev/null'"
+                                            "run-as com.termux sh -c 'rm -f \"$fifoFile\" 2>/dev/null'"
                                     )
 
                                     // 清理资源
                                     TermuxCommandInteraction.unregisterCommandFile(executionId)
                                 } catch (e: Exception) {
-                                    Log.e(TAG, "删除临时文件失败: ${e.message}")
+                                    Log.e(TAG, createLogMessage(command, "删除临时文件失败: ${e.message}"))
                                 }
                             }
 
@@ -324,7 +342,10 @@ object TermuxCommandExecutionImpl {
                             val alreadyCompleted = currentOutput.contains("COMMAND_COMPLETE:")
 
                             if (alreadyCompleted) {
-                                Log.d(TAG, "已通过文件监听获取完整输出，不再添加Intent回调内容")
+                                Log.d(
+                                        TAG,
+                                        createLogMessage(command, "已通过文件监听获取完整输出，不再添加Intent回调内容")
+                                )
                                 // 仅完成延迟对象，不更新输出
                                 commandCompleted.complete(
                                         CommandResult(
@@ -358,7 +379,10 @@ object TermuxCommandExecutionImpl {
 
                             Log.d(
                                     TAG,
-                                    "传递给接收器的最终结果: stdout长度=${finalResult.stdout.length}, stderr长度=${finalResult.stderr.length}"
+                                    createLogMessage(
+                                            command,
+                                            "传递给接收器的最终结果: stdout长度=${finalResult.stdout.length}, stderr长度=${finalResult.stderr.length}"
+                                    )
                             )
                             effectiveOutputReceiver?.onComplete(finalResult)
 
@@ -410,7 +434,13 @@ object TermuxCommandExecutionImpl {
                                             val mainHandler = Handler(Looper.getMainLooper())
 
                                             if (stdout.isNotEmpty()) {
-                                                Log.d(TAG, "流式输出 stdout: $stdout")
+                                                Log.d(
+                                                        TAG,
+                                                        createLogMessage(
+                                                                command,
+                                                                "流式输出 stdout: $stdout"
+                                                        )
+                                                )
                                                 stdoutBuilder.append(stdout)
 
                                                 // 立即在主线程上回调，确保实时性
@@ -420,7 +450,13 @@ object TermuxCommandExecutionImpl {
                                             }
 
                                             if (stderr.isNotEmpty()) {
-                                                Log.d(TAG, "流式输出 stderr: $stderr")
+                                                Log.d(
+                                                        TAG,
+                                                        createLogMessage(
+                                                                command,
+                                                                "流式输出 stderr: $stderr"
+                                                        )
+                                                )
                                                 stderrBuilder.append(stderr)
 
                                                 // 立即在主线程上回调，确保实时性
@@ -478,16 +514,22 @@ object TermuxCommandExecutionImpl {
                         // 发送命令
                         try {
                             context.startService(intent)
-                            Log.d(TAG, "已发送命令到Termux: $command, 执行ID: $executionId")
+                            Log.d(
+                                    TAG,
+                                    createLogMessage(
+                                            command,
+                                            "已发送命令到Termux: $command, 执行ID: $executionId"
+                                    )
+                            )
                         } catch (e: Exception) {
-                            Log.e(TAG, "启动Termux服务失败: ${e.message}", e)
+                            Log.e(TAG, createLogMessage(command, "启动Termux服务失败: ${e.message}"), e)
 
                             // 检查是否是后台服务启动限制异常
                             if (e.javaClass.name.contains(
                                             "BackgroundServiceStartNotAllowedException"
                                     )
                             ) {
-                                Log.e(TAG, "检测到后台服务启动限制，无法在后台启动Termux服务")
+                                Log.e(TAG, createLogMessage(command, "检测到后台服务启动限制，无法在后台启动Termux服务"))
 
                                 // 移除之前注册的回调，避免回调落空
                                 TermuxCommandResultService.removeCallback(executionId)
@@ -497,7 +539,10 @@ object TermuxCommandExecutionImpl {
                                     context.unregisterReceiver(broadcastReceiver)
                                 } catch (e2: Exception) {
                                     // 忽略注销失败
-                                    Log.e(TAG, "注销广播接收器失败: ${e2.message}")
+                                    Log.e(
+                                            TAG,
+                                            createLogMessage(command, "注销广播接收器失败: ${e2.message}")
+                                    )
                                 }
 
                                 // 通知接收器出错
@@ -508,8 +553,7 @@ object TermuxCommandExecutionImpl {
                                         CommandResult(
                                                 success = false,
                                                 stdout = "",
-                                                stderr =
-                                                        "无法在后台启动Termux服务: ${e.message}，请确保应用在前台运行",
+                                                stderr = "无法在后台启动Termux服务: ${e.message}，请确保应用在前台运行",
                                                 exitCode = -1
                                         )
                                 )
@@ -518,16 +562,15 @@ object TermuxCommandExecutionImpl {
                                 return@withContext CommandResult(
                                         success = false,
                                         stdout = "",
-                                        stderr =
-                                                "无法在后台启动Termux服务: ${e.message}，请确保应用在前台运行",
+                                        stderr = "无法在后台启动Termux服务: ${e.message}，请确保应用在前台运行",
                                         exitCode = -1
                                 )
                             }
 
                             // 检查是否缺少Termux运行命令权限
                             if (!hasTermuxRunCommandPermission(context)) {
-                                Log.e(TAG, "缺少Termux运行命令权限")
-                                
+                                Log.e(TAG, createLogMessage(command, "缺少Termux运行命令权限"))
+
                                 // 移除之前注册的回调，避免回调落空
                                 TermuxCommandResultService.removeCallback(executionId)
 
@@ -537,32 +580,35 @@ object TermuxCommandExecutionImpl {
                                 } catch (e2: Exception) {
                                     // 忽略注销失败
                                 }
-                                
+
                                 // 通知接收器出错
-                                effectiveOutputReceiver?.onError("缺少Termux运行命令权限，请确保已授予RUN_COMMAND权限", -1)
-                                
+                                effectiveOutputReceiver?.onError(
+                                        "缺少Termux运行命令权限，请确保已授予RUN_COMMAND权限",
+                                        -1
+                                )
+
                                 // 完成延迟对象
                                 commandCompleted.complete(
-                                    CommandResult(
+                                        CommandResult(
+                                                success = false,
+                                                stdout = "",
+                                                stderr = "缺少Termux运行命令权限，请确保已授予RUN_COMMAND权限",
+                                                exitCode = -1
+                                        )
+                                )
+
+                                // 清理资源
+                                TermuxCommandInteraction.unregisterCommandFile(executionId)
+                                return@withContext CommandResult(
                                         success = false,
                                         stdout = "",
                                         stderr = "缺少Termux运行命令权限，请确保已授予RUN_COMMAND权限",
                                         exitCode = -1
-                                    )
-                                )
-                                
-                                // 清理资源
-                                TermuxCommandInteraction.unregisterCommandFile(executionId)
-                                return@withContext CommandResult(
-                                    success = false,
-                                    stdout = "",
-                                    stderr = "缺少Termux运行命令权限，请确保已授予RUN_COMMAND权限",
-                                    exitCode = -1
                                 )
                             } else {
                                 // 有权限但Termux未启动
-                                Log.e(TAG, "Termux服务未启动或未响应")
-                                
+                                Log.e(TAG, createLogMessage(command, "Termux服务未启动或未响应"))
+
                                 // 移除之前注册的回调，避免回调落空
                                 TermuxCommandResultService.removeCallback(executionId)
 
@@ -572,41 +618,42 @@ object TermuxCommandExecutionImpl {
                                 } catch (e2: Exception) {
                                     // 忽略注销失败
                                 }
-                                
+
                                 // 通知接收器出错
                                 effectiveOutputReceiver?.onError("Termux服务未启动或未响应，请先启动Termux应用", -1)
-                                
+
                                 // 完成延迟对象
                                 commandCompleted.complete(
-                                    CommandResult(
+                                        CommandResult(
+                                                success = false,
+                                                stdout = "",
+                                                stderr = "Termux服务未启动或未响应，请先启动Termux应用",
+                                                exitCode = -1
+                                        )
+                                )
+
+                                // 清理资源
+                                TermuxCommandInteraction.unregisterCommandFile(executionId)
+                                return@withContext CommandResult(
                                         success = false,
                                         stdout = "",
                                         stderr = "Termux服务未启动或未响应，请先启动Termux应用",
                                         exitCode = -1
-                                    )
-                                )
-                                
-                                // 清理资源
-                                TermuxCommandInteraction.unregisterCommandFile(executionId)
-                                return@withContext CommandResult(
-                                    success = false,
-                                    stdout = "",
-                                    stderr = "Termux服务未启动或未响应，请先启动Termux应用",
-                                    exitCode = -1
                                 )
                             }
                         }
 
                         // 启动文件监控线程
                         TermuxFileMonitor.monitorCommandOutput(
-                            tempOutputFile = tempOutputFile,
-                            commandIsRunning = commandIsRunning,
-                            monitoredResult = monitoredResult,
-                            executionId = executionId,
-                            lastActivityTime = lastActivityTime,
-                            isDataBeingRead = isDataBeingRead,
-                            effectiveOutputReceiver = effectiveOutputReceiver,
-                            stdoutBuilder = stdoutBuilder
+                                command = finalCommand, // 传递命令到文件监控
+                                tempOutputFile = tempOutputFile,
+                                commandIsRunning = commandIsRunning,
+                                monitoredResult = monitoredResult,
+                                executionId = executionId,
+                                lastActivityTime = lastActivityTime,
+                                isDataBeingRead = isDataBeingRead,
+                                effectiveOutputReceiver = effectiveOutputReceiver,
+                                stdoutBuilder = stdoutBuilder
                         )
 
                         // 等待命令完成或超时
@@ -626,7 +673,7 @@ object TermuxCommandExecutionImpl {
                                         return@withContext result
                                     }
                                 } catch (e: Exception) {
-                                    Log.e(TAG, "等待命令完成时出错: ${e.message}")
+                                    Log.e(TAG, createLogMessage(command, "等待命令完成时出错: ${e.message}"))
                                 }
 
                                 // 检查是否有活动或是否已超过最大超时时间
@@ -639,7 +686,10 @@ object TermuxCommandExecutionImpl {
                                     // 每5秒记录一次状态
                                     Log.d(
                                             TAG,
-                                            "命令仍在执行 - 总时间: ${totalElapsed/1000}秒, 无活动时间: ${inactivityTime/1000}秒, 数据读取中: ${isDataBeingRead.get()}"
+                                            createLogMessage(
+                                                    command,
+                                                    "命令仍在执行 - 总时间: ${totalElapsed/1000}秒, 无活动时间: ${inactivityTime/1000}秒, 数据读取中: ${isDataBeingRead.get()}"
+                                            )
                                     )
                                 }
 
@@ -648,13 +698,17 @@ object TermuxCommandExecutionImpl {
                                 // 2. 如果无活动时间超过无活动超时时间，则超时
                                 if ((totalElapsed > options.timeout && !isDataBeingRead.get()) ||
                                                 (inactivityTime >
-                                                    TermuxCommandOptions.INACTIVITY_TIMEOUT &&
+                                                        TermuxCommandOptions.INACTIVITY_TIMEOUT &&
                                                         totalElapsed >
-                                                    TermuxCommandOptions.INACTIVITY_TIMEOUT)
+                                                                TermuxCommandOptions
+                                                                        .INACTIVITY_TIMEOUT)
                                 ) {
                                     Log.w(
                                             TAG,
-                                            "命令执行超时 - 总时间: ${totalElapsed/1000}秒, 无活动时间: ${inactivityTime/1000}秒"
+                                            createLogMessage(
+                                                    command,
+                                                    "命令执行超时 - 总时间: ${totalElapsed/1000}秒, 无活动时间: ${inactivityTime/1000}秒"
+                                            )
                                     )
                                     waitingForResult = false
                                     throw TimeoutException("Command execution timed out")
@@ -668,38 +722,41 @@ object TermuxCommandExecutionImpl {
                             throw IllegalStateException("Unexpected state in command execution")
                         } catch (e: TimeoutException) {
                             return@withContext TermuxFileMonitor.handleTimeout(
-                                e = e,
-                                executionId = executionId,
-                                context = context,
-                                broadcastReceiver = broadcastReceiver,
-                                commandIsRunning = commandIsRunning,
-                                tempOutputFile = tempOutputFile,
-                                effectiveOutputReceiver = effectiveOutputReceiver,
-                                stdoutBuilder = stdoutBuilder,
-                                stderrBuilder = stderrBuilder,
-                                timeoutAsError = options.timeoutAsError
+                                    command = finalCommand, // 传递命令到异常处理
+                                    e = e,
+                                    executionId = executionId,
+                                    context = context,
+                                    broadcastReceiver = broadcastReceiver,
+                                    commandIsRunning = commandIsRunning,
+                                    tempOutputFile = tempOutputFile,
+                                    effectiveOutputReceiver = effectiveOutputReceiver,
+                                    stdoutBuilder = stdoutBuilder,
+                                    stderrBuilder = stderrBuilder,
+                                    timeoutAsError = options.timeoutAsError
                             )
                         } catch (e: CancellationException) {
                             return@withContext TermuxFileMonitor.handleCancellation(
-                                e = e,
-                                executionId = executionId,
-                                context = context,
-                                broadcastReceiver = broadcastReceiver,
-                                commandIsRunning = commandIsRunning,
-                                tempOutputFile = tempOutputFile,
-                                effectiveOutputReceiver = effectiveOutputReceiver,
-                                stdoutBuilder = stdoutBuilder
+                                    command = finalCommand, // 传递命令到异常处理
+                                    e = e,
+                                    executionId = executionId,
+                                    context = context,
+                                    broadcastReceiver = broadcastReceiver,
+                                    commandIsRunning = commandIsRunning,
+                                    tempOutputFile = tempOutputFile,
+                                    effectiveOutputReceiver = effectiveOutputReceiver,
+                                    stdoutBuilder = stdoutBuilder
                             )
                         } catch (e: Exception) {
                             return@withContext TermuxFileMonitor.handleException(
-                                e = e,
-                                executionId = executionId,
-                                context = context,
-                                broadcastReceiver = broadcastReceiver,
-                                commandIsRunning = commandIsRunning,
-                                tempOutputFile = tempOutputFile,
-                                effectiveOutputReceiver = effectiveOutputReceiver,
-                                stdoutBuilder = stdoutBuilder
+                                    command = finalCommand, // 传递命令到异常处理
+                                    e = e,
+                                    executionId = executionId,
+                                    context = context,
+                                    broadcastReceiver = broadcastReceiver,
+                                    commandIsRunning = commandIsRunning,
+                                    tempOutputFile = tempOutputFile,
+                                    effectiveOutputReceiver = effectiveOutputReceiver,
+                                    stdoutBuilder = stdoutBuilder
                             )
                         } finally {
                             // 停止文件监控
@@ -720,7 +777,7 @@ object TermuxCommandExecutionImpl {
                         throw e
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "执行命令失败: ${e.message}")
+                    Log.e(TAG, createLogMessage(command, "执行命令失败: ${e.message}"))
                     val errorResult =
                             CommandResult(
                                     success = false,

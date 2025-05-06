@@ -1,8 +1,8 @@
 package com.ai.assistance.operit.data.mcp.plugins
 
 import android.util.Log
-import org.json.JSONObject
 import java.io.File
+import org.json.JSONObject
 
 /**
  * MCP 项目结构分析器
@@ -10,20 +10,21 @@ import java.io.File
  * 负责分析插件项目结构，识别项目类型和特征
  */
 class MCPProjectAnalyzer {
-    
+
     companion object {
         private const val TAG = "MCPProjectAnalyzer"
-        
+
         // 用于匹配命令块的正则表达式
         private val CODE_BLOCK_REGEX = "```(?:bash|shell|cmd|sh|json)?([\\s\\S]*?)```".toRegex()
-        
+
         // JSON配置块正则表达式
         private val JSON_CONFIG_REGEX = "\\{[\\s\\S]*?\"mcpServers\"[\\s\\S]*?\\}".toRegex()
-        
+
         // 模块名正则表达式
-        private val MODULE_NAME_REGEX = "\"args\"\\s*:\\s*\\[[^\\]]*\"([^\"]+)\"[^\\]]*\\]".toRegex()
+        private val MODULE_NAME_REGEX =
+                "\"args\"\\s*:\\s*\\[[^\\]]*\"([^\"]+)\"[^\\]]*\\]".toRegex()
     }
-    
+
     /**
      * 分析项目结构
      *
@@ -40,12 +41,14 @@ class MCPProjectAnalyzer {
         val hasTsConfig = File(pluginDir, "tsconfig.json").exists()
 
         // 查找入口文件
-        val pythonFiles = pluginDir.listFiles { file -> file.extension.equals("py", ignoreCase = true) }
+        val pythonFiles =
+                pluginDir.listFiles { file -> file.extension.equals("py", ignoreCase = true) }
         val jsFiles = pluginDir.listFiles { file -> file.extension.equals("js", ignoreCase = true) }
-        val tsFiles = pluginDir.listFiles { file ->
-            file.extension.equals("ts", ignoreCase = true) ||
-                    file.extension.equals("tsx", ignoreCase = true)
-        }
+        val tsFiles =
+                pluginDir.listFiles { file ->
+                    file.extension.equals("ts", ignoreCase = true) ||
+                            file.extension.equals("tsx", ignoreCase = true)
+                }
         val hasTsFiles = tsFiles != null && tsFiles.isNotEmpty()
 
         val mainPythonModule = findMainPythonModule(pluginDir, pythonFiles)
@@ -68,9 +71,14 @@ class MCPProjectAnalyzer {
                 val dependencies = packageJson.optJSONObject("dependencies")
                 val devDependencies = packageJson.optJSONObject("devDependencies")
 
-                if (dependencies != null && (dependencies.has("typescript") || dependencies.has("ts-node"))) {
+                if (dependencies != null &&
+                                (dependencies.has("typescript") || dependencies.has("ts-node"))
+                ) {
                     hasTypeScriptDependency = true
-                } else if (devDependencies != null && (devDependencies.has("typescript") || devDependencies.has("ts-node"))) {
+                } else if (devDependencies != null &&
+                                (devDependencies.has("typescript") ||
+                                        devDependencies.has("ts-node"))
+                ) {
                     hasTypeScriptDependency = true
                 }
 
@@ -80,7 +88,10 @@ class MCPProjectAnalyzer {
                     packageJsonScripts = scripts
                     for (key in scripts.keys()) {
                         val value = scripts.optString(key)
-                        if (value.contains("tsc") || value.contains("ts-node") || value.contains("typescript")) {
+                        if (value.contains("tsc") ||
+                                        value.contains("ts-node") ||
+                                        value.contains("typescript")
+                        ) {
                             hasTypeScriptDependency = true
                             break
                         }
@@ -91,6 +102,18 @@ class MCPProjectAnalyzer {
             }
         }
 
+        // 解析tsconfig.json并提取配置
+        var tsConfigOutDir: String? = null
+        var tsConfigRootDir: String? = null
+        var tsConfigContent: String? = null
+
+        if (hasTsConfig) {
+            val tsConfigInfo = parseTsConfig(pluginDir)
+            tsConfigOutDir = tsConfigInfo.first
+            tsConfigRootDir = tsConfigInfo.second
+            tsConfigContent = tsConfigInfo.third
+        }
+
         // 从README中提取配置示例
         val configExample = extractConfigExample(readmeContent)
 
@@ -98,38 +121,85 @@ class MCPProjectAnalyzer {
         val moduleNameFromConfig = extractModuleNameFromConfig(configExample)
 
         // 确定项目类型
-        val projectType = when {
-            // TypeScript项目特征: 有tsconfig.json或.ts文件
-            hasTsConfig || hasTsFiles || hasTypeScriptDependency -> ProjectType.TYPESCRIPT
-            // Node.js项目特征
-            hasPackageJson || (jsFiles != null && jsFiles.isNotEmpty()) -> ProjectType.NODEJS
-            // Python项目特征
-            hasRequirementsTxt ||
-                    hasPyprojectToml ||
-                    hasSetupPy ||
-                    (pythonFiles != null && pythonFiles.isNotEmpty()) -> ProjectType.PYTHON
-            else -> ProjectType.UNKNOWN
-        }
+        val projectType =
+                when {
+                    // TypeScript项目特征: 有tsconfig.json或.ts文件
+                    hasTsConfig || hasTsFiles || hasTypeScriptDependency -> ProjectType.TYPESCRIPT
+                    // Node.js项目特征
+                    hasPackageJson || (jsFiles != null && jsFiles.isNotEmpty()) ->
+                            ProjectType.NODEJS
+                    // Python项目特征
+                    hasRequirementsTxt ||
+                            hasPyprojectToml ||
+                            hasSetupPy ||
+                            (pythonFiles != null && pythonFiles.isNotEmpty()) -> ProjectType.PYTHON
+                    else -> ProjectType.UNKNOWN
+                }
 
         return ProjectStructure(
-            type = projectType,
-            hasRequirementsTxt = hasRequirementsTxt,
-            hasPyprojectToml = hasPyprojectToml,
-            hasSetupPy = hasSetupPy,
-            hasPackageJson = hasPackageJson,
-            hasTsConfig = hasTsConfig,
-            mainPythonModule = mainPythonModule,
-            mainJsFile = mainJsFile,
-            mainTsFile = mainTsFile,
-            hasTsFiles = hasTsFiles,
-            configExample = configExample,
-            moduleNameFromConfig = moduleNameFromConfig,
-            hasTypeScriptDependency = hasTypeScriptDependency,
-            packageJsonScripts = packageJsonScripts,
-            packageJsonContent = packageJsonContent
+                type = projectType,
+                hasRequirementsTxt = hasRequirementsTxt,
+                hasPyprojectToml = hasPyprojectToml,
+                hasSetupPy = hasSetupPy,
+                hasPackageJson = hasPackageJson,
+                hasTsConfig = hasTsConfig,
+                mainPythonModule = mainPythonModule,
+                mainJsFile = mainJsFile,
+                mainTsFile = mainTsFile,
+                hasTsFiles = hasTsFiles,
+                configExample = configExample,
+                moduleNameFromConfig = moduleNameFromConfig,
+                hasTypeScriptDependency = hasTypeScriptDependency,
+                packageJsonScripts = packageJsonScripts,
+                packageJsonContent = packageJsonContent,
+                tsConfigOutDir = tsConfigOutDir,
+                tsConfigRootDir = tsConfigRootDir,
+                tsConfigContent = tsConfigContent
         )
     }
-    
+
+    /**
+     * 解析tsconfig.json文件，提取编译相关配置
+     *
+     * @param pluginDir 插件目录
+     * @return Triple(outDir, rootDir, tsConfigContent) - 输出目录、根目录和tsconfig内容
+     */
+    private fun parseTsConfig(pluginDir: File): Triple<String?, String?, String?> {
+        val tsConfigFile = File(pluginDir, "tsconfig.json")
+        if (!tsConfigFile.exists()) {
+            return Triple(null, null, null)
+        }
+
+        try {
+            val tsConfigContent = tsConfigFile.readText()
+            val tsConfig = JSONObject(tsConfigContent)
+
+            var outDir: String? = "dist" // 默认值
+            var rootDir: String? = "src" // 默认值
+
+            // 获取编译选项
+            val compilerOptions = tsConfig.optJSONObject("compilerOptions")
+            if (compilerOptions != null) {
+                // 获取输出目录配置
+                if (compilerOptions.has("outDir")) {
+                    outDir = compilerOptions.getString("outDir").trim('/', '\\', '.', ' ')
+                    Log.d(TAG, "从tsconfig.json提取到outDir: $outDir")
+                }
+
+                // 获取根目录配置
+                if (compilerOptions.has("rootDir")) {
+                    rootDir = compilerOptions.getString("rootDir").trim('/', '\\', '.', ' ')
+                    Log.d(TAG, "从tsconfig.json提取到rootDir: $rootDir")
+                }
+            }
+
+            return Triple(outDir, rootDir, tsConfigContent)
+        } catch (e: Exception) {
+            Log.e(TAG, "解析tsconfig.json失败", e)
+            return Triple("dist", "src", null) // 返回默认值
+        }
+    }
+
     /** 查找主Python模块 */
     private fun findMainPythonModule(pluginDir: File, pythonFiles: Array<File>?): String? {
         // 检查常见的Python入口文件
@@ -279,8 +349,8 @@ class MCPProjectAnalyzer {
         for (match in codeBlocks) {
             val codeContent = match.groupValues[1].trim()
             if (codeContent.contains("\"mcpServers\"") ||
-                    codeContent.contains("\"command\"") ||
-                    codeContent.contains("\"args\"")
+                            codeContent.contains("\"command\"") ||
+                            codeContent.contains("\"args\"")
             ) {
                 return codeContent
             }
@@ -307,7 +377,7 @@ class MCPProjectAnalyzer {
 
         return null
     }
-    
+
     /** 查找README文件 */
     fun findReadmeFile(pluginDir: File): File? {
         // 先查找根目录下的README文件
@@ -351,4 +421,4 @@ class MCPProjectAnalyzer {
 
         return null
     }
-} 
+}

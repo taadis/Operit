@@ -42,6 +42,7 @@ fun PermissionStatusCard(
         hasShizukuPermission: Boolean,
         isTermuxInstalled: Boolean,
         isTermuxAuthorized: Boolean,
+        isTermuxRunning: Boolean = false,
         onStoragePermissionClick: () -> Unit,
         onOverlayPermissionClick: () -> Unit,
         onBatteryOptimizationClick: () -> Unit,
@@ -129,9 +130,11 @@ fun PermissionStatusCard(
                                 onLongClick = onShizukuLongClick
                         )
 
+                        // Replace the individual PermissionStatusItems with the TermuxStatusItem
                         TermuxStatusItem(
                                 isTermuxInstalled = isTermuxInstalled,
                                 isTermuxAuthorized = isTermuxAuthorized,
+                                isTermuxRunning = isTermuxRunning,
                                 onClick = onTermuxClick,
                                 onLongClick = onTermuxLongClick,
                                 isTunaSourceEnabled = isTunaSourceEnabled,
@@ -204,6 +207,7 @@ fun ShizukuStatusItem(
 fun TermuxStatusItem(
         isTermuxInstalled: Boolean,
         isTermuxAuthorized: Boolean,
+        isTermuxRunning: Boolean = false,
         onClick: () -> Unit,
         onLongClick: () -> Unit,
         isTunaSourceEnabled: Boolean = false,
@@ -227,9 +231,10 @@ fun TermuxStatusItem(
                         when {
                                 !isTermuxInstalled -> "未安装"
                                 !isTermuxAuthorized -> "未授权"
-                                // 添加新的状态：Termux安装和授权了，但环境未完全配置
+                                !isTermuxRunning -> "未运行"
                                 isTermuxInstalled &&
                                         isTermuxAuthorized &&
+                                        isTermuxRunning &&
                                         (!isTunaSourceEnabled ||
                                                 !isPythonInstalled ||
                                                 !isNodeInstalled) -> "待配置"
@@ -240,9 +245,10 @@ fun TermuxStatusItem(
                         when {
                                 !isTermuxInstalled -> MaterialTheme.colorScheme.error
                                 !isTermuxAuthorized -> MaterialTheme.colorScheme.error
-                                // 添加未完全配置状态的颜色 - 使用warning颜色
+                                !isTermuxRunning -> MaterialTheme.colorScheme.error
                                 isTermuxInstalled &&
                                         isTermuxAuthorized &&
+                                        isTermuxRunning &&
                                         (!isTunaSourceEnabled ||
                                                 !isPythonInstalled ||
                                                 !isNodeInstalled) ->

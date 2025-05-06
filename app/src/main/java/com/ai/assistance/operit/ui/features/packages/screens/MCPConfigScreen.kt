@@ -27,9 +27,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.ai.assistance.operit.data.mcp.plugins.MCPDeployer
 import com.ai.assistance.operit.data.mcp.MCPLocalServer
 import com.ai.assistance.operit.data.mcp.MCPRepository
+import com.ai.assistance.operit.data.mcp.plugins.MCPDeployer
 import com.ai.assistance.operit.ui.features.packages.components.dialogs.MCPServerDetailsDialog
 import com.ai.assistance.operit.ui.features.packages.screens.mcp.components.MCPDeployProgressDialog
 import com.ai.assistance.operit.ui.features.packages.screens.mcp.components.MCPInstallProgressDialog
@@ -73,6 +73,7 @@ fun MCPConfigScreen() {
     val deploymentStatus by deployViewModel.deploymentStatus.collectAsState()
     val outputMessages by deployViewModel.outputMessages.collectAsState()
     val currentDeployingPlugin by deployViewModel.currentDeployingPlugin.collectAsState()
+    val environmentVariables by deployViewModel.environmentVariables.collectAsState()
 
     // 服务器设置状态
     val serverPort = mcpLocalServer.serverPort.collectAsState().value
@@ -128,6 +129,10 @@ fun MCPConfigScreen() {
     }
     var showAdvancedOptions by remember { mutableStateOf(false) }
     var pluginToDeploy by remember { mutableStateOf<String?>(null) }
+
+    // 添加新的状态变量来跟踪对话框展示
+    var showConfirmDialog by remember { mutableStateOf(false) }
+    var showCustomCommandsDialog by remember { mutableStateOf(false) }
 
     // 获取选中插件的配置
     LaunchedEffect(selectedPluginId) {
@@ -248,34 +253,6 @@ fun MCPConfigScreen() {
         }
     }
 
-    // 部署确认对话框
-    if (pluginToDeploy != null) {
-        AlertDialog(
-                onDismissRequest = { pluginToDeploy = null },
-                title = { Text("确认部署") },
-                text = { Text("将部署插件: ${getPluginDisplayName(pluginToDeploy!!)}") },
-                confirmButton = {
-                    TextButton(onClick = { deployPlugin(pluginToDeploy!!) }) { Text("部署") }
-                },
-                dismissButton = { TextButton(onClick = { pluginToDeploy = null }) { Text("取消") } }
-        )
-    }
-
-    // 部署进度对话框
-    if (currentDeployingPlugin != null) {
-        MCPDeployProgressDialog(
-                deploymentStatus = deploymentStatus,
-                onDismissRequest = {
-                    if (deploymentStatus !is MCPDeployer.DeploymentStatus.InProgress) {
-                        deployViewModel.resetDeploymentState()
-                    }
-                },
-                onRetry = { currentDeployingPlugin?.let { deployPlugin(it) } },
-                pluginName = currentDeployingPlugin?.let { getPluginDisplayName(it) } ?: "",
-                outputMessages = outputMessages
-        )
-    }
-
     // 插件详情对话框
     if (selectedPluginForDetails != null) {
         val installedPath = viewModel.getInstalledPath(selectedPluginForDetails!!.id)
@@ -296,6 +273,111 @@ fun MCPConfigScreen() {
                     }
                 },
                 onUpdateConfig = { newConfig -> pluginConfigJson = newConfig }
+        )
+    }
+
+    // 部署确认对话框 - 新增
+    if (showConfirmDialog && pluginToDeploy != null) {
+        com.ai.assistance.operit.ui.features.packages.screens.mcp.components.MCPDeployConfirmDialog(
+                pluginName = getPluginDisplayName(pluginToDeploy!!),
+                onDismissRequest = {
+                    showConfirmDialog = false
+                    pluginToDeploy = null
+                },
+                onConfirm = {
+                    // 直接部署 - 获取命令后立即执行部署
+                    if (!isServerRunning) {
+                        mcpLocalServer.startServer()
+                    }
+
+                    // 在协程内部复制当前的pluginId避免外部状态变化导致空指针异常
+                    val pluginId = pluginToDeploy!!
+                    
+                    // 确保已获取命令
+                    scope.launch {
+                        if (deployViewModel.generatedCommands.value.isEmpty()) {
+                            deployViewModel.getDeployCommands(pluginId)
+                        }
+                        // 使用默认命令部署
+                        deployViewModel.deployPlugin(pluginId)
+                    }
+
+                    // 重置状态
+                    showConfirmDialog = false
+                    pluginToDeploy = null
+                },
+                onCustomize = {
+                    // 先关闭确认对话框，然后显示命令编辑对话框
+                    showConfirmDialog = false
+                    showCustomCommandsDialog = true
+
+                    // 立即尝试获取命令，不要等到命令编辑对话框渲染后再获取
+                    scope.launch {
+                        val pluginId = pluginToDeploy
+                        if (pluginId != null && deployViewModel.generatedCommands.value.isEmpty()) {
+                            deployViewModel.getDeployCommands(pluginId)
+                        }
+                    }
+                }
+        )
+    }
+
+    // 命令编辑对话框 - 修改为只在选择自定义后显示
+    if (showCustomCommandsDialog && pluginToDeploy != null) {
+        // 检查命令是否已生成
+        val commandsAvailable =
+                deployViewModel.generatedCommands.collectAsState().value.isNotEmpty()
+
+        // 显示命令编辑对话框，暂时移除isLoading参数
+        com.ai.assistance.operit.ui.features.packages.screens.mcp.components.MCPCommandsEditDialog(
+                pluginName = getPluginDisplayName(pluginToDeploy!!),
+                commands = deployViewModel.generatedCommands.value,
+                // 注释掉isLoading参数直到MCPCommandsEditDialog.kt的修改生效
+                // isLoading = !commandsAvailable,
+                onDismissRequest = {
+                    showCustomCommandsDialog = false
+                    pluginToDeploy = null
+                },
+                onConfirm = { customCommands ->
+                    // 使用自定义命令部署
+                    if (!isServerRunning) {
+                        mcpLocalServer.startServer()
+                    }
+                    
+                    // 在协程内部复制插件ID以避免空指针异常
+                    val pluginId = pluginToDeploy!!
+                    deployViewModel.deployPluginWithCommands(pluginId, customCommands)
+
+                    // 重置状态
+                    showCustomCommandsDialog = false
+                    pluginToDeploy = null
+                }
+        )
+
+        // 如果还没有获取命令，异步获取
+        LaunchedEffect(pluginToDeploy) {
+            if (!commandsAvailable) {
+                deployViewModel.getDeployCommands(pluginToDeploy!!)
+            }
+        }
+    }
+
+    // 部署进度对话框
+    if (currentDeployingPlugin != null) {
+        MCPDeployProgressDialog(
+                deploymentStatus = deploymentStatus,
+                onDismissRequest = { deployViewModel.resetDeploymentState() },
+                onRetry = {
+                    currentDeployingPlugin?.let { pluginId ->
+                        deployViewModel.deployPlugin(pluginId)
+                    }
+                },
+                pluginName = currentDeployingPlugin?.let { getPluginDisplayName(it) } ?: "",
+                outputMessages = outputMessages,
+                environmentVariables = environmentVariables,
+                onEnvironmentVariablesChange = { newEnvVars ->
+                    deployViewModel.setEnvironmentVariables(newEnvVars)
+                }
         )
     }
 
@@ -415,7 +497,10 @@ fun MCPConfigScreen() {
                                     pluginConfigJson = mcpLocalServer.getPluginConfig(pluginId)
                                     selectedPluginForDetails = getPluginAsServer(pluginId)
                                 },
-                                onDeploy = { pluginToDeploy = pluginId },
+                                onDeploy = {
+                                    pluginToDeploy = pluginId
+                                    showConfirmDialog = true // 显示确认对话框而不是直接进入命令编辑
+                                },
                                 isAutoDeploy = autoDeployState.value,
                                 onAutoDeployChange = { isChecked ->
                                     scope.launch {

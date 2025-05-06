@@ -1,9 +1,8 @@
 package com.ai.assistance.operit.data.mcp
 
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.serializer
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 /** VSCode风格的MCP配置 用于解析和管理VSCode格式的MCP服务器配置 */
@@ -15,7 +14,8 @@ data class MCPVscodeConfig(val mcpServers: Map<String, ServerConfig> = emptyMap(
             val command: String,
             val args: List<String> = emptyList(),
             val disabled: Boolean = false,
-            val autoApprove: List<String> = emptyList()
+            val autoApprove: List<String> = emptyList(),
+            val env: Map<String, String> = emptyMap()
     )
 
     companion object {
@@ -60,10 +60,16 @@ data class MCPVscodeConfig(val mcpServers: Map<String, ServerConfig> = emptyMap(
          * @param serverName 服务器名称
          * @param command 命令
          * @param args 参数列表
+         * @param env 环境变量
          * @return JSON字符串
          */
-        fun generateConfig(serverName: String, command: String, args: List<String>): String {
-            val serverConfig = ServerConfig(command, args)
+        fun generateConfig(
+                serverName: String,
+                command: String,
+                args: List<String>,
+                env: Map<String, String> = emptyMap()
+        ): String {
+            val serverConfig = ServerConfig(command, args, env = env)
             val config = MCPVscodeConfig(mapOf(serverName to serverConfig))
 
             val jsonFormat = Json {
@@ -71,7 +77,7 @@ data class MCPVscodeConfig(val mcpServers: Map<String, ServerConfig> = emptyMap(
                 encodeDefaults = true
             }
 
-            return jsonFormat.encodeToString(MCPVscodeConfig.serializer(), config)
+            return jsonFormat.encodeToString(config)
         }
     }
 }

@@ -20,6 +20,8 @@ fun TermuxWizardCard(
         isTunaSourceEnabled: Boolean = false,
         isPythonInstalled: Boolean = false,
         isNodeInstalled: Boolean = false,
+        isTermuxRunning: Boolean = false,
+        onStartTermux: () -> Unit = {},
         onConfigureTunaSource: () -> Unit = {},
         onInstallPythonEnv: () -> Unit = {},
         onInstallNodeEnv: () -> Unit = {}
@@ -61,36 +63,32 @@ fun TermuxWizardCard(
                                         when {
                                                 !isTermuxInstalled -> 0f
                                                 !isTermuxAuthorized -> 0.2f
-                                                !isTunaSourceEnabled -> 0.4f
-                                                !isPythonInstalled -> 0.6f
-                                                !isNodeInstalled -> 0.8f
+                                                !isTermuxRunning -> 0.4f
+                                                !isTunaSourceEnabled -> 0.55f
+                                                !isPythonInstalled -> 0.7f
+                                                !isNodeInstalled -> 0.85f
                                                 else -> 1f
                                         },
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
                         )
 
-                        // 当前状态文字
-                        val statusText =
-                                when {
-                                        !isTermuxInstalled -> "步骤1：安装 Termux 应用"
-                                        !isTermuxAuthorized -> "步骤2：授权 Termux 使用权限"
-                                        !isTunaSourceEnabled -> "步骤3：配置清华源"
-                                        !isPythonInstalled -> "步骤4：安装 Python 环境"
-                                        !isNodeInstalled -> "步骤5：安装 Node.js 环境"
-                                        else -> "Termux 已完全设置"
-                                }
-
+                        // 显示当前配置状态
                         Text(
-                                text = statusText,
-                                style =
-                                        MaterialTheme.typography.bodyLarge.copy(
-                                                fontWeight = FontWeight.Bold
-                                        ),
+                                text =
+                                        when {
+                                                !isTermuxInstalled -> "步骤1：安装Termux"
+                                                !isTermuxAuthorized -> "步骤2：授权Termux"
+                                                !isTermuxRunning -> "步骤3：启动Termux"
+                                                !isTunaSourceEnabled -> "步骤4：配置清华源"
+                                                !isPythonInstalled -> "步骤5：安装Python环境"
+                                                !isNodeInstalled -> "步骤6：安装Node.js环境"
+                                                else -> "Termux配置完成"
+                                        },
+                                style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(bottom = 8.dp)
+                                modifier = Modifier.padding(bottom = 16.dp)
                         )
 
-                        // 详细设置内容，仅在展开时显示
                         if (showWizard) {
                                 when {
                                         // 第一步：安装Termux
@@ -142,10 +140,13 @@ fun TermuxWizardCard(
                                                         }
                                                 }
 
-                                                OutlinedButton(
+                                                // 安装按钮
+                                                Button(
                                                         onClick = onInstallBundled,
-                                                        modifier = Modifier.fillMaxWidth()
-                                                ) { Text("安装内置版本") }
+                                                        modifier =
+                                                                Modifier.fillMaxWidth()
+                                                                        .padding(vertical = 8.dp)
+                                                ) { Text("安装内置Termux") }
                                         }
 
                                         // 第二步：授权Termux
@@ -188,8 +189,7 @@ fun TermuxWizardCard(
                                                                 )
                                                                 Text(
                                                                         text =
-                                                                                "点击下方按钮自动授权Termux。授权过程需要使用Shizuku服务，请确保Shizuku服务已正确配置。\n\n" +
-                                                                                        "如果授权失败，请先打开Termux应用运行一次，然后重试授权。",
+                                                                                "授权前请确保：\n1. Shizuku服务已正常运行并授权\n2. Termux已安装并至少打开过一次\n3. 点击「授权Termux」按钮完成授权",
                                                                         color =
                                                                                 MaterialTheme
                                                                                         .colorScheme
@@ -198,10 +198,11 @@ fun TermuxWizardCard(
                                                         }
                                                 }
 
+                                                // 授权按钮
                                                 Row(
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                        horizontalArrangement =
-                                                                Arrangement.SpaceBetween
+                                                        modifier =
+                                                                Modifier.fillMaxWidth()
+                                                                        .padding(vertical = 8.dp)
                                                 ) {
                                                         OutlinedButton(
                                                                 onClick = onOpenTermux,
@@ -221,7 +222,65 @@ fun TermuxWizardCard(
                                                 }
                                         }
 
-                                        // 第三步：配置清华源
+                                        // 第三步：启动Termux（新增步骤）
+                                        !isTermuxRunning -> {
+                                                Text(
+                                                        "Termux已安装并授权，但当前未运行。配置操作需要Termux在后台运行。",
+                                                        color =
+                                                                MaterialTheme.colorScheme
+                                                                        .onPrimaryContainer,
+                                                        modifier = Modifier.padding(bottom = 8.dp)
+                                                )
+
+                                                // 启动说明
+                                                Card(
+                                                        colors =
+                                                                CardDefaults.cardColors(
+                                                                        containerColor =
+                                                                                MaterialTheme
+                                                                                        .colorScheme
+                                                                                        .surface
+                                                                ),
+                                                        modifier =
+                                                                Modifier.fillMaxWidth()
+                                                                        .padding(bottom = 8.dp)
+                                                ) {
+                                                        Column(modifier = Modifier.padding(16.dp)) {
+                                                                Text(
+                                                                        text = "启动说明",
+                                                                        fontWeight =
+                                                                                FontWeight.Bold,
+                                                                        color =
+                                                                                MaterialTheme
+                                                                                        .colorScheme
+                                                                                        .onSurface,
+                                                                        modifier =
+                                                                                Modifier.padding(
+                                                                                        bottom =
+                                                                                                4.dp
+                                                                                )
+                                                                )
+                                                                Text(
+                                                                        text =
+                                                                                "请点击「启动Termux」按钮打开Termux应用，并等待它完成初始化。初始化完成后，Termux会在后台保持运行，您可以继续进行配置操作。",
+                                                                        color =
+                                                                                MaterialTheme
+                                                                                        .colorScheme
+                                                                                        .onSurface
+                                                                )
+                                                        }
+                                                }
+
+                                                // 启动按钮
+                                                Button(
+                                                        onClick = onStartTermux,
+                                                        modifier =
+                                                                Modifier.fillMaxWidth()
+                                                                        .padding(vertical = 8.dp)
+                                                ) { Text("启动Termux") }
+                                        }
+
+                                        // 第四步：配置清华源
                                         !isTunaSourceEnabled -> {
                                                 Text(
                                                         "Termux已授权，现在需要配置清华源以加速软件包下载。",
@@ -261,8 +320,7 @@ fun TermuxWizardCard(
                                                                 )
                                                                 Text(
                                                                         text =
-                                                                                "配置清华源可以大幅提高软件包下载速度。点击下方按钮自动配置。\n\n" +
-                                                                                        "配置过程需要一段时间，请耐心等待。",
+                                                                                "清华源是国内镜像源，可以大幅提高Termux软件包下载速度。点击「配置清华源」按钮自动完成配置。",
                                                                         color =
                                                                                 MaterialTheme
                                                                                         .colorScheme
@@ -271,23 +329,26 @@ fun TermuxWizardCard(
                                                         }
                                                 }
 
+                                                // 配置按钮
                                                 Button(
                                                         onClick = onConfigureTunaSource,
-                                                        modifier = Modifier.fillMaxWidth()
+                                                        modifier =
+                                                                Modifier.fillMaxWidth()
+                                                                        .padding(vertical = 8.dp)
                                                 ) { Text("配置清华源") }
                                         }
 
-                                        // 第四步：安装Python环境
+                                        // 第五步：安装Python环境
                                         !isPythonInstalled -> {
                                                 Text(
-                                                        "清华源已配置，接下来安装Python环境。",
+                                                        "清华源已配置，现在需要安装Python环境。",
                                                         color =
                                                                 MaterialTheme.colorScheme
                                                                         .onPrimaryContainer,
                                                         modifier = Modifier.padding(bottom = 8.dp)
                                                 )
 
-                                                // Python环境安装说明
+                                                // Python环境说明
                                                 Card(
                                                         colors =
                                                                 CardDefaults.cardColors(
@@ -302,7 +363,7 @@ fun TermuxWizardCard(
                                                 ) {
                                                         Column(modifier = Modifier.padding(16.dp)) {
                                                                 Text(
-                                                                        text = "Python环境安装说明",
+                                                                        text = "Python环境说明",
                                                                         fontWeight =
                                                                                 FontWeight.Bold,
                                                                         color =
@@ -317,8 +378,7 @@ fun TermuxWizardCard(
                                                                 )
                                                                 Text(
                                                                         text =
-                                                                                "安装Python环境，包括Python解释器和pip包管理器。\n\n" +
-                                                                                        "安装过程可能需要几分钟，请耐心等待。",
+                                                                                "Python是一种流行的编程语言，许多AI工具和自动化脚本需要它。点击「安装Python」按钮进行安装。",
                                                                         color =
                                                                                 MaterialTheme
                                                                                         .colorScheme
@@ -327,23 +387,26 @@ fun TermuxWizardCard(
                                                         }
                                                 }
 
+                                                // 安装按钮
                                                 Button(
                                                         onClick = onInstallPythonEnv,
-                                                        modifier = Modifier.fillMaxWidth()
-                                                ) { Text("安装Python环境") }
+                                                        modifier =
+                                                                Modifier.fillMaxWidth()
+                                                                        .padding(vertical = 8.dp)
+                                                ) { Text("安装Python") }
                                         }
 
-                                        // 第五步：安装Node.js环境
+                                        // 第六步：安装Node.js环境
                                         !isNodeInstalled -> {
                                                 Text(
-                                                        "Python环境已安装，接下来安装Node.js环境。",
+                                                        "Python已安装，现在需要安装Node.js环境。",
                                                         color =
                                                                 MaterialTheme.colorScheme
                                                                         .onPrimaryContainer,
                                                         modifier = Modifier.padding(bottom = 8.dp)
                                                 )
 
-                                                // Node.js环境安装说明
+                                                // Node.js环境说明
                                                 Card(
                                                         colors =
                                                                 CardDefaults.cardColors(
@@ -358,7 +421,7 @@ fun TermuxWizardCard(
                                                 ) {
                                                         Column(modifier = Modifier.padding(16.dp)) {
                                                                 Text(
-                                                                        text = "Node.js环境安装说明",
+                                                                        text = "Node.js环境说明",
                                                                         fontWeight =
                                                                                 FontWeight.Bold,
                                                                         color =
@@ -373,8 +436,7 @@ fun TermuxWizardCard(
                                                                 )
                                                                 Text(
                                                                         text =
-                                                                                "安装Node.js环境，包括Node.js运行时和npm包管理器。\n\n" +
-                                                                                        "安装过程可能需要几分钟，请耐心等待。",
+                                                                                "Node.js是一个JavaScript运行环境，用于运行JavaScript代码和Web应用。点击「安装Node.js」按钮进行安装。",
                                                                         color =
                                                                                 MaterialTheme
                                                                                         .colorScheme
@@ -383,25 +445,31 @@ fun TermuxWizardCard(
                                                         }
                                                 }
 
+                                                // 安装按钮
                                                 Button(
                                                         onClick = onInstallNodeEnv,
-                                                        modifier = Modifier.fillMaxWidth()
-                                                ) { Text("安装Node.js环境") }
+                                                        modifier =
+                                                                Modifier.fillMaxWidth()
+                                                                        .padding(vertical = 8.dp)
+                                                ) { Text("安装Node.js") }
                                         }
 
-                                        // 全部完成
+                                        // 完成状态
                                         else -> {
                                                 Text(
-                                                        "恭喜！Termux已完全设置，各个环境已安装完成，您现在可以使用全部功能。",
+                                                        "恭喜！Termux环境已完全配置好，现在您可以使用Termux进行各种命令行操作。",
                                                         color =
                                                                 MaterialTheme.colorScheme
                                                                         .onPrimaryContainer,
+                                                        modifier = Modifier.padding(bottom = 8.dp)
                                                 )
 
-                                                OutlinedButton(
+                                                Button(
                                                         onClick = onOpenTermux,
-                                                        modifier = Modifier.fillMaxWidth()
-                                                ) { Text("打开Termux应用") }
+                                                        modifier =
+                                                                Modifier.fillMaxWidth()
+                                                                        .padding(vertical = 8.dp)
+                                                ) { Text("打开Termux") }
                                         }
                                 }
                         }

@@ -12,6 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -99,19 +100,83 @@ class MCPStarter(private val context: Context) {
             val command = serverConfig.command
             val args = serverConfig.args.joinToString(" ")
 
+            // 获取环境变量配置
+            val envVars = serverConfig.env
+
             // 定义插件目录路径
             val termuxPluginDir =
                     "/data/data/com.termux/files/home/mcp_plugins/${pluginId.split("/").last()}"
 
+            // 如果有环境变量，先检查并设置
+            if (envVars.isNotEmpty()) {
+                statusCallback(StartStatus.InProgress("设置环境变量..."))
+                Log.d(TAG, "[$serverName] 设置环境变量: ${envVars.keys}")
+
+                // 构建导出环境变量的命令
+                val exportCommands =
+                        envVars.entries.joinToString(" && ") { (key, value) ->
+                            "export $key=\"$value\""
+                        }
+
+                // 执行cd命令并设置环境变量
+                val envCommand = "cd $termuxPluginDir && $exportCommands"
+                TerminalSessionManager.executeSessionCommand(
+                        context = context,
+                        session = session,
+                        command = envCommand,
+                        onOutput = { output -> Log.d(TAG, "[$serverName] 环境变量输出: $output") },
+                        onInteractivePrompt = { prompt, executionId ->
+                            Log.d(TAG, "[$serverName] 环境变量设置交互提示: $prompt (ID: $executionId)")
+                            null
+                        },
+                        onComplete = { exitCode, commandSuccess ->
+                            if (!commandSuccess) {
+                                Log.e(TAG, "[$serverName] 环境变量设置失败 (exitCode: $exitCode)")
+                            } else {
+                                Log.d(TAG, "[$serverName] 环境变量设置成功")
+                            }
+                        }
+                )
+            }
+
             statusCallback(StartStatus.InProgress("执行命令: $command $args"))
 
-            // 执行启动命令
+            // 标记命令是否完成以及成功状态
+            val commandCompletedFlag = java.util.concurrent.atomic.AtomicBoolean(false)
             var success = false
 
+            // 使用环境变量执行命令
+            val fullCommand =
+                    if (envVars.isNotEmpty()) {
+                        // 如果有环境变量，一次性导出并执行命令
+                        val exports =
+                                envVars.entries.joinToString(" ") { (key, value) ->
+                                    "$key=\"$value\""
+                                }
+                        "cd $termuxPluginDir && $exports $command $args"
+                    } else {
+                        // 如果没有环境变量，直接执行命令
+                        "cd $termuxPluginDir && $command $args"
+                    }
+
+            // 创建一个定时器，在等待3秒后检查命令状态
+            val timer = java.util.Timer()
+            timer.schedule(object : java.util.TimerTask() {
+                override fun run() {
+                    // 如果命令仍在运行（没有触发onComplete），认为是成功的
+                    if (!commandCompletedFlag.get()) {
+                        Log.d(TAG, "[$serverName] 启动成功 - 命令仍在运行超过3秒")
+                        statusCallback(StartStatus.Success("插件 $pluginId 已成功启动"))
+                        success = true
+                    }
+                }
+            }, 3000)
+
+            // 执行命令
             TerminalSessionManager.executeSessionCommand(
                     context = context,
                     session = session,
-                    command = "cd $termuxPluginDir && $command $args",
+                    command = fullCommand,
                     onOutput = { output ->
                         Log.d(TAG, "[$serverName] 输出: $output")
                         statusCallback(StartStatus.InProgress("输出: $output"))
@@ -122,13 +187,21 @@ class MCPStarter(private val context: Context) {
                         null // 不提供自动响应
                     },
                     onComplete = { exitCode, commandSuccess ->
-                        success = commandSuccess
+                        // 标记命令已完成
+                        commandCompletedFlag.set(true)
+                        
+                        // 取消定时器，以免重复处理
+                        timer.cancel()
+
+                        // 对于长期运行的服务，如果命令完成了（返回了结果）通常意味着出错了
                         if (commandSuccess) {
-                            Log.d(TAG, "[$serverName] 启动成功 (exitCode: $exitCode)")
-                            statusCallback(StartStatus.Success("插件 $pluginId 已成功启动"))
+                            Log.w(TAG, "[$serverName] 命令成功完成，但这可能意味着服务没有持续运行 (exitCode: $exitCode)")
+                            statusCallback(StartStatus.Error("命令执行完成，可能未能保持运行，退出码: $exitCode"))
+                            success = false
                         } else {
-                            Log.e(TAG, "[$serverName] 启动失败 (exitCode: $exitCode)")
-                            statusCallback(StartStatus.Error("启动失败，退出码: $exitCode"))
+                            Log.e(TAG, "[$serverName] 命令执行失败 (exitCode: $exitCode)")
+                            statusCallback(StartStatus.Error("启动失败，命令执行错误，退出码: $exitCode"))
+                            success = false
                         }
                     }
             )
@@ -189,63 +262,208 @@ class MCPStarter(private val context: Context) {
 
                 Log.d(TAG, "已部署插件数量: ${deployedPlugins.size}")
 
-                // 并行启动所有已部署的插件
-                val startJobs =
-                        deployedPlugins.mapIndexed { index, pluginId ->
-                            starterScope.async {
-                                Log.d(TAG, "异步启动插件: $pluginId")
+                // 如果没有部署的插件，直接完成
+                if (deployedPlugins.isEmpty()) {
+                    progressListener.onAllPluginsStarted(0, 0)
+                    return@launch
+                }
 
-                                // 通知开始启动插件
-                                progressListener.onPluginStarting(
-                                        pluginId,
-                                        index + 1,
-                                        deployedPlugins.size
-                                )
+                // 插件启动结果映射
+                val pluginResults = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
 
-                                val success =
-                                        startPlugin(
-                                                pluginId = pluginId,
-                                                statusCallback = { status ->
-                                                    when (status) {
-                                                        is StartStatus.Success -> {
-                                                            Log.d(TAG, "插件 $pluginId 启动成功")
-                                                            startedCount.incrementAndGet()
-                                                        }
-                                                        is StartStatus.Error -> {
-                                                            Log.e(
-                                                                    TAG,
-                                                                    "插件 $pluginId 启动失败: ${status.message}"
-                                                            )
-                                                        }
-                                                        is StartStatus.InProgress -> {
-                                                            // 处理进行中状态
-                                                        }
-                                                        is StartStatus.NotStarted -> {
-                                                            // 处理未开始状态
-                                                        }
-                                                    }
-                                                }
-                                        )
-
-                                // 通知插件启动完成
+                // 创建一个主定时器，确保整个启动过程不会卡住
+                val masterTimer = java.util.Timer()
+                masterTimer.schedule(object : java.util.TimerTask() {
+                    override fun run() {
+                        // 如果10秒后还有插件没有报告结果，将其标记为失败并继续
+                        for (pluginId in deployedPlugins) {
+                            if (!pluginResults.containsKey(pluginId)) {
+                                Log.w(TAG, "插件 $pluginId 启动超时")
+                                pluginResults[pluginId] = false
+                                
+                                // 通知插件启动完成（但失败）
+                                val index = deployedPlugins.indexOf(pluginId) + 1
                                 progressListener.onPluginStarted(
-                                        pluginId,
-                                        success,
-                                        index + 1,
-                                        deployedPlugins.size
+                                    pluginId,
+                                    false,
+                                    index,
+                                    deployedPlugins.size
                                 )
-
-                                success
                             }
                         }
+                        
+                        // 检查是否所有插件都有了结果
+                        if (pluginResults.size == deployedPlugins.size) {
+                            // 报告最终结果
+                            val successCount = pluginResults.values.count { it }
+                            progressListener.onAllPluginsStarted(successCount, deployedPlugins.size)
+                        }
+                    }
+                }, 10000) // 10秒超时
+                
+                // 并行启动所有已部署的插件
+                deployedPlugins.forEachIndexed { index, pluginId ->
+                    starterScope.launch {
+                        Log.d(TAG, "异步启动插件: $pluginId")
 
-                // 等待所有插件启动完成
-                startJobs.awaitAll()
+                        // 通知开始启动插件
+                        progressListener.onPluginStarting(
+                                pluginId,
+                                index + 1,
+                                deployedPlugins.size
+                        )
 
+                        var success = false
+                        var resultReported = false
+                        
+                        try {
+                            // 创建一个插件启动状态回调，可以多次被调用
+                            val statusCallback = { status: StartStatus ->
+                                when (status) {
+                                    is StartStatus.Success -> {
+                                        Log.d(TAG, "插件 $pluginId 启动成功")
+                                        if (!resultReported) {
+                                            resultReported = true
+                                            success = true
+                                            startedCount.incrementAndGet()
+                                            pluginResults[pluginId] = true
+                                            
+                                            // 通知插件启动完成
+                                            progressListener.onPluginStarted(
+                                                pluginId,
+                                                true,
+                                                index + 1,
+                                                deployedPlugins.size
+                                            )
+                                            
+                                            // 检查是否所有插件都完成了
+                                            if (pluginResults.size == deployedPlugins.size) {
+                                                // 取消主定时器
+                                                masterTimer.cancel()
+                                                
+                                                // 报告最终结果
+                                                val successCount = pluginResults.values.count { it }
+                                                progressListener.onAllPluginsStarted(successCount, deployedPlugins.size)
+                                            }
+                                        }
+                                    }
+                                    is StartStatus.Error -> {
+                                        Log.e(
+                                                TAG,
+                                                "插件 $pluginId 启动失败: ${status.message}"
+                                        )
+                                        if (!resultReported) {
+                                            resultReported = true
+                                            success = false
+                                            pluginResults[pluginId] = false
+                                            
+                                            // 通知插件启动完成（但失败）
+                                            progressListener.onPluginStarted(
+                                                pluginId,
+                                                false,
+                                                index + 1,
+                                                deployedPlugins.size
+                                            )
+                                            
+                                            // 检查是否所有插件都完成了
+                                            if (pluginResults.size == deployedPlugins.size) {
+                                                // 取消主定时器
+                                                masterTimer.cancel()
+                                                
+                                                // 报告最终结果
+                                                val successCount = pluginResults.values.count { it }
+                                                progressListener.onAllPluginsStarted(successCount, deployedPlugins.size)
+                                            }
+                                        }
+                                    }
+                                    is StartStatus.InProgress -> {
+                                        // 处理进行中状态，不需要特别处理
+                                    }
+                                    is StartStatus.NotStarted -> {
+                                        // 处理未开始状态，不需要特别处理
+                                    }
+                                }
+                            }
+                            
+                            // 启动插件
+                            startPlugin(pluginId = pluginId, statusCallback = statusCallback)
+                            
+                            // 注意：不再等待startPlugin返回，因为成功或失败会通过statusCallback通知
+                            
+                            // 设置一个安全定时器，确保即使statusCallback没有被调用，也会有结果
+                            kotlinx.coroutines.delay(8000)
+                            
+                            // 如果8秒后仍未收到结果，标记为失败
+                            if (!resultReported) {
+                                Log.w(TAG, "插件 $pluginId 启动超时，未收到状态回调")
+                                resultReported = true
+                                success = false
+                                pluginResults[pluginId] = false
+                                
+                                // 通知插件启动完成（但失败）
+                                progressListener.onPluginStarted(
+                                    pluginId,
+                                    false,
+                                    index + 1,
+                                    deployedPlugins.size
+                                )
+                                
+                                // 检查是否所有插件都完成了
+                                if (pluginResults.size == deployedPlugins.size) {
+                                    // 取消主定时器
+                                    masterTimer.cancel()
+                                    
+                                    // 报告最终结果
+                                    val successCount = pluginResults.values.count { it }
+                                    progressListener.onAllPluginsStarted(successCount, deployedPlugins.size)
+                                }
+                            }
+                        } catch (e: Exception) {
+                            // 处理异常
+                            Log.e(TAG, "插件 $pluginId 启动过程中出错", e)
+                            if (!resultReported) {
+                                resultReported = true
+                                success = false
+                                pluginResults[pluginId] = false
+                                
+                                // 通知插件启动完成（但失败）
+                                progressListener.onPluginStarted(
+                                    pluginId,
+                                    false,
+                                    index + 1,
+                                    deployedPlugins.size
+                                )
+                                
+                                // 检查是否所有插件都完成了
+                                if (pluginResults.size == deployedPlugins.size) {
+                                    // 取消主定时器
+                                    masterTimer.cancel()
+                                    
+                                    // 报告最终结果
+                                    val successCount = pluginResults.values.count { it }
+                                    progressListener.onAllPluginsStarted(successCount, deployedPlugins.size)
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // 设置一个全局超时，确保在非常极端的情况下也能完成
+                delay(15000)
+                
+                // 如果15秒后还没有完成，强制完成
+                masterTimer.cancel()
+                
+                // 计算最终成功数量
+                val finalSuccess = pluginResults.values.count { it }
+                
                 // 通知所有插件启动完成
-                progressListener.onAllPluginsStarted(startedCount.get(), deployedPlugins.size)
-
-                Log.d(TAG, "批量启动完成，成功启动: ${startedCount.get()} 个插件")
+                if (pluginResults.size < deployedPlugins.size) {
+                    Log.w(TAG, "在全局超时后强制完成插件启动，已处理: ${pluginResults.size}/${deployedPlugins.size}")
+                    progressListener.onAllPluginsStarted(finalSuccess, deployedPlugins.size)
+                }
+                
+                Log.d(TAG, "批量启动完成，成功启动: $finalSuccess 个插件")
             } catch (e: Exception) {
                 Log.e(TAG, "批量启动插件时出错", e)
                 progressListener.onAllPluginsStarted(0, 0)
@@ -269,17 +487,20 @@ class MCPStarter(private val context: Context) {
             val mcpManager = com.ai.assistance.operit.core.tools.mcp.MCPManager.getInstance(context)
 
             // 构建服务器配置
+            val extraDataMap = mutableMapOf<String, String>()
+            extraDataMap["command"] = serverConfig.command
+            extraDataMap["args"] = serverConfig.args.joinToString(",")
+
+            // 添加环境变量信息
+            serverConfig.env.forEach { (key, value) -> extraDataMap["env_$key"] = value }
+
             val mcpServerConfig =
                     com.ai.assistance.operit.core.tools.mcp.MCPServerConfig(
                             name = serverName,
                             endpoint = "mcp://plugin/$serverName",
                             description = "从插件启动的MCP服务器: $pluginId",
                             capabilities = listOf("tools", "resources"),
-                            extraData =
-                                    mapOf(
-                                            "command" to serverConfig.command,
-                                            "args" to serverConfig.args.joinToString(",")
-                                    )
+                            extraData = extraDataMap
                     )
 
             // 注册服务器

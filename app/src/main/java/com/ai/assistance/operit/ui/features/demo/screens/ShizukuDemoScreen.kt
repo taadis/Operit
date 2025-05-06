@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import com.ai.assistance.operit.core.tools.system.termux.TermuxAuthorizer
 import com.ai.assistance.operit.core.tools.system.termux.TermuxInstaller
+import com.ai.assistance.operit.core.tools.system.termux.TermuxUtils
 import com.ai.assistance.operit.data.repository.UIHierarchyManager
 import com.ai.assistance.operit.tools.system.AdbCommandExecutor
 import com.ai.assistance.operit.tools.system.ShizukuInstaller
@@ -86,6 +87,7 @@ fun ShizukuDemoScreen() {
     val isPythonInstalled = remember { mutableStateOf(false) }
     val isNodeInstalled = remember { mutableStateOf(false) }
     val isTermuxConfiguring = remember { mutableStateOf(false) }
+    val isTermuxRunning = remember { mutableStateOf(false) }
 
     // 添加Termux配置持久化状态 - 在初始化阶段就读取，避免界面闪烁
     val isTermuxFullyConfigured = remember {
@@ -126,6 +128,40 @@ fun ShizukuDemoScreen() {
                         permissions[android.Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
                 state.hasLocationPermission.value = fineLocationGranted || coarseLocationGranted
             }
+
+    // 检查Termux是否在运行 - 单独函数
+    fun checkTermuxRunning() {
+        val wasRunning = isTermuxRunning.value
+        isTermuxRunning.value = TermuxUtils.isTermuxRunning(context)
+        // 只在状态变化时打印日志，避免过多日志
+        if (wasRunning != isTermuxRunning.value) {
+            Log.d(TAG, "Termux运行状态变更: ${isTermuxRunning.value}")
+        }
+    }
+
+    // 启动Termux函数
+    val startTermux: () -> Unit = {
+        scope.launch {
+            // 先检查Termux是否运行
+            checkTermuxRunning()
+
+            if (!isTermuxRunning.value) {
+                // 简单地尝试启动Termux
+                if (TermuxInstaller.openTermux(context)) {
+                    Toast.makeText(context, "已发送启动Termux命令", Toast.LENGTH_SHORT).show()
+                    // 给Termux一点启动时间
+                    delay(1000)
+                    // 再次检查状态，更新UI
+                    checkTermuxRunning()
+                } else {
+                    Toast.makeText(context, "启动Termux失败", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                // Termux已经在运行中，显示通知
+                Toast.makeText(context, "Termux已在运行中", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     // 检查Tuna源是否启用 - 只在初始加载时调用一次
     suspend fun checkTunaSourceEnabled() {
@@ -178,6 +214,9 @@ fun ShizukuDemoScreen() {
         withContext(Dispatchers.IO) {
             // 只在Termux已安装且已授权时才检查
             if (state.isTermuxInstalled.value && state.isTermuxAuthorized.value) {
+                // 检查Termux是否在运行
+                checkTermuxRunning()
+
                 checkTunaSourceEnabled()
                 checkPythonInstalled()
                 checkNodeInstalled()
@@ -211,6 +250,14 @@ fun ShizukuDemoScreen() {
     // 配置清华源
     val configureTunaSource = {
         scope.launch {
+            // 先检查Termux是否在运行
+            checkTermuxRunning()
+            if (!isTermuxRunning.value) {
+                outputText += "\nTermux未运行，请先启动Termux"
+                Toast.makeText(context, "请先启动Termux", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+
             isTermuxConfiguring.value = true
             currentTask = "配置清华源"
             outputText += "\n开始配置清华源..."
@@ -282,6 +329,14 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
     // 安装Python环境
     val installPython = {
         scope.launch {
+            // 简单地检查Termux是否在运行
+            checkTermuxRunning()
+            if (!isTermuxRunning.value) {
+                outputText += "\nTermux未运行，请先启动Termux"
+                Toast.makeText(context, "请先启动Termux", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+
             isTermuxConfiguring.value = true
             currentTask = "安装Python"
             outputText += "\n开始安装Python环境..."
@@ -331,6 +386,14 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
     // 安装Node.js环境
     val installNode = {
         scope.launch {
+            // 简单地检查Termux是否在运行
+            checkTermuxRunning()
+            if (!isTermuxRunning.value) {
+                outputText += "\nTermux未运行，请先启动Termux"
+                Toast.makeText(context, "请先启动Termux", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+
             isTermuxConfiguring.value = true
             currentTask = "安装Node.js"
             outputText += "\n开始安装Node.js环境..."
@@ -399,6 +462,9 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
         // 检查Termux是否安装及检查清单中是否声明了RUN_COMMAND权限
         state.isTermuxInstalled.value = TermuxInstaller.isTermuxInstalled(context)
 
+        // 检查Termux是否在运行 - 确保每次刷新状态时都检查Termux运行状态
+        checkTermuxRunning()
+
         // 检查应用清单中是否声明了RUN_COMMAND权限
         var hasTermuxPermissionDeclared = false
         try {
@@ -457,6 +523,9 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
         scope.launch {
             // 这里只在特定情况下检查，而不是无条件检查
             if (state.isTermuxInstalled.value) {
+                // 检查Termux是否在运行
+                checkTermuxRunning()
+
                 // 更明确地检查Termux RUN_COMMAND权限
                 state.isTermuxAuthorized.value = TermuxAuthorizer.isTermuxAuthorized(context)
 
@@ -523,6 +592,9 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
         // 检查Termux安装和权限状态
         // com.termux.permission.RUN_COMMAND权限检查包含在isTermuxAuthorized中
         if (state.isTermuxInstalled.value) {
+            // 检查Termux是否在运行
+            checkTermuxRunning()
+
             state.isTermuxAuthorized.value = TermuxAuthorizer.isTermuxAuthorized(context)
 
             // 如果Termux未授权，显示Termux向导卡片
@@ -655,6 +727,9 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
                             isTermuxFullyConfigured.value || isTunaSourceEnabled.value,
                     isPythonInstalled = isTermuxFullyConfigured.value || isPythonInstalled.value,
                     isNodeInstalled = isTermuxFullyConfigured.value || isNodeInstalled.value,
+                    isTermuxRunning = isTermuxRunning.value,
+                    // 添加启动Termux的回调
+                    onStartTermux = startTermux,
                     // 添加新的回调函数
                     onConfigureTunaSource = {
                         if (!isTermuxConfiguring.value) {
@@ -756,6 +831,31 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
                         // 授权Termux
                         scope.launch {
                             outputText = "欢迎使用Termux配置工具\n开始授权Termux..."
+
+                            // 先检查Termux是否在运行
+                            checkTermuxRunning()
+                            if (!isTermuxRunning.value) {
+                                outputText += "\nTermux未运行，将尝试启动Termux..."
+                                if (TermuxInstaller.openTermux(context)) {
+                                    outputText += "\n已启动Termux，请稍等..."
+                                    // 简单等待1秒钟
+                                    delay(1000)
+                                    // 再次检查状态
+                                    checkTermuxRunning()
+                                    if (!isTermuxRunning.value) {
+                                        outputText += "\nTermux似乎未成功启动，请手动启动Termux后再尝试"
+                                        Toast.makeText(context, "请手动启动Termux", Toast.LENGTH_SHORT)
+                                                .show()
+                                        return@launch
+                                    }
+                                    outputText += "\nTermux已启动"
+                                } else {
+                                    outputText += "\nTermux启动失败，请确保Termux已正确安装"
+                                    Toast.makeText(context, "启动Termux失败", Toast.LENGTH_SHORT).show()
+                                    return@launch
+                                }
+                            }
+
                             isTermuxConfiguring.value = true
                             currentTask = "授权Termux"
                             state.resultDialogTitle.value = "授权Termux"
@@ -912,6 +1012,7 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
                 hasShizukuPermission = state.hasShizukuPermission.value,
                 isTermuxInstalled = state.isTermuxInstalled.value,
                 isTermuxAuthorized = state.isTermuxAuthorized.value,
+                isTermuxRunning = isTermuxRunning.value,
                 onStoragePermissionClick = {
                     try {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {

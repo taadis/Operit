@@ -5,10 +5,10 @@ import android.content.Context
 import android.util.Log
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.snapshots.SnapshotStateList
-import com.ai.assistance.operit.tools.system.AdbCommandExecutor.CommandResult
-import com.ai.assistance.operit.tools.system.TermuxCommandExecutor
 import com.ai.assistance.operit.core.tools.system.termux.TermuxCommandOptions
 import com.ai.assistance.operit.core.tools.system.termux.TermuxCommandOutputReceiver
+import com.ai.assistance.operit.tools.system.AdbCommandExecutor.CommandResult
+import com.ai.assistance.operit.tools.system.TermuxCommandExecutor
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,6 +34,14 @@ class TerminalSession(
         var commandHistoryIndex: Int = -1,
         var termuxSessionId: String? = null
 ) {
+
+    private val TAG = "TerminalSession"
+
+    /** 创建带有命令前缀的日志消息 */
+    private fun createLogMessage(command: String, message: String): String {
+        val shortCommand = if (command.length > 20) command.substring(0, 20) + "..." else command
+        return "[cmd: $shortCommand] $message"
+    }
 
     /** 上一个工作目录 (用于支持 cd - 命令) */
     private var previousWorkingDirectory: String? = null
@@ -74,11 +82,13 @@ class TerminalSession(
             // 特殊命令处理
             when {
                 command.trim() == "clear" -> {
+                    Log.d(TAG, createLogMessage(command, "执行清屏命令"))
                     commandHistory.clear()
                     onCompletion(0, true)
                     return@launch
                 }
                 command.trim() == "help" -> {
+                    Log.d(TAG, createLogMessage(command, "执行帮助命令"))
                     outputFlow.emit(
                             TerminalLine.Output(
                                     "Available commands:\n" +
@@ -94,6 +104,7 @@ class TerminalSession(
                     return@launch
                 }
                 command.trim().startsWith("cd ") -> {
+                    Log.d(TAG, createLogMessage(command, "执行CD命令"))
                     // Check if this is a combined command with &&
                     if (command.contains(" && ")) {
                         val parts = command.split(" && ", limit = 2)
@@ -102,14 +113,30 @@ class TerminalSession(
 
                         // Extract cd argument
                         val cdArg = cdCommand.substring(2).trim()
+                        Log.d(
+                                TAG,
+                                createLogMessage(
+                                        command,
+                                        "拆分组合命令: cd '$cdArg' && '$remainingCommand'"
+                                )
+                        )
 
                         // Handle cd part first
                         handleCdCommand(context, cdArg, outputFlow)
 
                         // Then execute the remaining command with updated working directory
                         if (remainingCommand.isNotEmpty()) {
+                            Log.d(
+                                    TAG,
+                                    createLogMessage(command, "执行组合命令的第二部分: '$remainingCommand'")
+                            )
+                            // 获取第二个命令的输出流
+                            val remainingCommandFlow =
+                                    executeCommand(context, remainingCommand, scope, onCompletion)
+
+                            // 收集第二个命令的输出并转发到当前的outputFlow
                             scope.launch {
-                                executeCommand(context, remainingCommand, scope, onCompletion)
+                                remainingCommandFlow.collect { line -> outputFlow.emit(line) }
                             }
                             return@launch
                         } else {
@@ -122,18 +149,20 @@ class TerminalSession(
                     // 处理cd命令，更新工作目录
                     // 确保即使是单个字符的参数也不会丢失
                     val cdArg = command.trim().substring(2).trim()
-                    Log.d("TerminalSession", "提取CD参数: '$cdArg'")
+                    Log.d(TAG, createLogMessage(command, "提取CD参数: '$cdArg'"))
 
                     // 处理全角斜杠，将其转换为半角斜杠
                     val normalizedArg = cdArg.replace("／", "/")
-                    Log.d("TerminalSession", "标准化CD参数: '$normalizedArg'")
+                    Log.d(TAG, createLogMessage(command, "标准化CD参数: '$normalizedArg'"))
 
                     // 检查参数是否为空
                     if (normalizedArg.isEmpty() || normalizedArg == " ") {
                         // cd 后面没有参数或只有空格，切换到主目录
+                        Log.d(TAG, createLogMessage(command, "CD无参数，切换到主目录"))
                         handleCdCommand(context, "~", outputFlow)
                     } else {
                         // 去掉可能的前导空格
+                        Log.d(TAG, createLogMessage(command, "执行CD到: '$normalizedArg'"))
                         handleCdCommand(context, normalizedArg, outputFlow)
                     }
                     onCompletion(0, true)
@@ -141,18 +170,21 @@ class TerminalSession(
                 }
                 command.trim() == "cd" -> {
                     // 单独的cd命令，切换到主目录
+                    Log.d(TAG, createLogMessage(command, "执行CD命令（无参数），切换到主目录"))
                     handleCdCommand(context, "~", outputFlow)
                     onCompletion(0, true)
                     return@launch
                 }
                 command.trim() == "pwd" -> {
                     // 显示当前工作目录
+                    Log.d(TAG, createLogMessage(command, "执行pwd命令，当前工作目录: $workingDirectory"))
                     outputFlow.emit(TerminalLine.Output(workingDirectory))
                     onCompletion(0, true)
                     return@launch
                 }
                 command.trim().startsWith("su ") || command.trim() == "su" -> {
                     // 处理su命令，切换用户
+                    Log.d(TAG, createLogMessage(command, "执行su命令，切换用户"))
                     handleSuCommand(context, command, scope, outputFlow)
                     // 注意：su命令的完成状态由handleSuCommand内部处理
                     onCompletion?.invoke(0, true)
@@ -160,6 +192,7 @@ class TerminalSession(
                 }
                 command.trim() == "exit" && currentUser != null -> {
                     // 如果当前是su状态，则退出su而不是终端
+                    Log.d(TAG, createLogMessage(command, "执行exit命令，当前有用户 $currentUser，退出su状态"))
                     currentUser = null
                     outputFlow.emit(TerminalLine.Output("Returned to normal user"))
                     onCompletion?.invoke(0, true)
@@ -175,13 +208,16 @@ class TerminalSession(
                     val options = createCommandOptions(command)
 
                     // 记录工作目录，以便调试
-                    // Log.d("TerminalSession", "执行常规命令，当前工作目录: ${options.workingDirectory}")
+                    Log.d(
+                            TAG,
+                            createLogMessage(command, "执行常规命令，当前工作目录: ${options.workingDirectory}")
+                    )
 
                     // 直接使用原始命令，不添加前缀
                     // TermuxCommandExecutor会使用options中的workingDirectory
                     val effectiveCommand = command
 
-                    // Log.d("TerminalSession", "最终执行命令: '$effectiveCommand'")
+                    Log.d(TAG, createLogMessage(command, "最终执行命令: '$effectiveCommand'"))
 
                     // 创建输出接收器，以便实时更新终端
                     val outputReceiver =
@@ -195,7 +231,13 @@ class TerminalSession(
                                     if (output.isEmpty()) return
 
                                     // 调试输出
-                                    Log.d("TerminalSession", "收到标准输出: $output")
+                                    Log.d(
+                                            TAG,
+                                            createLogMessage(
+                                                    command,
+                                                    "收到标准输出: ${if (output.length > 100) output.substring(0, 100) + "..." else output}"
+                                            )
+                                    )
 
                                     // 将输出按行分割并处理
                                     val lines = output.split("\n")
@@ -208,7 +250,7 @@ class TerminalSession(
                                                         line.contains("COMMAND_EXIT_CODE:") ||
                                                         line.startsWith("STARTED: ")
                                         ) {
-                                            Log.d("TerminalSession", "过滤控制输出: $line")
+                                            Log.d(TAG, createLogMessage(command, "过滤控制输出: $line"))
 
                                             // 捕获退出码
                                             if (line.contains("COMMAND_EXIT_CODE:")) {
@@ -223,8 +265,11 @@ class TerminalSession(
                                                         ?.let { code ->
                                                             commandExitCode = code
                                                             Log.d(
-                                                                    "TerminalSession",
-                                                                    "捕获命令退出码: $commandExitCode"
+                                                                    TAG,
+                                                                    createLogMessage(
+                                                                            command,
+                                                                            "捕获命令退出码: $commandExitCode"
+                                                                    )
                                                             )
                                                         }
                                             }
@@ -243,7 +288,7 @@ class TerminalSession(
                                     if (error.isEmpty()) return
 
                                     // 调试输出
-                                    Log.d("TerminalSession", "收到错误输出: $error")
+                                    Log.d(TAG, createLogMessage(command, "收到错误输出: $error"))
 
                                     // 检查是否是交互式提示特殊标记
                                     if (error.startsWith("INTERACTIVE_PROMPT:")) {
@@ -266,10 +311,13 @@ class TerminalSession(
 
                                 override fun onComplete(result: CommandResult) {
                                     // 调试输出
-                                    Log.d("TerminalSession", "命令完成: $result")
+                                    Log.d(TAG, createLogMessage(command, "命令完成: $result"))
                                     Log.d(
-                                            "TerminalSession",
-                                            "收到的stdout长度: ${result.stdout.length}, stderr长度: ${result.stderr.length}"
+                                            TAG,
+                                            createLogMessage(
+                                                    command,
+                                                    "收到的stdout长度: ${result.stdout.length}, stderr长度: ${result.stderr.length}"
+                                            )
                                     )
 
                                     // 命令完成，检查是否有未显示的输出
@@ -278,8 +326,11 @@ class TerminalSession(
                                             // 修改: 确保完整结果显示
                                             if (result.stdout.isNotEmpty()) {
                                                 Log.d(
-                                                        "TerminalSession",
-                                                        "处理最终stdout: ${result.stdout.length}字节"
+                                                        TAG,
+                                                        createLogMessage(
+                                                                command,
+                                                                "处理最终stdout: ${result.stdout.length}字节"
+                                                        )
                                                 )
                                                 // 处理最终输出，按行显示确保格式正确
                                                 val finalLines =
@@ -302,15 +353,19 @@ class TerminalSession(
                                                     // 检查是否已有此行避免重复
                                                     if (!stdoutBuffer.toString().contains(line)) {
                                                         outputFlow.emit(TerminalLine.Output(line))
-                                                        // Log.d("TerminalSession", "发送输出行: $line")
+                                                        // Log.d(TAG, createLogMessage(command,
+                                                        // "发送输出行: $line"))
                                                     }
                                                 }
                                             }
 
                                             if (result.stderr.isNotEmpty()) {
                                                 Log.d(
-                                                        "TerminalSession",
-                                                        "处理最终stderr: ${result.stderr.length}字节"
+                                                        TAG,
+                                                        createLogMessage(
+                                                                command,
+                                                                "处理最终stderr: ${result.stderr.length}字节"
+                                                        )
                                                 )
                                                 // 处理最终错误，按行显示确保格式正确
                                                 val finalErrorLines =
@@ -321,7 +376,13 @@ class TerminalSession(
                                                 for (line in finalErrorLines) {
                                                     if (!stderrBuffer.toString().contains(line)) {
                                                         outputFlow.emit(TerminalLine.Output(line))
-                                                        Log.d("TerminalSession", "发送错误行: $line")
+                                                        Log.d(
+                                                                TAG,
+                                                                createLogMessage(
+                                                                        command,
+                                                                        "发送错误行: $line"
+                                                                )
+                                                        )
                                                     }
                                                 }
                                             }
@@ -341,7 +402,14 @@ class TerminalSession(
                                                     else result.exitCode
                                             onCompletion?.invoke(exitCode, result.success)
                                         } catch (e: Exception) {
-                                            Log.e("TerminalSession", "处理命令结果时出错: ${e.message}", e)
+                                            Log.e(
+                                                    TAG,
+                                                    createLogMessage(
+                                                            command,
+                                                            "处理命令结果时出错: ${e.message}"
+                                                    ),
+                                                    e
+                                            )
                                             outputFlow.emit(
                                                     TerminalLine.Output("[处理输出时出错: ${e.message}]")
                                             )
@@ -352,7 +420,13 @@ class TerminalSession(
 
                                 override fun onError(error: String, exitCode: Int) {
                                     // 调试输出
-                                    Log.e("TerminalSession", "命令出错: $error (code: $exitCode)")
+                                    Log.e(
+                                            TAG,
+                                            createLogMessage(
+                                                    command,
+                                                    "命令出错: $error (code: $exitCode)"
+                                            )
+                                    )
 
                                     // 显示错误信息
                                     scope.launch {
@@ -369,8 +443,11 @@ class TerminalSession(
                     // 使用TermuxCommandExecutor执行命令并确保结果立即处理
                     try {
                         Log.d(
-                                "TerminalSession",
-                                "执行命令: '$effectiveCommand'，工作目录: '${options.workingDirectory}'"
+                                TAG,
+                                createLogMessage(
+                                        command,
+                                        "执行命令: '$effectiveCommand'，工作目录: '${options.workingDirectory}'"
+                                )
                         )
                         TermuxCommandExecutor.executeCommandStreaming(
                                 context = context,
@@ -380,10 +457,11 @@ class TerminalSession(
                                 outputReceiver = outputReceiver,
                                 options = options
                         )
-                        Log.d("TerminalSession", "命令已发送，等待结果")
+                        Log.d(TAG, createLogMessage(command, "命令已发送，等待结果"))
                         // 注意：结果会通过outputReceiver传递
                     } catch (e: Exception) {
                         // 处理异常情况
+                        Log.e(TAG, createLogMessage(command, "执行命令时发生异常: ${e.message}"), e)
                         scope.launch {
                             outputFlow.emit(
                                     TerminalLine.Output("Error executing command: ${e.message}")
@@ -404,8 +482,13 @@ class TerminalSession(
             directory: String,
             outputFlow: MutableSharedFlow<TerminalLine.Output>
     ) {
+        val cdCommand = "cd $directory"
+
         // 记录开始状态
-        Log.d("TerminalSession", "CD命令开始: 当前工作目录=$workingDirectory, 目标目录='$directory'")
+        Log.d(
+                TAG,
+                createLogMessage(cdCommand, "CD命令开始: 当前工作目录=$workingDirectory, 目标目录='$directory'")
+        )
 
         try {
             // 处理特殊路径
@@ -413,14 +496,29 @@ class TerminalSession(
                     when {
                         directory == "-" -> {
                             // cd - 命令切换到上一个工作目录
+                            Log.d(
+                                    TAG,
+                                    createLogMessage(
+                                            cdCommand,
+                                            "切换到上一个工作目录: ${previousWorkingDirectory ?: workingDirectory}"
+                                    )
+                            )
                             previousWorkingDirectory ?: workingDirectory
                         }
                         directory == "~" -> {
                             // cd ~ 命令切换到主目录
+                            Log.d(
+                                    TAG,
+                                    createLogMessage(
+                                            cdCommand,
+                                            "切换到主目录: /data/data/com.termux/files/home"
+                                    )
+                            )
                             "/data/data/com.termux/files/home"
                         }
                         directory == "." || directory == "./" -> {
                             // 当前目录，不改变工作目录
+                            Log.d(TAG, createLogMessage(cdCommand, "当前目录，保持不变: $workingDirectory"))
                             workingDirectory
                         }
                         directory == ".." || directory == "../" -> {
@@ -428,16 +526,20 @@ class TerminalSession(
                             val parts = workingDirectory.split("/").filter { it.isNotEmpty() }
                             if (parts.isEmpty() || workingDirectory == "/") {
                                 // 已经在根目录，保持不变
+                                Log.d(TAG, createLogMessage(cdCommand, "已在根目录，保持不变: /"))
                                 "/"
                             } else {
                                 // 移除最后一个部分，返回上级目录
-                                "/" + parts.dropLast(1).joinToString("/")
+                                val parentDir = "/" + parts.dropLast(1).joinToString("/")
+                                Log.d(TAG, createLogMessage(cdCommand, "切换到上级目录: $parentDir"))
+                                parentDir
                             }
                         }
                         directory.startsWith("../") -> {
                             // 处理以../开头的相对路径
                             var tempDir = workingDirectory
                             var remainingPath = directory
+                            Log.d(TAG, createLogMessage(cdCommand, "处理路径: $directory (以../开头)"))
 
                             // 处理每个../部分
                             while (remainingPath.startsWith("../")) {
@@ -454,43 +556,54 @@ class TerminalSession(
                                                 "/" + parts.dropLast(1).joinToString("/")
                                             }
                                         }
+                                Log.d(TAG, createLogMessage(cdCommand, "处理../ - 临时路径: $tempDir"))
                                 // 移除处理过的../
                                 remainingPath = remainingPath.substring(3)
                             }
 
                             // 处理剩余路径
-                            if (remainingPath.isEmpty()) {
-                                tempDir
-                            } else if (tempDir == "/") {
-                                tempDir + remainingPath
-                            } else {
-                                tempDir + "/" + remainingPath
-                            }
+                            val finalPath =
+                                    if (remainingPath.isEmpty()) {
+                                        tempDir
+                                    } else if (tempDir == "/") {
+                                        tempDir + remainingPath
+                                    } else {
+                                        tempDir + "/" + remainingPath
+                                    }
+                            Log.d(TAG, createLogMessage(cdCommand, "最终路径: $finalPath"))
+                            finalPath
                         }
                         directory.startsWith("./") -> {
                             // 处理以./开头的相对路径
                             val pathWithoutPrefix = directory.substring(2)
-                            if (workingDirectory.endsWith("/")) {
-                                workingDirectory + pathWithoutPrefix
-                            } else {
-                                workingDirectory + "/" + pathWithoutPrefix
-                            }
+                            val finalPath =
+                                    if (workingDirectory.endsWith("/")) {
+                                        workingDirectory + pathWithoutPrefix
+                                    } else {
+                                        workingDirectory + "/" + pathWithoutPrefix
+                                    }
+                            Log.d(TAG, createLogMessage(cdCommand, "处理./路径: $finalPath"))
+                            finalPath
                         }
                         directory.startsWith("/") -> {
                             // 绝对路径，直接使用
+                            Log.d(TAG, createLogMessage(cdCommand, "使用绝对路径: $directory"))
                             directory
                         }
                         else -> {
                             // 相对路径，基于当前工作目录解析
-                            if (workingDirectory.endsWith("/")) {
-                                workingDirectory + directory
-                            } else {
-                                workingDirectory + "/" + directory
-                            }
+                            val finalPath =
+                                    if (workingDirectory.endsWith("/")) {
+                                        workingDirectory + directory
+                                    } else {
+                                        workingDirectory + "/" + directory
+                                    }
+                            Log.d(TAG, createLogMessage(cdCommand, "使用相对路径: $finalPath"))
+                            finalPath
                         }
                     }
 
-            Log.d("TerminalSession", "CD目标目录: '$targetDir'")
+            Log.d(TAG, createLogMessage(cdCommand, "CD目标目录: '$targetDir'"))
 
             // 执行pwd命令，使用目标目录作为工作目录
             // 这将测试目录是否存在并可访问
@@ -524,17 +637,28 @@ class TerminalSession(
                     // 更新工作目录
                     val oldDir = workingDirectory
                     workingDirectory = newDir
-                    Log.d("TerminalSession", "工作目录已更新: '$oldDir' -> '$workingDirectory'")
+                    Log.d(
+                            TAG,
+                            createLogMessage(cdCommand, "工作目录已更新: '$oldDir' -> '$workingDirectory'")
+                    )
                 } else {
+                    Log.e(TAG, createLogMessage(cdCommand, "CD失败: 无法获取目录路径"))
                     outputFlow.emit(TerminalLine.Output("cd: 无法获取目录路径"))
                 }
             } else {
                 // 目录不存在或无法访问
+                Log.e(TAG, createLogMessage(cdCommand, "CD失败: 目录不存在或无法访问: $directory"))
                 outputFlow.emit(TerminalLine.Output("cd: $directory: No such file or directory"))
-                Log.e("TerminalSession", "目录不存在或无法访问: $targetDir, 错误: ${pwdResult.stderr}")
+                Log.e(
+                        TAG,
+                        createLogMessage(
+                                cdCommand,
+                                "目录不存在或无法访问: $targetDir, 错误: ${pwdResult.stderr}"
+                        )
+                )
             }
         } catch (e: Exception) {
-            Log.e("TerminalSession", "CD命令异常: ${e.message}", e)
+            Log.e(TAG, createLogMessage(cdCommand, "CD命令异常: ${e.message}"), e)
             outputFlow.emit(TerminalLine.Output("cd: 执行错误: ${e.message}"))
         }
     }
@@ -549,6 +673,7 @@ class TerminalSession(
         // 提取用户名，如果没有提供则默认为root
         val parts = command.trim().split("\\s+".toRegex())
         val user = if (parts.size > 1) parts[1] else "root"
+        Log.d(TAG, createLogMessage(command, "处理su命令，目标用户: $user"))
 
         // 执行su命令检查是否成功
         val checkCmd = "su $user -c 'whoami'"
@@ -564,10 +689,12 @@ class TerminalSession(
                 object : TermuxCommandOutputReceiver {
                     override fun onStdout(output: String, isComplete: Boolean) {
                         // 不需要处理中间输出
+                        Log.d(TAG, createLogMessage(command, "su命令stdout: $output"))
                     }
 
                     override fun onStderr(error: String, isComplete: Boolean) {
                         if (error.isNotEmpty()) {
+                            Log.e(TAG, createLogMessage(command, "su命令stderr: $error"))
                             scope.launch { outputFlow.emit(TerminalLine.Output("Error: $error")) }
                         }
                     }
@@ -577,11 +704,13 @@ class TerminalSession(
                             if (result.success) {
                                 // 切换用户成功 - 只修改当前会话的用户状态
                                 currentUser = user
+                                Log.d(TAG, createLogMessage(command, "已切换到用户: $user"))
                                 // 输出一个特殊的状态变更消息，以便UI可以特殊处理
                                 outputFlow.emit(TerminalLine.Output("USER_SWITCHED:" + user))
                                 outputFlow.emit(TerminalLine.Output("Switched to user: $user"))
                             } else {
                                 // 切换失败
+                                Log.e(TAG, createLogMessage(command, "切换用户失败: ${result.stderr}"))
                                 outputFlow.emit(
                                         TerminalLine.Output(
                                                 "Failed to switch user: ${result.stderr}"
@@ -592,12 +721,14 @@ class TerminalSession(
                     }
 
                     override fun onError(error: String, exitCode: Int) {
+                        Log.e(TAG, createLogMessage(command, "su命令错误: $error (code: $exitCode)"))
                         scope.launch {
                             outputFlow.emit(TerminalLine.Output("Failed to switch user: $error"))
                         }
                     }
                 }
 
+        Log.d(TAG, createLogMessage(command, "执行su检查命令: $checkCmd"))
         TermuxCommandExecutor.executeCommandStreaming(
                 context = context,
                 command = checkCmd,
@@ -622,14 +753,17 @@ class TerminalSession(
         // 确保工作目录有效
         var effectiveWorkingDir = workingDirectory
         if (effectiveWorkingDir.isEmpty()) {
-            Log.w("TerminalSession", "警告: 工作目录为空，使用默认目录")
+            Log.w(TAG, createLogMessage(command, "警告: 工作目录为空，使用默认目录"))
             effectiveWorkingDir = "/data/data/com.termux/files/home"
         }
 
         // 记录选项创建信息
         Log.d(
-                "TerminalSession",
-                "创建命令选项 - 工作目录: '$effectiveWorkingDir', 用户: '$currentUser', 命令: '$command'"
+                TAG,
+                createLogMessage(
+                        command,
+                        "创建命令选项 - 工作目录: '$effectiveWorkingDir', 用户: '$currentUser', 命令: '$command'"
+                )
         )
 
         // 创建命令选项
@@ -646,7 +780,7 @@ class TerminalSession(
     /** 获取命令提示符 */
     fun getPrompt(): String {
         // 记录工作目录
-        Log.d("TerminalSession", "生成提示符时的工作目录: $workingDirectory")
+        Log.d(TAG, "生成提示符时的工作目录: $workingDirectory")
 
         // 提取工作目录最后一部分作为当前目录
         val currentDir =
@@ -669,7 +803,7 @@ class TerminalSession(
                     "[$currentDir]$ "
                 }
 
-        Log.d("TerminalSession", "最终提示符: $prompt")
+        Log.d(TAG, "最终提示符: $prompt")
         return prompt
     }
 

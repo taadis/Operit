@@ -7,13 +7,11 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
 import com.ai.assistance.operit.R
@@ -37,8 +35,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.zIndex
 
 class MainActivity : ComponentActivity() {
     private val TAG = "MainActivity"
@@ -82,7 +78,7 @@ class MainActivity : ComponentActivity() {
 
         // 设置上下文以便获取插件元数据
         pluginLoadingState.setAppContext(applicationContext)
-        
+
         // 显示插件加载界面
         pluginLoadingState.show()
 
@@ -173,7 +169,7 @@ class MainActivity : ComponentActivity() {
                             Log.d(TAG, "没有检测到已安装的插件，直接进入主界面")
                             pluginLoadingState.updateMessage("没有检测到已安装的插件")
                             pluginLoadingState.updateProgress(1.0f)
-                            
+
                             // 立即隐藏插件加载界面
                             pluginLoadingState.hide()
                             return@launch
@@ -181,7 +177,7 @@ class MainActivity : ComponentActivity() {
 
                         // 设置插件列表，传入List<String>
                         pluginLoadingState.setPlugins(installedPluginsList)
-                        
+
                         // 有安装的插件，使用MCPStarter启动
                         pluginLoadingState.updateMessage("正在启动插件...")
                         pluginLoadingState.updateProgress(0.4f)
@@ -232,7 +228,12 @@ class MainActivity : ComponentActivity() {
                                             totalCount: Int
                                     ) {
                                         // 所有插件加载完成
-                                        val successRate = (successCount * 100) / totalCount
+                                        val successRate =
+                                                if (totalCount > 0) {
+                                                    (successCount * 100) / totalCount
+                                                } else {
+                                                    0 // 当没有部署的插件时，成功率为0
+                                                }
                                         pluginLoadingState.updateMessage("已完成启动，成功率: $successRate%")
                                         pluginLoadingState.updateProgress(1.0f)
 
@@ -251,7 +252,7 @@ class MainActivity : ComponentActivity() {
                         Log.e(TAG, "加载插件过程中出错", e)
                         pluginLoadingState.updateMessage("加载插件出错: ${e.message}")
                         pluginLoadingState.updateProgress(1.0f)
-                        
+
                         // 延迟后隐藏
                         lifecycleScope.launch {
                             delay(400)
@@ -359,18 +360,19 @@ class MainActivity : ComponentActivity() {
                 Box {
                     // 主应用界面 (始终存在于底层)
                     OperitApp(
-                        initialNavItem = when {
-                            showPreferencesGuide -> NavItem.UserPreferencesGuide
-                            navigateToShizukuScreen -> NavItem.ShizukuCommands
-                            else -> NavItem.AiChat
-                        },
-                        toolHandler = toolHandler
+                            initialNavItem =
+                                    when {
+                                        showPreferencesGuide -> NavItem.UserPreferencesGuide
+                                        navigateToShizukuScreen -> NavItem.ShizukuCommands
+                                        else -> NavItem.AiChat
+                                    },
+                            toolHandler = toolHandler
                     )
 
                     // 插件加载界面 (带有淡出效果)
                     PluginLoadingScreenWithState(
-                        loadingState = pluginLoadingState,
-                        modifier = Modifier.zIndex(10f) // 确保加载界面在最上层
+                            loadingState = pluginLoadingState,
+                            modifier = Modifier.zIndex(10f) // 确保加载界面在最上层
                     )
                 }
             }
