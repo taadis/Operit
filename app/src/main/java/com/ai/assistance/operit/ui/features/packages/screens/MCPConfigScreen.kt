@@ -40,6 +40,8 @@ import java.util.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import com.ai.assistance.operit.data.mcp.InstallResult
+import com.ai.assistance.operit.data.mcp.InstallProgress
 
 /** MCP配置屏幕 - 极简风格界面，专注于插件快速部署 */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -354,11 +356,23 @@ fun MCPConfigScreen() {
 
     // 安装进度对话框
     if (installProgress != null && currentInstallingPlugin != null) {
+        // 将值存储在本地变量中以避免智能转换问题
+        val currentInstallResult = installResult
+        // 判断当前是否是卸载操作
+        val isUninstallOperation = 
+            if (currentInstallResult is InstallResult.Success) {
+                currentInstallResult.pluginPath.isEmpty()
+            } else {
+                false
+            }
+        
         MCPInstallProgressDialog(
                 installProgress = installProgress,
                 onDismissRequest = { viewModel.resetInstallState() },
                 result = installResult,
-                serverName = currentInstallingPlugin?.name ?: "MCP 插件"
+                serverName = currentInstallingPlugin?.name ?: "MCP 插件",
+                // 添加操作类型参数：卸载/安装
+                operationType = if (isUninstallOperation) "卸载" else "安装"
         )
     }
 

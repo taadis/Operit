@@ -48,6 +48,8 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import com.ai.assistance.operit.data.mcp.InstallResult
+import com.ai.assistance.operit.data.mcp.InstallProgress
 
 /**
  * The main screen for displaying and managing MCP servers.
@@ -906,11 +908,23 @@ fun MCPScreen(mcpRepository: MCPRepository) {
 
         // 显示安装进度
         if (installProgress != null && currentInstallingServer != null) {
+                // 将值存储在本地变量中以避免智能转换问题
+                val currentInstallResult = installResult
+                // 判断当前是否是卸载操作
+                val isUninstallOperation = 
+                    if (currentInstallResult is InstallResult.Success) {
+                        currentInstallResult.pluginPath.isEmpty()
+                    } else {
+                        false
+                    }
+                                   
                 MCPInstallProgressDialog(
                         installProgress = installProgress,
                         onDismissRequest = { viewModel.resetInstallState() },
                         result = installResult,
-                        serverName = currentInstallingServer?.name ?: "MCP 服务器"
+                        serverName = currentInstallingServer?.name ?: "MCP 服务器",
+                        // 添加操作类型参数：卸载/安装
+                        operationType = if (isUninstallOperation) "卸载" else "安装"
                 )
         }
 }

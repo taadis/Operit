@@ -25,12 +25,13 @@ import com.ai.assistance.operit.data.mcp.InstallProgress
 import com.ai.assistance.operit.data.mcp.InstallResult
 
 /**
- * MCP 安装进度对话框
+ * MCP 安装/卸载进度对话框
  *
- * @param installProgress 当前安装进度状态
+ * @param installProgress 当前安装/卸载进度状态
  * @param onDismissRequest 对话框关闭回调
- * @param result 安装结果，可为 null
- * @param serverName 正在安装的服务器名称
+ * @param result 操作结果，可为 null
+ * @param serverName 正在操作的服务器名称
+ * @param operationType 操作类型，默认为"安装"，可以是"卸载"
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,13 +39,14 @@ fun MCPInstallProgressDialog(
         installProgress: InstallProgress?,
         onDismissRequest: () -> Unit,
         result: InstallResult? = null,
-        serverName: String = "MCP 服务器"
+        serverName: String = "MCP 服务器",
+        operationType: String = "安装"
 ) {
     if (installProgress == null && result == null) return
 
     AlertDialog(
             onDismissRequest = {
-                // 安装完成或失败时才允许关闭
+                // 操作完成或失败时才允许关闭
                 if (installProgress is InstallProgress.Finished || result != null) {
                     onDismissRequest()
                 }
@@ -56,7 +58,7 @@ fun MCPInstallProgressDialog(
                             dismissOnClickOutside =
                                     result != null || installProgress is InstallProgress.Finished
                     ),
-            title = { Text("安装 $serverName") },
+            title = { Text("$operationType $serverName") },
             text = {
                 Column(
                         modifier = Modifier.fillMaxWidth(),
@@ -67,23 +69,33 @@ fun MCPInstallProgressDialog(
                         result != null -> {
                             when (result) {
                                 is InstallResult.Success -> {
-                                    Text(
-                                            "安装成功！",
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            color = MaterialTheme.colorScheme.primary
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text("插件已安装到：", style = MaterialTheme.typography.bodyMedium)
-                                    Text(
-                                            text = result.pluginPath,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            textAlign = TextAlign.Center
-                                    )
+                                    if (operationType == "卸载") {
+                                        Text(
+                                                "卸载成功！",
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                color = MaterialTheme.colorScheme.primary
+                                        )
+                                    } else {
+                                        Text(
+                                                "${operationType}成功！",
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                color = MaterialTheme.colorScheme.primary
+                                        )
+                                        if (result.pluginPath.isNotEmpty()) {
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text("插件已${operationType}到：", style = MaterialTheme.typography.bodyMedium)
+                                            Text(
+                                                    text = result.pluginPath,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    textAlign = TextAlign.Center
+                                            )
+                                        }
+                                    }
                                 }
                                 is InstallResult.Error -> {
                                     Text(
-                                            "安装失败",
+                                            "${operationType}失败",
                                             style = MaterialTheme.typography.bodyLarge,
                                             color = MaterialTheme.colorScheme.error
                                     )
@@ -110,7 +122,7 @@ fun MCPInstallProgressDialog(
                                         )
                                     }
                                     Text(
-                                            "准备安装...",
+                                            "准备${operationType}...",
                                             style = MaterialTheme.typography.bodyMedium,
                                             textAlign = TextAlign.Center
                                     )
@@ -137,8 +149,9 @@ fun MCPInstallProgressDialog(
                                     }
                                 }
                                 is InstallProgress.Extracting -> {
+                                    val actionText = if (operationType == "卸载") "正在删除文件..." else "正在解压文件..."
                                     Text(
-                                            "正在解压文件...",
+                                            actionText,
                                             style = MaterialTheme.typography.bodyLarge,
                                             textAlign = TextAlign.Center
                                     )
@@ -159,7 +172,7 @@ fun MCPInstallProgressDialog(
                                 }
                                 InstallProgress.Finished -> {
                                     Text(
-                                            "安装完成！",
+                                            "${operationType}完成！",
                                             style = MaterialTheme.typography.bodyLarge,
                                             color = MaterialTheme.colorScheme.primary,
                                             textAlign = TextAlign.Center
@@ -185,7 +198,7 @@ fun MCPInstallProgressDialog(
             },
             dismissButton = {
                 if (installProgress !is InstallProgress.Finished && result == null) {
-                    TextButton(onClick = onDismissRequest, enabled = false) { Text("安装中...") }
+                    TextButton(onClick = onDismissRequest, enabled = false) { Text("${operationType}中...") }
                 }
             }
     )
