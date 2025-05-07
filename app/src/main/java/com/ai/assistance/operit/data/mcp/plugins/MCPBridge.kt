@@ -549,7 +549,7 @@ class MCPBridge(private val context: Context) {
     }
 
     /**
-     * Ping特定的MCP服务
+     * pingMcpService - 专门针对服务的ping操作，用于验证特定服务的状态
      *
      * @param serviceName 要ping的服务名称
      * @return ping响应，如果失败则返回null
@@ -572,21 +572,19 @@ class MCPBridge(private val context: Context) {
                     if (response?.optBoolean("success", false) == true) {
                         val result = response.optJSONObject("result")
 
-                        // 检查是否是正在运行的服务
+                        // 检查服务状态
                         val status = result?.optString("status")
-                        val mcpName = result?.optString("mcpName")
+                        val running = result?.optBoolean("running", false) ?: false
+                        val ready = result?.optBoolean("ready", false) ?: false
 
-                        if (status == "ok" && mcpName == serviceName) {
+                        if (status == "ok") {
                             Log.d(TAG, "服务 $serviceName 正在运行并响应")
                             return@withContext response
-                        } else if (status == "registered_but_not_active") {
-                            Log.d(TAG, "服务 $serviceName 已注册但未运行，当前运行的是: $mcpName")
+                        } else if (running) {
+                            Log.d(TAG, "服务 $serviceName 正在运行但可能尚未完全准备好")
                             return@withContext response
                         } else {
-                            Log.d(
-                                    TAG,
-                                    "服务 $serviceName ping响应不符合预期: ${result?.toString() ?: "无结果"}"
-                            )
+                            Log.d(TAG, "服务 $serviceName 已注册但未运行")
                             return@withContext response
                         }
                     }

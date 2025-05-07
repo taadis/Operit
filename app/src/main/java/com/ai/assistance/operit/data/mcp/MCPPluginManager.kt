@@ -6,6 +6,7 @@ import com.ai.assistance.operit.ui.features.packages.screens.mcp.model.MCPServer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import android.net.Uri
 
 /** Manages MCP plugin installation, uninstallation, and tracking */
 class MCPPluginManager(
@@ -117,6 +118,63 @@ class MCPPluginManager(
             return result
         } catch (e: Exception) {
             Log.e(TAG, "Exception while installing plugin $pluginId", e)
+            return InstallResult.Error("Installation error: ${e.message}")
+        }
+    }
+
+    /**
+     * Installs an MCP plugin from a local zip file
+     *
+     * @param pluginId The ID of the plugin to install
+     * @param zipUri The URI of the zip file to install
+     * @param server The server object containing installation details
+     * @param progressCallback Callback to report installation progress
+     * @return Result of the installation
+     */
+    suspend fun installPluginFromZip(
+            pluginId: String,
+            zipUri: Uri,
+            server: MCPServer,
+            progressCallback: (InstallProgress) -> Unit = {}
+    ): InstallResult {
+        try {
+            // Convert UI model to data model
+            val dataServer =
+                    com.ai.assistance.operit.data.mcp.MCPServer(
+                            id = server.id,
+                            name = server.name,
+                            description = server.description,
+                            logoUrl = server.logoUrl,
+                            stars = server.stars,
+                            category = server.category,
+                            requiresApiKey = server.requiresApiKey,
+                            author = server.author,
+                            isVerified = server.isVerified,
+                            isInstalled = server.isInstalled,
+                            version = server.version,
+                            updatedAt = server.updatedAt,
+                            longDescription = server.longDescription,
+                            repoUrl = server.repoUrl
+                    )
+
+            // Perform physical installation from zip
+            val result = mcpInstaller.installPluginFromZip(dataServer, zipUri, progressCallback)
+
+            if (result is InstallResult.Success) {
+                // Scan installed plugins after successful installation
+                scanInstalledPlugins()
+                
+                // Clear plugin info cache
+                mcpInstaller.clearPluginInfoCache()
+                
+                Log.d(TAG, "Plugin $pluginId installed successfully from zip")
+            } else {
+                Log.e(TAG, "Failed to install plugin $pluginId from zip")
+            }
+
+            return result
+        } catch (e: Exception) {
+            Log.e(TAG, "Exception while installing plugin $pluginId from zip", e)
             return InstallResult.Error("Installation error: ${e.message}")
         }
     }

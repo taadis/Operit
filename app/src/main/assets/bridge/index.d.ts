@@ -17,72 +17,76 @@ interface BridgeConfig {
 declare class McpBridge {
     private config;
     private server;
-    private mcpProcess;
-    private mcpName;
-    private mcpTools;
-    private isReady;
+    private mcpProcesses;
+    private mcpToolsMap;
+    private serviceReadyMap;
     private serviceRegistry;
     private registryPath;
     private activeConnections;
     private pendingRequests;
     private toolResponseMapping;
+    private toolCallServiceMap;
     private readonly REQUEST_TIMEOUT;
-    private lastMcpError;
+    private mcpErrors;
     constructor(config?: Partial<BridgeConfig>);
     /**
-     * Load MCP service registry
+     * 加载MCP服务注册表
      */
     private loadRegistry;
     /**
-     * Save MCP service registry
+     * 保存MCP服务注册表
      */
     private saveRegistry;
     /**
-     * Register a new MCP service
+     * 注册新的MCP服务
      */
     private registerService;
     /**
-     * Unregister an MCP service
+     * 注销MCP服务
      */
     private unregisterService;
     /**
-     * Get list of registered MCP services
+     * 获取已注册MCP服务列表
      */
     private getServiceList;
     /**
-     * Start MCP child process
+     * 检查服务是否运行中
+     */
+    private isServiceRunning;
+    /**
+     * 启动特定服务的子进程
      */
     private startMcpProcess;
     /**
-     * Get MCP tools list
+     * 获取特定服务的MCP工具列表
      */
     private fetchMcpTools;
     /**
-     * Handle MCP response data
+     * 处理来自特定服务的MCP响应数据
      */
     private handleMcpResponse;
     /**
-     * Handle client MCP command
+     * 处理客户端MCP命令
      */
     private handleMcpCommand;
     /**
-     * Handle tool call request
+     * 处理工具调用请求
      */
     private handleToolCall;
     /**
-     * Check for request timeouts
+     * 检查请求超时
      */
     private checkRequestTimeouts;
     /**
-     * Start TCP server
+     * 启动TCP服务器
      */
     start(): void;
     /**
-     * Shutdown bridge
+     * 关闭桥接器
      */
     shutdown(): void;
     /**
-     * Extract ID from JSON-RPC request
+     * 从JSON-RPC请求中提取ID
      */
     private extractId;
 }

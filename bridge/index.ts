@@ -76,30 +76,32 @@ interface PendingRequest {
 class McpBridge {
     private config: BridgeConfig;
     private server: net.Server | null = null;
-    private mcpProcess: ChildProcessWithoutNullStreams | null = null;
-    private mcpName: string = "default";
-    private mcpTools: any[] = [];
-    private isReady: boolean = false;
 
-    // Service registry
+    // 服务进程映射
+    private mcpProcesses: Map<string, ChildProcessWithoutNullStreams> = new Map();
+    private mcpToolsMap: Map<string, any[]> = new Map();
+    private serviceReadyMap: Map<string, boolean> = new Map();
+
+    // 服务注册表
     private serviceRegistry: Map<string, McpServiceInfo> = new Map();
     private registryPath: string;
 
-    // Active connections
+    // 活跃连接
     private activeConnections: Set<net.Socket> = new Set();
 
-    // Request tracking
+    // 请求跟踪
     private pendingRequests: Map<string, PendingRequest> = new Map();
     private toolResponseMapping: Map<string, string> = new Map();
+    private toolCallServiceMap: Map<string, string> = new Map();
 
-    // Request timeout (ms)
-    private readonly REQUEST_TIMEOUT = 60000; // 60 seconds timeout
+    // 请求超时(毫秒)
+    private readonly REQUEST_TIMEOUT = 60000; // 60秒超时
 
-    // Last MCP error
-    private lastMcpError: string | null = null;
+    // 服务错误记录
+    private mcpErrors: Map<string, string> = new Map();
 
     constructor(config: Partial<BridgeConfig> = {}) {
-        // Default configuration
+        // 默认配置
         this.config = {
             port: 8765,
             host: '127.0.0.1',
@@ -108,18 +110,18 @@ class McpBridge {
             ...config
         };
 
-        // Set registry path
+        // 设置注册表路径
         this.registryPath = this.config.registryPath || './mcp-registry.json';
 
-        // Load registry
+        // 加载注册表
         this.loadRegistry();
 
-        // Set timeout check
+        // 设置超时检查
         setInterval(() => this.checkRequestTimeouts(), 5000);
     }
 
     /**
-     * Load MCP service registry
+     * 加载MCP服务注册表
      */
     private loadRegistry(): void {
         try {
@@ -131,20 +133,17 @@ class McpBridge {
                 for (const [key, value] of Object.entries(registry)) {
                     this.serviceRegistry.set(key, value as McpServiceInfo);
                 }
-
-                console.log(`Loaded ${this.serviceRegistry.size} MCP service configurations`);
             } else {
-                console.log('Registry file not found, creating new registry');
+                this.serviceRegistry.clear();
                 this.saveRegistry();
             }
         } catch (e) {
-            console.error(`Failed to load registry: ${e}`);
             this.serviceRegistry.clear();
         }
     }
 
     /**
-     * Save MCP service registry
+     * 保存MCP服务注册表
      */
     private saveRegistry(): void {
         try {
@@ -165,7 +164,7 @@ class McpBridge {
     }
 
     /**
-     * Register a new MCP service
+     * 注册新的MCP服务
      */
     private registerService(name: string, info: Partial<McpServiceInfo>): boolean {
         if (!name || !info.command) {
@@ -188,7 +187,7 @@ class McpBridge {
     }
 
     /**
-     * Unregister an MCP service
+     * 注销MCP服务
      */
     private unregisterService(name: string): boolean {
         if (!this.serviceRegistry.has(name)) {
@@ -201,369 +200,187 @@ class McpBridge {
     }
 
     /**
-     * Get list of registered MCP services
+     * 获取已注册MCP服务列表
      */
     private getServiceList(): McpServiceInfo[] {
         return Array.from(this.serviceRegistry.values());
     }
 
     /**
-     * Start MCP child process
+     * 检查服务是否运行中
      */
-    private startMcpProcess(): void {
-        if (!this.config.mcpCommand) {
-            console.log('No MCP command configured, skipping MCP process startup');
+    private isServiceRunning(serviceName: string): boolean {
+        return this.mcpProcesses.has(serviceName) &&
+            !this.mcpProcesses.get(serviceName)?.stdin.destroyed;
+    }
+
+    /**
+     * 启动特定服务的子进程
+     */
+    private startMcpProcess(serviceName: string, command: string, args: string[], env?: Record<string, string>): void {
+        if (!command) {
+            console.log(`No command specified for service ${serviceName}, skipping startup`);
             return;
         }
 
-        const args = this.config.mcpArgs || [];
-        console.log(`Starting MCP process: ${this.config.mcpCommand} ${args.join(' ')}`);
+        // 如果服务已运行，不需要重新启动
+        if (this.isServiceRunning(serviceName)) {
+            console.log(`Service ${serviceName} is already running`);
+            return;
+        }
+
+        console.log(`Starting MCP process for ${serviceName}: ${command} ${args.join(' ')}`);
 
         try {
-            this.mcpProcess = spawn(this.config.mcpCommand, args, {
+            const mcpProcess = spawn(command, args, {
                 stdio: ['pipe', 'pipe', 'pipe'],
                 env: {
                     ...process.env,
-                    ...this.config.env
+                    ...env
                 }
             });
 
-            // Handle stdout data
-            this.mcpProcess.stdout?.on('data', (data) => {
-                this.handleMcpResponse(data);
+            // 存储进程
+            this.mcpProcesses.set(serviceName, mcpProcess);
+
+            // 初始化为空工具数组
+            if (!this.mcpToolsMap.has(serviceName)) {
+                this.mcpToolsMap.set(serviceName, []);
+            }
+
+            // 标记服务为未就绪状态，直到工具获取完成
+            this.serviceReadyMap.set(serviceName, false);
+
+            // 处理标准输出
+            mcpProcess.stdout?.on('data', (data: Buffer) => {
+                this.handleMcpResponse(data, serviceName);
             });
 
-            // Handle stderr data
-            this.mcpProcess.stderr?.on('data', (data) => {
+            // 处理标准错误
+            mcpProcess.stderr?.on('data', (data: Buffer) => {
                 const errorText = data.toString().trim();
-                console.error(`MCP process error output: ${errorText}`);
-
-                // Try to store the last error to send along with responses
-                this.lastMcpError = errorText;
-
-                // Check for pending requests that might need this error information
-                // If we have any pending requests, send them the error as a supplementary message
-                for (const [requestId, request] of this.pendingRequests.entries()) {
-                    // Only send to requests that have been pending for a short time
-                    // This avoids sending unrelated errors to long-pending requests
-                    const pendingTimeMs = Date.now() - request.timestamp;
-                    if (pendingTimeMs < 5000) { // Only for recent requests in the last 5 seconds
-                        try {
-                            console.log(`Forwarding MCP stderr to client for recent request ${requestId}`);
-                            request.socket.write(JSON.stringify({
-                                id: requestId,
-                                success: false,
-                                error: {
-                                    code: -32603,
-                                    message: `MCP process error: ${errorText}`
-                                }
-                            }) + '\n');
-
-                            // Clean up
-                            this.pendingRequests.delete(requestId);
-                            if (request.toolCallId) {
-                                this.toolResponseMapping.delete(request.toolCallId);
-                            }
-                        } catch (writeError) {
-                            console.error(`Failed to forward stderr to client: ${writeError}`);
-                        }
-                    }
-                }
+                console.error(`MCP process error from ${serviceName}: ${errorText}`);
+                this.mcpErrors.set(serviceName, errorText);
             });
 
-            // Handle process errors
-            this.mcpProcess.on('error', (error) => {
-                console.error(`MCP process spawn error: ${error.message}`);
-                if (error.stack) {
-                    console.error(`Stack trace: ${error.stack}`);
-                }
+            // 处理进程错误
+            mcpProcess.on('error', (error: Error) => {
+                console.error(`MCP process error for ${serviceName}: ${error.message}`);
+                this.mcpProcesses.delete(serviceName);
+                // 保持服务处于就绪状态，以允许重新连接
+                this.serviceReadyMap.set(serviceName, true);
             });
 
-            this.mcpProcess.on('close', (code) => {
-                console.log(`MCP process exited with code: ${code}`);
-                this.mcpProcess = null;
-                this.isReady = false;
-                this.mcpTools = [];
+            mcpProcess.on('close', (code: number) => {
+                console.log(`MCP process for ${serviceName} exited with code: ${code}`);
+                this.mcpProcesses.delete(serviceName);
+                // 保持服务处于就绪状态
+                this.serviceReadyMap.set(serviceName, true);
             });
 
-            // Log process info
-            if (this.mcpProcess.pid) {
-                console.log(`MCP process started with PID: ${this.mcpProcess.pid}`);
-            } else {
-                console.error('MCP process started but no PID available - this may indicate an issue');
-            }
-
-            // Fetch tool list after startup
-            setTimeout(() => this.fetchMcpTools(), 1000);
+            // 启动后获取工具列表
+            setTimeout(() => this.fetchMcpTools(serviceName), 1000);
         } catch (error) {
-            // Catch any exceptions during spawn
-            console.error(`Failed to start MCP process: ${error instanceof Error ? error.message : String(error)}`);
-            if (error instanceof Error && error.stack) {
-                console.error(`Stack trace: ${error.stack}`);
-            }
+            console.error(`Failed to start MCP process for ${serviceName}: ${error instanceof Error ? error.message : String(error)}`);
+            // 标记服务为就绪状态
+            this.serviceReadyMap.set(serviceName, true);
         }
     }
 
     /**
-     * Get MCP tools list
+     * 获取特定服务的MCP工具列表
      */
-    private fetchMcpTools(): void {
-        if (!this.mcpProcess || this.mcpProcess.stdin.destroyed) {
-            console.error('Cannot get tools list: MCP process not available');
-            // Set ready to true anyway, with no tools so the service can still function
-            this.isReady = true;
-            this.mcpTools = [];
-            console.log(`MCP service ${this.mcpName} is now ready with no tools (MCP process unavailable).`);
+    private fetchMcpTools(serviceName: string): void {
+        if (!this.isServiceRunning(serviceName)) {
+            // 如果进程不可用，设置空工具并标记为就绪
+            this.mcpToolsMap.set(serviceName, []);
+            this.serviceReadyMap.set(serviceName, true);
+            console.log(`MCP service ${serviceName} marked ready with no tools (process unavailable)`);
             return;
         }
 
-        console.log('Fetching tools list from MCP process...');
-
         try {
-            // Create tools/list request with correct MCP method name
-            const toolsListRequest: ToolCallRequest = {
+            const mcpProcess = this.mcpProcesses.get(serviceName)!;
+
+            // 创建tools/list请求
+            const toolsListRequest = {
                 jsonrpc: '2.0',
-                id: `init_${Date.now()}`,
-                method: 'tools/list',  // Correct MCP method name according to spec
+                id: `init_${serviceName}_${Date.now()}`,
+                method: 'tools/list',
                 params: {}
             };
 
-            // Log the request details
-            console.log(`Sending tools/list request: ${JSON.stringify(toolsListRequest)}`);
+            // 发送请求
+            mcpProcess.stdin.write(JSON.stringify(toolsListRequest) + '\n');
 
-            // Send request and check for errors
-            const writeResult = this.mcpProcess.stdin.write(JSON.stringify(toolsListRequest) + '\n');
-            if (!writeResult) {
-                console.error('Failed to write tools list request to MCP process stdin - backpressure detected');
-                // Still set ready to true to avoid hanging
-                this.isReady = true;
-                this.mcpTools = [];
-                console.log(`MCP service ${this.mcpName} is now ready with no tools (stdin backpressure).`);
-            }
+            // 不论响应如何，都标记服务为就绪状态 - 当响应到达时会更新工具
+            this.serviceReadyMap.set(serviceName, true);
         } catch (error) {
-            console.error(`Error fetching MCP tools: ${error instanceof Error ? error.message : String(error)}`);
-            if (error instanceof Error && error.stack) {
-                console.error(`Stack trace: ${error.stack}`);
-            }
-
-            // Set ready to true with no tools so service can function without tools
-            this.isReady = true;
-            this.mcpTools = [];
-            console.log(`MCP service ${this.mcpName} is now ready with no tools due to error during fetch.`);
+            console.error(`Error fetching tools for ${serviceName}: ${error instanceof Error ? error.message : String(error)}`);
+            this.mcpToolsMap.set(serviceName, []);
+            this.serviceReadyMap.set(serviceName, true);
         }
     }
 
     /**
-     * Handle MCP response data
+     * 处理来自特定服务的MCP响应数据
      */
-    private handleMcpResponse(data: Buffer): void {
+    private handleMcpResponse(data: Buffer, serviceName: string): void {
         try {
             const responseText = data.toString().trim();
             if (!responseText) return;
 
-            // Log raw response for debugging
-            console.log(`Raw MCP response: ${responseText}`);
+            const response = JSON.parse(responseText);
 
-            try {
-                const response = JSON.parse(responseText);
+            // 检查是否为工具调用响应
+            if (response.id && this.toolResponseMapping.has(response.id)) {
+                const bridgeRequestId = this.toolResponseMapping.get(response.id)!;
+                const pendingRequest = this.pendingRequests.get(bridgeRequestId);
 
-                // Log parsed response structure
-                console.log(`Parsed MCP response ID: ${response.id || 'none'}, has error: ${!!response.error}, has result: ${!!response.result}`);
+                if (pendingRequest) {
+                    // 转发响应给客户端
+                    pendingRequest.socket.write(JSON.stringify({
+                        id: bridgeRequestId,
+                        success: !response.error,
+                        result: response.result,
+                        error: response.error
+                    }) + '\n');
 
-                // Check if it's a tool call response
-                if (response.id && this.toolResponseMapping.has(response.id)) {
-                    const bridgeRequestId = this.toolResponseMapping.get(response.id)!;
-                    const pendingRequest = this.pendingRequests.get(bridgeRequestId);
-
-                    if (pendingRequest) {
-                        console.log(`Forwarding response for tool call ${response.id} to bridge request ${bridgeRequestId}`);
-
-                        // Forward response to client
-                        pendingRequest.socket.write(JSON.stringify({
-                            id: bridgeRequestId,
-                            success: !response.error,
-                            result: response.result,
-                            error: response.error
-                        }) + '\n');
-
-                        // Clean up
-                        this.pendingRequests.delete(bridgeRequestId);
-                        this.toolResponseMapping.delete(response.id);
-                    } else {
-                        console.error(`Missing pending request for tool call ${response.id} (bridge ID: ${bridgeRequestId})`);
-                    }
-                } else if (response.id && typeof response.id === 'string' && response.id.startsWith('init_')) {
-                    // Handle tools list response
-                    console.log(`Received tools list response: ${JSON.stringify(response)}`);
-
-                    // Check if this is a method not found error
-                    if (response.error && response.error.code === -32601) {
-                        console.error(`MCP method not recognized: ${JSON.stringify(response.error)}`);
-                        console.log('This MCP server may not support the tools feature or is using a different protocol version.');
-                        // Set ready to true anyway, just with no tools
-                        this.isReady = true;
-                        this.mcpTools = [];
-                        console.log(`MCP service ${this.mcpName} is now ready with no tools.`);
-                        return;
-                    }
-
-                    if (response.error) {
-                        console.error(`Tools list request error: ${JSON.stringify(response.error)}`);
-                        // Still set isReady to true, with empty tools list, so we don't hang
-                        this.isReady = true;
-                        this.mcpTools = [];
-                        console.log(`MCP service ${this.mcpName} is now ready with no tools due to error.`);
-                        return;
-                    }
-
-                    // Extract tools from the response based on MCP spec format
-                    // MCP response format: { "jsonrpc": "2.0", "id": 123, "result": { "tools": [...] } }
-                    if (response.result && response.result.tools && Array.isArray(response.result.tools)) {
-                        this.mcpTools = response.result.tools;
-                        console.log(`Loaded ${this.mcpTools.length} tools according to MCP spec format`);
-                    } else if (response.result && Array.isArray(response.result)) {
-                        // Legacy or non-standard format: direct array
-                        this.mcpTools = response.result;
-                        console.log(`Loaded ${this.mcpTools.length} tools from direct result array`);
-                    } else if (response.result) {
-                        // Try to extract tools in other formats
-                        console.log(`Trying to extract tools from non-standard format: ${JSON.stringify(response.result)}`);
-
-                        // Option 1: Maybe it's an object with tool objects as properties
-                        let extractedTools: any[] = [];
-
-                        if (typeof response.result === 'object') {
-                            // Try to extract tools from object properties
-                            for (const key in response.result) {
-                                if (key !== 'tools' && typeof response.result[key] === 'object') {
-                                    extractedTools.push({
-                                        ...response.result[key],
-                                        name: response.result[key].name || key
-                                    });
-                                }
-                            }
-                        }
-
-                        if (extractedTools.length > 0) {
-                            this.mcpTools = extractedTools;
-                            console.log(`Extracted ${this.mcpTools.length} tools from object properties`);
-                        } else {
-                            console.error(`Could not extract tools from response format: ${JSON.stringify(response.result)}`);
-                            this.mcpTools = [];
-                        }
-                    } else {
-                        console.error(`Invalid tools list format in response: ${JSON.stringify(response.result)}`);
-                        this.mcpTools = [];
-                    }
-
-                    this.isReady = true;
-                    console.log(`MCP service ${this.mcpName} is now ready with ${this.mcpTools.length} tools`);
-                } else {
-                    // This could be an unmatched response or error message that doesn't match our expectations
-                    // Log it, but don't crash the service
-                    console.log(`Unmatched MCP response: ${responseText}`);
-
-                    // Try to find any pending requests that might be waiting for this response
-                    // by matching part of the response with the tool call ID
-                    if (response.id) {
-                        // Look for partial matches in toolResponseMapping
-                        for (const [toolCallId, bridgeRequestId] of this.toolResponseMapping.entries()) {
-                            if (toolCallId.includes(response.id) || response.id.includes(toolCallId)) {
-                                console.log(`Found potential match for unmatched response: toolCallId=${toolCallId}, bridgeRequestId=${bridgeRequestId}`);
-                                const pendingRequest = this.pendingRequests.get(bridgeRequestId);
-
-                                if (pendingRequest) {
-                                    console.log(`Forwarding unmatched response to client for request ${bridgeRequestId}`);
-                                    pendingRequest.socket.write(JSON.stringify({
-                                        id: bridgeRequestId,
-                                        success: !response.error,
-                                        result: response.result,
-                                        error: response.error || {
-                                            code: -32603,
-                                            message: 'Unmatched MCP response'
-                                        }
-                                    }) + '\n');
-
-                                    // Clean up
-                                    this.pendingRequests.delete(bridgeRequestId);
-                                    this.toolResponseMapping.delete(toolCallId);
-                                    break;
-                                }
-                            }
-                        }
-                    }
+                    // 清理
+                    this.pendingRequests.delete(bridgeRequestId);
+                    this.toolResponseMapping.delete(response.id);
+                    this.toolCallServiceMap.delete(response.id);
                 }
-            } catch (parseError) {
-                console.error(`Error parsing MCP response JSON: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
-                console.error(`Invalid JSON: ${responseText}`);
-
-                // Try to find any pending requests and return the error
-                if (this.pendingRequests.size > 0) {
-                    // Just return the error to the oldest pending request
-                    const oldestRequest = Array.from(this.pendingRequests.entries())
-                        .sort((a, b) => a[1].timestamp - b[1].timestamp)[0];
-
-                    if (oldestRequest) {
-                        const [requestId, request] = oldestRequest;
-                        console.log(`Forwarding JSON parse error to oldest pending request: ${requestId}`);
-
-                        request.socket.write(JSON.stringify({
-                            id: requestId,
-                            success: false,
-                            error: {
-                                code: -32700,
-                                message: `Invalid JSON response from MCP server: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
-                                data: responseText.substring(0, 100) + (responseText.length > 100 ? '...' : '')
-                            }
-                        }) + '\n');
-
-                        // Clean up
-                        this.pendingRequests.delete(requestId);
-                        if (request.toolCallId) {
-                            this.toolResponseMapping.delete(request.toolCallId);
-                        }
-                    }
+            } else if (response.id && typeof response.id === 'string' && response.id.startsWith(`init_${serviceName}_`)) {
+                // 处理工具列表响应
+                if (response.error) {
+                    // 错误时设置空工具列表
+                    this.mcpToolsMap.set(serviceName, []);
+                    return;
                 }
+
+                // 从响应中提取工具
+                let tools: any[] = [];
+                if (response.result && response.result.tools && Array.isArray(response.result.tools)) {
+                    tools = response.result.tools;
+                } else if (response.result && Array.isArray(response.result)) {
+                    tools = response.result;
+                }
+
+                // 存储该服务的工具
+                this.mcpToolsMap.set(serviceName, tools);
+                console.log(`MCP service ${serviceName} is ready with ${tools.length} tools`);
             }
         } catch (e) {
-            console.error(`Error handling MCP response: ${e instanceof Error ? e.message : String(e)}`);
-            if (e instanceof Error && e.stack) {
-                console.error(`Stack trace: ${e.stack}`);
-            }
+            console.error(`Error handling MCP response from ${serviceName}: ${e instanceof Error ? e.message : String(e)}`);
 
-            // Don't crash the server, just log the error
-            // Try to find any pending requests and return the error
-            if (this.pendingRequests.size > 0) {
-                // Send the error to all pending requests since we don't know which one it's for
-                for (const [requestId, request] of this.pendingRequests.entries()) {
-                    console.log(`Forwarding general error to pending request: ${requestId}`);
-
-                    try {
-                        request.socket.write(JSON.stringify({
-                            id: requestId,
-                            success: false,
-                            error: {
-                                code: -32603,
-                                message: `Internal MCP server error: ${e instanceof Error ? e.message : String(e)}`,
-                                data: this.lastMcpError ? { stderr: this.lastMcpError } : undefined
-                            }
-                        }) + '\n');
-                    } catch (writeError) {
-                        console.error(`Failed to write error response to socket: ${writeError}`);
-                    }
-
-                    // Clean up
-                    this.pendingRequests.delete(requestId);
-                    if (request.toolCallId) {
-                        this.toolResponseMapping.delete(request.toolCallId);
-                    }
-                }
-            }
+            // 不要崩溃服务器
+            this.mcpToolsMap.set(serviceName, []);
         }
     }
 
     /**
-     * Handle client MCP command
+     * 处理客户端MCP命令
      */
     private handleMcpCommand(command: McpCommand, socket: net.Socket): void {
         const { id, command: cmdType, params } = command;
@@ -572,44 +389,32 @@ class McpBridge {
         try {
             switch (cmdType) {
                 case 'ping':
-                    // Health check
-                    const serviceName = params?.serviceName || params?.name;
+                    // 健康检查(单个服务或所有服务)
+                    const pingServiceName = params?.serviceName || params?.name;
 
-                    if (serviceName) {
-                        if (this.serviceRegistry.has(serviceName)) {
-                            const serviceInfo = this.serviceRegistry.get(serviceName);
+                    if (pingServiceName) {
+                        if (this.serviceRegistry.has(pingServiceName)) {
+                            const serviceInfo = this.serviceRegistry.get(pingServiceName);
+                            const isRunning = this.isServiceRunning(pingServiceName);
+                            const isReady = this.serviceReadyMap.get(pingServiceName) || false;
 
-                            if (this.mcpName === serviceName) {
-                                response = {
-                                    id,
-                                    success: true,
-                                    result: {
-                                        status: "ok",
-                                        mcpName: serviceName,
-                                        name: serviceName,
-                                        description: serviceInfo?.description,
-                                        timestamp: Date.now(),
-                                        ready: this.isReady
-                                    }
-                                };
-
-                                // Update last used time
-                                if (serviceInfo) {
-                                    serviceInfo.lastUsed = Date.now();
-                                    this.saveRegistry();
+                            response = {
+                                id,
+                                success: true,
+                                result: {
+                                    status: isRunning ? "ok" : "registered_not_running",
+                                    name: pingServiceName,
+                                    description: serviceInfo?.description,
+                                    timestamp: Date.now(),
+                                    running: isRunning,
+                                    ready: isReady
                                 }
-                            } else {
-                                response = {
-                                    id,
-                                    success: true,
-                                    result: {
-                                        status: "registered_but_not_active",
-                                        mcpName: this.mcpName,
-                                        name: serviceName,
-                                        description: serviceInfo?.description,
-                                        timestamp: Date.now()
-                                    }
-                                };
+                            };
+
+                            // 更新最后使用时间
+                            if (serviceInfo) {
+                                serviceInfo.lastUsed = Date.now();
+                                this.saveRegistry();
                             }
                         } else {
                             response = {
@@ -617,20 +422,21 @@ class McpBridge {
                                 success: false,
                                 error: {
                                     code: -32601,
-                                    message: `Service '${serviceName}' not registered`
+                                    message: `Service '${pingServiceName}' not registered`
                                 }
                             };
                         }
                     } else {
-                        // Generic ping
+                        // 普通bridge健康检查
+                        const runningServices = [...this.mcpProcesses.keys()];
                         response = {
                             id,
                             success: true,
                             result: {
                                 timestamp: Date.now(),
                                 status: 'ok',
-                                mcpName: this.mcpName,
-                                ready: this.isReady
+                                runningServices: runningServices,
+                                serviceCount: runningServices.length
                             }
                         };
                     }
@@ -639,14 +445,25 @@ class McpBridge {
                     break;
 
                 case 'status':
-                    // Bridge status
+                    // bridge状态及所有运行服务
+                    const runningServices = [...this.mcpProcesses.keys()];
+                    const serviceStatus: Record<string, any> = {};
+
+                    for (const [name, mcpProcess] of this.mcpProcesses.entries()) {
+                        serviceStatus[name] = {
+                            running: !mcpProcess.stdin.destroyed,
+                            ready: this.serviceReadyMap.get(name) || false,
+                            toolCount: (this.mcpToolsMap.get(name) || []).length
+                        };
+                    }
+
                     response = {
                         id,
                         success: true,
                         result: {
-                            ready: this.isReady,
-                            mcpName: this.mcpName,
-                            processRunning: !!this.mcpProcess && !this.mcpProcess.stdin.destroyed,
+                            runningServices: runningServices,
+                            serviceCount: runningServices.length,
+                            services: serviceStatus,
                             pendingRequests: this.pendingRequests.size,
                             activeConnections: this.activeConnections.size
                         }
@@ -655,22 +472,42 @@ class McpBridge {
                     break;
 
                 case 'listtools':
-                    // Available tools list
-                    if (!this.mcpProcess || this.mcpProcess.stdin.destroyed) {
-                        response = {
-                            id,
-                            success: false,
-                            error: {
-                                code: -32603,
-                                message: 'MCP server not available'
-                            }
-                        };
+                    // 查询特定服务的可用工具列表
+                    const serviceToList = params?.name;
+
+                    if (serviceToList) {
+                        if (!this.isServiceRunning(serviceToList)) {
+                            response = {
+                                id,
+                                success: false,
+                                error: {
+                                    code: -32603,
+                                    message: `Service '${serviceToList}' not running`
+                                }
+                            };
+                        } else {
+                            response = {
+                                id,
+                                success: true,
+                                result: {
+                                    tools: this.mcpToolsMap.get(serviceToList) || []
+                                }
+                            };
+                        }
                     } else {
+                        // 未指定服务，列出所有服务的工具
+                        const allTools: Record<string, any> = {};
+                        for (const [name, tools] of this.mcpToolsMap.entries()) {
+                            if (this.isServiceRunning(name)) {
+                                allTools[name] = tools;
+                            }
+                        }
+
                         response = {
                             id,
                             success: true,
                             result: {
-                                tools: this.mcpTools
+                                serviceTools: allTools
                             }
                         };
                     }
@@ -678,24 +515,114 @@ class McpBridge {
                     break;
 
                 case 'list':
-                    // List registered MCP services
-                    try {
-                        const services = this.getServiceList();
-                        response = {
-                            id,
-                            success: true,
-                            result: {
-                                services
-                            }
+                    // 列出已注册的MCP服务并附带运行状态
+                    const services = this.getServiceList().map(service => {
+                        return {
+                            ...service,
+                            running: this.isServiceRunning(service.name),
+                            ready: this.serviceReadyMap.get(service.name) || false,
+                            toolCount: (this.mcpToolsMap.get(service.name) || []).length
                         };
-                    } catch (error) {
-                        console.error(`Error getting service list: ${error instanceof Error ? error.message : String(error)}`);
+                    });
+
+                    response = {
+                        id,
+                        success: true,
+                        result: { services }
+                    };
+                    socket.write(JSON.stringify(response) + '\n');
+                    break;
+
+                case 'spawn':
+                    // 启动新的MCP服务，不关闭其他服务
+                    if (!params) {
                         response = {
                             id,
                             success: false,
                             error: {
-                                code: -32603,
-                                message: `Error retrieving service list: ${error instanceof Error ? error.message : String(error)}`
+                                code: -32602,
+                                message: "Missing parameters"
+                            }
+                        };
+                        socket.write(JSON.stringify(response) + '\n');
+                        break;
+                    }
+
+                    const spawnServiceName = params.name;
+                    let serviceCommand = params.command;
+                    let serviceArgs = params.args || [];
+                    let serviceEnv = params.env;
+
+                    // 如果未提供命令，尝试从注册表加载
+                    if (!serviceCommand && spawnServiceName && this.serviceRegistry.has(spawnServiceName)) {
+                        const info = this.serviceRegistry.get(spawnServiceName)!;
+                        serviceCommand = info.command;
+                        serviceArgs = info.args;
+                        serviceEnv = info.env;
+                    } else if (!serviceCommand || !spawnServiceName) {
+                        response = {
+                            id,
+                            success: false,
+                            error: {
+                                code: -32602,
+                                message: "Missing required parameters: name and command"
+                            }
+                        };
+                        socket.write(JSON.stringify(response) + '\n');
+                        break;
+                    }
+
+                    // 启动服务
+                    this.startMcpProcess(spawnServiceName, serviceCommand, serviceArgs, serviceEnv);
+
+                    response = {
+                        id,
+                        success: true,
+                        result: {
+                            status: "started",
+                            name: spawnServiceName,
+                            command: serviceCommand,
+                            args: serviceArgs
+                        }
+                    };
+                    socket.write(JSON.stringify(response) + '\n');
+                    break;
+
+                case 'shutdown':
+                    // 关闭特定的MCP服务
+                    const serviceToShutdown = params?.name;
+
+                    if (!serviceToShutdown) {
+                        // 未指定服务，返回错误
+                        response = {
+                            id,
+                            success: false,
+                            error: {
+                                code: -32602,
+                                message: "Missing required parameter: name"
+                            }
+                        };
+                    } else if (!this.isServiceRunning(serviceToShutdown)) {
+                        // 服务未运行
+                        response = {
+                            id,
+                            success: false,
+                            error: {
+                                code: -32602,
+                                message: `Service '${serviceToShutdown}' not running`
+                            }
+                        };
+                    } else {
+                        // 终止进程
+                        this.mcpProcesses.get(serviceToShutdown)!.kill();
+                        this.mcpProcesses.delete(serviceToShutdown);
+
+                        response = {
+                            id,
+                            success: true,
+                            result: {
+                                status: "shutdown",
+                                name: serviceToShutdown
                             }
                         };
                     }
@@ -703,7 +630,7 @@ class McpBridge {
                     break;
 
                 case 'register':
-                    // Register new MCP service
+                    // 注册新的MCP服务
                     if (!params || !params.name || !params.command) {
                         response = {
                             id,
@@ -740,7 +667,7 @@ class McpBridge {
                     break;
 
                 case 'unregister':
-                    // Unregister MCP service
+                    // 注销MCP服务
                     if (!params || !params.name) {
                         response = {
                             id,
@@ -752,6 +679,12 @@ class McpBridge {
                         };
                         socket.write(JSON.stringify(response) + '\n');
                         break;
+                    }
+
+                    // 如果运行中，先关闭
+                    if (this.isServiceRunning(params.name)) {
+                        this.mcpProcesses.get(params.name)!.kill();
+                        this.mcpProcesses.delete(params.name);
                     }
 
                     const unregistered = this.unregisterService(params.name);
@@ -772,97 +705,12 @@ class McpBridge {
                     break;
 
                 case 'toolcall':
-                    // Tool call
-                    if (!params || !params.method) {
-                        response = {
-                            id,
-                            success: false,
-                            error: {
-                                code: -32602,
-                                message: "Missing required parameter: method"
-                            }
-                        };
-                        socket.write(JSON.stringify(response) + '\n');
-                        break;
-                    }
-
+                    // 调用工具
                     this.handleToolCall(command, socket);
                     break;
 
-                case 'spawn':
-                    // Start new MCP service
-                    if (!params || !params.command) {
-                        // Try to load by name from registry
-                        if (params && params.name && this.serviceRegistry.has(params.name)) {
-                            const serviceInfo = this.serviceRegistry.get(params.name)!;
-                            params.command = serviceInfo.command;
-                            params.args = serviceInfo.args;
-                            params.description = serviceInfo.description;
-                            if (!params.env && serviceInfo.env) {
-                                params.env = serviceInfo.env;
-                            }
-                        } else {
-                            response = {
-                                id,
-                                success: false,
-                                error: {
-                                    code: -32602,
-                                    message: "Missing required parameter: command or valid name"
-                                }
-                            };
-                            socket.write(JSON.stringify(response) + '\n');
-                            break;
-                        }
-                    }
-
-                    // Kill existing process if any
-                    if (this.mcpProcess) {
-                        this.mcpProcess.kill();
-                    }
-
-                    // Update config
-                    this.config.mcpCommand = params.command;
-                    this.config.mcpArgs = params.args || [];
-                    this.mcpName = params.name || "custom";
-                    this.config.env = params.env;
-
-                    // Start new process
-                    this.startMcpProcess();
-
-                    response = {
-                        id,
-                        success: true,
-                        result: {
-                            status: "started",
-                            command: this.config.mcpCommand,
-                            args: this.config.mcpArgs,
-                            name: this.mcpName
-                        }
-                    };
-                    socket.write(JSON.stringify(response) + '\n');
-                    break;
-
-                case 'shutdown':
-                    // Shutdown current MCP service
-                    if (this.mcpProcess) {
-                        this.mcpProcess.kill();
-                        this.mcpProcess = null;
-                    }
-
-                    this.isReady = false;
-
-                    response = {
-                        id,
-                        success: true,
-                        result: {
-                            status: "shutdown"
-                        }
-                    };
-                    socket.write(JSON.stringify(response) + '\n');
-                    break;
-
                 default:
-                    // Unknown command
+                    // 未知命令
                     response = {
                         id,
                         success: false,
@@ -874,20 +722,13 @@ class McpBridge {
                     socket.write(JSON.stringify(response) + '\n');
             }
         } catch (error) {
-            // Catch any uncaught exceptions in command handling
-            console.error(`Unhandled error in command ${cmdType}: ${error instanceof Error ? error.message : String(error)}`);
-            if (error instanceof Error && error.stack) {
-                console.error(`Stack trace: ${error.stack}`);
-            }
-
-            // Send error to client
+            // 通用错误处理
             const errorResponse: McpResponse = {
                 id,
                 success: false,
                 error: {
                     code: -32603,
-                    message: `Internal server error: ${error instanceof Error ? error.message : String(error)}`,
-                    data: this.lastMcpError ? { stderr: this.lastMcpError } : undefined
+                    message: `Internal server error: ${error instanceof Error ? error.message : String(error)}`
                 }
             };
             socket.write(JSON.stringify(errorResponse) + '\n');
@@ -895,82 +736,37 @@ class McpBridge {
     }
 
     /**
-     * Handle tool call request
+     * 处理工具调用请求
      */
     private handleToolCall(command: McpCommand, socket: net.Socket): void {
         const { id, params } = command;
         const { method, params: methodParams, name: requestedServiceName } = params || {};
 
-        console.log(`Handling tool call: ${method}, service: ${requestedServiceName || this.mcpName}`);
+        // 确定使用哪个服务
+        const serviceName = requestedServiceName || Object.keys(this.mcpProcesses)[0];
 
-        if (!this.mcpProcess || this.mcpProcess.stdin.destroyed) {
-            console.error(`Cannot handle tool call: MCP process not available (method: ${method})`);
+        if (!serviceName) {
+            console.error(`Cannot handle tool call: No service specified and no default available`);
             const response: McpResponse = {
                 id,
                 success: false,
                 error: {
-                    code: -32603,
-                    message: 'MCP server temporarily unavailable'
+                    code: -32602,
+                    message: 'No service specified and no default available'
                 }
             };
             socket.write(JSON.stringify(response) + '\n');
             return;
         }
 
-        // Special handling for ping method
-        if (method === 'ping' && requestedServiceName) {
-            console.log(`Processing ping request for service: ${requestedServiceName}`);
-
-            if (!this.serviceRegistry.has(requestedServiceName)) {
-                console.error(`Service ${requestedServiceName} not found in registry for ping request`);
-                const response: McpResponse = {
-                    id,
-                    success: false,
-                    error: {
-                        code: -32601,
-                        message: `Service '${requestedServiceName}' not registered`
-                    }
-                };
-                socket.write(JSON.stringify(response) + '\n');
-                return;
-            }
-
-            if (this.mcpName !== requestedServiceName) {
-                console.log(`Requested service ${requestedServiceName} is registered but not active (current: ${this.mcpName})`);
-                const serviceInfo = this.serviceRegistry.get(requestedServiceName);
-                const response: McpResponse = {
-                    id,
-                    success: true,
-                    result: {
-                        status: "registered_but_not_active",
-                        mcpName: this.mcpName,
-                        requestedName: requestedServiceName,
-                        description: serviceInfo?.description,
-                        timestamp: Date.now()
-                    }
-                };
-                socket.write(JSON.stringify(response) + '\n');
-                return;
-            }
-
-            // Update last used time
-            const serviceInfo = this.serviceRegistry.get(requestedServiceName);
-            if (serviceInfo) {
-                serviceInfo.lastUsed = Date.now();
-                this.saveRegistry();
-            }
-
-            console.log(`Service ${requestedServiceName} is active and responding to ping`);
+        if (!this.isServiceRunning(serviceName)) {
+            console.error(`Cannot handle tool call: Service ${serviceName} not running`);
             const response: McpResponse = {
                 id,
-                success: true,
-                result: {
-                    status: "ok",
-                    mcpName: requestedServiceName,
-                    name: requestedServiceName,
-                    description: serviceInfo?.description,
-                    timestamp: Date.now(),
-                    ready: this.isReady
+                success: false,
+                error: {
+                    code: -32603,
+                    message: `Service '${serviceName}' not running`
                 }
             };
             socket.write(JSON.stringify(response) + '\n');
@@ -978,21 +774,19 @@ class McpBridge {
         }
 
         try {
-            // Create tool call request with correct MCP method name
+            // 创建工具调用请求
             const toolCallId = params.id || uuidv4();
             const toolCallRequest: ToolCallRequest = {
                 jsonrpc: '2.0',
                 id: toolCallId,
-                method: 'tools/call',  // Correct MCP method name according to spec
+                method: 'tools/call',  // 符合MCP规范的方法名
                 params: {
                     name: params.method,
                     arguments: params.params || {}
                 }
             };
 
-            console.log(`Created tool call request: ID=${toolCallId}, tool=${params.method}`);
-
-            // Record request
+            // 记录请求
             this.pendingRequests.set(id, {
                 id,
                 socket,
@@ -1000,60 +794,60 @@ class McpBridge {
                 toolCallId
             });
 
-            // Create mapping between tool call ID and bridge request ID
+            // 创建工具调用ID和桥接请求ID的映射
             this.toolResponseMapping.set(toolCallId, id);
 
-            // Serialize request
-            const requestJson = JSON.stringify(toolCallRequest);
-            console.log(`Sending tool call to MCP process: ${requestJson}`);
+            // 记住这个工具调用对应的服务
+            this.toolCallServiceMap.set(toolCallId, serviceName);
 
-            // Send request to MCP server
-            const writeResult = this.mcpProcess.stdin.write(requestJson + '\n');
+            // 获取特定服务的进程
+            const mcpProcess = this.mcpProcesses.get(serviceName)!;
+
+            // 发送请求到MCP服务器
+            const writeResult = mcpProcess.stdin.write(JSON.stringify(toolCallRequest) + '\n');
             if (!writeResult) {
-                console.error('Failed to write tool call request to MCP process stdin - backpressure detected');
-                // Send backpressure error to client
+                console.error(`Failed to write tool call request to ${serviceName} process stdin`);
+                // 发送错误给客户端
                 const response: McpResponse = {
                     id,
                     success: false,
                     error: {
                         code: -32603,
-                        message: 'Failed to send request - MCP server backpressure detected'
+                        message: `Failed to send request to ${serviceName}`
                     }
                 };
                 socket.write(JSON.stringify(response) + '\n');
 
-                // Clean up
+                // 清理
                 this.pendingRequests.delete(id);
                 this.toolResponseMapping.delete(toolCallId);
+                this.toolCallServiceMap.delete(toolCallId);
             }
         } catch (error) {
-            console.error(`Error handling tool call: ${error instanceof Error ? error.message : String(error)}`);
-            if (error instanceof Error && error.stack) {
-                console.error(`Stack trace: ${error.stack}`);
-            }
+            console.error(`Error handling tool call for ${serviceName}: ${error instanceof Error ? error.message : String(error)}`);
 
-            // Send error response
+            // 发送错误响应
             const response: McpResponse = {
                 id,
                 success: false,
                 error: {
                     code: -32603,
-                    message: `Internal error: ${error instanceof Error ? error.message : String(error)}`,
-                    data: this.lastMcpError ? { stderr: this.lastMcpError } : undefined
+                    message: `Internal error: ${error instanceof Error ? error.message : String(error)}`
                 }
             };
             socket.write(JSON.stringify(response) + '\n');
 
-            // Clean up any pending mappings
+            // 清理映射
             if (params && params.id) {
                 this.toolResponseMapping.delete(params.id);
+                this.toolCallServiceMap.delete(params.id);
             }
             this.pendingRequests.delete(id);
         }
     }
 
     /**
-     * Check for request timeouts
+     * 检查请求超时
      */
     private checkRequestTimeouts(): void {
         const now = Date.now();
@@ -1062,96 +856,79 @@ class McpBridge {
             if (now - request.timestamp > this.REQUEST_TIMEOUT) {
                 console.log(`Request timeout: ${requestId}`);
 
-                // Send timeout response
+                // 发送超时响应
                 const response: McpResponse = {
                     id: requestId,
                     success: false,
                     error: {
                         code: -32603,
                         message: "Request timeout",
-                        data: this.lastMcpError ? { stderr: this.lastMcpError } : undefined
+                        data: this.mcpErrors.get(this.toolCallServiceMap.get(requestId) || '') ?
+                            { stderr: this.mcpErrors.get(this.toolCallServiceMap.get(requestId) || '') } :
+                            undefined
                     }
                 };
 
                 request.socket.write(JSON.stringify(response) + '\n');
 
-                // Clean up
+                // 清理
                 this.pendingRequests.delete(requestId);
                 if (request.toolCallId) {
                     this.toolResponseMapping.delete(request.toolCallId);
+                    this.toolCallServiceMap.delete(request.toolCallId);
                 }
             }
         }
     }
 
     /**
-     * Start TCP server
+     * 启动TCP服务器
      */
     public start(): void {
-        // Start MCP process
-        this.startMcpProcess();
-
-        // Create TCP server
+        // 创建TCP服务器 - 默认不启动任何MCP进程
         this.server = net.createServer((socket: net.Socket) => {
             console.log(`New client connection: ${socket.remoteAddress}:${socket.remotePort}`);
             this.activeConnections.add(socket);
 
-            // Handle data from client
+            // 添加socket超时以防止客户端挂起
+            socket.setTimeout(30000); // 30秒超时
+            socket.on('timeout', () => {
+                console.log(`Socket timeout: ${socket.remoteAddress}:${socket.remotePort}`);
+                socket.end();
+                this.activeConnections.delete(socket);
+            });
+
+            // 处理来自客户端的数据
             socket.on('data', (data: Buffer) => {
                 const message = data.toString().trim();
 
                 try {
-                    // Parse command
+                    // 解析命令
                     const command = JSON.parse(message) as McpCommand;
 
-                    // Ensure command has ID
+                    // 确保命令有ID
                     if (!command.id) {
                         command.id = uuidv4();
                     }
 
-                    // Handle command
+                    // 处理命令
                     if (command.command) {
-                        try {
-                            this.handleMcpCommand(command, socket);
-                        } catch (error) {
-                            // Send error response for any uncaught exceptions
-                            console.error(`Error handling command ${command.command}: ${error instanceof Error ? error.message : String(error)}`);
-                            if (error instanceof Error && error.stack) {
-                                console.error(`Stack trace: ${error.stack}`);
-                            }
-
-                            // Send error response to client
-                            const response: McpResponse = {
-                                id: command.id,
-                                success: false,
-                                error: {
-                                    code: -32603,
-                                    message: `Internal error: ${error instanceof Error ? error.message : String(error)}`,
-                                    data: this.lastMcpError ? { stderr: this.lastMcpError } : undefined
-                                }
-                            };
-                            socket.write(JSON.stringify(response) + '\n');
-                        }
+                        this.handleMcpCommand(command, socket);
                     } else {
-                        // If not a bridge command, might be a direct MCP request
-                        if (this.mcpProcess && !this.mcpProcess.stdin.destroyed) {
-                            // Forward request to MCP process
-                            this.mcpProcess.stdin.write(message + '\n');
-                        } else {
-                            socket.write(JSON.stringify({
-                                jsonrpc: '2.0',
-                                id: this.extractId(message),
-                                error: {
-                                    code: -32603,
-                                    message: 'MCP server temporarily unavailable'
-                                }
-                            }) + '\n');
-                        }
+                        // 非桥接命令，无默认服务转发
+                        socket.write(JSON.stringify({
+                            jsonrpc: '2.0',
+                            id: this.extractId(message),
+                            error: {
+                                code: -32600,
+                                message: 'Invalid request: no service specified'
+                            }
+                        }) + '\n');
                     }
                 } catch (e) {
                     console.error(`Failed to parse client message: ${e}`);
 
-                    // Send error response
+                    // 发送错误响应
                     socket.write(JSON.stringify({
                         jsonrpc: '2.0',
                         id: null,
@@ -1163,71 +940,75 @@ class McpBridge {
                 }
             });
 
-            // Handle client disconnect
+            // 处理客户端断开连接
             socket.on('close', () => {
                 console.log(`Client disconnected: ${socket.remoteAddress}:${socket.remotePort}`);
                 this.activeConnections.delete(socket);
 
-                // Clean up pending requests for this connection
+                // 清理此连接的待处理请求
                 for (const [requestId, request] of this.pendingRequests.entries()) {
                     if (request.socket === socket) {
+                        const toolCallId = request.toolCallId;
                         this.pendingRequests.delete(requestId);
-                        if (request.toolCallId) {
-                            this.toolResponseMapping.delete(request.toolCallId);
+                        if (toolCallId) {
+                            this.toolResponseMapping.delete(toolCallId);
+                            this.toolCallServiceMap.delete(toolCallId);
                         }
                     }
                 }
             });
 
-            // Handle client error
+            // 处理客户端错误
             socket.on('error', (err: Error) => {
                 console.error(`Client error: ${err.message}`);
                 this.activeConnections.delete(socket);
             });
         });
 
-        // Start TCP server
+        // 启动TCP服务器
         this.server.listen(this.config.port, this.config.host, () => {
             console.log(`TCP bridge server running on ${this.config.host}:${this.config.port}`);
         });
 
-        // Handle server error
+        // 处理服务器错误
         this.server.on('error', (err: Error) => {
             console.error(`Server error: ${err.message}`);
         });
 
-        // Handle process signals
+        // 处理进程信号
         process.on('SIGINT', () => this.shutdown());
         process.on('SIGTERM', () => this.shutdown());
     }
 
     /**
-     * Shutdown bridge
+     * 关闭桥接器
      */
     public shutdown(): void {
         console.log('Shutting down bridge...');
 
-        // Close all client connections
+        // 关闭所有客户端连接
         for (const socket of this.activeConnections) {
             socket.end();
         }
 
-        // Close server
+        // 关闭服务器
         if (this.server) {
             this.server.close();
         }
 
-        // Terminate MCP process
-        if (this.mcpProcess) {
-            this.mcpProcess.kill();
+        // 终止所有MCP进程
+        for (const [name, mcpProcess] of this.mcpProcesses.entries()) {
+            console.log(`Terminating MCP process: ${name}`);
+            mcpProcess.kill();
         }
+        this.mcpProcesses.clear();
 
         console.log('Bridge shut down');
         process.exit(0);
     }
 
     /**
-     * Extract ID from JSON-RPC request
+     * 从JSON-RPC请求中提取ID
      */
     private extractId(request: string): string | null {
         try {

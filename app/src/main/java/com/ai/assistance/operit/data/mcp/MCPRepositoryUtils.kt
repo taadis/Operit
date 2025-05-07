@@ -42,7 +42,6 @@ object MCPRepositoryUtils {
             }
 
             val issuesArray = JSONArray(jsonResponse)
-            Log.d(TAG, "开始解析${issuesArray.length()}个issues")
 
             for (i in 0 until issuesArray.length()) {
                 try {
@@ -51,7 +50,6 @@ object MCPRepositoryUtils {
                     // 检查issue标题是否存在且包含MCP服务器提交的标记
                     val title = issue.optString("title", "").trim()
                     if (title.isBlank()) {
-                        Log.d(TAG, "Issue #${issue.optInt("number", -1)} 标题为空，跳过")
                         continue
                     }
 
@@ -65,14 +63,12 @@ object MCPRepositoryUtils {
                     // 提取基本信息
                     val id = issue.optInt("number", -1).toString()
                     if (id == "-1") {
-                        Log.d(TAG, "Issue ID无效，跳过")
                         continue // 跳过没有有效ID的issue
                     }
 
                     // 获取issue正文
                     val body = issue.optString("body", "")
                     if (body.isBlank()) {
-                        Log.d(TAG, "Issue #$id 正文为空，跳过")
                         continue
                     }
 
@@ -87,7 +83,6 @@ object MCPRepositoryUtils {
                     val repoUrl = extractRepoUrl(body)
 
                     if (repoUrl.isNullOrBlank()) {
-                        Log.d(TAG, "Issue #$id 没有有效的GitHub仓库URL，跳过")
                         continue
                     }
 
@@ -100,9 +95,6 @@ object MCPRepositoryUtils {
                     // 检查Logo是否符合标准尺寸（实际无法真正检查尺寸，只能通过格式判断）
                     val logoStandardSize =
                             logoUrl?.contains("github.com/user-attachments/assets") == true
-                    if (logoStandardSize) {
-                        // 删除Logo符合GitHub附件标准格式的日志
-                    }
 
                     // 提取标准格式的简短描述
                     val description = extractStandardDescription(body, id)
@@ -156,7 +148,6 @@ object MCPRepositoryUtils {
                                     logoStandardSize = logoStandardSize
                             )
 
-                    Log.d(TAG, "成功解析服务器: ${server.name} (${server.repoUrl})")
                     servers.add(server)
                 } catch (e: Exception) {
                     // 单个issue解析失败，继续处理下一个
@@ -799,10 +790,6 @@ object MCPRepositoryUtils {
                 // 使用至少20的基础分，然后加上实际得分
                 val officialBonus = 20
                 val finalScore = Math.max(baseScore, officialBonus) + officialBonus / 2
-                Log.d(
-                        TAG,
-                        "Issue #${issue.optInt("number")} 来自官方账户 $login，得分: $finalScore (基础=$baseScore + 官方加成)"
-                )
                 return finalScore
             }
         }
@@ -818,18 +805,9 @@ object MCPRepositoryUtils {
         ) {
             // 测试服务器的分数减半
             val reducedScore = Math.max(1, baseScore / 2)
-            Log.d(
-                    TAG,
-                    "Issue #${issue.optInt("number")} 似乎是测试服务器，分数减半: $reducedScore (原分数=$baseScore)"
-            )
             return reducedScore
         }
 
-        // 记录并返回最终分数
-        Log.d(
-                TAG,
-                "Issue #${issue.optInt("number")} 最终得分: $baseScore (评论=$comments, 反应=$reactionScore)"
-        )
         return Math.max(1, baseScore) // 确保至少有1分
     }
 
@@ -946,8 +924,6 @@ object MCPRepositoryUtils {
         if (originalUrl.isBlank()) return null
 
         try {
-            Log.d(TAG, "开始处理可能的URL重定向: $originalUrl")
-
             // 特别针对GitHub用户附件格式 https://github.com/user-attachments/assets/...
             if (originalUrl.contains("github.com/user-attachments/assets")) {
                 val url = URL(originalUrl)
@@ -964,7 +940,7 @@ object MCPRepositoryUtils {
                 ) {
 
                     val newUrl = connection.getHeaderField("Location")
-                    Log.d(TAG, "URL被重定向: $originalUrl -> $newUrl")
+                    // URL已被重定向
                     connection.disconnect()
                     return newUrl
                 }
@@ -975,7 +951,6 @@ object MCPRepositoryUtils {
             // 如果不需要特殊处理或未发生重定向，则返回原始URL
             return originalUrl
         } catch (e: Exception) {
-            Log.e(TAG, "处理URL重定向时发生异常: ${e.message}", e)
             return originalUrl // 发生错误时返回原始URL
         }
     }

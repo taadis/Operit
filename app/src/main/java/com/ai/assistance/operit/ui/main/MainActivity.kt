@@ -15,6 +15,7 @@ import androidx.compose.ui.zIndex
 import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
 import com.ai.assistance.operit.R
+import com.ai.assistance.operit.data.mcp.MCPConfigPreferences
 import com.ai.assistance.operit.data.mcp.MCPLocalServer
 import com.ai.assistance.operit.data.mcp.MCPRepository
 import com.ai.assistance.operit.data.mcp.plugins.MCPBridge
@@ -36,6 +37,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import android.content.res.Configuration
 
 class MainActivity : ComponentActivity() {
     private val TAG = "MainActivity"
@@ -80,17 +82,20 @@ class MainActivity : ComponentActivity() {
         // 设置上下文以便获取插件元数据
         pluginLoadingState.setAppContext(applicationContext)
 
-        // 显示插件加载界面
-        pluginLoadingState.show()
+        // 只在首次创建时显示插件加载界面（非配置变更）
+        if (savedInstanceState == null) {
+            // 显示插件加载界面
+            pluginLoadingState.show()
+            
+            // 初始化MCP服务器并启动插件
+            initializeMCPServer()
+        }
 
         // 初始化并设置更新管理器
         setupUpdateManager()
 
         // 启动权限流程
         initializeShizuku()
-
-        // 初始化MCP服务器并启动插件
-        initializeMCPServer()
 
         // 设置初始界面
         setAppContent()
@@ -113,6 +118,14 @@ class MainActivity : ComponentActivity() {
         } catch (e: Exception) {
             Log.e(TAG, "Error removing Shizuku state change listener", e)
         }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        Log.d(TAG, "onConfigurationChanged: orientation=${newConfig.orientation}")
+        
+        // 屏幕方向变化时，确保加载界面不可见
+        pluginLoadingState.hide()
     }
 
     // ======== 初始化组件 ========
@@ -215,6 +228,7 @@ class MainActivity : ComponentActivity() {
                         pluginLoadingState.updateProgress(0.4f)
 
                         val mcpStarter = MCPStarter(applicationContext)
+                        val mcpConfigPreferences = MCPConfigPreferences(applicationContext)
 
                         // 设置启动进度监听器
                         val progressListener =
@@ -224,9 +238,14 @@ class MainActivity : ComponentActivity() {
                                             index: Int,
                                             total: Int
                                     ) {
+                                        // 在这里检查插件是否被启用
+                                        val isEnabled = kotlinx.coroutines.runBlocking {
+                                            mcpConfigPreferences.getPluginEnabledFlow(pluginId).first()
+                                        }
+                                        
                                         // 更新总体状态
                                         pluginLoadingState.updateMessage(
-                                                "正在启动插件 ($index/$total)..."
+                                                "正在启动插件 ($index/$total)${if (!isEnabled) " (插件已禁用)" else ""}..."
                                         )
                                         pluginLoadingState.updateProgress(
                                                 0.4f + 0.6f * (index.toFloat() / total)

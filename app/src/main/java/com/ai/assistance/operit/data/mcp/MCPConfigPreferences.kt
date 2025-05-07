@@ -57,6 +57,10 @@ class MCPConfigPreferences(private val context: Context) {
         const val DEPLOY_SUCCESS_PREFIX = "deploy_success_plugin_"
         val DEFAULT_DEPLOY_SUCCESS = false
 
+        // 插件启用状态前缀 - 用于标记插件是否被用户启用
+        const val PLUGIN_ENABLED_PREFIX = "plugin_enabled_"
+        val DEFAULT_PLUGIN_ENABLED = true
+
         // 最后部署时间前缀 - 记录插件最后一次成功部署的时间
         const val LAST_DEPLOY_TIME_PREFIX = "last_deploy_time_plugin_"
     }
@@ -101,18 +105,14 @@ class MCPConfigPreferences(private val context: Context) {
                 preferences[AUTO_UPDATE_PLUGINS] ?: DEFAULT_AUTO_UPDATE_PLUGINS
             }
 
-    // 获取插件的自动部署状态
+    // 获取插件的自动部署状态 - 为了兼容性保留，但转发到启用状态检查
     fun getAutoDeployFlow(pluginId: String): Flow<Boolean> {
-        val key = booleanPreferencesKey("${AUTO_DEPLOY_PREFIX}${pluginId}")
-        return context.mcpConfigDataStore.data.map { preferences ->
-            preferences[key] ?: DEFAULT_AUTO_DEPLOY
-        }
+        return getPluginEnabledFlow(pluginId)
     }
 
-    // 保存插件的自动部署状态
+    // 保存插件的自动部署状态 - 为了兼容性保留，但转发到启用状态保存
     suspend fun saveAutoDeploy(pluginId: String, autoDeploy: Boolean) {
-        val key = booleanPreferencesKey("${AUTO_DEPLOY_PREFIX}${pluginId}")
-        context.mcpConfigDataStore.edit { preferences -> preferences[key] = autoDeploy }
+        savePluginEnabled(pluginId, autoDeploy)
     }
 
     // Save API Key
@@ -202,5 +202,19 @@ class MCPConfigPreferences(private val context: Context) {
     private suspend fun saveLastDeployTime(pluginId: String, timestamp: Long) {
         val key = stringPreferencesKey("${LAST_DEPLOY_TIME_PREFIX}${pluginId}")
         context.mcpConfigDataStore.edit { preferences -> preferences[key] = timestamp.toString() }
+    }
+
+    // 获取插件的启用状态
+    fun getPluginEnabledFlow(pluginId: String): Flow<Boolean> {
+        val key = booleanPreferencesKey("${PLUGIN_ENABLED_PREFIX}${pluginId}")
+        return context.mcpConfigDataStore.data.map { preferences ->
+            preferences[key] ?: DEFAULT_PLUGIN_ENABLED
+        }
+    }
+
+    // 保存插件的启用状态
+    suspend fun savePluginEnabled(pluginId: String, enabled: Boolean) {
+        val key = booleanPreferencesKey("${PLUGIN_ENABLED_PREFIX}${pluginId}")
+        context.mcpConfigDataStore.edit { preferences -> preferences[key] = enabled }
     }
 }

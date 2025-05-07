@@ -52,7 +52,7 @@ object TermuxFileMonitor {
 
             if (checkResult.stdout.contains("EXISTS")) {
                 fileCreated = true
-                Log.d(TAG, createLogMessage(command, "检测到文件已创建: $tempOutputFile"))
+                // Log.d(TAG, createLogMessage(command, "检测到文件已创建: $tempOutputFile"))
                 break
             }
 
@@ -61,7 +61,7 @@ object TermuxFileMonitor {
 
         // 如果文件创建失败，通知错误并完成操作
         if (!fileCreated) {
-            Log.e(TAG, createLogMessage(command, "文件创建超时: $tempOutputFile"))
+            // Log.e(TAG, createLogMessage(command, "文件创建超时: $tempOutputFile"))
             outputReceiver?.onError("未能创建输出文件，请检查Termux权限", -1)
 
             commandCompleted.complete(
@@ -95,7 +95,7 @@ object TermuxFileMonitor {
                 var lastSize = 0L
 
                 // 添加日志，记录文件监控开始
-                Log.d(TAG, createLogMessage(command, "开始文件监控: $tempOutputFile"))
+                // Log.d(TAG, createLogMessage(command, "开始文件监控: $tempOutputFile"))
 
                 // 循环检查文件变化，直到命令完成
                 while (commandIsRunning.get()) {
@@ -128,7 +128,7 @@ object TermuxFileMonitor {
 
                     // 如果文件不存在，继续循环
                     if (sizeOutput.isEmpty() || sizeOutput.contains("NOT_EXISTS")) {
-                        Log.d(TAG, createLogMessage(command, "文件不存在，等待创建..."))
+                        // Log.d(TAG, createLogMessage(command, "文件不存在，等待创建..."))
                         Thread.sleep(50) // 短暂等待后重试
                         continue
                     }
@@ -145,7 +145,7 @@ object TermuxFileMonitor {
                             try {
                                 sizePart.toLong()
                             } catch (e: NumberFormatException) {
-                                Log.e(TAG, createLogMessage(command, "无法解析文件大小: $sizePart"), e)
+                                // Log.e(TAG, createLogMessage(command, "无法解析文件大小: $sizePart"), e)
                                 Thread.sleep(50) // 短暂等待后重试
                                 continue
                             }
@@ -190,7 +190,7 @@ object TermuxFileMonitor {
 
                     // 如果读取失败，尝试备用读取方法
                     if (output.isEmpty() && readResult?.stderr?.isNotEmpty() == true) {
-                        Log.w(TAG, createLogMessage(command, "使用dd读取失败: ${readResult.stderr}，尝试备用方法"))
+                        // Log.w(TAG, createLogMessage(command, "使用dd读取失败: ${readResult.stderr}，尝试备用方法"))
 
                         // 备用方法：使用cat加head/tail
                         val fallbackCommand =
@@ -215,15 +215,15 @@ object TermuxFileMonitor {
 
                         output = fallbackResult?.stdout ?: ""
                         if (output.isNotEmpty()) {
-                            Log.d(TAG, createLogMessage(command, "备用读取方法成功"))
+                            // Log.d(TAG, createLogMessage(command, "备用读取方法成功"))
                         }
                     }
 
-                    Log.d(TAG, createLogMessage(command, "读取新增内容 (${output.length} 字节): ${if (output.length > 50) output.substring(0, 50) + "..." else output}"))
+                    // Log.d(TAG, createLogMessage(command, "读取新增内容 (${output.length} 字节): ${if (output.length > 50) output.substring(0, 50) + "..." else output}"))
 
                     // 检查是否包含命令完成标记
                     if (output.contains("COMMAND_COMPLETE:")) {
-                        Log.d(TAG, createLogMessage(command, "检测到命令完成标记"))
+                        // Log.d(TAG, createLogMessage(command, "检测到命令完成标记"))
                         val exitCodePattern = "COMMAND_COMPLETE:(\\d+)".toRegex()
                         val matchResult = exitCodePattern.find(output)
                         val exitCode = matchResult?.groupValues?.get(1)?.toIntOrNull() ?: 0
@@ -241,11 +241,11 @@ object TermuxFileMonitor {
                                 successField.isAccessible = true
                                 successField.set(monitoredResult, exitCode == 0)
                             } catch (e: Exception) {
-                                Log.e(TAG, createLogMessage(command, "设置监控结果字段失败: ${e.message}"))
+                                // Log.e(TAG, createLogMessage(command, "设置监控结果字段失败: ${e.message}"))
                             }
                         }
 
-                        Log.d(TAG, createLogMessage(command, "命令执行完成，退出码: $exitCode, 成功: ${exitCode == 0}"))
+                        // Log.d(TAG, createLogMessage(command, "命令执行完成，退出码: $exitCode, 成功: ${exitCode == 0}"))
                         commandIsRunning.set(false)
                     }
 
@@ -436,7 +436,7 @@ object TermuxFileMonitor {
             effectiveOutputReceiver: TermuxCommandOutputReceiver?,
             stdoutBuilder: StringBuilder
     ): CommandResult {
-        Log.e(TAG, createLogMessage(command, "命令执行过程中出现异常: ${e.message}"), e)
+        // Log.e(TAG, createLogMessage(command, "命令执行过程中出现异常: ${e.message}"), e)
 
         // 移除回调
         TermuxCommandResultService.removeCallback(executionId)

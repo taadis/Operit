@@ -37,7 +37,7 @@ class MCPRepository(private val context: Context) {
     // Specialized components
     private val networkClient = MCPNetworkClient()
     private val cacheManager = MCPCacheManager(context)
-    private val officialSourceManager = MCPOfficialSourceManager(networkClient, cacheManager)
+    private val officialSourceManager = MCPOfficialSourceManager(cacheManager)
     private val pluginManager = MCPPluginManager(cacheManager, MCPInstaller(context))
 
     // Current page for third-party content (after official content)
@@ -1164,6 +1164,77 @@ class MCPRepository(private val context: Context) {
      */
     fun getInstalledPluginInfo(pluginId: String): MCPInstaller.InstalledPluginInfo? {
         return pluginManager.getInstalledPluginInfo(pluginId)
+    }
+
+    /**
+     * 从本地ZIP文件安装MCP服务器插件
+     *
+     * @param serverId 自定义服务器ID
+     * @param zipUri ZIP文件URI
+     * @param name 插件名称
+     * @param description 插件描述
+     * @param author 插件作者
+     * @param progressCallback 安装进度回调
+     * @return 安装结果
+     */
+    suspend fun installMCPServerFromZip(
+            serverId: String,
+            zipUri: android.net.Uri,
+            name: String,
+            description: String,
+            author: String,
+            progressCallback: (InstallProgress) -> Unit = {}
+    ): InstallResult {
+        withContext(Dispatchers.IO) {
+            _isLoading.value = true
+            _errorMessage.value = null
+
+            try {
+                Log.d(TAG, "从本地ZIP安装插件, ID: $serverId, Name: $name")
+
+                // 创建临时Server对象
+                val server =
+                        com.ai.assistance.operit.ui.features.packages.screens.mcp.model.MCPServer(
+                                id = serverId,
+                                name = name,
+                                description = description,
+                                logoUrl = "",
+                                stars = 0,
+                                category = "导入插件",
+                                requiresApiKey = false,
+                                author = author,
+                                isVerified = false,
+                                isInstalled = false,
+                                version = "1.0.0",
+                                updatedAt = "",
+                                longDescription = description,
+                                repoUrl = ""
+                        )
+
+                // 调用插件管理器从ZIP安装
+                val result =
+                        pluginManager.installPluginFromZip(
+                                serverId,
+                                zipUri,
+                                server,
+                                progressCallback
+                        )
+
+                // 安装完成后刷新已安装状态
+                if (result is InstallResult.Success) {
+                    syncInstalledStatus()
+                }
+
+                return@withContext result
+            } catch (e: Exception) {
+                Log.e(TAG, "从本地ZIP安装插件失败", e)
+                return@withContext InstallResult.Error("安装时出错: ${e.message}")
+            } finally {
+                _isLoading.value = false
+            }
+        }
+
+        return InstallResult.Error("未知错误") // 这行代码不会执行，但需要保持语法完整性
     }
 }
 

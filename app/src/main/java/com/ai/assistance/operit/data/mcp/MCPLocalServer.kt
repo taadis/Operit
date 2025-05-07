@@ -3,14 +3,8 @@ package com.ai.assistance.operit.data.mcp
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
-import com.ai.assistance.operit.core.tools.mcp.MCPManager
-import com.ai.assistance.operit.core.tools.mcp.MCPServerConfig
 import com.ai.assistance.operit.data.mcp.plugins.MCPStarter
-import java.io.BufferedInputStream
 import java.io.File
-import java.io.PipedInputStream
-import java.io.PipedOutputStream
-import java.io.PrintStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -22,19 +16,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.*
-import org.jetbrains.kotlinx.mcp.*
-import org.jetbrains.kotlinx.mcp.server.Server
-import org.jetbrains.kotlinx.mcp.server.ServerOptions
-import org.jetbrains.kotlinx.mcp.server.StdioServerTransport
 
 /**
- * MCPLocalServer - 本地MCP服务器管理器
+ * MCPLocalServer - 工具注册管理器
  *
- * 负责管理本地MCP服务器的生命周期、配置和状态 使用官方JetBrains MCP Kotlin SDK实现
+ * 负责管理MCP工具的配置和状态，不直接创建或管理MCP服务器
  */
 class MCPLocalServer private constructor(private val context: Context) {
     companion object {
@@ -44,7 +32,6 @@ class MCPLocalServer private constructor(private val context: Context) {
         private const val KEY_SERVER_PATH = "server_path"
         private const val KEY_AUTO_START = "auto_start"
         private const val KEY_LOG_LEVEL = "log_level"
-        private const val SERVER_NAME = "local-mcp-server"
 
         private const val DEFAULT_PORT = 8765
         private const val DEFAULT_LOG_LEVEL = "info"
@@ -61,23 +48,6 @@ class MCPLocalServer private constructor(private val context: Context) {
         }
     }
 
-    // MCP服务器管理器，用于注册服务器到其他组件
-    private val mcpManager = MCPManager.getInstance(context)
-
-    // MCP服务器实例
-    private var mcpServer: Server? = null
-
-    // 用于管道通信的流
-    private var inputPipe: PipedInputStream? = null
-    private var outputPipe: PipedOutputStream? = null
-
-    // 包装后的用于传输层的流
-    private var bufferedInput: BufferedInputStream? = null
-    private var printOutput: PrintStream? = null
-
-    // 传输层
-    private var transport: StdioServerTransport? = null
-
     // 协程作用域
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -88,7 +58,7 @@ class MCPLocalServer private constructor(private val context: Context) {
     private val prefs: SharedPreferences =
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    // 服务器状态流
+    // 服务状态流
     private val _isRunning = MutableStateFlow(false)
     val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
 
@@ -96,11 +66,11 @@ class MCPLocalServer private constructor(private val context: Context) {
     private val _startTime = MutableStateFlow<Long?>(null)
     val startTime: StateFlow<Long?> = _startTime.asStateFlow()
 
-    // 服务器配置
+    // 服务配置
     private val _serverPort = MutableStateFlow(prefs.getInt(KEY_SERVER_PORT, DEFAULT_PORT))
     val serverPort: StateFlow<Int> = _serverPort.asStateFlow()
 
-    // 服务器路径
+    // 服务路径
     private val _serverPath =
             MutableStateFlow(
                     prefs.getString(KEY_SERVER_PATH, getDefaultServerPath())
@@ -133,9 +103,9 @@ class MCPLocalServer private constructor(private val context: Context) {
         Log.d(TAG, "MCPLocalServer 初始化，默认端口: ${_serverPort.value}")
     }
 
-    /** 初始化MCP服务器并自动启动已部署的插件 在应用启动时执行，不依赖于界面加载 */
+    /** 初始化MCP并自动启动已部署的插件 */
     fun initAndAutoStartPlugins() {
-        Log.d(TAG, "开始初始化MCP服务器并检查自动启动插件")
+        Log.d(TAG, "开始初始化MCP并检查自动启动插件")
 
         scope.launch {
             try {
@@ -143,124 +113,86 @@ class MCPLocalServer private constructor(private val context: Context) {
                 val isAutoStart = autoStart.value
 
                 if (isAutoStart) {
-                    Log.d(TAG, "自动启动设置已启用，正在启动MCP服务器")
+                    Log.d(TAG, "自动启动设置已启用，正在启动MCP服务")
                     val success = startServer()
 
                     if (success) {
-                        Log.d(TAG, "MCP服务器启动成功，等待服务器就绪")
-                        // 等待服务器完全就绪
+                        Log.d(TAG, "MCP服务启动成功，等待服务就绪")
+                        // 等待服务就绪
                         delay(2000)
 
-                        // 检查服务器是否确实运行中
+                        // 检查服务是否确实运行中
                         val isServerRunning = isRunning.value
 
                         if (isServerRunning) {
-                            Log.d(TAG, "MCP服务器运行中，准备启动已部署插件")
-                            
+                            Log.d(TAG, "MCP服务运行中，准备启动已部署插件")
+
                             // 使用MCPStarter启动所有已部署的插件
                             val mcpStarter = MCPStarter(context)
                             mcpStarter.startAllDeployedPlugins()
                         } else {
-                            Log.e(TAG, "MCP服务器未能成功启动")
+                            Log.e(TAG, "MCP服务未能成功启动")
                         }
                     } else {
-                        Log.e(TAG, "MCP服务器启动失败")
+                        Log.e(TAG, "MCP服务启动失败")
                     }
                 } else {
-                    Log.d(TAG, "MCP服务器自动启动未启用")
+                    Log.d(TAG, "MCP服务自动启动未启用")
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "MCP服务器自动启动过程中出错", e)
+                Log.e(TAG, "MCP服务自动启动过程中出错", e)
             }
         }
     }
 
-    /** 从配置中提取服务器名称 */
-    private fun extractServerNameFromConfig(configJson: String): String? {
-        // 使用MCPVscodeConfig解析服务器名称
-        return MCPVscodeConfig.extractServerName(configJson)
-    }
-
-    /** 获取默认服务器路径 */
+    /** 获取默认服务路径 */
     private fun getDefaultServerPath(): String {
         val storageDir = context.getExternalFilesDir(null)
         return File(storageDir, "mcp_server").absolutePath
     }
 
     /**
-     * 启动服务器
+     * 启动服务
      *
      * @return 是否成功启动
      */
     fun startServer(): Boolean {
         if (_isRunning.value) {
-            Log.i(TAG, "服务器已在运行")
+            Log.i(TAG, "服务已在运行")
             return true
         }
 
         try {
-            Log.i(TAG, "启动MCP服务器")
+            Log.i(TAG, "启动MCP服务")
 
-            // 1. 创建并设置服务器
-            mcpServer = createServer()
+            // 注册预定义的工具
+            registerTools()
 
-            // 2. 创建管道和传输层
-            setupTransport()
-
-            // 3. 在协程中连接服务器
-            scope.launch {
-                try {
-                    mcpServer?.connect(transport!!)
-                } catch (e: Exception) {
-                    Log.e(TAG, "服务器运行异常", e)
-                    stopServer()
-                }
-            }
-
-            // 4. 注册到MCPManager
-            val serverConfig =
-                    MCPServerConfig(
-                            name = SERVER_NAME,
-                            endpoint = "mcp://local",
-                            description = "本地MCP服务器",
-                            capabilities = listOf("tools", "resources"),
-                            extraData = emptyMap()
-                    )
-            mcpManager.registerServer(SERVER_NAME, serverConfig)
-
+            // 更新状态
             _isRunning.value = true
             _startTime.value = System.currentTimeMillis()
             _connectedClients.value = 1
             return true
         } catch (e: Exception) {
-            Log.e(TAG, "启动服务器失败", e)
+            Log.e(TAG, "启动服务失败", e)
             stopServer()
             return false
         }
     }
 
     /**
-     * 停止服务器
+     * 停止服务
      *
      * @return 是否成功停止
      */
     fun stopServer(): Boolean {
         if (!_isRunning.value) {
-            Log.i(TAG, "服务器当前没有运行")
+            Log.i(TAG, "服务当前没有运行")
             return true
         }
 
         try {
-            Log.i(TAG, "正在停止MCP服务器")
-
-            // 关闭传输层 - 在协程中执行
-            scope.launch { transport?.close() }
-
-            // 关闭管道
-            closePipes()
-
-            // 停止MCP服务器
-            mcpServer = null
+            Log.i(TAG, "正在停止MCP服务")
 
             // 更新状态
             _isRunning.value = false
@@ -268,162 +200,19 @@ class MCPLocalServer private constructor(private val context: Context) {
 
             return true
         } catch (e: Exception) {
-            Log.e(TAG, "停止MCP服务器失败", e)
+            Log.e(TAG, "停止MCP服务失败", e)
             return false
         }
     }
 
-    /** 设置通信管道 */
-    private fun setupTransport() {
-        closePipes()
-
-        // 创建管道
-        inputPipe = PipedInputStream(4096)
-        outputPipe = PipedOutputStream(inputPipe)
-
-        // 包装为StdioServerTransport所需的类型
-        bufferedInput = BufferedInputStream(inputPipe)
-        printOutput = PrintStream(outputPipe, true)
-
-        // 创建传输层
-        transport = StdioServerTransport(bufferedInput!!, printOutput!!)
-    }
-
-    /** 关闭通信管道 */
-    private fun closePipes() {
-        try {
-            bufferedInput?.close()
-            printOutput?.close()
-            inputPipe?.close()
-            outputPipe?.close()
-        } catch (e: Exception) {
-            Log.e(TAG, "关闭管道失败", e)
-        } finally {
-            bufferedInput = null
-            printOutput = null
-            inputPipe = null
-            outputPipe = null
-            transport = null
-        }
-    }
-
-    /** 创建MCP服务器实例 */
-    private fun createServer(): Server {
-        // 创建服务器信息
-        val serverInfo = Implementation(name = "operit-local-mcp-server", version = "1.0.0")
-
-        // 创建服务器能力配置
-        val capabilities =
-                ServerCapabilities(
-                        resources =
-                                ServerCapabilities.Resources(subscribe = true, listChanged = true),
-                        tools = ServerCapabilities.Tools(listChanged = true)
-                )
-
-        // 创建服务器选项
-        val options = ServerOptions(capabilities = capabilities, enforceStrictCapabilities = false)
-
-        // 创建MCP服务器
-        val server = Server(serverInfo, options)
-
-        // 跟踪工具注册状态，确保先注册工具
-        val tools = mutableListOf<ToolInfo>()
-
-        // 注册工具
-        registerSystemTools(server)
-
-        // 注册资源
-        registerSystemResources(server)
-
-        // 手动设置ListToolsRequest处理器以确保响应速度
-        server.setRequestHandler<ListToolsRequest>(Method.Defined.ToolsList) { _, _ ->
-            Log.d(TAG, "收到工具列表请求，立即响应 ${_registeredTools.value.size} 个工具")
-
-            // 直接从已注册工具列表构建工具对象
-            val serverTools =
-                    _registeredTools.value.map { toolInfo ->
-                        // 创建参数模式
-                        val params =
-                                toolInfo.parameters.associate { param ->
-                                    param.name to
-                                            JsonObject(
-                                                    mapOf(
-                                                            "type" to JsonPrimitive(param.type),
-                                                            "description" to
-                                                                    JsonPrimitive(
-                                                                            param.description
-                                                                    ),
-                                                            "required" to
-                                                                    JsonPrimitive(param.required)
-                                                    )
-                                            )
-                                }
-
-                        // 创建工具对象
-                        Tool(
-                                name = toolInfo.name,
-                                description = toolInfo.description,
-                                inputSchema = Tool.Input(JsonObject(params))
-                        )
-                    }
-
-            // 返回工具列表结果
-            ListToolsResult(tools = serverTools, nextCursor = null)
-        }
-
-        return server
-    }
-
-    /** 注册系统工具到服务器 */
-    private fun registerSystemTools(server: Server) {
+    /** 注册工具 */
+    private fun registerTools() {
         val tools = mutableListOf<ToolInfo>()
 
         // 系统信息工具
-        server.addTool(
-                name = "system_info",
-                description = "获取系统信息",
-                inputSchema = Tool.Input(JsonObject(emptyMap()))
-        ) { _ ->
-            val systemInfo =
-                    mapOf(
-                            "os" to System.getProperty("os.name"),
-                            "version" to System.getProperty("os.version"),
-                            "arch" to System.getProperty("os.arch"),
-                            "processors" to Runtime.getRuntime().availableProcessors()
-                    )
-
-            val text = systemInfo.entries.joinToString("\n") { "${it.key}: ${it.value}" }
-
-            Log.d(TAG, "执行系统信息工具")
-            CallToolResult(content = listOf(TextContent(text)))
-        }
-
         tools.add(ToolInfo("system_info", "获取系统信息"))
 
         // 回显工具
-        val echoParams =
-                JsonObject(
-                        mapOf(
-                                "text" to
-                                        JsonObject(
-                                                mapOf(
-                                                        "type" to JsonPrimitive("string"),
-                                                        "description" to JsonPrimitive("要回显的文本")
-                                                )
-                                        )
-                        )
-                )
-
-        server.addTool(
-                name = "echo",
-                description = "回显输入的文本",
-                inputSchema = Tool.Input(echoParams)
-        ) { request ->
-            val text = request.arguments["text"]?.toString()?.removeSurrounding("\"") ?: ""
-            Log.d(TAG, "执行回显工具: $text")
-            CallToolResult(content = listOf(TextContent("回显: $text")))
-        }
-
         tools.add(
                 ToolInfo("echo", "回显输入的文本", listOf(ToolParamInfo("text", "要回显的文本", "string", true)))
         )
@@ -434,39 +223,7 @@ class MCPLocalServer private constructor(private val context: Context) {
         Log.d(TAG, "已注册 ${tools.size} 个系统工具")
     }
 
-    /** 注册系统资源到服务器 */
-    private fun registerSystemResources(server: Server) {
-        // 系统信息资源
-        server.addResource(
-                uri = "mcp://local/system_info",
-                name = "系统信息",
-                description = "系统信息资源",
-                mimeType = "text/plain"
-        ) { _ ->
-            val systemInfo =
-                    mapOf(
-                            "os" to System.getProperty("os.name"),
-                            "version" to System.getProperty("os.version"),
-                            "arch" to System.getProperty("os.arch"),
-                            "processors" to Runtime.getRuntime().availableProcessors()
-                    )
-
-            val text = systemInfo.entries.joinToString("\n") { "${it.key}: ${it.value}" }
-
-            ReadResourceResult(
-                    contents =
-                            listOf(
-                                    TextResourceContents(
-                                            text = text,
-                                            uri = "mcp://local/system_info",
-                                            mimeType = "text/plain"
-                                    )
-                            )
-            )
-        }
-    }
-
-    /** 保存服务器端口设置 */
+    /** 保存服务端口设置 */
     fun saveServerPort(port: Int): Boolean {
         if (port < 1024 || port > 65535) {
             log(LogLevel.ERROR, "无效的端口号: $port")
@@ -476,35 +233,35 @@ class MCPLocalServer private constructor(private val context: Context) {
         _serverPort.value = port
         prefs.edit().putInt(KEY_SERVER_PORT, port).apply()
 
-        // 如果服务器正在运行，需要重启才能应用新端口
+        // 如果服务正在运行，需要重启才能应用新端口
         if (_isRunning.value) {
-            log(LogLevel.WARNING, "端口已更改，服务器需要重启以应用新设置")
+            log(LogLevel.WARNING, "端口已更改，服务需要重启以应用新设置")
         }
 
         return true
     }
 
-    /** 保存服务器路径设置 */
+    /** 保存服务路径设置 */
     fun saveServerPath(path: String): Boolean {
         val directory = File(path)
 
         // 尝试创建目录（如果不存在）
         if (!directory.exists()) {
             if (!directory.mkdirs()) {
-                log(LogLevel.ERROR, "无法创建服务器目录: $path")
+                log(LogLevel.ERROR, "无法创建服务目录: $path")
                 return false
             }
         }
 
         // 检查目录是否可写
         if (!directory.canWrite()) {
-            log(LogLevel.ERROR, "服务器目录无写入权限: $path")
+            log(LogLevel.ERROR, "服务目录无写入权限: $path")
             return false
         }
 
         _serverPath.value = path
         prefs.edit().putString(KEY_SERVER_PATH, path).apply()
-        log(LogLevel.INFO, "已更新服务器路径: $path")
+        log(LogLevel.INFO, "已更新服务目录: $path")
 
         return true
     }
@@ -640,82 +397,6 @@ class MCPLocalServer private constructor(private val context: Context) {
             String.format("%d秒", secs)
         }
     }
-
-    // 新增方法：获取服务器管道
-    suspend fun getServerPipes(): Pair<PipedInputStream, PipedOutputStream>? {
-        if (!_isRunning.value) {
-            Log.e(TAG, "服务器未运行，无法获取管道")
-            return null
-        }
-
-        try {
-            // 创建新的双向连接管道
-            val clientToServer = PipedInputStream(4096)
-            val serverToClient = PipedInputStream(4096)
-
-            // 创建新的输出流连接到客户端输入流
-            val newServerOutput = PipedOutputStream(serverToClient)
-            val newClientOutput = PipedOutputStream(clientToServer)
-
-            // 停止现有服务器 - 完全重启而不是仅替换管道
-            // 这样可以避免新旧连接之间的死锁问题
-            Log.d(TAG, "停止现有服务器以准备新连接")
-
-            // 保存服务器实例以便重用
-            val serverInstance = mcpServer
-
-            // 关闭旧的传输层和管道，但保持服务器实例
-            try {
-                // 现在可以直接调用suspend方法，因为当前方法也是suspend的
-                transport?.close()
-            } catch (e: Exception) {
-                Log.w(TAG, "关闭旧传输层失败，忽略", e)
-            }
-
-            // 关闭旧的管道
-            try {
-                bufferedInput?.close()
-                printOutput?.close()
-                inputPipe?.close()
-                outputPipe?.close()
-            } catch (e: Exception) {
-                Log.w(TAG, "关闭旧管道失败，忽略", e)
-            }
-
-            // 更新服务器传输层
-            inputPipe = clientToServer
-            bufferedInput = BufferedInputStream(clientToServer)
-            printOutput = PrintStream(newServerOutput, true)
-
-            // 重新创建传输层
-            transport = StdioServerTransport(bufferedInput!!, printOutput!!)
-
-            // 在协程中连接服务器
-            // 不在此等待连接完成，避免与客户端初始化发生死锁
-            scope.launch {
-                try {
-                    Log.d(TAG, "服务器管道已准备，等待客户端连接")
-                    // 使用重用的服务器实例重新连接
-                    serverInstance?.let { server ->
-                        // 简单连接服务器传输层，不做复杂检查
-                        Log.d(TAG, "连接服务器传输层")
-                        server.connect(transport!!)
-                        Log.d(TAG, "服务器连接已建立")
-                    }
-                            ?: run { Log.e(TAG, "服务器实例为空，无法连接") }
-                } catch (e: Exception) {
-                    Log.e(TAG, "重新连接服务器传输层失败", e)
-                }
-            }
-
-            // 返回客户端应该使用的管道对
-            Log.d(TAG, "已创建直接管道连接")
-            return Pair(serverToClient, newClientOutput)
-        } catch (e: Exception) {
-            Log.e(TAG, "创建客户端管道失败", e)
-            return null
-        }
-    }
 }
 
 /** 日志级别 */
@@ -728,13 +409,6 @@ enum class LogLevel(val severity: Int) {
 
 /** 日志条目 */
 data class LogEntry(val timestamp: Long, val level: LogLevel, val message: String)
-
-/** 工具参数定义 */
-data class ToolParam(
-        val description: String,
-        val type: String = "string",
-        val required: Boolean = false
-)
 
 /** 工具信息 */
 @Serializable

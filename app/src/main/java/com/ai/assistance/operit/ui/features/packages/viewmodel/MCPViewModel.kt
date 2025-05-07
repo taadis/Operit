@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import android.net.Uri
 
 /** ViewModel for MCP 服务器管理，包括安装、卸载等功能 */
 class MCPViewModel(private val repository: MCPRepository) : ViewModel() {
@@ -29,6 +30,9 @@ class MCPViewModel(private val repository: MCPRepository) : ViewModel() {
 
     // 插件已安装路径缓存
     private val installedPathsCache = mutableMapOf<String, String?>()
+    
+    // 存储选中的ZIP文件URI
+    private var selectedZipUri: Uri? = null
 
     init {
         // 同步已安装状态
@@ -52,6 +56,44 @@ class MCPViewModel(private val repository: MCPRepository) : ViewModel() {
             // 清除缓存
             installedPathsCache.remove(server.id)
         }
+    }
+    
+    /** 从ZIP文件安装服务器插件 */
+    fun installServerFromZip(server: MCPServer, zipFilePath: String) {
+        viewModelScope.launch {
+            _currentServer.value = server
+            _installProgress.value = InstallProgress.Preparing
+            _installResult.value = null
+            
+            if (selectedZipUri == null) {
+                _installResult.value = InstallResult.Error("未选择ZIP文件")
+                _installProgress.value = InstallProgress.Finished
+                return@launch
+            }
+
+            val result = repository.installMCPServerFromZip(
+                server.id,
+                selectedZipUri!!,
+                server.name,
+                server.description,
+                server.author
+            ) { progress ->
+                _installProgress.value = progress
+            }
+
+            _installResult.value = result
+            
+            // 安装完成后清除URI
+            selectedZipUri = null
+            
+            // 清除缓存
+            installedPathsCache.remove(server.id)
+        }
+    }
+    
+    /** 设置选中的ZIP文件URI */
+    fun setSelectedZipUri(uri: Uri) {
+        selectedZipUri = uri
     }
 
     /** 卸载服务器插件 */

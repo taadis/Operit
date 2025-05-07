@@ -256,6 +256,107 @@ class MCPInstaller(private val context: Context) {
     }
 
     /**
+     * 从本地ZIP文件安装MCP插件
+     *
+     * @param server 要安装的 MCP 服务器
+     * @param zipFileUri 本地ZIP文件的Uri
+     * @param progressCallback 安装进度回调
+     * @return 安装结果
+     */
+    suspend fun installPluginFromZip(
+        server: MCPServer,
+        zipFileUri: android.net.Uri,
+        progressCallback: (InstallProgress) -> Unit
+    ): InstallResult {
+        progressCallback(InstallProgress.Preparing)
+
+        try {
+            Log.d(TAG, "从本地ZIP安装插件 - 名称: ${server.name}, URI: $zipFileUri")
+
+            // 创建目标目录
+            val pluginDir = File(pluginsBaseDir, server.id)
+            if (pluginDir.exists()) {
+                Log.d(TAG, "删除已存在的插件目录: ${pluginDir.path}")
+                pluginDir.deleteRecursively()
+            }
+            pluginDir.mkdirs()
+
+            // 复制ZIP文件到临时目录
+            val tempFile = File(context.cacheDir, "mcp_${server.id}_local.zip")
+            if (tempFile.exists()) {
+                tempFile.delete()
+            }
+
+            progressCallback(InstallProgress.Downloading(0))
+
+            // 从URI读取ZIP文件
+            context.contentResolver.openInputStream(zipFileUri)?.use { inputStream ->
+                tempFile.outputStream().use { outputStream ->
+                    val buffer = ByteArray(BUFFER_SIZE)
+                    var bytesRead: Int
+                    var totalBytesRead = 0L
+                    
+                    while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                        outputStream.write(buffer, 0, bytesRead)
+                        totalBytesRead += bytesRead
+                        
+                        // 更新进度 - 由于无法知道总大小，只报告正在进行
+                        progressCallback(InstallProgress.Downloading(-1))
+                    }
+                }
+            } ?: return InstallResult.Error("无法读取ZIP文件")
+
+            // 解压文件
+            progressCallback(InstallProgress.Extracting(0))
+            Log.d(TAG, "开始解压本地插件: ${tempFile.path}")
+            val extractSuccess = extractZipFile(tempFile, pluginDir, progressCallback)
+
+            // 删除临时ZIP文件
+            tempFile.delete()
+
+            if (!extractSuccess) {
+                // 清理失败的安装
+                Log.e(TAG, "本地插件解压失败: ${server.name}")
+                pluginDir.deleteRecursively()
+                return InstallResult.Error("解压本地ZIP文件失败")
+            }
+
+            // 获取解压后的根目录
+            val extractedDirs = pluginDir.listFiles()?.filter { it.isDirectory } ?: emptyList()
+            val mainDir: File = if (extractedDirs.isEmpty()) {
+                // 没有子目录，使用插件目录本身
+                pluginDir
+            } else {
+                // 使用第一个子目录
+                extractedDirs.first()
+            }
+            
+            Log.d(TAG, "本地插件解压成功，主目录: ${mainDir.path}")
+
+            // 查找插件配置文件
+            val configFile = findConfigFile(mainDir)
+            if (configFile == null) {
+                Log.w(TAG, "未找到插件配置文件")
+            } else {
+                Log.d(TAG, "找到插件配置文件: ${configFile.path}")
+            }
+
+            // 保存原始插件元数据
+            savePluginMetadata(mainDir, server)
+
+            progressCallback(InstallProgress.Finished)
+
+            // 清除缓存，确保下次读取时能获取新数据
+            clearPluginInfoCache()
+
+            return InstallResult.Success(mainDir.path)
+        } catch (e: Exception) {
+            Log.e(TAG, "安装本地ZIP插件失败", e)
+            return InstallResult.Error("安装本地ZIP插件时出错: ${e.message}")
+        }
+    }
+
+    /**
      * 下载仓库 ZIP 文件
      *
      * @param zipUrl ZIP 下载 URL
@@ -801,12 +902,87 @@ class MCPInstaller(private val context: Context) {
         }
 
         val pluginDir = File(pluginsBaseDir, serverId)
-        val isInstalled = pluginDir.exists() && pluginDir.isDirectory
+
+        // 不仅检查目录是否存在，还检查是否包含有效内容
+        val isInstalled =
+                if (pluginDir.exists() && pluginDir.isDirectory) {
+                    // 检查是否存在基本内容
+                    val hasContent = pluginDir.listFiles()?.isNotEmpty() ?: false
+
+                    if (hasContent) {
+                        // 进一步检查是否包含关键文件
+                        val hasRequiredFiles = checkForRequiredFiles(pluginDir)
+                        Log.d(TAG, "插件 $serverId 目录存在，包含内容: $hasContent, 包含关键文件: $hasRequiredFiles")
+                        hasRequiredFiles
+                    } else {
+                        Log.d(TAG, "插件 $serverId 目录为空")
+                        false
+                    }
+                } else {
+                    false
+                }
 
         // 更新缓存
         pluginInstalledCache[serverId] = Pair(isInstalled, System.currentTimeMillis())
 
         return isInstalled
+    }
+
+    /**
+     * 检查插件目录中是否包含必要的关键文件
+     *
+     * @param pluginDir 插件目录
+     * @return 是否包含必要文件
+     */
+    private fun checkForRequiredFiles(pluginDir: File): Boolean {
+        // 检查子目录或本目录是否有所需文件
+        val subdirs = pluginDir.listFiles()?.filter { it.isDirectory } ?: emptyList()
+
+        // 如果有子目录，检查第一个子目录
+        if (subdirs.isNotEmpty()) {
+            return hasPluginRequiredFiles(subdirs.first())
+        }
+
+        // 否则检查当前目录
+        return hasPluginRequiredFiles(pluginDir)
+    }
+
+    /**
+     * 检查目录是否包含插件所需的必要文件
+     *
+     * @param dir 要检查的目录
+     * @return 是否包含必要文件
+     */
+    private fun hasPluginRequiredFiles(dir: File): Boolean {
+        // 至少需要以下文件之一：mcp.config.json、README.md、package.json 或 插件脚本文件
+        val requiredFiles =
+                listOf(
+                        "mcp.config.json",
+                        "README.md",
+                        "package.json",
+                        "index.js",
+                        "index.py",
+                        "main.py",
+                        "main.js"
+                )
+
+        val dirFiles = dir.listFiles() ?: return false
+
+        // 检查目录中是否至少存在一个必要文件
+        val hasAnyRequiredFile =
+                requiredFiles.any { requiredFile ->
+                    dirFiles.any { it.name.equals(requiredFile, ignoreCase = true) }
+                }
+
+        // 如果没有必要文件，但有子目录，递归检查第一层子目录
+        if (!hasAnyRequiredFile) {
+            val subDirs = dirFiles.filter { it.isDirectory }
+            if (subDirs.isNotEmpty()) {
+                return subDirs.any { hasPluginRequiredFiles(it) }
+            }
+        }
+
+        return hasAnyRequiredFile
     }
 
     /**

@@ -72,11 +72,8 @@ class MCPStarter(private val context: Context) {
 
             if (pingResult != null) {
                 val result = pingResult.optJSONObject("result")
-                val status = result?.optString("status")
-                val mcpName = result?.optString("mcpName")
-
-                // Only return true if this specific service is active
-                return status == "ok" && mcpName == serverName
+                // 直接检查running状态
+                return result?.optBoolean("running", false) ?: false
             }
             return false
         } catch (e: Exception) {
@@ -97,6 +94,13 @@ class MCPStarter(private val context: Context) {
                 return false
             }
 
+            // Check if plugin is enabled by the user
+            val isEnabled = mcpConfigPreferences.getPluginEnabledFlow(pluginId).first()
+            if (!isEnabled) {
+                statusCallback(StartStatus.Error("Plugin not enabled by user: $pluginId"))
+                return false
+            }
+
             statusCallback(StartStatus.InProgress("Starting plugin: $pluginId"))
 
             // Get plugin config
@@ -108,17 +112,20 @@ class MCPStarter(private val context: Context) {
                     extractServerNameFromConfig(pluginConfig)
                             ?: pluginId.split("/").last().lowercase()
 
-            // Check if plugin service is already running
-            if (isServerRunning(serverName)) {
-                statusCallback(StartStatus.Success("Plugin $pluginId is already running"))
-                return true
-            }
-
             // Get server command and args
             val serverConfig = config?.mcpServers?.get(serverName)
             if (serverConfig == null) {
                 statusCallback(StartStatus.Error("Invalid plugin config: $pluginId"))
                 return false
+            }
+
+            // Register server regardless of whether it's already running
+            registerServerIfNeeded(serverName, serverConfig, pluginId)
+
+            // Check if plugin service is already running
+            if (isServerRunning(serverName)) {
+                statusCallback(StartStatus.Success("Plugin $pluginId is already running"))
+                return true
             }
 
             // Initialize bridge
@@ -188,9 +195,6 @@ class MCPStarter(private val context: Context) {
                 return false
             }
 
-            // Register server
-            registerServerIfNeeded(serverName, serverConfig, pluginId)
-
             // Check service status
             delay(3000) // Wait for service to start
 
@@ -199,19 +203,14 @@ class MCPStarter(private val context: Context) {
 
             if (pingResult != null) {
                 val result = pingResult.optJSONObject("result")
-                val status = result?.optString("status")
-                val mcpName = result?.optString("mcpName")
+                val isRunning = result?.optBoolean("running", false) ?: false
 
-                if (status == "ok" && mcpName == serverName) {
+                if (isRunning) {
                     statusCallback(StartStatus.Success("Plugin $pluginId started successfully"))
                     return true
                 } else {
-                    statusCallback(
-                            StartStatus.Success(
-                                    "Plugin $pluginId registered but may not be fully active. Current service: $mcpName"
-                            )
-                    )
-                    return true
+                    statusCallback(StartStatus.Error("Plugin $pluginId registered but not running"))
+                    return false
                 }
             } else {
                 statusCallback(StartStatus.Error("Failed to verify plugin status after launch"))
@@ -242,7 +241,10 @@ class MCPStarter(private val context: Context) {
                 // Get deployed plugins
                 val pluginList = mcpRepository.installedPluginIds.first()
                 val deployedPlugins =
-                        pluginList.filter { mcpConfigPreferences.getDeploySuccessFlow(it).first() }
+                        pluginList.filter {
+                            mcpConfigPreferences.getDeploySuccessFlow(it).first() &&
+                                    mcpConfigPreferences.getPluginEnabledFlow(it).first()
+                        }
 
                 if (deployedPlugins.isEmpty()) {
                     progressListener.onAllPluginsStarted(0, 0)
