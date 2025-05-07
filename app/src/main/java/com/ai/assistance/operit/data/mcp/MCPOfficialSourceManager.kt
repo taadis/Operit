@@ -268,7 +268,7 @@ class MCPOfficialSourceManager(
                     val idBase = "official_${name.lowercase().replace(Regex("[^a-z0-9]"), "_")}"
                     val id =
                             if (servers.any { it.id == idBase }) {
-                                "${idBase}_${System.currentTimeMillis() % 10000L}"
+                                "${idBase}_${System.currentTimeMillis() % 10000L + matchCount}"
                             } else {
                                 idBase
                             }
@@ -394,7 +394,7 @@ class MCPOfficialSourceManager(
                         val idBase = "official_${name.lowercase().replace(Regex("[^a-z0-9]"), "_")}"
                         val id =
                                 if (servers.any { it.id == idBase }) {
-                                    "${idBase}_${System.currentTimeMillis() % 10000L}"
+                                    "${idBase}_${System.currentTimeMillis() % 10000L + matchCount}"
                                 } else {
                                     idBase
                                 }

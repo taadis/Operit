@@ -223,7 +223,8 @@ class MCPLocalServer private constructor(private val context: Context) {
                             name = SERVER_NAME,
                             endpoint = "mcp://local",
                             description = "本地MCP服务器",
-                            capabilities = listOf("tools", "resources")
+                            capabilities = listOf("tools", "resources"),
+                            extraData = emptyMap()
                     )
             mcpManager.registerServer(SERVER_NAME, serverConfig)
 

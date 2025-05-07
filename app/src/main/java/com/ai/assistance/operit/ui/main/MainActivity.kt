@@ -17,6 +17,7 @@ import androidx.lifecycle.lifecycleScope
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.mcp.MCPLocalServer
 import com.ai.assistance.operit.data.mcp.MCPRepository
+import com.ai.assistance.operit.data.mcp.plugins.MCPBridge
 import com.ai.assistance.operit.data.mcp.plugins.MCPStarter
 import com.ai.assistance.operit.data.preferences.AgreementPreferences
 import com.ai.assistance.operit.data.preferences.ApiPreferences
@@ -148,6 +149,37 @@ class MainActivity : ComponentActivity() {
 
                 if (serverStartSuccess) {
                     // 服务器启动成功，更新状态
+                    pluginLoadingState.updateMessage("MCP服务器启动成功，初始化桥接器...")
+                    pluginLoadingState.updateProgress(0.2f)
+
+                    // 初始化并部署TCP桥接器到Download/Operit目录，然后复制到Termux
+                    val bridgeDeploySuccess = MCPBridge.deployBridge(applicationContext)
+                    if (!bridgeDeploySuccess) {
+                        Log.w(TAG, "TCP桥接器部署失败，将使用直接方式启动插件")
+                        pluginLoadingState.updateMessage("TCP桥接器部署失败，将使用直接方式启动插件")
+                    } else {
+                        // 启动桥接器
+                        pluginLoadingState.updateMessage("正在启动TCP桥接器...")
+                        pluginLoadingState.updateProgress(0.25f)
+                        val bridgeStartSuccess = MCPBridge.startBridge(applicationContext)
+                        if (!bridgeStartSuccess) {
+                            Log.w(TAG, "TCP桥接器启动失败，将使用直接方式启动插件")
+                            pluginLoadingState.updateMessage("TCP桥接器启动失败，将使用直接方式启动插件")
+                        } else {
+                            Log.d(TAG, "TCP桥接器初始化成功")
+                            pluginLoadingState.updateMessage("TCP桥接器启动成功")
+                            // 检查桥接器健康状态
+                            val pingResult = MCPBridge.ping()
+                            if (pingResult != null) {
+                                Log.d(TAG, "TCP桥接器健康检查成功: $pingResult")
+                                pluginLoadingState.updateMessage("TCP桥接器健康检查成功")
+                            } else {
+                                Log.w(TAG, "TCP桥接器健康检查失败")
+                                pluginLoadingState.updateMessage("TCP桥接器健康检查失败，将继续加载插件")
+                            }
+                        }
+                    }
+
                     pluginLoadingState.updateMessage("MCP服务器启动成功，正在加载插件...")
                     pluginLoadingState.updateProgress(0.3f)
 

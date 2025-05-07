@@ -2,6 +2,7 @@ package com.ai.assistance.operit.core.tools.mcp
 
 import android.content.Context
 import android.util.Log
+import com.ai.assistance.operit.data.mcp.plugins.MCPBridgeClient
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.data.model.ToolValidationResult
@@ -15,7 +16,7 @@ import java.util.concurrent.ConcurrentHashMap
  * 处理MCP工具的调用，类似于已有的PackageToolExecutor
  */
 class MCPToolExecutor(private val context: Context, private val mcpManager: MCPManager) :
-    ToolExecutor {
+        ToolExecutor {
     companion object {
         private const val TAG = "MCPToolExecutor"
     }
@@ -26,35 +27,66 @@ class MCPToolExecutor(private val context: Context, private val mcpManager: MCPM
         val toolNameParts = tool.name.split(":")
         if (toolNameParts.size < 2) {
             return ToolResult(
-                toolName = tool.name,
-                success = false,
-                result = StringResultData(""),
-                error = "无效的MCP工具名称格式，应为 '服务器名称:工具名称'"
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "无效的MCP工具名称格式，应为 '服务器名称:工具名称'"
             )
         }
 
         val serverName = toolNameParts[0]
         val actualToolName = toolNameParts.subList(1, toolNameParts.size).joinToString(":")
 
-        // 获取MCP客户端
+        // 获取MCP桥接客户端
         val mcpClient = mcpManager.getOrCreateClient(serverName)
         if (mcpClient == null) {
             return ToolResult(
-                toolName = tool.name,
-                success = false,
-                result = StringResultData(""),
-                error = "无法连接到MCP服务器: $serverName"
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "无法连接到MCP服务器: $serverName"
             )
         }
+
+        Log.d(TAG, "准备调用MCP工具: $serverName:$actualToolName")
 
         // 将AITool参数转换为Map
         val parameters = tool.parameters.associate { it.name to it.value }
 
         // 调用MCP工具 - 使用同步版本
-        val result = mcpClient.invokeToolSync(actualToolName, parameters)
+        val result =
+                try {
+                    // 从MCPBridgeClient中调用工具
+                    val jsonResult = mcpClient.callToolSync(actualToolName, parameters)
+                    if (jsonResult != null) {
+                        Log.d(TAG, "MCP工具调用成功: $serverName:$actualToolName")
+                        // 重要：不要断开连接，保持活跃状态以便后续调用
+                        ToolResult(
+                                toolName = tool.name,
+                                success = true,
+                                result = StringResultData(jsonResult.toString()),
+                                error = null
+                        )
+                    } else {
+                        Log.w(TAG, "MCP工具调用失败: $serverName:$actualToolName - 未返回有效结果")
+                        ToolResult(
+                                toolName = tool.name,
+                                success = false,
+                                result = StringResultData(""),
+                                error = "工具调用失败，未返回有效结果"
+                        )
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "调用MCP工具时发生异常: ${e.message}", e)
+                    ToolResult(
+                            toolName = tool.name,
+                            success = false,
+                            result = StringResultData(""),
+                            error = "调用工具时发生异常: ${e.message}"
+                    )
+                }
 
-        // 添加工具名称前缀，使其与调用的格式一致
-        return result.copy(toolName = tool.name)
+        return result
     }
 
     override fun validateParameters(tool: AITool): ToolValidationResult {
@@ -62,8 +94,8 @@ class MCPToolExecutor(private val context: Context, private val mcpManager: MCPM
         val toolNameParts = tool.name.split(":")
         if (toolNameParts.size < 2) {
             return ToolValidationResult(
-                valid = false,
-                errorMessage = "无效的MCP工具名称格式，应为 '服务器名称:工具名称'"
+                    valid = false,
+                    errorMessage = "无效的MCP工具名称格式，应为 '服务器名称:工具名称'"
             )
         }
 
@@ -75,25 +107,25 @@ class MCPToolExecutor(private val context: Context, private val mcpManager: MCPM
 /**
  * MCP管理器
  *
- * 管理MCP客户端的创建和缓存
+ * 管理MCP客户端的创建和缓存 注意：此版本使用MCPBridgeClient作为底层客户端，替代了原有的MCPClient
  */
 class MCPManager(private val context: Context) {
     companion object {
         private const val TAG = "MCPManager"
 
-        @Volatile
-        private var INSTANCE: MCPManager? = null
+        @Volatile private var INSTANCE: MCPManager? = null
 
         fun getInstance(context: Context): MCPManager {
             return INSTANCE
-                ?: synchronized(this) {
-                    INSTANCE ?: MCPManager(context.applicationContext).also { INSTANCE = it }
-                }
+                    ?: synchronized(this) {
+                        INSTANCE ?: MCPManager(context.applicationContext).also { INSTANCE = it }
+                    }
         }
     }
 
-    // 缓存已创建的MCP客户端，避免重复创建
-    private val clientCache = ConcurrentHashMap<String, MCPClient>()
+    // 缓存已创建的MCP桥接客户端，避免重复创建
+    private val clientCache =
+            ConcurrentHashMap<String, com.ai.assistance.operit.data.mcp.plugins.MCPBridgeClient>()
 
     // 缓存服务器配置
     private val serverConfigCache = ConcurrentHashMap<String, MCPServerConfig>()
@@ -118,19 +150,31 @@ class MCPManager(private val context: Context) {
     }
 
     /**
-     * 获取或创建MCP客户端
+     * 获取或创建MCP桥接客户端
      *
      * @param serverName 服务器名称
-     * @return MCP客户端，如果服务器不存在则返回null
+     * @return MCP桥接客户端，如果服务器不存在或无法连接则返回null
      */
-    fun getOrCreateClient(serverName: String): MCPClient? {
+    fun getOrCreateClient(
+            serverName: String
+    ): com.ai.assistance.operit.data.mcp.plugins.MCPBridgeClient? {
         // 检查缓存中是否已有客户端
         val cachedClient = clientCache[serverName]
         if (cachedClient != null) {
-            // 检查客户端连接状态
-            if (cachedClient.pingSync()) {
+            // 检查客户端连接状态 - 只做轻量检查，不要过早断开
+            if (cachedClient.isConnected()) {
+                Log.d(TAG, "使用已缓存的客户端: $serverName")
                 return cachedClient
             } else {
+                // 尝试重新连接现有客户端
+                Log.d(TAG, "尝试重新连接缓存的客户端: $serverName")
+                val reconnected = kotlinx.coroutines.runBlocking { cachedClient.connect() }
+                if (reconnected) {
+                    Log.d(TAG, "成功重新连接到服务: $serverName")
+                    return cachedClient
+                }
+                // 客户端不再可用，从缓存移除
+                Log.w(TAG, "无法重新连接到服务: $serverName，将创建新的连接")
                 clientCache.remove(serverName)
             }
         }
@@ -138,28 +182,27 @@ class MCPManager(private val context: Context) {
         // 获取服务器配置
         val serverConfig = serverConfigCache[serverName] ?: return null
 
-        // 创建新客户端
-        val client = MCPClient(context, serverConfig)
-
         try {
-            val initResult = client.initializeSync()
+            // 创建新的桥接客户端
+            val client =
+                    com.ai.assistance.operit.data.mcp.plugins.MCPBridgeClient(context, serverName)
 
-            // 检查连接成功的响应
-            if (initResult.startsWith("已连接到MCP服务器") ||
-                initResult.startsWith("已成功初始化") ||
-                initResult.contains("已建立连接")
-            ) {
+            // 尝试连接 - 带详细日志
+            Log.d(TAG, "正在创建新的连接到服务: $serverName")
+            val connectResult = kotlinx.coroutines.runBlocking { client.connect() }
 
-                // 缓存客户端
+            if (connectResult) {
+                // 连接成功，在会话期间保持此连接
+                Log.d(TAG, "成功连接到服务: $serverName，将在会话期间保持连接")
                 clientCache[serverName] = client
                 return client
+            } else {
+                Log.w(TAG, "无法连接到服务: $serverName")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "客户端初始化异常", e)
+            Log.e(TAG, "创建桥接客户端时出错: ${e.message}", e)
         }
 
-        // 确保资源释放
-        client.shutdownSync()
         return null
     }
 
@@ -171,24 +214,36 @@ class MCPManager(private val context: Context) {
      */
     fun registerServer(serverName: String, serverConfig: MCPServerConfig) {
         serverConfigCache[serverName] = serverConfig
+
+        // 如果已有缓存的客户端，需要更新或移除
+        if (clientCache.containsKey(serverName)) {
+            // 移除旧客户端，下次需要时会重新创建
+            val oldClient = clientCache.remove(serverName)
+            oldClient?.disconnect()
+        }
     }
 
     /**
-     * 注册MCP服务器配置
+     * 注册MCP服务器（简化版）
      *
      * @param serverName 服务器名称
      * @param endpoint 服务器端点URL
      * @param description 服务器描述
      */
     fun registerServer(serverName: String, endpoint: String, description: String = "") {
-        val serverConfig =
-            MCPServerConfig(name = serverName, endpoint = endpoint, description = description)
-        serverConfigCache[serverName] = serverConfig
+        val serverConfig = MCPServerConfig(
+            name = serverName,
+            endpoint = endpoint,
+            description = description,
+            capabilities = listOf("tools"),
+            extraData = emptyMap()
+        )
+        registerServer(serverName, serverConfig)
     }
 
     /** 关闭所有MCP客户端连接 */
     fun shutdown() {
-        clientCache.values.forEach { it.shutdownSync() }
+        clientCache.values.forEach { it.disconnect() }
         clientCache.clear()
     }
 }

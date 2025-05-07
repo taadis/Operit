@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -668,10 +669,13 @@ fun MCPScreen(mcpRepository: MCPRepository) {
                                                 contentPadding = PaddingValues(vertical = 4.dp),
                                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
-                                                items(
+                                                // 确保每个项目有唯一的键，以避免 "key was already used" 错误
+                                                itemsIndexed(
                                                         items = displayedServers,
-                                                        key = { server -> server.id }
-                                                ) { server ->
+                                                        key = { index, server ->
+                                                                "${server.id}_$index"
+                                                        }
+                                                ) { _, server ->
                                                         MCPServerItem(
                                                                 server = server,
                                                                 onClick = {

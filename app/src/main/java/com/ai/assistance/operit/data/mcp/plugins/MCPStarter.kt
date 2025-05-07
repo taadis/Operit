@@ -2,82 +2,104 @@ package com.ai.assistance.operit.data.mcp.plugins
 
 import android.content.Context
 import android.util.Log
+import com.ai.assistance.operit.core.tools.mcp.MCPManager
+import com.ai.assistance.operit.core.tools.mcp.MCPServerConfig
 import com.ai.assistance.operit.data.mcp.MCPConfigPreferences
 import com.ai.assistance.operit.data.mcp.MCPRepository
 import com.ai.assistance.operit.data.mcp.MCPVscodeConfig
-import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.model.TerminalSessionManager
-import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
 
 /**
- * MCP 插件启动工具类
+ * MCP Plugin Starter
  *
- * 负责启动已部署的MCP插件，通过TerminalSession执行命令
+ * Handles starting deployed MCP plugins via the bridge
  */
 class MCPStarter(private val context: Context) {
-
     companion object {
         private const val TAG = "MCPStarter"
+        private var bridgeInitialized = false
     }
 
-    // 创建一个协程作用域，用于处理异步操作
+    // Coroutine scope for async operations
     private val starterScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-    /** 插件启动进度监听器接口 */
+    /** Plugin start progress listener interface */
     interface PluginStartProgressListener {
-        /**
-         * 当插件开始启动时调用
-         * @param pluginId 插件ID
-         * @param index 当前插件索引（从1开始）
-         * @param total 总插件数量
-         */
-        fun onPluginStarting(pluginId: String, index: Int, total: Int)
-
-        /**
-         * 当插件启动完成时调用
-         * @param pluginId 插件ID
-         * @param success 是否成功启动
-         * @param index 当前插件索引（从1开始）
-         * @param total 总插件数量
-         */
-        fun onPluginStarted(pluginId: String, success: Boolean, index: Int, total: Int)
-
-        /**
-         * 当所有插件启动完成时调用
-         * @param successCount 成功启动的插件数量
-         * @param totalCount 总插件数量
-         */
-        fun onAllPluginsStarted(successCount: Int, totalCount: Int)
+        fun onPluginStarting(pluginId: String, index: Int, total: Int) {}
+        fun onPluginStarted(pluginId: String, success: Boolean, index: Int, total: Int) {}
+        fun onAllPluginsStarted(successCount: Int, totalCount: Int) {}
+        fun onAllPluginsVerified(verificationResults: List<VerificationResult>) {}
     }
 
-    /**
-     * 启动插件
-     *
-     * @param pluginId 插件ID
-     * @param statusCallback 状态回调
-     * @return 是否成功启动
-     */
+    /** Initialize and start the bridge */
+    private suspend fun initBridge(): Boolean {
+        if (bridgeInitialized) {
+            val pingResult = MCPBridge.ping()
+            if (pingResult != null) return true
+        }
+
+        // Deploy bridge to Termux
+        if (!MCPBridge.deployBridge(context)) {
+            Log.e(TAG, "Failed to deploy bridge")
+            return false
+        }
+
+        // Start bridge
+        if (!MCPBridge.startBridge(context)) {
+            Log.e(TAG, "Failed to start bridge")
+            return false
+        }
+
+        bridgeInitialized = true
+        return true
+    }
+
+    /** Check if a server is running */
+    private fun isServerRunning(serverName: String): Boolean {
+        try {
+            // Create a bridge instance
+            val bridge = MCPBridge(context)
+
+            // Get ping response
+            val pingResult = kotlinx.coroutines.runBlocking { bridge.pingMcpService(serverName) }
+
+            if (pingResult != null) {
+                val result = pingResult.optJSONObject("result")
+                val status = result?.optString("status")
+                val mcpName = result?.optString("mcpName")
+
+                // Only return true if this specific service is active
+                return status == "ok" && mcpName == serverName
+            }
+            return false
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking server status: ${e.message}")
+            return false
+        }
+    }
+
+    /** Start a plugin using the bridge */
     suspend fun startPlugin(pluginId: String, statusCallback: (StartStatus) -> Unit): Boolean {
         try {
             val mcpConfigPreferences = MCPConfigPreferences(context)
 
-            // 检查插件是否已部署
+            // Check if plugin is deployed
             val isDeployed = mcpConfigPreferences.getDeploySuccessFlow(pluginId).first()
             if (!isDeployed) {
-                statusCallback(StartStatus.Error("插件未部署: $pluginId"))
+                statusCallback(StartStatus.Error("Plugin not deployed: $pluginId"))
                 return false
             }
 
-            statusCallback(StartStatus.InProgress("正在启动插件: $pluginId"))
+            statusCallback(StartStatus.InProgress("Starting plugin: $pluginId"))
 
-            // 获取和解析插件配置
+            // Get plugin config
             val mcpLocalServer =
                     com.ai.assistance.operit.data.mcp.MCPLocalServer.getInstance(context)
             val pluginConfig = mcpLocalServer.getPluginConfig(pluginId)
@@ -86,436 +108,329 @@ class MCPStarter(private val context: Context) {
                     extractServerNameFromConfig(pluginConfig)
                             ?: pluginId.split("/").last().lowercase()
 
-            // 获取服务器命令和参数
+            // Check if plugin service is already running
+            if (isServerRunning(serverName)) {
+                statusCallback(StartStatus.Success("Plugin $pluginId is already running"))
+                return true
+            }
+
+            // Get server command and args
             val serverConfig = config?.mcpServers?.get(serverName)
             if (serverConfig == null) {
-                statusCallback(StartStatus.Error("插件配置无效: $pluginId"))
+                statusCallback(StartStatus.Error("Invalid plugin config: $pluginId"))
                 return false
             }
 
-            // 创建终端会话
-            val session = TerminalSessionManager.createSession("MCP-$serverName")
+            // Initialize bridge
+            if (!initBridge()) {
+                statusCallback(StartStatus.Error("Failed to initialize bridge"))
+                return false
+            }
 
-            // 构建完整命令
-            val command = serverConfig.command
-            val args = serverConfig.args.joinToString(" ")
+            statusCallback(StartStatus.InProgress("Starting plugin via bridge..."))
 
-            // 获取环境变量配置
-            val envVars = serverConfig.env
-
-            // 定义插件目录路径
+            // Use MCPBridge instance
+            val bridge = MCPBridge(context)
             val termuxPluginDir =
                     "/data/data/com.termux/files/home/mcp_plugins/${pluginId.split("/").last()}"
 
-            // 如果有环境变量，先检查并设置
-            if (envVars.isNotEmpty()) {
-                statusCallback(StartStatus.InProgress("设置环境变量..."))
-                Log.d(TAG, "[$serverName] 设置环境变量: ${envVars.keys}")
+            // Register MCP service
+            val registerResult =
+                    bridge.registerMcpService(
+                            name = serverName,
+                            command = serverConfig.command,
+                            args = serverConfig.args,
+                            description = "MCP Server: $pluginId",
+                            env = serverConfig.env
+                    )
 
-                // 构建导出环境变量的命令
-                val exportCommands =
-                        envVars.entries.joinToString(" && ") { (key, value) ->
-                            "export $key=\"$value\""
-                        }
-
-                // 执行cd命令并设置环境变量
-                val envCommand = "cd $termuxPluginDir && $exportCommands"
-                TerminalSessionManager.executeSessionCommand(
-                        context = context,
-                        session = session,
-                        command = envCommand,
-                        onOutput = { output -> Log.d(TAG, "[$serverName] 环境变量输出: $output") },
-                        onInteractivePrompt = { prompt, executionId ->
-                            Log.d(TAG, "[$serverName] 环境变量设置交互提示: $prompt (ID: $executionId)")
-                            null
-                        },
-                        onComplete = { exitCode, commandSuccess ->
-                            if (!commandSuccess) {
-                                Log.e(TAG, "[$serverName] 环境变量设置失败 (exitCode: $exitCode)")
-                            } else {
-                                Log.d(TAG, "[$serverName] 环境变量设置成功")
-                            }
-                        }
-                )
+            if (registerResult == null || !registerResult.optBoolean("success", false)) {
+                statusCallback(StartStatus.Error("Failed to register MCP service"))
+                return false
             }
 
-            statusCallback(StartStatus.InProgress("执行命令: $command $args"))
+            // Start MCP service
+            val cdCommand = "cd $termuxPluginDir"
+            val bridgeCommand =
+                    JSONObject().apply {
+                        put("command", "spawn")
+                        put("id", java.util.UUID.randomUUID().toString())
+                        put(
+                                "params",
+                                JSONObject().apply {
+                                    put("name", serverName)
+                                    put("command", "bash")
+                                    put(
+                                            "args",
+                                            JSONArray().apply {
+                                                put("-c")
+                                                put(
+                                                        "$cdCommand && ${serverConfig.command} ${serverConfig.args.joinToString(" ")}"
+                                                )
+                                            }
+                                    )
 
-            // 标记命令是否完成以及成功状态
-            val commandCompletedFlag = java.util.concurrent.atomic.AtomicBoolean(false)
-            var success = false
-
-            // 使用环境变量执行命令
-            val fullCommand =
-                    if (envVars.isNotEmpty()) {
-                        // 如果有环境变量，一次性导出并执行命令
-                        val exports =
-                                envVars.entries.joinToString(" ") { (key, value) ->
-                                    "$key=\"$value\""
+                                    // Add environment variables
+                                    if (serverConfig.env.isNotEmpty()) {
+                                        val envObj = JSONObject()
+                                        serverConfig.env.forEach { (key, value) ->
+                                            envObj.put(key, value)
+                                        }
+                                        put("env", envObj)
+                                    }
                                 }
-                        "cd $termuxPluginDir && $exports $command $args"
-                    } else {
-                        // 如果没有环境变量，直接执行命令
-                        "cd $termuxPluginDir && $command $args"
+                        )
                     }
 
-            // 创建一个定时器，在等待3秒后检查命令状态
-            val timer = java.util.Timer()
-            timer.schedule(object : java.util.TimerTask() {
-                override fun run() {
-                    // 如果命令仍在运行（没有触发onComplete），认为是成功的
-                    if (!commandCompletedFlag.get()) {
-                        Log.d(TAG, "[$serverName] 启动成功 - 命令仍在运行超过3秒")
-                        statusCallback(StartStatus.Success("插件 $pluginId 已成功启动"))
-                        success = true
-                    }
-                }
-            }, 3000)
+            val spawnResult = MCPBridge.sendCommand(bridgeCommand)
+            if (spawnResult == null || !spawnResult.optBoolean("success", false)) {
+                statusCallback(StartStatus.Error("Failed to spawn MCP service"))
+                return false
+            }
 
-            // 执行命令
-            TerminalSessionManager.executeSessionCommand(
-                    context = context,
-                    session = session,
-                    command = fullCommand,
-                    onOutput = { output ->
-                        Log.d(TAG, "[$serverName] 输出: $output")
-                        statusCallback(StartStatus.InProgress("输出: $output"))
-                    },
-                    onInteractivePrompt = { prompt, executionId ->
-                        Log.d(TAG, "[$serverName] 交互提示: $prompt (ID: $executionId)")
-                        statusCallback(StartStatus.InProgress("交互提示: $prompt"))
-                        null // 不提供自动响应
-                    },
-                    onComplete = { exitCode, commandSuccess ->
-                        // 标记命令已完成
-                        commandCompletedFlag.set(true)
-                        
-                        // 取消定时器，以免重复处理
-                        timer.cancel()
-
-                        // 对于长期运行的服务，如果命令完成了（返回了结果）通常意味着出错了
-                        if (commandSuccess) {
-                            Log.w(TAG, "[$serverName] 命令成功完成，但这可能意味着服务没有持续运行 (exitCode: $exitCode)")
-                            statusCallback(StartStatus.Error("命令执行完成，可能未能保持运行，退出码: $exitCode"))
-                            success = false
-                        } else {
-                            Log.e(TAG, "[$serverName] 命令执行失败 (exitCode: $exitCode)")
-                            statusCallback(StartStatus.Error("启动失败，命令执行错误，退出码: $exitCode"))
-                            success = false
-                        }
-                    }
-            )
-
-            // 确保注册服务器
+            // Register server
             registerServerIfNeeded(serverName, serverConfig, pluginId)
 
-            return success
+            // Check service status
+            delay(3000) // Wait for service to start
+
+            // Final check
+            val pingResult = kotlinx.coroutines.runBlocking { bridge.pingMcpService(serverName) }
+
+            if (pingResult != null) {
+                val result = pingResult.optJSONObject("result")
+                val status = result?.optString("status")
+                val mcpName = result?.optString("mcpName")
+
+                if (status == "ok" && mcpName == serverName) {
+                    statusCallback(StartStatus.Success("Plugin $pluginId started successfully"))
+                    return true
+                } else {
+                    statusCallback(
+                            StartStatus.Success(
+                                    "Plugin $pluginId registered but may not be fully active. Current service: $mcpName"
+                            )
+                    )
+                    return true
+                }
+            } else {
+                statusCallback(StartStatus.Error("Failed to verify plugin status after launch"))
+                return false
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "启动插件时出错", e)
-            statusCallback(StartStatus.Error("启动错误: ${e.message}"))
+            Log.e(TAG, "Error starting plugin", e)
+            statusCallback(StartStatus.Error("Start error: ${e.message}"))
             return false
         }
     }
 
-    /** 启动所有已部署的插件 */
-    fun startAllDeployedPlugins() {
-        // 使用空监听器调用带监听器的方法
-        startAllDeployedPlugins(
-                object : PluginStartProgressListener {
-                    override fun onPluginStarting(pluginId: String, index: Int, total: Int) {}
-                    override fun onPluginStarted(
-                            pluginId: String,
-                            success: Boolean,
-                            index: Int,
-                            total: Int
-                    ) {}
-                    override fun onAllPluginsStarted(successCount: Int, totalCount: Int) {}
-                }
-        )
-    }
-
-    /**
-     * 启动所有已部署的插件（带进度监听器）
-     *
-     * @param progressListener 进度监听器
-     */
-    fun startAllDeployedPlugins(progressListener: PluginStartProgressListener) {
-        Log.d(TAG, "开始启动所有已部署的插件")
-
+    /** Start all deployed plugins */
+    fun startAllDeployedPlugins(
+            progressListener: PluginStartProgressListener = object : PluginStartProgressListener {}
+    ) {
         starterScope.launch {
             try {
+                // Initialize bridge
+                if (!initBridge()) {
+                    progressListener.onAllPluginsStarted(0, 0)
+                    return@launch
+                }
+
                 val mcpRepository = MCPRepository(context)
                 val mcpConfigPreferences = MCPConfigPreferences(context)
 
-                // 获取已安装的插件列表
+                // Get deployed plugins
                 val pluginList = mcpRepository.installedPluginIds.first()
-                Log.d(TAG, "已安装插件数量: ${pluginList.size}")
-
-                // 使用原子计数器追踪成功启动的插件数量
-                val startedCount = AtomicInteger(0)
-
-                // 过滤出已部署的插件
                 val deployedPlugins =
-                        pluginList.filter { pluginId ->
-                            mcpConfigPreferences.getDeploySuccessFlow(pluginId).first()
-                        }
+                        pluginList.filter { mcpConfigPreferences.getDeploySuccessFlow(it).first() }
 
-                Log.d(TAG, "已部署插件数量: ${deployedPlugins.size}")
-
-                // 如果没有部署的插件，直接完成
                 if (deployedPlugins.isEmpty()) {
                     progressListener.onAllPluginsStarted(0, 0)
                     return@launch
                 }
 
-                // 插件启动结果映射
-                val pluginResults = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+                var successCount = 0
 
-                // 创建一个主定时器，确保整个启动过程不会卡住
-                val masterTimer = java.util.Timer()
-                masterTimer.schedule(object : java.util.TimerTask() {
-                    override fun run() {
-                        // 如果10秒后还有插件没有报告结果，将其标记为失败并继续
-                        for (pluginId in deployedPlugins) {
-                            if (!pluginResults.containsKey(pluginId)) {
-                                Log.w(TAG, "插件 $pluginId 启动超时")
-                                pluginResults[pluginId] = false
-                                
-                                // 通知插件启动完成（但失败）
-                                val index = deployedPlugins.indexOf(pluginId) + 1
-                                progressListener.onPluginStarted(
-                                    pluginId,
-                                    false,
-                                    index,
-                                    deployedPlugins.size
-                                )
-                            }
-                        }
-                        
-                        // 检查是否所有插件都有了结果
-                        if (pluginResults.size == deployedPlugins.size) {
-                            // 报告最终结果
-                            val successCount = pluginResults.values.count { it }
-                            progressListener.onAllPluginsStarted(successCount, deployedPlugins.size)
-                        }
-                    }
-                }, 10000) // 10秒超时
-                
-                // 并行启动所有已部署的插件
+                // Start each plugin
                 deployedPlugins.forEachIndexed { index, pluginId ->
-                    starterScope.launch {
-                        Log.d(TAG, "异步启动插件: $pluginId")
+                    progressListener.onPluginStarting(pluginId, index + 1, deployedPlugins.size)
 
-                        // 通知开始启动插件
-                        progressListener.onPluginStarting(
-                                pluginId,
-                                index + 1,
-                                deployedPlugins.size
-                        )
+                    val success =
+                            startPlugin(pluginId) {
+                                // Status callback is not used here
+                            }
 
-                        var success = false
-                        var resultReported = false
-                        
-                        try {
-                            // 创建一个插件启动状态回调，可以多次被调用
-                            val statusCallback = { status: StartStatus ->
-                                when (status) {
-                                    is StartStatus.Success -> {
-                                        Log.d(TAG, "插件 $pluginId 启动成功")
-                                        if (!resultReported) {
-                                            resultReported = true
-                                            success = true
-                                            startedCount.incrementAndGet()
-                                            pluginResults[pluginId] = true
-                                            
-                                            // 通知插件启动完成
-                                            progressListener.onPluginStarted(
-                                                pluginId,
-                                                true,
-                                                index + 1,
-                                                deployedPlugins.size
-                                            )
-                                            
-                                            // 检查是否所有插件都完成了
-                                            if (pluginResults.size == deployedPlugins.size) {
-                                                // 取消主定时器
-                                                masterTimer.cancel()
-                                                
-                                                // 报告最终结果
-                                                val successCount = pluginResults.values.count { it }
-                                                progressListener.onAllPluginsStarted(successCount, deployedPlugins.size)
-                                            }
-                                        }
-                                    }
-                                    is StartStatus.Error -> {
-                                        Log.e(
-                                                TAG,
-                                                "插件 $pluginId 启动失败: ${status.message}"
-                                        )
-                                        if (!resultReported) {
-                                            resultReported = true
-                                            success = false
-                                            pluginResults[pluginId] = false
-                                            
-                                            // 通知插件启动完成（但失败）
-                                            progressListener.onPluginStarted(
-                                                pluginId,
-                                                false,
-                                                index + 1,
-                                                deployedPlugins.size
-                                            )
-                                            
-                                            // 检查是否所有插件都完成了
-                                            if (pluginResults.size == deployedPlugins.size) {
-                                                // 取消主定时器
-                                                masterTimer.cancel()
-                                                
-                                                // 报告最终结果
-                                                val successCount = pluginResults.values.count { it }
-                                                progressListener.onAllPluginsStarted(successCount, deployedPlugins.size)
-                                            }
-                                        }
-                                    }
-                                    is StartStatus.InProgress -> {
-                                        // 处理进行中状态，不需要特别处理
-                                    }
-                                    is StartStatus.NotStarted -> {
-                                        // 处理未开始状态，不需要特别处理
-                                    }
-                                }
-                            }
-                            
-                            // 启动插件
-                            startPlugin(pluginId = pluginId, statusCallback = statusCallback)
-                            
-                            // 注意：不再等待startPlugin返回，因为成功或失败会通过statusCallback通知
-                            
-                            // 设置一个安全定时器，确保即使statusCallback没有被调用，也会有结果
-                            kotlinx.coroutines.delay(8000)
-                            
-                            // 如果8秒后仍未收到结果，标记为失败
-                            if (!resultReported) {
-                                Log.w(TAG, "插件 $pluginId 启动超时，未收到状态回调")
-                                resultReported = true
-                                success = false
-                                pluginResults[pluginId] = false
-                                
-                                // 通知插件启动完成（但失败）
-                                progressListener.onPluginStarted(
-                                    pluginId,
-                                    false,
-                                    index + 1,
-                                    deployedPlugins.size
-                                )
-                                
-                                // 检查是否所有插件都完成了
-                                if (pluginResults.size == deployedPlugins.size) {
-                                    // 取消主定时器
-                                    masterTimer.cancel()
-                                    
-                                    // 报告最终结果
-                                    val successCount = pluginResults.values.count { it }
-                                    progressListener.onAllPluginsStarted(successCount, deployedPlugins.size)
-                                }
-                            }
-                        } catch (e: Exception) {
-                            // 处理异常
-                            Log.e(TAG, "插件 $pluginId 启动过程中出错", e)
-                            if (!resultReported) {
-                                resultReported = true
-                                success = false
-                                pluginResults[pluginId] = false
-                                
-                                // 通知插件启动完成（但失败）
-                                progressListener.onPluginStarted(
-                                    pluginId,
-                                    false,
-                                    index + 1,
-                                    deployedPlugins.size
-                                )
-                                
-                                // 检查是否所有插件都完成了
-                                if (pluginResults.size == deployedPlugins.size) {
-                                    // 取消主定时器
-                                    masterTimer.cancel()
-                                    
-                                    // 报告最终结果
-                                    val successCount = pluginResults.values.count { it }
-                                    progressListener.onAllPluginsStarted(successCount, deployedPlugins.size)
-                                }
-                            }
-                        }
-                    }
+                    if (success) successCount++
+                    progressListener.onPluginStarted(
+                            pluginId,
+                            success,
+                            index + 1,
+                            deployedPlugins.size
+                    )
                 }
-                
-                // 设置一个全局超时，确保在非常极端的情况下也能完成
-                delay(15000)
-                
-                // 如果15秒后还没有完成，强制完成
-                masterTimer.cancel()
-                
-                // 计算最终成功数量
-                val finalSuccess = pluginResults.values.count { it }
-                
-                // 通知所有插件启动完成
-                if (pluginResults.size < deployedPlugins.size) {
-                    Log.w(TAG, "在全局超时后强制完成插件启动，已处理: ${pluginResults.size}/${deployedPlugins.size}")
-                    progressListener.onAllPluginsStarted(finalSuccess, deployedPlugins.size)
-                }
-                
-                Log.d(TAG, "批量启动完成，成功启动: $finalSuccess 个插件")
+
+                // Notify all plugins started
+                progressListener.onAllPluginsStarted(successCount, deployedPlugins.size)
+
+                // Verify plugins
+                verifyPlugins(progressListener)
             } catch (e: Exception) {
-                Log.e(TAG, "批量启动插件时出错", e)
+                Log.e(TAG, "Error starting plugins", e)
                 progressListener.onAllPluginsStarted(0, 0)
             }
         }
     }
 
-    /** 从配置中提取服务器名称 */
+    /** Verify plugin statuses */
+    private fun verifyPlugins(progressListener: PluginStartProgressListener) {
+        starterScope.launch {
+            try {
+                delay(5000) // Wait for services to initialize
+                val results = verifyAllMcpPlugins()
+                progressListener.onAllPluginsVerified(results)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error verifying plugins", e)
+                progressListener.onAllPluginsVerified(emptyList())
+            }
+        }
+    }
+
+    /** Verify all MCP plugins */
+    suspend fun verifyAllMcpPlugins(): List<VerificationResult> {
+        val results = mutableListOf<VerificationResult>()
+
+        try {
+            val mcpRepository = MCPRepository(context)
+            val mcpConfigPreferences = MCPConfigPreferences(context)
+            val mcpLocalServer =
+                    com.ai.assistance.operit.data.mcp.MCPLocalServer.getInstance(context)
+
+            // Get deployed plugins
+            val pluginList = mcpRepository.installedPluginIds.first()
+            val deployedPlugins =
+                    pluginList.filter { mcpConfigPreferences.getDeploySuccessFlow(it).first() }
+
+            // Get registered services
+            val bridge = MCPBridge(context)
+            val listResponse = bridge.listMcpServices()
+            val servicesList = mutableListOf<String>()
+
+            if (listResponse?.optBoolean("success", false) == true) {
+                val services = listResponse.optJSONObject("result")?.optJSONArray("services")
+                if (services != null) {
+                    for (i in 0 until services.length()) {
+                        val name = services.optJSONObject(i)?.optString("name", "")
+                        if (!name.isNullOrEmpty()) {
+                            servicesList.add(name)
+                        }
+                    }
+                }
+            }
+
+            // Verify each plugin
+            for (pluginId in deployedPlugins) {
+                val pluginConfig = mcpLocalServer.getPluginConfig(pluginId)
+                val serverName =
+                        extractServerNameFromConfig(pluginConfig)
+                                ?: pluginId.split("/").last().lowercase()
+
+                if (!servicesList.contains(serverName)) {
+                    results.add(
+                            VerificationResult(
+                                    pluginId = pluginId,
+                                    serviceName = serverName,
+                                    isResponding = false,
+                                    responseTime = 0,
+                                    details = "Service not registered"
+                            )
+                    )
+                    continue
+                }
+
+                // Verify service status
+                val client = MCPBridgeClient(context, serverName)
+                val startTime = System.currentTimeMillis()
+                val pingSuccess = client.pingSync()
+                val responseTime = System.currentTimeMillis() - startTime
+
+                if (pingSuccess) {
+                    results.add(
+                            VerificationResult(
+                                    pluginId = pluginId,
+                                    serviceName = serverName,
+                                    isResponding = true,
+                                    responseTime = responseTime,
+                                    details = "Service is responding"
+                            )
+                    )
+                } else {
+                    results.add(
+                            VerificationResult(
+                                    pluginId = pluginId,
+                                    serviceName = serverName,
+                                    isResponding = false,
+                                    responseTime = 0,
+                                    details = "Service not responding"
+                            )
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error verifying plugins", e)
+        }
+
+        return results
+    }
+
+    /** Extract server name from config */
     private fun extractServerNameFromConfig(configJson: String): String? {
         return MCPVscodeConfig.extractServerName(configJson)
     }
 
-    /** 如果需要，注册服务器到MCPManager */
+    /** Register server if needed */
     private fun registerServerIfNeeded(
             serverName: String,
             serverConfig: MCPVscodeConfig.ServerConfig,
             pluginId: String
     ) {
         try {
-            // 获取MCP管理器实例
-            val mcpManager = com.ai.assistance.operit.core.tools.mcp.MCPManager.getInstance(context)
+            val mcpManager = MCPManager.getInstance(context)
 
-            // 构建服务器配置
             val extraDataMap = mutableMapOf<String, String>()
             extraDataMap["command"] = serverConfig.command
             extraDataMap["args"] = serverConfig.args.joinToString(",")
 
-            // 添加环境变量信息
             serverConfig.env.forEach { (key, value) -> extraDataMap["env_$key"] = value }
 
             val mcpServerConfig =
-                    com.ai.assistance.operit.core.tools.mcp.MCPServerConfig(
+                    MCPServerConfig(
                             name = serverName,
                             endpoint = "mcp://plugin/$serverName",
-                            description = "从插件启动的MCP服务器: $pluginId",
+                            description = "MCP Server from plugin: $pluginId",
                             capabilities = listOf("tools", "resources"),
                             extraData = extraDataMap
                     )
 
-            // 注册服务器
             mcpManager.registerServer(serverName, mcpServerConfig)
-            Log.d(TAG, "已注册插件 $pluginId 为服务器: $serverName")
         } catch (e: Exception) {
-            Log.e(TAG, "注册服务器失败: ${e.message}")
+            Log.e(TAG, "Failed to register server", e)
         }
     }
 
-    /** 启动状态 */
+    /** Start status */
     sealed class StartStatus {
         object NotStarted : StartStatus()
         data class InProgress(val message: String) : StartStatus()
         data class Success(val message: String) : StartStatus()
         data class Error(val message: String) : StartStatus()
     }
+
+    /** Verification result */
+    data class VerificationResult(
+            val pluginId: String,
+            val serviceName: String,
+            val isResponding: Boolean,
+            val responseTime: Long,
+            val details: String = ""
+    )
 }
