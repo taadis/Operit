@@ -1,6 +1,7 @@
 package com.ai.assistance.operit.ui.main
 
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -15,11 +16,6 @@ import androidx.compose.ui.zIndex
 import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
 import com.ai.assistance.operit.R
-import com.ai.assistance.operit.data.mcp.MCPConfigPreferences
-import com.ai.assistance.operit.data.mcp.MCPLocalServer
-import com.ai.assistance.operit.data.mcp.MCPRepository
-import com.ai.assistance.operit.data.mcp.plugins.MCPBridge
-import com.ai.assistance.operit.data.mcp.plugins.MCPStarter
 import com.ai.assistance.operit.data.preferences.AgreementPreferences
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
@@ -33,11 +29,9 @@ import com.ai.assistance.operit.ui.common.NavItem
 import com.ai.assistance.operit.ui.features.startup.screens.PluginLoadingScreenWithState
 import com.ai.assistance.operit.ui.features.startup.screens.PluginLoadingState
 import com.ai.assistance.operit.ui.theme.OperitTheme
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import android.content.res.Configuration
 
 class MainActivity : ComponentActivity() {
     private val TAG = "MainActivity"
@@ -82,13 +76,22 @@ class MainActivity : ComponentActivity() {
         // 设置上下文以便获取插件元数据
         pluginLoadingState.setAppContext(applicationContext)
 
+        // 设置跳过加载的回调
+        pluginLoadingState.setOnSkipCallback {
+            Log.d(TAG, "用户跳过了插件加载过程")
+            Toast.makeText(this, "已跳过插件加载", Toast.LENGTH_SHORT).show()
+        }
+
         // 只在首次创建时显示插件加载界面（非配置变更）
         if (savedInstanceState == null) {
             // 显示插件加载界面
             pluginLoadingState.show()
-            
-            // 初始化MCP服务器并启动插件
-            initializeMCPServer()
+
+            // 启动超时检测（30秒）
+            pluginLoadingState.startTimeoutCheck(30000L, lifecycleScope)
+
+            // 初始化MCP服务器并启动插件（改用PluginLoadingState中的方法）
+            pluginLoadingState.initializeMCPServer(applicationContext, lifecycleScope)
         }
 
         // 初始化并设置更新管理器
@@ -110,6 +113,9 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
         Log.d(TAG, "onDestroy called")
 
+        // 确保隐藏加载界面
+        pluginLoadingState.hide()
+
         // 移除Shizuku状态变化监听器
         try {
             if (::shizukuStateListener.isInitialized) {
@@ -123,7 +129,7 @@ class MainActivity : ComponentActivity() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         Log.d(TAG, "onConfigurationChanged: orientation=${newConfig.orientation}")
-        
+
         // 屏幕方向变化时，确保加载界面不可见
         pluginLoadingState.hide()
     }
@@ -144,195 +150,6 @@ class MainActivity : ComponentActivity() {
 
         // 初始化协议偏好管理器
         agreementPreferences = AgreementPreferences(this)
-    }
-
-    // ======== 初始化MCP服务器并启动插件 ========
-    private fun initializeMCPServer() {
-        lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                // 获取MCPLocalServer实例
-                val mcpLocalServer = MCPLocalServer.getInstance(applicationContext)
-
-                // 更新状态
-                pluginLoadingState.updateMessage("正在启动MCP服务器...")
-                pluginLoadingState.updateProgress(0.1f)
-
-                // 启动MCP服务器
-                val serverStartSuccess = mcpLocalServer.startServer()
-
-                if (serverStartSuccess) {
-                    // 服务器启动成功，更新状态
-                    pluginLoadingState.updateMessage("MCP服务器启动成功，初始化桥接器...")
-                    pluginLoadingState.updateProgress(0.2f)
-
-                    // 初始化并部署TCP桥接器到Download/Operit目录，然后复制到Termux
-                    val bridgeDeploySuccess = MCPBridge.deployBridge(applicationContext)
-                    if (!bridgeDeploySuccess) {
-                        Log.w(TAG, "TCP桥接器部署失败，将使用直接方式启动插件")
-                        pluginLoadingState.updateMessage("TCP桥接器部署失败，将使用直接方式启动插件")
-                    } else {
-                        // 启动桥接器
-                        pluginLoadingState.updateMessage("正在启动TCP桥接器...")
-                        pluginLoadingState.updateProgress(0.25f)
-                        val bridgeStartSuccess = MCPBridge.startBridge(applicationContext)
-                        if (!bridgeStartSuccess) {
-                            Log.w(TAG, "TCP桥接器启动失败，将使用直接方式启动插件")
-                            pluginLoadingState.updateMessage("TCP桥接器启动失败，将使用直接方式启动插件")
-                        } else {
-                            Log.d(TAG, "TCP桥接器初始化成功")
-                            pluginLoadingState.updateMessage("TCP桥接器启动成功")
-                            // 检查桥接器健康状态
-                            val pingResult = MCPBridge.ping()
-                            if (pingResult != null) {
-                                Log.d(TAG, "TCP桥接器健康检查成功: $pingResult")
-                                pluginLoadingState.updateMessage("TCP桥接器健康检查成功")
-                            } else {
-                                Log.w(TAG, "TCP桥接器健康检查失败")
-                                pluginLoadingState.updateMessage("TCP桥接器健康检查失败，将继续加载插件")
-                            }
-                        }
-                    }
-
-                    pluginLoadingState.updateMessage("MCP服务器启动成功，正在加载插件...")
-                    pluginLoadingState.updateProgress(0.3f)
-
-                    // 等待服务器完全就绪
-                    delay(200)
-
-                    try {
-                        // 获取MCPRepository实例
-                        val mcpRepository = MCPRepository(applicationContext)
-
-                        // 获取已安装的插件列表 (这是一个Set<String>)
-                        val installedPluginsSet = mcpRepository.installedPluginIds.first()
-
-                        // 显式转换为List<String>
-                        val installedPluginsList = installedPluginsSet.toList()
-
-                        if (installedPluginsSet.isEmpty()) {
-                            // 没有安装的插件，直接进入主界面
-                            Log.d(TAG, "没有检测到已安装的插件，直接进入主界面")
-                            pluginLoadingState.updateMessage("没有检测到已安装的插件")
-                            pluginLoadingState.updateProgress(1.0f)
-
-                            // 立即隐藏插件加载界面
-                            pluginLoadingState.hide()
-                            return@launch
-                        }
-
-                        // 设置插件列表，传入List<String>
-                        pluginLoadingState.setPlugins(installedPluginsList)
-
-                        // 有安装的插件，使用MCPStarter启动
-                        pluginLoadingState.updateMessage("正在启动插件...")
-                        pluginLoadingState.updateProgress(0.4f)
-
-                        val mcpStarter = MCPStarter(applicationContext)
-                        val mcpConfigPreferences = MCPConfigPreferences(applicationContext)
-
-                        // 设置启动进度监听器
-                        val progressListener =
-                                object : MCPStarter.PluginStartProgressListener {
-                                    override fun onPluginStarting(
-                                            pluginId: String,
-                                            index: Int,
-                                            total: Int
-                                    ) {
-                                        // 在这里检查插件是否被启用
-                                        val isEnabled = kotlinx.coroutines.runBlocking {
-                                            mcpConfigPreferences.getPluginEnabledFlow(pluginId).first()
-                                        }
-                                        
-                                        // 更新总体状态
-                                        pluginLoadingState.updateMessage(
-                                                "正在启动插件 ($index/$total)${if (!isEnabled) " (插件已禁用)" else ""}..."
-                                        )
-                                        pluginLoadingState.updateProgress(
-                                                0.4f + 0.6f * (index.toFloat() / total)
-                                        )
-
-                                        // 更新特定插件状态
-                                        pluginLoadingState.startLoadingPlugin(pluginId)
-                                    }
-
-                                    override fun onPluginStarted(
-                                            pluginId: String,
-                                            success: Boolean,
-                                            index: Int,
-                                            total: Int
-                                    ) {
-                                        // 记录插件加载结果
-                                        if (success) {
-                                            pluginLoadingState.setPluginSuccess(pluginId, "加载成功")
-                                        } else {
-                                            pluginLoadingState.setPluginFailed(pluginId, "加载失败")
-                                        }
-
-                                        // 更新总体进度
-                                        pluginLoadingState.updateProgress(
-                                                0.4f + 0.6f * (index.toFloat() / total)
-                                        )
-                                    }
-
-                                    override fun onAllPluginsStarted(
-                                            successCount: Int,
-                                            totalCount: Int
-                                    ) {
-                                        // 所有插件加载完成
-                                        val successRate =
-                                                if (totalCount > 0) {
-                                                    (successCount * 100) / totalCount
-                                                } else {
-                                                    0 // 当没有部署的插件时，成功率为0
-                                                }
-                                        pluginLoadingState.updateMessage("已完成启动，成功率: $successRate%")
-                                        pluginLoadingState.updateProgress(1.0f)
-
-                                        // 延迟一会儿后隐藏进度条
-                                        lifecycleScope.launch {
-                                            delay(400)
-                                            pluginLoadingState.hide()
-                                        }
-                                    }
-                                }
-
-                        // 启动所有插件
-                        mcpStarter.startAllDeployedPlugins(progressListener)
-                    } catch (e: Exception) {
-                        // 处理插件加载过程中的异常
-                        Log.e(TAG, "加载插件过程中出错", e)
-                        pluginLoadingState.updateMessage("加载插件出错: ${e.message}")
-                        pluginLoadingState.updateProgress(1.0f)
-
-                        // 延迟后隐藏
-                        lifecycleScope.launch {
-                            delay(400)
-                            pluginLoadingState.hide()
-                        }
-                    }
-                } else {
-                    // 服务器启动失败
-                    pluginLoadingState.updateMessage("MCP服务器启动失败")
-                    pluginLoadingState.updateProgress(1.0f)
-
-                    // 延迟一会儿后隐藏进度条
-                    lifecycleScope.launch {
-                        delay(400)
-                        pluginLoadingState.hide()
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "启动MCP服务器和插件时出错", e)
-                pluginLoadingState.updateMessage("启动过程中出错: ${e.message}")
-                pluginLoadingState.updateProgress(1.0f)
-
-                // 延迟一会儿后隐藏进度条
-                lifecycleScope.launch {
-                    delay(400)
-                    pluginLoadingState.hide()
-                }
-            }
-        }
     }
 
     // ======== Shizuku监听器设置 ========

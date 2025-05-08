@@ -1,10 +1,15 @@
 package com.ai.assistance.operit.ui.features.chat.viewmodel
 
+import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.ServiceConnection
+import android.net.Uri
+import android.os.Build
 import android.os.IBinder
+import android.provider.OpenableColumns
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -30,6 +35,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class ChatViewModel(private val context: Context) : ViewModel() {
+
+    companion object {
+        private const val TAG = "ChatViewModel"
+    }
 
     // Preferences and managers
     private val apiPreferences = ApiPreferences(context)
@@ -153,7 +162,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                     _chatHistory.value.let { messages ->
                         floatingService?.updateChatMessages(messages)
                     }
-                    
+
                     // Set up collection of messages from floating service
                     setupFloatingServiceMessageCollection()
                 }
@@ -163,7 +172,36 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 }
             }
 
+    // For handling attachments
+    private val _attachments = MutableStateFlow<List<AttachmentInfo>>(emptyList())
+    val attachments: StateFlow<List<AttachmentInfo>> = _attachments
+
+    // 广播接收器，用于接收悬浮窗关闭的广播
+    private val floatingWindowReceiver =
+            object : BroadcastReceiver() {
+                override fun onReceive(context: Context, intent: Intent) {
+                    if (intent.action == "com.ai.assistance.operit.FLOATING_WINDOW_CLOSED") {
+                        // 更新悬浮窗状态
+                        _isFloatingMode.value = false
+                    }
+                }
+            }
+
     init {
+        // 注册悬浮窗关闭的广播接收器
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            context.registerReceiver(
+                    floatingWindowReceiver,
+                    IntentFilter("com.ai.assistance.operit.FLOATING_WINDOW_CLOSED"),
+                    Context.RECEIVER_NOT_EXPORTED
+            )
+        } else {
+            context.registerReceiver(
+                    floatingWindowReceiver,
+                    IntentFilter("com.ai.assistance.operit.FLOATING_WINDOW_CLOSED")
+            )
+        }
+
         // Load API settings
         viewModelScope.launch {
             apiPreferences.apiKeyFlow.collect { key ->
@@ -343,38 +381,35 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         _modelName.value = model
     }
 
-    /**
-     * 使用当前默认配置而不保存用户的输入
-     * 当用户点击"继续使用默认"按钮时调用
-     */
+    /** 使用当前默认配置而不保存用户的输入 当用户点击"继续使用默认"按钮时调用 */
     fun useDefaultConfig() {
         // 检查是否有可用的默认配置
-        if (_apiEndpoint.value.isNotBlank() && 
-            _apiKey.value.isNotBlank() && 
-            _modelName.value.isNotBlank()) {
-            
+        if (_apiEndpoint.value.isNotBlank() &&
+                        _apiKey.value.isNotBlank() &&
+                        _modelName.value.isNotBlank()
+        ) {
+
             // 直接标记为已配置，无需保存用户的输入
             _isConfigured.value = true
-            
+
             // 初始化AI服务
-            enhancedAiService = EnhancedAIService(_apiEndpoint.value, _apiKey.value, _modelName.value, context)
-            
+            enhancedAiService =
+                    EnhancedAIService(_apiEndpoint.value, _apiKey.value, _modelName.value, context)
+
             // 设置服务相关的流收集
             setupServiceCollectors()
-            
+
             // 检查是否应该创建新对话
             checkIfShouldCreateNewChat()
-            
+
             // 显示使用默认配置的提示
             showToast("使用默认配置继续")
         } else {
             showErrorMessage("默认配置不完整，请填写必要信息")
         }
     }
-    
-    /**
-     * 显示错误消息
-     */
+
+    /** 显示错误消息 */
     fun showErrorMessage(message: String) {
         _errorMessage.value = message
     }
@@ -382,11 +417,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     fun toggleChatHistorySelector() {
         _showChatHistorySelector.value = !_showChatHistorySelector.value
     }
-    
-    /**
-     * 设置服务相关的流收集逻辑
-     * 提取为单独方法以避免代码重复
-     */
+
+    /** 设置服务相关的流收集逻辑 提取为单独方法以避免代码重复 */
     private fun setupServiceCollectors() {
         // Set up tool progress collection
         viewModelScope.launch {
@@ -568,13 +600,53 @@ class ChatViewModel(private val context: Context) : ViewModel() {
 
     /** 向对话中发送用户消息 */
     fun sendUserMessage() {
-        if (_userMessage.value.isBlank() || _isLoading.value) {
+        if (_userMessage.value.isBlank() && _attachments.value.isEmpty()) {
             return
         }
 
-        val message = _userMessage.value
+        if (_isLoading.value) {
+            return
+        }
+
+        // Get the raw message text
+        val messageText = _userMessage.value.trim()
+
+        // Prepare the message with attachment data in XML format
+        val messageWithAttachments =
+                if (_attachments.value.isNotEmpty()) {
+                    // Start with the message text
+                    val finalMessage = StringBuilder(messageText)
+
+                    // For each attachment, append a properly formatted XML block
+                    if (finalMessage.isNotEmpty() && _attachments.value.isNotEmpty()) {
+                        finalMessage.append("\n\n")
+                    }
+
+                    _attachments.value.forEachIndexed { index, attachment ->
+                        // Add newline between attachments
+                        if (index > 0) finalMessage.append("\n")
+
+                        // Add XML formatted attachment data
+                        finalMessage.append("<attachment ")
+                        finalMessage.append("id=\"${attachment.uri}\" ")
+                        finalMessage.append("filename=\"${attachment.fileName}\" ")
+                        finalMessage.append("type=\"${attachment.mimeType}\" ")
+                        finalMessage.append("size=\"${attachment.fileSize}\" ")
+                        finalMessage.append("/>")
+                    }
+
+                    finalMessage.toString()
+                } else {
+                    messageText
+                }
+
+        // Reset the input and set loading state
         _userMessage.value = ""
         _isLoading.value = true
+
+        // Clear attachments after sending
+        val currentAttachments = _attachments.value
+        _attachments.value = emptyList()
 
         // If no current chat id, create a new one
         if (_currentChatId.value == null) {
@@ -582,7 +654,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         }
 
         // Add user message to chat history
-        addMessageToChat(ChatMessage(sender = "user", content = message))
+        addMessageToChat(ChatMessage(sender = "user", content = messageWithAttachments))
 
         // Use viewModelScope to launch coroutine
         viewModelScope.launch {
@@ -599,7 +671,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
 
                 val history = getMemory(includePlanInfo = true)
                 enhancedAiService?.sendMessage(
-                        message = message,
+                        message = messageWithAttachments,
                         onPartialResponse = { content, thinking ->
                             handlePartialResponse(content, thinking)
                         },
@@ -1020,6 +1092,13 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 Log.e("ChatViewModel", "Error unbinding service in onCleared", e)
             }
         }
+
+        // 取消注册广播接收器
+        try {
+            context.unregisterReceiver(floatingWindowReceiver)
+        } catch (e: Exception) {
+            Log.e("ChatViewModel", "Error unregistering receiver", e)
+        }
     }
 
     /**
@@ -1049,7 +1128,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
             val newValue = !_enableAiPlanning.value
             apiPreferences.saveEnableAiPlanning(newValue)
             _enableAiPlanning.value = newValue
-            
+
             // Remove toast notification
             // _toastEvent.value = if (newValue) "AI计划模式已开启" else "AI计划模式已关闭"
         }
@@ -1213,7 +1292,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                         PermissionLevel.ASK
                     }
             toolPermissionSystem.saveMasterSwitch(newLevel)
-            
+
             // Remove toast notification
             // _toastEvent.value =
             //        if (newLevel == PermissionLevel.ALLOW) {
@@ -1242,10 +1321,97 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         }
     }
 
-    /** 
-     * Updates the messages displayed in the floating window
-     */
+    /** Updates the messages displayed in the floating window */
     fun updateFloatingWindowMessages(messages: List<ChatMessage>) {
         floatingService?.updateChatMessages(messages)
     }
+
+    /** Inserts a reference to an attachment at the current cursor position in the user's message */
+    fun insertAttachmentReference(attachment: AttachmentInfo) {
+        val currentMessage = _userMessage.value
+
+        // Generate XML reference for the attachment
+        val attachmentRef =
+                "<attachment id=\"${attachment.uri}\" filename=\"${attachment.fileName}\" type=\"${attachment.mimeType}\" />"
+
+        // Insert at cursor position or append at the end if the cursor position is unknown
+        // In this simple implementation, we'll just append it
+        updateUserMessage("$currentMessage $attachmentRef ")
+
+        // Show a toast to confirm insertion
+        showToast("已插入附件引用: ${attachment.fileName}")
+    }
+
+    /** Handles a file or image attachment selected by the user */
+    fun handleAttachment(uri: Uri) {
+        viewModelScope.launch {
+            try {
+                // Get file information
+                val fileName = getFileNameFromUri(uri)
+                val fileSize = getFileSizeFromUri(uri)
+                val mimeType = context.contentResolver.getType(uri) ?: "application/octet-stream"
+
+                // Create attachment info
+                val attachmentInfo =
+                        AttachmentInfo(
+                                uri = uri,
+                                fileName = fileName,
+                                mimeType = mimeType,
+                                fileSize = fileSize
+                        )
+
+                // Add to attachments list
+                val currentList = _attachments.value
+                _attachments.value = currentList + attachmentInfo
+
+                // Notify user about the attachment
+                showToast("已添加附件: $fileName")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error handling attachment", e)
+                showErrorMessage("添加附件失败: ${e.localizedMessage}")
+            }
+        }
+    }
+
+    /** Removes an attachment by its URI */
+    fun removeAttachment(uri: Uri) {
+        val currentList = _attachments.value
+        _attachments.value = currentList.filter { attachment -> attachment.uri != uri }
+    }
+
+    /** Gets a file name from a content URI */
+    private fun getFileNameFromUri(uri: Uri): String {
+        var fileName = "unknown_file"
+        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (nameIndex != -1) {
+                    fileName = cursor.getString(nameIndex)
+                }
+            }
+        }
+        return fileName
+    }
+
+    /** Gets a file size from a content URI */
+    private fun getFileSizeFromUri(uri: Uri): Long {
+        var fileSize = 0L
+        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                if (sizeIndex != -1 && !cursor.isNull(sizeIndex)) {
+                    fileSize = cursor.getLong(sizeIndex)
+                }
+            }
+        }
+        return fileSize
+    }
 }
+
+/** Data class to store information about an attachment */
+data class AttachmentInfo(
+        val uri: Uri,
+        val fileName: String,
+        val mimeType: String,
+        val fileSize: Long
+)

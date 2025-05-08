@@ -1,11 +1,13 @@
 package com.ai.assistance.operit.services
 
 import android.annotation.SuppressLint
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.ComponentCallbacks2
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -437,6 +439,12 @@ class FloatingChatService : Service() {
                         initialWindowScale = windowScale.value,
                         onClose = {
                             Log.d(TAG, "Close button clicked, stopping service")
+                            // 发送广播通知主界面更新悬浮窗状态
+                            val intent = Intent("com.ai.assistance.operit.FLOATING_WINDOW_CLOSED")
+                            // 设置包名使Intent成为显式Intent
+                            intent.setPackage(packageName)
+                            sendBroadcast(intent)
+                            
                             // 延迟200毫秒后关闭
                             Handler(Looper.getMainLooper())
                                 .postDelayed(

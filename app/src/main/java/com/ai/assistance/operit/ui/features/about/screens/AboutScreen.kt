@@ -9,6 +9,7 @@ import android.widget.TextView
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -16,11 +17,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.OpenInBrowser
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Update
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material3.*
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -123,14 +131,14 @@ fun AboutScreen() {
 
     // 显示更新对话框
     var showUpdateDialog by remember { mutableStateOf(false) }
+    // 添加下载源选择对话框状态
+    var showDownloadSourceMenu by remember { mutableStateOf(false) }
 
     // 检查更新按钮动画
     val buttonAlpha =
             animateFloatAsState(
                     targetValue =
-                            if (updateStatus is UpdateStatus.Checking ||
-                                            updateStatus is UpdateStatus.Downloading
-                            )
+                            if (updateStatus is UpdateStatus.Checking)
                                     0.6f
                             else 1f,
                     label = "ButtonAlpha"
@@ -143,23 +151,6 @@ fun AboutScreen() {
             packageInfo.versionName
         } catch (e: PackageManager.NameNotFoundException) {
             "未知"
-        }
-    }
-
-    // 处理APK安装
-    fun installApk(uri: Uri) {
-        val intent = updateManager.createInstallIntent(uri)
-        context.startActivity(intent)
-    }
-
-    // 下载完成后的处理
-    DisposableEffect(Unit) {
-        // 注册下载接收器
-        updateManager.registerDownloadReceiver { uri -> uri?.let { installApk(it) } }
-
-        onDispose {
-            // 取消注册下载接收器
-            updateManager.unregisterDownloadReceiver()
         }
     }
 
@@ -178,35 +169,52 @@ fun AboutScreen() {
         scope.launch { updateManager.checkForUpdates(appVersion) }
     }
 
-    // 处理下载更新
+    // 处理下载更新 - 显示下载源选择对话框
     fun handleDownload() {
         val status = updateStatus as? UpdateStatus.Available ?: return
-
-        // 判断是否有APK直接下载链接
-        if (status.downloadUrl.endsWith(".apk")) {
-            // 直接下载APK
-            scope.launch { updateManager.downloadUpdate(status.downloadUrl, status.newVersion) }
+        if (status.downloadUrl.isNotEmpty()) {
+            showDownloadSourceMenu = true // 显示下载源选择对话框
         } else {
-            // 打开浏览器下载
-            val intent =
-                    Intent(Intent.ACTION_VIEW).apply {
-                        data = Uri.parse(status.updateUrl)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
+            // 如果没有下载链接，则直接打开更新页面
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                data = Uri.parse(status.updateUrl)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
             context.startActivity(intent)
             showUpdateDialog = false
         }
     }
 
+    // 从指定源下载
+    fun downloadFromSource(sourceType: String) {
+        val status = updateStatus as? UpdateStatus.Available ?: return
+        val downloadUrl = when (sourceType) {
+            "github" -> status.downloadUrl // 原始GitHub链接
+            "ghfast" -> {
+                // 使用 ghfast.top 镜像加速 GitHub 下载
+                if (status.downloadUrl.contains("github.com") && status.downloadUrl.endsWith(".apk")) {
+                    UpdateManager.getAcceleratedDownloadUrl(status.newVersion, status.downloadUrl)
+                } else {
+                    status.downloadUrl
+                }
+            }
+            else -> status.downloadUrl
+        }
+        
+        // 打开浏览器下载
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            data = Uri.parse(downloadUrl)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
+        showDownloadSourceMenu = false
+        showUpdateDialog = false
+    }
+
     // 更新对话框
     if (showUpdateDialog) {
         AlertDialog(
-                onDismissRequest = {
-                    // 如果正在下载，不关闭对话框
-                    if (updateStatus !is UpdateStatus.Downloading) {
-                        showUpdateDialog = false
-                    }
-                },
+                onDismissRequest = { showUpdateDialog = false },
                 title = {
                     Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -215,8 +223,7 @@ fun AboutScreen() {
                         val icon =
                                 when (updateStatus) {
                                     is UpdateStatus.Available -> Icons.Default.Update
-                                    is UpdateStatus.Downloading -> Icons.Default.Download
-                                    is UpdateStatus.DownloadComplete -> Icons.Default.CheckCircle
+                                    is UpdateStatus.Checking -> Icons.Default.Download
                                     is UpdateStatus.UpToDate -> Icons.Default.CheckCircle
                                     is UpdateStatus.Error -> Icons.Default.Error
                                     else -> Icons.Default.Update
@@ -225,8 +232,7 @@ fun AboutScreen() {
                         val iconTint =
                                 when (updateStatus) {
                                     is UpdateStatus.Available -> MaterialTheme.colorScheme.primary
-                                    is UpdateStatus.Downloading -> MaterialTheme.colorScheme.primary
-                                    is UpdateStatus.DownloadComplete -> Color(0xFF4CAF50) // Green
+                                    is UpdateStatus.Checking -> MaterialTheme.colorScheme.primary
                                     is UpdateStatus.UpToDate -> Color(0xFF4CAF50) // Green
                                     is UpdateStatus.Error -> Color(0xFFF44336) // Red
                                     else -> MaterialTheme.colorScheme.primary
@@ -238,8 +244,7 @@ fun AboutScreen() {
                                 text =
                                         when (updateStatus) {
                                             is UpdateStatus.Available -> "发现新版本"
-                                            is UpdateStatus.Downloading -> "正在下载更新"
-                                            is UpdateStatus.DownloadComplete -> "下载完成"
+                                            is UpdateStatus.Checking -> "正在检查更新"
                                             is UpdateStatus.UpToDate -> "检查完成"
                                             is UpdateStatus.Error -> "检查失败"
                                             else -> "更新检查"
@@ -274,40 +279,6 @@ fun AboutScreen() {
                                 }
                             }
                         }
-                        is UpdateStatus.Downloading -> {
-                            Column {
-                                Text(
-                                        "正在下载新版本，请稍候...",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        modifier = Modifier.padding(bottom = 12.dp)
-                                )
-
-                                // 进度条 - 修复进度卡在99%的问题
-                                LinearProgressIndicator(
-                                        progress =
-                                                if (status.progress >= 0.99f && status.progress < 1f
-                                                )
-                                                        1f
-                                                else status.progress,
-                                        modifier =
-                                                Modifier.fillMaxWidth()
-                                                        .height(8.dp)
-                                                        .clip(RoundedCornerShape(4.dp)),
-                                        color = MaterialTheme.colorScheme.primary,
-                                        trackColor = MaterialTheme.colorScheme.primaryContainer
-                                )
-
-                                Text(
-                                        // 如果进度接近100%但未到1，显示为100%
-                                        "${(if (status.progress >= 0.99f && status.progress < 1f) 100 else (status.progress * 100).toInt())}%",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        modifier = Modifier.padding(top = 8.dp).align(Alignment.End)
-                                )
-                            }
-                        }
-                        is UpdateStatus.DownloadComplete -> {
-                            Text("下载已完成，正在准备安装...", style = MaterialTheme.typography.bodyMedium)
-                        }
                         is UpdateStatus.UpToDate -> {
                             Text("当前已是最新版本: $appVersion")
                         }
@@ -324,35 +295,181 @@ fun AboutScreen() {
                             onClick = {
                                 if (updateStatus is UpdateStatus.Available) {
                                     handleDownload()
-                                } else if (updateStatus !is UpdateStatus.Downloading &&
-                                                updateStatus !is UpdateStatus.DownloadComplete
-                                ) {
+                                } else if (updateStatus !is UpdateStatus.Checking) {
                                     showUpdateDialog = false
                                 }
                             },
                             enabled =
                                     updateStatus is UpdateStatus.Available ||
-                                            (updateStatus !is UpdateStatus.Downloading &&
-                                                    updateStatus !is UpdateStatus.Checking &&
-                                                    updateStatus !is UpdateStatus.DownloadComplete)
+                                            (updateStatus !is UpdateStatus.Checking)
                     ) {
                         Text(
                                 when (updateStatus) {
-                                    is UpdateStatus.Available -> "立即更新"
-                                    is UpdateStatus.Downloading -> "下载中..."
-                                    is UpdateStatus.DownloadComplete -> "安装中..."
+                                    is UpdateStatus.Available -> "去下载"
                                     else -> "确定"
                                 }
                         )
                     }
                 },
                 dismissButton = {
-                    if (updateStatus !is UpdateStatus.Downloading &&
-                                    updateStatus !is UpdateStatus.DownloadComplete
-                    ) {
+                    if (updateStatus !is UpdateStatus.Checking) {
                         TextButton(onClick = { showUpdateDialog = false }) { Text("关闭") }
                     }
                 }
+        )
+    }
+
+    // 下载源选择对话框
+    if (showDownloadSourceMenu) {
+        AlertDialog(
+            onDismissRequest = { showDownloadSourceMenu = false },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CloudDownload,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        "选择下载源",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        "请选择适合您网络环境的下载源：",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    
+                    // 国内加速镜像选项 - 使用Card而不是Button
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { downloadFromSource("ghfast") },
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Storage,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Column(
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    "国内加速镜像",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Text(
+                                    "通过ghfast.top加速，推荐国内用户使用",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(4.dp))
+                    
+                    // GitHub原始链接选项
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { downloadFromSource("github") },
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Language,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Column(
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    "GitHub原始链接",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    "直接从GitHub官方服务器下载，速度可能较慢",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(
+                    onClick = { showDownloadSourceMenu = false },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Text(
+                        "取消",
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
         )
     }
 

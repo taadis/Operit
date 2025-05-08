@@ -1,13 +1,6 @@
 package com.ai.assistance.operit.data.updates
 
-import android.app.DownloadManager
-import android.content.BroadcastReceiver
 import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
-import android.net.Uri
-import android.os.Build
-import android.os.Environment
 import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -18,7 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 
-// 更新状态
+// 更新状态 - 移除下载相关状态
 sealed class UpdateStatus {
     object Initial : UpdateStatus()
     object Checking : UpdateStatus()
@@ -26,27 +19,19 @@ sealed class UpdateStatus {
             val newVersion: String,
             val updateUrl: String,
             val releaseNotes: String,
-            val downloadUrl: String = "" // 添加下载URL
+            val downloadUrl: String = "" // 保留下载URL字段用于浏览器打开
     ) : UpdateStatus()
-    data class Downloading(val progress: Float) : UpdateStatus() // 添加下载进度状态
-    object DownloadComplete : UpdateStatus() // 新增下载完成状态
     object UpToDate : UpdateStatus()
     data class Error(val message: String) : UpdateStatus()
 }
 
-/** UpdateManager - 处理应用更新的核心类 负责检查更新、下载更新包和安装更新 */
+/** UpdateManager - 处理应用更新的核心类 负责检查更新 */
 class UpdateManager private constructor(private val context: Context) {
     private val TAG = "UpdateManager"
 
     // 更新状态LiveData，可从UI中观察
     private val _updateStatus = MutableLiveData<UpdateStatus>(UpdateStatus.Initial)
     val updateStatus: LiveData<UpdateStatus> = _updateStatus
-
-    // 下载ID
-    private var downloadId: Long = -1L
-
-    // 下载完成的广播接收器
-    private var downloadCompleteReceiver: BroadcastReceiver? = null
 
     init {
         Log.d(TAG, "UpdateManager initialized")
@@ -55,6 +40,14 @@ class UpdateManager private constructor(private val context: Context) {
     companion object {
         @Volatile private var INSTANCE: UpdateManager? = null
 
+        // 可用的GitHub加速镜像站点列表
+        private val GITHUB_PROXY_URLS = listOf(
+            "https://ghfast.top/",         // 目前国内可访问的最佳选择
+            "https://hub.gitmirror.com/",  // 备选源
+            "https://github.moeyy.xyz/",   // 另一个备选
+            "https://github.abskoop.workers.dev/"  // 最后的备选
+        )
+        
         fun getInstance(context: Context): UpdateManager {
             return INSTANCE
                     ?: synchronized(this) {
@@ -94,88 +87,28 @@ class UpdateManager private constructor(private val context: Context) {
             val manager = getInstance(context)
             return manager.checkForUpdatesInternal(currentVersion)
         }
-    }
-
-    /** 注册下载完成广播接收器 */
-    fun registerDownloadReceiver(onComplete: (Uri?) -> Unit) {
-        // 清理旧的接收器
-        unregisterDownloadReceiver()
-
-        // 创建新的接收器
-        downloadCompleteReceiver =
-                object : BroadcastReceiver() {
-                    override fun onReceive(context: Context, intent: Intent) {
-                        val id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1)
-                        if (id == downloadId && downloadId != -1L) {
-                            val downloadManager =
-                                    context.getSystemService(Context.DOWNLOAD_SERVICE) as
-                                            DownloadManager
-                            val query = DownloadManager.Query().setFilterById(downloadId)
-                            val cursor = downloadManager.query(query)
-
-                            var uri: Uri? = null
-                            if (cursor.moveToFirst()) {
-                                val columnIndex =
-                                        cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
-                                if (columnIndex != -1) {
-                                    val status = cursor.getInt(columnIndex)
-                                    if (status == DownloadManager.STATUS_SUCCESSFUL) {
-                                        // 下载成功，获取文件URI
-                                        val uriColumnIndex =
-                                                cursor.getColumnIndex(
-                                                        DownloadManager.COLUMN_LOCAL_URI
-                                                )
-                                        if (uriColumnIndex != -1) {
-                                            val uriString = cursor.getString(uriColumnIndex)
-                                            uri = Uri.parse(uriString)
-                                            // 更改状态为下载完成
-                                            _updateStatus.postValue(UpdateStatus.DownloadComplete)
-                                            Log.d(TAG, "Download completed, URI: $uri")
-                                        }
-                                    } else {
-                                        _updateStatus.postValue(
-                                                UpdateStatus.Error("下载失败，状态码: $status")
-                                        )
-                                        Log.e(TAG, "Download failed with status: $status")
-                                    }
-                                }
-                            }
-                            cursor.close()
-
-                            // 调用回调并传递URI
-                            onComplete(uri)
-                        }
-                    }
-                }
-
-        // 注册接收器
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.registerReceiver(
-                    downloadCompleteReceiver,
-                    IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
-                    Context.RECEIVER_NOT_EXPORTED
-            )
-        } else {
-            context.registerReceiver(
-                    downloadCompleteReceiver,
-                    IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
-            )
-        }
-
-        Log.d(TAG, "Download receiver registered")
-    }
-
-    /** 取消注册下载接收器 */
-    fun unregisterDownloadReceiver() {
-        downloadCompleteReceiver?.let {
-            try {
-                context.unregisterReceiver(it)
-                Log.d(TAG, "Download receiver unregistered")
-            } catch (e: Exception) {
-                Log.e(TAG, "Error unregistering receiver", e)
+        
+        /**
+         * 获取给定原始GitHub URL的加速下载URL
+         * @param originalUrl 从GitHub获取的原始URL
+         * @return 加速的下载URL
+         */
+        fun getAcceleratedDownloadUrl(version: String, originalUrl: String): String {
+            // 直接使用第一个加速镜像
+            val proxyUrl = GITHUB_PROXY_URLS[0]
+            
+            // 确认URL是GitHub的下载链接
+            if (originalUrl.contains("github.com") && 
+                (originalUrl.contains("/releases/download/") || 
+                 originalUrl.contains("/archive/") ||
+                 originalUrl.contains("/blob/"))) {
+                // 返回加速链接
+                return "$proxyUrl$originalUrl"
             }
+            
+            // 如果不是GitHub下载链接，则返回原始链接
+            return originalUrl
         }
-        downloadCompleteReceiver = null
     }
 
     /** 开始更新检查流程 */
@@ -272,107 +205,6 @@ class UpdateManager private constructor(private val context: Context) {
                 Log.e(TAG, "Error checking for updates", e)
                 return@withContext UpdateStatus.Error("更新检查失败: ${e.message}")
             }
-        }
-    }
-
-    /** 下载APK更新 */
-    suspend fun downloadUpdate(downloadUrl: String, version: String) {
-        try {
-            Log.d(TAG, "Starting download from $downloadUrl")
-            _updateStatus.postValue(UpdateStatus.Downloading(0f))
-
-            val fileName = "Operit-${version}.apk"
-
-            val request =
-                    DownloadManager.Request(Uri.parse(downloadUrl))
-                            .setTitle("下载 Operit ${version}")
-                            .setDescription("正在下载新版本...")
-                            .setNotificationVisibility(
-                                    DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED
-                            )
-                            .setDestinationInExternalPublicDir(
-                                    Environment.DIRECTORY_DOWNLOADS,
-                                    fileName
-                            )
-
-            val downloadManager =
-                    context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-            downloadId = downloadManager.enqueue(request)
-
-            // 循环监控下载进度
-            withContext(Dispatchers.IO) {
-                val query = DownloadManager.Query().setFilterById(downloadId)
-                var downloading = true
-
-                while (downloading && _updateStatus.value is UpdateStatus.Downloading) {
-                    val cursor = downloadManager.query(query)
-                    if (cursor.moveToFirst()) {
-                        val statusIndex = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
-                        if (statusIndex != -1) {
-                            val status = cursor.getInt(statusIndex)
-
-                            when (status) {
-                                DownloadManager.STATUS_RUNNING -> {
-                                    val bytesDownloadedIndex =
-                                            cursor.getColumnIndex(
-                                                    DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR
-                                            )
-                                    val bytesTotalIndex =
-                                            cursor.getColumnIndex(
-                                                    DownloadManager.COLUMN_TOTAL_SIZE_BYTES
-                                            )
-
-                                    if (bytesDownloadedIndex != -1 && bytesTotalIndex != -1) {
-                                        val bytesDownloaded = cursor.getLong(bytesDownloadedIndex)
-                                        val bytesTotal = cursor.getLong(bytesTotalIndex)
-
-                                        if (bytesTotal > 0) {
-                                            val progress =
-                                                    bytesDownloaded.toFloat() / bytesTotal.toFloat()
-                                            // 确保进度不会超过1.0且当接近完成时不会卡在99%
-                                            val adjustedProgress =
-                                                    when {
-                                                        progress >= 0.99f && progress < 1f ->
-                                                                0.99f // 接近完成但未完成时保持在99%
-                                                        progress > 1f -> 1f // 确保不超过1.0
-                                                        else -> progress
-                                                    }
-                                            _updateStatus.postValue(
-                                                    UpdateStatus.Downloading(adjustedProgress)
-                                            )
-                                        }
-                                    }
-                                }
-                                DownloadManager.STATUS_SUCCESSFUL -> {
-                                    // 下载完成，设置进度为100%
-                                    _updateStatus.postValue(UpdateStatus.Downloading(1f))
-                                    downloading = false
-                                    // 给UI一点时间显示100%后，广播接收器会处理后续流程
-                                    kotlinx.coroutines.delay(500)
-                                }
-                                DownloadManager.STATUS_FAILED -> {
-                                    downloading = false
-                                    _updateStatus.postValue(UpdateStatus.Error("下载失败"))
-                                }
-                            }
-                        }
-                    }
-                    cursor.close()
-                    kotlinx.coroutines.delay(500) // 每0.5秒更新一次
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Download failed", e)
-            _updateStatus.postValue(UpdateStatus.Error("下载失败: ${e.message}"))
-        }
-    }
-
-    /** 创建用于安装APK的Intent */
-    fun createInstallIntent(uri: Uri): Intent {
-        return Intent(Intent.ACTION_VIEW).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            setDataAndType(uri, "application/vnd.android.package-archive")
         }
     }
 }
