@@ -31,7 +31,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.assistance.operit.ui.common.animations.SimpleAnimatedVisibility
-import com.ai.assistance.operit.ui.features.chat.viewmodel.AttachmentInfo
+import com.ai.assistance.operit.data.model.AttachmentInfo
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 
 @Composable
 fun ChatInputSection(
@@ -40,12 +42,16 @@ fun ChatInputSection(
         onSendMessage: () -> Unit,
         onCancelMessage: () -> Unit,
         isLoading: Boolean,
-        isProcessingInput: Boolean,
-        inputProcessingMessage: String,
-        onAttachmentRequest: (android.net.Uri) -> Unit = {},
+        isProcessingInput: Boolean = false,
+        inputProcessingMessage: String = "",
+        onAttachmentRequest: (String) -> Unit = {},
         attachments: List<AttachmentInfo> = emptyList(),
-        onRemoveAttachment: (android.net.Uri) -> Unit = {},
+        onRemoveAttachment: (String) -> Unit = {},
         onInsertAttachment: (AttachmentInfo) -> Unit = {},
+        onAttachScreenContent: () -> Unit = {},
+        onAttachNotifications: () -> Unit = {},
+        onAttachLocation: () -> Unit = {},
+        onAttachProblemMemory: (String, String) -> Unit = { _, _ -> },
         modifier: Modifier = Modifier
 ) {
         val modernTextStyle = TextStyle(fontSize = 14.sp)
@@ -126,7 +132,9 @@ fun ChatInputSection(
                                                 AttachmentChip(
                                                         attachmentInfo = attachment,
                                                         onRemove = {
-                                                                onRemoveAttachment(attachment.uri)
+                                                                onRemoveAttachment(
+                                                                        attachment.filePath
+                                                                )
                                                         },
                                                         onInsert = {
                                                                 onInsertAttachment(attachment)
@@ -276,14 +284,19 @@ fun ChatInputSection(
                         // 附件选择面板 - 移动到输入框下方
                         AttachmentSelectorPanel(
                                 visible = showAttachmentPanel,
-                                onAttachImage = { uri ->
-                                        // 传递uri给外部处理函数，这里应该用处理添加附件的函数
-                                        onAttachmentRequest(uri)
+                                onAttachImage = { filePath ->
+                                        // 传递文件路径给外部处理函数
+                                        onAttachmentRequest(filePath)
                                 },
-                                onAttachFile = { uri ->
-                                        // 传递uri给外部处理函数，这里应该用处理添加附件的函数
-                                        onAttachmentRequest(uri)
+                                onAttachFile = { filePath ->
+                                        // 传递文件路径给外部处理函数
+                                        onAttachmentRequest(filePath)
                                 },
+                                onAttachScreenContent = onAttachScreenContent,
+                                onAttachNotifications = onAttachNotifications,
+                                onAttachLocation = onAttachLocation,
+                                onAttachProblemMemory = onAttachProblemMemory,
+                                userQuery = userMessage,
                                 onDismiss = { setShowAttachmentPanel(false) }
                         )
                 }

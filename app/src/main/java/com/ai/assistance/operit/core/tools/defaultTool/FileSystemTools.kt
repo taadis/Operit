@@ -3,7 +3,9 @@ package com.ai.assistance.operit.tools.defaultTool
 import android.content.Context
 import android.util.Log
 import com.ai.assistance.operit.data.model.AITool
+import com.ai.assistance.operit.data.model.ToolParameter
 import com.ai.assistance.operit.data.model.ToolResult
+import com.ai.assistance.operit.tools.AIToolHandler
 import com.ai.assistance.operit.tools.DirectoryListingData
 import com.ai.assistance.operit.tools.FileContentData
 import com.ai.assistance.operit.tools.FileExistsData
@@ -276,7 +278,7 @@ class FileSystemTools(private val context: Context) {
             // First check if the file exists
             val existsResult =
                     AdbCommandExecutor.executeAdbCommand(
-                            "test -f $path && echo 'exists' || echo 'not exists'"
+                            "test -f \"$path\" && echo 'exists' || echo 'not exists'"
                     )
             if (existsResult.stdout.trim() != "exists") {
                 return ToolResult(
@@ -288,7 +290,7 @@ class FileSystemTools(private val context: Context) {
             }
 
             // Check file size before reading
-            val sizeResult = AdbCommandExecutor.executeAdbCommand("stat -c %s $path")
+            val sizeResult = AdbCommandExecutor.executeAdbCommand("stat -c %s \"$path\"")
             if (sizeResult.success) {
                 val size = sizeResult.stdout.trim().toLongOrNull() ?: 0
                 if (size > MAX_FILE_SIZE_BYTES) {
@@ -302,8 +304,67 @@ class FileSystemTools(private val context: Context) {
                 }
             }
 
-            // Read the file content
-            val result = AdbCommandExecutor.executeAdbCommand("cat $path")
+            // 检查文件扩展名
+            val fileExt = path.substringAfterLast('.', "").lowercase()
+            
+            // 如果是Word文档，先转换为文本
+            if (fileExt == "doc" || fileExt == "docx") {
+                Log.d(TAG, "Detected Word document, converting to text before reading")
+                
+                // 创建临时文件路径用于存储转换后的文本
+                val tempFilePath = "${path}_converted_${System.currentTimeMillis()}.txt"
+                
+                try {
+                    // 使用AIToolHandler获取并使用文件转换工具
+                    val fileConverterTool = AITool(
+                        name = "convert_file",
+                        parameters = listOf(
+                            ToolParameter("source_path", path),
+                            ToolParameter("target_path", tempFilePath)
+                        )
+                    )
+                    
+                    // 获取AIToolHandler实例
+                    val toolHandler = AIToolHandler.getInstance(context)
+                    
+                    // 执行文件转换
+                    val conversionResult = toolHandler.executeTool(fileConverterTool)
+                    
+                    if (conversionResult.success) {
+                        Log.d(TAG, "Successfully converted Word document to text")
+                        
+                        // 读取转换后的文本文件
+                        val textContent = AdbCommandExecutor.executeAdbCommand("cat \"$tempFilePath\"")
+                        
+                        if (textContent.success) {
+                            // 创建结果
+                            val result = ToolResult(
+                                toolName = tool.name,
+                                success = true,
+                                result = FileContentData(
+                                    path = path,
+                                    content = textContent.stdout,
+                                    size = textContent.stdout.length.toLong()
+                                ),
+                                error = ""
+                            )
+                            
+                            // 删除临时文件
+                            AdbCommandExecutor.executeAdbCommand("rm -f \"$tempFilePath\"")
+                            
+                            return result
+                        }
+                    } else {
+                        Log.w(TAG, "Word conversion failed: ${conversionResult.error}, falling back to raw content")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error during Word document conversion", e)
+                    // 转换失败，继续尝试读取原始文件
+                }
+            }
+
+            // 对于非Word文档或转换失败的情况，直接读取文件内容
+            val result = AdbCommandExecutor.executeAdbCommand("cat \"$path\"")
 
             if (result.success) {
                 val size = sizeResult.stdout.trim().toLongOrNull() ?: result.stdout.length.toLong()

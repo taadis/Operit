@@ -604,4 +604,88 @@ object DocumentConversionUtil {
             return false
         }
     }
+
+    /** Convert DOC file directly to plain text */
+    fun extractTextFromDoc(sourceFile: File, targetFile: File): Boolean {
+        return try {
+            FileInputStream(sourceFile).use { fis ->
+                val doc = HWPFDocument(fis)
+                val extractor = WordExtractor(doc)
+                var text = extractor.text
+                
+                // 优化文本格式：压缩连续空行
+                text = optimizeTextFormat(text)
+                
+                // Write extracted text to target file
+                FileOutputStream(targetFile).bufferedWriter().use { writer ->
+                    writer.write(text)
+                }
+            }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error extracting text from DOC file", e)
+            false
+        }
+    }
+
+    /** Convert DOCX file directly to plain text */
+    fun extractTextFromDocx(sourceFile: File, targetFile: File): Boolean {
+        return try {
+            FileInputStream(sourceFile).use { fis ->
+                val docx = XWPFDocument(fis)
+                val extractor = XWPFWordExtractor(docx)
+                var text = extractor.text
+                
+                // 优化文本格式：压缩连续空行
+                text = optimizeTextFormat(text)
+                
+                // Write extracted text to target file
+                FileOutputStream(targetFile).bufferedWriter().use { writer ->
+                    writer.write(text)
+                }
+            }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error extracting text from DOCX file", e)
+            false
+        }
+    }
+    
+    /** 优化提取出的文本格式，压缩连续空行 */
+    private fun optimizeTextFormat(text: String): String {
+        // 将文本按行分割
+        val lines = text.split("\n")
+        val optimizedLines = mutableListOf<String>()
+        var consecutiveEmptyLines = 0
+        
+        for (line in lines) {
+            val trimmedLine = line.trim()
+            
+            if (trimmedLine.isEmpty()) {
+                // 处理空行
+                consecutiveEmptyLines++
+                
+                // 两行空行压缩为一行，多行空行压缩为两行
+                if (consecutiveEmptyLines <= 2) {
+                    optimizedLines.add("")
+                }
+            } else {
+                // 非空行正常添加
+                optimizedLines.add(line)
+                consecutiveEmptyLines = 0
+            }
+        }
+        
+        // 合并为单个字符串并返回
+        return optimizedLines.joinToString("\n")
+    }
+
+    /** General method to convert Word documents to text */
+    fun extractTextFromWord(sourceFile: File, targetFile: File, sourceExt: String): Boolean {
+        return when (sourceExt.lowercase()) {
+            "doc" -> extractTextFromDoc(sourceFile, targetFile)
+            "docx" -> extractTextFromDocx(sourceFile, targetFile)
+            else -> false
+        }
+    }
 }

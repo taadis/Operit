@@ -6,15 +6,14 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.ServiceConnection
-import android.net.Uri
 import android.os.Build
 import android.os.IBinder
-import android.provider.OpenableColumns
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ai.assistance.operit.api.EnhancedAIService
 import com.ai.assistance.operit.data.model.AiReference
+import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatHistory
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.model.InputProcessingState
@@ -24,6 +23,8 @@ import com.ai.assistance.operit.data.model.ToolExecutionState
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.repository.ChatHistoryManager
 import com.ai.assistance.operit.services.FloatingChatService
+import com.ai.assistance.operit.tools.AIToolHandler
+import com.ai.assistance.operit.ui.features.chat.attachments.AttachmentManager
 import com.ai.assistance.operit.ui.permissions.PermissionLevel
 import com.ai.assistance.operit.ui.permissions.ToolPermissionSystem
 import com.ai.assistance.operit.util.NetworkUtils
@@ -172,9 +173,14 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 }
             }
 
-    // For handling attachments
-    private val _attachments = MutableStateFlow<List<AttachmentInfo>>(emptyList())
-    val attachments: StateFlow<List<AttachmentInfo>> = _attachments
+    // Use the getInstance method to get the AIToolHandler instance
+    private val toolHandler = AIToolHandler.getInstance(context)
+
+    // Create AttachmentManager instance
+    private val attachmentManager = AttachmentManager(context, toolHandler)
+
+    // Expose attachments flow from the manager
+    val attachments = attachmentManager.attachments
 
     // 广播接收器，用于接收悬浮窗关闭的广播
     private val floatingWindowReceiver =
@@ -343,6 +349,11 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         // Update floating window when chat history changes
         viewModelScope.launch {
             _chatHistory.collect { messages -> floatingService?.updateChatMessages(messages) }
+        }
+
+        // Collect toast events from attachment manager
+        viewModelScope.launch {
+            attachmentManager.toastEvent.collect { message -> _toastEvent.value = message }
         }
     }
 
@@ -600,7 +611,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
 
     /** 向对话中发送用户消息 */
     fun sendUserMessage() {
-        if (_userMessage.value.isBlank() && _attachments.value.isEmpty()) {
+        if (_userMessage.value.isBlank() && attachments.value.isEmpty()) {
             return
         }
 
@@ -613,25 +624,31 @@ class ChatViewModel(private val context: Context) : ViewModel() {
 
         // Prepare the message with attachment data in XML format
         val messageWithAttachments =
-                if (_attachments.value.isNotEmpty()) {
+                if (attachments.value.isNotEmpty()) {
                     // Start with the message text
                     val finalMessage = StringBuilder(messageText)
 
                     // For each attachment, append a properly formatted XML block
-                    if (finalMessage.isNotEmpty() && _attachments.value.isNotEmpty()) {
+                    if (finalMessage.isNotEmpty() && attachments.value.isNotEmpty()) {
                         finalMessage.append("\n\n")
                     }
 
-                    _attachments.value.forEachIndexed { index, attachment ->
+                    attachments.value.forEachIndexed { index, attachment ->
                         // Add newline between attachments
                         if (index > 0) finalMessage.append("\n")
 
                         // Add XML formatted attachment data
                         finalMessage.append("<attachment ")
-                        finalMessage.append("id=\"${attachment.uri}\" ")
+                        finalMessage.append("id=\"${attachment.filePath}\" ")
                         finalMessage.append("filename=\"${attachment.fileName}\" ")
                         finalMessage.append("type=\"${attachment.mimeType}\" ")
                         finalMessage.append("size=\"${attachment.fileSize}\" ")
+                        
+                        // 添加内容字段（如果存在）
+                        if (attachment.content.isNotEmpty()) {
+                            finalMessage.append("content=\"${attachment.content}\" ")
+                        }
+                        
                         finalMessage.append("/>")
                     }
 
@@ -645,8 +662,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         _isLoading.value = true
 
         // Clear attachments after sending
-        val currentAttachments = _attachments.value
-        _attachments.value = emptyList()
+        attachmentManager.clearAttachments()
 
         // If no current chat id, create a new one
         if (_currentChatId.value == null) {
@@ -1326,92 +1342,114 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         floatingService?.updateChatMessages(messages)
     }
 
+    /** Handles a file or image attachment selected by the user */
+    fun handleAttachment(filePath: String) {
+        viewModelScope.launch { attachmentManager.handleAttachment(filePath) }
+    }
+
+    /** Removes an attachment by its file path */
+    fun removeAttachment(filePath: String) {
+        attachmentManager.removeAttachment(filePath)
+    }
+
     /** Inserts a reference to an attachment at the current cursor position in the user's message */
     fun insertAttachmentReference(attachment: AttachmentInfo) {
         val currentMessage = _userMessage.value
+        val attachmentRef = attachmentManager.createAttachmentReference(attachment)
 
-        // Generate XML reference for the attachment
-        val attachmentRef =
-                "<attachment id=\"${attachment.uri}\" filename=\"${attachment.fileName}\" type=\"${attachment.mimeType}\" />"
-
-        // Insert at cursor position or append at the end if the cursor position is unknown
-        // In this simple implementation, we'll just append it
+        // Insert at the end of the current message
         updateUserMessage("$currentMessage $attachmentRef ")
 
         // Show a toast to confirm insertion
         showToast("已插入附件引用: ${attachment.fileName}")
     }
 
-    /** Handles a file or image attachment selected by the user */
-    fun handleAttachment(uri: Uri) {
+    /**
+     * Captures the current screen content and attaches it to the message Uses the get_page_info
+     * AITool to retrieve UI structure
+     */
+    fun captureScreenContent() {
         viewModelScope.launch {
+            _isProcessingInput.value = true
+            _inputProcessingMessage.value = "正在获取屏幕内容..."
+
             try {
-                // Get file information
-                val fileName = getFileNameFromUri(uri)
-                val fileSize = getFileSizeFromUri(uri)
-                val mimeType = context.contentResolver.getType(uri) ?: "application/octet-stream"
-
-                // Create attachment info
-                val attachmentInfo =
-                        AttachmentInfo(
-                                uri = uri,
-                                fileName = fileName,
-                                mimeType = mimeType,
-                                fileSize = fileSize
-                        )
-
-                // Add to attachments list
-                val currentList = _attachments.value
-                _attachments.value = currentList + attachmentInfo
-
-                // Notify user about the attachment
-                showToast("已添加附件: $fileName")
-            } catch (e: Exception) {
-                Log.e(TAG, "Error handling attachment", e)
-                showErrorMessage("添加附件失败: ${e.localizedMessage}")
+                attachmentManager.captureScreenContent()
+            } finally {
+                _isProcessingInput.value = false
+                _inputProcessingMessage.value = ""
             }
         }
     }
 
-    /** Removes an attachment by its URI */
-    fun removeAttachment(uri: Uri) {
-        val currentList = _attachments.value
-        _attachments.value = currentList.filter { attachment -> attachment.uri != uri }
-    }
-
-    /** Gets a file name from a content URI */
-    private fun getFileNameFromUri(uri: Uri): String {
-        var fileName = "unknown_file"
-        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                if (nameIndex != -1) {
-                    fileName = cursor.getString(nameIndex)
-                }
+    /**
+     * 获取设备当前通知数据并添加为附件
+     */
+    fun captureNotifications() {
+        viewModelScope.launch {
+            _isProcessingInput.value = true
+            _inputProcessingMessage.value = "正在获取当前通知..."
+            
+            try {
+                attachmentManager.captureNotifications()
+            } finally {
+                _isProcessingInput.value = false
+                _inputProcessingMessage.value = ""
             }
         }
-        return fileName
     }
 
-    /** Gets a file size from a content URI */
-    private fun getFileSizeFromUri(uri: Uri): Long {
-        var fileSize = 0L
-        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
-                if (sizeIndex != -1 && !cursor.isNull(sizeIndex)) {
-                    fileSize = cursor.getLong(sizeIndex)
-                }
+    /** 
+     * 获取设备当前位置数据并添加为附件
+     */
+    fun captureLocation() {
+        viewModelScope.launch {
+                _isProcessingInput.value = true
+            _inputProcessingMessage.value = "正在获取位置信息..."
+            
+            try {
+                attachmentManager.captureLocation()
+            } finally {
+                _isProcessingInput.value = false
+                _inputProcessingMessage.value = ""
             }
         }
-        return fileSize
+    }
+    /** 添加问题记忆附件 */
+    fun attachProblemMemory(content: String, filename: String) {
+        viewModelScope.launch {
+            _isProcessingInput.value = true
+            _inputProcessingMessage.value = "正在添加问题记忆..."
+            
+            try {
+                // 生成唯一ID
+                val captureId = "problem_memory_${System.currentTimeMillis()}"
+                
+                // 创建附件信息
+                val attachmentInfo = AttachmentInfo(
+                    filePath = captureId,
+                    fileName = filename,
+                    mimeType = "text/plain",
+                    fileSize = content.length.toLong(),
+                    content = content
+                )
+                
+                // 添加到附件列表
+                val currentList = attachmentManager.attachments.value
+                attachmentManager.updateAttachments(currentList + attachmentInfo)
+                
+                showToast("已添加问题记忆: $filename")
+            } finally {
+                _isProcessingInput.value = false
+                _inputProcessingMessage.value = ""
+            }
+        }
+    }
+    
+    /** 搜索问题记忆 */
+    fun searchProblemMemory() {
+        // 此方法已被 attachProblemMemory 替代
+        // 保留此方法以确保向后兼容性
+        showToast("请使用新的问题记忆功能")
     }
 }
-
-/** Data class to store information about an attachment */
-data class AttachmentInfo(
-        val uri: Uri,
-        val fileName: String,
-        val mimeType: String,
-        val fileSize: Long
-)

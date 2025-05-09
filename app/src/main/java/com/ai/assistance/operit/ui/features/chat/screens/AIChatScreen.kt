@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
+import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.services.FloatingChatService
 import com.ai.assistance.operit.ui.features.chat.components.ChatArea
@@ -126,7 +127,9 @@ fun AIChatScreen(
 
     // 更简单直接的滚动状态监听 - 只监听用户主动向上滚动
     LaunchedEffect(Unit) {
-        snapshotFlow { Pair(listState.firstVisibleItemScrollOffset, listState.isScrollInProgress) }
+                snapshotFlow {
+                        Pair(listState.firstVisibleItemScrollOffset, listState.isScrollInProgress)
+                }
                 .collect { (currentOffset, isScrolling) ->
                     // 只在用户主动滚动时判断
                     if (isScrolling && !isScrollStateChanging) {
@@ -241,7 +244,11 @@ fun AIChatScreen(
 
     toastEvent?.let { message ->
         LaunchedEffect(message) {
-            android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT)
+                        android.widget.Toast.makeText(
+                                        context,
+                                        message,
+                                        android.widget.Toast.LENGTH_SHORT
+                                )
                     .show()
             viewModel.clearToastEvent()
         }
@@ -263,11 +270,14 @@ fun AIChatScreen(
                     },
                     Triple("切换AI计划模式", "toggle_ai_planning") { viewModel.toggleAiPlanning() },
                     Triple("清空聊天记录", "clear_chat") { viewModel.clearCurrentChat() },
-                    Triple("管理历史记录", "manage_history") { viewModel.showChatHistorySelector(true) }
+                        Triple("管理历史记录", "manage_history") {
+                                viewModel.showChatHistorySelector(true)
+                        }
             )
 
     // 判断是否有默认配置可用
-    val hasDefaultConfig = apiEndpoint.isNotBlank() && apiKey.isNotBlank() && modelName.isNotBlank()
+        val hasDefaultConfig =
+                apiEndpoint.isNotBlank() && apiKey.isNotBlank() && modelName.isNotBlank()
 
     // 判断是否正在使用默认配置
     val isUsingDefaultConfig = apiKey == ApiPreferences.DEFAULT_API_KEY
@@ -288,18 +298,27 @@ fun AIChatScreen(
                                         Modifier.fillMaxWidth()
                                                 .background(
                                                         color =
-                                                                MaterialTheme.colorScheme
-                                                                        .surfaceVariant.copy(
-                                                                        alpha = 0.1f
+                                                                                MaterialTheme
+                                                                                        .colorScheme
+                                                                                        .surfaceVariant
+                                                                                        .copy(
+                                                                                                alpha =
+                                                                                                        0.1f
+                                                                                        )
                                                                 )
-                                                )
-                                                .padding(horizontal = 16.dp, vertical = 4.dp),
+                                                                .padding(
+                                                                        horizontal = 16.dp,
+                                                                        vertical = 4.dp
+                                                                ),
                                 horizontalArrangement = Arrangement.End,
                                 verticalAlignment = Alignment.CenterVertically
                         ) {
-                            val memoryOptimization by viewModel.memoryOptimization.collectAsState()
+                                                val memoryOptimization by
+                                                        viewModel.memoryOptimization
+                                                                .collectAsState()
                             val masterPermissionLevel by
-                                    viewModel.masterPermissionLevel.collectAsState()
+                                                        viewModel.masterPermissionLevel
+                                                                .collectAsState()
 
                             // 自动批准开关 - 左侧第一个开关
                             Row(
@@ -312,45 +331,75 @@ fun AIChatScreen(
                                                                     )
                                                                             MaterialTheme
                                                                                     .colorScheme
-                                                                                    .primary.copy(
-                                                                                    alpha = 0.2f
+                                                                                                        .primary
+                                                                                                        .copy(
+                                                                                                                alpha =
+                                                                                                                        0.2f
                                                                             )
                                                                     else
                                                                             MaterialTheme
                                                                                     .colorScheme
                                                                                     .surface,
-                                                            shape = RoundedCornerShape(4.dp)
-                                                    )
-                                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                                                                                shape =
+                                                                                        RoundedCornerShape(
+                                                                                                4.dp
+                                                                                        )
+                                                                        )
+                                                                        .padding(
+                                                                                horizontal = 4.dp,
+                                                                                vertical = 2.dp
+                                                                        )
                                                     .clickable {
-                                                        viewModel.toggleMasterPermission()
-                                                    },
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                                                                viewModel
+                                                                                        .toggleMasterPermission()
+                                                                        },
+                                                        verticalAlignment =
+                                                                Alignment.CenterVertically,
+                                                        horizontalArrangement =
+                                                                Arrangement.spacedBy(2.dp)
                             ) {
                                 Text(
                                         text = "自动批准:",
-                                        style = MaterialTheme.typography.labelSmall,
+                                                                style =
+                                                                        MaterialTheme.typography
+                                                                                .labelSmall,
                                         color =
-                                                MaterialTheme.colorScheme.onSurface.copy(
+                                                                        MaterialTheme.colorScheme
+                                                                                .onSurface.copy(
                                                         alpha = 0.7f
                                                 )
                                 )
                                 Text(
                                         text =
-                                                if (masterPermissionLevel == PermissionLevel.ALLOW)
+                                                                        if (masterPermissionLevel ==
+                                                                                        PermissionLevel
+                                                                                                .ALLOW
+                                                                        )
                                                         "已开启"
                                                 else "询问",
                                         style =
-                                                MaterialTheme.typography.labelSmall.copy(
+                                                                        MaterialTheme.typography
+                                                                                .labelSmall.copy(
                                                         fontWeight =
-                                                                androidx.compose.ui.text.font
-                                                                        .FontWeight.Bold
+                                                                                        androidx.compose
+                                                                                                .ui
+                                                                                                .text
+                                                                                                .font
+                                                                                                .FontWeight
+                                                                                                .Bold
                                                 ),
                                         color =
-                                                if (masterPermissionLevel == PermissionLevel.ALLOW)
-                                                        MaterialTheme.colorScheme.primary
-                                                else MaterialTheme.colorScheme.onSurfaceVariant
+                                                                        if (masterPermissionLevel ==
+                                                                                        PermissionLevel
+                                                                                                .ALLOW
+                                                                        )
+                                                                                MaterialTheme
+                                                                                        .colorScheme
+                                                                                        .primary
+                                                                        else
+                                                                                MaterialTheme
+                                                                                        .colorScheme
+                                                                                        .onSurfaceVariant
                                 )
                             }
 
@@ -361,45 +410,73 @@ fun AIChatScreen(
                                     modifier =
                                             Modifier.background(
                                                             color =
-                                                                    if (memoryOptimization)
+                                                                                        if (memoryOptimization
+                                                                                        )
                                                                             MaterialTheme
                                                                                     .colorScheme
-                                                                                    .primary.copy(
-                                                                                    alpha = 0.2f
+                                                                                                        .primary
+                                                                                                        .copy(
+                                                                                                                alpha =
+                                                                                                                        0.2f
                                                                             )
                                                                     else
                                                                             MaterialTheme
                                                                                     .colorScheme
                                                                                     .surface,
-                                                            shape = RoundedCornerShape(4.dp)
-                                                    )
-                                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                                                                                shape =
+                                                                                        RoundedCornerShape(
+                                                                                                4.dp
+                                                                                        )
+                                                                        )
+                                                                        .padding(
+                                                                                horizontal = 4.dp,
+                                                                                vertical = 2.dp
+                                                                        )
                                                     .clickable {
-                                                        viewModel.toggleMemoryOptimization()
-                                                    },
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                                                                viewModel
+                                                                                        .toggleMemoryOptimization()
+                                                                        },
+                                                        verticalAlignment =
+                                                                Alignment.CenterVertically,
+                                                        horizontalArrangement =
+                                                                Arrangement.spacedBy(2.dp)
                             ) {
                                 Text(
                                         text = "记忆优化:",
-                                        style = MaterialTheme.typography.labelSmall,
+                                                                style =
+                                                                        MaterialTheme.typography
+                                                                                .labelSmall,
                                         color =
-                                                MaterialTheme.colorScheme.onSurface.copy(
+                                                                        MaterialTheme.colorScheme
+                                                                                .onSurface.copy(
                                                         alpha = 0.7f
                                                 )
                                 )
                                 Text(
-                                        text = if (memoryOptimization) "已开启" else "已关闭",
+                                                                text =
+                                                                        if (memoryOptimization)
+                                                                                "已开启"
+                                                                        else "已关闭",
                                         style =
-                                                MaterialTheme.typography.labelSmall.copy(
+                                                                        MaterialTheme.typography
+                                                                                .labelSmall.copy(
                                                         fontWeight =
-                                                                androidx.compose.ui.text.font
-                                                                        .FontWeight.Bold
+                                                                                        androidx.compose
+                                                                                                .ui
+                                                                                                .text
+                                                                                                .font
+                                                                                                .FontWeight
+                                                                                                .Bold
                                                 ),
                                         color =
                                                 if (memoryOptimization)
-                                                        MaterialTheme.colorScheme.primary
-                                                else MaterialTheme.colorScheme.onSurfaceVariant
+                                                                                MaterialTheme
+                                                                                        .colorScheme
+                                                                                        .primary
+                                                                        else
+                                                                                MaterialTheme
+                                                                                        .colorScheme
+                                                                                        .onSurfaceVariant
                                 )
                             }
 
@@ -410,43 +487,72 @@ fun AIChatScreen(
                                     modifier =
                                             Modifier.background(
                                                             color =
-                                                                    if (enableAiPlanning)
+                                                                                        if (enableAiPlanning
+                                                                                        )
                                                                             MaterialTheme
                                                                                     .colorScheme
-                                                                                    .primary.copy(
-                                                                                    alpha = 0.2f
+                                                                                                        .primary
+                                                                                                        .copy(
+                                                                                                                alpha =
+                                                                                                                        0.2f
                                                                             )
                                                                     else
                                                                             MaterialTheme
                                                                                     .colorScheme
                                                                                     .surface,
-                                                            shape = RoundedCornerShape(4.dp)
-                                                    )
-                                                    .padding(horizontal = 4.dp, vertical = 2.dp)
-                                                    .clickable { viewModel.toggleAiPlanning() },
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                                                                shape =
+                                                                                        RoundedCornerShape(
+                                                                                                4.dp
+                                                                                        )
+                                                                        )
+                                                                        .padding(
+                                                                                horizontal = 4.dp,
+                                                                                vertical = 2.dp
+                                                                        )
+                                                                        .clickable {
+                                                                                viewModel
+                                                                                        .toggleAiPlanning()
+                                                                        },
+                                                        verticalAlignment =
+                                                                Alignment.CenterVertically,
+                                                        horizontalArrangement =
+                                                                Arrangement.spacedBy(2.dp)
                             ) {
                                 Text(
                                         text = "AI计划模式:",
-                                        style = MaterialTheme.typography.labelSmall,
+                                                                style =
+                                                                        MaterialTheme.typography
+                                                                                .labelSmall,
                                         color =
-                                                MaterialTheme.colorScheme.onSurface.copy(
+                                                                        MaterialTheme.colorScheme
+                                                                                .onSurface.copy(
                                                         alpha = 0.7f
                                                 )
                                 )
                                 Text(
-                                        text = if (enableAiPlanning) "已开启" else "已关闭",
+                                                                text =
+                                                                        if (enableAiPlanning) "已开启"
+                                                                        else "已关闭",
                                         style =
-                                                MaterialTheme.typography.labelSmall.copy(
+                                                                        MaterialTheme.typography
+                                                                                .labelSmall.copy(
                                                         fontWeight =
-                                                                androidx.compose.ui.text.font
-                                                                        .FontWeight.Bold
+                                                                                        androidx.compose
+                                                                                                .ui
+                                                                                                .text
+                                                                                                .font
+                                                                                                .FontWeight
+                                                                                                .Bold
                                                 ),
                                         color =
                                                 if (enableAiPlanning)
-                                                        MaterialTheme.colorScheme.primary
-                                                else MaterialTheme.colorScheme.onSurfaceVariant
+                                                                                MaterialTheme
+                                                                                        .colorScheme
+                                                                                        .primary
+                                                                        else
+                                                                                MaterialTheme
+                                                                                        .colorScheme
+                                                                                        .onSurfaceVariant
                                 )
                             }
                         }
@@ -454,21 +560,46 @@ fun AIChatScreen(
                         // 原有输入框区域
                         ChatInputSection(
                                 userMessage = userMessage,
-                                onUserMessageChange = { viewModel.updateUserMessage(it) },
+                                onUserMessageChange = {
+                                        viewModel.updateUserMessage(it)
+                                },
                                 onSendMessage = { viewModel.sendUserMessage() },
-                                onCancelMessage = { viewModel.cancelCurrentMessage() },
+                                onCancelMessage = {
+                                        viewModel.cancelCurrentMessage()
+                                },
                                 isLoading = isLoading,
                                 isProcessingInput = isProcessingInput,
                                 inputProcessingMessage = inputProcessingMessage,
-                                onAttachmentRequest = { uri ->
-                                    // 处理附件
-                                    viewModel.handleAttachment(uri)
+                                onAttachmentRequest = { filePath ->
+                                    // 处理附件 - 现在使用文件路径而不是Uri
+                                    viewModel.handleAttachment(filePath)
                                 },
                                 attachments = attachments,
-                                onRemoveAttachment = { uri -> viewModel.removeAttachment(uri) },
-                                onInsertAttachment = { attachment ->
+                                onRemoveAttachment = { filePath -> 
+                                    // 删除附件 - 现在使用文件路径而不是Uri
+                                    viewModel.removeAttachment(filePath) 
+                                },
+                                onInsertAttachment = { attachment: AttachmentInfo ->
                                     // 在光标位置插入附件引用
-                                    viewModel.insertAttachmentReference(attachment)
+                                    viewModel.insertAttachmentReference(
+                                            attachment
+                                    )
+                                },
+                                onAttachScreenContent = {
+                                    // 添加屏幕内容附件
+                                    viewModel.captureScreenContent()
+                                },
+                                onAttachNotifications = {
+                                    // 添加当前通知附件
+                                    viewModel.captureNotifications()
+                                },
+                                onAttachLocation = {
+                                    // 添加当前位置附件
+                                    viewModel.captureLocation()
+                                },
+                                onAttachProblemMemory = { content, filename ->
+                                    // 添加问题记忆附件
+                                    viewModel.attachProblemMemory(content, filename)
                                 }
                         )
                     }
@@ -525,7 +656,8 @@ fun AIChatScreen(
                 // 主聊天区域（包括顶部工具栏），确保它一直可见
                 Column(modifier = Modifier.fillMaxSize()) {
                     // Chat header
-                    val currentChatTitle = chatHistories.find { it.id == currentChatId }?.title
+                                        val currentChatTitle =
+                                                chatHistories.find { it.id == currentChatId }?.title
 
                     // 聊天区域
                     Column(modifier = Modifier.fillMaxSize()) {
@@ -534,108 +666,194 @@ fun AIChatScreen(
                                 modifier =
                                         Modifier.fillMaxWidth()
                                                 .background(
-                                                        MaterialTheme.colorScheme.surfaceVariant
-                                                                .copy(alpha = 0.2f)
-                                                )
-                                                .padding(horizontal = 16.dp, vertical = 6.dp)
+                                                                                MaterialTheme
+                                                                                        .colorScheme
+                                                                                        .surfaceVariant
+                                                                                        .copy(
+                                                                                                alpha =
+                                                                                                        0.2f
+                                                                                        )
+                                                                        )
+                                                                        .padding(
+                                                                                horizontal = 16.dp,
+                                                                                vertical = 6.dp
+                                                                        )
                         ) {
                             // 左侧：聊天历史按钮
                             ChatHeader(
-                                    showChatHistorySelector = showChatHistorySelector,
+                                                                showChatHistorySelector =
+                                                                        showChatHistorySelector,
                                     onToggleChatHistorySelector = {
-                                        viewModel.toggleChatHistorySelector()
+                                                                        viewModel
+                                                                                .toggleChatHistorySelector()
                                     },
                                     currentChatTitle = currentChatTitle,
-                                    modifier = Modifier.align(Alignment.CenterStart),
+                                                                modifier =
+                                                                        Modifier.align(
+                                                                                Alignment
+                                                                                        .CenterStart
+                                                                        ),
                                     isFloatingMode = isFloatingMode,
                                     onLaunchFloatingWindow = {
-                                        // Check if we can draw
-                                        // overlays first
-                                        if (!Settings.canDrawOverlays(context)) {
-                                            // Show message to
-                                            // user
-                                            android.widget.Toast.makeText(
-                                                            context,
-                                                            "需要悬浮窗权限。请前往设置授予权限",
-                                                            android.widget.Toast.LENGTH_SHORT
-                                                    )
-                                                    .show()
+                                                                        // Check if we can draw
+                                                                        // overlays first
+                                                                        if (!Settings.canDrawOverlays(
+                                                                                        context
+                                                                                )
+                                                                        ) {
+                                                                                // Show message to
+                                                                                // user
+                                                                                android.widget.Toast
+                                                                                        .makeText(
+                                                    context,
+                                                    "需要悬浮窗权限。请前往设置授予权限",
+                                                                                                android.widget
+                                                                                                        .Toast
+                                                                                                        .LENGTH_SHORT
+                                                                                        )
+                                                                                        .show()
 
-                                            // Launch settings
-                                            // to grant
-                                            // permission
-                                            val intent =
-                                                    Intent(
-                                                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                                            android.net.Uri.parse(
-                                                                    "package:${context.packageName}"
-                                                            )
-                                                    )
-                                            context.startActivity(intent)
+                                                                                // Launch settings
+                                                                                // to grant
+                                                                                // permission
+                                                                                val intent =
+                                                                                        Intent(
+                                                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                                                                                Uri.parse(
+                                                                                                        "package:${context.packageName}"
+                                            )
+                                                                                        )
+                                                                                context.startActivity(
+                                                                                        intent
+                                                                                )
                                         } else {
-                                            // Toggle floating
-                                            // mode
-                                            viewModel.toggleFloatingMode()
+                                                                                // Toggle floating
+                                                                                // mode
+                                                                                viewModel
+                                                                                        .toggleFloatingMode()
 
                                             // 根据当前悬浮窗状态显示不同的提示
-                                            val isFloating = viewModel.isFloatingMode.value
-                                            val message = if (isFloating) "悬浮窗已开启" else "悬浮窗已关闭"
-                                            android.widget.Toast.makeText(
-                                                            context,
-                                                            message,
-                                                            android.widget.Toast.LENGTH_SHORT
-                                                    )
-                                                    .show()
+                                                                                val isFloating =
+                                                                                        viewModel
+                                                                                                .isFloatingMode
+                                                                                                .value
+                                                                                val message =
+                                                                                        if (isFloating
+                                                                                        )
+                                                                                                "悬浮窗已开启"
+                                                                                        else
+                                                                                                "悬浮窗已关闭"
+                                                                                android.widget.Toast
+                                                                                        .makeText(
+                                                    context,
+                                                    message,
+                                                                                                android.widget
+                                                                                                        .Toast
+                                                                                                        .LENGTH_SHORT
+                                                                                        )
+                                                                                        .show()
                                         }
                                     }
                             )
 
                             // 右侧：统计信息
-                            val contextWindowSize by viewModel.contextWindowSize.collectAsState()
-                            val inputTokenCount by viewModel.inputTokenCount.collectAsState()
-                            val outputTokenCount by viewModel.outputTokenCount.collectAsState()
+                                                        val contextWindowSize by
+                                                                viewModel.contextWindowSize
+                                                                        .collectAsState()
+                                                        val inputTokenCount by
+                                                                viewModel.inputTokenCount
+                                                                        .collectAsState()
+                                                        val outputTokenCount by
+                                                                viewModel.outputTokenCount
+                                                                        .collectAsState()
 
                             Row(
                                     modifier =
-                                            Modifier.align(Alignment.CenterEnd)
+                                                                        Modifier.align(
+                                                                                        Alignment
+                                                                                                .CenterEnd
+                                                                                )
                                                     .background(
                                                             color =
-                                                                    MaterialTheme.colorScheme
-                                                                            .surface.copy(
-                                                                            alpha = 0.8f
-                                                                    ),
-                                                            shape = RoundedCornerShape(4.dp)
-                                                    )
-                                                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                                                                MaterialTheme
+                                                                                                        .colorScheme
+                                                                                                        .surface
+                                                                                                        .copy(
+                                                                                                                alpha =
+                                                                                                                        0.8f
+                                                                                                        ),
+                                                                                        shape =
+                                                                                                RoundedCornerShape(
+                                                                                                        4.dp
+                                                                                                )
+                                                                                )
+                                                                                .padding(
+                                                                                        horizontal =
+                                                                                                8.dp,
+                                                                                        vertical =
+                                                                                                4.dp
+                                                                                ),
+                                                                verticalAlignment =
+                                                                        Alignment.CenterVertically,
+                                                                horizontalArrangement =
+                                                                        Arrangement.spacedBy(6.dp)
                             ) {
                                 // 统计项 - 使用水平排列的小标签
-                                StatItem(label = "请求", value = "$contextWindowSize")
+                                                                StatItem(
+                                                                        label = "请求",
+                                                                        value = "$contextWindowSize"
+                                                                )
 
-                                StatItem(label = "累计入", value = "$inputTokenCount")
-
-                                Divider(
-                                        modifier = Modifier.height(16.dp).width(1.dp),
-                                        color =
-                                                MaterialTheme.colorScheme.onSurface.copy(
-                                                        alpha = 0.2f
-                                                )
-                                )
-
-                                StatItem(label = "累计出", value = "$outputTokenCount")
+                                                                StatItem(
+                                                                        label = "累计入",
+                                                                        value = "$inputTokenCount"
+                                                                )
 
                                 Divider(
-                                        modifier = Modifier.height(16.dp).width(1.dp),
+                                                                        modifier =
+                                                                                Modifier.height(
+                                                                                                16.dp
+                                                                                        )
+                                                                                        .width(
+                                                                                                1.dp
+                                                                                        ),
                                         color =
-                                                MaterialTheme.colorScheme.onSurface.copy(
-                                                        alpha = 0.2f
+                                                                                MaterialTheme
+                                                                                        .colorScheme
+                                                                                        .onSurface
+                                                                                        .copy(
+                                                                                                alpha =
+                                                                                                        0.2f
+                                                                                        )
+                                                                )
+
+                                                                StatItem(
+                                                                        label = "累计出",
+                                                                        value = "$outputTokenCount"
+                                                                )
+
+                                Divider(
+                                                                        modifier =
+                                                                                Modifier.height(
+                                                                                                16.dp
+                                                                                        )
+                                                                                        .width(
+                                                                                                1.dp
+                                                                                        ),
+                                        color =
+                                                                                MaterialTheme
+                                                                                        .colorScheme
+                                                                                        .onSurface
+                                                                                        .copy(
+                                                                                                alpha =
+                                                                                                        0.2f
                                                 )
                                 )
 
                                 StatItem(
                                         label = "总计",
-                                        value = "${inputTokenCount + outputTokenCount}",
+                                                                        value =
+                                                                                "${inputTokenCount + outputTokenCount}",
                                         isHighlighted = true
                                 )
                             }
@@ -655,48 +873,85 @@ fun AIChatScreen(
                                     aiMessageColor = aiMessageColor,
                                     userTextColor = userTextColor,
                                     aiTextColor = aiTextColor,
-                                    systemMessageColor = systemMessageColor,
+                                                                systemMessageColor =
+                                                                        systemMessageColor,
                                     systemTextColor = systemTextColor,
-                                    thinkingBackgroundColor = thinkingBackgroundColor,
-                                    thinkingTextColor = thinkingTextColor,
-                                    collapseExecution = collapseExecution,
+                                                                thinkingBackgroundColor =
+                                                                        thinkingBackgroundColor,
+                                                                thinkingTextColor =
+                                                                        thinkingTextColor,
+                                                                collapseExecution =
+                                                                        collapseExecution,
                                     modifier = Modifier.fillMaxSize()
                             )
 
                             // Scroll to bottom button - 简化
                             Box(
                                     modifier =
-                                            Modifier.align(Alignment.CenterEnd).padding(end = 16.dp)
+                                                                        Modifier.align(
+                                                                                        Alignment
+                                                                                                .CenterEnd
+                                                                                )
+                                                                                .padding(
+                                                                                        end = 16.dp
+                                                                                )
                             ) {
                                 if (showScrollButton) {
                                     SmallFloatingActionButton(
                                             onClick = {
                                                 // 点击按钮：启用自动滚动，隐藏按钮，并立即滚动到底部
-                                                autoScrollToBottom = true
-                                                showScrollButton = false
+                                                                                        autoScrollToBottom =
+                                                                                                true
+                                                                                        showScrollButton =
+                                                                                                false
 
-                                                coroutineScope.launch {
-                                                    if (chatHistory.isNotEmpty()) {
+                                                                                        coroutineScope
+                                                                                                .launch {
+                                                                                                        if (chatHistory
+                                                                                                                        .isNotEmpty()
+                                                                                                        ) {
                                                         try {
                                                             // 不关心index，直接尝试滚动到底部
                                                             // 使用最大可能的滚动量
-                                                            listState.dispatchRawDelta(100000f)
-                                                        } catch (e: Exception) {
-                                                            Log.e("AIChatScreen", "滚动到底部失败", e)
+                                                                                                                        listState
+                                                                                                                                .dispatchRawDelta(
+                                                                                                                                        100000f
+                                                                                                                                )
+                                                                                                                } catch (
+                                                                                                                        e:
+                                                                                                                                Exception) {
+                                                                                                                        Log.e(
+                                                                                                                                "AIChatScreen",
+                                                                                                                                "滚动到底部失败",
+                                                                                                                                e
+                                                                                                                        )
                                                         }
                                                     }
                                                 }
                                             },
                                             containerColor =
-                                                    MaterialTheme.colorScheme.secondary.copy(
-                                                            alpha = 0.85f
-                                                    ),
-                                            contentColor = MaterialTheme.colorScheme.onSecondary
+                                                                                        MaterialTheme
+                                                                                                .colorScheme
+                                                                                                .secondary
+                                                                                                .copy(
+                                                                                                        alpha =
+                                                                                                                0.85f
+                                                                                                ),
+                                                                                contentColor =
+                                                                                        MaterialTheme
+                                                                                                .colorScheme
+                                                                                                .onSecondary
                                     ) {
                                         Icon(
-                                                imageVector = Icons.Default.KeyboardArrowDown,
-                                                contentDescription = "滚动到底部",
-                                                modifier = Modifier.size(18.dp)
+                                                                                        imageVector =
+                                                                                                Icons.Default
+                                                                                                        .KeyboardArrowDown,
+                                                                                        contentDescription =
+                                                                                                "滚动到底部",
+                                                                                        modifier =
+                                                                                                Modifier.size(
+                                                                                                        18.dp
+                                                                                                )
                                         )
                                     }
                                 }
@@ -726,52 +981,98 @@ fun AIChatScreen(
                                             .fillMaxHeight()
                                             .background(
                                                     color =
-                                                            MaterialTheme.colorScheme.surface.copy(
-                                                                    alpha = 0.95f
+                                                                                MaterialTheme
+                                                                                        .colorScheme
+                                                                                        .surface
+                                                                                        .copy(
+                                                                                                alpha =
+                                                                                                        0.95f
                                                             ),
                                                     shape =
                                                             RoundedCornerShape(
-                                                                    topEnd = 4.dp,
-                                                                    bottomEnd = 4.dp
+                                                                                        topEnd =
+                                                                                                4.dp,
+                                                                                        bottomEnd =
+                                                                                                4.dp
                                                             )
                                             )
                     ) {
                         // 直接使用ChatHistorySelector
                         ChatHistorySelector(
-                                modifier = Modifier.fillMaxSize().padding(top = 8.dp),
+                                                        modifier =
+                                                                Modifier.fillMaxSize()
+                                                                        .padding(top = 8.dp),
                                 onNewChat = { viewModel.createNewChat() },
-                                onSelectChat = { chatId -> viewModel.switchChat(chatId) },
-                                onDeleteChat = { chatId -> viewModel.deleteChatHistory(chatId) },
-                                chatHistories = chatHistories.sortedByDescending { it.createdAt },
+                                                        onSelectChat = { chatId ->
+                                                                viewModel.switchChat(chatId)
+                                                        },
+                                                        onDeleteChat = { chatId ->
+                                                                viewModel.deleteChatHistory(chatId)
+                                                        },
+                                                        chatHistories =
+                                                                chatHistories.sortedByDescending {
+                                                                        it.createdAt
+                                                                },
                                 currentId = currentChatId
                         )
 
                         // 在右侧添加浮动返回按钮
                         OutlinedButton(
-                                onClick = { viewModel.toggleChatHistorySelector() },
+                                                        onClick = {
+                                                                viewModel
+                                                                        .toggleChatHistorySelector()
+                                                        },
                                 modifier =
                                         Modifier.align(Alignment.TopEnd)
-                                                .padding(top = 16.dp, end = 8.dp)
+                                                                        .padding(
+                                                                                top = 16.dp,
+                                                                                end = 8.dp
+                                                                        )
                                                 .height(28.dp),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                                        contentPadding =
+                                                                PaddingValues(
+                                                                        horizontal = 10.dp,
+                                                                        vertical = 0.dp
+                                                                ),
                                 colors =
                                         ButtonDefaults.outlinedButtonColors(
-                                                contentColor = MaterialTheme.colorScheme.primary
+                                                                        contentColor =
+                                                                                MaterialTheme
+                                                                                        .colorScheme
+                                                                                        .primary
                                         ),
-                                border = ButtonDefaults.outlinedButtonBorder.copy(width = 1.dp),
+                                                        border =
+                                                                ButtonDefaults.outlinedButtonBorder
+                                                                        .copy(width = 1.dp),
                                 shape = RoundedCornerShape(4.dp)
                         ) {
                             Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                                verticalAlignment =
+                                                                        Alignment.CenterVertically,
+                                                                horizontalArrangement =
+                                                                        Arrangement.spacedBy(4.dp)
                             ) {
                                 Icon(
-                                        imageVector = Icons.Default.ArrowBack,
+                                                                        imageVector =
+                                                                                Icons.Default
+                                                                                        .ArrowBack,
                                         contentDescription = null,
-                                        modifier = Modifier.size(14.dp),
-                                        tint = MaterialTheme.colorScheme.primary
-                                )
-                                Text("返回", style = MaterialTheme.typography.bodySmall)
+                                                                        modifier =
+                                                                                Modifier.size(
+                                                                                        14.dp
+                                                                                ),
+                                                                        tint =
+                                                                                MaterialTheme
+                                                                                        .colorScheme
+                                                                                        .primary
+                                                                )
+                                                                Text(
+                                                                        "返回",
+                                                                        style =
+                                                                                MaterialTheme
+                                                                                        .typography
+                                                                                        .bodySmall
+                                                                )
                             }
                         }
                     }
@@ -787,7 +1088,9 @@ fun AIChatScreen(
                 title = { Text("提示") },
                 text = { Text(message) },
                 confirmButton = {
-                    TextButton(onClick = { viewModel.clearPopupMessage() }) { Text("确定") }
+                                TextButton(onClick = { viewModel.clearPopupMessage() }) {
+                                        Text("确定")
+                                }
                 }
         )
     }
@@ -838,7 +1141,8 @@ private fun StatItem(label: String, value: String, isHighlighted: Boolean = fals
                         MaterialTheme.typography.labelMedium.copy(
                                 fontWeight =
                                         if (isHighlighted)
-                                                androidx.compose.ui.text.font.FontWeight.Bold
+                                                        androidx.compose.ui.text.font.FontWeight
+                                                                .Bold
                                         else androidx.compose.ui.text.font.FontWeight.Normal
                         ),
                 color =
