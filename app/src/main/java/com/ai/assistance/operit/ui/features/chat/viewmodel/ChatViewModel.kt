@@ -643,12 +643,12 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                         finalMessage.append("filename=\"${attachment.fileName}\" ")
                         finalMessage.append("type=\"${attachment.mimeType}\" ")
                         finalMessage.append("size=\"${attachment.fileSize}\" ")
-                        
+
                         // 添加内容字段（如果存在）
                         if (attachment.content.isNotEmpty()) {
                             finalMessage.append("content=\"${attachment.content}\" ")
                         }
-                        
+
                         finalMessage.append("/>")
                     }
 
@@ -1334,22 +1334,128 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                     Log.e("ChatViewModel", "Error collecting messages from floating service", e)
                 }
             }
+
+            // 添加收集附件请求的功能
+            viewModelScope.launch {
+                try {
+                    service.attachmentRequest.collect { request ->
+                        Log.d(
+                                "ChatViewModel",
+                                "Received attachment request from floating window: $request"
+                        )
+                        processAttachmentRequest(request)
+                    }
+                } catch (e: Exception) {
+                    Log.e(
+                            "ChatViewModel",
+                            "Error collecting attachment requests from floating service",
+                            e
+                    )
+                }
+            }
+            
+            // 添加收集附件删除请求的功能
+            viewModelScope.launch {
+                try {
+                    service.attachmentRemoveRequest.collect { filePath ->
+                        Log.d(
+                                "ChatViewModel",
+                                "Received attachment remove request from floating window: $filePath"
+                        )
+                        // 处理附件删除请求
+                        removeAttachment(filePath)
+                        // 注意：removeAttachment方法已经包含了updateFloatingWindowAttachments()调用，
+                        // 所以这里不需要再次调用
+                    }
+                } catch (e: Exception) {
+                    Log.e(
+                            "ChatViewModel",
+                            "Error collecting attachment remove requests from floating service",
+                            e
+                    )
+                }
+            }
+        }
+    }
+
+    // 处理从悬浮窗接收的附件请求
+    private fun processAttachmentRequest(request: String) {
+        viewModelScope.launch {
+            try {
+                when {
+                    request == "screen_capture" -> {
+                        // 捕获屏幕内容
+                        captureScreenContent()
+                        // 立即刷新悬浮窗附件列表
+                        updateFloatingWindowAttachments()
+                    }
+                    request == "notifications_capture" -> {
+                        // 捕获通知
+                        captureNotifications()
+                        // 立即刷新悬浮窗附件列表
+                        updateFloatingWindowAttachments()
+                    }
+                    request == "location_capture" -> {
+                        // 捕获位置
+                        captureLocation()
+                        // 立即刷新悬浮窗附件列表
+                        updateFloatingWindowAttachments()
+                    }
+                    request == "problem_memory" -> {
+                        // 查询问题记忆 - 使用当前消息作为查询
+                        val userQuery = _userMessage.value
+                        if (userQuery.isNotBlank()) {
+                            val result = attachmentManager.queryProblemMemory(userQuery)
+                            attachProblemMemory(result.first, result.second)
+                        }
+                        // 立即刷新悬浮窗附件列表
+                        updateFloatingWindowAttachments()
+                    }
+                    else -> {
+                        // 处理普通文件附件
+                        handleAttachment(request)
+                        // 立即刷新悬浮窗附件列表
+                        updateFloatingWindowAttachments()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("ChatViewModel", "Error processing attachment request", e)
+                _toastEvent.value = "处理附件失败: ${e.message}"
+            }
+        }
+    }
+
+    // 更新悬浮窗中的附件列表
+    private fun updateFloatingWindowAttachments() {
+        floatingService?.let { service ->
+            // 确保使用最新的附件列表
+            val currentAttachments = attachmentManager.attachments.value
+            Log.d("ChatViewModel", "Updating floating window attachments: ${currentAttachments.size} items")
+            service.updateAttachments(currentAttachments)
         }
     }
 
     /** Updates the messages displayed in the floating window */
     fun updateFloatingWindowMessages(messages: List<ChatMessage>) {
         floatingService?.updateChatMessages(messages)
+        // 同时更新附件列表
+        updateFloatingWindowAttachments()
     }
 
     /** Handles a file or image attachment selected by the user */
     fun handleAttachment(filePath: String) {
-        viewModelScope.launch { attachmentManager.handleAttachment(filePath) }
+        viewModelScope.launch { 
+            attachmentManager.handleAttachment(filePath)
+            // 处理完附件后立即更新悬浮窗中的附件列表
+            updateFloatingWindowAttachments()
+        }
     }
 
     /** Removes an attachment by its file path */
     fun removeAttachment(filePath: String) {
         attachmentManager.removeAttachment(filePath)
+        // 移除附件后立即更新悬浮窗中的附件列表
+        updateFloatingWindowAttachments()
     }
 
     /** Inserts a reference to an attachment at the current cursor position in the user's message */
@@ -1375,6 +1481,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
 
             try {
                 attachmentManager.captureScreenContent()
+                // 完成后立即更新悬浮窗中的附件列表
+                updateFloatingWindowAttachments()
             } finally {
                 _isProcessingInput.value = false
                 _inputProcessingMessage.value = ""
@@ -1382,16 +1490,16 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         }
     }
 
-    /**
-     * 获取设备当前通知数据并添加为附件
-     */
+    /** 获取设备当前通知数据并添加为附件 */
     fun captureNotifications() {
         viewModelScope.launch {
             _isProcessingInput.value = true
             _inputProcessingMessage.value = "正在获取当前通知..."
-            
+
             try {
                 attachmentManager.captureNotifications()
+                // 完成后立即更新悬浮窗中的附件列表
+                updateFloatingWindowAttachments()
             } finally {
                 _isProcessingInput.value = false
                 _inputProcessingMessage.value = ""
@@ -1399,53 +1507,41 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         }
     }
 
-    /** 
-     * 获取设备当前位置数据并添加为附件
-     */
+    /** 获取设备当前位置数据并添加为附件 */
     fun captureLocation() {
         viewModelScope.launch {
-                _isProcessingInput.value = true
+            _isProcessingInput.value = true
             _inputProcessingMessage.value = "正在获取位置信息..."
-            
+
             try {
                 attachmentManager.captureLocation()
+                // 完成后立即更新悬浮窗中的附件列表
+                updateFloatingWindowAttachments()
             } finally {
                 _isProcessingInput.value = false
                 _inputProcessingMessage.value = ""
             }
         }
     }
+
     /** 添加问题记忆附件 */
     fun attachProblemMemory(content: String, filename: String) {
         viewModelScope.launch {
             _isProcessingInput.value = true
             _inputProcessingMessage.value = "正在添加问题记忆..."
-            
+
             try {
-                // 生成唯一ID
-                val captureId = "problem_memory_${System.currentTimeMillis()}"
-                
-                // 创建附件信息
-                val attachmentInfo = AttachmentInfo(
-                    filePath = captureId,
-                    fileName = filename,
-                    mimeType = "text/plain",
-                    fileSize = content.length.toLong(),
-                    content = content
-                )
-                
-                // 添加到附件列表
-                val currentList = attachmentManager.attachments.value
-                attachmentManager.updateAttachments(currentList + attachmentInfo)
-                
-                showToast("已添加问题记忆: $filename")
+                // 将实际处理委托给AttachmentManager
+                attachmentManager.attachProblemMemory(content, filename)
+                // 完成后立即更新悬浮窗中的附件列表
+                updateFloatingWindowAttachments()
             } finally {
                 _isProcessingInput.value = false
                 _inputProcessingMessage.value = ""
             }
         }
     }
-    
+
     /** 搜索问题记忆 */
     fun searchProblemMemory() {
         // 此方法已被 attachProblemMemory 替代

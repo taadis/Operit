@@ -1,9 +1,7 @@
 package com.ai.assistance.operit.ui.floating
 
-import androidx.compose.animation.AnimatedVisibility
+import android.util.Log
 import androidx.compose.animation.core.*
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -11,22 +9,30 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
@@ -34,34 +40,23 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
-import com.ai.assistance.operit.data.model.ChatMessage
-import com.ai.assistance.operit.ui.features.chat.components.CursorStyleChatMessage
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.KeyboardActions
-import android.util.Log
-import android.content.Context
-import android.view.WindowManager
-import android.view.inputmethod.InputMethodManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.focus.FocusDirection
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import com.ai.assistance.operit.data.model.AttachmentInfo
+import com.ai.assistance.operit.data.model.ChatMessage
+import com.ai.assistance.operit.tools.AIToolHandler
+import com.ai.assistance.operit.ui.features.chat.attachments.AttachmentManager
+import com.ai.assistance.operit.ui.features.chat.components.AttachmentChip
+import com.ai.assistance.operit.ui.features.chat.components.CursorStyleChatMessage
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 // 定义边缘类型
 enum class ResizeEdge {
@@ -102,6 +97,9 @@ fun lerp(start: Float, end: Float, fraction: Float): Float {
  * @param currentY 当前窗口Y坐标
  * @param saveWindowState 保存窗口状态的回调
  * @param onSendMessage 发送消息的回调
+ * @param onAttachmentRequest 附件请求回调
+ * @param attachments 当前附件列表
+ * @param onRemoveAttachment 删除附件回调
  * @param onInputFocusRequest 请求输入焦点的回调，参数为true时请求获取焦点，false时释放焦点
  */
 @Composable
@@ -124,6 +122,9 @@ fun FloatingChatWindow(
     currentY: Float = 0f,
     saveWindowState: (() -> Unit)? = null,
     onSendMessage: ((String) -> Unit)? = null,
+    onAttachmentRequest: ((String) -> Unit)? = null,
+    attachments: List<AttachmentInfo> = emptyList(),
+    onRemoveAttachment: ((String) -> Unit)? = null,
     onInputFocusRequest: ((Boolean) -> Unit)? = null
 ) {
     val updatedMessages = remember(messages) { messages }
@@ -208,14 +209,16 @@ fun FloatingChatWindow(
                 coroutineScope.launch {
                     cornerRadius.animateTo(
                         100f,
-                        animationSpec = tween(150, easing = FastOutSlowInEasing)
+                        animationSpec =
+                        tween(150, easing = FastOutSlowInEasing)
                     )
                 }
 
                 coroutineScope.launch {
                     ballToWindowTransition.animateTo(
                         0f,
-                        animationSpec = tween(150, easing = FastOutSlowInEasing)
+                        animationSpec =
+                        tween(150, easing = FastOutSlowInEasing)
                     )
                 }
 
@@ -283,15 +286,17 @@ fun FloatingChatWindow(
     val transitionWindowHeight = with(density) { windowHeightState.toPx() }
 
     // 计算过渡中的尺寸
-    val currentWidth = lerp(transitionBallSize, transitionWindowWidth, ballToWindowTransition.value)
+    val currentWidth =
+        lerp(transitionBallSize, transitionWindowWidth, ballToWindowTransition.value)
     val currentHeight =
         lerp(transitionBallSize, transitionWindowHeight, ballToWindowTransition.value)
     // 修改圆角计算，从球模式到窗口模式时直接使用窗口圆角
-    val currentCornerRadius = if (useDirectCorners.value && !isBallMode) {
-        with(density) { 12f.dp }
-    } else {
-        with(density) { cornerRadius.value.dp }
-    }
+    val currentCornerRadius =
+        if (useDirectCorners.value && !isBallMode) {
+            with(density) { 12f.dp }
+        } else {
+            with(density) { cornerRadius.value.dp }
+        }
 
     // 添加过渡期间的视觉反馈
     val transitionFeedback = remember { Animatable(0f) }
@@ -316,6 +321,13 @@ fun FloatingChatWindow(
     // Add state for the input dialog
     var showInputDialog by remember { mutableStateOf(false) }
     var userMessage by remember { mutableStateOf("") }
+
+    // 添加附件选择器相关状态
+    var showAttachmentPanel by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val attachmentManager = remember {
+        AttachmentManager(context, AIToolHandler.getInstance(context))
+    }
 
     // 监听显示状态变化并通知焦点变化
     LaunchedEffect(showInputDialog) {
@@ -382,13 +394,14 @@ fun FloatingChatWindow(
         }
 
         // 当用户悬停或触摸时的效果
-        val ballInteractionModifier = Modifier
-            .pointerInput(Unit) {
+        val ballInteractionModifier =
+            Modifier.pointerInput(Unit) {
                 awaitPointerEventScope {
                     while (true) {
                         val event = awaitPointerEvent()
                         // 检测是否有触摸点在球上
-                        ballHoverState.value = event.changes.any { it.pressed }
+                        ballHoverState.value =
+                            event.changes.any { it.pressed }
 
                         if (event.type == PointerEventType.Press) {
                             touchAnimationState.value = true
@@ -399,34 +412,36 @@ fun FloatingChatWindow(
 
         Box(
             modifier =
-            Modifier
-                .size(ballSize)
+            Modifier.size(ballSize)
                 .shadow(
-                    elevation = if (ballHoverState.value) 6.dp else 4.dp,
+                    elevation =
+                    if (ballHoverState.value) 6.dp else 4.dp,
                     shape = CircleShape
                 )
                 .clip(CircleShape)
                 .background(
                     if (ballHoverState.value)
                         primaryColor.copy(alpha = 0.9f)
-                    else
-                        primaryColor
+                    else primaryColor
                 )
                 .alpha(if (isAtEdge) 0.8f else 1f)
                 .then(ballInteractionModifier)
                 .graphicsLayer {
                     // 确保球的缩放不会太小，最小保持0.8倍大小
                     val effectiveScale = maxOf(windowScale, 0.8f)
-                    val hoverEffect = if (ballHoverState.value) 1.05f else 1f
+                    val hoverEffect =
+                        if (ballHoverState.value) 1.05f else 1f
                     scaleX =
                         effectiveScale *
                             (if (isAtEdge) 0.7f else 1f) *
-                            (if (!isAtEdge) pulseScale else 1f) *
+                            (if (!isAtEdge) pulseScale
+                            else 1f) *
                             hoverEffect
                     scaleY =
                         effectiveScale *
                             (if (isAtEdge) 0.7f else 1f) *
-                            (if (!isAtEdge) pulseScale else 1f) *
+                            (if (!isAtEdge) pulseScale
+                            else 1f) *
                             hoverEffect
                     alpha = animatedAlpha.value
                 }
@@ -436,21 +451,28 @@ fun FloatingChatWindow(
                             // 检查点击是否在圆内
                             val radius = size.width / 2f
                             val center = Offset(radius, radius)
-                            val distance = (offset - center).getDistance()
+                            val distance =
+                                (offset - center)
+                                    .getDistance()
 
                             // 只有当点击在圆内才处理事件
                             if (distance <= radius) {
-                                if (isAtEdge) snapToEdge(false)
+                                if (isAtEdge)
+                                    snapToEdge(false)
                             }
                         },
                         onDragEnd = {
                             saveWindowState?.invoke()
 
                             // 靠边检测
-                            val edgeThresholdPx = with(density) { 20.dp.toPx() }
+                            val edgeThresholdPx =
+                                with(density) {
+                                    20.dp.toPx()
+                                }
                             if (currentX < edgeThresholdPx ||
                                 currentX >
-                                screenWidth.toPx() -
+                                screenWidth
+                                    .toPx() -
                                 edgeThresholdPx
                             ) {
                                 snapToEdge(true)
@@ -458,7 +480,10 @@ fun FloatingChatWindow(
                         },
                         onDrag = { change, dragAmount ->
                             change.consume()
-                            handleDrag(dragAmount.x, dragAmount.y)
+                            handleDrag(
+                                dragAmount.x,
+                                dragAmount.y
+                            )
                         }
                     )
                 }
@@ -467,10 +492,18 @@ fun FloatingChatWindow(
             if (transitionFeedback.value > 0) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     drawCircle(
-                        color = onPrimaryColor.copy(
-                            alpha = 0.15f * (1f - transitionFeedback.value)
+                        color =
+                        onPrimaryColor.copy(
+                            alpha =
+                            0.15f *
+                                (1f -
+                                    transitionFeedback
+                                        .value)
                         ),
-                        radius = size.minDimension * 0.6f * transitionFeedback.value,
+                        radius =
+                        size.minDimension *
+                            0.6f *
+                            transitionFeedback.value,
                         center = Offset(size.width / 2, size.height / 2)
                     )
                 }
@@ -480,10 +513,18 @@ fun FloatingChatWindow(
             if (touchAnimationValue.value > 0) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     drawCircle(
-                        color = onPrimaryColor.copy(
-                            alpha = 0.2f * (1f - touchAnimationValue.value)
+                        color =
+                        onPrimaryColor.copy(
+                            alpha =
+                            0.2f *
+                                (1f -
+                                    touchAnimationValue
+                                        .value)
                         ),
-                        radius = size.minDimension * 0.7f * touchAnimationValue.value,
+                        radius =
+                        size.minDimension *
+                            0.7f *
+                            touchAnimationValue.value,
                         center = Offset(size.width / 2, size.height / 2)
                     )
                 }
@@ -491,54 +532,58 @@ fun FloatingChatWindow(
 
             Box(
                 modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(4.dp)
-                    .pointerInput(Unit) {
-                        detectTapGestures(
-                            onTap = { offset ->
-                                // 检查点击是否在圆内
-                                val radius = size.width / 2f
-                                val center = Offset(radius, radius)
-                                val distance = (offset - center).getDistance()
+                Modifier.fillMaxSize().padding(4.dp).pointerInput(Unit) {
+                    detectTapGestures(
+                        onTap = { offset ->
+                            // 检查点击是否在圆内
+                            val radius = size.width / 2f
+                            val center = Offset(radius, radius)
+                            val distance =
+                                (offset - center)
+                                    .getDistance()
 
-                                // 只有当点击在圆内才处理事件
-                                if (distance <= radius) {
-                                    touchAnimationState.value = true
-                                    ballTapState.value = true
-                                }
-                            },
-                            onLongPress = { offset ->
-                                // 检查长按是否在圆内
-                                val radius = size.width / 2f
-                                val center = Offset(radius, radius)
-                                val distance = (offset - center).getDistance()
-
-                                // 只有当长按在圆内才处理事件
-                                if (distance <= radius) {
-                                    // 长按重置位置到屏幕中心（安全恢复功能）
-                                    val centerX = screenWidth.value / 2
-                                    val centerY = screenHeight.value / 2
-                                    onMove(
-                                        centerX - currentX,
-                                        centerY - currentY,
-                                        windowScale
-                                    )
-
-                                    // 保存新位置
-                                    saveWindowState?.invoke()
-                                }
+                            // 只有当点击在圆内才处理事件
+                            if (distance <= radius) {
+                                touchAnimationState.value =
+                                    true
+                                ballTapState.value = true
                             }
-                        )
-                    }
+                        },
+                        onLongPress = { offset ->
+                            // 检查长按是否在圆内
+                            val radius = size.width / 2f
+                            val center = Offset(radius, radius)
+                            val distance =
+                                (offset - center)
+                                    .getDistance()
+
+                            // 只有当长按在圆内才处理事件
+                            if (distance <= radius) {
+                                // 长按重置位置到屏幕中心（安全恢复功能）
+                                val centerX =
+                                    screenWidth.value /
+                                        2
+                                val centerY =
+                                    screenHeight.value /
+                                        2
+                                onMove(
+                                    centerX - currentX,
+                                    centerY - currentY,
+                                    windowScale
+                                )
+
+                                // 保存新位置
+                                saveWindowState?.invoke()
+                            }
+                        }
+                    )
+                }
             ) {
                 Icon(
                     imageVector = Icons.Default.Chat,
                     contentDescription = "聊天窗口",
                     tint = Color.White,
-                    modifier = Modifier
-                        .size(24.dp)
-                        .align(Alignment.Center)
+                    modifier = Modifier.size(24.dp).align(Alignment.Center)
                 )
             }
         }
@@ -549,40 +594,50 @@ fun FloatingChatWindow(
         val errorColor = MaterialTheme.colorScheme.error
         val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant
 
-        Box(modifier = Modifier
-            .width(windowWidthState)
-            .height(windowHeightState)) {
+        Box(modifier = Modifier.width(windowWidthState).height(windowHeightState)) {
             // 创建一个呈现边缘视觉反馈的覆盖层
             Box(
                 modifier =
-                Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        scaleX = windowScale
-                        scaleY = windowScale
-                        transformOrigin = TransformOrigin(0f, 0f)
-                        alpha = animatedAlpha.value
-                    }
+                Modifier.fillMaxSize().graphicsLayer {
+                    scaleX = windowScale
+                    scaleY = windowScale
+                    transformOrigin = TransformOrigin(0f, 0f)
+                    alpha = animatedAlpha.value
+                }
             ) {
                 // 主要内容区域，含边框
                 Box(
                     modifier =
-                    Modifier
-                        .fillMaxSize()
-                        .shadow(8.dp, RoundedCornerShape(currentCornerRadius))
+                    Modifier.fillMaxSize()
+                        .shadow(
+                            8.dp,
+                            RoundedCornerShape(
+                                currentCornerRadius
+                            )
+                        )
                         .border(
                             width = borderThickness,
                             color =
-                            if (isEdgeResizing) edgeHighlightColor
+                            if (isEdgeResizing)
+                                edgeHighlightColor
                             else Color.Transparent,
-                            shape = RoundedCornerShape(currentCornerRadius)
+                            shape =
+                            RoundedCornerShape(
+                                currentCornerRadius
+                            )
                         )
-                        .clip(RoundedCornerShape(currentCornerRadius))
+                        .clip(
+                            RoundedCornerShape(
+                                currentCornerRadius
+                            )
+                        )
                         .background(backgroundColor)
                         .onSizeChanged { size ->
                             // 更新实际窗口大小（像素值）
-                            initialWindowWidth = size.width.toFloat()
-                            initialWindowHeight = size.height.toFloat()
+                            initialWindowWidth =
+                                size.width.toFloat()
+                            initialWindowHeight =
+                                size.height.toFloat()
                         }
                 ) {
                     // 过渡时的波纹效果
@@ -590,11 +645,19 @@ fun FloatingChatWindow(
                         Canvas(modifier = Modifier.fillMaxSize()) {
                             val centerX = size.width / 2
                             val centerY = size.height / 2
-                            val radius = size.minDimension * 0.6f * transitionFeedback.value
+                            val radius =
+                                size.minDimension *
+                                    0.6f *
+                                    transitionFeedback.value
 
                             drawCircle(
-                                color = primaryColor.copy(
-                                    alpha = 0.1f * (1f - transitionFeedback.value)
+                                color =
+                                primaryColor.copy(
+                                    alpha =
+                                    0.1f *
+                                        (1f -
+                                            transitionFeedback
+                                                .value)
                                 ),
                                 radius = radius,
                                 center = Offset(centerX, centerY)
@@ -604,10 +667,16 @@ fun FloatingChatWindow(
 
                     Column(modifier = Modifier.fillMaxSize()) {
                         // 窗口模式下的顶部工具栏
-                        val titleBarHover = remember { mutableStateOf(false) }
+                        val titleBarHover = remember {
+                            mutableStateOf(false)
+                        }
                         // 添加按钮事件状态
-                        val closeButtonPressed = remember { mutableStateOf(false) }
-                        val minimizeButtonPressed = remember { mutableStateOf(false) }
+                        val closeButtonPressed = remember {
+                            mutableStateOf(false)
+                        }
+                        val minimizeButtonPressed = remember {
+                            mutableStateOf(false)
+                        }
 
                         // 处理关闭按钮副作用
                         LaunchedEffect(closeButtonPressed.value) {
@@ -617,7 +686,8 @@ fun FloatingChatWindow(
                                     animationSpec = tween(200)
                                 )
                                 onClose()
-                                closeButtonPressed.value = false  // 重置状态
+                                closeButtonPressed.value =
+                                    false // 重置状态
                             }
                         }
 
@@ -625,38 +695,63 @@ fun FloatingChatWindow(
                         LaunchedEffect(minimizeButtonPressed.value) {
                             if (minimizeButtonPressed.value) {
                                 onToggleBallMode()
-                                minimizeButtonPressed.value = false  // 重置状态
+                                minimizeButtonPressed.value =
+                                    false // 重置状态
                             }
                         }
 
                         Box(
                             modifier =
-                            Modifier
-                                .fillMaxWidth()
+                            Modifier.fillMaxWidth()
                                 .height(48.dp)
                                 .background(
-                                    MaterialTheme.colorScheme.surfaceVariant
-                                        .copy(alpha = if (titleBarHover.value) 0.3f else 0.2f)
+                                    MaterialTheme
+                                        .colorScheme
+                                        .surfaceVariant
+                                        .copy(
+                                            alpha =
+                                            if (titleBarHover
+                                                    .value
+                                            )
+                                                0.3f
+                                            else
+                                                0.2f
+                                        )
                                 )
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                                .padding(
+                                    horizontal = 16.dp,
+                                    vertical = 8.dp
+                                )
                                 .pointerInput(Unit) {
                                     awaitPointerEventScope {
                                         while (true) {
-                                            val event = awaitPointerEvent()
-                                            titleBarHover.value = event.changes.any { it.pressed }
+                                            val event =
+                                                awaitPointerEvent()
+                                            titleBarHover
+                                                .value =
+                                                event.changes
+                                                    .any {
+                                                        it.pressed
+                                                    }
                                         }
                                     }
                                 }
                                 .pointerInput(Unit) {
                                     detectDragGestures(
                                         onDragEnd = {
-                                            saveWindowState?.invoke()
+                                            saveWindowState
+                                                ?.invoke()
                                         },
-                                        onDrag = { change, dragAmount ->
+                                        onDrag = {
+                                                change,
+                                                dragAmount
+                                            ->
                                             change.consume()
                                             handleDrag(
-                                                dragAmount.x,
-                                                dragAmount.y
+                                                dragAmount
+                                                    .x,
+                                                dragAmount
+                                                    .y
                                             )
                                         }
                                     )
@@ -665,87 +760,176 @@ fun FloatingChatWindow(
                             // 显示内容（使用条件渲染而不是ContentWithFade）
                             if (contentVisible) {
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                    modifier =
+                                    Modifier.fillMaxWidth(),
+                                    horizontalArrangement =
+                                    Arrangement
+                                        .SpaceBetween,
+                                    verticalAlignment =
+                                    Alignment
+                                        .CenterVertically
                                 ) {
                                     Text(
                                         text = "AI助手",
                                         style =
-                                        MaterialTheme.typography.titleMedium.copy(
-                                            fontWeight = FontWeight.Medium
-                                        ),
-                                        color = MaterialTheme.colorScheme.primary
+                                        MaterialTheme
+                                            .typography
+                                            .titleMedium
+                                            .copy(
+                                                fontWeight =
+                                                FontWeight
+                                                    .Medium
+                                            ),
+                                        color =
+                                        MaterialTheme
+                                            .colorScheme
+                                            .primary
                                     )
 
                                     Row(
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
+                                        horizontalArrangement =
+                                        Arrangement
+                                            .spacedBy(
+                                                8.dp
+                                            ),
+                                        verticalAlignment =
+                                        Alignment
+                                            .CenterVertically
                                     ) {
                                         // 最小化按钮
-                                        val minimizeHover = remember { mutableStateOf(false) }
+                                        val minimizeHover =
+                                            remember {
+                                                mutableStateOf(
+                                                    false
+                                                )
+                                            }
 
                                         IconButton(
-                                            onClick = { minimizeButtonPressed.value = true },
-                                            modifier = Modifier
-                                                .size(30.dp)
+                                            onClick = {
+                                                minimizeButtonPressed
+                                                    .value =
+                                                    true
+                                            },
+                                            modifier =
+                                            Modifier.size(
+                                                30.dp
+                                            )
                                                 .background(
-                                                    color = if (minimizeHover.value)
-                                                        primaryColor.copy(alpha = 0.1f)
+                                                    color =
+                                                    if (minimizeHover
+                                                            .value
+                                                    )
+                                                        primaryColor
+                                                            .copy(
+                                                                alpha =
+                                                                0.1f
+                                                            )
                                                     else
                                                         Color.Transparent,
-                                                    shape = CircleShape
+                                                    shape =
+                                                    CircleShape
                                                 )
-                                                .pointerInput(Unit) {
+                                                .pointerInput(
+                                                    Unit
+                                                ) {
                                                     awaitPointerEventScope {
                                                         while (true) {
-                                                            val event = awaitPointerEvent()
-                                                            minimizeHover.value =
-                                                                event.changes.any { it.pressed }
+                                                            val event =
+                                                                awaitPointerEvent()
+                                                            minimizeHover
+                                                                .value =
+                                                                event.changes
+                                                                    .any {
+                                                                        it.pressed
+                                                                    }
                                                         }
                                                     }
                                                 }
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Default.KeyboardArrowDown,
-                                                contentDescription = "最小化",
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.size(20.dp)
+                                                imageVector =
+                                                Icons.Default
+                                                    .KeyboardArrowDown,
+                                                contentDescription =
+                                                "最小化",
+                                                tint =
+                                                MaterialTheme
+                                                    .colorScheme
+                                                    .onSurfaceVariant,
+                                                modifier =
+                                                Modifier.size(
+                                                    20.dp
+                                                )
                                             )
                                         }
 
                                         // 关闭按钮
-                                        val closeHover = remember { mutableStateOf(false) }
+                                        val closeHover =
+                                            remember {
+                                                mutableStateOf(
+                                                    false
+                                                )
+                                            }
 
                                         IconButton(
-                                            onClick = { closeButtonPressed.value = true },
-                                            modifier = Modifier
-                                                .size(30.dp)
+                                            onClick = {
+                                                closeButtonPressed
+                                                    .value =
+                                                    true
+                                            },
+                                            modifier =
+                                            Modifier.size(
+                                                30.dp
+                                            )
                                                 .background(
-                                                    color = if (closeHover.value)
-                                                        errorColor.copy(alpha = 0.1f)
+                                                    color =
+                                                    if (closeHover
+                                                            .value
+                                                    )
+                                                        errorColor
+                                                            .copy(
+                                                                alpha =
+                                                                0.1f
+                                                            )
                                                     else
                                                         Color.Transparent,
-                                                    shape = CircleShape
+                                                    shape =
+                                                    CircleShape
                                                 )
-                                                .pointerInput(Unit) {
+                                                .pointerInput(
+                                                    Unit
+                                                ) {
                                                     awaitPointerEventScope {
                                                         while (true) {
-                                                            val event = awaitPointerEvent()
-                                                            closeHover.value =
-                                                                event.changes.any { it.pressed }
+                                                            val event =
+                                                                awaitPointerEvent()
+                                                            closeHover
+                                                                .value =
+                                                                event.changes
+                                                                    .any {
+                                                                        it.pressed
+                                                                    }
                                                         }
                                                     }
                                                 }
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Default.Close,
-                                                contentDescription = "关闭",
-                                                tint = if (closeHover.value)
+                                                imageVector =
+                                                Icons.Default
+                                                    .Close,
+                                                contentDescription =
+                                                "关闭",
+                                                tint =
+                                                if (closeHover
+                                                        .value
+                                                )
                                                     errorColor
                                                 else
                                                     onSurfaceVariantColor,
-                                                modifier = Modifier.size(20.dp)
+                                                modifier =
+                                                Modifier.size(
+                                                    20.dp
+                                                )
                                             )
                                         }
                                     }
@@ -754,99 +938,208 @@ fun FloatingChatWindow(
                         }
 
                         // 聊天内容区域
-                        Box(modifier = Modifier
-                            .fillMaxSize()
-                            .weight(1f)) {
+                        Box(modifier = Modifier.fillMaxSize().weight(1f)) {
                             // 条件性显示聊天内容或输入框
                             if (!showInputDialog) {
                                 // 消息列表
-                                val listState = rememberLazyListState()
+                                val listState =
+                                    rememberLazyListState()
 
                                 // Auto-scroll to bottom
                                 LaunchedEffect(messages.size) {
                                     if (messages.isNotEmpty()) {
-                                        listState.animateScrollToItem(messages.size - 1)
+                                        listState
+                                            .animateScrollToItem(
+                                                messages.size -
+                                                    1
+                                            )
                                     }
                                 }
 
                                 LazyColumn(
                                     state = listState,
-                                    contentPadding = PaddingValues(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                                    modifier = Modifier.fillMaxSize()
+                                    contentPadding =
+                                    PaddingValues(
+                                        16.dp
+                                    ),
+                                    verticalArrangement =
+                                    Arrangement
+                                        .spacedBy(
+                                            8.dp
+                                        ),
+                                    modifier =
+                                    Modifier.fillMaxSize()
                                 ) {
-                                    items(updatedMessages) { message ->
+                                    items(updatedMessages) {
+                                            message ->
                                         CursorStyleChatMessage(
-                                            message = message,
-                                            userMessageColor = userMessageColor,
-                                            aiMessageColor = aiMessageColor,
-                                            userTextColor = userTextColor,
-                                            aiTextColor = aiTextColor,
-                                            systemMessageColor = systemMessageColor,
-                                            systemTextColor = systemTextColor,
-                                            thinkingBackgroundColor = thinkingBackgroundColor,
-                                            thinkingTextColor = thinkingTextColor,
-                                            supportToolMarkup = true
+                                            message =
+                                            message,
+                                            userMessageColor =
+                                            userMessageColor,
+                                            aiMessageColor =
+                                            aiMessageColor,
+                                            userTextColor =
+                                            userTextColor,
+                                            aiTextColor =
+                                            aiTextColor,
+                                            systemMessageColor =
+                                            systemMessageColor,
+                                            systemTextColor =
+                                            systemTextColor,
+                                            thinkingBackgroundColor =
+                                            thinkingBackgroundColor,
+                                            thinkingTextColor =
+                                            thinkingTextColor,
+                                            supportToolMarkup =
+                                            true
                                         )
                                     }
                                 }
                             } else {
                                 // 集成的输入区域
                                 Column(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(16.dp)
+                                    modifier =
+                                    Modifier.fillMaxSize()
+                                        .padding(
+                                            16.dp
+                                        )
                                 ) {
                                     Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                                        modifier =
+                                        Modifier.fillMaxWidth(),
+                                        horizontalArrangement =
+                                        Arrangement
+                                            .SpaceBetween,
+                                        verticalAlignment =
+                                        Alignment
+                                            .CenterVertically
                                     ) {
                                         Text(
-                                            text = "发送消息",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            color = MaterialTheme.colorScheme.onSurface
+                                            text =
+                                            "发送消息",
+                                            style =
+                                            MaterialTheme
+                                                .typography
+                                                .titleMedium,
+                                            color =
+                                            MaterialTheme
+                                                .colorScheme
+                                                .onSurface
                                         )
 
                                         IconButton(
                                             onClick = {
-                                                showInputDialog = false
+                                                showInputDialog =
+                                                    false
+                                                showAttachmentPanel =
+                                                    false // 确保关闭附件选择面板
                                             }
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Default.Close,
-                                                contentDescription = "关闭",
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                                imageVector =
+                                                Icons.Default
+                                                    .Close,
+                                                contentDescription =
+                                                "关闭",
+                                                tint =
+                                                MaterialTheme
+                                                    .colorScheme
+                                                    .onSurfaceVariant
                                             )
                                         }
                                     }
 
-                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Spacer(
+                                        modifier =
+                                        Modifier.height(
+                                            8.dp
+                                        )
+                                    )
 
-                                    val focusRequester = remember { FocusRequester() }
-                                    val context = LocalContext.current
-                                    val keyboardController = LocalSoftwareKeyboardController.current
-                                    val focusManager = LocalFocusManager.current
+                                    // 显示已添加的附件
+                                    if (attachments.isNotEmpty()
+                                    ) {
+                                        LazyRow(
+                                            modifier =
+                                            Modifier.fillMaxWidth()
+                                                .padding(
+                                                    vertical =
+                                                    4.dp
+                                                ),
+                                            horizontalArrangement =
+                                            Arrangement
+                                                .spacedBy(
+                                                    8.dp
+                                                )
+                                        ) {
+                                            items(
+                                                attachments
+                                            ) {
+                                                    attachment
+                                                ->
+                                                AttachmentChip(
+                                                    attachmentInfo =
+                                                    attachment,
+                                                    onRemove = {
+                                                        onRemoveAttachment
+                                                            ?.invoke(
+                                                                attachment
+                                                                    .filePath
+                                                            )
+                                                    },
+                                                    onInsert = { /* 在悬浮窗中不支持插入操作 */
+                                                    }
+                                                )
+                                            }
+                                        }
+                                        Spacer(
+                                            modifier =
+                                            Modifier.height(
+                                                8.dp
+                                            )
+                                        )
+                                    }
+
+                                    val focusRequester =
+                                        remember {
+                                            FocusRequester()
+                                        }
+                                    val keyboardController =
+                                        LocalSoftwareKeyboardController
+                                            .current
+                                    val focusManager =
+                                        LocalFocusManager
+                                            .current
 
                                     // 添加一个当输入区域显示时的DisposableEffect
-                                    DisposableEffect(showInputDialog) {
-                                        if (showInputDialog) {
-                                            coroutineScope.launch {
-                                                // 增加延迟，确保视图完全渲染
-                                                delay(300)
-
-                                                // 请求焦点 - 但不主动显示键盘，让服务层处理键盘显示
-                                                try {
-                                                    focusRequester.requestFocus()
-                                                    // 移除直接显示键盘的代码，避免重复显示
-                                                } catch (e: Exception) {
-                                                    Log.e(
-                                                        "FloatingChatWindow",
-                                                        "Failed to request focus",
-                                                        e
+                                    DisposableEffect(
+                                        showInputDialog
+                                    ) {
+                                        if (showInputDialog
+                                        ) {
+                                            coroutineScope
+                                                .launch {
+                                                    // 增加延迟，确保视图完全渲染
+                                                    delay(
+                                                        300
                                                     )
+
+                                                    // 请求焦点 - 但不主动显示键盘，让服务层处理键盘显示
+                                                    try {
+                                                        focusRequester
+                                                            .requestFocus()
+                                                        // 移除直接显示键盘的代码，避免重复显示
+                                                    } catch (
+                                                        e:
+                                                        Exception) {
+                                                        Log.e(
+                                                            "FloatingChatWindow",
+                                                            "Failed to request focus",
+                                                            e
+                                                        )
+                                                    }
                                                 }
-                                            }
                                         }
 
                                         // 清理
@@ -855,54 +1148,132 @@ fun FloatingChatWindow(
                                         }
                                     }
 
-                                    OutlinedTextField(
-                                        value = userMessage,
-                                        onValueChange = { userMessage = it },
-                                        placeholder = { Text("请输入您的问题...") },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .weight(1f)
-                                            .focusRequester(focusRequester)
-                                            .clickable {
-                                                // 只请求焦点，不主动显示键盘
-                                                focusRequester.requestFocus()
-                                            },
-                                        textStyle = TextStyle.Default,
-                                        maxLines = 8,
-                                        keyboardOptions = KeyboardOptions(
-                                            imeAction = ImeAction.Send,
-                                            autoCorrect = true
-                                        ),
-                                        keyboardActions = KeyboardActions(
-                                            onSend = {
-                                                if (userMessage.isNotBlank()) {
-                                                    onSendMessage?.invoke(userMessage)
-                                                    userMessage = ""
-                                                    showInputDialog = false
-                                                }
-                                            }
-                                        ),
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                                        ),
-                                        shape = RoundedCornerShape(12.dp)
-                                    )
-
-                                    Spacer(modifier = Modifier.height(8.dp))
-
-                                    Button(
-                                        onClick = {
-                                            if (userMessage.isNotBlank()) {
-                                                onSendMessage?.invoke(userMessage)
-                                                userMessage = ""
-                                                showInputDialog = false
-                                            }
-                                        },
-                                        enabled = userMessage.isNotBlank(),
-                                        modifier = Modifier.fillMaxWidth()
+                                    // 改成Box包装输入框，使其填充剩余空间
+                                    Box(
+                                        modifier =
+                                        Modifier.fillMaxSize()
+                                            .weight(
+                                                1f
+                                            )
                                     ) {
-                                        Text("发送")
+                                        // 输入框 - 占满可用空间
+                                        OutlinedTextField(
+                                            value =
+                                            userMessage,
+                                            onValueChange = {
+                                                userMessage =
+                                                    it
+                                            },
+                                            placeholder = {
+                                                Text(
+                                                    "请输入您的问题..."
+                                                )
+                                            },
+                                            modifier =
+                                            Modifier.fillMaxSize()
+                                                .focusRequester(
+                                                    focusRequester
+                                                ),
+                                            textStyle =
+                                            TextStyle
+                                                .Default,
+                                            maxLines =
+                                            Int.MAX_VALUE, // 允许多行
+                                            keyboardOptions =
+                                            KeyboardOptions(
+                                                imeAction =
+                                                ImeAction
+                                                    .Send,
+                                                autoCorrect =
+                                                true
+                                            ),
+                                            keyboardActions =
+                                            KeyboardActions(
+                                                onSend = {
+                                                    if (userMessage
+                                                            .isNotBlank() ||
+                                                        attachments
+                                                            .isNotEmpty()
+                                                    ) {
+                                                        onSendMessage
+                                                            ?.invoke(
+                                                                userMessage
+                                                            )
+                                                        userMessage =
+                                                            ""
+                                                        showInputDialog =
+                                                            false
+                                                        showAttachmentPanel =
+                                                            false
+                                                    }
+                                                }
+                                            ),
+                                            colors =
+                                            OutlinedTextFieldDefaults
+                                                .colors(
+                                                    focusedBorderColor =
+                                                    MaterialTheme
+                                                        .colorScheme
+                                                        .primary,
+                                                    unfocusedBorderColor =
+                                                    MaterialTheme
+                                                        .colorScheme
+                                                        .outline
+                                                ),
+                                            shape =
+                                            RoundedCornerShape(
+                                                12.dp
+                                            )
+                                        )
+
+                                        // 发送按钮 - 放在右下角
+                                        FloatingActionButton(
+                                            onClick = {
+                                                if (userMessage
+                                                        .isNotBlank() ||
+                                                    attachments
+                                                        .isNotEmpty()
+                                                ) {
+                                                    onSendMessage
+                                                        ?.invoke(
+                                                            userMessage
+                                                        )
+                                                    userMessage =
+                                                        ""
+                                                    showInputDialog =
+                                                        false
+                                                    showAttachmentPanel =
+                                                        false
+                                                }
+                                            },
+                                            modifier =
+                                            Modifier.align(
+                                                Alignment
+                                                    .BottomEnd
+                                            )
+                                                .padding(
+                                                    8.dp
+                                                )
+                                                .size(
+                                                    46.dp
+                                                ),
+                                            containerColor =
+                                            MaterialTheme
+                                                .colorScheme
+                                                .primary
+                                        ) {
+                                            Icon(
+                                                imageVector =
+                                                Icons.Default
+                                                    .Send,
+                                                contentDescription =
+                                                "发送",
+                                                tint =
+                                                MaterialTheme
+                                                    .colorScheme
+                                                    .onPrimary
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -910,40 +1281,73 @@ fun FloatingChatWindow(
                             // 缩放控制手柄 - 只在不显示输入框且处于窗口模式时显示
                             if (!showInputDialog && !isBallMode) {
                                 // 添加缩放按钮悬停状态
-                                val scaleButtonHover = remember { mutableStateOf(false) }
+                                val scaleButtonHover = remember {
+                                    mutableStateOf(false)
+                                }
 
                                 Box(
                                     modifier =
-                                    Modifier
-                                        .size(48.dp)
-                                        .padding(6.dp)
-                                        .align(Alignment.BottomEnd)
-                                        .offset(x = (-8).dp, y = (-8).dp)
+                                    Modifier.size(48.dp)
+                                        .padding(
+                                            6.dp
+                                        )
+                                        .align(
+                                            Alignment
+                                                .BottomEnd
+                                        )
+                                        .offset(
+                                            x =
+                                            (-8).dp,
+                                            y =
+                                            (-8).dp
+                                        )
                                         // 移除阴影和背景
                                         // 添加点击涟漪效果的背景
                                         .background(
-                                            color = if (scaleButtonHover.value)
-                                                primaryColor.copy(alpha = 0.1f)
+                                            color =
+                                            if (scaleButtonHover
+                                                    .value
+                                            )
+                                                primaryColor
+                                                    .copy(
+                                                        alpha =
+                                                        0.1f
+                                                    )
                                             else
                                                 Color.Transparent,
-                                            shape = CircleShape
+                                            shape =
+                                            CircleShape
                                         )
                                         // 移除边框
-                                        .pointerInput(Unit) {
+                                        .pointerInput(
+                                            Unit
+                                        ) {
                                             awaitPointerEventScope {
                                                 while (true) {
-                                                    val event = awaitPointerEvent()
-                                                    scaleButtonHover.value =
-                                                        event.changes.any { it.pressed }
+                                                    val event =
+                                                        awaitPointerEvent()
+                                                    scaleButtonHover
+                                                        .value =
+                                                        event.changes
+                                                            .any {
+                                                                it.pressed
+                                                            }
                                                 }
                                             }
                                         }
-                                        .pointerInput(Unit) {
+                                        .pointerInput(
+                                            Unit
+                                        ) {
                                             detectDragGestures(
-                                                onDrag = { change, dragAmount ->
+                                                onDrag = {
+                                                        change,
+                                                        dragAmount
+                                                    ->
                                                     change.consume()
                                                     val scaleDelta =
-                                                        dragAmount.y * 0.001f
+                                                        dragAmount
+                                                            .y *
+                                                            0.001f
                                                     windowScale =
                                                         (windowScale +
                                                             scaleDelta)
@@ -951,42 +1355,95 @@ fun FloatingChatWindow(
                                                                 0.5f,
                                                                 1.0f
                                                             )
-                                                    saveWindowState?.invoke()
+                                                    saveWindowState
+                                                        ?.invoke()
                                                 }
                                             )
                                         }
-                                        .pointerInput(Unit) {
+                                        .pointerInput(
+                                            Unit
+                                        ) {
                                             detectTapGestures {
                                                 windowScale =
                                                     when {
-                                                        windowScale > 0.8f -> 0.7f
-                                                        windowScale > 0.7f -> 0.9f
-                                                        else -> 1.0f
+                                                        windowScale >
+                                                            0.8f ->
+                                                            0.7f
+                                                        windowScale >
+                                                            0.7f ->
+                                                            0.9f
+                                                        else ->
+                                                            1.0f
                                                     }
-                                                saveWindowState?.invoke()
+                                                saveWindowState
+                                                    ?.invoke()
                                             }
                                         }
                                 ) {
-                                    val lineColor = if (scaleButtonHover.value)
-                                        primaryColor.copy(alpha = 1.0f)
-                                    else
-                                        primaryColor.copy(alpha = 0.7f)
+                                    val lineColor =
+                                        if (scaleButtonHover
+                                                .value
+                                        )
+                                            primaryColor
+                                                .copy(
+                                                    alpha =
+                                                    1.0f
+                                                )
+                                        else
+                                            primaryColor
+                                                .copy(
+                                                    alpha =
+                                                    0.7f
+                                                )
 
-                                    Canvas(modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(8.dp)) {
-                                        // 绘制缩放图标 - 增加粗细使其在透明背景下更加明显
+                                    Canvas(
+                                        modifier =
+                                        Modifier.fillMaxSize()
+                                            .padding(
+                                                8.dp
+                                            )
+                                    ) {
+                                        // 绘制缩放图标 -
+                                        // 增加粗细使其在透明背景下更加明显
                                         drawLine(
-                                            color = lineColor,
-                                            start = Offset(size.width * 0.2f, size.height * 0.8f),
-                                            end = Offset(size.width * 0.8f, size.height * 0.2f),
-                                            strokeWidth = 3.5f  // 略微增加线条粗细
+                                            color =
+                                            lineColor,
+                                            start =
+                                            Offset(
+                                                size.width *
+                                                    0.2f,
+                                                size.height *
+                                                    0.8f
+                                            ),
+                                            end =
+                                            Offset(
+                                                size.width *
+                                                    0.8f,
+                                                size.height *
+                                                    0.2f
+                                            ),
+                                            strokeWidth =
+                                            3.5f // 略微增加线条粗细
                                         )
                                         drawLine(
-                                            color = lineColor,
-                                            start = Offset(size.width * 0.5f, size.height * 0.8f),
-                                            end = Offset(size.width * 0.8f, size.height * 0.5f),
-                                            strokeWidth = 3.5f  // 略微增加线条粗细
+                                            color =
+                                            lineColor,
+                                            start =
+                                            Offset(
+                                                size.width *
+                                                    0.5f,
+                                                size.height *
+                                                    0.8f
+                                            ),
+                                            end =
+                                            Offset(
+                                                size.width *
+                                                    0.8f,
+                                                size.height *
+                                                    0.5f
+                                            ),
+                                            strokeWidth =
+                                            3.5f // 略微增加线条粗细
                                         )
                                     }
                                 }
@@ -998,35 +1455,56 @@ fun FloatingChatWindow(
                 // 顶部边框 - 调整高度
                 Box(
                     modifier =
-                    Modifier
-                        .fillMaxWidth()
+                    Modifier.fillMaxWidth()
                         .height(20.dp)
                         .align(Alignment.TopCenter)
                         .pointerInput(Unit) {
                             detectDragGestures(
                                 onDragStart = {
-                                    isEdgeResizing = true
-                                    activeEdge = ResizeEdge.TOP
+                                    isEdgeResizing =
+                                        true
+                                    activeEdge =
+                                        ResizeEdge
+                                            .TOP
                                     initialWindowHeight =
-                                        windowHeightState.value *
+                                        windowHeightState
+                                            .value *
                                             density.density
                                 },
                                 onDragEnd = {
-                                    isEdgeResizing = false
-                                    saveWindowState?.invoke()
+                                    isEdgeResizing =
+                                        false
+                                    saveWindowState
+                                        ?.invoke()
                                 },
-                                onDrag = { change, dragAmount ->
+                                onDrag = {
+                                        change,
+                                        dragAmount ->
                                     change.consume()
-                                    val heightChange = -dragAmount.y
+                                    val heightChange =
+                                        -dragAmount
+                                            .y
                                     val newHeight =
-                                        (initialWindowHeight + heightChange)
-                                            .coerceAtLeast(200f)
+                                        (initialWindowHeight +
+                                            heightChange)
+                                            .coerceAtLeast(
+                                                200f
+                                            )
                                     windowHeightState =
-                                        with(density) {
-                                            (newHeight / density.density).dp
-                                                .coerceAtLeast(200.dp)
+                                        with(
+                                            density
+                                        ) {
+                                            (newHeight /
+                                                density.density)
+                                                .dp
+                                                .coerceAtLeast(
+                                                    200.dp
+                                                )
                                         }
-                                    handleDrag(0f, dragAmount.y)
+                                    handleDrag(
+                                        0f,
+                                        dragAmount.y
+                                    )
                                     onResize(
                                         windowWidthState,
                                         windowHeightState
@@ -1039,32 +1517,49 @@ fun FloatingChatWindow(
                 // 底部边框 - 调整高度
                 Box(
                     modifier =
-                    Modifier
-                        .fillMaxWidth()
+                    Modifier.fillMaxWidth()
                         .height(20.dp)
                         .align(Alignment.BottomCenter)
                         .pointerInput(Unit) {
                             detectDragGestures(
                                 onDragStart = {
-                                    isEdgeResizing = true
-                                    activeEdge = ResizeEdge.BOTTOM
+                                    isEdgeResizing =
+                                        true
+                                    activeEdge =
+                                        ResizeEdge
+                                            .BOTTOM
                                     initialWindowHeight =
-                                        windowHeightState.value *
+                                        windowHeightState
+                                            .value *
                                             density.density
                                 },
                                 onDragEnd = {
-                                    isEdgeResizing = false
-                                    saveWindowState?.invoke()
+                                    isEdgeResizing =
+                                        false
+                                    saveWindowState
+                                        ?.invoke()
                                 },
-                                onDrag = { change, dragAmount ->
+                                onDrag = {
+                                        change,
+                                        dragAmount ->
                                     change.consume()
                                     val newHeight =
-                                        (initialWindowHeight + dragAmount.y)
-                                            .coerceAtLeast(200f)
+                                        (initialWindowHeight +
+                                            dragAmount
+                                                .y)
+                                            .coerceAtLeast(
+                                                200f
+                                            )
                                     windowHeightState =
-                                        with(density) {
-                                            (newHeight / density.density).dp
-                                                .coerceAtLeast(200.dp)
+                                        with(
+                                            density
+                                        ) {
+                                            (newHeight /
+                                                density.density)
+                                                .dp
+                                                .coerceAtLeast(
+                                                    200.dp
+                                                )
                                         }
                                     onResize(
                                         windowWidthState,
@@ -1078,35 +1573,57 @@ fun FloatingChatWindow(
                 // 左侧边框 - 调整宽度
                 Box(
                     modifier =
-                    Modifier
-                        .fillMaxHeight()
+                    Modifier.fillMaxHeight()
                         .width(20.dp)
                         .align(Alignment.CenterStart)
                         .pointerInput(Unit) {
                             detectDragGestures(
                                 onDragStart = {
-                                    isEdgeResizing = true
-                                    activeEdge = ResizeEdge.LEFT
+                                    isEdgeResizing =
+                                        true
+                                    activeEdge =
+                                        ResizeEdge
+                                            .LEFT
                                     initialWindowWidth =
-                                        windowWidthState.value *
+                                        windowWidthState
+                                            .value *
                                             density.density
                                 },
                                 onDragEnd = {
-                                    isEdgeResizing = false
-                                    saveWindowState?.invoke()
+                                    isEdgeResizing =
+                                        false
+                                    saveWindowState
+                                        ?.invoke()
                                 },
-                                onDrag = { change, dragAmount ->
+                                onDrag = {
+                                        change,
+                                        dragAmount ->
                                     change.consume()
-                                    val widthChange = -dragAmount.x
+                                    val widthChange =
+                                        -dragAmount
+                                            .x
                                     val newWidth =
-                                        (initialWindowWidth + widthChange)
-                                            .coerceAtLeast(150f)
+                                        (initialWindowWidth +
+                                            widthChange)
+                                            .coerceAtLeast(
+                                                150f
+                                            )
                                     windowWidthState =
-                                        with(density) {
-                                            (newWidth / density.density).dp
-                                                .coerceAtLeast(150.dp)
+                                        with(
+                                            density
+                                        ) {
+                                            (newWidth /
+                                                density.density)
+                                                .dp
+                                                .coerceAtLeast(
+                                                    150.dp
+                                                )
                                         }
-                                    handleDrag(dragAmount.x, 0f)
+                                    handleDrag(
+                                        dragAmount
+                                            .x,
+                                        0f
+                                    )
                                     onResize(
                                         windowWidthState,
                                         windowHeightState
@@ -1119,32 +1636,49 @@ fun FloatingChatWindow(
                 // 右侧边框 - 调整宽度
                 Box(
                     modifier =
-                    Modifier
-                        .fillMaxHeight()
+                    Modifier.fillMaxHeight()
                         .width(20.dp)
                         .align(Alignment.CenterEnd)
                         .pointerInput(Unit) {
                             detectDragGestures(
                                 onDragStart = {
-                                    isEdgeResizing = true
-                                    activeEdge = ResizeEdge.RIGHT
+                                    isEdgeResizing =
+                                        true
+                                    activeEdge =
+                                        ResizeEdge
+                                            .RIGHT
                                     initialWindowWidth =
-                                        windowWidthState.value *
+                                        windowWidthState
+                                            .value *
                                             density.density
                                 },
                                 onDragEnd = {
-                                    isEdgeResizing = false
-                                    saveWindowState?.invoke()
+                                    isEdgeResizing =
+                                        false
+                                    saveWindowState
+                                        ?.invoke()
                                 },
-                                onDrag = { change, dragAmount ->
+                                onDrag = {
+                                        change,
+                                        dragAmount ->
                                     change.consume()
                                     val newWidth =
-                                        (initialWindowWidth + dragAmount.x)
-                                            .coerceAtLeast(150f)
+                                        (initialWindowWidth +
+                                            dragAmount
+                                                .x)
+                                            .coerceAtLeast(
+                                                150f
+                                            )
                                     windowWidthState =
-                                        with(density) {
-                                            (newWidth / density.density).dp
-                                                .coerceAtLeast(150.dp)
+                                        with(
+                                            density
+                                        ) {
+                                            (newWidth /
+                                                density.density)
+                                                .dp
+                                                .coerceAtLeast(
+                                                    150.dp
+                                                )
                                         }
                                     onResize(
                                         windowWidthState,
@@ -1158,45 +1692,84 @@ fun FloatingChatWindow(
                 // 左上角 - 调整宽度和高度
                 Box(
                     modifier =
-                    Modifier
-                        .size(25.dp)
+                    Modifier.size(25.dp)
                         .align(Alignment.TopStart)
                         .pointerInput(Unit) {
                             detectDragGestures(
                                 onDragStart = {
-                                    isEdgeResizing = true
-                                    activeEdge = ResizeEdge.TOP_LEFT
+                                    isEdgeResizing =
+                                        true
+                                    activeEdge =
+                                        ResizeEdge
+                                            .TOP_LEFT
                                     initialWindowWidth =
-                                        windowWidthState.value * density.density
+                                        windowWidthState
+                                            .value *
+                                            density.density
                                     initialWindowHeight =
-                                        windowHeightState.value * density.density
+                                        windowHeightState
+                                            .value *
+                                            density.density
                                 },
                                 onDragEnd = {
-                                    isEdgeResizing = false
-                                    saveWindowState?.invoke()
+                                    isEdgeResizing =
+                                        false
+                                    saveWindowState
+                                        ?.invoke()
                                 },
-                                onDrag = { change, dragAmount ->
+                                onDrag = {
+                                        change,
+                                        dragAmount ->
                                     change.consume()
-                                    val widthChange = -dragAmount.x
-                                    val heightChange = -dragAmount.y
+                                    val widthChange =
+                                        -dragAmount
+                                            .x
+                                    val heightChange =
+                                        -dragAmount
+                                            .y
                                     val newWidth =
-                                        (initialWindowWidth + widthChange)
-                                            .coerceAtLeast(150f)
+                                        (initialWindowWidth +
+                                            widthChange)
+                                            .coerceAtLeast(
+                                                150f
+                                            )
                                     val newHeight =
-                                        (initialWindowHeight + heightChange)
-                                            .coerceAtLeast(200f)
+                                        (initialWindowHeight +
+                                            heightChange)
+                                            .coerceAtLeast(
+                                                200f
+                                            )
                                     windowWidthState =
-                                        with(density) {
-                                            (newWidth / density.density).dp
-                                                .coerceAtLeast(150.dp)
+                                        with(
+                                            density
+                                        ) {
+                                            (newWidth /
+                                                density.density)
+                                                .dp
+                                                .coerceAtLeast(
+                                                    150.dp
+                                                )
                                         }
                                     windowHeightState =
-                                        with(density) {
-                                            (newHeight / density.density).dp
-                                                .coerceAtLeast(200.dp)
+                                        with(
+                                            density
+                                        ) {
+                                            (newHeight /
+                                                density.density)
+                                                .dp
+                                                .coerceAtLeast(
+                                                    200.dp
+                                                )
                                         }
-                                    handleDrag(dragAmount.x, dragAmount.y)
-                                    onResize(windowWidthState, windowHeightState)
+                                    handleDrag(
+                                        dragAmount
+                                            .x,
+                                        dragAmount.y
+                                    )
+                                    onResize(
+                                        windowWidthState,
+                                        windowHeightState
+                                    )
                                 }
                             )
                         }
@@ -1205,44 +1778,81 @@ fun FloatingChatWindow(
                 // 右上角 - 调整宽度和高度
                 Box(
                     modifier =
-                    Modifier
-                        .size(25.dp)
+                    Modifier.size(25.dp)
                         .align(Alignment.TopEnd)
                         .pointerInput(Unit) {
                             detectDragGestures(
                                 onDragStart = {
-                                    isEdgeResizing = true
-                                    activeEdge = ResizeEdge.TOP_RIGHT
+                                    isEdgeResizing =
+                                        true
+                                    activeEdge =
+                                        ResizeEdge
+                                            .TOP_RIGHT
                                     initialWindowWidth =
-                                        windowWidthState.value * density.density
+                                        windowWidthState
+                                            .value *
+                                            density.density
                                     initialWindowHeight =
-                                        windowHeightState.value * density.density
+                                        windowHeightState
+                                            .value *
+                                            density.density
                                 },
                                 onDragEnd = {
-                                    isEdgeResizing = false
-                                    saveWindowState?.invoke()
+                                    isEdgeResizing =
+                                        false
+                                    saveWindowState
+                                        ?.invoke()
                                 },
-                                onDrag = { change, dragAmount ->
+                                onDrag = {
+                                        change,
+                                        dragAmount ->
                                     change.consume()
                                     val newWidth =
-                                        (initialWindowWidth + dragAmount.x)
-                                            .coerceAtLeast(150f)
-                                    val heightChange = -dragAmount.y
+                                        (initialWindowWidth +
+                                            dragAmount
+                                                .x)
+                                            .coerceAtLeast(
+                                                150f
+                                            )
+                                    val heightChange =
+                                        -dragAmount
+                                            .y
                                     val newHeight =
-                                        (initialWindowHeight + heightChange)
-                                            .coerceAtLeast(200f)
+                                        (initialWindowHeight +
+                                            heightChange)
+                                            .coerceAtLeast(
+                                                200f
+                                            )
                                     windowWidthState =
-                                        with(density) {
-                                            (newWidth / density.density).dp
-                                                .coerceAtLeast(150.dp)
+                                        with(
+                                            density
+                                        ) {
+                                            (newWidth /
+                                                density.density)
+                                                .dp
+                                                .coerceAtLeast(
+                                                    150.dp
+                                                )
                                         }
                                     windowHeightState =
-                                        with(density) {
-                                            (newHeight / density.density).dp
-                                                .coerceAtLeast(200.dp)
+                                        with(
+                                            density
+                                        ) {
+                                            (newHeight /
+                                                density.density)
+                                                .dp
+                                                .coerceAtLeast(
+                                                    200.dp
+                                                )
                                         }
-                                    handleDrag(0f, dragAmount.y)
-                                    onResize(windowWidthState, windowHeightState)
+                                    handleDrag(
+                                        0f,
+                                        dragAmount.y
+                                    )
+                                    onResize(
+                                        windowWidthState,
+                                        windowHeightState
+                                    )
                                 }
                             )
                         }
@@ -1251,46 +1861,82 @@ fun FloatingChatWindow(
                 // 左下角 - 调整宽度和高度
                 Box(
                     modifier =
-                    Modifier
-                        .size(25.dp)
+                    Modifier.size(25.dp)
                         .align(Alignment.BottomStart)
-                        .pointerInput(
-                            Unit
-                        ) {
+                        .pointerInput(Unit) {
                             detectDragGestures(
                                 onDragStart = {
-                                    isEdgeResizing = true
-                                    activeEdge = ResizeEdge.BOTTOM_LEFT
+                                    isEdgeResizing =
+                                        true
+                                    activeEdge =
+                                        ResizeEdge
+                                            .BOTTOM_LEFT
                                     initialWindowWidth =
-                                        windowWidthState.value * density.density
+                                        windowWidthState
+                                            .value *
+                                            density.density
                                     initialWindowHeight =
-                                        windowHeightState.value * density.density
+                                        windowHeightState
+                                            .value *
+                                            density.density
                                 },
                                 onDragEnd = {
-                                    isEdgeResizing = false
-                                    saveWindowState?.invoke()
+                                    isEdgeResizing =
+                                        false
+                                    saveWindowState
+                                        ?.invoke()
                                 },
-                                onDrag = { change, dragAmount ->
+                                onDrag = {
+                                        change,
+                                        dragAmount ->
                                     change.consume()
-                                    val widthChange = -dragAmount.x
+                                    val widthChange =
+                                        -dragAmount
+                                            .x
                                     val newWidth =
-                                        (initialWindowWidth + widthChange)
-                                            .coerceAtLeast(150f)
+                                        (initialWindowWidth +
+                                            widthChange)
+                                            .coerceAtLeast(
+                                                150f
+                                            )
                                     val newHeight =
-                                        (initialWindowHeight + dragAmount.y)
-                                            .coerceAtLeast(200f)
+                                        (initialWindowHeight +
+                                            dragAmount
+                                                .y)
+                                            .coerceAtLeast(
+                                                200f
+                                            )
                                     windowWidthState =
-                                        with(density) {
-                                            (newWidth / density.density).dp
-                                                .coerceAtLeast(150.dp)
+                                        with(
+                                            density
+                                        ) {
+                                            (newWidth /
+                                                density.density)
+                                                .dp
+                                                .coerceAtLeast(
+                                                    150.dp
+                                                )
                                         }
                                     windowHeightState =
-                                        with(density) {
-                                            (newHeight / density.density).dp
-                                                .coerceAtLeast(200.dp)
+                                        with(
+                                            density
+                                        ) {
+                                            (newHeight /
+                                                density.density)
+                                                .dp
+                                                .coerceAtLeast(
+                                                    200.dp
+                                                )
                                         }
-                                    handleDrag(dragAmount.x, 0f)
-                                    onResize(windowWidthState, windowHeightState)
+                                    handleDrag(
+                                        dragAmount
+                                            .x,
+                                        0f
+                                    )
+                                    onResize(
+                                        windowWidthState,
+                                        windowHeightState
+                                    )
                                 }
                             )
                         }
@@ -1299,42 +1945,75 @@ fun FloatingChatWindow(
                 // 右下角 - 调整宽度和高度
                 Box(
                     modifier =
-                    Modifier
-                        .size(25.dp)
+                    Modifier.size(25.dp)
                         .align(Alignment.BottomEnd)
                         .pointerInput(Unit) {
                             detectDragGestures(
                                 onDragStart = {
-                                    isEdgeResizing = true
-                                    activeEdge = ResizeEdge.BOTTOM_RIGHT
+                                    isEdgeResizing =
+                                        true
+                                    activeEdge =
+                                        ResizeEdge
+                                            .BOTTOM_RIGHT
                                     initialWindowWidth =
-                                        windowWidthState.value * density.density
+                                        windowWidthState
+                                            .value *
+                                            density.density
                                     initialWindowHeight =
-                                        windowHeightState.value * density.density
+                                        windowHeightState
+                                            .value *
+                                            density.density
                                 },
                                 onDragEnd = {
-                                    isEdgeResizing = false
-                                    saveWindowState?.invoke()
+                                    isEdgeResizing =
+                                        false
+                                    saveWindowState
+                                        ?.invoke()
                                 },
-                                onDrag = { change, dragAmount ->
+                                onDrag = {
+                                        change,
+                                        dragAmount ->
                                     change.consume()
                                     val newWidth =
-                                        (initialWindowWidth + dragAmount.x)
-                                            .coerceAtLeast(150f)
+                                        (initialWindowWidth +
+                                            dragAmount
+                                                .x)
+                                            .coerceAtLeast(
+                                                150f
+                                            )
                                     val newHeight =
-                                        (initialWindowHeight + dragAmount.y)
-                                            .coerceAtLeast(200f)
+                                        (initialWindowHeight +
+                                            dragAmount
+                                                .y)
+                                            .coerceAtLeast(
+                                                200f
+                                            )
                                     windowWidthState =
-                                        with(density) {
-                                            (newWidth / density.density).dp
-                                                .coerceAtLeast(150.dp)
+                                        with(
+                                            density
+                                        ) {
+                                            (newWidth /
+                                                density.density)
+                                                .dp
+                                                .coerceAtLeast(
+                                                    150.dp
+                                                )
                                         }
                                     windowHeightState =
-                                        with(density) {
-                                            (newHeight / density.density).dp
-                                                .coerceAtLeast(200.dp)
+                                        with(
+                                            density
+                                        ) {
+                                            (newHeight /
+                                                density.density)
+                                                .dp
+                                                .coerceAtLeast(
+                                                    200.dp
+                                                )
                                         }
-                                    onResize(windowWidthState, windowHeightState)
+                                    onResize(
+                                        windowWidthState,
+                                        windowHeightState
+                                    )
                                 }
                             )
                         }
@@ -1348,46 +2027,58 @@ fun FloatingChatWindow(
                             // 水平调整指示器
                             Box(
                                 modifier =
-                                Modifier
-                                    .fillMaxHeight()
+                                Modifier.fillMaxHeight()
                                     .width(4.dp)
                                     .background(
-                                        color = edgeHighlightColor,
-                                        shape = RoundedCornerShape(2.dp)
+                                        color =
+                                        edgeHighlightColor,
+                                        shape =
+                                        RoundedCornerShape(
+                                            2.dp
+                                        )
                                     )
                                     .align(
-                                        when (activeEdge) {
-                                            ResizeEdge.LEFT ->
-                                                Alignment.CenterStart
-
-                                            else -> Alignment.CenterEnd
+                                        when (activeEdge
+                                        ) {
+                                            ResizeEdge
+                                                .LEFT ->
+                                                Alignment
+                                                    .CenterStart
+                                            else ->
+                                                Alignment
+                                                    .CenterEnd
                                         }
                                     )
                             )
                         }
-
                         ResizeEdge.TOP, ResizeEdge.BOTTOM -> {
                             // 垂直调整指示器
                             Box(
                                 modifier =
-                                Modifier
-                                    .fillMaxWidth()
+                                Modifier.fillMaxWidth()
                                     .height(4.dp)
                                     .background(
-                                        color = edgeHighlightColor,
-                                        shape = RoundedCornerShape(2.dp)
+                                        color =
+                                        edgeHighlightColor,
+                                        shape =
+                                        RoundedCornerShape(
+                                            2.dp
+                                        )
                                     )
                                     .align(
-                                        when (activeEdge) {
-                                            ResizeEdge.TOP ->
-                                                Alignment.TopCenter
-
-                                            else -> Alignment.BottomCenter
+                                        when (activeEdge
+                                        ) {
+                                            ResizeEdge
+                                                .TOP ->
+                                                Alignment
+                                                    .TopCenter
+                                            else ->
+                                                Alignment
+                                                    .BottomCenter
                                         }
                                     )
                             )
                         }
-
                         ResizeEdge.TOP_LEFT,
                         ResizeEdge.TOP_RIGHT,
                         ResizeEdge.BOTTOM_LEFT,
@@ -1395,29 +2086,35 @@ fun FloatingChatWindow(
                             // 角落调整指示器
                             Box(
                                 modifier =
-                                Modifier
-                                    .size(8.dp)
+                                Modifier.size(8.dp)
                                     .background(
-                                        color = edgeHighlightColor,
-                                        shape = CircleShape
+                                        color =
+                                        edgeHighlightColor,
+                                        shape =
+                                        CircleShape
                                     )
                                     .align(
-                                        when (activeEdge) {
-                                            ResizeEdge.TOP_LEFT ->
-                                                Alignment.TopStart
-
-                                            ResizeEdge.TOP_RIGHT ->
-                                                Alignment.TopEnd
-
-                                            ResizeEdge.BOTTOM_LEFT ->
-                                                Alignment.BottomStart
-
-                                            else -> Alignment.BottomEnd
+                                        when (activeEdge
+                                        ) {
+                                            ResizeEdge
+                                                .TOP_LEFT ->
+                                                Alignment
+                                                    .TopStart
+                                            ResizeEdge
+                                                .TOP_RIGHT ->
+                                                Alignment
+                                                    .TopEnd
+                                            ResizeEdge
+                                                .BOTTOM_LEFT ->
+                                                Alignment
+                                                    .BottomStart
+                                            else ->
+                                                Alignment
+                                                    .BottomEnd
                                         }
                                     )
                             )
                         }
-
                         else -> {
                             /* 不显示任何指示器 */
                         }
@@ -1429,16 +2126,50 @@ fun FloatingChatWindow(
         // 输入按钮 - 只有在不显示输入框时才显示
         if (!showInputDialog && onSendMessage != null) {
             Box(
-                modifier = Modifier
-                    .width(windowWidthState)  // 使用窗口宽度而不是fillMaxSize，确保按钮在窗口内
-                    .height(windowHeightState)  // 使用窗口高度
-                    .graphicsLayer {  // 应用与窗口相同的缩放
+                modifier =
+                Modifier.width(
+                    windowWidthState
+                ) // 使用窗口宽度而不是fillMaxSize，确保按钮在窗口内
+                    .height(windowHeightState) // 使用窗口高度
+                    .graphicsLayer { // 应用与窗口相同的缩放
                         scaleX = windowScale
                         scaleY = windowScale
                         transformOrigin = TransformOrigin(0f, 0f)
                     }
             ) {
-                FloatingActionButton(
+                // 添加附件按钮 - 放在编辑按钮上方
+                SmallFloatingActionButton(
+                    onClick = {
+                        // 修改为切换附件面板显示/隐藏
+                        showAttachmentPanel = !showAttachmentPanel
+                    },
+                    modifier =
+                    Modifier.align(Alignment.BottomStart)
+                        .padding(
+                            start = 12.dp,
+                            bottom = 60.dp
+                        ) // 减小间距，使按钮更靠近
+                        .size(34.dp), // 减小按钮尺寸
+                    containerColor =
+                    if (showAttachmentPanel)
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.8f) // 增加透明度
+                    else MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.75f), // 增加透明度
+                    contentColor =
+                    if (showAttachmentPanel)
+                        MaterialTheme.colorScheme.onPrimary
+                    else MaterialTheme.colorScheme.onSecondaryContainer,
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription =
+                        if (showAttachmentPanel) "关闭附件面板"
+                        else "添加附件",
+                        modifier = Modifier.size(16.dp) // 减小图标尺寸
+                    )
+                }
+
+                // 编辑消息按钮 - 保持原有功能
+                SmallFloatingActionButton(
                     onClick = {
                         if (isBallMode) {
                             // 如果是球模式，先切换到窗口模式再显示输入框
@@ -1452,23 +2183,133 @@ fun FloatingChatWindow(
                             showInputDialog = true
                         }
                     },
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(16.dp)
-                        .size(48.dp),  // 将尺寸从56.dp减小到48.dp
-                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f),
+                    modifier =
+                    Modifier.align(Alignment.BottomStart)
+                        .padding(12.dp) // 减小内边距
+                        .size(34.dp), // 减小按钮尺寸
+                    containerColor =
+                    MaterialTheme.colorScheme.primary.copy(
+                        alpha = 0.75f // 增加透明度
+                    ),
                     contentColor = MaterialTheme.colorScheme.onPrimary,
-                    elevation = FloatingActionButtonDefaults.elevation(
-                        defaultElevation = 6.dp,  // 增加默认阴影
-                        pressedElevation = 8.dp   // 增加按下时阴影
-                    )
                 ) {
                     Icon(
                         imageVector = Icons.Default.Edit,
                         contentDescription = "发送消息",
-                        modifier = Modifier.size(24.dp)  // 减小图标大小从28.dp到24.dp
+                        modifier = Modifier.size(16.dp) // 减小图标尺寸
                     )
                 }
+            }
+        }
+
+        // 附件面板 - 在点击附件按钮时显示
+        if (showAttachmentPanel && !showInputDialog) {
+            Box(
+                modifier =
+                Modifier.width(windowWidthState)
+                    .height(windowHeightState)
+                    .graphicsLayer {
+                        scaleX = windowScale
+                        scaleY = windowScale
+                        transformOrigin = TransformOrigin(0f, 0f)
+                    }
+                    // 修改pointerInput逻辑以检测附件按钮区域
+                    .pointerInput(Unit) {
+                        detectTapGestures { offset ->
+                            // 计算附件面板的大概位置（底部区域）
+                            val panelHeight =
+                                220.dp.toPx() // 附件面板的大致高度
+                            val screenHeight = size.height
+
+                            // 计算附件按钮的区域（左下角+按钮位置）- 使用与实际按钮一致的值
+                            val buttonSize = 34.dp.toPx() // 使用实际按钮尺寸34dp
+                            val buttonPaddingStart =
+                                12.dp.toPx() // 使用实际的开始内边距12dp
+                            val buttonPaddingBottom =
+                                60.dp.toPx() // 使用实际的底部内边距60dp
+                            val buttonLeft = buttonPaddingStart
+                            val buttonTop =
+                                screenHeight -
+                                    buttonPaddingBottom -
+                                    buttonSize
+                            val buttonRight =
+                                buttonLeft + buttonSize
+                            val buttonBottom =
+                                buttonTop + buttonSize
+
+                            // 增加一点点点击区域，使按钮更容易点到
+                            val expandedClickArea = 6.dp.toPx()
+                            val isButtonClicked =
+                                offset.x >= (buttonLeft - expandedClickArea) &&
+                                    offset.x <=
+                                    (buttonRight + expandedClickArea) &&
+                                    offset.y >=
+                                    (buttonTop - expandedClickArea) &&
+                                    offset.y <=
+                                    (buttonBottom + expandedClickArea)
+
+                            if (isButtonClicked) {
+                                // 点击了附件按钮，切换面板显示状态
+                                showAttachmentPanel =
+                                    !showAttachmentPanel
+                            }
+                            // 检查点击是否在面板外部区域
+                            else if (offset.y <
+                                screenHeight -
+                                panelHeight
+                            ) {
+                                // 点击面板外部区域，关闭面板
+                                showAttachmentPanel = false
+                            }
+                            // 点击在面板内部区域，不做处理
+                        }
+                    }
+            ) {
+                // 使用自定义的悬浮窗专用附件面板
+                FloatingAttachmentPanel(
+                    visible = showAttachmentPanel,
+                    onAttachScreenContent = {
+                        coroutineScope.launch {
+                            // 屏幕内容附件 - 在service层处理
+                            onAttachmentRequest?.invoke("screen_capture")
+                            // 允许附件面板关闭，但稍后再刷新附件列表
+                            delay(500) // 给Service一点时间处理附件
+                            // 保持附件面板关闭状态，但内容已更新
+                            showAttachmentPanel = false
+                        }
+                    },
+                    onAttachNotifications = {
+                        coroutineScope.launch {
+                            // 通知附件 - 在service层处理
+                            onAttachmentRequest?.invoke("notifications_capture")
+                            // 允许附件面板关闭，但稍后再刷新附件列表
+                            delay(500) // 给Service一点时间处理附件
+                            // 保持附件面板关闭状态，但内容已更新
+                            showAttachmentPanel = false
+                        }
+                    },
+                    onAttachLocation = {
+                        coroutineScope.launch {
+                            // 位置附件 - 在service层处理
+                            onAttachmentRequest?.invoke("location_capture")
+                            // 允许附件面板关闭，但稍后再刷新附件列表
+                            delay(500) // 给Service一点时间处理附件
+                            // 保持附件面板关闭状态，但内容已更新
+                            showAttachmentPanel = false
+                        }
+                    },
+                    onAttachProblemMemory = {
+                        coroutineScope.launch {
+                            // 问题记忆附件 - 在service层处理
+                            onAttachmentRequest?.invoke("problem_memory")
+                            // 允许附件面板关闭，但稍后再刷新附件列表
+                            delay(500) // 给Service一点时间处理附件
+                            // 保持附件面板关闭状态，但内容已更新
+                            showAttachmentPanel = false
+                        }
+                    },
+                    onDismiss = { showAttachmentPanel = false }
+                )
             }
         }
     }

@@ -30,10 +30,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ai.assistance.operit.ui.common.animations.SimpleAnimatedVisibility
 import com.ai.assistance.operit.data.model.AttachmentInfo
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
+import com.ai.assistance.operit.ui.common.animations.SimpleAnimatedVisibility
 
 @Composable
 fun ChatInputSection(
@@ -147,10 +145,12 @@ fun ChatInputSection(
                         Row(
                                 modifier =
                                         Modifier.fillMaxWidth()
-                                                .padding(horizontal = 16.dp, vertical = 4.dp),
+                                                .padding(horizontal = 16.dp)
+                                                .padding(top = 4.dp, bottom = 8.dp)
+                                                .height(60.dp),
                                 verticalAlignment = Alignment.CenterVertically
                         ) {
-                                // Input field (increased height)
+                                // Input field (保持原有高度)
                                 OutlinedTextField(
                                         value = userMessage,
                                         onValueChange = onUserMessageChange,
@@ -182,8 +182,45 @@ fun ChatInputSection(
 
                                 Spacer(modifier = Modifier.width(12.dp))
 
-                                // Send button using Box instead of IconButton to avoid padding
-                                // issues
+                                // Attachment button (+ 按钮)
+                                Box(
+                                        modifier =
+                                                Modifier.size(36.dp)
+                                                        .clip(CircleShape)
+                                                        .background(
+                                                                if (showAttachmentPanel)
+                                                                        MaterialTheme.colorScheme
+                                                                                .primary
+                                                                else
+                                                                        MaterialTheme.colorScheme
+                                                                                .surfaceVariant
+                                                        )
+                                                        .clickable(
+                                                                enabled = !isProcessing,
+                                                                onClick = {
+                                                                        setShowAttachmentPanel(
+                                                                                !showAttachmentPanel
+                                                                        )
+                                                                }
+                                                        ),
+                                        contentAlignment = Alignment.Center
+                                ) {
+                                        Icon(
+                                                imageVector = Icons.Default.Add,
+                                                contentDescription = "添加附件",
+                                                tint =
+                                                        if (showAttachmentPanel)
+                                                                MaterialTheme.colorScheme.onPrimary
+                                                        else
+                                                                MaterialTheme.colorScheme
+                                                                        .onSurfaceVariant,
+                                                modifier = Modifier.size(18.dp)
+                                        )
+                                }
+
+                                Spacer(modifier = Modifier.width(12.dp))
+
+                                // Send button (发送按钮)
                                 Box(
                                         modifier =
                                                 Modifier.size(36.dp)
@@ -238,44 +275,6 @@ fun ChatInputSection(
                                                         if (isProcessing)
                                                                 MaterialTheme.colorScheme.onError
                                                         else MaterialTheme.colorScheme.onPrimary,
-                                                modifier = Modifier.size(18.dp)
-                                        )
-                                }
-
-                                Spacer(modifier = Modifier.width(12.dp))
-
-                                // Attachment button using Box instead of IconButton
-                                Box(
-                                        modifier =
-                                                Modifier.size(36.dp)
-                                                        .clip(CircleShape)
-                                                        .background(
-                                                                if (showAttachmentPanel)
-                                                                        MaterialTheme.colorScheme
-                                                                                .primary
-                                                                else
-                                                                        MaterialTheme.colorScheme
-                                                                                .surfaceVariant
-                                                        )
-                                                        .clickable(
-                                                                enabled = !isProcessing,
-                                                                onClick = {
-                                                                        setShowAttachmentPanel(
-                                                                                !showAttachmentPanel
-                                                                        )
-                                                                }
-                                                        ),
-                                        contentAlignment = Alignment.Center
-                                ) {
-                                        Icon(
-                                                imageVector = Icons.Default.Add,
-                                                contentDescription = "添加附件",
-                                                tint =
-                                                        if (showAttachmentPanel)
-                                                                MaterialTheme.colorScheme.onPrimary
-                                                        else
-                                                                MaterialTheme.colorScheme
-                                                                        .onSurfaceVariant,
                                                 modifier = Modifier.size(18.dp)
                                         )
                                 }

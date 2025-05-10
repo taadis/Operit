@@ -58,8 +58,11 @@ class AttachmentManager(private val context: Context, private val toolHandler: A
         return attachmentRef.toString()
     }
 
-    /** Handles a file or image attachment selected by the user */
-    suspend fun handleAttachment(filePath: String) {
+    /** 
+     * Handles a file or image attachment selected by the user
+     * 确保在IO线程执行所有文件操作
+     */
+    suspend fun handleAttachment(filePath: String) = withContext(Dispatchers.IO) {
         try {
             // Check if it's a content URI path
             if (filePath.startsWith("content://")) {
@@ -96,7 +99,7 @@ class AttachmentManager(private val context: Context, private val toolHandler: A
                 val file = java.io.File(filePath)
                 if (!file.exists()) {
                     _toastEvent.emit("文件不存在")
-                    return
+                    return@withContext
                 }
 
                 val fileName = file.name
@@ -144,8 +147,9 @@ class AttachmentManager(private val context: Context, private val toolHandler: A
     /**
      * Captures the current screen content and attaches it to the message
      * Uses the get_page_info AITool to retrieve UI structure
+     * 确保在IO线程中执行
      */
-    suspend fun captureScreenContent() {
+    suspend fun captureScreenContent() = withContext(Dispatchers.IO) {
         try {
             // Create a tool to get page info
             val pageInfoTool = AITool(
@@ -187,8 +191,9 @@ class AttachmentManager(private val context: Context, private val toolHandler: A
     /**
      * 获取设备当前通知并作为附件添加到消息
      * 使用get_notifications AITool获取通知数据
+     * 确保在IO线程中执行
      */
-    suspend fun captureNotifications(limit: Int = 10) {
+    suspend fun captureNotifications(limit: Int = 10) = withContext(Dispatchers.IO) {
         try {
             // 创建工具参数
             val toolParams = listOf(
@@ -236,8 +241,9 @@ class AttachmentManager(private val context: Context, private val toolHandler: A
     /**
      * 获取设备当前位置并作为附件添加到消息
      * 使用get_device_location AITool获取位置数据
+     * 确保在IO线程中执行
      */
-    suspend fun captureLocation(highAccuracy: Boolean = true) {
+    suspend fun captureLocation(highAccuracy: Boolean = true) = withContext(Dispatchers.IO) {
         try {
             // 创建工具参数
             val toolParams = listOf(
@@ -279,6 +285,69 @@ class AttachmentManager(private val context: Context, private val toolHandler: A
         } catch (e: Exception) {
             _toastEvent.emit("获取位置失败: ${e.message}")
             Log.e(TAG, "Error capturing location", e)
+        }
+    }
+
+    /**
+     * 添加问题记忆附件
+     * 确保在IO线程中执行
+     */
+    suspend fun attachProblemMemory(content: String, filename: String) = withContext(Dispatchers.IO) {
+        try {
+            // 生成唯一ID
+            val captureId = "problem_memory_${System.currentTimeMillis()}"
+            
+            // 创建附件信息
+            val attachmentInfo = AttachmentInfo(
+                filePath = captureId,
+                fileName = filename,
+                mimeType = "text/plain",
+                fileSize = content.length.toLong(),
+                content = content
+            )
+            
+            // 添加到附件列表
+            val currentList = _attachments.value
+            _attachments.value = currentList + attachmentInfo
+            
+            _toastEvent.emit("已添加问题记忆: $filename")
+        } catch (e: Exception) {
+            _toastEvent.emit("添加问题记忆失败: ${e.message}")
+            Log.e(TAG, "Error attaching problem memory", e)
+        }
+    }
+
+    /**
+     * 查询问题记忆库并添加结果作为附件
+     * 确保在IO线程中执行
+     */
+    suspend fun queryProblemMemory(query: String): Pair<String, String> = withContext(Dispatchers.IO) {
+        try {
+            // 创建查询问题库的工具
+            val queryTool = AITool(
+                name = "query_problem_library",
+                parameters = listOf(ToolParameter("query", query))
+            )
+            
+            // 执行工具查询问题库
+            val result = toolHandler.executeTool(queryTool)
+            
+            if (result.success) {
+                // 查询成功，获取结果
+                val queryResult = result.result.toString()
+                // 创建文件名
+                val fileName = "问题库查询结果.txt"
+                return@withContext Pair(queryResult, fileName)
+            } else {
+                // 查询失败，返回错误信息
+                val errorMsg = "查询问题库失败: ${result.error ?: "未知错误"}"
+                return@withContext Pair(errorMsg, "查询错误.txt")
+            }
+        } catch (e: Exception) {
+            // 处理异常
+            val errorMsg = "查询问题库出错: ${e.message}"
+            Log.e(TAG, "查询问题库出错", e)
+            return@withContext Pair(errorMsg, "查询错误.txt")
         }
     }
 

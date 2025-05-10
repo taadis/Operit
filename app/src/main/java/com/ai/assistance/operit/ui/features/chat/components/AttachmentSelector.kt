@@ -25,21 +25,21 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.ScreenshotMonitor
-import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.VideoCameraBack
-import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,10 +47,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.ai.assistance.operit.data.model.AITool
-import com.ai.assistance.operit.data.model.ToolParameter
 import com.ai.assistance.operit.tools.AIToolHandler
+import com.ai.assistance.operit.ui.features.chat.attachments.AttachmentManager
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** 简约风格的附件选择器组件 */
 @Composable
@@ -67,6 +68,11 @@ fun AttachmentSelectorPanel(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+
+    // 获取AttachmentManager实例
+    val attachmentManager = remember {
+        AttachmentManager(context, AIToolHandler.getInstance(context))
+    }
 
     // 文件/图片选择器启动器
     val imagePickerLauncher =
@@ -163,9 +169,9 @@ fun AttachmentSelectorPanel(
                             onClick = { filePickerLauncher.launch("*/*") }
                     )
                 }
-                
+
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
                 // 第二行选项 - 4个选项
                 Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -181,7 +187,7 @@ fun AttachmentSelectorPanel(
                                 onDismiss()
                             }
                     )
-                    
+
                     // 当前通知选项
                     AttachmentOption(
                             icon = Icons.Default.Notifications,
@@ -191,7 +197,7 @@ fun AttachmentSelectorPanel(
                                 onDismiss()
                             }
                     )
-                    
+
                     // 当前位置选项
                     AttachmentOption(
                             icon = Icons.Default.LocationOn,
@@ -201,46 +207,35 @@ fun AttachmentSelectorPanel(
                                 onDismiss()
                             }
                     )
-                    
+
                     // 问题记忆选项
                     AttachmentOption(
                             icon = Icons.Default.Memory,
                             label = "问题记忆",
                             onClick = {
-                                // 使用用户查询通过AITool查询问题库
+                                // 使用用户查询通过AttachmentManager查询问题库
                                 if (userQuery.isNotBlank()) {
-                                    coroutineScope.launch {
-                                        // 获取AIToolHandler实例
-                                        val toolHandler = AIToolHandler.getInstance(context)
-                                        
-                                        // 创建查询问题库的工具
-                                        val queryTool = AITool(
-                                            name = "query_problem_library",
-                                            parameters = listOf(ToolParameter("query", userQuery))
-                                        )
-                                        
+                                    coroutineScope.launch(Dispatchers.IO) {
                                         try {
-                                            // 执行工具查询问题库
-                                            val result = toolHandler.executeTool(queryTool)
-                                            
-                                            if (result.success) {
-                                                // 查询成功，获取结果
-                                                val queryResult = result.result.toString()
-                                                
-                                                // 创建文件名
-                                                val fileName = "问题库查询结果.txt"
-                                                
-                                                // 将查询结果作为内容传递
-                                                onAttachProblemMemory(queryResult, fileName)
-                                            } else {
-                                                // 查询失败，返回错误信息
-                                                val errorMsg = "查询问题库失败: ${result.error ?: "未知错误"}"
-                                                onAttachProblemMemory(errorMsg, "查询错误.txt")
-                                            }
+                                            // 使用AttachmentManager查询问题记忆
+                                            val (content, filename) =
+                                                    attachmentManager.queryProblemMemory(userQuery)
+
+                                            // 在主线程中回调传递结果
+                                            kotlinx.coroutines.withContext(
+                                                    kotlinx.coroutines.Dispatchers.Main
+                                            ) { onAttachProblemMemory(content, filename) }
                                         } catch (e: Exception) {
-                                            // 处理异常
-                                            val errorMsg = "查询问题库出错: ${e.message}"
-                                            onAttachProblemMemory(errorMsg, "查询错误.txt")
+                                            Log.e("AttachmentSelector", "查询问题记忆失败", e)
+                                            // 在主线程中回调传递错误信息
+                                            kotlinx.coroutines.withContext(
+                                                    kotlinx.coroutines.Dispatchers.Main
+                                            ) {
+                                                onAttachProblemMemory(
+                                                        "查询问题记忆失败: ${e.message}",
+                                                        "查询错误.txt"
+                                                )
+                                            }
                                         }
                                     }
                                 }
