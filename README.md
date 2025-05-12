@@ -4,9 +4,13 @@
   <img src="app/src/main/res/playstore-icon.png" width="120" height="120" alt="Operit Logo">
 </div>
 
+
+## 我们非常需要各位去推广这个软件来获取更高的关注度
+
 ## 🌟 项目简介
 
 **Operit AI** 是移动端首个功能完备的 AI 智能助手应用，它**完全独立运行**（除了外部api调用）于您的 Android 设备上，拥有强大的**工具调用能力**。它不仅仅是一个聊天界面，更是一个融合了 Termux 环境和 Shizuku 特权的**全能助手**。
+
 
 ### ✨ 与众不同的突破性特点
 
