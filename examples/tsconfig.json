@@ -6,7 +6,7 @@
       "es2017",
       "dom"
     ],
-    "outDir": "./dist",
+    // "outDir": "./dist",
     "declaration": false,
     "strict": false,
     "noImplicitAny": false,
