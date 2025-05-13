@@ -1,6 +1,9 @@
 package com.ai.assistance.operit.core.application
 
 import android.app.Application
+import coil.ImageLoader
+import coil.disk.DiskCache
+import coil.request.CachePolicy
 import com.ai.assistance.operit.data.db.AppDatabase
 import com.ai.assistance.operit.data.mcp.MCPImageCache
 import com.ai.assistance.operit.data.preferences.initUserPreferencesManager
@@ -19,6 +22,14 @@ class OperitApplication : Application() {
         /** Global JSON instance with custom serializers */
         lateinit var json: Json
             private set
+
+        // 全局应用实例
+        lateinit var instance: OperitApplication
+            private set
+
+        // 全局ImageLoader实例，用于高效缓存图片
+        lateinit var globalImageLoader: ImageLoader
+            private set
     }
 
     // 应用级协程作用域
@@ -29,6 +40,7 @@ class OperitApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
 
         // Initialize the JSON serializer with our custom module
         json = Json {
@@ -53,6 +65,21 @@ class OperitApplication : Application() {
             // 简单访问数据库以触发初始化
             database.problemDao().getProblemCount()
         }
+
+        // 初始化全局图片加载器，设置强大的缓存策略
+        globalImageLoader =
+                ImageLoader.Builder(this)
+                        .crossfade(true)
+                        .respectCacheHeaders(true)
+                        .memoryCachePolicy(CachePolicy.ENABLED)
+                        .diskCachePolicy(CachePolicy.ENABLED)
+                        .diskCache {
+                            DiskCache.Builder()
+                                    .directory(filesDir.resolve("image_cache"))
+                                    .maxSizePercent(0.1) // 使用10%的可用磁盘空间
+                                    .build()
+                        }
+                        .build()
 
         // MCP插件启动逻辑已移至MainActivity中处理
     }

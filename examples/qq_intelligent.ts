@@ -2,7 +2,7 @@
 METADATA
 {
     // QQ Intelligent Assistant Package
-    name: qq_intelligent
+    name: Experimental_qq_intelligent
     description: 高级QQ智能助手，通过UI自动化技术实现QQ应用交互，支持消息自动回复、历史记录读取、联系人搜索与通讯等功能，为AI赋予QQ社交能力。适用于智能客服、自动回复、社交辅助等场景。
 
     // Tools in this package

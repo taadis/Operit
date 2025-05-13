@@ -93,13 +93,21 @@ dependencies {
     implementation("com.itextpdf:itextpdf:5.5.13.3") // iText for PDF creation
     implementation("org.apache.pdfbox:pdfbox:2.0.27") // PDFBox for PDF operations
     
-    // Markdown rendering libraries
-    implementation("com.github.jeziellago:compose-markdown:0.5.7")
+    // Markdown rendering libraries - 使用自定义的Markwon，不使用compose-markdown库
+    // implementation("com.github.jeziellago:compose-markdown:0.5.7") {
+    //     exclude(group = "io.noties.markwon")  // Exclude all Markwon dependencies from compose-markdown
+    // }
     implementation("io.noties.markwon:core:4.6.2")
     implementation("io.noties.markwon:html:4.6.2")
     implementation("io.noties.markwon:linkify:4.6.2")
     implementation("io.noties.markwon:ext-strikethrough:4.6.2")
     implementation("io.noties.markwon:ext-tables:4.6.2")
+    implementation("io.noties.markwon:image:4.6.2")
+    implementation("io.noties.markwon:image-coil:4.6.2")
+    
+    // 图片加载库
+    implementation("io.coil-kt:coil:2.5.0")
+    implementation("io.coil-kt:coil-compose:2.5.0")
     
     // LaTeX rendering libraries
     implementation("ru.noties:jlatexmath-android:0.2.0")
