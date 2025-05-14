@@ -55,6 +55,7 @@ fun PermissionStatusCard(
         permissionErrorMessage: String?,
         isTunaSourceEnabled: Boolean = false,
         isPythonInstalled: Boolean = false,
+        isUvInstalled: Boolean = false,
         isNodeInstalled: Boolean = false
 ) {
         Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
@@ -139,6 +140,7 @@ fun PermissionStatusCard(
                                 onLongClick = onTermuxLongClick,
                                 isTunaSourceEnabled = isTunaSourceEnabled,
                                 isPythonInstalled = isPythonInstalled,
+                                isUvInstalled = isUvInstalled,
                                 isNodeInstalled = isNodeInstalled
                         )
 
@@ -212,6 +214,7 @@ fun TermuxStatusItem(
         onLongClick: () -> Unit,
         isTunaSourceEnabled: Boolean = false,
         isPythonInstalled: Boolean = false,
+        isUvInstalled: Boolean = false,
         isNodeInstalled: Boolean = false
 ) {
         Row(
@@ -237,6 +240,7 @@ fun TermuxStatusItem(
                                         isTermuxRunning &&
                                         (!isTunaSourceEnabled ||
                                                 !isPythonInstalled ||
+                                                !isUvInstalled ||
                                                 !isNodeInstalled) -> "待配置"
                                 else -> "已启用"
                         }
@@ -251,6 +255,7 @@ fun TermuxStatusItem(
                                         isTermuxRunning &&
                                         (!isTunaSourceEnabled ||
                                                 !isPythonInstalled ||
+                                                !isUvInstalled ||
                                                 !isNodeInstalled) ->
                                         MaterialTheme.colorScheme.tertiary
                                 else -> MaterialTheme.colorScheme.primary

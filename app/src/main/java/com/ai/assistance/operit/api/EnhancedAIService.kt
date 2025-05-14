@@ -1143,4 +1143,63 @@ class EnhancedAIService(
             }
         }
     }
+
+    /**
+     * 生成对话总结
+     * @param messages 要总结的消息列表
+     * @return 生成的总结文本
+     */
+    suspend fun generateSummary(messages: List<Pair<String, String>>): String {
+        try {
+            // 使用更结构化、更详细的提示词
+            val systemPrompt =
+                    """
+            请对以下对话内容进行简洁但全面的总结。遵循以下格式：
+            
+            1. 以"对话摘要"作为标题
+            2. 用1-2个简短段落概述主要内容和交互
+            3. 明确列出对理解后续对话至关重要的关键信息点（如用户提到的具体问题、需求、限制条件等）
+            4. 特别标注用户明确表达的意图或情感，如有
+            5. 避免使用复杂的标题结构和Markdown格式，使用简单段落
+            
+            总结应该尽量保留对后续对话有价值的上下文信息，但不要包含无关细节。内容应该简洁明了，便于AI快速理解历史对话的要点。
+            """
+
+            val finalMessages = listOf(Pair("system", systemPrompt)) + messages
+
+            // 使用aiService发送直接请求
+            var summaryContent = ""
+
+            aiService.sendMessage(
+                    message = "请按照要求总结对话内容",
+                    onPartialResponse = { content, _ -> summaryContent = content },
+                    chatHistory = finalMessages,
+                    onComplete = {},
+                    onConnectionStatus = {}
+            )
+
+            // 如果没有内容，等待短暂时间让内容填充
+            if (summaryContent.isBlank()) {
+                delay(2000) // 等待2秒，给AI一些时间生成总结
+            }
+
+            // 获取本次总结生成的token统计
+            val inputTokens = aiService.inputTokenCount
+            val outputTokens = aiService.outputTokenCount
+
+            // 将总结token计数添加到用户偏好分析的token统计中
+            try {
+                Log.d(TAG, "总结生成使用了输入token: $inputTokens, 输出token: $outputTokens")
+                apiPreferences.updatePreferenceAnalysisTokens(inputTokens, outputTokens)
+                Log.d(TAG, "已将总结token统计添加到用户偏好分析token计数中")
+            } catch (e: Exception) {
+                Log.e(TAG, "更新token统计失败", e)
+            }
+
+            return summaryContent.trim().takeIf { it.isNotBlank() } ?: "对话摘要：未能生成有效摘要。"
+        } catch (e: Exception) {
+            Log.e(TAG, "生成总结时出错", e)
+            return "对话摘要：生成摘要时出错，但对话仍在继续。"
+        }
+    }
 }

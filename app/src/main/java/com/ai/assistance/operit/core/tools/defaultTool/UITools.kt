@@ -1168,16 +1168,9 @@ class UITools(private val context: Context) {
             kotlinx.coroutines.delay(300)
 
             // First try the named keycode version
-            val namedPasteCommand = "input keyevent KEYCODE_CTRL_LEFT KEYCODE_V"
-            val namedPasteResult = AdbCommandExecutor.executeAdbCommand(namedPasteCommand)
-
-            if (namedPasteResult.success) {
-                Log.d(TAG, "Pasted text using named keycode method")
-                return true
-            }
 
             // If that fails, try using numeric keycodes
-            val pasteCommand = "input keyevent 279 47" // KEYCODE_CTRL_LEFT KEYCODE_V
+            val pasteCommand = "input keyevent 17 86" // KEYCODE_CTRL_LEFT KEYCODE_V
             val pasteResult = AdbCommandExecutor.executeAdbCommand(pasteCommand)
 
             if (pasteResult.success) {

@@ -52,6 +52,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.ai.assistance.operit.data.model.ChatMessage
+import com.ai.assistance.operit.ui.common.displays.EnhancedMarkdownText
 import com.ai.assistance.operit.ui.common.displays.MarkdownTextComposable
 
 /**
@@ -133,7 +134,13 @@ fun UserMessageComposable(message: ChatMessage, backgroundColor: Color, textColo
                 )
 
                 // Display main text content with inline attachments
-                MarkdownTextComposable(text = textContent, textColor = textColor)
+                EnhancedMarkdownText(
+                        text = textContent,
+                        textColor = textColor,
+                        onCodeCopied = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        }
+                )
             }
         }
     }

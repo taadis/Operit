@@ -6,8 +6,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.data.model.ChatMessage
+import com.ai.assistance.operit.ui.common.displays.EnhancedMarkdownText
 
 /**
  * A composable function for rendering system messages in a Cursor IDE style.
@@ -18,6 +21,8 @@ fun SystemMessageComposable(
     backgroundColor: Color,
     textColor: Color
 ) {
+    val haptic = LocalHapticFeedback.current
+    
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -27,11 +32,15 @@ fun SystemMessageComposable(
         ),
         shape = RoundedCornerShape(8.dp)
     ) {
-        Text(
-            text = message.content,
-            color = textColor,
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.padding(12.dp)
-        )
+        Box(modifier = Modifier.padding(12.dp)) {
+            EnhancedMarkdownText(
+                text = message.content,
+                textColor = textColor,
+                fontSize = MaterialTheme.typography.bodySmall.fontSize,
+                onCodeCopied = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                }
+            )
+        }
     }
 } 

@@ -688,17 +688,18 @@ object TermuxCommandExecutionImpl {
                                             TAG,
                                             createLogMessage(
                                                     command,
-                                                    "命令仍在执行 - 总时间: ${totalElapsed/1000}秒, 无活动时间: ${inactivityTime/1000}秒, 数据读取中: ${isDataBeingRead.get()}"
+                                                    "命令仍在执行 - 总时间: ${totalElapsed/1000}秒, 无活动时间: ${inactivityTime/1000}秒, 数据读取中: ${isDataBeingRead.get()} (${if (isDataBeingRead.get()) "不会触发无活动超时" else "可能触发无活动超时"})"
                                             )
                                     )
                                 }
 
                                 // 判断是否应该超时:
                                 // 1. 如果总时间超过超时时间且没有数据被读取，则超时
-                                // 2. 如果无活动时间超过无活动超时时间，则超时
+                                // 2. 如果无活动时间超过无活动超时时间且没有数据正在被读取，则超时
                                 if ((totalElapsed > options.timeout && !isDataBeingRead.get()) ||
                                                 (inactivityTime >
                                                         TermuxCommandOptions.INACTIVITY_TIMEOUT &&
+                                                        !isDataBeingRead.get() &&
                                                         totalElapsed >
                                                                 TermuxCommandOptions
                                                                         .INACTIVITY_TIMEOUT)
@@ -707,7 +708,7 @@ object TermuxCommandExecutionImpl {
                                             TAG,
                                             createLogMessage(
                                                     command,
-                                                    "命令执行超时 - 总时间: ${totalElapsed/1000}秒, 无活动时间: ${inactivityTime/1000}秒"
+                                                    "命令执行超时 - 总时间: ${totalElapsed/1000}秒, 无活动时间: ${inactivityTime/1000}秒, 数据读取中: ${isDataBeingRead.get()}"
                                             )
                                     )
                                     waitingForResult = false

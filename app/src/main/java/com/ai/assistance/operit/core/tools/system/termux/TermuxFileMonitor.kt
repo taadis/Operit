@@ -93,12 +93,20 @@ object TermuxFileMonitor {
         val fileMonitorThread = Thread {
             try {
                 var lastSize = 0L
+                var hadOutputInLastCycle = false
 
                 // 添加日志，记录文件监控开始
                 // Log.d(TAG, createLogMessage(command, "开始文件监控: $tempOutputFile"))
 
                 // 循环检查文件变化，直到命令完成
                 while (commandIsRunning.get()) {
+                    // 在每个监控周期开始时，设置数据正在读取状态为前一周期是否有输出
+                    // 这样每当有新数据读取，isDataBeingRead就会保持为true至少一个完整周期
+                    isDataBeingRead.set(hadOutputInLastCycle)
+
+                    // 重置本周期的输出状态标识
+                    hadOutputInLastCycle = false
+
                     // 使用AdbCommandExecutor获取文件大小
                     val sizeCommand =
                             "run-as com.termux sh -c 'if [ -f \"$tempOutputFile\" ]; then echo \"EXISTS=\"; stat -c %s \"$tempOutputFile\" 2>/dev/null || stat -f %z \"$tempOutputFile\"; else echo \"NOT_EXISTS\"; fi'"
@@ -165,7 +173,8 @@ object TermuxFileMonitor {
                                 // 对于小块数据，直接按字节读取
                                 "run-as com.termux sh -c 'dd if=\"$tempOutputFile\" bs=1 skip=$lastSize count=${newSize - lastSize} 2>/dev/null'"
                             }
-                    // Log.d(TAG, createLogMessage(command, "读取命令: $readCommand, 从位置 $lastSize 读取 ${newSize - lastSize} 字节"))
+                    // Log.d(TAG, createLogMessage(command, "读取命令: $readCommand, 从位置 $lastSize 读取
+                    // ${newSize - lastSize} 字节"))
 
                     val readResult =
                             runCatching {
@@ -190,7 +199,8 @@ object TermuxFileMonitor {
 
                     // 如果读取失败，尝试备用读取方法
                     if (output.isEmpty() && readResult?.stderr?.isNotEmpty() == true) {
-                        // Log.w(TAG, createLogMessage(command, "使用dd读取失败: ${readResult.stderr}，尝试备用方法"))
+                        // Log.w(TAG, createLogMessage(command, "使用dd读取失败:
+                        // ${readResult.stderr}，尝试备用方法"))
 
                         // 备用方法：使用cat加head/tail
                         val fallbackCommand =
@@ -219,7 +229,8 @@ object TermuxFileMonitor {
                         }
                     }
 
-                    // Log.d(TAG, createLogMessage(command, "读取新增内容 (${output.length} 字节): ${if (output.length > 50) output.substring(0, 50) + "..." else output}"))
+                    // Log.d(TAG, createLogMessage(command, "读取新增内容 (${output.length} 字节): ${if
+                    // (output.length > 50) output.substring(0, 50) + "..." else output}"))
 
                     // 检查是否包含命令完成标记
                     if (output.contains("COMMAND_COMPLETE:")) {
@@ -245,7 +256,8 @@ object TermuxFileMonitor {
                             }
                         }
 
-                        // Log.d(TAG, createLogMessage(command, "命令执行完成，退出码: $exitCode, 成功: ${exitCode == 0}"))
+                        // Log.d(TAG, createLogMessage(command, "命令执行完成，退出码: $exitCode, 成功:
+                        // ${exitCode == 0}"))
                         commandIsRunning.set(false)
                     }
 
@@ -286,9 +298,18 @@ object TermuxFileMonitor {
 
                     // 处理获取到的内容
                     if (output.isNotEmpty()) {
-                        // 更新最后活动时间
+                        // 更新最后活动时间和读取状态
                         lastActivityTime.set(System.currentTimeMillis())
-                        isDataBeingRead.set(true)
+                        // 记录本周期有输出
+                        hadOutputInLastCycle = true
+
+                        Log.d(
+                                TAG,
+                                createLogMessage(
+                                        command,
+                                        "检测到新输出: ${output.length}字节, 内容预览: ${output.take(100).replace("\n", "\\n")}${if (output.length > 100) "..." else ""}"
+                                )
+                        )
 
                         Handler(Looper.getMainLooper()).post {
                             effectiveOutputReceiver?.onStdout(output, false)

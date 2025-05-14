@@ -12,6 +12,7 @@ object ChatUtils {
             "tool" -> "user" // AI, assistant and tool messages map to assistant
             "user" -> "user"  // User messages remain as user
             "system" -> "system" // System messages remain as system
+            "summary" -> "user" // Summary messages are treated as user messages
             else -> role // Default to user for any other role
         }
     }
@@ -22,6 +23,7 @@ object ChatUtils {
             "tool" -> "tool" // AI, assistant and tool messages map to assistant
             "user" -> "user"  // User messages remain as user
             "system" -> "system" // System messages remain as system
+            "summary" -> "user" // Summary messages are treated as user messages
             else -> "user" // Default to user for any other role
         }
     }
@@ -39,7 +41,7 @@ object ChatUtils {
     
     fun prepareMessagesForApi(
         messages: List<ChatMessage>,
-        includeRoles: Set<String> = setOf("user", "ai", "system")
+        includeRoles: Set<String> = setOf("user", "ai", "system", "summary")
     ): List<Pair<String, String>> {
         return messages
             .filter { it.sender in includeRoles }

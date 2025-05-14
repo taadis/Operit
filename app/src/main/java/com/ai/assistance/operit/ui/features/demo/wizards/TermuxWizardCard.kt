@@ -19,11 +19,13 @@ fun TermuxWizardCard(
         onAuthorizeTermux: () -> Unit,
         isTunaSourceEnabled: Boolean = false,
         isPythonInstalled: Boolean = false,
+        isUvInstalled: Boolean = false,
         isNodeInstalled: Boolean = false,
         isTermuxRunning: Boolean = false,
         onStartTermux: () -> Unit = {},
         onConfigureTunaSource: () -> Unit = {},
         onInstallPythonEnv: () -> Unit = {},
+        onInstallUvEnv: () -> Unit = {},
         onInstallNodeEnv: () -> Unit = {}
 ) {
         Card(
@@ -62,10 +64,11 @@ fun TermuxWizardCard(
                                 progress =
                                         when {
                                                 !isTermuxInstalled -> 0f
-                                                !isTermuxAuthorized -> 0.2f
-                                                !isTermuxRunning -> 0.4f
-                                                !isTunaSourceEnabled -> 0.55f
-                                                !isPythonInstalled -> 0.7f
+                                                !isTermuxAuthorized -> 0.14f
+                                                !isTermuxRunning -> 0.28f
+                                                !isTunaSourceEnabled -> 0.42f
+                                                !isPythonInstalled -> 0.56f
+                                                !isUvInstalled -> 0.7f
                                                 !isNodeInstalled -> 0.85f
                                                 else -> 1f
                                         },
@@ -81,7 +84,8 @@ fun TermuxWizardCard(
                                                 !isTermuxRunning -> "步骤3：启动Termux"
                                                 !isTunaSourceEnabled -> "步骤4：配置清华源"
                                                 !isPythonInstalled -> "步骤5：安装Python环境"
-                                                !isNodeInstalled -> "步骤6：安装Node.js环境"
+                                                !isUvInstalled -> "步骤6：安装UV包管理器"
+                                                !isNodeInstalled -> "步骤7：安装Node.js环境"
                                                 else -> "Termux配置完成"
                                         },
                                 style = MaterialTheme.typography.labelMedium,
@@ -395,11 +399,69 @@ fun TermuxWizardCard(
                                                                         .padding(vertical = 8.dp)
                                                 ) { Text("安装Python") }
                                         }
+                                        
+                                        // 第六步：安装UV包管理器
+                                        !isUvInstalled -> {
+                                                Text(
+                                                        "Python已安装，现在需要安装UV包管理器。",
+                                                        color =
+                                                                MaterialTheme.colorScheme
+                                                                        .onPrimaryContainer,
+                                                        modifier = Modifier.padding(bottom = 8.dp)
+                                                )
 
-                                        // 第六步：安装Node.js环境
+                                                // UV包管理器说明
+                                                Card(
+                                                        colors =
+                                                                CardDefaults.cardColors(
+                                                                        containerColor =
+                                                                                MaterialTheme
+                                                                                        .colorScheme
+                                                                                        .surface
+                                                                ),
+                                                        modifier =
+                                                                Modifier.fillMaxWidth()
+                                                                        .padding(bottom = 8.dp)
+                                                ) {
+                                                        Column(modifier = Modifier.padding(16.dp)) {
+                                                                Text(
+                                                                        text = "UV包管理器说明",
+                                                                        fontWeight =
+                                                                                FontWeight.Bold,
+                                                                        color =
+                                                                                MaterialTheme
+                                                                                        .colorScheme
+                                                                                        .onSurface,
+                                                                        modifier =
+                                                                                Modifier.padding(
+                                                                                        bottom =
+                                                                                                4.dp
+                                                                                )
+                                                                )
+                                                                Text(
+                                                                        text =
+                                                                                "UV是一个快速的Python包管理器和解析器，可以替代pip，提供更好的依赖管理。点击「安装UV」按钮进行安装。",
+                                                                        color =
+                                                                                MaterialTheme
+                                                                                        .colorScheme
+                                                                                        .onSurface
+                                                                )
+                                                        }
+                                                }
+
+                                                // 安装按钮
+                                                Button(
+                                                        onClick = onInstallUvEnv,
+                                                        modifier =
+                                                                Modifier.fillMaxWidth()
+                                                                        .padding(vertical = 8.dp)
+                                                ) { Text("安装UV") }
+                                        }
+
+                                        // 第七步：安装Node.js环境
                                         !isNodeInstalled -> {
                                                 Text(
-                                                        "Python已安装，现在需要安装Node.js环境。",
+                                                        "UV已安装，现在需要安装Node.js环境。",
                                                         color =
                                                                 MaterialTheme.colorScheme
                                                                         .onPrimaryContainer,

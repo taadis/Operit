@@ -12,10 +12,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.ChatMessage
+import com.ai.assistance.operit.ui.common.displays.EnhancedMarkdownText
 
 /** A composable function for rendering thinking/processing messages in a Cursor IDE style. */
 @Composable
@@ -25,53 +28,68 @@ fun ThinkingMessageComposable(
         textColor: Color,
         collapseExecution: Boolean = false
 ) {
-    var expanded by remember { mutableStateOf(false) } // Default collapsed
+        var expanded by remember { mutableStateOf(false) } // Default collapsed
+        val haptic = LocalHapticFeedback.current
 
-    // Extract plain text thinking content
-    val thinkingContent = message.content
+        // Extract plain text thinking content
+        val thinkingContent = message.content
 
-    Card(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-            colors = CardDefaults.cardColors(containerColor = backgroundColor),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                    modifier =
-                            Modifier.fillMaxWidth()
-                                    .clickable { expanded = !expanded }
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                        text = stringResource(id = R.string.thinking_process),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = textColor
-                )
+        Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                colors = CardDefaults.cardColors(containerColor = backgroundColor),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+        ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                                modifier =
+                                        Modifier.fillMaxWidth()
+                                                .clickable { expanded = !expanded }
+                                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                                Text(
+                                        text = stringResource(id = R.string.thinking_process),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = textColor
+                                )
 
-                Icon(
-                        imageVector =
-                                if (expanded) Icons.Default.ExpandLess
-                                else Icons.Default.ExpandMore,
-                        contentDescription = if (expanded) "收起" else "展开",
-                        tint = textColor
-                )
-            }
+                                Icon(
+                                        imageVector =
+                                                if (expanded) Icons.Default.ExpandLess
+                                                else Icons.Default.ExpandMore,
+                                        contentDescription = if (expanded) "收起" else "展开",
+                                        tint = textColor
+                                )
+                        }
 
-            AnimatedVisibility(visible = expanded) {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    // Display thinking text content
-                    if (thinkingContent.isNotBlank()) {
-                        Text(
-                                text = thinkingContent,
-                                color = textColor,
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                        )
-                    }
+                        AnimatedVisibility(visible = expanded) {
+                                Column(
+                                        modifier =
+                                                Modifier.padding(
+                                                        horizontal = 16.dp,
+                                                        vertical = 8.dp
+                                                )
+                                ) {
+                                        // Display thinking text content
+                                        if (thinkingContent.isNotBlank()) {
+                                                EnhancedMarkdownText(
+                                                        text = thinkingContent,
+                                                        textColor = textColor,
+                                                        fontSize =
+                                                                MaterialTheme.typography
+                                                                        .bodySmall
+                                                                        .fontSize,
+                                                        onCodeCopied = {
+                                                                haptic.performHapticFeedback(
+                                                                        HapticFeedbackType.LongPress
+                                                                )
+                                                        },
+                                                        modifier = Modifier.padding(bottom = 8.dp)
+                                                )
+                                        }
+                                }
+                        }
                 }
-            }
         }
-    }
 }

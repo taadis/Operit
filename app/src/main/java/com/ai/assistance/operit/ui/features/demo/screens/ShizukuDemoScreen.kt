@@ -85,6 +85,7 @@ fun ShizukuDemoScreen() {
     // Add new state variables for Termux configurations
     val isTunaSourceEnabled = remember { mutableStateOf(false) }
     val isPythonInstalled = remember { mutableStateOf(false) }
+    val isUvInstalled = remember { mutableStateOf(false) }
     val isNodeInstalled = remember { mutableStateOf(false) }
     val isTermuxConfiguring = remember { mutableStateOf(false) }
     val isTermuxRunning = remember { mutableStateOf(false) }
@@ -209,6 +210,18 @@ fun ShizukuDemoScreen() {
         }
     }
 
+    // 检查UV是否安装 - 只在初始加载时调用一次
+    suspend fun checkUvInstalled() {
+        try {
+            val result = executeTermuxCommand(context, "command -v uv")
+            isUvInstalled.value = result.success && result.stdout.contains("uv")
+            Log.d(TAG, "检查UV: ${isUvInstalled.value}")
+        } catch (e: Exception) {
+            Log.e(TAG, "检查UV错误: ${e.message}")
+            isUvInstalled.value = false
+        }
+    }
+
     // 检查已安装的组件 - 只在初始加载和授权成功后调用一次
     suspend fun checkInstalledComponents() {
         withContext(Dispatchers.IO) {
@@ -219,12 +232,14 @@ fun ShizukuDemoScreen() {
 
                 checkTunaSourceEnabled()
                 checkPythonInstalled()
+                checkUvInstalled()
                 checkNodeInstalled()
 
                 // 检查完成后，更新持久化状态
                 val allConfigured =
                         isTunaSourceEnabled.value &&
                                 isPythonInstalled.value &&
+                                isUvInstalled.value &&
                                 isNodeInstalled.value
 
                 if (allConfigured) {
@@ -240,7 +255,7 @@ fun ShizukuDemoScreen() {
                     isTermuxFullyConfigured.value = false
                     Log.d(
                             TAG,
-                            "检测到Termux组件配置不完整（清华源: ${isTunaSourceEnabled.value}, Python: ${isPythonInstalled.value}, Node: ${isNodeInstalled.value}），重置持久化状态"
+                            "检测到Termux组件配置不完整（清华源: ${isTunaSourceEnabled.value}, Python: ${isPythonInstalled.value}, UV: ${isUvInstalled.value}, Node: ${isNodeInstalled.value}），重置持久化状态"
                     )
                 }
             }
@@ -295,7 +310,8 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
                     // 检查是否所有组件都已配置完成
                     if (isTunaSourceEnabled.value &&
                                     isPythonInstalled.value &&
-                                    isNodeInstalled.value
+                                    isNodeInstalled.value &&
+                                    isUvInstalled.value
                     ) {
                         saveTermuxConfigStatus(context, true)
                         isTermuxFullyConfigured.value = true
@@ -343,21 +359,17 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
             try {
                 // 安装Python和pip
                 outputText += "\n正在安装Python..."
-                val installPythonResult = executeTermuxCommand(context, "apt install -y python")
+                val installPythonResult = executeTermuxCommand(context, "pkg install python -y")
                 outputText += "\nPython安装${if (installPythonResult.success) "成功" else "失败"}"
 
                 if (installPythonResult.success) {
-                    // 安装常用的pip包
-                    outputText += "\n正在配置pip..."
-                    val upgradeResult = executeTermuxCommand(context, "pip install --upgrade pip")
-                    outputText += "\npip升级${if (upgradeResult.success) "成功" else "失败"}"
-
                     isPythonInstalled.value = true
                     outputText += "\nPython环境安装成功！"
-
+                    
                     // 检查是否所有组件都已配置完成
                     if (isTunaSourceEnabled.value &&
                                     isPythonInstalled.value &&
+                                    isUvInstalled.value &&
                                     isNodeInstalled.value
                     ) {
                         saveTermuxConfigStatus(context, true)
@@ -374,6 +386,59 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
                 Log.e(TAG, "安装Python环境错误: ${e.message}")
                 outputText += "\n安装Python环境出错: ${e.message}"
                 Toast.makeText(context, "安装Python环境出错", Toast.LENGTH_SHORT).show()
+            } finally {
+                isTermuxConfiguring.value = false
+                currentTask = ""
+                // 自动关闭对话框
+                state.showResultDialogState.value = false
+            }
+        }
+    }
+
+    // 安装UV包管理器
+    val installUv = {
+        scope.launch {
+            // 先检查Termux是否在运行
+            checkTermuxRunning()
+            if (!isTermuxRunning.value) {
+                outputText += "\nTermux未运行，请先启动Termux"
+                Toast.makeText(context, "请先启动Termux", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+
+            isTermuxConfiguring.value = true
+            currentTask = "安装UV"
+            outputText += "\n开始安装UV包管理器..."
+            try {
+                // 安装UV
+                outputText += "\n正在安装UV..."
+                val installUvResult = executeTermuxCommand(context, "pkg install uv -y")
+                outputText += "\nUV安装${if (installUvResult.success) "成功" else "失败"}"
+
+                if (installUvResult.success) {
+                    isUvInstalled.value = true
+                    outputText += "\nUV包管理器安装成功！"
+
+                    // 检查是否所有组件都已配置完成
+                    if (isTunaSourceEnabled.value &&
+                                    isPythonInstalled.value &&
+                                    isUvInstalled.value &&
+                                    isNodeInstalled.value
+                    ) {
+                        saveTermuxConfigStatus(context, true)
+                        isTermuxFullyConfigured.value = true
+                        outputText += "\n所有Termux组件已配置完成，配置状态已保存！"
+                    }
+
+                    Toast.makeText(context, "UV安装成功", Toast.LENGTH_SHORT).show()
+                } else {
+                    outputText += "\nUV安装失败"
+                    Toast.makeText(context, "UV安装失败", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "安装UV包管理器错误: ${e.message}")
+                outputText += "\n安装UV包管理器出错: ${e.message}"
+                Toast.makeText(context, "安装UV包管理器出错", Toast.LENGTH_SHORT).show()
             } finally {
                 isTermuxConfiguring.value = false
                 currentTask = ""
@@ -400,7 +465,7 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
             try {
                 // 安装Node.js
                 outputText += "\n正在安装Node.js..."
-                val installNodeResult = executeTermuxCommand(context, "apt install -y nodejs")
+                val installNodeResult = executeTermuxCommand(context, "pkg install nodejs -y")
                 outputText += "\nNode.js安装${if (installNodeResult.success) "成功" else "失败"}"
 
                 if (installNodeResult.success) {
@@ -410,7 +475,8 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
                     // 检查是否所有组件都已配置完成
                     if (isTunaSourceEnabled.value &&
                                     isPythonInstalled.value &&
-                                    isNodeInstalled.value
+                                    isNodeInstalled.value &&
+                                    isUvInstalled.value
                     ) {
                         saveTermuxConfigStatus(context, true)
                         isTermuxFullyConfigured.value = true
@@ -726,6 +792,7 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
                     isTunaSourceEnabled =
                             isTermuxFullyConfigured.value || isTunaSourceEnabled.value,
                     isPythonInstalled = isTermuxFullyConfigured.value || isPythonInstalled.value,
+                    isUvInstalled = isTermuxFullyConfigured.value || isUvInstalled.value,
                     isNodeInstalled = isTermuxFullyConfigured.value || isNodeInstalled.value,
                     isTermuxRunning = isTermuxRunning.value,
                     // 添加启动Termux的回调
@@ -749,6 +816,17 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
                             state.resultDialogContent.value = outputText
                             state.showResultDialogState.value = true
                             installPython()
+                        } else {
+                            Toast.makeText(context, "请等待当前配置完成", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    onInstallUvEnv = {
+                        if (!isTermuxConfiguring.value) {
+                            // 用户点击安装UV包管理器
+                            state.resultDialogTitle.value = "安装UV包管理器"
+                            state.resultDialogContent.value = outputText
+                            state.showResultDialogState.value = true
+                            installUv()
                         } else {
                             Toast.makeText(context, "请等待当前配置完成", Toast.LENGTH_SHORT).show()
                         }
@@ -986,6 +1064,7 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
                                 isTunaSourceEnabled.value = false
                                 isPythonInstalled.value = false
                                 isNodeInstalled.value = false
+                                isUvInstalled.value = false
                             }
 
                             // 给UI更新一些时间
@@ -1127,6 +1206,7 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
                 // 添加Termux配置状态参数，将持久化状态融合进显示逻辑
                 isTunaSourceEnabled = isTunaSourceEnabled.value || isTermuxFullyConfigured.value,
                 isPythonInstalled = isPythonInstalled.value || isTermuxFullyConfigured.value,
+                isUvInstalled = isUvInstalled.value || isTermuxFullyConfigured.value,
                 isNodeInstalled = isNodeInstalled.value || isTermuxFullyConfigured.value
         )
 

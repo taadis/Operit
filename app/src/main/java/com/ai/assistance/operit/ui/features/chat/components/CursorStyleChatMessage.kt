@@ -53,5 +53,12 @@ fun CursorStyleChatMessage(
                     textColor = systemTextColor
             )
         }
+        "summary" -> {
+            SummaryMessageComposable(
+                    message = message,
+                    backgroundColor = systemMessageColor.copy(alpha = 0.7f),
+                    textColor = systemTextColor
+            )
+        }
     }
 }
