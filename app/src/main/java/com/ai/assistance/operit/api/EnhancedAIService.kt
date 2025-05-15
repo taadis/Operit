@@ -69,9 +69,6 @@ class EnhancedAIService(
             MutableStateFlow<InputProcessingState>(InputProcessingState.Idle)
     val inputProcessingState = _inputProcessingState.asStateFlow()
 
-    private val _references = MutableStateFlow<List<AiReference>>(emptyList())
-    val references = _references.asStateFlow()
-
     // Plan items tracking
     private val _planItems = MutableStateFlow<List<PlanItem>>(emptyList())
     val planItems = _planItems.asStateFlow()
@@ -112,14 +109,6 @@ class EnhancedAIService(
         return InputProcessor.processUserInput(input)
     }
 
-    /** Extract and update references from content */
-    private fun extractReferences(content: String) {
-        val newReferences = ReferenceManager.extractReferences(content)
-        if (newReferences.isNotEmpty()) {
-            _references.value = newReferences
-        }
-    }
-
     /** Extract and update plan items from content */
     private fun extractPlanItems(content: String) {
         // Only extract plan items if planning is enabled
@@ -152,11 +141,6 @@ class EnhancedAIService(
                 // 错误时也保留现有计划项，避免因为异常导致UI丢失显示
             }
         }
-    }
-
-    /** Clear all references */
-    fun clearReferences() {
-        _references.value = emptyList()
     }
 
     /** Clear all plan items */
@@ -593,15 +577,6 @@ class EnhancedAIService(
         // Reset input processing state
         _inputProcessingState.value = InputProcessingState.Idle
 
-        // Clear references but not plan items
-        clearReferences()
-        // 记录取消对话时的计划项状态，确保不会意外清除
-        if (_planItems.value.isNotEmpty()) {
-            Log.d(TAG, "取消对话时的计划项状态: ${_planItems.value.map { "${it.id}: ${it.status}" }}")
-            Log.d(TAG, "取消对话保留计划项，不清除计划项状态")
-        }
-        // clearPlanItems()  // 不再自动清除计划项
-
         // Clear callback references
         currentResponseCallback = null
         currentCompleteCallback = null
@@ -630,10 +605,8 @@ class EnhancedAIService(
                 streamBuffer.replace(0, streamBuffer.length, content)
                 val displayContent = roundManager.updateContent(content)
 
-                // Extract references and plan items
-                extractReferences(displayContent)
-                // 移除此处的计划项处理，只在流结束时处理
-                // extractPlanItems(displayContent)
+                // 不再提取引用
+                // extractPlanItems只在流结束时处理
 
                 onPartialResponse(displayContent, thinking)
                 return
@@ -645,8 +618,8 @@ class EnhancedAIService(
             // Update content in round manager
             val displayContent = roundManager.updateContent(content)
 
-            // Extract references and plan items as the content is received
-            extractReferences(displayContent)
+            // 不再提取引用
+            // extractPlanItems只在流结束时处理
 
             // Check again if conversation is active
             if (!isConversationActive.get()) {
@@ -692,10 +665,7 @@ class EnhancedAIService(
                                     return@launch
                                 }
 
-                // 首先提取引用和计划项，确保在任何状态变更前完成
-                extractReferences(displayContent)
-
-                // 提取计划项
+                // 不再提取引用，只提取计划项
                 Log.d(TAG, "流传输完成，处理计划项")
                 extractPlanItems(content)
 

@@ -29,7 +29,7 @@ import com.ai.assistance.operit.ui.common.displays.MessageContentParser.Companio
 fun ChatArea(
         chatHistory: List<ChatMessage>,
         listState: LazyListState,
-        aiReferences: List<AiReference>,
+        aiReferences: List<AiReference> = emptyList(),
         planItems: List<PlanItem> = emptyList(),
         enablePlanning: Boolean = false,
         toolProgress: ToolExecutionProgress,
@@ -57,8 +57,7 @@ fun ChatArea(
     val activePlanCache = remember(chatContentKey) { mutableMapOf<String, Boolean>() }
 
     Column(modifier = modifier) {
-        // References display
-        ReferencesDisplay(references = aiReferences, modifier = Modifier.fillMaxWidth())
+        // 移除References display
 
         // Plan display when planning is enabled and there are plan items
         if (enablePlanning && planItems.isNotEmpty()) {

@@ -63,7 +63,6 @@ fun AIChatScreen(
     val toolProgress by viewModel.toolProgress.collectAsState()
     val isProcessingInput by viewModel.isProcessingInput.collectAsState()
     val inputProcessingMessage by viewModel.inputProcessingMessage.collectAsState()
-    val aiReferences by viewModel.aiReferences.collectAsState()
     val planItems by viewModel.planItems.collectAsState()
     val enableAiPlanning by viewModel.enableAiPlanning.collectAsState()
     val showChatHistorySelector by viewModel.showChatHistorySelector.collectAsState()
@@ -865,7 +864,6 @@ fun AIChatScreen(
                             ChatArea(
                                     chatHistory = chatHistory,
                                     listState = listState,
-                                    aiReferences = aiReferences,
                                     planItems = planItems,
                                     enablePlanning = enableAiPlanning,
                                     toolProgress = toolProgress,
@@ -1003,9 +1001,15 @@ fun AIChatScreen(
                                                         modifier =
                                                                 Modifier.fillMaxSize()
                                                                         .padding(top = 8.dp),
-                                onNewChat = { viewModel.createNewChat() },
+                                onNewChat = { 
+                                    viewModel.createNewChat() 
+                                    // 创建新对话后自动收起侧边框
+                                    viewModel.showChatHistorySelector(false)
+                                },
                                                         onSelectChat = { chatId ->
                                                                 viewModel.switchChat(chatId)
+                                                                // 切换聊天后也自动收起侧边框
+                                                                viewModel.showChatHistorySelector(false)
                                                         },
                                                         onDeleteChat = { chatId ->
                                                                 viewModel.deleteChatHistory(chatId)

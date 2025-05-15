@@ -24,9 +24,6 @@ class UiStateDelegate {
             MutableStateFlow(ToolExecutionProgress(state = ToolExecutionState.IDLE))
     val toolProgress: StateFlow<ToolExecutionProgress> = _toolProgress.asStateFlow()
 
-    private val _aiReferences = MutableStateFlow<List<AiReference>>(emptyList())
-    val aiReferences: StateFlow<List<AiReference>> = _aiReferences.asStateFlow()
-
     private val _masterPermissionLevel = MutableStateFlow(PermissionLevel.ASK)
     val masterPermissionLevel: StateFlow<PermissionLevel> = _masterPermissionLevel.asStateFlow()
 
@@ -73,11 +70,6 @@ class UiStateDelegate {
     /** 更新工具执行进度 */
     fun updateToolProgress(progress: ToolExecutionProgress) {
         _toolProgress.value = progress
-    }
-
-    /** 更新AI引用 */
-    fun updateAiReferences(references: List<AiReference>) {
-        _aiReferences.value = references
     }
 
     /** 更新主权限级别 */

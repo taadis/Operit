@@ -24,6 +24,9 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         private const val TAG = "ChatViewModel"
     }
 
+    // 服务收集器设置状态跟踪
+    private var serviceCollectorSetupComplete = false
+
     // API服务
     private var enhancedAiService: EnhancedAIService? = null
 
@@ -52,7 +55,12 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                     onConfigChanged = { service ->
                         enhancedAiService = service
                         // API配置变更后，异步设置服务收集器
-                        viewModelScope.launch { setupServiceCollectors() }
+                        viewModelScope.launch { 
+                            // 重置服务收集器状态，因为服务实例已变更
+                            serviceCollectorSetupComplete = false
+                            Log.d(TAG, "API配置变更，重置服务收集器状态并重新设置")
+                            setupServiceCollectors() 
+                        }
                     }
             )
     private val planItemsDelegate =
@@ -100,7 +108,6 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     val popupMessage: StateFlow<String?> by lazy { uiStateDelegate.popupMessage }
     val toastEvent: StateFlow<String?> by lazy { uiStateDelegate.toastEvent }
     val toolProgress: StateFlow<ToolExecutionProgress> by lazy { uiStateDelegate.toolProgress }
-    val aiReferences: StateFlow<List<AiReference>> by lazy { uiStateDelegate.aiReferences }
     val masterPermissionLevel: StateFlow<PermissionLevel> by lazy {
         uiStateDelegate.masterPermissionLevel
     }
@@ -225,17 +232,22 @@ class ChatViewModel(private val context: Context) : ViewModel() {
 
     /** 设置服务相关的流收集逻辑 */
     private fun setupServiceCollectors() {
+        // 避免重复设置服务收集器
+        if (serviceCollectorSetupComplete) {
+            Log.d(TAG, "服务收集器已经设置完成，跳过重复设置")
+            return
+        }
+
+        // 确保enhancedAiService不为null
+        if (enhancedAiService == null) {
+            Log.d(TAG, "EnhancedAIService尚未初始化，跳过服务收集器设置")
+            return
+        }
+
         // 设置工具进度收集
         viewModelScope.launch {
             enhancedAiService?.getToolProgressFlow()?.collect { progress ->
                 uiStateDelegate.updateToolProgress(progress)
-            }
-        }
-
-        // 设置引用收集
-        viewModelScope.launch {
-            enhancedAiService?.references?.collect { refs ->
-                uiStateDelegate.updateAiReferences(refs)
             }
         }
 
@@ -249,7 +261,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
 
             while ((!inputProcessingSetupComplete || !planItemsSetupComplete) &&
                     retryCount < maxRetries) {
-                // 如果委托类已初始化且输入处理尚未设置完成，则尝试设置
+                
                 if (::messageProcessingDelegate.isInitialized && !inputProcessingSetupComplete) {
                     try {
                         Log.d(TAG, "设置输入处理状态收集，尝试 ${retryCount + 1}/${maxRetries}")
@@ -276,7 +288,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 // 如果还未完成设置，则等待一段时间后重试
                 if (!inputProcessingSetupComplete || !planItemsSetupComplete) {
                     retryCount++
-                    kotlinx.coroutines.delay(500) // 延迟300毫秒后重试
+                    kotlinx.coroutines.delay(500) // 延迟500毫秒后重试
                 }
             }
 
@@ -286,6 +298,12 @@ class ChatViewModel(private val context: Context) : ViewModel() {
             }
             if (!planItemsSetupComplete) {
                 Log.e(TAG, "无法设置计划项收集，已达到最大重试次数")
+            }
+            
+            // 如果任一设置成功，标记整体服务收集器设置为已完成
+            if (inputProcessingSetupComplete || planItemsSetupComplete) {
+                serviceCollectorSetupComplete = true
+                Log.d(TAG, "服务收集器设置已标记为完成")
             }
         }
     }
