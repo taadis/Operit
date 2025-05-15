@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.tools.javascript
+package com.ai.assistance.operit.core.tools.javascript
 
 import android.content.Context
 import android.util.Log
@@ -6,13 +6,9 @@ import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import androidx.annotation.Keep
 import androidx.core.content.ContextCompat
-import com.ai.assistance.operit.core.tools.javascript.getJsThirdPartyLibraries
-import com.ai.assistance.operit.core.tools.javascript.getJsToolsDefinition
-import com.ai.assistance.operit.core.tools.javascript.loadAndroidUtilsJs
-import com.ai.assistance.operit.core.tools.javascript.loadUINodeJs
+import com.ai.assistance.operit.core.tools.*
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolParameter
-import com.ai.assistance.operit.tools.*
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit

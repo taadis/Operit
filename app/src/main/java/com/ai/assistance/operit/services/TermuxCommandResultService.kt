@@ -3,7 +3,7 @@ package com.ai.assistance.operit.services
 import android.app.IntentService
 import android.content.Intent
 import android.util.Log
-import com.ai.assistance.operit.tools.system.AdbCommandExecutor.CommandResult
+import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor.CommandResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

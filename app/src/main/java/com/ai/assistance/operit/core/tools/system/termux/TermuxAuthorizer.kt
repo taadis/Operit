@@ -9,7 +9,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.widget.Toast
-import com.ai.assistance.operit.tools.system.AdbCommandExecutor
+import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

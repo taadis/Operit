@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.tools.calculator
+package com.ai.assistance.operit.core.tools.calculator
 
 import java.text.SimpleDateFormat
 import java.util.*
@@ -6,47 +6,40 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.pow
 import kotlin.math.sqrt
 
-/**
- * 表达式计算上下文，用于存储变量和函数
- */
+/** 表达式计算上下文，用于存储变量和函数 */
 object ExpressionContext {
     // 变量存储
     private val variables = mutableMapOf<String, Any>()
-    
+
     // 常量
     init {
         variables["PI"] = Math.PI
         variables["E"] = Math.E
     }
-    
+
     // 日期格式
-    private val DATE_FORMATS = arrayOf(
-        "yyyy-MM-dd",
-        "yyyy/MM/dd",
-        "MM/dd/yyyy",
-        "dd/MM/yyyy",
-        "yyyy-MM-dd HH:mm:ss",
-        "yyyy/MM/dd HH:mm:ss"
-    )
-    
-    /**
-     * 获取变量值
-     */
+    private val DATE_FORMATS =
+            arrayOf(
+                    "yyyy-MM-dd",
+                    "yyyy/MM/dd",
+                    "MM/dd/yyyy",
+                    "dd/MM/yyyy",
+                    "yyyy-MM-dd HH:mm:ss",
+                    "yyyy/MM/dd HH:mm:ss"
+            )
+
+    /** 获取变量值 */
     fun getVariable(name: String): Double {
         val value = variables[name] ?: throw IllegalArgumentException("Variable $name not defined")
         return coerceToNumber(value)
     }
-    
-    /**
-     * 设置变量值
-     */
+
+    /** 设置变量值 */
     fun setVariable(name: String, value: Double) {
         variables[name] = value
     }
-    
-    /**
-     * 将任意值转换为数字（JavaScript风格）
-     */
+
+    /** 将任意值转换为数字（JavaScript风格） */
     fun coerceToNumber(value: Any?): Double {
         return when (value) {
             null -> 0.0
@@ -71,13 +64,11 @@ object ExpressionContext {
             else -> Double.NaN
         }
     }
-    
-    /**
-     * 获取数组或字符串元素
-     */
+
+    /** 获取数组或字符串元素 */
     fun getArrayElement(array: ExpressionNode, index: ExpressionNode): Double {
         val indexValue = index.evaluate().toInt()
-        
+
         when (array) {
             is VariableNode -> {
                 val arrayValue = variables[array.name]
@@ -90,7 +81,10 @@ object ExpressionContext {
                         if (indexValue < 0 || indexValue >= arrayValue.length) return Double.NaN
                         return arrayValue[indexValue].code.toDouble()
                     }
-                    else -> throw IllegalArgumentException("Value is not an array or string: ${array.name}")
+                    else ->
+                            throw IllegalArgumentException(
+                                    "Value is not an array or string: ${array.name}"
+                            )
                 }
             }
             else -> {
@@ -100,10 +94,8 @@ object ExpressionContext {
             }
         }
     }
-    
-    /**
-     * 调用函数
-     */
+
+    /** 调用函数 */
     fun callFunction(name: String, args: List<Double>): Double {
         return when {
             // 数学函数
@@ -125,23 +117,32 @@ object ExpressionContext {
             name.equals("min", ignoreCase = true) -> args.minOrNull() ?: Double.NaN
             name.equals("random", ignoreCase = true) -> Math.random()
             name.equals("fact", ignoreCase = true) -> factorial(args[0].toInt()).toDouble()
-            
+
             // 日期函数
-            name.equals("today", ignoreCase = true) -> TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis()).toDouble()
+            name.equals("today", ignoreCase = true) ->
+                    TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis()).toDouble()
             name.equals("now", ignoreCase = true) -> System.currentTimeMillis().toDouble()
             name.equals("date", ignoreCase = true) -> {
                 val dateStr = args[0].toString()
-                val date = parseDate(dateStr) ?: throw IllegalArgumentException("Cannot parse date: $dateStr")
+                val date =
+                        parseDate(dateStr)
+                                ?: throw IllegalArgumentException("Cannot parse date: $dateStr")
                 TimeUnit.MILLISECONDS.toDays(date.time).toDouble()
             }
             name.equals("date_diff", ignoreCase = true) -> {
-                val date1 = parseDate(args[0].toString()) ?: throw IllegalArgumentException("Cannot parse first date")
-                val date2 = parseDate(args[1].toString()) ?: throw IllegalArgumentException("Cannot parse second date")
+                val date1 =
+                        parseDate(args[0].toString())
+                                ?: throw IllegalArgumentException("Cannot parse first date")
+                val date2 =
+                        parseDate(args[1].toString())
+                                ?: throw IllegalArgumentException("Cannot parse second date")
                 val diffInMillis = Math.abs(date1.time - date2.time)
                 TimeUnit.MILLISECONDS.toDays(diffInMillis).toDouble()
             }
             name.equals("date_add", ignoreCase = true) -> {
-                val date = parseDate(args[0].toString()) ?: throw IllegalArgumentException("Cannot parse date")
+                val date =
+                        parseDate(args[0].toString())
+                                ?: throw IllegalArgumentException("Cannot parse date")
                 val daysToAdd = args[1].toInt()
                 val calendar = Calendar.getInstance()
                 calendar.time = date
@@ -149,30 +150,38 @@ object ExpressionContext {
                 TimeUnit.MILLISECONDS.toDays(calendar.timeInMillis).toDouble()
             }
             name.equals("weekday", ignoreCase = true) -> {
-                val date = parseDate(args[0].toString()) ?: throw IllegalArgumentException("Cannot parse date")
+                val date =
+                        parseDate(args[0].toString())
+                                ?: throw IllegalArgumentException("Cannot parse date")
                 val calendar = Calendar.getInstance()
                 calendar.time = date
                 calendar.get(Calendar.DAY_OF_WEEK).toDouble()
             }
             name.equals("month", ignoreCase = true) -> {
-                val date = parseDate(args[0].toString()) ?: throw IllegalArgumentException("Cannot parse date")
+                val date =
+                        parseDate(args[0].toString())
+                                ?: throw IllegalArgumentException("Cannot parse date")
                 val calendar = Calendar.getInstance()
                 calendar.time = date
                 (calendar.get(Calendar.MONTH) + 1).toDouble()
             }
             name.equals("year", ignoreCase = true) -> {
-                val date = parseDate(args[0].toString()) ?: throw IllegalArgumentException("Cannot parse date")
+                val date =
+                        parseDate(args[0].toString())
+                                ?: throw IllegalArgumentException("Cannot parse date")
                 val calendar = Calendar.getInstance()
                 calendar.time = date
                 calendar.get(Calendar.YEAR).toDouble()
             }
             name.equals("day", ignoreCase = true) -> {
-                val date = parseDate(args[0].toString()) ?: throw IllegalArgumentException("Cannot parse date")
+                val date =
+                        parseDate(args[0].toString())
+                                ?: throw IllegalArgumentException("Cannot parse date")
                 val calendar = Calendar.getInstance()
                 calendar.time = date
                 calendar.get(Calendar.DAY_OF_MONTH).toDouble()
             }
-            
+
             // 统计函数
             name.equals("stats.mean", ignoreCase = true) -> args.average()
             name.equals("stats.median", ignoreCase = true) -> {
@@ -191,28 +200,29 @@ object ExpressionContext {
                 val variance = args.map { (it - mean).pow(2) }.average()
                 sqrt(variance)
             }
-            
+
             // 转换函数
             name.equals("convert", ignoreCase = true) -> {
                 if (args.size < 3) throw IllegalArgumentException("convert requires 3 parameters")
                 val value = args[0]
-                val fromUnit = variables["_convert_from"] as? String ?: throw IllegalArgumentException("from_unit not provided")
-                val toUnit = variables["_convert_to"] as? String ?: throw IllegalArgumentException("to_unit not provided")
-                
+                val fromUnit =
+                        variables["_convert_from"] as? String
+                                ?: throw IllegalArgumentException("from_unit not provided")
+                val toUnit =
+                        variables["_convert_to"] as? String
+                                ?: throw IllegalArgumentException("to_unit not provided")
+
                 // 清除临时变量
                 variables.remove("_convert_from")
                 variables.remove("_convert_to")
-                
+
                 convertUnit(value, fromUnit, toUnit)
             }
-            
             else -> throw IllegalArgumentException("Unknown function: $name")
         }
     }
-    
-    /**
-     * 单位转换
-     */
+
+    /** 单位转换 */
     private fun convertUnit(value: Double, fromUnit: String, toUnit: String): Double {
         return when {
             // 温度转换
@@ -222,7 +232,7 @@ object ExpressionContext {
             fromUnit == "k" && toUnit == "c" -> value - 273.15 // K to C
             fromUnit == "f" && toUnit == "k" -> (value - 32) * 5 / 9 + 273.15 // F to K
             fromUnit == "k" && toUnit == "f" -> (value - 273.15) * 9 / 5 + 32 // K to F
-            
+
             // 长度转换
             fromUnit == "km" && toUnit == "mi" -> value * 0.621371 // km to miles
             fromUnit == "mi" && toUnit == "km" -> value * 1.60934 // miles to km
@@ -230,53 +240,48 @@ object ExpressionContext {
             fromUnit == "ft" && toUnit == "m" -> value * 0.3048 // feet to meters
             fromUnit == "cm" && toUnit == "in" -> value * 0.393701 // cm to inches
             fromUnit == "in" && toUnit == "cm" -> value * 2.54 // inches to cm
-            
+
             // 重量转换
             fromUnit == "kg" && toUnit == "lb" -> value * 2.20462 // kg to pounds
             fromUnit == "lb" && toUnit == "kg" -> value * 0.453592 // pounds to kg
             fromUnit == "g" && toUnit == "oz" -> value * 0.035274 // grams to ounces
             fromUnit == "oz" && toUnit == "g" -> value * 28.3495 // ounces to grams
-            
+
             // 体积转换
             fromUnit == "l" && toUnit == "gal" -> value * 0.264172 // liters to gallons
             fromUnit == "gal" && toUnit == "l" -> value * 3.78541 // gallons to liters
             fromUnit == "ml" && toUnit == "oz" -> value * 0.033814 // milliliters to fluid ounces
             fromUnit == "oz" && toUnit == "ml" -> value * 29.5735 // fluid ounces to milliliters
-            
+
             // 速度转换
             fromUnit == "kph" && toUnit == "mph" -> value * 0.621371 // km/h to miles/h
             fromUnit == "mph" && toUnit == "kph" -> value * 1.60934 // miles/h to km/h
-            
+
             // 相同单位
             fromUnit == toUnit -> value
-            
             else -> throw IllegalArgumentException("Unsupported conversion: $fromUnit to $toUnit")
         }
     }
-    
-    /**
-     * 阶乘计算
-     */
+
+    /** 阶乘计算 */
     private fun factorial(n: Int): Long {
         if (n < 0) throw IllegalArgumentException("Factorial is not defined for negative numbers")
         if (n > 20) throw IllegalArgumentException("Factorial too large to calculate")
-        
+
         var result = 1L
         for (i in 2..n) {
             result *= i
         }
         return result
     }
-    
-    /**
-     * 日期解析
-     */
+
+    /** 日期解析 */
     private fun parseDate(dateString: String): Date? {
         // 特殊情况：today()
         if (dateString.trim() == "today()") {
             return Date(System.currentTimeMillis())
         }
-        
+
         // 尝试所有支持的日期格式
         for (format in DATE_FORMATS) {
             try {
@@ -289,21 +294,17 @@ object ExpressionContext {
         }
         return null
     }
-    
-    /**
-     * 清除所有变量
-     */
+
+    /** 清除所有变量 */
     fun clearVariables() {
         variables.clear()
-        
+
         // 重新添加常量
         variables["PI"] = Math.PI
         variables["E"] = Math.E
     }
-    
-    /**
-     * 格式化结果显示
-     */
+
+    /** 格式化结果显示 */
     fun formatResult(result: Double): String {
         // 如果是整数则不显示小数部分
         if (result == Math.floor(result) && !result.isNaN() && !result.isInfinite()) {
@@ -312,4 +313,4 @@ object ExpressionContext {
         // 否则使用小数格式
         return "%.6f".format(result).trimEnd('0').trimEnd('.')
     }
-} 
+}

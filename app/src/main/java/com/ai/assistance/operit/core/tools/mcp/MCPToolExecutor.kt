@@ -2,12 +2,12 @@ package com.ai.assistance.operit.core.tools.mcp
 
 import android.content.Context
 import android.util.Log
+import com.ai.assistance.operit.core.tools.StringResultData
+import com.ai.assistance.operit.core.tools.ToolExecutor
 import com.ai.assistance.operit.data.mcp.plugins.MCPBridgeClient
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.data.model.ToolValidationResult
-import com.ai.assistance.operit.tools.StringResultData
-import com.ai.assistance.operit.tools.ToolExecutor
 import java.util.concurrent.ConcurrentHashMap
 import org.json.JSONObject
 
@@ -53,10 +53,10 @@ class MCPToolExecutor(private val context: Context, private val mcpManager: MCPM
 
         // 将AITool参数转换为Map
         val parameters = tool.parameters.associate { it.name to it.value }
-        
+
         // 获取工具参数类型信息 (如果可用)
         val toolInfo = getToolInfo(serverName, actualToolName)
-        
+
         // 自动类型转换处理
         val convertedParameters = convertParameterTypes(parameters, toolInfo)
 
@@ -65,7 +65,7 @@ class MCPToolExecutor(private val context: Context, private val mcpManager: MCPM
                 try {
                     // 直接调用工具
                     val jsonResponse = mcpClient.callToolSync(actualToolName, convertedParameters)
-                    
+
                     if (jsonResponse != null) {
                         Log.d(TAG, "MCP工具调用成功: $serverName:$actualToolName")
                         ToolResult(
@@ -77,14 +77,15 @@ class MCPToolExecutor(private val context: Context, private val mcpManager: MCPM
                     } else {
                         // 从原始响应中提取错误信息
                         var errorMessage = "工具调用失败"
-                        
+
                         // 检查是否有详细错误可以提取
                         try {
                             // 尝试从客户端内部获取错误响应
-                            val errorField = mcpClient.javaClass.getDeclaredMethod("getLastErrorResponse")
+                            val errorField =
+                                    mcpClient.javaClass.getDeclaredMethod("getLastErrorResponse")
                             errorField.isAccessible = true
                             val errorResponse = errorField.invoke(mcpClient) as? JSONObject
-                            
+
                             if (errorResponse != null) {
                                 val error = errorResponse.optJSONObject("error")
                                 if (error != null) {
@@ -95,7 +96,7 @@ class MCPToolExecutor(private val context: Context, private val mcpManager: MCPM
                             // 如果无法提取错误，使用默认错误消息
                             errorMessage = "工具调用失败: $serverName:$actualToolName"
                         }
-                        
+
                         Log.w(TAG, "MCP工具调用失败: $serverName:$actualToolName - $errorMessage")
                         ToolResult(
                                 toolName = tool.name,
@@ -118,76 +119,80 @@ class MCPToolExecutor(private val context: Context, private val mcpManager: MCPM
         return result
     }
 
-    /**
-     * 尝试获取工具的参数类型信息
-     */
+    /** 尝试获取工具的参数类型信息 */
     private fun getToolInfo(serverName: String, toolName: String): JSONObject? {
         try {
             val client = mcpManager.getOrCreateClient(serverName) ?: return null
             val tools = kotlinx.coroutines.runBlocking { client.getTools() }
-            
+
             return tools.find { it.optString("name") == toolName }
         } catch (e: Exception) {
             Log.w(TAG, "获取工具信息失败: ${e.message}")
             return null
         }
     }
-    
+
     /**
      * 自动转换参数类型
-     * 
+     *
      * 将字符串参数转换为适当的数字类型
      */
     private fun convertParameterTypes(
-        parameters: Map<String, Any>,
-        toolInfo: JSONObject?
+            parameters: Map<String, Any>,
+            toolInfo: JSONObject?
     ): Map<String, Any> {
         val result = mutableMapOf<String, Any>()
-        
+
         parameters.forEach { (name, value) ->
             // 默认使用原始值
             var convertedValue: Any = value
-            
+
             // 尝试根据工具信息进行类型转换
             if (value is String) {
                 // 尝试从工具定义中获取参数类型
-                val expectedType = toolInfo
-                    ?.optJSONArray("parameters")
-                    ?.let { params ->
-                        for (i in 0 until params.length()) {
-                            val param = params.optJSONObject(i)
-                            if (param?.optString("name") == name) {
-                                return@let param.optString("type")
+                val expectedType =
+                        toolInfo?.optJSONArray("parameters")?.let { params ->
+                            for (i in 0 until params.length()) {
+                                val param = params.optJSONObject(i)
+                                if (param?.optString("name") == name) {
+                                    return@let param.optString("type")
+                                }
                             }
+                            null
                         }
-                        null
-                    }
-                
+
                 // 即使没有工具定义，也尝试智能类型转换
-                convertedValue = when {
-                    // 如果工具参数明确要求数字类型或字符串看起来是数字
-                    expectedType == "number" || value.matches(Regex("-?\\d+(\\.\\d+)?")) -> {
-                        try {
-                            if (value.contains(".")) value.toDouble() else value.toLong()
-                        } catch (e: Exception) {
-                            Log.d(TAG, "数字转换失败，使用原始字符串: $value")
-                            value
+                convertedValue =
+                        when {
+                            // 如果工具参数明确要求数字类型或字符串看起来是数字
+                            expectedType == "number" ||
+                                    value.matches(Regex("-?\\d+(\\.\\d+)?")) -> {
+                                try {
+                                    if (value.contains(".")) value.toDouble() else value.toLong()
+                                } catch (e: Exception) {
+                                    Log.d(TAG, "数字转换失败，使用原始字符串: $value")
+                                    value
+                                }
+                            }
+                            expectedType == "boolean" ||
+                                    value.lowercase() == "true" ||
+                                    value.lowercase() == "false" -> {
+                                value.lowercase() == "true"
+                            }
+                            else -> value
                         }
-                    }
-                    expectedType == "boolean" || value.lowercase() == "true" || value.lowercase() == "false" -> {
-                        value.lowercase() == "true"
-                    }
-                    else -> value
-                }
-                
+
                 if (convertedValue != value) {
-                    Log.d(TAG, "参数 $name 从 ${value::class.java.simpleName} 转换为 ${convertedValue::class.java.simpleName}: $value -> $convertedValue")
+                    Log.d(
+                            TAG,
+                            "参数 $name 从 ${value::class.java.simpleName} 转换为 ${convertedValue::class.java.simpleName}: $value -> $convertedValue"
+                    )
                 }
             }
-            
+
             result[name] = convertedValue
         }
-        
+
         return result
     }
 
@@ -333,13 +338,14 @@ class MCPManager(private val context: Context) {
      * @param description 服务器描述
      */
     fun registerServer(serverName: String, endpoint: String, description: String = "") {
-        val serverConfig = MCPServerConfig(
-            name = serverName,
-            endpoint = endpoint,
-            description = description,
-            capabilities = listOf("tools"),
-            extraData = emptyMap()
-        )
+        val serverConfig =
+                MCPServerConfig(
+                        name = serverName,
+                        endpoint = endpoint,
+                        description = description,
+                        capabilities = listOf("tools"),
+                        extraData = emptyMap()
+                )
         registerServer(serverName, serverConfig)
     }
 

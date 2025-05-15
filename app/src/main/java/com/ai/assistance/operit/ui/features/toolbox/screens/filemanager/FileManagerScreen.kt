@@ -9,9 +9,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolParameter
-import com.ai.assistance.operit.tools.AIToolHandler
 import com.ai.assistance.operit.ui.features.toolbox.screens.filemanager.components.*
 import com.ai.assistance.operit.ui.features.toolbox.screens.filemanager.components.DisplayMode
 import com.ai.assistance.operit.ui.features.toolbox.screens.filemanager.models.FileItem
@@ -70,7 +70,7 @@ fun FileManagerScreen(navController: NavController) {
     }
 
     // 加载当前目录内容
-    LaunchedEffect(viewModel.currentPath) { 
+    LaunchedEffect(viewModel.currentPath) {
         val currentPath = viewModel.currentPath
         viewModel.loadCurrentDirectory(currentPath)
     }

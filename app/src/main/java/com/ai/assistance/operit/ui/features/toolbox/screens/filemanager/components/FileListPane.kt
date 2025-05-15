@@ -14,26 +14,24 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.platform.LocalContext
+import com.ai.assistance.operit.core.tools.AIToolHandler
+import com.ai.assistance.operit.core.tools.DirectoryListingData
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolParameter
-import com.ai.assistance.operit.tools.AIToolHandler
-import com.ai.assistance.operit.tools.DirectoryListingData
 import com.ai.assistance.operit.ui.features.toolbox.screens.filemanager.models.FileItem
-import com.ai.assistance.operit.ui.features.toolbox.screens.filemanager.utils.getFileIcon
 import kotlinx.coroutines.launch
 
 @Composable
 fun FileListPane(
-    path: String,
-    isActive: Boolean,
-    onPathChange: (String) -> Unit,
-    onPaneClick: () -> Unit,
-    onFileLongClick: (FileItem) -> Unit,
-    onFileClick: (FileItem) -> Unit
+        path: String,
+        isActive: Boolean,
+        onPathChange: (String) -> Unit,
+        onPaneClick: () -> Unit,
+        onFileLongClick: (FileItem) -> Unit,
+        onFileClick: (FileItem) -> Unit
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -51,21 +49,23 @@ fun FileListPane(
 
         coroutineScope.launch {
             try {
-                val listFilesTool = AITool(
-                    name = "list_files",
-                    parameters = listOf(ToolParameter("path", path))
-                )
+                val listFilesTool =
+                        AITool(
+                                name = "list_files",
+                                parameters = listOf(ToolParameter("path", path))
+                        )
                 val result = toolHandler.executeTool(listFilesTool)
                 if (result.success) {
                     val directoryListing = result.result as DirectoryListingData
-                    val fileList = directoryListing.entries.map { entry ->
-                        FileItem(
-                            name = entry.name,
-                            isDirectory = entry.isDirectory,
-                            size = entry.size,
-                            lastModified = entry.lastModified.toLongOrNull() ?: 0
-                        )
-                    }
+                    val fileList =
+                            directoryListing.entries.map { entry ->
+                                FileItem(
+                                        name = entry.name,
+                                        isDirectory = entry.isDirectory,
+                                        size = entry.size,
+                                        lastModified = entry.lastModified.toLongOrNull() ?: 0
+                                )
+                            }
                     files = listOf(FileItem("..", true, 0, 0)) + fileList
                 } else {
                     error = result.error ?: "Unknown error"
@@ -80,56 +80,59 @@ fun FileListPane(
     }
 
     Surface(
-        modifier = Modifier
-            .fillMaxHeight()
-            .clickable { onPaneClick() }
-            .then(
-                if (isActive) {
-                    Modifier.border(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.primary,
-                        shape = RoundedCornerShape(0.dp)
-                    )
-                } else {
-                    Modifier
-                }
-            ),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = if (isActive) 2.dp else 1.dp
+            modifier =
+                    Modifier.fillMaxHeight()
+                            .clickable { onPaneClick() }
+                            .then(
+                                    if (isActive) {
+                                        Modifier.border(
+                                                width = 1.dp,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                shape = RoundedCornerShape(0.dp)
+                                        )
+                                    } else {
+                                        Modifier
+                                    }
+                            ),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = if (isActive) 2.dp else 1.dp
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // 窗格标题栏
             Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = if (isActive) MaterialTheme.colorScheme.primaryContainer
-                else MaterialTheme.colorScheme.surfaceVariant,
-                tonalElevation = 0.dp
+                    modifier = Modifier.fillMaxWidth(),
+                    color =
+                            if (isActive) MaterialTheme.colorScheme.primaryContainer
+                            else MaterialTheme.colorScheme.surfaceVariant,
+                    tonalElevation = 0.dp
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.fillMaxWidth().padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = path,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer
-                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
+                            text = path,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color =
+                                    if (isActive) MaterialTheme.colorScheme.onPrimaryContainer
+                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
                     )
 
                     if (path != "/sdcard") {
                         IconButton(
-                            onClick = { onPathChange(path.substringBeforeLast("/")) },
-                            modifier = Modifier.size(24.dp)
+                                onClick = { onPathChange(path.substringBeforeLast("/")) },
+                                modifier = Modifier.size(24.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.ArrowBack,
-                                contentDescription = "返回上级目录",
-                                tint = if (isActive)
-                                    MaterialTheme.colorScheme.onPrimaryContainer
-                                else MaterialTheme.colorScheme.onSurfaceVariant
+                                    imageVector = Icons.Default.ArrowBack,
+                                    contentDescription = "返回上级目录",
+                                    tint =
+                                            if (isActive)
+                                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                            else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -144,45 +147,45 @@ fun FileListPane(
             } else if (error != null) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Surface(
-                        modifier = Modifier.padding(8.dp),
-                        color = MaterialTheme.colorScheme.errorContainer,
-                        shape = RoundedCornerShape(8.dp)
+                            modifier = Modifier.padding(8.dp),
+                            color = MaterialTheme.colorScheme.errorContainer,
+                            shape = RoundedCornerShape(8.dp)
                     ) {
                         Row(
-                            modifier = Modifier.padding(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                modifier = Modifier.padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Error,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(16.dp)
+                                    imageVector = Icons.Default.Error,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = error!!,
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodySmall
+                                    text = error!!,
+                                    color = MaterialTheme.colorScheme.error,
+                                    style = MaterialTheme.typography.bodySmall
                             )
                         }
                     }
                 }
             } else {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(4.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     items(files) { file ->
                         FileListItem(
-                            file = file,
-                            isSelected = selectedFile == file,
-                            onItemClick = { onFileClick(file) },
-                            onItemLongClick = { onFileLongClick(file) }
+                                file = file,
+                                isSelected = selectedFile == file,
+                                onItemClick = { onFileClick(file) },
+                                onItemLongClick = { onFileLongClick(file) }
                         )
                     }
                 }
             }
         }
     }
-} 
+}

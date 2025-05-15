@@ -1,10 +1,10 @@
 package com.ai.assistance.operit.core.tools.mcp
 
 import android.content.Context
+import com.ai.assistance.operit.core.tools.PackageTool
+import com.ai.assistance.operit.core.tools.PackageToolParameter
+import com.ai.assistance.operit.core.tools.ToolPackage
 import com.ai.assistance.operit.data.mcp.plugins.MCPBridgeClient
-import com.ai.assistance.operit.tools.PackageTool
-import com.ai.assistance.operit.tools.PackageToolParameter
-import com.ai.assistance.operit.tools.ToolPackage
 import com.ai.assistance.operit.ui.permissions.ToolCategory
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
@@ -62,7 +62,7 @@ data class MCPPackage(
                             try {
                                 // 提取工具信息
                                 val name = jsonTool.optString("name", "")
-                                
+
                                 // 直接获取描述，如果没有则使用空字符串
                                 val description = jsonTool.optString("description", "")
 

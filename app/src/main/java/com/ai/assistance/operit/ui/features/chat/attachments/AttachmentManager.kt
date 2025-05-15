@@ -4,10 +4,10 @@ import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.util.Log
+import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ToolParameter
-import com.ai.assistance.operit.tools.AIToolHandler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,75 +58,73 @@ class AttachmentManager(private val context: Context, private val toolHandler: A
         return attachmentRef.toString()
     }
 
-    /** 
-     * Handles a file or image attachment selected by the user
-     * 确保在IO线程执行所有文件操作
-     */
-    suspend fun handleAttachment(filePath: String) = withContext(Dispatchers.IO) {
-        try {
-            // Check if it's a content URI path
-            if (filePath.startsWith("content://")) {
-                // Handle as URI
-                val uri = Uri.parse(filePath)
-                val contentResolver = context.contentResolver
+    /** Handles a file or image attachment selected by the user 确保在IO线程执行所有文件操作 */
+    suspend fun handleAttachment(filePath: String) =
+            withContext(Dispatchers.IO) {
+                try {
+                    // Check if it's a content URI path
+                    if (filePath.startsWith("content://")) {
+                        // Handle as URI
+                        val uri = Uri.parse(filePath)
+                        val contentResolver = context.contentResolver
 
-                // Get file name from ContentResolver
-                val fileName = getFileNameFromUri(uri)
+                        // Get file name from ContentResolver
+                        val fileName = getFileNameFromUri(uri)
 
-                // Get file size from ContentResolver
-                val fileSize = getFileSizeFromUri(uri)
+                        // Get file size from ContentResolver
+                        val fileSize = getFileSizeFromUri(uri)
 
-                // Infer MIME type
-                val mimeType = contentResolver.getType(uri) ?: "application/octet-stream"
+                        // Infer MIME type
+                        val mimeType = contentResolver.getType(uri) ?: "application/octet-stream"
 
-                val attachmentInfo =
-                        AttachmentInfo(
-                                filePath = filePath, // Keep original URI string
-                                fileName = fileName,
-                                mimeType = mimeType,
-                                fileSize = fileSize
-                        )
+                        val attachmentInfo =
+                                AttachmentInfo(
+                                        filePath = filePath, // Keep original URI string
+                                        fileName = fileName,
+                                        mimeType = mimeType,
+                                        fileSize = fileSize
+                                )
 
-                // Add to attachment list
-                val currentList = _attachments.value
-                if (!currentList.any { it.filePath == filePath }) {
-                    _attachments.value = currentList + attachmentInfo
+                        // Add to attachment list
+                        val currentList = _attachments.value
+                        if (!currentList.any { it.filePath == filePath }) {
+                            _attachments.value = currentList + attachmentInfo
+                        }
+
+                        _toastEvent.emit("已添加附件: $fileName")
+                    } else {
+                        // Handle as regular file path
+                        val file = java.io.File(filePath)
+                        if (!file.exists()) {
+                            _toastEvent.emit("文件不存在")
+                            return@withContext
+                        }
+
+                        val fileName = file.name
+                        val fileSize = file.length()
+                        val mimeType = getMimeTypeFromPath(filePath) ?: "application/octet-stream"
+
+                        val attachmentInfo =
+                                AttachmentInfo(
+                                        filePath = filePath,
+                                        fileName = fileName,
+                                        mimeType = mimeType,
+                                        fileSize = fileSize
+                                )
+
+                        // Add to attachment list
+                        val currentList = _attachments.value
+                        if (!currentList.any { it.filePath == filePath }) {
+                            _attachments.value = currentList + attachmentInfo
+                        }
+
+                        _toastEvent.emit("已添加附件: $fileName")
+                    }
+                } catch (e: Exception) {
+                    _toastEvent.emit("添加附件失败: ${e.message}")
+                    Log.e(TAG, "添加附件错误", e)
                 }
-
-                _toastEvent.emit("已添加附件: $fileName")
-            } else {
-                // Handle as regular file path
-                val file = java.io.File(filePath)
-                if (!file.exists()) {
-                    _toastEvent.emit("文件不存在")
-                    return@withContext
-                }
-
-                val fileName = file.name
-                val fileSize = file.length()
-                val mimeType = getMimeTypeFromPath(filePath) ?: "application/octet-stream"
-
-                val attachmentInfo =
-                        AttachmentInfo(
-                                filePath = filePath,
-                                fileName = fileName,
-                                mimeType = mimeType,
-                                fileSize = fileSize
-                        )
-
-                // Add to attachment list
-                val currentList = _attachments.value
-                if (!currentList.any { it.filePath == filePath }) {
-                    _attachments.value = currentList + attachmentInfo
-                }
-
-                _toastEvent.emit("已添加附件: $fileName")
             }
-        } catch (e: Exception) {
-            _toastEvent.emit("添加附件失败: ${e.message}")
-            Log.e(TAG, "添加附件错误", e)
-        }
-    }
 
     /** Removes an attachment by its file path */
     fun removeAttachment(filePath: String) {
@@ -145,211 +143,202 @@ class AttachmentManager(private val context: Context, private val toolHandler: A
     }
 
     /**
-     * Captures the current screen content and attaches it to the message
-     * Uses the get_page_info AITool to retrieve UI structure
-     * 确保在IO线程中执行
+     * Captures the current screen content and attaches it to the message Uses the get_page_info
+     * AITool to retrieve UI structure 确保在IO线程中执行
      */
-    suspend fun captureScreenContent() = withContext(Dispatchers.IO) {
-        try {
-            // Create a tool to get page info
-            val pageInfoTool = AITool(
-                name = "get_page_info",
-                parameters = emptyList()
-            )
-            
-            // Execute the tool
-            val result = toolHandler.executeTool(pageInfoTool)
-            
-            if (result.success) {
-                // Generate a unique ID for this screen capture
-                val captureId = "screen_${System.currentTimeMillis()}"
-                val screenContent = result.result.toString()
-                
-                // Create attachment info with content as filePath
-                val attachmentInfo = AttachmentInfo(
-                    filePath = captureId,  // Use ID as virtual path
-                    fileName = "screen_content.json",
-                    mimeType = "text/json",
-                    fileSize = screenContent.length.toLong(),
-                    content = screenContent  // Add content field to store actual data
-                )
-                
-                // Add to attachments list
-                val currentList = _attachments.value
-                _attachments.value = currentList + attachmentInfo
-                
-                _toastEvent.emit("已添加屏幕内容")
-            } else {
-                _toastEvent.emit("获取屏幕内容失败: ${result.error ?: "未知错误"}")
-            }
-        } catch (e: Exception) {
-            _toastEvent.emit("获取屏幕内容失败: ${e.message}")
-            Log.e(TAG, "Error capturing screen content", e)
-        }
-    }
+    suspend fun captureScreenContent() =
+            withContext(Dispatchers.IO) {
+                try {
+                    // Create a tool to get page info
+                    val pageInfoTool = AITool(name = "get_page_info", parameters = emptyList())
 
-    /**
-     * 获取设备当前通知并作为附件添加到消息
-     * 使用get_notifications AITool获取通知数据
-     * 确保在IO线程中执行
-     */
-    suspend fun captureNotifications(limit: Int = 10) = withContext(Dispatchers.IO) {
-        try {
-            // 创建工具参数
-            val toolParams = listOf(
-                ToolParameter("limit", limit.toString()),
-                ToolParameter("include_ongoing", "true")
-            )
-            
-            // 创建工具
-            val notificationsToolTask = AITool(
-                name = "get_notifications",
-                parameters = toolParams
-            )
-            
-            // 执行工具
-            val result = toolHandler.executeTool(notificationsToolTask)
-            
-            if (result.success) {
-                // 生成唯一ID
-                val captureId = "notifications_${System.currentTimeMillis()}"
-                val notificationsContent = result.result.toString()
-                
-                // 创建附件信息
-                val attachmentInfo = AttachmentInfo(
-                    filePath = captureId,
-                    fileName = "notifications.json",
-                    mimeType = "application/json",
-                    fileSize = notificationsContent.length.toLong(),
-                    content = notificationsContent
-                )
-                
-                // 添加到附件列表
-                val currentList = _attachments.value
-                _attachments.value = currentList + attachmentInfo
-                
-                _toastEvent.emit("已添加当前通知")
-            } else {
-                _toastEvent.emit("获取通知失败: ${result.error ?: "未知错误"}")
-            }
-        } catch (e: Exception) {
-            _toastEvent.emit("获取通知失败: ${e.message}")
-            Log.e(TAG, "Error capturing notifications", e)
-        }
-    }
-    
-    /**
-     * 获取设备当前位置并作为附件添加到消息
-     * 使用get_device_location AITool获取位置数据
-     * 确保在IO线程中执行
-     */
-    suspend fun captureLocation(highAccuracy: Boolean = true) = withContext(Dispatchers.IO) {
-        try {
-            // 创建工具参数
-            val toolParams = listOf(
-                ToolParameter("high_accuracy", highAccuracy.toString()),
-                ToolParameter("timeout", "10")  // 10秒超时
-            )
-            
-            // 创建工具
-            val locationToolTask = AITool(
-                name = "get_device_location",
-                parameters = toolParams
-            )
-            
-            // 执行工具
-            val result = toolHandler.executeTool(locationToolTask)
-            
-            if (result.success) {
-                // 生成唯一ID
-                val captureId = "location_${System.currentTimeMillis()}"
-                val locationContent = result.result.toString()
-                
-                // 创建附件信息
-                val attachmentInfo = AttachmentInfo(
-                    filePath = captureId,
-                    fileName = "location.json",
-                    mimeType = "application/json",
-                    fileSize = locationContent.length.toLong(),
-                    content = locationContent
-                )
-                
-                // 添加到附件列表
-                val currentList = _attachments.value
-                _attachments.value = currentList + attachmentInfo
-                
-                _toastEvent.emit("已添加当前位置")
-            } else {
-                _toastEvent.emit("获取位置失败: ${result.error ?: "未知错误"}")
-            }
-        } catch (e: Exception) {
-            _toastEvent.emit("获取位置失败: ${e.message}")
-            Log.e(TAG, "Error capturing location", e)
-        }
-    }
+                    // Execute the tool
+                    val result = toolHandler.executeTool(pageInfoTool)
 
-    /**
-     * 添加问题记忆附件
-     * 确保在IO线程中执行
-     */
-    suspend fun attachProblemMemory(content: String, filename: String) = withContext(Dispatchers.IO) {
-        try {
-            // 生成唯一ID
-            val captureId = "problem_memory_${System.currentTimeMillis()}"
-            
-            // 创建附件信息
-            val attachmentInfo = AttachmentInfo(
-                filePath = captureId,
-                fileName = filename,
-                mimeType = "text/plain",
-                fileSize = content.length.toLong(),
-                content = content
-            )
-            
-            // 添加到附件列表
-            val currentList = _attachments.value
-            _attachments.value = currentList + attachmentInfo
-            
-            _toastEvent.emit("已添加问题记忆: $filename")
-        } catch (e: Exception) {
-            _toastEvent.emit("添加问题记忆失败: ${e.message}")
-            Log.e(TAG, "Error attaching problem memory", e)
-        }
-    }
+                    if (result.success) {
+                        // Generate a unique ID for this screen capture
+                        val captureId = "screen_${System.currentTimeMillis()}"
+                        val screenContent = result.result.toString()
 
-    /**
-     * 查询问题记忆库并添加结果作为附件
-     * 确保在IO线程中执行
-     */
-    suspend fun queryProblemMemory(query: String): Pair<String, String> = withContext(Dispatchers.IO) {
-        try {
-            // 创建查询问题库的工具
-            val queryTool = AITool(
-                name = "query_problem_library",
-                parameters = listOf(ToolParameter("query", query))
-            )
-            
-            // 执行工具查询问题库
-            val result = toolHandler.executeTool(queryTool)
-            
-            if (result.success) {
-                // 查询成功，获取结果
-                val queryResult = result.result.toString()
-                // 创建文件名
-                val fileName = "问题库查询结果.txt"
-                return@withContext Pair(queryResult, fileName)
-            } else {
-                // 查询失败，返回错误信息
-                val errorMsg = "查询问题库失败: ${result.error ?: "未知错误"}"
-                return@withContext Pair(errorMsg, "查询错误.txt")
+                        // Create attachment info with content as filePath
+                        val attachmentInfo =
+                                AttachmentInfo(
+                                        filePath = captureId, // Use ID as virtual path
+                                        fileName = "screen_content.json",
+                                        mimeType = "text/json",
+                                        fileSize = screenContent.length.toLong(),
+                                        content = screenContent // Add content field to store actual
+                                        // data
+                                        )
+
+                        // Add to attachments list
+                        val currentList = _attachments.value
+                        _attachments.value = currentList + attachmentInfo
+
+                        _toastEvent.emit("已添加屏幕内容")
+                    } else {
+                        _toastEvent.emit("获取屏幕内容失败: ${result.error ?: "未知错误"}")
+                    }
+                } catch (e: Exception) {
+                    _toastEvent.emit("获取屏幕内容失败: ${e.message}")
+                    Log.e(TAG, "Error capturing screen content", e)
+                }
             }
-        } catch (e: Exception) {
-            // 处理异常
-            val errorMsg = "查询问题库出错: ${e.message}"
-            Log.e(TAG, "查询问题库出错", e)
-            return@withContext Pair(errorMsg, "查询错误.txt")
-        }
-    }
+
+    /** 获取设备当前通知并作为附件添加到消息 使用get_notifications AITool获取通知数据 确保在IO线程中执行 */
+    suspend fun captureNotifications(limit: Int = 10) =
+            withContext(Dispatchers.IO) {
+                try {
+                    // 创建工具参数
+                    val toolParams =
+                            listOf(
+                                    ToolParameter("limit", limit.toString()),
+                                    ToolParameter("include_ongoing", "true")
+                            )
+
+                    // 创建工具
+                    val notificationsToolTask =
+                            AITool(name = "get_notifications", parameters = toolParams)
+
+                    // 执行工具
+                    val result = toolHandler.executeTool(notificationsToolTask)
+
+                    if (result.success) {
+                        // 生成唯一ID
+                        val captureId = "notifications_${System.currentTimeMillis()}"
+                        val notificationsContent = result.result.toString()
+
+                        // 创建附件信息
+                        val attachmentInfo =
+                                AttachmentInfo(
+                                        filePath = captureId,
+                                        fileName = "notifications.json",
+                                        mimeType = "application/json",
+                                        fileSize = notificationsContent.length.toLong(),
+                                        content = notificationsContent
+                                )
+
+                        // 添加到附件列表
+                        val currentList = _attachments.value
+                        _attachments.value = currentList + attachmentInfo
+
+                        _toastEvent.emit("已添加当前通知")
+                    } else {
+                        _toastEvent.emit("获取通知失败: ${result.error ?: "未知错误"}")
+                    }
+                } catch (e: Exception) {
+                    _toastEvent.emit("获取通知失败: ${e.message}")
+                    Log.e(TAG, "Error capturing notifications", e)
+                }
+            }
+
+    /** 获取设备当前位置并作为附件添加到消息 使用get_device_location AITool获取位置数据 确保在IO线程中执行 */
+    suspend fun captureLocation(highAccuracy: Boolean = true) =
+            withContext(Dispatchers.IO) {
+                try {
+                    // 创建工具参数
+                    val toolParams =
+                            listOf(
+                                    ToolParameter("high_accuracy", highAccuracy.toString()),
+                                    ToolParameter("timeout", "10") // 10秒超时
+                            )
+
+                    // 创建工具
+                    val locationToolTask =
+                            AITool(name = "get_device_location", parameters = toolParams)
+
+                    // 执行工具
+                    val result = toolHandler.executeTool(locationToolTask)
+
+                    if (result.success) {
+                        // 生成唯一ID
+                        val captureId = "location_${System.currentTimeMillis()}"
+                        val locationContent = result.result.toString()
+
+                        // 创建附件信息
+                        val attachmentInfo =
+                                AttachmentInfo(
+                                        filePath = captureId,
+                                        fileName = "location.json",
+                                        mimeType = "application/json",
+                                        fileSize = locationContent.length.toLong(),
+                                        content = locationContent
+                                )
+
+                        // 添加到附件列表
+                        val currentList = _attachments.value
+                        _attachments.value = currentList + attachmentInfo
+
+                        _toastEvent.emit("已添加当前位置")
+                    } else {
+                        _toastEvent.emit("获取位置失败: ${result.error ?: "未知错误"}")
+                    }
+                } catch (e: Exception) {
+                    _toastEvent.emit("获取位置失败: ${e.message}")
+                    Log.e(TAG, "Error capturing location", e)
+                }
+            }
+
+    /** 添加问题记忆附件 确保在IO线程中执行 */
+    suspend fun attachProblemMemory(content: String, filename: String) =
+            withContext(Dispatchers.IO) {
+                try {
+                    // 生成唯一ID
+                    val captureId = "problem_memory_${System.currentTimeMillis()}"
+
+                    // 创建附件信息
+                    val attachmentInfo =
+                            AttachmentInfo(
+                                    filePath = captureId,
+                                    fileName = filename,
+                                    mimeType = "text/plain",
+                                    fileSize = content.length.toLong(),
+                                    content = content
+                            )
+
+                    // 添加到附件列表
+                    val currentList = _attachments.value
+                    _attachments.value = currentList + attachmentInfo
+
+                    _toastEvent.emit("已添加问题记忆: $filename")
+                } catch (e: Exception) {
+                    _toastEvent.emit("添加问题记忆失败: ${e.message}")
+                    Log.e(TAG, "Error attaching problem memory", e)
+                }
+            }
+
+    /** 查询问题记忆库并添加结果作为附件 确保在IO线程中执行 */
+    suspend fun queryProblemMemory(query: String): Pair<String, String> =
+            withContext(Dispatchers.IO) {
+                try {
+                    // 创建查询问题库的工具
+                    val queryTool =
+                            AITool(
+                                    name = "query_problem_library",
+                                    parameters = listOf(ToolParameter("query", query))
+                            )
+
+                    // 执行工具查询问题库
+                    val result = toolHandler.executeTool(queryTool)
+
+                    if (result.success) {
+                        // 查询成功，获取结果
+                        val queryResult = result.result.toString()
+                        // 创建文件名
+                        val fileName = "问题库查询结果.txt"
+                        return@withContext Pair(queryResult, fileName)
+                    } else {
+                        // 查询失败，返回错误信息
+                        val errorMsg = "查询问题库失败: ${result.error ?: "未知错误"}"
+                        return@withContext Pair(errorMsg, "查询错误.txt")
+                    }
+                } catch (e: Exception) {
+                    // 处理异常
+                    val errorMsg = "查询问题库出错: ${e.message}"
+                    Log.e(TAG, "查询问题库出错", e)
+                    return@withContext Pair(errorMsg, "查询错误.txt")
+                }
+            }
 
     /** Get file name from content URI */
     private suspend fun getFileNameFromUri(uri: Uri): String =

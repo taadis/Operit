@@ -2,7 +2,7 @@ package com.ai.assistance.operit.core.tools.system.termux
 
 import android.content.Context
 import android.util.Log
-import com.ai.assistance.operit.tools.system.AdbCommandExecutor
+import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext

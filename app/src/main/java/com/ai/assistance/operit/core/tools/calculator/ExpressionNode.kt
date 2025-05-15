@@ -1,43 +1,33 @@
-package com.ai.assistance.operit.tools.calculator
+package com.ai.assistance.operit.core.tools.calculator
 
-/**
- * 表达式语法树的基础节点接口
- */
+/** 表达式语法树的基础节点接口 */
 sealed interface ExpressionNode {
-    /**
-     * 计算节点的值
-     */
+    /** 计算节点的值 */
     fun evaluate(): Double
 }
 
-/**
- * 常量节点（数字字面量）
- */
+/** 常量节点（数字字面量） */
 data class NumberNode(val value: Double) : ExpressionNode {
     override fun evaluate(): Double = value
 }
 
-/**
- * 变量引用节点
- */
+/** 变量引用节点 */
 data class VariableNode(val name: String) : ExpressionNode {
     override fun evaluate(): Double {
         return ExpressionContext.getVariable(name)
     }
 }
 
-/**
- * 二元操作符节点
- */
+/** 二元操作符节点 */
 data class BinaryOperationNode(
-    val left: ExpressionNode,
-    val operator: String,
-    val right: ExpressionNode
+        val left: ExpressionNode,
+        val operator: String,
+        val right: ExpressionNode
 ) : ExpressionNode {
     override fun evaluate(): Double {
         val leftValue = left.evaluate()
         val rightValue = right.evaluate()
-        
+
         return when (operator) {
             "+" -> leftValue + rightValue
             "-" -> leftValue - rightValue
@@ -58,16 +48,11 @@ data class BinaryOperationNode(
     }
 }
 
-/**
- * 一元操作符节点
- */
-data class UnaryOperationNode(
-    val operator: String,
-    val operand: ExpressionNode
-) : ExpressionNode {
+/** 一元操作符节点 */
+data class UnaryOperationNode(val operator: String, val operand: ExpressionNode) : ExpressionNode {
     override fun evaluate(): Double {
         val value = operand.evaluate()
-        
+
         return when (operator) {
             "+" -> value
             "-" -> -value
@@ -77,26 +62,20 @@ data class UnaryOperationNode(
     }
 }
 
-/**
- * 函数调用节点
- */
-data class FunctionCallNode(
-    val name: String,
-    val arguments: List<ExpressionNode>
-) : ExpressionNode {
+/** 函数调用节点 */
+data class FunctionCallNode(val name: String, val arguments: List<ExpressionNode>) :
+        ExpressionNode {
     override fun evaluate(): Double {
         val evaluatedArgs = arguments.map { it.evaluate() }
         return ExpressionContext.callFunction(name, evaluatedArgs)
     }
 }
 
-/**
- * 三元运算符节点 (condition ? trueExpr : falseExpr)
- */
+/** 三元运算符节点 (condition ? trueExpr : falseExpr) */
 data class TernaryOperationNode(
-    val condition: ExpressionNode,
-    val trueExpression: ExpressionNode,
-    val falseExpression: ExpressionNode
+        val condition: ExpressionNode,
+        val trueExpression: ExpressionNode,
+        val falseExpression: ExpressionNode
 ) : ExpressionNode {
     override fun evaluate(): Double {
         val conditionValue = condition.evaluate()
@@ -108,13 +87,8 @@ data class TernaryOperationNode(
     }
 }
 
-/**
- * 变量赋值节点
- */
-data class AssignmentNode(
-    val variableName: String,
-    val value: ExpressionNode
-) : ExpressionNode {
+/** 变量赋值节点 */
+data class AssignmentNode(val variableName: String, val value: ExpressionNode) : ExpressionNode {
     override fun evaluate(): Double {
         val result = value.evaluate()
         ExpressionContext.setVariable(variableName, result)
@@ -122,58 +96,54 @@ data class AssignmentNode(
     }
 }
 
-/**
- * 复合赋值节点 (+=, -=, *=, /=)
- */
+/** 复合赋值节点 (+=, -=, *=, /=) */
 data class CompoundAssignmentNode(
-    val variableName: String,
-    val operator: String,
-    val value: ExpressionNode
+        val variableName: String,
+        val operator: String,
+        val value: ExpressionNode
 ) : ExpressionNode {
     override fun evaluate(): Double {
         val currentValue = ExpressionContext.getVariable(variableName)
         val rightValue = value.evaluate()
-        
-        val result = when (operator) {
-            "+=" -> currentValue + rightValue
-            "-=" -> currentValue - rightValue
-            "*=" -> currentValue * rightValue
-            "/=" -> currentValue / rightValue
-            else -> throw IllegalArgumentException("Unknown compound assignment operator: $operator")
-        }
-        
+
+        val result =
+                when (operator) {
+                    "+=" -> currentValue + rightValue
+                    "-=" -> currentValue - rightValue
+                    "*=" -> currentValue * rightValue
+                    "/=" -> currentValue / rightValue
+                    else ->
+                            throw IllegalArgumentException(
+                                    "Unknown compound assignment operator: $operator"
+                            )
+                }
+
         ExpressionContext.setVariable(variableName, result)
         return result
     }
 }
 
-/**
- * 数组元素访问节点
- */
-data class ArrayAccessNode(
-    val array: ExpressionNode,
-    val index: ExpressionNode
-) : ExpressionNode {
+/** 数组元素访问节点 */
+data class ArrayAccessNode(val array: ExpressionNode, val index: ExpressionNode) : ExpressionNode {
     override fun evaluate(): Double {
         return ExpressionContext.getArrayElement(array, index)
     }
 }
 
-/**
- * 字符串模板节点
- */
+/** 字符串模板节点 */
 data class TemplateStringNode(
-    val parts: List<Any> // String 或 ExpressionNode
+        val parts: List<Any> // String 或 ExpressionNode
 ) : ExpressionNode {
     override fun evaluate(): Double {
-        val result = parts.joinToString("") { part ->
-            when (part) {
-                is String -> part
-                is ExpressionNode -> part.evaluate().toString()
-                else -> part.toString()
-            }
-        }
-        
+        val result =
+                parts.joinToString("") { part ->
+                    when (part) {
+                        is String -> part
+                        is ExpressionNode -> part.evaluate().toString()
+                        else -> part.toString()
+                    }
+                }
+
         return try {
             result.toDouble()
         } catch (e: NumberFormatException) {

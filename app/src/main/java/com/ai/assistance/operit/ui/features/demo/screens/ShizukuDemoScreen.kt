@@ -24,13 +24,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor
+import com.ai.assistance.operit.core.tools.system.ShizukuInstaller
+import com.ai.assistance.operit.core.tools.system.TermuxCommandExecutor
 import com.ai.assistance.operit.core.tools.system.termux.TermuxAuthorizer
 import com.ai.assistance.operit.core.tools.system.termux.TermuxInstaller
 import com.ai.assistance.operit.core.tools.system.termux.TermuxUtils
 import com.ai.assistance.operit.data.repository.UIHierarchyManager
-import com.ai.assistance.operit.tools.system.AdbCommandExecutor
-import com.ai.assistance.operit.tools.system.ShizukuInstaller
-import com.ai.assistance.operit.tools.system.TermuxCommandExecutor
 import com.ai.assistance.operit.ui.features.demo.components.*
 import com.ai.assistance.operit.ui.features.demo.model.ShizukuScreenState
 import com.ai.assistance.operit.ui.features.demo.wizards.ShizukuWizardCard

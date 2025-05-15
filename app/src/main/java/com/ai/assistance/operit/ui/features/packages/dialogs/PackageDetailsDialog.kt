@@ -14,110 +14,111 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.ai.assistance.operit.tools.PackageTool
-import com.ai.assistance.operit.tools.packTool.PackageManager
+import com.ai.assistance.operit.core.tools.PackageTool
+import com.ai.assistance.operit.core.tools.packTool.PackageManager
 
 @Composable
 fun PackageDetailsDialog(
-    packageName: String,
-    packageDescription: String,
-    packageManager: PackageManager,
-    onRunScript: (PackageTool) -> Unit,
-    onDismiss: () -> Unit
+        packageName: String,
+        packageDescription: String,
+        packageManager: PackageManager,
+        onRunScript: (PackageTool) -> Unit,
+        onDismiss: () -> Unit
 ) {
     // Load the package details
     val toolPackage =
-        remember(packageName) {
-            try {
-                val packages = packageManager.getPackageTools(packageName)
-                packages
-            } catch (e: Exception) {
-                Log.e("PackageDetailsDialog", "Failed to load package details", e)
-                null
+            remember(packageName) {
+                try {
+                    val packages = packageManager.getPackageTools(packageName)
+                    packages
+                } catch (e: Exception) {
+                    Log.e("PackageDetailsDialog", "Failed to load package details", e)
+                    null
+                }
             }
-        }
 
     AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(text = "Package Details") },
-        text = {
-            Column {
-                Text(
-                    text = packageName,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(text = packageDescription, style = MaterialTheme.typography.bodyMedium)
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "Package Tools",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                if (toolPackage?.tools == null || toolPackage.tools.isEmpty()) {
+            onDismissRequest = onDismiss,
+            title = { Text(text = "Package Details") },
+            text = {
+                Column {
                     Text(
-                        text = "No tools found in this package",
-                        style = MaterialTheme.typography.bodyMedium
+                            text = packageName,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
                     )
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.height(250.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(items = toolPackage.tools, key = { tool -> tool.name }) { tool ->
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(8.dp)
-                            ) {
-                                Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
-                                    Row(
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(text = packageDescription, style = MaterialTheme.typography.bodyMedium)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                            text = "Package Tools",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    if (toolPackage?.tools == null || toolPackage.tools.isEmpty()) {
+                        Text(
+                                text = "No tools found in this package",
+                                style = MaterialTheme.typography.bodyMedium
+                        )
+                    } else {
+                        LazyColumn(
+                                modifier = Modifier.height(250.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(items = toolPackage.tools, key = { tool -> tool.name }) { tool ->
+                                Card(
                                         modifier = Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = tool.name,
-                                                style =
-                                                    MaterialTheme.typography
-                                                        .titleMedium,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                            Spacer(modifier = Modifier.height(4.dp))
-                                            Text(
-                                                text = tool.description,
-                                                style = MaterialTheme.typography.bodyMedium
-                                            )
+                                        shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+                                        Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                        text = tool.name,
+                                                        style =
+                                                                MaterialTheme.typography
+                                                                        .titleMedium,
+                                                        fontWeight = FontWeight.Bold
+                                                )
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text(
+                                                        text = tool.description,
+                                                        style = MaterialTheme.typography.bodyMedium
+                                                )
+                                            }
+
+                                            // Add Run Script button
+                                            IconButton(onClick = { onRunScript(tool) }) {
+                                                Icon(
+                                                        imageVector = Icons.Default.PlayArrow,
+                                                        contentDescription = "Run Script",
+                                                        tint = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
                                         }
 
-                                        // Add Run Script button
-                                        IconButton(onClick = { onRunScript(tool) }) {
-                                            Icon(
-                                                imageVector = Icons.Default.PlayArrow,
-                                                contentDescription = "Run Script",
-                                                tint = MaterialTheme.colorScheme.primary
-                                            )
-                                        }
-                                    }
-
-                                    if (tool.parameters.isNotEmpty()) {
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        Text(
-                                            text = "Script Parameters:" + ":",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        for (param in tool.parameters) {
-                                            val requiredText =
-                                                if (param.required) "(required)"
-                                                else "(optional)"
+                                        if (tool.parameters.isNotEmpty()) {
+                                            Spacer(modifier = Modifier.height(8.dp))
                                             Text(
-                                                text =
-                                                    "• ${param.name} $requiredText: ${param.description}",
-                                                style = MaterialTheme.typography.bodySmall
+                                                    text = "Script Parameters:" + ":",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.Bold
                                             )
+                                            for (param in tool.parameters) {
+                                                val requiredText =
+                                                        if (param.required) "(required)"
+                                                        else "(optional)"
+                                                Text(
+                                                        text =
+                                                                "• ${param.name} $requiredText: ${param.description}",
+                                                        style = MaterialTheme.typography.bodySmall
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -125,8 +126,7 @@ fun PackageDetailsDialog(
                         }
                     }
                 }
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text(text = "OK") } }
+            },
+            confirmButton = { TextButton(onClick = onDismiss) { Text(text = "OK") } }
     )
-} 
+}

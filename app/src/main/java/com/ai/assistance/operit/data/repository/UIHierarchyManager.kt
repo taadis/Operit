@@ -5,7 +5,7 @@ import android.content.Intent
 import android.provider.Settings
 import android.util.Log
 import com.ai.assistance.operit.services.UIAccessibilityService
-import com.ai.assistance.operit.tools.system.AdbCommandExecutor
+import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**

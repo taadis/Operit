@@ -4,25 +4,22 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
-import com.ai.assistance.operit.tools.defaultTool.ProblemLibraryTool
+import com.ai.assistance.operit.core.tools.defaultTool.ProblemLibraryTool
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-/**
- * 问题记录的数据库实体
- */
+/** 问题记录的数据库实体 */
 @Entity(tableName = "problem_records")
 @TypeConverters(StringListConverter::class)
 data class ProblemEntity(
-    @PrimaryKey
-    val uuid: String,
-    val query: String,
-    val solution: String,
-    val tools: List<String>,
-    val summary: String = "",
-    val timestamp: Long = System.currentTimeMillis(),
-    val vectorData: ByteArray? = null // 用于存储预计算的向量数据
+        @PrimaryKey val uuid: String,
+        val query: String,
+        val solution: String,
+        val tools: List<String>,
+        val summary: String = "",
+        val timestamp: Long = System.currentTimeMillis(),
+        val vectorData: ByteArray? = null // 用于存储预计算的向量数据
 ) {
     // ByteArray需要自定义equals和hashCode
     override fun equals(other: Any?): Boolean {
@@ -55,38 +52,39 @@ data class ProblemEntity(
         result = 31 * result + (vectorData?.contentHashCode() ?: 0)
         return result
     }
-    
+
     // 转换为ProblemRecord
     fun toProblemRecord(): ProblemLibraryTool.ProblemRecord {
         return ProblemLibraryTool.ProblemRecord(
-            uuid = uuid,
-            query = query,
-            solution = solution,
-            tools = tools,
-            summary = summary,
-            timestamp = timestamp
+                uuid = uuid,
+                query = query,
+                solution = solution,
+                tools = tools,
+                summary = summary,
+                timestamp = timestamp
         )
     }
-    
+
     companion object {
         // 从ProblemRecord转换为ProblemEntity
-        fun fromProblemRecord(record: ProblemLibraryTool.ProblemRecord, vectorData: ByteArray? = null): ProblemEntity {
+        fun fromProblemRecord(
+                record: ProblemLibraryTool.ProblemRecord,
+                vectorData: ByteArray? = null
+        ): ProblemEntity {
             return ProblemEntity(
-                uuid = record.uuid,
-                query = record.query,
-                solution = record.solution, 
-                tools = record.tools,
-                summary = record.summary,
-                timestamp = record.timestamp,
-                vectorData = vectorData
+                    uuid = record.uuid,
+                    query = record.query,
+                    solution = record.solution,
+                    tools = record.tools,
+                    summary = record.summary,
+                    timestamp = record.timestamp,
+                    vectorData = vectorData
             )
         }
     }
 }
 
-/**
- * 用于将String列表转换为SQLite可存储的格式
- */
+/** 用于将String列表转换为SQLite可存储的格式 */
 class StringListConverter {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -103,4 +101,4 @@ class StringListConverter {
             emptyList()
         }
     }
-} 
+}

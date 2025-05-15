@@ -1,14 +1,14 @@
-package com.ai.assistance.operit.tools.defaultTool
+package com.ai.assistance.operit.core.tools.defaultTool
 
 import android.content.Context
 import android.util.Log
+import com.ai.assistance.operit.core.tools.FileConversionResultData
+import com.ai.assistance.operit.core.tools.FileFormatConversionsResultData
+import com.ai.assistance.operit.core.tools.StringResultData
+import com.ai.assistance.operit.core.tools.ToolExecutor
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.data.model.ToolValidationResult
-import com.ai.assistance.operit.tools.FileConversionResultData
-import com.ai.assistance.operit.tools.FileFormatConversionsResultData
-import com.ai.assistance.operit.tools.StringResultData
-import com.ai.assistance.operit.tools.ToolExecutor
 import com.ai.assistance.operit.ui.permissions.ToolCategory
 import com.ai.assistance.operit.util.ArchiveUtil
 import com.ai.assistance.operit.util.DocumentConversionUtil

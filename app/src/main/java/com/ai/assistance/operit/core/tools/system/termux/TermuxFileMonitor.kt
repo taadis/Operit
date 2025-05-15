@@ -6,8 +6,8 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import com.ai.assistance.operit.services.TermuxCommandResultService
-import com.ai.assistance.operit.tools.system.AdbCommandExecutor
-import com.ai.assistance.operit.tools.system.AdbCommandExecutor.CommandResult
+import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor
+import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor.CommandResult
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException

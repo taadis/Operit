@@ -4,13 +4,13 @@ import android.util.Log
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.ui.graphics.vector.ImageVector
-import com.ai.assistance.operit.tools.DirectoryListingData
+import com.ai.assistance.operit.core.tools.DirectoryListingData
 import com.ai.assistance.operit.ui.features.toolbox.screens.filemanager.models.FileItem
-import kotlinx.serialization.json.Json
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.log10
 import kotlin.math.pow
+import kotlinx.serialization.json.Json
 
 /** 获取文件图标 */
 fun getFileIcon(file: FileItem): ImageVector {
@@ -85,11 +85,7 @@ fun formatFileSize(size: Long): String {
     val units = arrayOf("B", "KB", "MB", "GB", "TB")
     val digitGroups = (log10(size.toDouble()) / log10(1024.0)).toInt()
 
-    return String.format(
-        "%.1f %s",
-        size / 1024.0.pow(digitGroups.toDouble()),
-        units[digitGroups]
-    )
+    return String.format("%.1f %s", size / 1024.0.pow(digitGroups.toDouble()), units[digitGroups])
 }
 
 /** 格式化日期 */
@@ -123,14 +119,14 @@ fun parseFileList(result: String): List<FileItem> {
 
         directoryListing.entries.map { entry ->
             FileItem(
-                name = entry.name,
-                isDirectory = entry.isDirectory,
-                size = entry.size,
-                lastModified = entry.lastModified.toLongOrNull() ?: 0
+                    name = entry.name,
+                    isDirectory = entry.isDirectory,
+                    size = entry.size,
+                    lastModified = entry.lastModified.toLongOrNull() ?: 0
             )
         }
     } catch (e: Exception) {
         Log.e("FileUtils", "Error parsing file list", e)
         emptyList()
     }
-} 
+}

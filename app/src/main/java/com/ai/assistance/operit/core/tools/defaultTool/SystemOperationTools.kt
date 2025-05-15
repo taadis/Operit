@@ -1,25 +1,22 @@
-package com.ai.assistance.operit.tools.defaultTool
+package com.ai.assistance.operit.core.tools.defaultTool
 
 import android.content.Context
+import android.location.Geocoder
 import android.location.Location
 import android.location.LocationManager
-import android.location.Geocoder
 import android.util.Log
+import com.ai.assistance.operit.core.tools.AppListData
+import com.ai.assistance.operit.core.tools.AppOperationData
+import com.ai.assistance.operit.core.tools.LocationData
+import com.ai.assistance.operit.core.tools.NotificationData
+import com.ai.assistance.operit.core.tools.StringResultData
+import com.ai.assistance.operit.core.tools.SystemSettingData
+import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolResult
-import com.ai.assistance.operit.tools.AppListData
-import com.ai.assistance.operit.tools.AppOperationData
-import com.ai.assistance.operit.tools.LocationData
-import com.ai.assistance.operit.tools.NotificationData
-import com.ai.assistance.operit.tools.StringResultData
-import com.ai.assistance.operit.tools.SystemSettingData
-import com.ai.assistance.operit.tools.system.AdbCommandExecutor
-import kotlinx.coroutines.GlobalScope
+import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withContext
-import java.util.Locale
 
 /** 提供系统级操作的工具类 包括系统设置修改、应用安装和卸载等 这些操作需要用户明确授权 */
 class SystemOperationTools(private val context: Context) {
@@ -553,193 +550,228 @@ class SystemOperationTools(private val context: Context) {
 
         return try {
             // 检查位置权限
-            val hasFineLocationPermission = context.checkSelfPermission(
-                android.Manifest.permission.ACCESS_FINE_LOCATION
-            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-            
-            val hasCoarseLocationPermission = context.checkSelfPermission(
-                android.Manifest.permission.ACCESS_COARSE_LOCATION
-            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-            
+            val hasFineLocationPermission =
+                    context.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) ==
+                            android.content.pm.PackageManager.PERMISSION_GRANTED
+
+            val hasCoarseLocationPermission =
+                    context.checkSelfPermission(
+                            android.Manifest.permission.ACCESS_COARSE_LOCATION
+                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
             // 如果没有任何位置权限，返回错误
             if (!hasFineLocationPermission && !hasCoarseLocationPermission) {
                 return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "未授予位置权限，请在应用设置中开启位置权限"
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "未授予位置权限，请在应用设置中开启位置权限"
                 )
             }
-            
+
             // 根据精度要求和权限情况决定使用哪种精度
             val actualHighAccuracy = highAccuracy && hasFineLocationPermission
-            
+
             // 使用Dispatchers.Main确保在主线程上执行位置操作
-            val locationResult = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                kotlinx.coroutines.suspendCancellableCoroutine<Location?> { continuation ->
-                    val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-                    
-                    // 选择合适的位置提供者
-                    val provider = when {
-                        actualHighAccuracy && locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) -> 
-                            LocationManager.GPS_PROVIDER
-                        locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) -> 
-                            LocationManager.NETWORK_PROVIDER
-                        locationManager.isProviderEnabled(LocationManager.PASSIVE_PROVIDER) -> 
-                            LocationManager.PASSIVE_PROVIDER
-                        else -> null
-                    }
-                    
-                    if (provider == null) {
-                        continuation.resume(null) { Log.e(TAG, "位置请求取消", it) }
-                        return@suspendCancellableCoroutine
-                    }
-                    
-                    // 尝试获取最后已知位置
-                    val lastKnownLocation = try {
-                        if (actualHighAccuracy && hasFineLocationPermission) {
-                            locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-                                ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-                        } else if (hasCoarseLocationPermission) {
-                            locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-                                ?: locationManager.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER)
-                        } else {
-                            null
-                        }
-                    } catch (e: SecurityException) {
-                        Log.e(TAG, "获取最后已知位置失败", e)
-                        null
-                    }
-                    
-                    // 如果有最后已知位置且足够新（10分钟内），直接返回
-                    if (lastKnownLocation != null && 
-                        System.currentTimeMillis() - lastKnownLocation.time < 10 * 60 * 1000) {
-                        continuation.resume(lastKnownLocation) { Log.e(TAG, "位置请求取消", it) }
-                        return@suspendCancellableCoroutine
-                    }
-                    
-                    // 否则请求位置更新
-                    val locationListener = object : android.location.LocationListener {
-                        override fun onLocationChanged(location: Location) {
-                            locationManager.removeUpdates(this)
-                            continuation.resume(location) { Log.e(TAG, "位置请求取消", it) }
-                        }
-                        
-                        override fun onProviderDisabled(provider: String) {
-                            // 如果提供者被禁用，尝试使用最后已知位置
-                            if (!continuation.isCompleted) {
-                                if (lastKnownLocation != null) {
-                                    continuation.resume(lastKnownLocation) { Log.e(TAG, "位置请求取消", it) }
-                                } else {
-                                    continuation.resume(null) { Log.e(TAG, "位置请求取消", it) }
-                                }
+            val locationResult =
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        kotlinx.coroutines.suspendCancellableCoroutine<Location?> { continuation ->
+                            val locationManager =
+                                    context.getSystemService(Context.LOCATION_SERVICE) as
+                                            LocationManager
+
+                            // 选择合适的位置提供者
+                            val provider =
+                                    when {
+                                        actualHighAccuracy &&
+                                                locationManager.isProviderEnabled(
+                                                        LocationManager.GPS_PROVIDER
+                                                ) -> LocationManager.GPS_PROVIDER
+                                        locationManager.isProviderEnabled(
+                                                LocationManager.NETWORK_PROVIDER
+                                        ) -> LocationManager.NETWORK_PROVIDER
+                                        locationManager.isProviderEnabled(
+                                                LocationManager.PASSIVE_PROVIDER
+                                        ) -> LocationManager.PASSIVE_PROVIDER
+                                        else -> null
+                                    }
+
+                            if (provider == null) {
+                                continuation.resume(null) { Log.e(TAG, "位置请求取消", it) }
+                                return@suspendCancellableCoroutine
                             }
-                        }
-                        
-                        override fun onProviderEnabled(provider: String) {
-                            // 不需要处理
-                        }
-                        
-                        @Deprecated("Deprecated in Java")
-                        override fun onStatusChanged(provider: String, status: Int, extras: android.os.Bundle) {
-                            // 不需要处理
-                        }
-                    }
-                    
-                    try {
-                        // 设置位置请求参数
-                        locationManager.requestLocationUpdates(
-                            provider,
-                            0,  // 最小时间间隔
-                            0f, // 最小距离变化
-                            locationListener
-                        )
-                        
-                        // 设置超时
-                        kotlinx.coroutines.GlobalScope.launch {
-                            delay(timeout * 1000L)
-                            // 在主线程上移除更新和恢复协程
-                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                if (!continuation.isCompleted) {
-                                    locationManager.removeUpdates(locationListener)
-                                    // 如果超时，尝试使用最后已知位置
-                                    continuation.resume(lastKnownLocation) { Log.e(TAG, "位置请求取消", it) }
-                                }
+
+                            // 尝试获取最后已知位置
+                            val lastKnownLocation =
+                                    try {
+                                        if (actualHighAccuracy && hasFineLocationPermission) {
+                                            locationManager.getLastKnownLocation(
+                                                    LocationManager.GPS_PROVIDER
+                                            )
+                                                    ?: locationManager.getLastKnownLocation(
+                                                            LocationManager.NETWORK_PROVIDER
+                                                    )
+                                        } else if (hasCoarseLocationPermission) {
+                                            locationManager.getLastKnownLocation(
+                                                    LocationManager.NETWORK_PROVIDER
+                                            )
+                                                    ?: locationManager.getLastKnownLocation(
+                                                            LocationManager.PASSIVE_PROVIDER
+                                                    )
+                                        } else {
+                                            null
+                                        }
+                                    } catch (e: SecurityException) {
+                                        Log.e(TAG, "获取最后已知位置失败", e)
+                                        null
+                                    }
+
+                            // 如果有最后已知位置且足够新（10分钟内），直接返回
+                            if (lastKnownLocation != null &&
+                                            System.currentTimeMillis() - lastKnownLocation.time <
+                                                    10 * 60 * 1000
+                            ) {
+                                continuation.resume(lastKnownLocation) { Log.e(TAG, "位置请求取消", it) }
+                                return@suspendCancellableCoroutine
                             }
-                        }
-                        
-                        // 如果协程被取消，移除位置更新
-                        continuation.invokeOnCancellation {
+
+                            // 否则请求位置更新
+                            val locationListener =
+                                    object : android.location.LocationListener {
+                                        override fun onLocationChanged(location: Location) {
+                                            locationManager.removeUpdates(this)
+                                            continuation.resume(location) {
+                                                Log.e(TAG, "位置请求取消", it)
+                                            }
+                                        }
+
+                                        override fun onProviderDisabled(provider: String) {
+                                            // 如果提供者被禁用，尝试使用最后已知位置
+                                            if (!continuation.isCompleted) {
+                                                if (lastKnownLocation != null) {
+                                                    continuation.resume(lastKnownLocation) {
+                                                        Log.e(TAG, "位置请求取消", it)
+                                                    }
+                                                } else {
+                                                    continuation.resume(null) {
+                                                        Log.e(TAG, "位置请求取消", it)
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        override fun onProviderEnabled(provider: String) {
+                                            // 不需要处理
+                                        }
+
+                                        @Deprecated("Deprecated in Java")
+                                        override fun onStatusChanged(
+                                                provider: String,
+                                                status: Int,
+                                                extras: android.os.Bundle
+                                        ) {
+                                            // 不需要处理
+                                        }
+                                    }
+
                             try {
-                                // 确保在主线程上移除位置更新
-                                kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.Main) {
-                                    locationManager.removeUpdates(locationListener)
+                                // 设置位置请求参数
+                                locationManager.requestLocationUpdates(
+                                        provider,
+                                        0, // 最小时间间隔
+                                        0f, // 最小距离变化
+                                        locationListener
+                                )
+
+                                // 设置超时
+                                kotlinx.coroutines.GlobalScope.launch {
+                                    delay(timeout * 1000L)
+                                    // 在主线程上移除更新和恢复协程
+                                    kotlinx.coroutines.withContext(
+                                            kotlinx.coroutines.Dispatchers.Main
+                                    ) {
+                                        if (!continuation.isCompleted) {
+                                            locationManager.removeUpdates(locationListener)
+                                            // 如果超时，尝试使用最后已知位置
+                                            continuation.resume(lastKnownLocation) {
+                                                Log.e(TAG, "位置请求取消", it)
+                                            }
+                                        }
+                                    }
                                 }
-                            } catch (e: Exception) {
-                                Log.e(TAG, "移除位置更新失败", e)
+
+                                // 如果协程被取消，移除位置更新
+                                continuation.invokeOnCancellation {
+                                    try {
+                                        // 确保在主线程上移除位置更新
+                                        kotlinx.coroutines.runBlocking(
+                                                kotlinx.coroutines.Dispatchers.Main
+                                        ) { locationManager.removeUpdates(locationListener) }
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "移除位置更新失败", e)
+                                    }
+                                }
+                            } catch (e: SecurityException) {
+                                continuation.resume(lastKnownLocation) { Log.e(TAG, "位置请求取消", it) }
+                                Log.e(TAG, "请求位置更新失败", e)
                             }
                         }
-                    } catch (e: SecurityException) {
-                        continuation.resume(lastKnownLocation) { Log.e(TAG, "位置请求取消", it) }
-                        Log.e(TAG, "请求位置更新失败", e)
                     }
-                }
-            }
-            
+
             // 处理位置结果
             if (locationResult == null) {
                 return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "无法获取位置信息，请确保已启用位置服务"
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "无法获取位置信息，请确保已启用位置服务"
                 )
             }
-            
-            val resultData = if (includeAddress) {
-                // 获取地址信息
-                val addressInfo = getAddressFromLocation(locationResult.latitude, locationResult.longitude)
-                
-                LocationData(
-                    latitude = locationResult.latitude,
-                    longitude = locationResult.longitude,
-                    accuracy = locationResult.accuracy,
-                    provider = locationResult.provider ?: "unknown",
-                    timestamp = locationResult.time,
-                    rawData = locationResult.toString(),
-                    city = addressInfo.city,
-                    address = addressInfo.address,
-                    country = addressInfo.country,
-                    province = addressInfo.province
-                )
-            } else {
-                LocationData(
-                    latitude = locationResult.latitude,
-                    longitude = locationResult.longitude,
-                    accuracy = locationResult.accuracy,
-                    provider = locationResult.provider ?: "unknown",
-                    timestamp = locationResult.time,
-                    rawData = locationResult.toString()
-                )
-            }
-            
-            return ToolResult(
-                toolName = tool.name,
-                success = true,
-                result = resultData,
-                error = ""
-            )
+
+            val resultData =
+                    if (includeAddress) {
+                        // 获取地址信息
+                        val addressInfo =
+                                getAddressFromLocation(
+                                        locationResult.latitude,
+                                        locationResult.longitude
+                                )
+
+                        LocationData(
+                                latitude = locationResult.latitude,
+                                longitude = locationResult.longitude,
+                                accuracy = locationResult.accuracy,
+                                provider = locationResult.provider ?: "unknown",
+                                timestamp = locationResult.time,
+                                rawData = locationResult.toString(),
+                                city = addressInfo.city,
+                                address = addressInfo.address,
+                                country = addressInfo.country,
+                                province = addressInfo.province
+                        )
+                    } else {
+                        LocationData(
+                                latitude = locationResult.latitude,
+                                longitude = locationResult.longitude,
+                                accuracy = locationResult.accuracy,
+                                provider = locationResult.provider ?: "unknown",
+                                timestamp = locationResult.time,
+                                rawData = locationResult.toString()
+                        )
+                    }
+
+            return ToolResult(toolName = tool.name, success = true, result = resultData, error = "")
         } catch (e: Exception) {
             Log.e(TAG, "获取位置信息时出错", e)
             return ToolResult(
-                toolName = tool.name,
-                success = false,
-                result = StringResultData(""),
-                error = "获取位置信息时出错: ${e.message}"
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "获取位置信息时出错: ${e.message}"
             )
         }
     }
-    
+
     /**
      * 从经纬度获取地址信息
      * @param latitude 纬度
@@ -749,37 +781,35 @@ class SystemOperationTools(private val context: Context) {
     private fun getAddressFromLocation(latitude: Double, longitude: Double): AddressInfo {
         try {
             val geocoder = Geocoder(context, Locale.getDefault())
-            
+
             // 尝试获取地址
             val addresses = geocoder.getFromLocation(latitude, longitude, 1)
-            
+
             if (addresses != null && addresses.isNotEmpty()) {
                 val address = addresses[0]
-                
+
                 return AddressInfo(
-                    address = address.getAddressLine(0) ?: "",
-                    city = address.locality ?: address.subAdminArea ?: "",
-                    province = address.adminArea ?: "",
-                    country = address.countryName ?: "",
-                    postalCode = address.postalCode ?: ""
+                        address = address.getAddressLine(0) ?: "",
+                        city = address.locality ?: address.subAdminArea ?: "",
+                        province = address.adminArea ?: "",
+                        country = address.countryName ?: "",
+                        postalCode = address.postalCode ?: ""
                 )
             }
         } catch (e: Exception) {
             Log.e(TAG, "获取地址信息时出错", e)
         }
-        
+
         // 如果无法获取地址信息，返回空对象
         return AddressInfo("", "", "", "", "")
     }
-    
-    /**
-     * 地址信息数据类
-     */
+
+    /** 地址信息数据类 */
     data class AddressInfo(
-        val address: String,       // 完整地址
-        val city: String,          // 城市
-        val province: String,      // 省/州
-        val country: String,       // 国家
-        val postalCode: String     // 邮政编码
+            val address: String, // 完整地址
+            val city: String, // 城市
+            val province: String, // 省/州
+            val country: String, // 国家
+            val postalCode: String // 邮政编码
     )
 }

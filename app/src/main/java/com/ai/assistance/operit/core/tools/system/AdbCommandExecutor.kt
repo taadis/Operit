@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.tools.system
+package com.ai.assistance.operit.core.tools.system
 
 import android.content.Context
 import android.content.pm.PackageManager

@@ -1,6 +1,6 @@
 package com.ai.assistance.operit.core.tools.system.termux
 
-import com.ai.assistance.operit.tools.system.AdbCommandExecutor.CommandResult
+import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor.CommandResult
 
 /** 命令输出接收器接口 用于接收命令执行过程中的实时输出 */
 interface TermuxCommandOutputReceiver {

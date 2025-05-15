@@ -1,11 +1,11 @@
-package com.ai.assistance.operit.tools
+package com.ai.assistance.operit.core.tools
 
 import android.content.Context
 import com.ai.assistance.operit.core.tools.defaultTool.ADBToolExecutor
 import com.ai.assistance.operit.core.tools.defaultTool.IntentToolExecutor
 import com.ai.assistance.operit.core.tools.defaultTool.TerminalCommandExecutor
 import com.ai.assistance.operit.data.model.ToolResult
-import com.ai.assistance.operit.tools.defaultTool.*
+import com.ai.assistance.operit.core.tools.defaultTool.*
 import com.ai.assistance.operit.ui.permissions.ToolCategory
 
 /**

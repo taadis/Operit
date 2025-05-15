@@ -47,7 +47,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.ai.assistance.operit.tools.AIToolHandler
+import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.ui.features.chat.attachments.AttachmentManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

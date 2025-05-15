@@ -18,12 +18,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.ai.assistance.operit.core.tools.AIToolHandler
+import com.ai.assistance.operit.core.tools.PackageTool
+import com.ai.assistance.operit.core.tools.ToolPackage
+import com.ai.assistance.operit.core.tools.packTool.PackageManager
 import com.ai.assistance.operit.data.mcp.MCPRepository
 import com.ai.assistance.operit.data.model.ToolResult
-import com.ai.assistance.operit.tools.AIToolHandler
-import com.ai.assistance.operit.tools.PackageTool
-import com.ai.assistance.operit.tools.ToolPackage
-import com.ai.assistance.operit.tools.packTool.PackageManager
 import com.ai.assistance.operit.ui.features.packages.components.EmptyState
 import com.ai.assistance.operit.ui.features.packages.components.PackageTab
 import com.ai.assistance.operit.ui.features.packages.dialogs.PackageDetailsDialog
@@ -163,7 +163,10 @@ fun PackageManagerScreen() {
                     indicator = { tabPositions ->
                         if (selectedTab.ordinal < tabPositions.size) {
                             TabRowDefaults.SecondaryIndicator(
-                                    modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab.ordinal]),
+                                    modifier =
+                                            Modifier.tabIndicatorOffset(
+                                                    tabPositions[selectedTab.ordinal]
+                                            ),
                                     height = 3.dp,
                                     color = MaterialTheme.colorScheme.primary
                             )
@@ -188,10 +191,10 @@ fun PackageManagerScreen() {
                                 )
                                 Spacer(Modifier.width(2.dp))
                                 Text(
-                                    "可用包", 
-                                    style = MaterialTheme.typography.bodySmall,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                        "可用包",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
@@ -215,10 +218,10 @@ fun PackageManagerScreen() {
                                 )
                                 Spacer(Modifier.width(2.dp))
                                 Text(
-                                    "已导入", 
-                                    style = MaterialTheme.typography.bodySmall,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                        "已导入",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
@@ -242,10 +245,10 @@ fun PackageManagerScreen() {
                                 )
                                 Spacer(Modifier.width(2.dp))
                                 Text(
-                                    "插件市场", 
-                                    style = MaterialTheme.typography.bodySmall,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                        "插件市场",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
@@ -269,10 +272,10 @@ fun PackageManagerScreen() {
                                 )
                                 Spacer(Modifier.width(2.dp))
                                 Text(
-                                    "MCP配置", 
-                                    style = MaterialTheme.typography.bodySmall,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                        "MCP配置",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }

@@ -10,8 +10,8 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import com.ai.assistance.operit.services.TermuxCommandResultService
-import com.ai.assistance.operit.tools.system.AdbCommandExecutor
-import com.ai.assistance.operit.tools.system.AdbCommandExecutor.CommandResult
+import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor
+import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor.CommandResult
 import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong

@@ -1,10 +1,10 @@
 package com.ai.assistance.operit.api.enhance
 
 import android.util.Log
+import com.ai.assistance.operit.core.tools.AIToolHandler
+import com.ai.assistance.operit.core.tools.StringResultData
 import com.ai.assistance.operit.data.model.ToolInvocation
 import com.ai.assistance.operit.data.model.ToolResult
-import com.ai.assistance.operit.tools.AIToolHandler
-import com.ai.assistance.operit.tools.StringResultData
 
 /** Utility class for managing tool executions */
 object ToolExecutionManager {
@@ -19,7 +19,7 @@ object ToolExecutionManager {
      */
     fun executeToolSafely(
             invocation: ToolInvocation,
-            executor: com.ai.assistance.operit.tools.ToolExecutor
+            executor: com.ai.assistance.operit.core.tools.ToolExecutor
     ): ToolResult {
         return try {
             val validationResult = executor.validateParameters(invocation.tool)

@@ -1,15 +1,15 @@
-package com.ai.assistance.operit.tools.packTool
+package com.ai.assistance.operit.core.tools.packTool
 
 import android.content.Context
 import android.util.Log
+import com.ai.assistance.operit.core.tools.AIToolHandler
+import com.ai.assistance.operit.core.tools.PackageToolExecutor
+import com.ai.assistance.operit.core.tools.ToolPackage
+import com.ai.assistance.operit.core.tools.javascript.JsEngine
 import com.ai.assistance.operit.core.tools.mcp.MCPManager
 import com.ai.assistance.operit.core.tools.mcp.MCPPackage
 import com.ai.assistance.operit.core.tools.mcp.MCPServerConfig
 import com.ai.assistance.operit.core.tools.mcp.MCPToolExecutor
-import com.ai.assistance.operit.tools.AIToolHandler
-import com.ai.assistance.operit.tools.PackageToolExecutor
-import com.ai.assistance.operit.tools.ToolPackage
-import com.ai.assistance.operit.tools.javascript.JsEngine
 import java.io.File
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -29,7 +29,7 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
         private const val TAG = "PackageManager"
         private const val PACKAGES_DIR = "packages" // Directory for packages
         private const val ASSETS_PACKAGES_DIR = "packages" // Directory in assets for packages
-        private const val PACKAGE_PREFS = "com.ai.assistance.operit.tools.PackageManager"
+        private const val PACKAGE_PREFS = "com.ai.assistance.operit.core.tools.PackageManager"
         private const val IMPORTED_PACKAGES_KEY = "imported_packages"
         private const val ACTIVE_PACKAGES_KEY = "active_packages"
 

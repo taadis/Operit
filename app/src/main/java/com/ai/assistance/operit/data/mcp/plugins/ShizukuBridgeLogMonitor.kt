@@ -2,7 +2,7 @@ package com.ai.assistance.operit.data.mcp.plugins
 
 import android.content.Context
 import android.util.Log
-import com.ai.assistance.operit.tools.system.AdbCommandExecutor
+import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CoroutineScope

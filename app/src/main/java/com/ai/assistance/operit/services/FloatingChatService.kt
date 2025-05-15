@@ -33,9 +33,9 @@ import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatMessage
-import com.ai.assistance.operit.tools.AIToolHandler
 import com.ai.assistance.operit.ui.features.chat.attachments.AttachmentManager
 import com.ai.assistance.operit.ui.floating.FloatingChatWindow
 import kotlinx.coroutines.CoroutineScope
@@ -1056,10 +1056,10 @@ class FloatingChatService : Service() {
                 // 先在本地移除附件
                 val updatedAttachments = attachments.value.filterNot { it.filePath == filePath }
                 attachments.value = updatedAttachments
-                
+
                 // 发送删除请求到ViewModel，确保数据同步
                 _attachmentRemoveRequest.emit(filePath)
-                
+
                 // 日志记录
                 Log.d(TAG, "Attachment removed: $filePath, remaining: ${updatedAttachments.size}")
             } catch (e: Exception) {

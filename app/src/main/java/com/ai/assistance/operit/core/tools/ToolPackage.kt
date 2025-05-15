@@ -1,11 +1,11 @@
-package com.ai.assistance.operit.tools
+package com.ai.assistance.operit.core.tools
 
 import android.content.Context
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.data.model.ToolValidationResult
-import com.ai.assistance.operit.tools.javascript.JsToolManager
-import com.ai.assistance.operit.tools.packTool.PackageManager
+import com.ai.assistance.operit.core.tools.javascript.JsToolManager
+import com.ai.assistance.operit.core.tools.packTool.PackageManager
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
 import com.ai.assistance.operit.ui.permissions.ToolCategory

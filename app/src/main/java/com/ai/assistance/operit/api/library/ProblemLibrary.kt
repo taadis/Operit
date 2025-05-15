@@ -3,10 +3,10 @@ package com.ai.assistance.operit.api.library
 import android.content.Context
 import android.util.Log
 import com.ai.assistance.operit.api.AIService
+import com.ai.assistance.operit.core.tools.AIToolHandler
+import com.ai.assistance.operit.core.tools.defaultTool.ProblemLibraryTool
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.preferencesManager
-import com.ai.assistance.operit.tools.AIToolHandler
-import com.ai.assistance.operit.tools.defaultTool.ProblemLibraryTool
 import com.ai.assistance.operit.util.TextSegmenter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

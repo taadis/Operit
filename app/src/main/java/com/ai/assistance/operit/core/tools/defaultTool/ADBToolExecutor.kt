@@ -2,12 +2,12 @@ package com.ai.assistance.operit.core.tools.defaultTool
 
 import android.content.Context
 import android.util.Log
+import com.ai.assistance.operit.core.tools.ADBResultData
+import com.ai.assistance.operit.core.tools.StringResultData
+import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.data.model.ToolValidationResult
-import com.ai.assistance.operit.tools.ADBResultData
-import com.ai.assistance.operit.tools.StringResultData
-import com.ai.assistance.operit.tools.system.AdbCommandExecutor
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -38,33 +38,34 @@ class ADBToolExecutor(private val context: Context) {
 
         return try {
             // Use AdbCommandExecutor to execute the command
-            val result = runBlocking {
-                AdbCommandExecutor.executeAdbCommand(command)
-            }
-            
+            val result = runBlocking { AdbCommandExecutor.executeAdbCommand(command) }
+
             if (result.success) {
                 ToolResult(
                         toolName = tool.name,
                         success = true,
-                        result = ADBResultData(
-                                command = command,
-                                output = result.stdout,
-                                exitCode = result.exitCode
-                        )
+                        result =
+                                ADBResultData(
+                                        command = command,
+                                        output = result.stdout,
+                                        exitCode = result.exitCode
+                                )
                 )
             } else {
                 // Combine stdout and stderr for error reporting
-                val errorOutput = if (result.stderr.isNotEmpty()) {
-                    "${result.stderr.trim()}\n${result.stdout.trim()}"
-                } else {
-                    result.stdout.trim()
-                }
-                
+                val errorOutput =
+                        if (result.stderr.isNotEmpty()) {
+                            "${result.stderr.trim()}\n${result.stdout.trim()}"
+                        } else {
+                            result.stdout.trim()
+                        }
+
                 ToolResult(
                         toolName = tool.name,
                         success = false,
                         result = StringResultData(""),
-                        error = "ADB command execution failed (exit code: ${result.exitCode}): $errorOutput"
+                        error =
+                                "ADB command execution failed (exit code: ${result.exitCode}): $errorOutput"
                 )
             }
         } catch (e: Exception) {
@@ -96,19 +97,21 @@ class ADBToolExecutor(private val context: Context) {
                 // Check if Shizuku service is available
                 if (!AdbCommandExecutor.isShizukuServiceRunning()) {
                     return ToolValidationResult(
-                        valid = false, 
-                        errorMessage = "Shizuku service is not running. ${AdbCommandExecutor.getShizukuStartupInstructions()}"
+                            valid = false,
+                            errorMessage =
+                                    "Shizuku service is not running. ${AdbCommandExecutor.getShizukuStartupInstructions()}"
                     )
                 }
-                
+
                 // Check if we have Shizuku permission
                 if (!AdbCommandExecutor.hasShizukuPermission()) {
                     return ToolValidationResult(
-                        valid = false,
-                        errorMessage = "Shizuku permission not granted. Please grant permission to use ADB commands."
+                            valid = false,
+                            errorMessage =
+                                    "Shizuku permission not granted. Please grant permission to use ADB commands."
                     )
                 }
-                
+
                 ToolValidationResult(valid = true)
             }
         }

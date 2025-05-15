@@ -9,12 +9,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ai.assistance.operit.core.tools.AIToolHandler
+import com.ai.assistance.operit.core.tools.DirectoryListingData
+import com.ai.assistance.operit.core.tools.FileInfoData
+import com.ai.assistance.operit.core.tools.FindFilesResultData
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolParameter
-import com.ai.assistance.operit.tools.AIToolHandler
-import com.ai.assistance.operit.tools.DirectoryListingData
-import com.ai.assistance.operit.tools.FileInfoData
-import com.ai.assistance.operit.tools.FindFilesResultData
 import com.ai.assistance.operit.ui.features.toolbox.screens.filemanager.components.DisplayMode
 import com.ai.assistance.operit.ui.features.toolbox.screens.filemanager.models.FileItem
 import com.ai.assistance.operit.ui.features.toolbox.screens.filemanager.models.TabItem
@@ -29,52 +29,52 @@ class FileManagerViewModel(private val context: Context) : ViewModel() {
     var files = mutableStateListOf<FileItem>()
     var isLoading by mutableStateOf(false)
     var error by mutableStateOf<String?>(null)
-    
+
     // 选择状态
     var selectedFile by mutableStateOf<FileItem?>(null)
     var selectedFiles = mutableStateListOf<FileItem>()
     var isMultiSelectMode by mutableStateOf(false)
-    
+
     // 剪贴板状态
     var clipboardFiles = mutableStateListOf<FileItem>()
     var isCutOperation by mutableStateOf(false)
     var clipboardSourcePath by mutableStateOf<String?>(null)
-    
+
     // 显示状态
     var itemSize by mutableStateOf(1f)
     val minItemSize = 0.5f
     val maxItemSize = 1.3f
     val itemSizeStep = 0.1f
     var displayMode by mutableStateOf(DisplayMode.SINGLE_COLUMN)
-    
+
     // 滚动状态
     val scrollPositions = mutableStateMapOf<String, Int>()
     var pendingScrollPosition by mutableStateOf<Pair<String, Int>?>(null)
-    
+
     // 标签页状态
     var tabs = mutableStateListOf(TabItem("/sdcard", "主目录"))
     var activeTabIndex by mutableStateOf(0)
-    
+
     // 上下文菜单状态
     var showBottomActionMenu by mutableStateOf(false)
     var contextMenuFile by mutableStateOf<FileItem?>(null)
-    
+
     // 对话框状态
     var showNewFolderDialog by mutableStateOf(false)
     var newFolderName by mutableStateOf("")
     var showCompressDialog by mutableStateOf(false)
     var compressFileName by mutableStateOf("")
-    
+
     // 搜索状态
     var searchQuery by mutableStateOf("")
     var isSearching by mutableStateOf(false)
     var searchResults = mutableStateListOf<FileItem>()
     var showSearchDialog by mutableStateOf(false)
-    var searchDialogQuery by mutableStateOf("") 
+    var searchDialogQuery by mutableStateOf("")
     var showSearchResultsDialog by mutableStateOf(false)
     var isCaseSensitive by mutableStateOf(false)
     var useWildcard by mutableStateOf(true)
-    
+
     private val toolHandler by lazy { AIToolHandler.getInstance(context) }
 
     // 加载当前目录内容
@@ -85,21 +85,23 @@ class FileManagerViewModel(private val context: Context) : ViewModel() {
 
             withContext(Dispatchers.IO) {
                 try {
-                    val listFilesTool = AITool(
-                        name = "list_files",
-                        parameters = listOf(ToolParameter("path", path))
-                    )
+                    val listFilesTool =
+                            AITool(
+                                    name = "list_files",
+                                    parameters = listOf(ToolParameter("path", path))
+                            )
                     val result = toolHandler.executeTool(listFilesTool)
                     if (result.success) {
                         val directoryListing = result.result as DirectoryListingData
-                        val fileList = directoryListing.entries.map { entry ->
-                            FileItem(
-                                name = entry.name,
-                                isDirectory = entry.isDirectory,
-                                size = entry.size,
-                                lastModified = entry.lastModified.toLongOrNull() ?: 0
-                            )
-                        }
+                        val fileList =
+                                directoryListing.entries.map { entry ->
+                                    FileItem(
+                                            name = entry.name,
+                                            isDirectory = entry.isDirectory,
+                                            size = entry.size,
+                                            lastModified = entry.lastModified.toLongOrNull() ?: 0
+                                    )
+                                }
                         withContext(Dispatchers.Main) {
                             files.clear()
                             files.add(FileItem("..", true, 0, 0))
@@ -122,12 +124,13 @@ class FileManagerViewModel(private val context: Context) : ViewModel() {
     fun navigateToDirectory(dir: FileItem) {
         if (dir.isDirectory) {
             // 保存当前滚动位置
-            val newPath = if (dir.name == "..") {
-                navigateUp()
-                return
-            } else {
-                "$currentPath/${dir.name}"
-            }
+            val newPath =
+                    if (dir.name == "..") {
+                        navigateUp()
+                        return
+                    } else {
+                        "$currentPath/${dir.name}"
+                    }
 
             // 设置需要恢复的滚动位置
             pendingScrollPosition = newPath to (scrollPositions[newPath] ?: 0)
@@ -139,7 +142,7 @@ class FileManagerViewModel(private val context: Context) : ViewModel() {
                 tabs.clear()
                 tabs.addAll(updatedTabs)
             }
-            
+
             loadCurrentDirectory()
         }
     }
@@ -148,7 +151,7 @@ class FileManagerViewModel(private val context: Context) : ViewModel() {
     fun navigateUp(): Boolean {
         if (currentPath != "/sdcard") {
             val parentPath = currentPath.substringBeforeLast("/")
-            
+
             // 设置需要恢复的滚动位置
             pendingScrollPosition = parentPath to (scrollPositions[parentPath] ?: 0)
 
@@ -159,7 +162,7 @@ class FileManagerViewModel(private val context: Context) : ViewModel() {
                 tabs.clear()
                 tabs.addAll(updatedTabs)
             }
-            
+
             loadCurrentDirectory()
             return true
         }
@@ -201,10 +204,11 @@ class FileManagerViewModel(private val context: Context) : ViewModel() {
             try {
                 val fullPath = "$currentPath/$folderName"
 
-                val createFolderTool = AITool(
-                    name = "create_directory",
-                    parameters = listOf(ToolParameter("path", fullPath))
-                )
+                val createFolderTool =
+                        AITool(
+                                name = "create_directory",
+                                parameters = listOf(ToolParameter("path", fullPath))
+                        )
 
                 val result = toolHandler.executeTool(createFolderTool)
 
@@ -238,51 +242,67 @@ class FileManagerViewModel(private val context: Context) : ViewModel() {
                 try {
                     // 处理通配符
                     val searchPattern = if (useWildcard) "*$query*" else query
-                    
-                    val searchTool = AITool(
-                        name = "find_files",
-                        parameters = listOf(
-                            ToolParameter("path", currentPath),
-                            ToolParameter("pattern", searchPattern),
-                            ToolParameter("case_sensitive", isCaseSensitive.toString())
-                        )
-                    )
+
+                    val searchTool =
+                            AITool(
+                                    name = "find_files",
+                                    parameters =
+                                            listOf(
+                                                    ToolParameter("path", currentPath),
+                                                    ToolParameter("pattern", searchPattern),
+                                                    ToolParameter(
+                                                            "case_sensitive",
+                                                            isCaseSensitive.toString()
+                                                    )
+                                            )
+                            )
 
                     val result = toolHandler.executeTool(searchTool)
                     if (result.success) {
                         // 使用正确的FindFilesResultData类型解析结果
                         val findResult = result.result as FindFilesResultData
-                        val fileList = findResult.files.map { filePath ->
-                            // 从完整路径中提取文件名
-                            val fileName = filePath.substringAfterLast("/")
-                            // 检查是否为目录
-                            val isDir = try {
-                                val fileInfoTool = AITool(
-                                    name = "file_info",
-                                    parameters = listOf(ToolParameter("path", filePath))
-                                )
-                                val fileInfoResult = toolHandler.executeTool(fileInfoTool)
-                                if (fileInfoResult.success) {
-                                    val fileInfo = fileInfoResult.result as FileInfoData
-                                    fileInfo.fileType == "directory"
-                                } else {
-                                    false
+                        val fileList =
+                                findResult.files.map { filePath ->
+                                    // 从完整路径中提取文件名
+                                    val fileName = filePath.substringAfterLast("/")
+                                    // 检查是否为目录
+                                    val isDir =
+                                            try {
+                                                val fileInfoTool =
+                                                        AITool(
+                                                                name = "file_info",
+                                                                parameters =
+                                                                        listOf(
+                                                                                ToolParameter(
+                                                                                        "path",
+                                                                                        filePath
+                                                                                )
+                                                                        )
+                                                        )
+                                                val fileInfoResult =
+                                                        toolHandler.executeTool(fileInfoTool)
+                                                if (fileInfoResult.success) {
+                                                    val fileInfo =
+                                                            fileInfoResult.result as FileInfoData
+                                                    fileInfo.fileType == "directory"
+                                                } else {
+                                                    false
+                                                }
+                                            } catch (e: Exception) {
+                                                false
+                                            }
+
+                                    // 创建FileItem，保存完整路径
+                                    FileItem(
+                                            name = fileName,
+                                            isDirectory = isDir,
+                                            size = 0, // 大小信息暂时不获取
+                                            lastModified = 0, // 修改时间暂时不获取
+                                            fullPath = filePath // 保存完整路径
+                                    )
                                 }
-                            } catch (e: Exception) {
-                                false
-                            }
-                            
-                            // 创建FileItem，保存完整路径
-                            FileItem(
-                                name = fileName,
-                                isDirectory = isDir,
-                                size = 0, // 大小信息暂时不获取
-                                lastModified = 0, // 修改时间暂时不获取
-                                fullPath = filePath // 保存完整路径
-                            )
-                        }
-                        
-                        withContext(Dispatchers.Main) { 
+
+                        withContext(Dispatchers.Main) {
                             searchResults.clear()
                             searchResults.addAll(fileList)
                             showSearchResultsDialog = true
@@ -314,11 +334,11 @@ class FileManagerViewModel(private val context: Context) : ViewModel() {
                 tabs.clear()
                 tabs.addAll(updatedTabs)
             }
-            
+
             // 关闭搜索结果对话框
             showSearchResultsDialog = false
             isSearching = false
-            
+
             loadCurrentDirectory()
         }
     }
@@ -334,7 +354,7 @@ class FileManagerViewModel(private val context: Context) : ViewModel() {
     // 粘贴文件
     fun pasteFiles() {
         if (clipboardFiles.isEmpty() || clipboardSourcePath == null) return
-        
+
         viewModelScope.launch {
             try {
                 isLoading = true
@@ -345,24 +365,31 @@ class FileManagerViewModel(private val context: Context) : ViewModel() {
                         val fullSourcePath = "$clipboardSourcePath/${file.name}"
                         val fullTargetPath = "$currentPath/${file.name}"
 
-                        val copyTool = AITool(
-                            name = "copy_file",
-                            parameters = listOf(
-                                ToolParameter("source", fullSourcePath),
-                                ToolParameter("destination", fullTargetPath)
-                            )
-                        )
+                        val copyTool =
+                                AITool(
+                                        name = "copy_file",
+                                        parameters =
+                                                listOf(
+                                                        ToolParameter("source", fullSourcePath),
+                                                        ToolParameter("destination", fullTargetPath)
+                                                )
+                                )
 
                         val result = toolHandler.executeTool(copyTool)
 
                         if (result.success) {
                             if (isCutOperation) {
-                                val deleteTool = AITool(
-                                    name = "delete_file",
-                                    parameters = listOf(
-                                        ToolParameter("path", fullSourcePath)
-                                    )
-                                )
+                                val deleteTool =
+                                        AITool(
+                                                name = "delete_file",
+                                                parameters =
+                                                        listOf(
+                                                                ToolParameter(
+                                                                        "path",
+                                                                        fullSourcePath
+                                                                )
+                                                        )
+                                        )
                                 toolHandler.executeTool(deleteTool)
                             }
                         } else {
@@ -372,10 +399,9 @@ class FileManagerViewModel(private val context: Context) : ViewModel() {
                         }
                     }
                 }
-                
+
                 // 刷新当前目录
                 loadCurrentDirectory()
-                
             } catch (e: Exception) {
                 Log.e("FileManagerViewModel", "Error performing file operation", e)
                 error = "Error: ${e.message}"
@@ -389,4 +415,4 @@ class FileManagerViewModel(private val context: Context) : ViewModel() {
     init {
         loadCurrentDirectory()
     }
-} 
+}

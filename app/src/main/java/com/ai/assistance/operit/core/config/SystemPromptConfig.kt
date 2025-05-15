@@ -1,6 +1,6 @@
 package com.ai.assistance.operit.core.config
 
-import com.ai.assistance.operit.tools.packTool.PackageManager
+import com.ai.assistance.operit.core.tools.packTool.PackageManager
 
 /** Configuration class for system prompts and other related settings */
 object SystemPromptConfig {

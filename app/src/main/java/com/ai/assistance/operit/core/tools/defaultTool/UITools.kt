@@ -1,17 +1,17 @@
-package com.ai.assistance.operit.tools.defaultTool
+package com.ai.assistance.operit.core.tools.defaultTool
 
 import android.content.Context
 import android.util.Log
+import com.ai.assistance.operit.core.tools.CombinedOperationResultData
+import com.ai.assistance.operit.core.tools.SimplifiedUINode
+import com.ai.assistance.operit.core.tools.StringResultData
+import com.ai.assistance.operit.core.tools.UIActionResultData
+import com.ai.assistance.operit.core.tools.UIPageResultData
+import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolParameter
 import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.data.repository.UIHierarchyManager
-import com.ai.assistance.operit.tools.CombinedOperationResultData
-import com.ai.assistance.operit.tools.SimplifiedUINode
-import com.ai.assistance.operit.tools.StringResultData
-import com.ai.assistance.operit.tools.UIActionResultData
-import com.ai.assistance.operit.tools.UIPageResultData
-import com.ai.assistance.operit.tools.system.AdbCommandExecutor
 import com.ai.assistance.operit.ui.common.displays.UIOperationOverlay
 import java.io.StringReader
 import org.xmlpull.v1.XmlPullParser
@@ -1652,7 +1652,7 @@ class UITools(private val context: Context) {
                                 packageName = "Unknown",
                                 activityName = "Unknown",
                                 uiElements =
-                                        com.ai.assistance.operit.tools.SimplifiedUINode(
+                                        com.ai.assistance.operit.core.tools.SimplifiedUINode(
                                                 className = "Root",
                                                 text = pageInfoResult.result.toString(),
                                                 contentDesc = null,

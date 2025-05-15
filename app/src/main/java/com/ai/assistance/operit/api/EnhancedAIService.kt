@@ -9,6 +9,9 @@ import com.ai.assistance.operit.api.enhance.ReferenceManager
 import com.ai.assistance.operit.api.enhance.ToolExecutionManager
 import com.ai.assistance.operit.api.library.ProblemLibrary
 import com.ai.assistance.operit.core.config.SystemPromptConfig
+import com.ai.assistance.operit.core.tools.AIToolHandler
+import com.ai.assistance.operit.core.tools.StringResultData
+import com.ai.assistance.operit.core.tools.packTool.PackageManager
 import com.ai.assistance.operit.data.model.AiReference
 import com.ai.assistance.operit.data.model.InputProcessingState
 import com.ai.assistance.operit.data.model.PlanItem
@@ -17,9 +20,6 @@ import com.ai.assistance.operit.data.model.ToolInvocation
 import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.preferencesManager
-import com.ai.assistance.operit.tools.AIToolHandler
-import com.ai.assistance.operit.tools.StringResultData
-import com.ai.assistance.operit.tools.packTool.PackageManager
 import com.ai.assistance.operit.ui.common.displays.MessageContentParser
 import java.util.Calendar
 import java.util.concurrent.ConcurrentHashMap

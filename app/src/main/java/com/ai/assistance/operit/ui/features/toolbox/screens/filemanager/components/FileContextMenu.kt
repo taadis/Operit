@@ -14,9 +14,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolParameter
-import com.ai.assistance.operit.tools.AIToolHandler
 import com.ai.assistance.operit.ui.features.toolbox.screens.filemanager.models.FileItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

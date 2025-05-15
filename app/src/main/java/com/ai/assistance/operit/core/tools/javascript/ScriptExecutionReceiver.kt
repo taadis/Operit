@@ -1,20 +1,18 @@
-package com.ai.assistance.operit.tools.javascript
+package com.ai.assistance.operit.core.tools.javascript
 
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import com.ai.assistance.operit.tools.AIToolHandler
-import com.ai.assistance.operit.tools.packTool.PackageManager
+import com.ai.assistance.operit.core.tools.AIToolHandler
+import com.ai.assistance.operit.core.tools.packTool.PackageManager
+import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.json.JSONObject
-import java.io.File
 
-/**
- * 接收通过ADB发送的广播命令，用于执行JavaScript文件
- */
+/** 接收通过ADB发送的广播命令，用于执行JavaScript文件 */
 class ScriptExecutionReceiver : BroadcastReceiver() {
     companion object {
         private const val TAG = "ScriptExecutionReceiver"
@@ -33,7 +31,10 @@ class ScriptExecutionReceiver : BroadcastReceiver() {
             val isTempFile = intent.getBooleanExtra(EXTRA_TEMP_FILE, false)
 
             if (filePath == null || functionName == null) {
-                Log.e(TAG, "Missing required parameters: filePath=$filePath, functionName=$functionName")
+                Log.e(
+                        TAG,
+                        "Missing required parameters: filePath=$filePath, functionName=$functionName"
+                )
                 return
             }
 
@@ -43,11 +44,11 @@ class ScriptExecutionReceiver : BroadcastReceiver() {
     }
 
     private fun executeJavaScript(
-        context: Context, 
-        filePath: String, 
-        functionName: String, 
-        paramsJson: String,
-        isTempFile: Boolean
+            context: Context,
+            filePath: String,
+            functionName: String,
+            paramsJson: String,
+            isTempFile: Boolean
     ) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
@@ -67,21 +68,22 @@ class ScriptExecutionReceiver : BroadcastReceiver() {
                 val jsEngine = JsEngine(context)
 
                 // 解析参数
-                val params = try {
-                    val jsonObject = JSONObject(paramsJson)
-                    val paramsMap = mutableMapOf<String, String>()
-                    jsonObject.keys().forEach { key ->
-                        paramsMap[key] = jsonObject.opt(key)?.toString() ?: ""
-                    }
-                    paramsMap
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error parsing params: $paramsJson", e)
-                    mapOf<String, String>()
-                }
+                val params =
+                        try {
+                            val jsonObject = JSONObject(paramsJson)
+                            val paramsMap = mutableMapOf<String, String>()
+                            jsonObject.keys().forEach { key ->
+                                paramsMap[key] = jsonObject.opt(key)?.toString() ?: ""
+                            }
+                            paramsMap
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error parsing params: $paramsJson", e)
+                            mapOf<String, String>()
+                        }
 
                 // 执行JavaScript
                 val result = jsEngine.executeScriptFunction(scriptContent, functionName, params)
-                
+
                 Log.d(TAG, "JavaScript execution result: $result")
 
                 // 如果是临时文件，执行完成后删除
@@ -98,4 +100,4 @@ class ScriptExecutionReceiver : BroadcastReceiver() {
             }
         }
     }
-} 
+}
