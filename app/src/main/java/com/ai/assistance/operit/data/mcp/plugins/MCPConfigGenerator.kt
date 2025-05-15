@@ -100,7 +100,7 @@ class MCPConfigGenerator {
                                 projectStructure.moduleNameFromConfig
                                         ?: projectStructure.mainPythonModule
                                                 ?: pluginId.replace("-", "_").lowercase()
-                        argsArray.add(moduleName)
+                        argsArray.add(moduleName.split('/').last())
                         serverJson.add("args", argsArray)
                     }
                 }

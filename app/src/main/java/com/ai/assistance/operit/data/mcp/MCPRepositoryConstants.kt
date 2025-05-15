@@ -43,243 +43,22 @@ object MCPRepositoryConstants {
                         private const val DEFAULT_LOGO =
                                 "https://raw.githubusercontent.com/modelcontextprotocol/servers/main/assets/logo.png"
 
-                        // 官方服务器Logo映射表
+                        // 简化后的Logo映射表，仅保留必要的项目
                         val LOGO_MAP =
                                 mapOf(
-                                        // 参考服务器
-                                        "AWS KB Retrieval" to "$BASE_GITHUB_LOGO/aws.png",
-                                        "Brave Search" to
-                                                "https://brave.com/static-assets/images/brave-logo-no-shadow.png",
-                                        "EverArt" to "$BASE_GITHUB_LOGO/everart.png",
-                                        "Everything" to "$BASE_GITHUB_LOGO/everything.png",
+                                        "Word" to
+                                                "https://upload.wikimedia.org/wikipedia/commons/f/fd/Microsoft_Office_Word_%282019%E2%80%93present%29.svg",
+                                        "Excel" to
+                                                "https://upload.wikimedia.org/wikipedia/commons/3/34/Microsoft_Office_Excel_%282019%E2%80%93present%29.svg",
+                                        "PowerPoint" to
+                                                "https://upload.wikimedia.org/wikipedia/commons/0/0d/Microsoft_Office_PowerPoint_%282019%E2%80%93present%29.svg",
                                         "Fetch" to "$BASE_GITHUB_LOGO/fetch.png",
-                                        "Filesystem" to "$BASE_GITHUB_LOGO/filesystem.png",
-                                        "Git" to
-                                                "https://git-scm.com/images/logos/downloads/Git-Icon-1788C.png",
-                                        "GitHub" to
-                                                "https://github.githubassets.com/assets/github-mark-9be88460eaa6.svg",
-                                        "GitLab" to
-                                                "https://about.gitlab.com/images/press/logo/png/gitlab-icon-rgb.png",
-                                        "Google Drive" to
-                                                "https://upload.wikimedia.org/wikipedia/commons/thumb/1/12/Google_Drive_icon_%282020%29.svg/1200px-Google_Drive_icon_%282020%29.svg.png",
-                                        "Google Maps" to
-                                                "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Google_Maps_icon_%282020%29.svg/1200px-Google_Maps_icon_%282020%29.svg.png",
-                                        "Memory" to "$BASE_GITHUB_LOGO/memory.png",
-                                        "PostgreSQL" to
-                                                "https://www.postgresql.org/media/img/about/press/elephant.png",
-                                        "Puppeteer" to "https://pptr.dev/img/favicon.ico",
-                                        "Redis" to "https://redis.io/images/redis-logo.svg",
-                                        "Sentry" to
-                                                "https://sentry.io/_assets/logos/django-f6f336cde20615169bb2c3167e2ecd2c37809d488c553cfd3524024f3d6894b5.svg",
-                                        "Sequential Thinking" to
-                                                "$BASE_GITHUB_LOGO/sequential-thinking.png",
-                                        "Slack" to
-                                                "https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png",
-                                        "Sqlite" to
-                                                "https://www.sqlite.org/images/sqlite370_banner.gif",
-                                        "Time" to "$BASE_GITHUB_LOGO/time.png",
-
-                                        // 官方集成
-                                        "21st.dev Magic" to "https://21st.dev/logo.svg",
-                                        "Adfin" to "$BASE_GITHUB_LOGO/adfin.png",
-                                        "AgentQL" to "$BASE_GITHUB_LOGO/agentql.png",
-                                        "AgentRPC" to "$BASE_GITHUB_LOGO/agentrpc.png",
-                                        "Aiven" to
-                                                "https://aiven.io/images/site/aiven-logo-white.png",
-                                        "Apache IoTDB" to "https://iotdb.apache.org/img/logo.png",
-                                        "Apify" to "https://apify.com/img/apify-square.png",
-                                        "APIMatic MCP" to "$BASE_GITHUB_LOGO/apimatic.png",
-                                        "Arize Phoenix" to "$BASE_GITHUB_LOGO/arize-phoenix.png",
-                                        "Astra DB" to
-                                                "https://www.datastax.com/sites/default/files/2020-08/datastax-square-200-transparent.png",
-                                        "Atlan" to "$BASE_GITHUB_LOGO/atlan.png",
-                                        "Audiense Insights" to "$BASE_GITHUB_LOGO/audiense.png",
-                                        "AWS" to
-                                                "https://upload.wikimedia.org/wikipedia/commons/thumb/9/93/Amazon_Web_Services_Logo.svg/1200px-Amazon_Web_Services_Logo.svg.png",
-                                        "Axiom" to "$BASE_GITHUB_LOGO/axiom.png",
-                                        "Azure" to
-                                                "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Microsoft_Azure.svg/1200px-Microsoft_Azure.svg.png",
-                                        "Bankless Onchain" to "$BASE_GITHUB_LOGO/bankless.png",
-                                        "BICScan" to "$BASE_GITHUB_LOGO/bicscan.png",
-                                        "Bitrise" to
-                                                "https://www.bitrise.io/assets/logos/bitrise-logo-dark.svg",
-                                        "Box" to
-                                                "https://upload.wikimedia.org/wikipedia/commons/thumb/5/57/Box%2C_Inc._logo.svg/1200px-Box%2C_Inc._logo.svg.png",
-                                        "Browserbase" to "$BASE_GITHUB_LOGO/browserbase.png",
-                                        "Chargebee" to
-                                                "https://chargebee.com/img/icons/chargebee-icon.svg",
-                                        "Chroma" to "https://www.trychroma.com/favicon.png",
-                                        "Chronulus AI" to "$BASE_GITHUB_LOGO/chronulus.png",
-                                        "CircleCI" to
-                                                "https://d3r49iyjzglexf.cloudfront.net/circleci-logo-stacked-fb-657e221fda1646a7e652c09c9fbfb2b0feb5d710089bb4d8e8c759d37a832694.png",
-                                        "ClickHouse" to "https://clickhouse.com/favicon.ico",
-                                        "Cloudflare" to
-                                                "https://upload.wikimedia.org/wikipedia/commons/thumb/9/94/Cloudflare_Logo.png/1200px-Cloudflare_Logo.png",
-                                        "Codacy" to "$BASE_GITHUB_LOGO/codacy.png",
-                                        "CodeLogic" to "$BASE_GITHUB_LOGO/codelogic.png",
-                                        "Comet" to "$BASE_GITHUB_LOGO/comet.png",
-                                        "Convex" to "https://convex.dev/apple-touch-icon.png",
-                                        "Couchbase" to
-                                                "https://www.couchbase.com/wp-content/uploads/2022/08/CB-logo-mobile.svg",
-                                        "Dart" to "$BASE_GITHUB_LOGO/dart.png",
-                                        "DevHub" to "$BASE_GITHUB_LOGO/devhub.png",
-                                        "E2B" to "$BASE_GITHUB_LOGO/e2b.png",
-                                        "EduBase" to "$BASE_GITHUB_LOGO/edubase.png",
-                                        "Elasticsearch" to
-                                                "https://static-www.elastic.co/v3/assets/bltefdd0b53724fa2ce/blt36f2da8d650732a0/5d0823c3d8ff351753cbf8c9/logo-elasticsearch-32-color.svg",
-                                        "eSignatures" to "$BASE_GITHUB_LOGO/esignatures.png",
-                                        "Exa" to "https://exa.ai/favicon.ico",
-                                        "Fewsats" to "$BASE_GITHUB_LOGO/fewsats.png",
-                                        "Fibery" to "$BASE_GITHUB_LOGO/fibery.png",
-                                        "Financial Datasets" to
-                                                "$BASE_GITHUB_LOGO/financial-datasets.png",
-                                        "Firecrawl" to "$BASE_GITHUB_LOGO/firecrawl.png",
-                                        "Fireproof" to "$BASE_GITHUB_LOGO/fireproof.png",
-                                        "GibsonAI" to "$BASE_GITHUB_LOGO/gibsonai.png",
-                                        "Gitee" to "https://gitee.com/static/images/logo-black.svg",
-                                        "Gyazo" to "https://gyazo.com/favicon.ico",
-                                        "gotoHuman" to "$BASE_GITHUB_LOGO/gotohuman.png",
-                                        "Grafana" to
-                                                "https://grafana.com/static/img/menu/grafana2.svg",
-                                        "Graphlit" to "$BASE_GITHUB_LOGO/graphlit.png",
-                                        "GreptimeDB" to "$BASE_GITHUB_LOGO/greptimedb.png",
-                                        "Heroku" to
-                                                "https://brand.heroku.com/static/mediadata/heroku-logo-solid.png",
-                                        "Hologres" to "$BASE_GITHUB_LOGO/hologres.png",
-                                        "Hyperbrowser" to "$BASE_GITHUB_LOGO/hyperbrowser.png",
-                                        "IBM wxflows" to
-                                                "https://www.ibm.com/brand/experience-guides/developer/8f4e3cc2b5d52354a6d43c8edba1e3c9/02_8-bar-positive.svg",
-                                        "ForeverVM" to "$BASE_GITHUB_LOGO/forevervm.png",
-                                        "Inbox Zero" to "$BASE_GITHUB_LOGO/inbox-zero.png",
-                                        "Inkeep" to "$BASE_GITHUB_LOGO/inkeep.png",
-                                        "Integration App" to
-                                                "$BASE_GITHUB_LOGO/integration-app.png",
-                                        "JetBrains" to
-                                                "https://resources.jetbrains.com/storage/products/company/brand/logos/jb_beam.svg",
-                                        "Kagi Search" to "https://kagi.com/kagi-search-logo.svg",
-                                        "Keboola" to "$BASE_GITHUB_LOGO/keboola.png",
-                                        "Klavis ReportGen" to "$BASE_GITHUB_LOGO/klavis.png",
-                                        "Lara Translate" to "$BASE_GITHUB_LOGO/lara-translate.png",
-                                        "Logfire" to "$BASE_GITHUB_LOGO/logfire.png",
-                                        "Langfuse Prompt Management" to
-                                                "https://www.langfuse.com/favicon.ico",
-                                        "Lingo.dev" to "$BASE_GITHUB_LOGO/lingo-dev.png",
-                                        "Mailgun" to
-                                                "https://www.mailgun.com/wp-content/uploads/2021/04/MG_Wordmark_RGB_Default-1.png",
-                                        "Make" to
-                                                "https://images.ctfassets.net/qqlj6g4ee76j/5Tnh9CJwZmKKSHVpQZ8ENJ/c8da843c511d1359a331e462a7f42d88/Make_Icon_White-BG.png",
-                                        "MCP Toolbox for Databases" to
-                                                "$BASE_GITHUB_LOGO/mcp-toolbox.png",
-                                        "Meilisearch" to "https://www.meilisearch.com/favicon.ico",
-                                        "Metoro" to "$BASE_GITHUB_LOGO/metoro.png",
-                                        "Milvus" to "https://milvus.io/favicon.png",
-                                        "Momento" to "$BASE_GITHUB_LOGO/momento.png",
-                                        "MotherDuck" to
-                                                "https://motherduck.com/images/logo-stacked-red.svg",
-                                        "Needle" to "$BASE_GITHUB_LOGO/needle.png",
-                                        "Neo4j" to
-                                                "https://dist.neo4j.com/wp-content/uploads/neo4j_logo_globe.png",
-                                        "Neon" to "https://neon.tech/favicon/apple-touch-icon.png",
-                                        "Notion" to
-                                                "https://upload.wikimedia.org/wikipedia/commons/4/45/Notion_app_logo.png",
-                                        "OceanBase" to "$BASE_GITHUB_LOGO/oceanbase.png",
-                                        "Octagon" to "$BASE_GITHUB_LOGO/octagon.png",
-                                        "OlaMaps" to "$BASE_GITHUB_LOGO/olamaps.png",
-                                        "Oxylabs" to "$BASE_GITHUB_LOGO/oxylabs.png",
-                                        "Paddle" to "$BASE_GITHUB_LOGO/paddle.png",
-                                        "PayPal" to
-                                                "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/PayPal.svg/1200px-PayPal.svg.png",
-                                        "Perplexity" to "https://www.perplexity.ai/favicon.ico",
-                                        "Pinecone" to
-                                                "https://images.prismic.io/pinecone-site/e1bd2016-7a5f-4b2b-88af-0fa3d316b1d1_pinecone-favicon-compression.svg?auto=compress,format",
-                                        "Pinecone Assistant" to
-                                                "https://images.prismic.io/pinecone-site/e1bd2016-7a5f-4b2b-88af-0fa3d316b1d1_pinecone-favicon-compression.svg?auto=compress,format",
-                                        "Prisma" to
-                                                "https://prismalens.vercel.app/header/prisma-logo.svg",
-                                        "Qdrant" to "https://qdrant.tech/images/favicon.ico",
-                                        "Ramp" to "$BASE_GITHUB_LOGO/ramp.png",
-                                        "Raygun" to "$BASE_GITHUB_LOGO/raygun.png",
-                                        "Rember" to "$BASE_GITHUB_LOGO/rember.png",
-                                        "Riza" to "$BASE_GITHUB_LOGO/riza.png",
-                                        "Search1API" to "$BASE_GITHUB_LOGO/search1api.png",
-                                        "ScreenshotOne" to "$BASE_GITHUB_LOGO/screenshotone.png",
-                                        "Semgrep" to "$BASE_GITHUB_LOGO/semgrep.png",
-                                        "SingleStore" to "https://www.singlestore.com/favicon.ico",
-                                        "StarRocks" to "$BASE_GITHUB_LOGO/starrocks.png",
-                                        "Stripe" to
-                                                "https://upload.wikimedia.org/wikipedia/commons/thumb/b/ba/Stripe_Logo%2C_revised_2016.svg/2560px-Stripe_Logo%2C_revised_2016.svg.png",
-                                        "Tavily" to "https://tavily.com/apple-touch-icon.png",
-                                        "Thirdweb" to "$BASE_GITHUB_LOGO/thirdweb.png",
-                                        "Tinybird" to "$BASE_GITHUB_LOGO/tinybird.png",
-                                        "UnifAI" to "$BASE_GITHUB_LOGO/unifai.png",
-                                        "Unstructured" to "$BASE_GITHUB_LOGO/unstructured.png",
-                                        "Vectorize" to "$BASE_GITHUB_LOGO/vectorize.png",
-                                        "Verodat" to "$BASE_GITHUB_LOGO/verodat.png",
-                                        "VeyraX" to "$BASE_GITHUB_LOGO/veyrax.png",
-                                        "Xero" to
-                                                "https://www.xero.com/content/dam/xero/pilot-images/brand/logo-social.png",
-                                        "Zapier" to
-                                                "https://cdn.zappy.app/8f853364f9b383d9d99a8a404c1be371.png",
-                                        "ZenML" to "$BASE_GITHUB_LOGO/zenml.png",
-
-                                        // Additional entries for more MCP servers
-                                        "Anthropic" to
-                                                "https://assets-global.website-files.com/62a9205a776e712efa05e927/62e138e1a5e1595e0015fdb5_Frame%2037.svg",
-                                        "Claude" to
-                                                "https://assets-global.website-files.com/62a9205a776e712efa05e927/62e138e1a5e1595e0015fdb5_Frame%2037.svg",
-                                        "ChatGPT" to
-                                                "https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/ChatGPT_logo.svg/1200px-ChatGPT_logo.svg.png",
-                                        "OpenAI" to
-                                                "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/OpenAI_Logo.svg/1280px-OpenAI_Logo.svg.png",
-                                        "Google Gemini" to
-                                                "https://upload.wikimedia.org/wikipedia/commons/f/f0/Google_Gemini_logo.svg",
-                                        "Hugging Face" to "https://huggingface.co/favicon.ico",
-                                        "LlamaIndex" to "https://www.llamaindex.ai/favicon.ico",
-                                        "LangChain" to
-                                                "https://python.langchain.com/img/favicon.ico",
-                                        "MongoDB" to
-                                                "https://www.mongodb.com/assets/images/global/favicon.ico",
-                                        "Weaviate" to "https://weaviate.io/img/site/favicon.ico",
-                                        "Supabase" to "https://supabase.com/favicon.ico",
-                                        "Vector" to "https://assets.vector.dev/vector-logo.svg",
-                                        "Jupyter" to "https://jupyter.org/favicon.ico",
-                                        "GitHub Copilot" to
-                                                "https://github.githubassets.com/assets/copilot-85b67f5c9a51.svg",
-                                        "Vercel" to
-                                                "https://assets.vercel.com/image/upload/front/favicon/vercel/180x180.png",
-                                        "Firebase" to
-                                                "https://www.gstatic.com/devrel-devsite/prod/vf0396724755d04dbab75050e6812ced8fb2ab11d424163433e2a80930107da57/firebase/images/favicon.png",
-                                        "VS Code" to "https://code.visualstudio.com/favicon.ico",
-                                        "DataDog" to "https://www.datadoghq.com/favicon.ico",
-                                        "New Relic" to "https://newrelic.com/favicon.ico",
-                                        "Snowflake" to
-                                                "https://www.snowflake.com/wp-content/themes/snowflake/img/favicon.ico",
-                                        "Deepgram" to "https://deepgram.com/favicon.ico",
-                                        "Weights & Biases" to "https://wandb.ai/favicon.ico",
-                                        "Databricks" to "https://www.databricks.com/favicon.ico",
-                                        "Weights & Biases" to "https://wandb.ai/favicon.ico",
-                                        "Modal" to "https://modal.com/favicon.ico",
-                                        "Deno" to "https://deno.land/favicon.ico",
-                                        "Bun" to "https://bun.sh/favicon.ico",
-                                        "Cloudflare Workers" to
-                                                "https://workers.cloudflare.com/favicon.ico",
-                                        "Digital Ocean" to
-                                                "https://www.digitalocean.com/favicon.ico",
-                                        "Kubernetes" to "https://kubernetes.io/images/favicon.png",
-                                        "Docker" to
-                                                "https://www.docker.com/sites/default/files/d8/2019-07/Moby-logo.png",
-                                        "Render" to "https://render.com/favicon.ico",
-                                        "Fly.io" to "https://fly.io/favicon.ico",
-                                        "MindsDB" to "https://mindsdb.com/favicon.ico",
-                                        "Metabase" to "https://www.metabase.com/images/favicon.ico",
-                                        "PlanetScale" to "https://planetscale.com/favicon.ico",
-                                        "CockroachDB" to
-                                                "https://www.cockroachlabs.com/favicon.ico",
-                                        "pgvector" to "https://github.com/pgvector.png",
-                                        "Cassandra" to "https://cassandra.apache.org/favicon.ico",
-                                        "Elasticsearch" to "https://www.elastic.co/favicon.ico",
-                                        "Solr" to
-                                                "https://solr.apache.org/assets/images/favicon.ico"
+                                        "12306" to "https://www.12306.cn/index/images/favicon.ico",
+                                        "DuckDuckGo" to "https://duckduckgo.com/favicon.ico",
+                                        "Playwright" to
+                                                "https://playwright.dev/img/playwright-logo.svg",
+                                        "Tavily" to "https://tavily.com/favicon.ico",
+                                        "MarkItDown" to "https://markitdown.dev/favicon.ico"
                                 )
 
                         /**
@@ -297,32 +76,19 @@ object MCPRepositoryConstants {
                                 when (cleanServerName.lowercase()) {
                                         "tavily" ->
                                                 return "https://storage.googleapis.com/cline_public_images/tavily.jpg"
-                                        "brave search" ->
-                                                return "https://storage.googleapis.com/cline_public_images/brave-search.png"
-                                        "aws kb retrieval" ->
-                                                return "https://storage.googleapis.com/cline_public_images/aws.png"
-                                        "github" ->
-                                                return "https://storage.googleapis.com/cline_public_images/github.png"
-                                        "slack" ->
-                                                return "https://storage.googleapis.com/cline_public_images/slack.png"
-                                        "stripe" ->
-                                                return "https://storage.googleapis.com/cline_public_images/stripe.png"
-                                        "neo4j" ->
-                                                return "https://storage.googleapis.com/cline_public_images/Neo4j.png"
-                                        "time" ->
-                                                return "https://storage.googleapis.com/cline_public_images/time.png"
-                                        "sentry" ->
-                                                return "https://storage.googleapis.com/cline_public_images/sentry.png"
-                                        "supabase" ->
-                                                return "https://storage.googleapis.com/cline_public_images/supabase.png"
-                                        "sequential thinking" ->
-                                                return "https://storage.googleapis.com/cline_public_images/sequential-thinking.png"
-                                        "hyperbrowser" ->
-                                                return "https://storage.googleapis.com/cline_public_images/hyperbrowser.png"
-                                        "google drive" ->
-                                                return "https://storage.googleapis.com/cline_public_images/google-drive.png"
-                                        "google maps" ->
-                                                return "https://storage.googleapis.com/cline_public_images/google-maps.png"
+                                        "duckduckgo" -> return "https://duckduckgo.com/favicon.ico"
+                                        "word" ->
+                                                return "https://upload.wikimedia.org/wikipedia/commons/f/fd/Microsoft_Office_Word_%282019%E2%80%93present%29.svg"
+                                        "excel" ->
+                                                return "https://upload.wikimedia.org/wikipedia/commons/3/34/Microsoft_Office_Excel_%282019%E2%80%93present%29.svg"
+                                        "powerpoint" ->
+                                                return "https://upload.wikimedia.org/wikipedia/commons/0/0d/Microsoft_Office_PowerPoint_%282019%E2%80%93present%29.svg"
+                                        "12306" ->
+                                                return "https://www.12306.cn/index/images/favicon.ico"
+                                        "playwright" ->
+                                                return "https://playwright.dev/img/playwright-logo.svg"
+                                        "markitdown" -> return "https://markitdown.dev/favicon.ico"
+                                        "fetch" -> return "$BASE_GITHUB_LOGO/fetch.png"
                                 }
 
                                 // 1. 先检查明确的映射，这是最优先的
@@ -331,46 +97,8 @@ object MCPRepositoryConstants {
                                         return explicitLogo
                                 }
 
-                                // 2. 为最常见的技术公司返回已知在大多数区域都很稳定的CDN URL
-                                val domainName = extractDomainName(serverName)
-                                if (domainName.isNotEmpty()) {
-                                        when (domainName) {
-                                                "github.com" ->
-                                                        return "https://github.githubassets.com/assets/github-mark-9be88460eaa6.svg"
-                                                "slack.com" ->
-                                                        return "https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png"
-                                                "stripe.com" ->
-                                                        return "https://storage.googleapis.com/cline_public_images/stripe.png" // 使用Cline的备份
-                                                "postgresql.org" ->
-                                                        return "https://www.postgresql.org/media/img/about/press/elephant.png"
-                                                "redis.io" ->
-                                                        return "https://storage.googleapis.com/cline_public_images/redis.png" // 使用Cline的备份
-                                                "perplexity.ai" ->
-                                                        return "https://storage.googleapis.com/cline_public_images/perplexity.jpg" // 使用Cline的备份
-                                                "huggingface.co" ->
-                                                        return "https://huggingface.co/favicon.ico"
-                                                "notion.so" ->
-                                                        return "https://storage.googleapis.com/cline_public_images/notion.png" // 使用Cline的备份
-                                        }
-                                }
-
-                                // 3. 使用 Cline 托管图片的最可能匹配格式
-
-                                // a) 保持原始大小写，移除特殊字符 - 这通常是最匹配的
-                                val normalizedNamePreservingCase =
-                                        cleanServerName.replace(Regex("[^a-zA-Z0-9]"), "")
-
-                                // b) 处理连字符版本，通常用于目录和存储名称
-                                val normalizedNameWithHyphens =
-                                        cleanServerName.lowercase().replace(Regex("[^a-z0-9]"), "-")
-
-                                // c) 全小写版本，用于通用匹配
-                                val normalizedNameLowerCase =
-                                        normalizedNamePreservingCase.lowercase()
-
-                                // 4. 基于实际可用图片返回最可能存在的URL (验证过多个服务，png格式通常更常见)
-                                // PNG格式优先 (大部分Cline托管图片是PNG)
-                                return "https://storage.googleapis.com/cline_public_images/${normalizedNameWithHyphens}.png"
+                                // 2. 使用默认Logo
+                                return DEFAULT_LOGO
                         }
 
                         /**
@@ -389,68 +117,22 @@ object MCPRepositoryConstants {
 
                                 // Try to match known domains
                                 return when {
-                                        cleanName == "github" -> "github.com"
-                                        cleanName == "gitlab" -> "gitlab.com"
-                                        cleanName == "google drive" -> "drive.google.com"
-                                        cleanName == "google maps" -> "maps.google.com"
-                                        cleanName == "slack" -> "slack.com"
-                                        cleanName == "stripe" -> "stripe.com"
-                                        cleanName == "notion" -> "notion.so"
-                                        cleanName == "brave search" -> "brave.com"
-                                        cleanName == "postgresql" || cleanName == "postgres" ->
-                                                "postgresql.org"
-                                        cleanName == "zapier" -> "zapier.com"
-                                        cleanName.contains("redis") -> "redis.io"
-                                        cleanName.contains("perplexity") -> "perplexity.ai"
-                                        cleanName.contains("pinecone") -> "pinecone.io"
-                                        cleanName.contains("tavily") -> "tavily.com"
-                                        cleanName.contains("exa") -> "exa.ai"
-                                        cleanName.contains("openai") -> "openai.com"
-                                        cleanName.contains("anthropic") -> "anthropic.com"
-                                        cleanName.contains("axiom") -> "axiom.co"
-                                        cleanName.contains("hugging") -> "huggingface.co"
-                                        cleanName.contains("firebase") -> "firebase.google.com"
-                                        cleanName.contains("clickhouse") -> "clickhouse.com"
-                                        cleanName.contains("chroma") -> "trychroma.com"
-                                        cleanName.contains("qdrant") -> "qdrant.tech"
-                                        // Common domains for tech companies
-                                        else -> guessDomain(cleanName)
+                                        cleanName == "duckduckgo" -> "duckduckgo.com"
+                                        cleanName == "tavily" -> "tavily.com"
+                                        cleanName == "12306" -> "12306.cn"
+                                        cleanName == "markitdown" -> "markitdown.dev"
+                                        cleanName == "playwright" -> "playwright.dev"
+                                        cleanName.contains("word") -> "microsoft.com"
+                                        cleanName.contains("excel") -> "microsoft.com"
+                                        cleanName.contains("powerpoint") -> "microsoft.com"
+                                        // Fallback empty
+                                        else -> ""
                                 }
                         }
 
                         /** Try to guess a domain based on company name patterns */
                         private fun guessDomain(name: String): String {
-                                if (name.isBlank()) return ""
-
-                                // Remove non-alphanumeric characters
-                                val simpleName = name.replace(Regex("[^a-z0-9]"), "")
-                                if (simpleName.isBlank()) return ""
-
-                                // Database/data companies often use .io
-                                val dbKeywords =
-                                        listOf(
-                                                "db",
-                                                "data",
-                                                "base",
-                                                "sql",
-                                                "graph",
-                                                "vector",
-                                                "search",
-                                                "store"
-                                        )
-                                val aiKeywords =
-                                        listOf(
-                                                "ai",
-                                                "ml",
-                                                "llm",
-                                                "gpt",
-                                                "claude",
-                                                "language",
-                                                "model",
-                                                "intelligence"
-                                        )
-
-                                // Return empty because we'll fall back to GitHub logo path
+                                // Return empty as we will fall back to defaults
                                 return ""
                         }
                 }
@@ -463,7 +145,7 @@ object MCPRepositoryConstants {
 
                                 // 添加核心推荐服务器
                                 addCoreRecommendedServers(servers)
-                                
+
                                 // 添加其他常用服务器
                                 addCommonServers(servers)
 
@@ -472,126 +154,86 @@ object MCPRepositoryConstants {
 
                         /** 添加核心推荐服务器 */
                         private fun addCoreRecommendedServers(servers: MutableList<MCPServer>) {
-                                // 核心服务器列表，优先推荐这些服务器，使用已验证的可用仓库地址
+                                // 核心服务器列表，根据用户要求添加
+                                addServer(
+                                        servers,
+                                        "Word",
+                                        "微软 Word 文档处理工具，支持创建、编辑和格式化各类文档，提供丰富的文本处理功能",
+                                        "Microsoft Office",
+                                        true,
+                                        "https://github.com/GongRzhe/Office-Word-MCP-Server"
+                                )
+                                addServer(
+                                        servers,
+                                        "Excel",
+                                        "强大的电子表格处理工具，可进行数据分析、图表创建、公式计算，无需安装 Microsoft Excel 即可操作",
+                                        "Microsoft Office",
+                                        true,
+                                        "https://github.com/haris-musa/excel-mcp-server"
+                                )
+                                addServer(
+                                        servers,
+                                        "PowerPoint",
+                                        "幻灯片演示文稿创建工具，支持添加文本、图片、图表，以及丰富的动画效果和模板应用",
+                                        "Microsoft Office",
+                                        true,
+                                        "https://github.com/jenstangen1/pptx-xlsx-mcp"
+                                )
+                                addServer(
+                                        servers,
+                                        "Fetch",
+                                        "网络数据获取工具，用于从网页抓取信息并进行格式化处理，支持多种数据格式转换",
+                                        "网络工具",
+                                        false,
+                                        "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch"
+                                )
                                 addServer(
                                         servers,
                                         "Tavily",
-                                        "Search engine for AI agents (search + extract) powered by Tavily",
-                                        "Recommended",
+                                        "专为AI代理设计的搜索引擎，提供网页搜索、内容提取、网站地图和网站爬取等功能",
+                                        "搜索引擎",
                                         true,
-                                        "https://github.com/tavily-ai/tavily-python"
-                                )
-                                addServer(
-                                        servers,
-                                        "Brave Search",
-                                        "Web and local search using Brave's Search API",
-                                        "Recommended",
-                                        true,
-                                        "https://github.com/brave/brave-search-python"
-                                )
-                                addServer(
-                                        servers,
-                                        "GitHub API",
-                                        "Repository management, file operations, and GitHub API integration",
-                                        "Recommended",
-                                        false,
-                                        "https://github.com/PyGithub/PyGithub"
-                                )
-                                addServer(
-                                        servers,
-                                        "Time",
-                                        "Time and timezone conversion capabilities",
-                                        "Recommended",
-                                        false,
-                                        "https://github.com/modelcontextprotocol/modelcontextprotocol"
-                                )
-                                addServer(
-                                        servers,
-                                        "Google Drive",
-                                        "File access and search capabilities for Google Drive",
-                                        "Recommended",
-                                        true,
-                                        "https://github.com/googleapis/google-api-python-client"
-                                )
-                                addServer(
-                                        servers,
-                                        "Google Maps",
-                                        "Location services, directions, and place details",
-                                        "Recommended",
-                                        true,
-                                        "https://github.com/googlemaps/google-maps-services-python"
-                                )
-                                addServer(
-                                        servers,
-                                        "Perplexity",
-                                        "An MCP server that connects to Perplexity's Sonar API, enabling real-time web-wide research",
-                                        "Recommended",
-                                        true,
-                                        "https://github.com/perplexity-ai/perplexity-python"
+                                        "https://github.com/tavily-ai/tavily-mcp"
                                 )
                         }
 
                         /** 添加其他常用服务器 */
                         private fun addCommonServers(servers: MutableList<MCPServer>) {
-                                // 其他常用服务器列表，使用已验证的可用仓库地址
+                                // 其他常用服务器列表，根据用户要求添加
                                 addServer(
                                         servers,
-                                        "Exa",
-                                        "Search Engine made for AIs by Exa",
-                                        "Common",
-                                        true,
-                                        "https://github.com/exasearch/exa-py"
-                                )
-                                addServer(
-                                        servers,
-                                        "Slack",
-                                        "Channel management and messaging capabilities",
-                                        "Common",
+                                        "12306",
+                                        "基于MCP的12306铁路购票信息查询服务器，支持车票查询、列车信息过滤和过站查询等功能，为AI模型提供中国铁路出行数据支持",
+                                        "交通出行",
                                         false,
-                                        "https://github.com/slackapi/python-slack-sdk"
+                                        "https://github.com/Joooook/12306-mcp"
                                 )
                                 addServer(
                                         servers,
-                                        "Notion",
-                                        "Interact with the Notion API",
-                                        "Common",
-                                        true,
-                                        "https://github.com/ramnes/notion-sdk-py"
-                                )
-                                addServer(
-                                        servers,
-                                        "Stripe",
-                                        "Interact with Stripe API",
-                                        "Common",
-                                        true,
-                                        "https://github.com/stripe/stripe-python"
-                                )
-                                addServer(
-                                        servers,
-                                        "Pinecone",
-                                        "Vector database for machine learning applications",
-                                        "Common",
-                                        true,
-                                        "https://github.com/pinecone-io/pinecone-python-client"
-                                )
-                                addServer(
-                                        servers,
-                                        "Chroma",
-                                        "Vector database for storing and retrieving embeddings",
-                                        "Common",
-                                        true,
-                                        "https://github.com/chroma-core/chroma"
-                                )
-                                addServer(
-                                        servers,
-                                        "Sequential Thinking",
-                                        "Dynamic and reflective problem-solving through thought sequences",
-                                        "Common",
+                                        "DuckDuckGo",
+                                        "注重隐私保护的搜索引擎MCP服务器，提供网络搜索和内容获取功能，支持查询限制和安全搜索选项，确保无追踪的搜索体验",
+                                        "搜索工具",
                                         false,
-                                        "https://github.com/modelcontextprotocol/modelcontextprotocol"
+                                        "https://github.com/nickclyde/duckduckgo-mcp-server"
+                                )
+                                addServer(
+                                        servers,
+                                        "Playwright",
+                                        "基于Microsoft Playwright的MCP服务器，提供浏览器自动化、网页交互、截图和内容抓取功能，支持多种浏览器引擎和无头模式",
+                                        "网页自动化",
+                                        false,
+                                        "https://github.com/microsoft/playwright-mcp"
+                                )
+                                addServer(
+                                        servers,
+                                        "MarkItDown",
+                                        "强大的文档转换MCP服务器，可将PDF、Word、Excel、PowerPoint、图像和网页内容转换为Markdown格式，支持文档结构保留和格式优化",
+                                        "文档工具",
+                                        false,
+                                        "https://github.com/microsoft/markitdown"
                                 )
                         }
-                        
+
                         /** 添加单个服务器到列表 */
                         private fun addServer(
                                 servers: MutableList<MCPServer>,
@@ -632,7 +274,7 @@ object MCPRepositoryConstants {
                                                 version = "latest",
                                                 updatedAt = "",
                                                 longDescription =
-                                                        "$description\n\n*This is a recommended Model Context Protocol server.*\n\nGitHub 仓库: $repoUrl",
+                                                        "$description\n\n*这是推荐的模型上下文协议服务器。*\n\nGitHub 仓库: $repoUrl",
                                                 repoUrl = repoUrl
                                         )
 

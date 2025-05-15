@@ -9,11 +9,11 @@ import java.io.File
  * 负责生成MCP插件的部署和启动命令
  */
 class MCPCommandGenerator {
-    
+
     companion object {
         private const val TAG = "MCPCommandGenerator"
     }
-    
+
     /**
      * 生成部署命令
      *
@@ -22,8 +22,8 @@ class MCPCommandGenerator {
      * @return 部署命令列表
      */
     fun generateDeployCommands(
-        projectStructure: ProjectStructure,
-        readmeContent: String = ""
+            projectStructure: ProjectStructure,
+            readmeContent: String = ""
     ): List<String> {
         val commands = mutableListOf<String>()
 
@@ -48,12 +48,6 @@ class MCPCommandGenerator {
                     if (packageName != null) {
                         commands.add("pip install $packageName")
                     }
-                }
-
-                // 如果从配置中找到了模块名，优先使用
-                val moduleName = projectStructure.moduleNameFromConfig ?: projectStructure.mainPythonModule
-                if (moduleName != null) {
-                    commands.add("python -m $moduleName")
                 }
             }
             ProjectType.TYPESCRIPT -> {
@@ -116,7 +110,9 @@ class MCPCommandGenerator {
                             commands.add(command)
                         } else {
                             // 使用默认的TypeScript编译命令
-                            commands.add("node ./node_modules/typescript/bin/tsc -p ./tsconfig.json")
+                            commands.add(
+                                    "node ./node_modules/typescript/bin/tsc -p ./tsconfig.json"
+                            )
                         }
                     } else if (projectStructure.hasTypeScriptDependency) {
                         commands.add("node ./node_modules/typescript/bin/tsc -p ./tsconfig.json")
@@ -162,15 +158,14 @@ class MCPCommandGenerator {
 
         return commands
     }
-    
-    /**
-     * 从README内容中查找特定的pip安装命令
-     */
+
+    /** 从README内容中查找特定的pip安装命令 */
     private fun findSpecificPipInstallCommand(readmeContent: String): String? {
         if (readmeContent.isBlank()) return null
 
         // 使用正则表达式查找pip install命令
-        val pipInstallRegex = "(?:```[\\s\\S]*?)?pip install\\s+[\\w\\-_\\.]+(?:[\\s\\S]*?```)?".toRegex()
+        val pipInstallRegex =
+                "(?:```[\\s\\S]*?)?pip install\\s+[\\w\\-_\\.]+(?:[\\s\\S]*?```)?".toRegex()
         val pipMatches = pipInstallRegex.findAll(readmeContent)
 
         for (match in pipMatches) {
@@ -180,9 +175,9 @@ class MCPCommandGenerator {
 
             // 确保这是一个合法的pip install命令
             if (cleanCommand.startsWith("pip install") &&
-                    !cleanCommand.contains("pip install .") &&
-                    !cleanCommand.contains("pip install -r") &&
-                    !cleanCommand.contains("pip install -e")
+                            !cleanCommand.contains("pip install .") &&
+                            !cleanCommand.contains("pip install -r") &&
+                            !cleanCommand.contains("pip install -e")
             ) {
                 return cleanCommand
             }
@@ -191,10 +186,8 @@ class MCPCommandGenerator {
         // 没有找到特定的pip安装命令
         return null
     }
-    
-    /**
-     * 从目录名提取可能的包名
-     */
+
+    /** 从目录名提取可能的包名 */
     private fun extractPackageNameFromDirectory(projectStructure: ProjectStructure): String? {
         // 获取插件目录名
         val pluginDir = File(projectStructure.mainPythonModule ?: "").parentFile?.parentFile
@@ -218,10 +211,8 @@ class MCPCommandGenerator {
             else -> null
         }
     }
-    
-    /**
-     * 将npm脚本转换为直接命令
-     */
+
+    /** 将npm脚本转换为直接命令 */
     private fun convertNpmScriptToDirectCommand(scriptContent: String): String {
         // 如果脚本包含多个命令（用&&连接），需要分别处理每个命令
         if (scriptContent.contains("&&")) {
@@ -235,9 +226,7 @@ class MCPCommandGenerator {
         return processIndividualCommand(scriptContent)
     }
 
-    /**
-     * 处理单个命令
-     */
+    /** 处理单个命令 */
     private fun processIndividualCommand(command: String): String {
         var result = command
 
@@ -278,11 +267,12 @@ class MCPCommandGenerator {
 
         // 替换其他常见的npx命令
         val npxRegex = "npx\\s+([\\w\\-]+)".toRegex()
-        result = npxRegex.replace(result) { matchResult ->
-            val packageName = matchResult.groupValues[1]
-            "node ./node_modules/$packageName/bin/$packageName"
-        }
+        result =
+                npxRegex.replace(result) { matchResult ->
+                    val packageName = matchResult.groupValues[1]
+                    "node ./node_modules/$packageName/bin/$packageName"
+                }
 
         return result
     }
-} 
+}
