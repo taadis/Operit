@@ -16,6 +16,7 @@ import androidx.lifecycle.lifecycleScope
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor
 import com.ai.assistance.operit.core.tools.system.ShizukuInstaller
+import com.ai.assistance.operit.core.tools.system.termux.TermuxUtils
 import com.ai.assistance.operit.data.preferences.AgreementPreferences
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
@@ -76,7 +77,13 @@ class MainActivity : ComponentActivity() {
         // 设置跳过加载的回调
         pluginLoadingState.setOnSkipCallback {
             Log.d(TAG, "用户跳过了插件加载过程")
-            Toast.makeText(this, "已跳过插件加载", Toast.LENGTH_SHORT).show()
+
+            // 检查Termux是否在运行，给予用户不同的提示
+            if (!TermuxUtils.isTermuxRunning(applicationContext)) {
+                Toast.makeText(this, "已跳过。Termux未运行，插件不可用", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "已跳过插件加载", Toast.LENGTH_SHORT).show()
+            }
         }
 
         // 只在首次创建时显示插件加载界面（非配置变更）

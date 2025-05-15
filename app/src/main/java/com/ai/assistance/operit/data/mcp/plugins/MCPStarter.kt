@@ -4,6 +4,9 @@ import android.content.Context
 import android.util.Log
 import com.ai.assistance.operit.core.tools.mcp.MCPManager
 import com.ai.assistance.operit.core.tools.mcp.MCPServerConfig
+import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor
+import com.ai.assistance.operit.core.tools.system.termux.TermuxAuthorizer
+import com.ai.assistance.operit.core.tools.system.termux.TermuxUtils
 import com.ai.assistance.operit.data.mcp.MCPConfigPreferences
 import com.ai.assistance.operit.data.mcp.MCPRepository
 import com.ai.assistance.operit.data.mcp.MCPVscodeConfig
@@ -30,12 +33,48 @@ class MCPStarter(private val context: Context) {
     // Coroutine scope for async operations
     private val starterScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
+    /** Plugin initialization status enum */
+    enum class PluginInitStatus {
+        SUCCESS,
+        TERMUX_NOT_RUNNING,
+        TERMUX_NOT_AUTHORIZED,
+        NODEJS_MISSING,
+        BRIDGE_FAILED,
+        OTHER_ERROR
+    }
+
     /** Plugin start progress listener interface */
     interface PluginStartProgressListener {
         fun onPluginStarting(pluginId: String, index: Int, total: Int) {}
         fun onPluginStarted(pluginId: String, success: Boolean, index: Int, total: Int) {}
-        fun onAllPluginsStarted(successCount: Int, totalCount: Int) {}
+        fun onAllPluginsStarted(successCount: Int, totalCount: Int, status: PluginInitStatus = PluginInitStatus.SUCCESS) {}
         fun onAllPluginsVerified(verificationResults: List<VerificationResult>) {}
+    }
+
+    /** Check if Node.js is installed in Termux */
+    private suspend fun isNodeJsInstalled(): Boolean {
+        // If Termux is not running, Node.js can't be accessed
+        if (!TermuxUtils.isTermuxRunning(context)) {
+            return false
+        }
+
+        try {
+            // Use TermuxCommandExecutor to run command directly in Termux
+            val result = com.ai.assistance.operit.core.tools.system.TermuxCommandExecutor.executeCommand(
+                context = context,
+                command = "command -v node",
+                autoAuthorize = true
+            )
+            return result.success && result.stdout.contains("node")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking Node.js installation: ${e.message}")
+            return false
+        }
+    }
+
+    /** Check if Termux is authorized */
+    private suspend fun isTermuxAuthorized(): Boolean {
+        return TermuxAuthorizer.isTermuxAuthorized(context)
     }
 
     /** Initialize and start the bridge */
@@ -43,6 +82,24 @@ class MCPStarter(private val context: Context) {
         if (bridgeInitialized) {
             val pingResult = MCPBridge.ping()
             if (pingResult != null) return true
+        }
+
+        // Check if Termux is running
+        if (!TermuxUtils.isTermuxRunning(context)) {
+            Log.e(TAG, "Termux is not running. Please start Termux first.")
+            return false
+        }
+
+        // Check if Termux is authorized
+        if (!isTermuxAuthorized()) {
+            Log.e(TAG, "Termux is not authorized. Please authorize Termux first.")
+            return false
+        }
+
+        // Check if Node.js is installed
+        if (!isNodeJsInstalled()) {
+            Log.e(TAG, "Node.js is not installed in Termux. Please install Node.js first.")
+            return false
         }
 
         // Deploy bridge to Termux
@@ -130,7 +187,21 @@ class MCPStarter(private val context: Context) {
 
             // Initialize bridge
             if (!initBridge()) {
-                statusCallback(StartStatus.Error("Failed to initialize bridge"))
+                // Check specifically if Termux is not running, not authorized, or Node.js is missing
+                when {
+                    !TermuxUtils.isTermuxRunning(context) -> {
+                        statusCallback(StartStatus.TermuxNotRunning())
+                    }
+                    !isTermuxAuthorized() -> {
+                        statusCallback(StartStatus.TermuxNotAuthorized())
+                    }
+                    !isNodeJsInstalled() -> {
+                        statusCallback(StartStatus.NodeJsMissing())
+                    }
+                    else -> {
+                        statusCallback(StartStatus.Error("Failed to initialize bridge"))
+                    }
+                }
                 return false
             }
 
@@ -229,9 +300,30 @@ class MCPStarter(private val context: Context) {
     ) {
         starterScope.launch {
             try {
+                // Check if Termux is running first
+                if (!TermuxUtils.isTermuxRunning(context)) {
+                    Log.e(TAG, "Termux is not running. Please start Termux first.")
+                    progressListener.onAllPluginsStarted(0, 0, PluginInitStatus.TERMUX_NOT_RUNNING)
+                    return@launch
+                }
+
+                // Check if Termux is authorized
+                if (!isTermuxAuthorized()) {
+                    Log.e(TAG, "Termux is not authorized. Please authorize Termux first.")
+                    progressListener.onAllPluginsStarted(0, 0, PluginInitStatus.TERMUX_NOT_AUTHORIZED)
+                    return@launch
+                }
+
+                // Check if Node.js is installed
+                if (!isNodeJsInstalled()) {
+                    Log.e(TAG, "Node.js is not installed in Termux. Please install Node.js first.")
+                    progressListener.onAllPluginsStarted(0, 0, PluginInitStatus.NODEJS_MISSING)
+                    return@launch
+                }
+
                 // Initialize bridge
                 if (!initBridge()) {
-                    progressListener.onAllPluginsStarted(0, 0)
+                    progressListener.onAllPluginsStarted(0, 0, PluginInitStatus.BRIDGE_FAILED)
                     return@launch
                 }
 
@@ -247,7 +339,7 @@ class MCPStarter(private val context: Context) {
                         }
 
                 if (deployedPlugins.isEmpty()) {
-                    progressListener.onAllPluginsStarted(0, 0)
+                    progressListener.onAllPluginsStarted(0, 0, PluginInitStatus.SUCCESS)
                     return@launch
                 }
 
@@ -272,13 +364,13 @@ class MCPStarter(private val context: Context) {
                 }
 
                 // Notify all plugins started
-                progressListener.onAllPluginsStarted(successCount, deployedPlugins.size)
+                progressListener.onAllPluginsStarted(successCount, deployedPlugins.size, PluginInitStatus.SUCCESS)
 
                 // Verify plugins
                 verifyPlugins(progressListener)
             } catch (e: Exception) {
                 Log.e(TAG, "Error starting plugins", e)
-                progressListener.onAllPluginsStarted(0, 0)
+                progressListener.onAllPluginsStarted(0, 0, PluginInitStatus.OTHER_ERROR)
             }
         }
     }
@@ -425,6 +517,15 @@ class MCPStarter(private val context: Context) {
         data class InProgress(val message: String) : StartStatus()
         data class Success(val message: String) : StartStatus()
         data class Error(val message: String) : StartStatus()
+        data class TermuxNotRunning(
+                val message: String = "Termux未运行，请先启动Termux"
+        ) : StartStatus()
+        data class TermuxNotAuthorized(
+                val message: String = "Termux未授权，请先授权Termux"
+        ) : StartStatus()
+        data class NodeJsMissing(
+                val message: String = "Termux中未安装Node.js，请先安装"
+        ) : StartStatus()
     }
 
     /** Verification result */
