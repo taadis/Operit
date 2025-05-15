@@ -89,6 +89,7 @@ fun ShizukuDemoScreen() {
     val isNodeInstalled = remember { mutableStateOf(false) }
     val isTermuxConfiguring = remember { mutableStateOf(false) }
     val isTermuxRunning = remember { mutableStateOf(false) }
+    val isTermuxBatteryOptimizationExempted = remember { mutableStateOf(false) }
 
     // 添加Termux配置持久化状态 - 在初始化阶段就读取，避免界面闪烁
     val isTermuxFullyConfigured = remember {
@@ -222,6 +223,19 @@ fun ShizukuDemoScreen() {
         }
     }
 
+    // 检查Termux是否获得电池优化豁免
+    suspend fun checkTermuxBatteryOptimization() {
+        try {
+            val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+            isTermuxBatteryOptimizationExempted.value =
+                    powerManager.isIgnoringBatteryOptimizations("com.termux")
+            Log.d(TAG, "检查Termux电池优化豁免: ${isTermuxBatteryOptimizationExempted.value}")
+        } catch (e: Exception) {
+            Log.e(TAG, "检查Termux电池优化豁免错误: ${e.message}")
+            isTermuxBatteryOptimizationExempted.value = false
+        }
+    }
+
     // 检查已安装的组件 - 只在初始加载和授权成功后调用一次
     suspend fun checkInstalledComponents() {
         withContext(Dispatchers.IO) {
@@ -230,6 +244,9 @@ fun ShizukuDemoScreen() {
                 // 检查Termux是否在运行
                 checkTermuxRunning()
 
+                // 检查Termux电池优化豁免状态
+                checkTermuxBatteryOptimization()
+
                 checkTunaSourceEnabled()
                 checkPythonInstalled()
                 checkUvInstalled()
@@ -237,7 +254,8 @@ fun ShizukuDemoScreen() {
 
                 // 检查完成后，更新持久化状态
                 val allConfigured =
-                        isTunaSourceEnabled.value &&
+                        isTermuxBatteryOptimizationExempted.value &&
+                                isTunaSourceEnabled.value &&
                                 isPythonInstalled.value &&
                                 isUvInstalled.value &&
                                 isNodeInstalled.value
@@ -255,7 +273,7 @@ fun ShizukuDemoScreen() {
                     isTermuxFullyConfigured.value = false
                     Log.d(
                             TAG,
-                            "检测到Termux组件配置不完整（清华源: ${isTunaSourceEnabled.value}, Python: ${isPythonInstalled.value}, UV: ${isUvInstalled.value}, Node: ${isNodeInstalled.value}），重置持久化状态"
+                            "检测到Termux组件配置不完整（电池优化: ${isTermuxBatteryOptimizationExempted.value}, 清华源: ${isTunaSourceEnabled.value}, Python: ${isPythonInstalled.value}, UV: ${isUvInstalled.value}, Node: ${isNodeInstalled.value}），重置持久化状态"
                     )
                 }
             }
@@ -365,7 +383,7 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
                 if (installPythonResult.success) {
                     isPythonInstalled.value = true
                     outputText += "\nPython环境安装成功！"
-                    
+
                     // 检查是否所有组件都已配置完成
                     if (isTunaSourceEnabled.value &&
                                     isPythonInstalled.value &&
@@ -501,6 +519,48 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
         }
     }
 
+    // 请求Termux电池优化豁免
+    val requestTermuxBatteryOptimization = {
+        scope.launch {
+            // 先检查Termux是否在运行
+            checkTermuxRunning()
+            if (!isTermuxRunning.value) {
+                outputText += "\nTermux未运行，请先启动Termux"
+                Toast.makeText(context, "请先启动Termux", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+
+            isTermuxConfiguring.value = true
+            currentTask = "设置Termux电池优化豁免"
+            outputText += "\n开始设置Termux电池优化豁免..."
+            try {
+                // 使用Intent打开Termux的电池优化设置
+                val intent =
+                        Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                            data = Uri.parse("package:com.termux")
+                        }
+                context.startActivity(intent)
+
+                outputText += "\n已打开Termux电池优化设置页面。请在系统设置中点击「允许」以豁免Termux的电池优化。"
+                outputText += "\n完成设置后，请返回本应用并点击刷新按钮检查状态。"
+
+                Toast.makeText(context, "请在系统设置中允许Termux的电池优化豁免", Toast.LENGTH_LONG).show()
+
+                // 由于需要用户在系统界面操作，这里不自动更新状态
+                // 用户需要手动点击刷新按钮来更新状态
+            } catch (e: Exception) {
+                Log.e(TAG, "请求Termux电池优化豁免错误: ${e.message}")
+                outputText += "\n请求Termux电池优化豁免出错: ${e.message}"
+                Toast.makeText(context, "无法打开Termux电池优化设置", Toast.LENGTH_SHORT).show()
+            } finally {
+                isTermuxConfiguring.value = false
+                currentTask = ""
+                // 自动关闭对话框
+                state.showResultDialogState.value = false
+            }
+        }
+    }
+
     // 刷新状态函数 - 不要重复检查Termux配置，减少不必要的跳转
     val refreshStatus = {
         Log.d(TAG, "刷新应用权限状态...")
@@ -582,6 +642,13 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
         // 检查无障碍服务状态
         state.hasAccessibilityServiceEnabled.value =
                 UIHierarchyManager.isAccessibilityServiceEnabled(context)
+
+        // 同时在刷新状态时检查Termux电池优化豁免状态
+        scope.launch {
+            if (state.isTermuxInstalled.value) {
+                checkTermuxBatteryOptimization()
+            }
+        }
     }
 
     // 检查Termux授权状态 - 单独优化
@@ -795,8 +862,14 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
                     isUvInstalled = isTermuxFullyConfigured.value || isUvInstalled.value,
                     isNodeInstalled = isTermuxFullyConfigured.value || isNodeInstalled.value,
                     isTermuxRunning = isTermuxRunning.value,
+                    // 添加电池优化豁免状态
+                    isTermuxBatteryOptimizationExempted =
+                            isTermuxFullyConfigured.value ||
+                                    isTermuxBatteryOptimizationExempted.value,
                     // 添加启动Termux的回调
                     onStartTermux = startTermux,
+                    // 添加电池优化豁免的回调
+                    onRequestTermuxBatteryOptimization = { requestTermuxBatteryOptimization() },
                     // 添加新的回调函数
                     onConfigureTunaSource = {
                         if (!isTermuxConfiguring.value) {

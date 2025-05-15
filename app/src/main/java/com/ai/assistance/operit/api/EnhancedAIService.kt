@@ -34,6 +34,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -235,81 +236,87 @@ class EnhancedAIService(
             chatHistory: List<Pair<String, String>> = emptyList(),
             onComplete: () -> Unit = {}
     ) {
-        // Clean up any existing state
-        cancelAllToolExecutions()
+        try {
+            // Mark conversation as active
+            isConversationActive.set(true)
 
-        // Set new callbacks
-        currentResponseCallback = onPartialResponse
-        currentCompleteCallback = onComplete
-        isConversationActive.set(true)
+            // Save callbacks for later use
+            currentResponseCallback = onPartialResponse
+            currentCompleteCallback = onComplete
 
-        // 尝试从历史聊天中重新提取计划项，确保不会丢失
-        reExtractPlanItems(chatHistory)
+            // Process the input message for any conversation markup (e.g., for AI planning)
+            val processedInput = InputProcessor.processUserInput(message)
 
-        // If it's a new conversation, reset all state
-        if (chatHistory.isEmpty()) {
-            Log.d(TAG, "Starting new conversation - resetting all state")
-            conversationHistory.clear()
-            clearReferences()
-            // 修改：只有在没有计划项或强制清除状态下才清除计划项
-            // 这确保了在对话完成或等待用户输入后，计划项不会被清除
-            if (_planItems.value.isEmpty()) {
-                Log.d(TAG, "无现有计划项，无需保留")
-            } else {
-                Log.d(TAG, "发现现有计划项，保留计划项: ${_planItems.value.map { "${it.id}: ${it.status}" }}")
-                // clearPlanItems() - 不再清除现有计划项
+            // Update state to show we're processing
+            _inputProcessingState.value = InputProcessingState.Processing("Processing message...")
+
+            // Prepare conversation history with system prompt
+            val preparedHistory = prepareConversationHistory(chatHistory, processedInput)
+
+            // Update UI state to connecting
+            _inputProcessingState.value =
+                    InputProcessingState.Connecting("Connecting to AI service...")
+
+            Log.d(TAG, "Sending message to AI service with ${preparedHistory.size} history items")
+
+            // Get model parameters from preferences
+            val maxTokens = runBlocking { apiPreferences.maxTokensFlow.first() }
+            val temperature = runBlocking { apiPreferences.temperatureFlow.first() }
+            val topP = runBlocking { apiPreferences.topPFlow.first() }
+            val topK = runBlocking { apiPreferences.topKFlow.first() }
+            val frequencyPenalty = runBlocking { apiPreferences.frequencyPenaltyFlow.first() }
+            val presencePenalty = runBlocking { apiPreferences.presencePenaltyFlow.first() }
+            val repetitionPenalty = runBlocking { apiPreferences.repetitionPenaltyFlow.first() }
+
+            withContext(Dispatchers.IO) {
+                aiService.sendMessage(
+                        message = processedInput,
+                        onPartialResponse = { content, thinking ->
+                            // First response received, update to receiving state
+                            if (streamBuffer.isEmpty()) {
+                                _inputProcessingState.value =
+                                        InputProcessingState.Receiving("Receiving AI response...")
+                            }
+
+                            processContent(
+                                    content,
+                                    thinking,
+                                    onPartialResponse,
+                                    preparedHistory,
+                                    isFollowUp = false
+                            )
+                        },
+                        chatHistory = preparedHistory,
+                        onComplete = { handleStreamingComplete(onComplete) },
+                        onConnectionStatus = { status ->
+                            // Update connection status in UI
+                            when {
+                                status.contains("准备连接") || status.contains("正在建立连接") ->
+                                        _inputProcessingState.value =
+                                                InputProcessingState.Connecting(status)
+                                status.contains("连接成功") ->
+                                        _inputProcessingState.value =
+                                                InputProcessingState.Receiving(status)
+                                status.contains("超时") || status.contains("失败") ->
+                                        _inputProcessingState.value =
+                                                InputProcessingState.Processing(status)
+                            }
+                        },
+                        maxTokens = maxTokens,
+                        temperature = temperature,
+                        topP = topP,
+                        topK = topK,
+                        frequencyPenalty = frequencyPenalty,
+                        presencePenalty = presencePenalty,
+                        repetitionPenalty = repetitionPenalty
+                )
             }
-            streamBuffer.clear()
-            roundManager.initializeNewConversation()
-        } else {
-            // 如果有聊天历史，说明是在继续之前的对话，确保会话标记为活跃
-            Log.d(TAG, "继续现有对话，确保计划项保留: ${_planItems.value.map { "${it.id}: ${it.status}" }}")
-        }
-
-        // Show processing input feedback
-        val processedInput = processUserInput(message)
-        prepareConversationHistory(chatHistory, processedInput)
-
-        Log.d(TAG, "Conversation history: ${conversationHistory.map { it.first }}")
-
-        // Show connecting to AI feedback
-        _inputProcessingState.value = InputProcessingState.Connecting("Connecting to AI service...")
-
-        withContext(Dispatchers.IO) {
-            aiService.sendMessage(
-                    message = processedInput,
-                    onPartialResponse = { content, thinking ->
-                        // First response received, update to receiving state
-                        if (streamBuffer.isEmpty()) {
-                            _inputProcessingState.value =
-                                    InputProcessingState.Receiving("Receiving AI response...")
-                        }
-
-                        processContent(
-                                content,
-                                thinking,
-                                onPartialResponse,
-                                conversationHistory,
-                                isFollowUp = false
-                        )
-                    },
-                    chatHistory = conversationHistory,
-                    onComplete = { handleStreamingComplete(onComplete) },
-                    onConnectionStatus = { status ->
-                        // Update connection status in UI
-                        when {
-                            status.contains("准备连接") || status.contains("正在建立连接") ->
-                                    _inputProcessingState.value =
-                                            InputProcessingState.Connecting(status)
-                            status.contains("连接成功") ->
-                                    _inputProcessingState.value =
-                                            InputProcessingState.Receiving(status)
-                            status.contains("超时") || status.contains("失败") ->
-                                    _inputProcessingState.value =
-                                            InputProcessingState.Processing(status)
-                        }
-                    }
-            )
+        } catch (e: Exception) {
+            // Handle any exceptions
+            Log.e(TAG, "Error sending message: ${e.message}", e)
+            _inputProcessingState.value =
+                    InputProcessingState.Error(message = "Error: ${e.message}")
+            onComplete() // Ensure completion callback is called even on error
         }
     }
 
@@ -329,25 +336,34 @@ class EnhancedAIService(
                 // Check if planning is enabled
                 val planningEnabled = apiPreferences.enableAiPlanningFlow.first()
 
+                // Get custom prompts if available
+                val customIntroPrompt = apiPreferences.customIntroPromptFlow.first()
+                val customTonePrompt = apiPreferences.customTonePromptFlow.first()
+
+                val systemPrompt =
+                        if (customIntroPrompt.isNotEmpty() || customTonePrompt.isNotEmpty()) {
+                            // Use custom prompts if they are set
+                            SystemPromptConfig.getSystemPromptWithCustomPrompts(
+                                    packageManager,
+                                    planningEnabled,
+                                    customIntroPrompt,
+                                    customTonePrompt
+                            )
+                        } else {
+                            // Use default system prompt
+                            SystemPromptConfig.getSystemPrompt(packageManager, planningEnabled)
+                        }
+
                 if (preferencesText.isNotEmpty()) {
                     conversationHistory.add(
                             0,
                             Pair(
                                     "system",
-                                    "${SystemPromptConfig.getSystemPrompt(packageManager, planningEnabled)}\n\nUser preference description: $preferencesText"
+                                    "$systemPrompt\n\nUser preference description: $preferencesText"
                             )
                     )
                 } else {
-                    conversationHistory.add(
-                            0,
-                            Pair(
-                                    "system",
-                                    SystemPromptConfig.getSystemPrompt(
-                                            packageManager,
-                                            planningEnabled
-                                    )
-                            )
-                    )
+                    conversationHistory.add(0, Pair("system", systemPrompt))
                 }
             }
 

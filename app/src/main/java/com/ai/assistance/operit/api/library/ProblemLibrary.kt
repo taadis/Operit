@@ -3,50 +3,38 @@ package com.ai.assistance.operit.api.library
 import android.content.Context
 import android.util.Log
 import com.ai.assistance.operit.api.AIService
-import com.ai.assistance.operit.data.model.AITool
-import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.preferencesManager
 import com.ai.assistance.operit.tools.AIToolHandler
-import com.ai.assistance.operit.tools.StringResultData
-import com.ai.assistance.operit.tools.ToolExecutor
+import com.ai.assistance.operit.tools.defaultTool.ProblemLibraryTool
+import com.ai.assistance.operit.util.TextSegmenter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.take
 import org.json.JSONObject
-import com.ai.assistance.operit.util.TextSegmenter
-import com.ai.assistance.operit.tools.defaultTool.ProblemLibraryTool
-import com.ai.assistance.operit.ui.permissions.ToolCategory
 
-/**
- * 问题库管理类 - 提供分析对话内容并存储问题记录的功能
- */
+/** 问题库管理类 - 提供分析对话内容并存储问题记录的功能 */
 object ProblemLibrary {
     private const val TAG = "ProblemLibrary"
     private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var apiPreferences: ApiPreferences? = null
-    
+
     // 添加初始化状态标志
-    @Volatile
-    private var isInitialized = false
-    
-    /**
-     * 分析结果数据类
-     */
+    @Volatile private var isInitialized = false
+
+    /** 分析结果数据类 */
     data class AnalysisResults(
-        val problemSummary: String = "",
-        val userPreferences: String = "",
-        val solutionSummary: String = ""
+            val problemSummary: String = "",
+            val userPreferences: String = "",
+            val solutionSummary: String = ""
     )
-    
-    /**
-     * 初始化问题库
-     */
+
+    /** 初始化问题库 */
     fun initialize(context: Context) {
         // 添加同步锁和初始化检查，确保只初始化一次
         synchronized(ProblemLibrary::class.java) {
@@ -54,13 +42,13 @@ object ProblemLibrary {
                 // Log.d(TAG, "ProblemLibrary 已经初始化，跳过重复初始化")
                 return
             }
-            
+
             Log.d(TAG, "正在初始化 ProblemLibrary")
             apiPreferences = ApiPreferences(context.applicationContext)
-            
+
             // 初始化分词器
             TextSegmenter.initialize(context.applicationContext)
-            
+
             // 后台预热分词器
             coroutineScope.launch {
                 try {
@@ -70,44 +58,32 @@ object ProblemLibrary {
                     Log.e(TAG, "分词器预热失败", e)
                 }
             }
-            
+
             isInitialized = true
             Log.d(TAG, "ProblemLibrary 初始化完成")
         }
     }
-    
-    /**
-     * 预热分词器，提前加载词典
-     */
+
+    /** 预热分词器，提前加载词典 */
     private suspend fun prewarmSegmenter() {
         withContext(Dispatchers.IO) {
             // 使用几个常见生活词汇预热分词器
-            val testWords = listOf(
-                "如何制作美味的家常菜",
-                "周末旅行好去处推荐",
-                "健康生活小技巧分享",
-                "家庭理财省钱妙招",
-                "日常英语口语学习方法"
-            )
-            
-            testWords.forEach { word ->
-                TextSegmenter.segment(word)
-            }
+            val testWords = listOf("如何制作美味的家常菜", "周末旅行好去处推荐", "健康生活小技巧分享", "家庭理财省钱妙招", "日常英语口语学习方法")
+
+            testWords.forEach { word -> TextSegmenter.segment(word) }
         }
     }
-    
-    /**
-     * 保存问题到问题库（异步方式）
-     */
+
+    /** 保存问题到问题库（异步方式） */
     fun saveProblemAsync(
-        context: Context,
-        toolHandler: AIToolHandler,
-        conversationHistory: List<Pair<String, String>>,
-        content: String,
-        aiService: AIService
+            context: Context,
+            toolHandler: AIToolHandler,
+            conversationHistory: List<Pair<String, String>>,
+            content: String,
+            aiService: AIService
     ) {
         ensureInitialized(context)
-        
+
         coroutineScope.launch {
             try {
                 saveProblem(toolHandler, conversationHistory, content, aiService)
@@ -116,12 +92,8 @@ object ProblemLibrary {
             }
         }
     }
-    
 
-    
-    /**
-     * 确保已初始化
-     */
+    /** 确保已初始化 */
     private fun ensureInitialized(context: Context) {
         if (!isInitialized) {
             synchronized(ProblemLibrary::class.java) {
@@ -131,22 +103,20 @@ object ProblemLibrary {
             }
         }
     }
-    
-    /**
-     * 保存问题记录（内部实现）
-     */
+
+    /** 保存问题记录（内部实现） */
     private suspend fun saveProblem(
-        toolHandler: AIToolHandler,
-        conversationHistory: List<Pair<String, String>>,
-        content: String,
-        aiService: AIService
+            toolHandler: AIToolHandler,
+            conversationHistory: List<Pair<String, String>>,
+            content: String,
+            aiService: AIService
     ) {
         // 检查会话历史是否为空
         if (conversationHistory.isEmpty()) {
             Log.w(TAG, "会话历史为空，跳过保存问题记录")
             return
         }
-        
+
         // 提取使用的工具
         val toolInvocations = toolHandler.extractToolInvocations(content)
         val tools = toolInvocations.map { it.tool.name }
@@ -156,15 +126,16 @@ object ProblemLibrary {
         if (query.isEmpty()) {
             Log.w(TAG, "未找到用户查询消息，使用空字符串")
         }
-        
+
         // 生成问题分析
-        val analysisResults = try {
-            generateAnalysis(aiService, query, content, conversationHistory)
-        } catch (e: Exception) {
-            Log.e(TAG, "生成分析失败", e)
-            AnalysisResults()
-        }
-        
+        val analysisResults =
+                try {
+                    generateAnalysis(aiService, query, content, conversationHistory)
+                } catch (e: Exception) {
+                    Log.e(TAG, "生成分析失败", e)
+                    AnalysisResults()
+                }
+
         // 更新用户偏好
         if (analysisResults.userPreferences.isNotEmpty()) {
             try {
@@ -179,15 +150,17 @@ object ProblemLibrary {
         }
 
         // 创建问题记录
-        val record = ProblemLibraryTool.ProblemRecord(
-            uuid = java.util.UUID.randomUUID().toString(),
-            query = query,
-            solution = if (analysisResults.solutionSummary.isNotEmpty()) 
-                        analysisResults.solutionSummary
-                      else content.take(300),
-            tools = tools,
-            summary = analysisResults.problemSummary
-        )
+        val record =
+                ProblemLibraryTool.ProblemRecord(
+                        uuid = java.util.UUID.randomUUID().toString(),
+                        query = query,
+                        solution =
+                                if (analysisResults.solutionSummary.isNotEmpty())
+                                        analysisResults.solutionSummary
+                                else content.take(300),
+                        tools = tools,
+                        summary = analysisResults.problemSummary
+                )
 
         // 保存问题记录到 ProblemLibraryTool
         try {
@@ -202,27 +175,27 @@ object ProblemLibrary {
             Log.e(TAG, "保存问题记录失败", e)
         }
     }
-    
-    /**
-     * 生成分析结果
-     */
+
+    /** 生成分析结果 */
     private suspend fun generateAnalysis(
-        aiService: AIService,
-        query: String, 
-        solution: String,
-        conversationHistory: List<Pair<String, String>>
+            aiService: AIService,
+            query: String,
+            solution: String,
+            conversationHistory: List<Pair<String, String>>
     ): AnalysisResults {
         try {
             // 获取当前的用户偏好
-            val currentPreferences = withContext(Dispatchers.IO) {
-                var preferences = ""
-                preferencesManager.getUserPreferencesFlow().take(1).collect { profile ->
-                    preferences = buildPreferencesText(profile)
-                }
-                preferences
-            }
+            val currentPreferences =
+                    withContext(Dispatchers.IO) {
+                        var preferences = ""
+                        preferencesManager.getUserPreferencesFlow().take(1).collect { profile ->
+                            preferences = buildPreferencesText(profile)
+                        }
+                        preferences
+                    }
 
-            val systemPrompt = """
+            val systemPrompt =
+                    """
                 你是一个专业的问题分析专家。你的任务是：
                 1. 根据用户的问题和解决方案，生成一个简洁的问题摘要
                 2. 分析用户的对话历史，增量更新用户偏好信息
@@ -267,36 +240,36 @@ object ProblemLibrary {
 
             // 构建分析消息
             val analysisMessage = buildAnalysisMessage(query, solution, conversationHistory)
-            
+
             // AIService会自动计算和累计token，不需要手动预估
-            
+
             // 准备消息
-            val messages = listOf(
-                Pair("system", systemPrompt),
-                Pair("user", analysisMessage)
-            )
-            
+            val messages = listOf(Pair("system", systemPrompt), Pair("user", analysisMessage))
+
             // 收集结果
             val result = StringBuilder()
             var outputTokens = 0
-            
+
             // 调用AI服务
             withContext(Dispatchers.IO) {
                 aiService.sendMessage(
-                    message = analysisMessage,
-                    onPartialResponse = { content, _ ->
-                        result.clear()
-                        result.append(content)
-                        outputTokens = aiService.outputTokenCount
-                    },
-                    chatHistory = messages,
-                    onComplete = {}
+                        message = analysisMessage,
+                        onPartialResponse = { content, _ ->
+                            result.clear()
+                            result.append(content)
+                            outputTokens = aiService.outputTokenCount
+                        },
+                        chatHistory = messages,
+                        onComplete = {}
                 )
             }
-            
+
             // 更新token统计
-            apiPreferences?.updatePreferenceAnalysisTokens(aiService.inputTokenCount, aiService.outputTokenCount)
-            
+            apiPreferences?.updatePreferenceAnalysisTokens(
+                    aiService.inputTokenCount,
+                    aiService.outputTokenCount
+            )
+
             // 解析结果
             return parseAnalysisResult(result.toString())
         } catch (e: Exception) {
@@ -304,17 +277,15 @@ object ProblemLibrary {
             return AnalysisResults()
         }
     }
-    
-    /**
-     * 构建分析消息
-     */
+
+    /** 构建分析消息 */
     private fun buildAnalysisMessage(
-        query: String,
-        solution: String,
-        conversationHistory: List<Pair<String, String>>
+            query: String,
+            solution: String,
+            conversationHistory: List<Pair<String, String>>
     ): String {
         val messageBuilder = StringBuilder()
-        
+
         // 添加问题和解决方案
         messageBuilder.appendLine("问题:")
         messageBuilder.appendLine(query)
@@ -322,7 +293,7 @@ object ProblemLibrary {
         messageBuilder.appendLine("解决方案:")
         messageBuilder.appendLine(solution.take(3000)) // 增加取值长度，获取更多解决方案细节
         messageBuilder.appendLine()
-        
+
         // 添加更完整的对话历史（最多15条，每条限制300字符）
         val recentHistory = conversationHistory.takeLast(15)
         if (recentHistory.isNotEmpty()) {
@@ -331,166 +302,187 @@ object ProblemLibrary {
                 messageBuilder.appendLine("#${index + 1} $role: ${content.take(300)}")
             }
         }
-        
+
         return messageBuilder.toString()
     }
-    
-    /**
-     * 解析分析结果
-     */
+
+    /** 解析分析结果 */
     private fun parseAnalysisResult(jsonString: String): AnalysisResults {
         return try {
             // 清理非JSON前缀
-            val cleanJson = jsonString.trim().let {
-                val startIndex = it.indexOf("{")
-                val endIndex = it.lastIndexOf("}")
-                if (startIndex >= 0 && endIndex > startIndex) {
-                    it.substring(startIndex, endIndex + 1)
-                } else {
-                    it
-                }
-            }
-            
+            val cleanJson =
+                    jsonString.trim().let {
+                        val startIndex = it.indexOf("{")
+                        val endIndex = it.lastIndexOf("}")
+                        if (startIndex >= 0 && endIndex > startIndex) {
+                            it.substring(startIndex, endIndex + 1)
+                        } else {
+                            it
+                        }
+                    }
+
             val json = JSONObject(cleanJson)
-            
+
             // 提取用户偏好信息，将结构化数据转换为字符串
-            val userPreferences = if (json.has("user_preferences") && json.get("user_preferences") is JSONObject) {
-                val preferencesObj = json.getJSONObject("user_preferences")
-                val preferenceParts = mutableListOf<String>()
-                
-                // 处理每个偏好类别
-                if (preferencesObj.has("age") && preferencesObj.get("age") != "<UNCHANGED>") {
-                    val age = preferencesObj.get("age")
-                    preferenceParts.add("出生年份: $age")
-                }
-                
-                if (preferencesObj.has("gender") && preferencesObj.get("gender") != "<UNCHANGED>") {
-                    val gender = preferencesObj.getString("gender")
-                    if (gender.isNotEmpty()) {
-                        preferenceParts.add("性别: $gender")
+            val userPreferences =
+                    if (json.has("user_preferences") && json.get("user_preferences") is JSONObject
+                    ) {
+                        val preferencesObj = json.getJSONObject("user_preferences")
+                        val preferenceParts = mutableListOf<String>()
+
+                        // 处理每个偏好类别
+                        if (preferencesObj.has("age") && preferencesObj.get("age") != "<UNCHANGED>"
+                        ) {
+                            val age = preferencesObj.get("age")
+                            preferenceParts.add("出生年份: $age")
+                        }
+
+                        if (preferencesObj.has("gender") &&
+                                        preferencesObj.get("gender") != "<UNCHANGED>"
+                        ) {
+                            val gender = preferencesObj.getString("gender")
+                            if (gender.isNotEmpty()) {
+                                preferenceParts.add("性别: $gender")
+                            }
+                        }
+
+                        if (preferencesObj.has("personality") &&
+                                        preferencesObj.get("personality") != "<UNCHANGED>"
+                        ) {
+                            val personality = preferencesObj.getString("personality")
+                            if (personality.isNotEmpty()) {
+                                preferenceParts.add("性格特点: $personality")
+                            }
+                        }
+
+                        if (preferencesObj.has("identity") &&
+                                        preferencesObj.get("identity") != "<UNCHANGED>"
+                        ) {
+                            val identity = preferencesObj.getString("identity")
+                            if (identity.isNotEmpty()) {
+                                preferenceParts.add("身份认同: $identity")
+                            }
+                        }
+
+                        if (preferencesObj.has("occupation") &&
+                                        preferencesObj.get("occupation") != "<UNCHANGED>"
+                        ) {
+                            val occupation = preferencesObj.getString("occupation")
+                            if (occupation.isNotEmpty()) {
+                                preferenceParts.add("职业: $occupation")
+                            }
+                        }
+
+                        if (preferencesObj.has("aiStyle") &&
+                                        preferencesObj.get("aiStyle") != "<UNCHANGED>"
+                        ) {
+                            val aiStyle = preferencesObj.getString("aiStyle")
+                            if (aiStyle.isNotEmpty()) {
+                                preferenceParts.add("期待的AI风格: $aiStyle")
+                            }
+                        }
+
+                        preferenceParts.joinToString("; ")
+                    } else {
+                        // 兼容旧格式
+                        json.optString("user_preferences", "")
                     }
-                }
-                
-                if (preferencesObj.has("personality") && preferencesObj.get("personality") != "<UNCHANGED>") {
-                    val personality = preferencesObj.getString("personality")
-                    if (personality.isNotEmpty()) {
-                        preferenceParts.add("性格特点: $personality")
-                    }
-                }
-                
-                if (preferencesObj.has("identity") && preferencesObj.get("identity") != "<UNCHANGED>") {
-                    val identity = preferencesObj.getString("identity")
-                    if (identity.isNotEmpty()) {
-                        preferenceParts.add("身份认同: $identity")
-                    }
-                }
-                
-                if (preferencesObj.has("occupation") && preferencesObj.get("occupation") != "<UNCHANGED>") {
-                    val occupation = preferencesObj.getString("occupation")
-                    if (occupation.isNotEmpty()) {
-                        preferenceParts.add("职业: $occupation")
-                    }
-                }
-                
-                if (preferencesObj.has("aiStyle") && preferencesObj.get("aiStyle") != "<UNCHANGED>") {
-                    val aiStyle = preferencesObj.getString("aiStyle")
-                    if (aiStyle.isNotEmpty()) {
-                        preferenceParts.add("期待的AI风格: $aiStyle")
-                    }
-                }
-                
-                preferenceParts.joinToString("; ")
-            } else {
-                // 兼容旧格式
-                json.optString("user_preferences", "")
-            }
-            
+
             AnalysisResults(
-                problemSummary = json.optString("problem_summary", "").take(500),
-                userPreferences = userPreferences.take(200),
-                solutionSummary = json.optString("solution_summary", "").take(1000)
+                    problemSummary = json.optString("problem_summary", "").take(500),
+                    userPreferences = userPreferences.take(200),
+                    solutionSummary = json.optString("solution_summary", "").take(1000)
             )
         } catch (e: Exception) {
             Log.e(TAG, "解析分析结果失败", e)
             AnalysisResults(problemSummary = jsonString.take(200))
         }
     }
-    
-    /**
-     * 将用户偏好配置转换为文本描述
-     */
-    private fun buildPreferencesText(profile: com.ai.assistance.operit.data.model.PreferenceProfile): String {
+
+    /** 将用户偏好配置转换为文本描述 */
+    private fun buildPreferencesText(
+            profile: com.ai.assistance.operit.data.model.PreferenceProfile
+    ): String {
         val parts = mutableListOf<String>()
-        
+
         if (profile.gender.isNotEmpty()) {
             parts.add("性别: ${profile.gender}")
         }
-        
+
         if (profile.birthDate > 0) {
             // Convert timestamp to formatted date string
             val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
             parts.add("出生日期: ${dateFormat.format(java.util.Date(profile.birthDate))}")
-            
+
             // Also calculate and include age
             val today = java.util.Calendar.getInstance()
-            val birthCal = java.util.Calendar.getInstance().apply { timeInMillis = profile.birthDate }
+            val birthCal =
+                    java.util.Calendar.getInstance().apply { timeInMillis = profile.birthDate }
             var age = today.get(java.util.Calendar.YEAR) - birthCal.get(java.util.Calendar.YEAR)
             // Adjust age if birthday hasn't occurred yet this year
-            if (today.get(java.util.Calendar.MONTH) < birthCal.get(java.util.Calendar.MONTH) || 
-                (today.get(java.util.Calendar.MONTH) == birthCal.get(java.util.Calendar.MONTH) && 
-                 today.get(java.util.Calendar.DAY_OF_MONTH) < birthCal.get(java.util.Calendar.DAY_OF_MONTH))) {
+            if (today.get(java.util.Calendar.MONTH) < birthCal.get(java.util.Calendar.MONTH) ||
+                            (today.get(java.util.Calendar.MONTH) ==
+                                    birthCal.get(java.util.Calendar.MONTH) &&
+                                    today.get(java.util.Calendar.DAY_OF_MONTH) <
+                                            birthCal.get(java.util.Calendar.DAY_OF_MONTH))
+            ) {
                 age--
             }
             parts.add("年龄: ${age}岁")
         }
-        
+
         if (profile.personality.isNotEmpty()) {
             parts.add("性格特点: ${profile.personality}")
         }
-        
+
         if (profile.identity.isNotEmpty()) {
             parts.add("身份认同: ${profile.identity}")
         }
-        
+
         if (profile.occupation.isNotEmpty()) {
             parts.add("职业: ${profile.occupation}")
         }
-        
+
         if (profile.aiStyle.isNotEmpty()) {
             parts.add("期待的AI风格: ${profile.aiStyle}")
         }
-        
+
         return parts.joinToString("; ")
     }
-    
+
     /**
      * 从分析结果文本中解析并更新用户偏好
-     * 
-     * 分析文本可能是结构化格式，例如：
-     * "性别: 男; 出生年份: 1990; 性格特点: 耐心、细致; 职业: 软件工程师"
-     * 
+     *
+     * 分析文本可能是结构化格式，例如： "性别: 男; 出生年份: 1990; 性格特点: 耐心、细致; 职业: 软件工程师"
+     *
      * 只有在分析出来的字段才会被更新，未包含的字段将保持不变
      */
     private suspend fun updateUserPreferencesFromAnalysis(preferencesText: String) {
         if (preferencesText.isEmpty()) {
             return
         }
-        
+
         // 提取各项信息
         val birthDateMatch = """(出生日期|出生年月日)[:：\s]+([\d-]+)""".toRegex().find(preferencesText)
         val birthYearMatch = """(出生年份|年龄)[:：\s]+(\d+)""".toRegex().find(preferencesText)
         val genderMatch = """性别[:：\s]+([\u4e00-\u9fa5]+)""".toRegex().find(preferencesText)
-        val personalityMatch = """性格(特点)?[:：\s]+([\u4e00-\u9fa5、，,]+)""".toRegex().find(preferencesText)
-        val identityMatch = """身份(认同)?[:：\s]+([\u4e00-\u9fa5、，,]+)""".toRegex().find(preferencesText)
+        val personalityMatch =
+                """性格(特点)?[:：\s]+([\u4e00-\u9fa5、，,]+)""".toRegex().find(preferencesText)
+        val identityMatch =
+                """身份(认同)?[:：\s]+([\u4e00-\u9fa5、，,]+)""".toRegex().find(preferencesText)
         val occupationMatch = """职业[:：\s]+([\u4e00-\u9fa5、，,]+)""".toRegex().find(preferencesText)
-        val aiStyleMatch = """(AI风格|期待的AI风格|偏好的AI风格)[:：\s]+([\u4e00-\u9fa5、，,]+)""".toRegex().find(preferencesText)
-        
+        val aiStyleMatch =
+                """(AI风格|期待的AI风格|偏好的AI风格)[:：\s]+([\u4e00-\u9fa5、，,]+)"""
+                        .toRegex()
+                        .find(preferencesText)
+
         // 转换出生日期或年龄为birthDate时间戳
         var birthDateTimestamp: Long? = null
         if (birthDateMatch != null) {
             // 尝试解析完整日期格式 (yyyy-MM-dd)
             try {
-                val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+                val dateFormat =
+                        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
                 val date = dateFormat.parse(birthDateMatch.groupValues[2])
                 if (date != null) {
                     birthDateTimestamp = date.time
@@ -510,17 +502,17 @@ object ProblemLibrary {
                 Log.e(TAG, "解析出生年份失败: ${e.message}")
             }
         }
-        
+
         // 只更新分析出的字段，其他字段保持不变
         preferencesManager.updateProfileCategory(
-            birthDate = birthDateTimestamp,
-            gender = genderMatch?.groupValues?.getOrNull(1),
-            personality = personalityMatch?.groupValues?.getOrNull(2),
-            identity = identityMatch?.groupValues?.getOrNull(2),
-            occupation = occupationMatch?.groupValues?.getOrNull(1),
-            aiStyle = aiStyleMatch?.groupValues?.getOrNull(2)
+                birthDate = birthDateTimestamp,
+                gender = genderMatch?.groupValues?.getOrNull(1),
+                personality = personalityMatch?.groupValues?.getOrNull(2),
+                identity = identityMatch?.groupValues?.getOrNull(2),
+                occupation = occupationMatch?.groupValues?.getOrNull(1),
+                aiStyle = aiStyleMatch?.groupValues?.getOrNull(2)
         )
-        
+
         // 记录更新了哪些字段
         val updatedFields = mutableListOf<String>()
         if (birthDateTimestamp != null) updatedFields.add("出生日期")
@@ -529,7 +521,7 @@ object ProblemLibrary {
         if (identityMatch != null) updatedFields.add("身份认同")
         if (occupationMatch != null) updatedFields.add("职业")
         if (aiStyleMatch != null) updatedFields.add("AI风格偏好")
-        
+
         if (updatedFields.isNotEmpty()) {
             Log.d(TAG, "已更新用户偏好字段: ${updatedFields.joinToString(", ")}")
         } else {

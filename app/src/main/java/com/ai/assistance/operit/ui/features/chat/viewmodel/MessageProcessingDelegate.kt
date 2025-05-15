@@ -272,6 +272,10 @@ class MessageProcessingDelegate(
                     InputProcessingState.Completed -> {
                         _isProcessingInput.value = false
                     }
+                    is InputProcessingState.Error -> {
+                        _isProcessingInput.value = false
+                        _inputProcessingMessage.value = "错误: ${state.message}"
+                    }
                 }
             }
         }

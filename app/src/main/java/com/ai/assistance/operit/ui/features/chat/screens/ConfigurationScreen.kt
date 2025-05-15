@@ -106,6 +106,9 @@ fun ConfigurationScreen(
 
     // 添加标记表示是否显示端点修复提示
     var showEndpointFixedInfo by remember { mutableStateOf(false) }
+    
+    // 添加警告消息
+    var endpointWarningMessage by remember { mutableStateOf<String?>(null) }
 
     // 添加一个标志，用于控制是否允许更新API密钥
     var shouldUpdateApiKey by remember { mutableStateOf(false) }
@@ -540,28 +543,29 @@ fun ConfigurationScreen(
                 value = apiEndpointInput,
                 onValueChange = {
                     apiEndpointInput = it
-
-                    // 检查并尝试自动修复端点格式
-                    if (!ModelEndPointFix.isValidEndpoint(it) && it.isNotBlank()
-                    ) {
-                        ModelEndPointFix.fixEndpoint(it)?.let { fixed ->
-                            if (fixed != it) {
-                                apiEndpointInput = fixed
-                                showEndpointFixedInfo = true
-                                // 自动隐藏提示
-                                coroutineScope.launch {
-                                    delay(3000)
-                                    showEndpointFixedInfo =
-                                        false
-                                }
+                    
+                    // 更新ViewModel值
+                    onApiEndpointChange(apiEndpointInput)
+                    
+                    // 检查端点，但不自动修复，而是显示警告
+                    if (it.isNotBlank()) {
+                        // 如果不包含completions路径，显示警告
+                        if (!ModelEndPointFix.containsCompletionsPath(it)) {
+                            endpointWarningMessage = "提示：API地址应包含补全路径，如v1/chat/completions"
+                            showEndpointFixedInfo = true
+                            // 自动隐藏提示
+                            coroutineScope.launch {
+                                delay(5000)
+                                showEndpointFixedInfo = false
                             }
+                        } else {
+                            // 正确包含了completions
+                            showEndpointFixedInfo = false
                         }
                     }
-
-                    onApiEndpointChange(apiEndpointInput)
                 },
                 label = { Text("API接口地址", fontSize = 13.sp) },
-                placeholder = { Text("必须使用v1/chat/completions", fontSize = 12.sp) },
+                placeholder = { Text("API地址应包含补全路径", fontSize = 12.sp) },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Filled.Public,
@@ -587,12 +591,15 @@ fun ConfigurationScreen(
                 maxLines = 1
             )
 
-            // 显示端点修复提示
+            // 显示端点相关提示
             if (showEndpointFixedInfo) {
                 Text(
-                    text = "已自动添加必要的 v1/chat/completions 路径",
+                    text = endpointWarningMessage ?: "",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = if (endpointWarningMessage?.startsWith("警告") == true) 
+                        MaterialTheme.colorScheme.error
+                    else 
+                        MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(bottom = 4.dp),
                     fontSize = 11.sp
                 )
@@ -671,28 +678,13 @@ fun ConfigurationScreen(
             // 保存按钮
             Button(
                 onClick = {
-                    // 在保存前尝试修复API端点
-                    val fixedEndpoint =
-                        if (!ModelEndPointFix.isValidEndpoint(
-                                apiEndpointInput
-                            )
-                        ) {
-                            ModelEndPointFix.fixEndpoint(
-                                apiEndpointInput
-                            )
-                                ?: apiEndpointInput
-                        } else {
-                            apiEndpointInput
-                        }
-
-                    // 更新输入字段以显示修复后的值
-                    if (fixedEndpoint != apiEndpointInput) {
-                        apiEndpointInput = fixedEndpoint
-                        onApiEndpointChange(fixedEndpoint)
+                    // 检查endpoint是否包含completions，如果不包含则显示警告但不自动修复
+                    if (apiEndpointInput.isNotBlank() && !ModelEndPointFix.containsCompletionsPath(apiEndpointInput)) {
+                        endpointWarningMessage = "警告：您的API地址不包含补全路径（如v1/chat/completions）。请确保这是您想要的配置。"
                         showEndpointFixedInfo = true
-                        // 自动隐藏提示
+                        // 显示较长时间
                         coroutineScope.launch {
-                            delay(3000)
+                            delay(6000)
                             showEndpointFixedInfo = false
                         }
                     }

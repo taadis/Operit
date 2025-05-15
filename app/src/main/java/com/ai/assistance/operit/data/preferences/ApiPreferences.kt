@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -32,6 +33,19 @@ class ApiPreferences(private val context: Context) {
         val COLLAPSE_EXECUTION = booleanPreferencesKey("collapse_execution")
         val AUTO_GRANT_ACCESSIBILITY = booleanPreferencesKey("auto_grant_accessibility")
 
+        // Custom Prompt Settings
+        val CUSTOM_INTRO_PROMPT = stringPreferencesKey("custom_intro_prompt")
+        val CUSTOM_TONE_PROMPT = stringPreferencesKey("custom_tone_prompt")
+
+        // DeepSeek Model Parameters
+        val MAX_TOKENS = intPreferencesKey("max_tokens")
+        val TEMPERATURE = floatPreferencesKey("temperature")
+        val TOP_P = floatPreferencesKey("top_p")
+        val TOP_K = intPreferencesKey("top_k")
+        val PRESENCE_PENALTY = floatPreferencesKey("presence_penalty")
+        val FREQUENCY_PENALTY = floatPreferencesKey("frequency_penalty")
+        val REPETITION_PENALTY = floatPreferencesKey("repetition_penalty")
+
         // Default values
         const val DEFAULT_API_ENDPOINT = "https://api.deepseek.com/v1/chat/completions"
         const val DEFAULT_MODEL_NAME = "deepseek-chat"
@@ -42,6 +56,19 @@ class ApiPreferences(private val context: Context) {
         const val DEFAULT_ENABLE_AI_PLANNING = false
         const val DEFAULT_COLLAPSE_EXECUTION = true
         const val DEFAULT_AUTO_GRANT_ACCESSIBILITY = false
+
+        // Default values for custom prompts
+        const val DEFAULT_INTRO_PROMPT = "你是Operit，一个全能AI助手，旨在解决用户提出的任何任务。你有各种工具可以调用，以高效完成复杂的请求。"
+        const val DEFAULT_TONE_PROMPT = "保持有帮助的语气，并清楚地传达限制。使用问题库根据用户的风格、偏好和过去的信息个性化响应。"
+
+        // Default values for DeepSeek model parameters
+        const val DEFAULT_MAX_TOKENS = 4096
+        const val DEFAULT_TEMPERATURE = 1.0f
+        const val DEFAULT_TOP_P = 1.0f
+        const val DEFAULT_TOP_K = 0
+        const val DEFAULT_PRESENCE_PENALTY = 0.0f
+        const val DEFAULT_FREQUENCY_PENALTY = 0.0f
+        const val DEFAULT_REPETITION_PENALTY = 1.0f
     }
 
     // Get API Key as Flow
@@ -64,6 +91,38 @@ class ApiPreferences(private val context: Context) {
     val showThinkingFlow: Flow<Boolean> =
             context.apiDataStore.data.map { preferences ->
                 preferences[SHOW_THINKING] ?: DEFAULT_SHOW_THINKING
+            }
+
+    // DeepSeek Model Parameter Flows
+    val maxTokensFlow: Flow<Int> =
+            context.apiDataStore.data.map { preferences ->
+                preferences[MAX_TOKENS] ?: DEFAULT_MAX_TOKENS
+            }
+
+    val temperatureFlow: Flow<Float> =
+            context.apiDataStore.data.map { preferences ->
+                preferences[TEMPERATURE] ?: DEFAULT_TEMPERATURE
+            }
+
+    val topPFlow: Flow<Float> =
+            context.apiDataStore.data.map { preferences -> preferences[TOP_P] ?: DEFAULT_TOP_P }
+
+    val topKFlow: Flow<Int> =
+            context.apiDataStore.data.map { preferences -> preferences[TOP_K] ?: DEFAULT_TOP_K }
+
+    val presencePenaltyFlow: Flow<Float> =
+            context.apiDataStore.data.map { preferences ->
+                preferences[PRESENCE_PENALTY] ?: DEFAULT_PRESENCE_PENALTY
+            }
+
+    val frequencyPenaltyFlow: Flow<Float> =
+            context.apiDataStore.data.map { preferences ->
+                preferences[FREQUENCY_PENALTY] ?: DEFAULT_FREQUENCY_PENALTY
+            }
+
+    val repetitionPenaltyFlow: Flow<Float> =
+            context.apiDataStore.data.map { preferences ->
+                preferences[REPETITION_PENALTY] ?: DEFAULT_REPETITION_PENALTY
             }
 
     // Get Memory Optimization as Flow
@@ -108,6 +167,17 @@ class ApiPreferences(private val context: Context) {
                 preferences[AUTO_GRANT_ACCESSIBILITY] ?: DEFAULT_AUTO_GRANT_ACCESSIBILITY
             }
 
+    // Custom Prompt Flows
+    val customIntroPromptFlow: Flow<String> =
+            context.apiDataStore.data.map { preferences ->
+                preferences[CUSTOM_INTRO_PROMPT] ?: DEFAULT_INTRO_PROMPT
+            }
+
+    val customTonePromptFlow: Flow<String> =
+            context.apiDataStore.data.map { preferences ->
+                preferences[CUSTOM_TONE_PROMPT] ?: DEFAULT_TONE_PROMPT
+            }
+
     // Save API Key
     suspend fun saveApiKey(apiKey: String) {
         context.apiDataStore.edit { preferences -> preferences[API_KEY] = apiKey }
@@ -126,6 +196,39 @@ class ApiPreferences(private val context: Context) {
     // Save Show Thinking setting
     suspend fun saveShowThinking(showThinking: Boolean) {
         context.apiDataStore.edit { preferences -> preferences[SHOW_THINKING] = showThinking }
+    }
+
+    // Save DeepSeek Model Parameters
+    suspend fun saveMaxTokens(maxTokens: Int) {
+        context.apiDataStore.edit { preferences -> preferences[MAX_TOKENS] = maxTokens }
+    }
+
+    suspend fun saveTemperature(temperature: Float) {
+        context.apiDataStore.edit { preferences -> preferences[TEMPERATURE] = temperature }
+    }
+
+    suspend fun saveTopP(topP: Float) {
+        context.apiDataStore.edit { preferences -> preferences[TOP_P] = topP }
+    }
+
+    suspend fun saveTopK(topK: Int) {
+        context.apiDataStore.edit { preferences -> preferences[TOP_K] = topK }
+    }
+
+    suspend fun savePresencePenalty(presencePenalty: Float) {
+        context.apiDataStore.edit { preferences -> preferences[PRESENCE_PENALTY] = presencePenalty }
+    }
+
+    suspend fun saveFrequencyPenalty(frequencyPenalty: Float) {
+        context.apiDataStore.edit { preferences ->
+            preferences[FREQUENCY_PENALTY] = frequencyPenalty
+        }
+    }
+
+    suspend fun saveRepetitionPenalty(repetitionPenalty: Float) {
+        context.apiDataStore.edit { preferences ->
+            preferences[REPETITION_PENALTY] = repetitionPenalty
+        }
     }
 
     // Save Memory Optimization setting
@@ -170,7 +273,7 @@ class ApiPreferences(private val context: Context) {
         }
     }
 
-    // Update the saveAllSettings method to include the Auto Grant Accessibility setting
+    // Update the saveAllSettings method to include all model parameters
     suspend fun saveAllSettings(
             apiKey: String,
             endpoint: String,
@@ -180,7 +283,14 @@ class ApiPreferences(private val context: Context) {
             showFpsCounter: Boolean,
             enableAiPlanning: Boolean,
             collapseExecution: Boolean,
-            autoGrantAccessibility: Boolean = DEFAULT_AUTO_GRANT_ACCESSIBILITY
+            autoGrantAccessibility: Boolean = DEFAULT_AUTO_GRANT_ACCESSIBILITY,
+            maxTokens: Int = DEFAULT_MAX_TOKENS,
+            temperature: Float = DEFAULT_TEMPERATURE,
+            topP: Float = DEFAULT_TOP_P,
+            topK: Int = DEFAULT_TOP_K,
+            presencePenalty: Float = DEFAULT_PRESENCE_PENALTY,
+            frequencyPenalty: Float = DEFAULT_FREQUENCY_PENALTY,
+            repetitionPenalty: Float = DEFAULT_REPETITION_PENALTY
     ) {
         context.apiDataStore.edit { preferences ->
             preferences[API_KEY] = apiKey
@@ -192,6 +302,34 @@ class ApiPreferences(private val context: Context) {
             preferences[ENABLE_AI_PLANNING] = enableAiPlanning
             preferences[COLLAPSE_EXECUTION] = collapseExecution
             preferences[AUTO_GRANT_ACCESSIBILITY] = autoGrantAccessibility
+            preferences[MAX_TOKENS] = maxTokens
+            preferences[TEMPERATURE] = temperature
+            preferences[TOP_P] = topP
+            preferences[TOP_K] = topK
+            preferences[PRESENCE_PENALTY] = presencePenalty
+            preferences[FREQUENCY_PENALTY] = frequencyPenalty
+            preferences[REPETITION_PENALTY] = repetitionPenalty
+        }
+    }
+
+    // Save model parameters only
+    suspend fun saveModelParameters(
+            maxTokens: Int = DEFAULT_MAX_TOKENS,
+            temperature: Float = DEFAULT_TEMPERATURE,
+            topP: Float = DEFAULT_TOP_P,
+            topK: Int = DEFAULT_TOP_K,
+            presencePenalty: Float = DEFAULT_PRESENCE_PENALTY,
+            frequencyPenalty: Float = DEFAULT_FREQUENCY_PENALTY,
+            repetitionPenalty: Float = DEFAULT_REPETITION_PENALTY
+    ) {
+        context.apiDataStore.edit { preferences ->
+            preferences[MAX_TOKENS] = maxTokens
+            preferences[TEMPERATURE] = temperature
+            preferences[TOP_P] = topP
+            preferences[TOP_K] = topK
+            preferences[PRESENCE_PENALTY] = presencePenalty
+            preferences[FREQUENCY_PENALTY] = frequencyPenalty
+            preferences[REPETITION_PENALTY] = repetitionPenalty
         }
     }
 
@@ -204,6 +342,22 @@ class ApiPreferences(private val context: Context) {
 
             preferences[PREFERENCE_ANALYSIS_INPUT_TOKENS] = currentInputTokens + inputTokens
             preferences[PREFERENCE_ANALYSIS_OUTPUT_TOKENS] = currentOutputTokens + outputTokens
+        }
+    }
+
+    // Save custom prompts
+    suspend fun saveCustomPrompts(introPrompt: String, tonePrompt: String) {
+        context.apiDataStore.edit { preferences ->
+            preferences[CUSTOM_INTRO_PROMPT] = introPrompt
+            preferences[CUSTOM_TONE_PROMPT] = tonePrompt
+        }
+    }
+
+    // Reset custom prompts to default values
+    suspend fun resetCustomPrompts() {
+        context.apiDataStore.edit { preferences ->
+            preferences[CUSTOM_INTRO_PROMPT] = DEFAULT_INTRO_PROMPT
+            preferences[CUSTOM_TONE_PROMPT] = DEFAULT_TONE_PROMPT
         }
     }
 

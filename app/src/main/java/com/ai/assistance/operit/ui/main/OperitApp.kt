@@ -49,6 +49,7 @@ import com.ai.assistance.operit.ui.features.demo.screens.ShizukuDemoScreen
 import com.ai.assistance.operit.ui.features.help.screens.HelpScreen
 import com.ai.assistance.operit.ui.features.packages.screens.PackageManagerScreen
 import com.ai.assistance.operit.ui.features.problems.screens.ProblemLibraryScreen
+import com.ai.assistance.operit.ui.features.settings.screens.ModelParametersSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.SettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ToolPermissionSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.UserPreferencesGuideScreen
@@ -84,6 +85,7 @@ sealed class Screen {
         var profileId: String = ""
     }
     data object UserPreferencesSettings : Screen()
+    data object ModelParametersSettings : Screen()
 
     // Toolbox secondary screens
     data object FormatConverter : Screen()
@@ -470,6 +472,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                                 stringResource(
                                                         id = R.string.user_preferences_settings
                                                 )
+                                        is Screen.ModelParametersSettings -> "模型参数设置"
                                         is Screen.FormatConverter -> "万能格式转换"
                                         is Screen.FileManager -> "文件管理器"
                                         is Screen.Terminal -> "命令终端"
@@ -500,6 +503,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                         currentScreen is Screen.ToolPermission ||
                                         currentScreen is Screen.UserPreferencesGuide ||
                                         currentScreen is Screen.UserPreferencesSettings ||
+                                        currentScreen is Screen.ModelParametersSettings ||
                                         currentScreen is Screen.FormatConverter ||
                                         currentScreen is Screen.FileManager ||
                                         currentScreen is Screen.Terminal ||
@@ -521,6 +525,11 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                             }
                                             is Screen.UserPreferencesSettings -> {
                                                 // 如果在用户偏好设置页面，返回到设置页面
+                                                currentScreen = Screen.Settings
+                                                selectedItem = NavItem.Settings
+                                            }
+                                            is Screen.ModelParametersSettings -> {
+                                                // 如果在模型参数设置页面，返回到设置页面
                                                 currentScreen = Screen.Settings
                                                 selectedItem = NavItem.Settings
                                             }
@@ -547,6 +556,8 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                                                 Screen.UserPreferencesGuide ||
                                                         currentScreen is
                                                                 Screen.UserPreferencesSettings ||
+                                                        currentScreen is
+                                                                Screen.ModelParametersSettings ||
                                                         currentScreen is Screen.FormatConverter ||
                                                         currentScreen is Screen.FileManager ||
                                                         currentScreen is Screen.Terminal ||
@@ -560,7 +571,8 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                                 when (currentScreen) {
                                                     is Screen.ToolPermission,
                                                     is Screen.UserPreferencesGuide,
-                                                    is Screen.UserPreferencesSettings ->
+                                                    is Screen.UserPreferencesSettings,
+                                                    is Screen.ModelParametersSettings ->
                                                             stringResource(
                                                                     id = R.string.nav_settings
                                                             )
@@ -710,8 +722,12 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                             },
                                             onNavigateToUserPreferences = {
                                                 currentScreen = Screen.UserPreferencesSettings
+                                            },
+                                            navigateToModelParameters = {
+                                                currentScreen = Screen.ModelParametersSettings
                                             }
                                     )
+                            is Screen.ModelParametersSettings -> ModelParametersSettingsScreen()
                             is Screen.Packages -> PackageManagerScreen()
                             is Screen.ProblemLibrary -> {
                                 // 问题库页面

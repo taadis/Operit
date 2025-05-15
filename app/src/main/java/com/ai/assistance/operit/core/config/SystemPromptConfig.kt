@@ -327,6 +327,37 @@ object SystemPromptConfig {
     """.trimIndent()
 
   /**
+   * Applies custom prompt replacements from ApiPreferences to the system prompt
+   *
+   * @param systemPrompt The original system prompt
+   * @param customIntroPrompt The custom introduction prompt (about Operit)
+   * @param customTonePrompt The custom tone prompt (about helping tone)
+   * @return The system prompt with custom prompts applied
+   */
+  fun applyCustomPrompts(
+          systemPrompt: String,
+          customIntroPrompt: String,
+          customTonePrompt: String
+  ): String {
+    // The default prompts that will be replaced
+    val defaultIntroPrompt = "你是Operit，一个全能AI助手，旨在解决用户提出的任何任务。你有各种工具可以调用，以高效完成复杂的请求。"
+    val defaultTonePrompt = "保持有帮助的语气，并清楚地传达限制。使用问题库根据用户的风格、偏好和过去的信息个性化响应。"
+
+    // Replace the default prompts with custom ones if provided and non-empty
+    var result = systemPrompt
+
+    if (customIntroPrompt.isNotEmpty()) {
+      result = result.replace(defaultIntroPrompt, customIntroPrompt)
+    }
+
+    if (customTonePrompt.isNotEmpty()) {
+      result = result.replace(defaultTonePrompt, customTonePrompt)
+    }
+
+    return result
+  }
+
+  /**
    * Generates the system prompt with dynamic package information and planning mode if enabled
    *
    * @param packageManager The PackageManager instance to get package information from
@@ -405,6 +436,29 @@ object SystemPromptConfig {
             }
 
     return prompt
+  }
+
+  /**
+   * Generates the system prompt with dynamic package information, planning mode, and custom prompts
+   *
+   * @param packageManager The PackageManager instance to get package information from
+   * @param enablePlanning Whether planning mode is enabled
+   * @param customIntroPrompt Custom introduction prompt text
+   * @param customTonePrompt Custom tone prompt text
+   * @return The complete system prompt with custom prompts, package information and planning
+   * details
+   */
+  fun getSystemPromptWithCustomPrompts(
+          packageManager: PackageManager,
+          enablePlanning: Boolean = false,
+          customIntroPrompt: String,
+          customTonePrompt: String
+  ): String {
+    // Get the base system prompt
+    val basePrompt = getSystemPrompt(packageManager, enablePlanning, false)
+
+    // Apply custom prompts
+    return applyCustomPrompts(basePrompt, customIntroPrompt, customTonePrompt)
   }
 
   /** Original method for backward compatibility */

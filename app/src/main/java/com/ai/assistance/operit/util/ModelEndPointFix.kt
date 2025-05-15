@@ -19,6 +19,16 @@ object ModelEndPointFix {
     private const val REQUIRED_ENDPOINT_SUFFIX = "v1/chat/completions"
     
     /**
+     * Checks if the endpoint contains "completions" which suggests it might be a valid completion API endpoint
+     * without enforcing the exact v1/chat/completions format.
+     */
+    fun containsCompletionsPath(endpoint: String): Boolean {
+        if (endpoint.isBlank()) return false
+        
+        return endpoint.contains("completions", ignoreCase = true)
+    }
+    
+    /**
      * Validates if the given API endpoint is properly formatted and ends with the required path.
      * 
      * @param endpoint The API endpoint to validate
@@ -128,5 +138,26 @@ object ModelEndPointFix {
         }
         
         return false
+    }
+    
+    /**
+     * Checks the API endpoint and returns a warning message if it doesn't contain completions path.
+     * Does not perform any auto-fixing.
+     * 
+     * @param endpoint Current endpoint value
+     * @return Warning message if the endpoint might need attention, null otherwise
+     */
+    fun checkEndpointAndWarn(endpoint: String): String? {
+        if (endpoint.isBlank()) {
+            return null
+        }
+        
+        // Only check if it contains "completions" path
+        if (!containsCompletionsPath(endpoint)) {
+            Log.d(TAG, "Warning: API endpoint '$endpoint' might need completions path")
+            return "提示: API地址可能需要包含补全路径(如v1/chat/completions)"
+        }
+        
+        return null
     }
 } 

@@ -23,7 +23,11 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onNavigateToUserPreferences: () -> Unit, navigateToToolPermissions: () -> Unit) {
+fun SettingsScreen(
+        onNavigateToUserPreferences: () -> Unit,
+        navigateToToolPermissions: () -> Unit,
+        navigateToModelParameters: () -> Unit
+) {
         val context = LocalContext.current
         val apiPreferences = remember { ApiPreferences(context) }
         val scope = rememberCoroutineScope()
@@ -77,6 +81,10 @@ fun SettingsScreen(onNavigateToUserPreferences: () -> Unit, navigateToToolPermis
         var autoGrantAccessibilityInput by remember { mutableStateOf(autoGrantAccessibility) }
         var showSaveSuccessMessage by remember { mutableStateOf(false) }
 
+        // Add state for endpoint warning
+        var endpointWarningMessage by remember { mutableStateOf<String?>(null) }
+        var showEndpointWarning by remember { mutableStateOf(false) }
+
         // Update local state when preferences change
         LaunchedEffect(
                 apiKey,
@@ -123,15 +131,17 @@ fun SettingsScreen(onNavigateToUserPreferences: () -> Unit, navigateToToolPermis
                                         onValueChange = {
                                                 apiEndpointInput = it
 
-                                                // Try to fix the endpoint on-the-fly if user
-                                                // removes focus
-                                                if (!ModelEndPointFix.isValidEndpoint(it) &&
-                                                                it.isNotBlank()
+                                                // Check if the endpoint contains 'completions' path
+                                                // but don't auto-fix, instead show a warning
+                                                if (it.isNotBlank() &&
+                                                                !ModelEndPointFix
+                                                                        .containsCompletionsPath(it)
                                                 ) {
-                                                        ModelEndPointFix.fixEndpoint(it)?.let {
-                                                                fixed ->
-                                                                apiEndpointInput = fixed
-                                                        }
+                                                        endpointWarningMessage =
+                                                                "提示：API地址应包含补全路径，如v1/chat/completions"
+                                                        showEndpointWarning = true
+                                                } else {
+                                                        showEndpointWarning = false
                                                 }
                                         },
                                         label = {
@@ -139,6 +149,17 @@ fun SettingsScreen(onNavigateToUserPreferences: () -> Unit, navigateToToolPermis
                                         },
                                         modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
                                 )
+
+                                // Display warning message if needed
+                                if (showEndpointWarning) {
+                                        Text(
+                                                text = endpointWarningMessage ?: "",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.error,
+                                                modifier = Modifier.padding(bottom = 8.dp),
+                                                fontSize = 12.sp
+                                        )
+                                }
 
                                 OutlinedTextField(
                                         value = apiKeyInput,
@@ -158,33 +179,28 @@ fun SettingsScreen(onNavigateToUserPreferences: () -> Unit, navigateToToolPermis
                                 Button(
                                         onClick = {
                                                 scope.launch {
-                                                        // Check and fix the endpoint before saving
-                                                        val endpointToSave =
-                                                                if (!ModelEndPointFix
-                                                                                .isValidEndpoint(
+                                                        // Check if the endpoint might be missing
+                                                        // completions path
+                                                        // but allow user to save it anyway with a
+                                                        // warning
+                                                        if (apiEndpointInput.isNotBlank() &&
+                                                                        !ModelEndPointFix
+                                                                                .containsCompletionsPath(
                                                                                         apiEndpointInput
                                                                                 )
-                                                                ) {
-                                                                        // Try to fix the endpoint
-                                                                        ModelEndPointFix
-                                                                                .fixEndpoint(
-                                                                                        apiEndpointInput
-                                                                                )
-                                                                                ?: apiEndpointInput
-                                                                } else {
-                                                                        apiEndpointInput
-                                                                }
+                                                        ) {
+                                                                endpointWarningMessage =
+                                                                        "警告：您的API地址不包含补全路径（如v1/chat/completions）。请确保这是您想要的配置。"
+                                                                showEndpointWarning = true
 
-                                                        // Update the UI if endpoint was fixed
-                                                        if (endpointToSave != apiEndpointInput) {
-                                                                apiEndpointInput = endpointToSave
+                                                                // Still proceed with saving
                                                         }
 
+                                                        // Save settings with the user's input as-is
                                                         apiPreferences.saveAllSettings(
                                                                 apiKeyInput,
-                                                                endpointToSave, // Use the
-                                                                // potentially fixed
-                                                                // endpoint
+                                                                apiEndpointInput, // Use the user's
+                                                                // input directly
                                                                 modelNameInput,
                                                                 showThinkingInput,
                                                                 memoryOptimizationInput,
@@ -213,6 +229,28 @@ fun SettingsScreen(onNavigateToUserPreferences: () -> Unit, navigateToToolPermis
                                                 textAlign = TextAlign.Center
                                         )
                                 }
+                        }
+                }
+
+                // 模型参数设置卡片
+                Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                        text = "模型参数设置",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        modifier = Modifier.padding(bottom = 16.dp)
+                                )
+
+                                Text(
+                                        text = "配置DeepSeek大模型的参数，包括温度、Token生成数量、采样方式和惩罚系数等",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.padding(bottom = 16.dp)
+                                )
+
+                                Button(
+                                        onClick = navigateToModelParameters,
+                                        modifier = Modifier.align(Alignment.End)
+                                ) { Text("配置模型参数") }
                         }
                 }
 
@@ -648,5 +686,26 @@ private fun TokenStatRow(
                                         else MaterialTheme.colorScheme.onSurface
                         )
                 }
+        }
+}
+
+@Composable
+private fun TemperatureRecommendationRow(useCase: String, tempValue: String) {
+        Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+        ) {
+                Text(
+                        text = useCase,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Text(
+                        text = tempValue,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary
+                )
         }
 }

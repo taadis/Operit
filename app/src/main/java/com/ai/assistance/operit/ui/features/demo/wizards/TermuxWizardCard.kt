@@ -22,7 +22,9 @@ fun TermuxWizardCard(
         isUvInstalled: Boolean = false,
         isNodeInstalled: Boolean = false,
         isTermuxRunning: Boolean = false,
+        isTermuxBatteryOptimizationExempted: Boolean = false,
         onStartTermux: () -> Unit = {},
+        onRequestTermuxBatteryOptimization: () -> Unit = {},
         onConfigureTunaSource: () -> Unit = {},
         onInstallPythonEnv: () -> Unit = {},
         onInstallUvEnv: () -> Unit = {},
@@ -64,12 +66,13 @@ fun TermuxWizardCard(
                                 progress =
                                         when {
                                                 !isTermuxInstalled -> 0f
-                                                !isTermuxAuthorized -> 0.14f
-                                                !isTermuxRunning -> 0.28f
-                                                !isTunaSourceEnabled -> 0.42f
-                                                !isPythonInstalled -> 0.56f
-                                                !isUvInstalled -> 0.7f
-                                                !isNodeInstalled -> 0.85f
+                                                !isTermuxAuthorized -> 0.125f
+                                                !isTermuxRunning -> 0.25f
+                                                !isTermuxBatteryOptimizationExempted -> 0.375f
+                                                !isTunaSourceEnabled -> 0.5f
+                                                !isPythonInstalled -> 0.625f
+                                                !isUvInstalled -> 0.75f
+                                                !isNodeInstalled -> 0.875f
                                                 else -> 1f
                                         },
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
@@ -82,10 +85,12 @@ fun TermuxWizardCard(
                                                 !isTermuxInstalled -> "步骤1：安装Termux"
                                                 !isTermuxAuthorized -> "步骤2：授权Termux"
                                                 !isTermuxRunning -> "步骤3：启动Termux"
-                                                !isTunaSourceEnabled -> "步骤4：配置清华源"
-                                                !isPythonInstalled -> "步骤5：安装Python环境"
-                                                !isUvInstalled -> "步骤6：安装UV包管理器"
-                                                !isNodeInstalled -> "步骤7：安装Node.js环境"
+                                                !isTermuxBatteryOptimizationExempted ->
+                                                        "步骤4：设置电池优化豁免"
+                                                !isTunaSourceEnabled -> "步骤5：配置清华源"
+                                                !isPythonInstalled -> "步骤6：安装Python环境"
+                                                !isUvInstalled -> "步骤7：安装UV包管理器"
+                                                !isNodeInstalled -> "步骤8：安装Node.js环境"
                                                 else -> "Termux配置完成"
                                         },
                                 style = MaterialTheme.typography.labelMedium,
@@ -226,7 +231,7 @@ fun TermuxWizardCard(
                                                 }
                                         }
 
-                                        // 第三步：启动Termux（新增步骤）
+                                        // 第三步：启动Termux
                                         !isTermuxRunning -> {
                                                 Text(
                                                         "Termux已安装并授权，但当前未运行。配置操作需要Termux在后台运行。",
@@ -284,10 +289,69 @@ fun TermuxWizardCard(
                                                 ) { Text("启动Termux") }
                                         }
 
-                                        // 第四步：配置清华源
+                                        // 第四步：电池优化豁免
+                                        !isTermuxBatteryOptimizationExempted -> {
+                                                Text(
+                                                        "Termux已启动，现在需要为Termux设置电池优化豁免，这样它才能在后台长时间稳定运行。",
+                                                        color =
+                                                                MaterialTheme.colorScheme
+                                                                        .onPrimaryContainer,
+                                                        modifier = Modifier.padding(bottom = 8.dp)
+                                                )
+
+                                                // 电池优化豁免说明
+                                                Card(
+                                                        colors =
+                                                                CardDefaults.cardColors(
+                                                                        containerColor =
+                                                                                MaterialTheme
+                                                                                        .colorScheme
+                                                                                        .surface
+                                                                ),
+                                                        modifier =
+                                                                Modifier.fillMaxWidth()
+                                                                        .padding(bottom = 8.dp)
+                                                ) {
+                                                        Column(modifier = Modifier.padding(16.dp)) {
+                                                                Text(
+                                                                        text = "电池优化豁免说明",
+                                                                        fontWeight =
+                                                                                FontWeight.Bold,
+                                                                        color =
+                                                                                MaterialTheme
+                                                                                        .colorScheme
+                                                                                        .onSurface,
+                                                                        modifier =
+                                                                                Modifier.padding(
+                                                                                        bottom =
+                                                                                                4.dp
+                                                                                )
+                                                                )
+                                                                Text(
+                                                                        text =
+                                                                                "Android系统的电池优化功能可能会在后台关闭Termux，影响脚本和服务的正常运行。点击「设置电池优化豁免」按钮，然后在系统设置中选择「允许」，使Termux不受电池优化的限制。",
+                                                                        color =
+                                                                                MaterialTheme
+                                                                                        .colorScheme
+                                                                                        .onSurface
+                                                                )
+                                                        }
+                                                }
+
+                                                // 电池优化豁免按钮
+                                                Button(
+                                                        onClick =
+                                                                onRequestTermuxBatteryOptimization,
+                                                        modifier =
+                                                                Modifier.fillMaxWidth()
+                                                                        .padding(vertical = 8.dp)
+                                                ) { Text("设置电池优化豁免") }
+                                        }
+
+                                        // 第五步：配置清华源
                                         !isTunaSourceEnabled -> {
                                                 Text(
-                                                        "Termux已授权，现在需要配置清华源以加速软件包下载。",
+                                                        "Termux已设置电池优化豁免，现在需要配置清华源以加速软件包下载。",
                                                         color =
                                                                 MaterialTheme.colorScheme
                                                                         .onPrimaryContainer,
@@ -342,7 +406,7 @@ fun TermuxWizardCard(
                                                 ) { Text("配置清华源") }
                                         }
 
-                                        // 第五步：安装Python环境
+                                        // 第六步：安装Python环境
                                         !isPythonInstalled -> {
                                                 Text(
                                                         "清华源已配置，现在需要安装Python环境。",
@@ -399,8 +463,8 @@ fun TermuxWizardCard(
                                                                         .padding(vertical = 8.dp)
                                                 ) { Text("安装Python") }
                                         }
-                                        
-                                        // 第六步：安装UV包管理器
+
+                                        // 第七步：安装UV包管理器
                                         !isUvInstalled -> {
                                                 Text(
                                                         "Python已安装，现在需要安装UV包管理器。",
@@ -458,7 +522,7 @@ fun TermuxWizardCard(
                                                 ) { Text("安装UV") }
                                         }
 
-                                        // 第七步：安装Node.js环境
+                                        // 第八步：安装Node.js环境
                                         !isNodeInstalled -> {
                                                 Text(
                                                         "UV已安装，现在需要安装Node.js环境。",

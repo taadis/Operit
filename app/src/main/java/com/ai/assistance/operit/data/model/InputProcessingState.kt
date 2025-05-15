@@ -32,4 +32,10 @@ sealed class InputProcessingState {
      * Processing has completed
      */
     object Completed : InputProcessingState()
+    
+    /**
+     * Processing encountered an error
+     * @param message Error message describing what went wrong
+     */
+    data class Error(val message: String) : InputProcessingState()
 } 

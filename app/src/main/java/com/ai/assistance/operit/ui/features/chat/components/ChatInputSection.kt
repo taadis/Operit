@@ -52,7 +52,7 @@ fun ChatInputSection(
         onAttachProblemMemory: (String, String) -> Unit = { _, _ -> },
         modifier: Modifier = Modifier
 ) {
-        val modernTextStyle = TextStyle(fontSize = 14.sp)
+        val modernTextStyle = TextStyle(fontSize = 13.sp, lineHeight = 16.sp)
 
         val isProcessing = isLoading || isProcessingInput
 
@@ -146,8 +146,8 @@ fun ChatInputSection(
                                 modifier =
                                         Modifier.fillMaxWidth()
                                                 .padding(horizontal = 16.dp)
-                                                .padding(top = 4.dp, bottom = 8.dp)
-                                                .height(60.dp),
+                                                .padding(top = 8.dp, bottom = 8.dp)
+                                                .wrapContentHeight(),
                                 verticalAlignment = Alignment.CenterVertically
                         ) {
                                 // Input field (保持原有高度)
@@ -157,35 +157,27 @@ fun ChatInputSection(
                                         placeholder = {
                                                 Text("请输入您的问题...", style = modernTextStyle)
                                         },
-                                        modifier = Modifier.weight(1f).height(48.dp),
+                                        modifier = Modifier.weight(1f).heightIn(min = 38.dp),
                                         textStyle = modernTextStyle,
-                                        maxLines = 1, // Force single line
-                                        singleLine = true,
-                                        keyboardOptions =
-                                                KeyboardOptions(imeAction = ImeAction.Send),
-                                        keyboardActions =
-                                                KeyboardActions(
-                                                        onSend = {
-                                                                if (!isProcessing) onSendMessage()
-                                                        }
-                                                ),
-                                        colors =
-                                                OutlinedTextFieldDefaults.colors(
-                                                        focusedBorderColor =
-                                                                MaterialTheme.colorScheme.primary,
-                                                        unfocusedBorderColor =
-                                                                MaterialTheme.colorScheme.outline
-                                                ),
-                                        shape = RoundedCornerShape(20.dp),
+                                        maxLines = 5,
+                                        minLines = 1,
+                                        singleLine = false,
+                                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
+                                        keyboardActions = KeyboardActions(),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                                unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                                        ),
+                                        shape = RoundedCornerShape(16.dp),
                                         enabled = !isProcessing
                                 )
 
                                 Spacer(modifier = Modifier.width(12.dp))
 
-                                // Attachment button (+ 按钮)
+                                // Attachment button (+ 按钮) - 确保圆形
                                 Box(
                                         modifier =
-                                                Modifier.size(36.dp)
+                                                Modifier.size(42.dp)
                                                         .clip(CircleShape)
                                                         .background(
                                                                 if (showAttachmentPanel)
@@ -214,16 +206,16 @@ fun ChatInputSection(
                                                         else
                                                                 MaterialTheme.colorScheme
                                                                         .onSurfaceVariant,
-                                                modifier = Modifier.size(18.dp)
+                                                modifier = Modifier.size(22.dp)
                                         )
                                 }
 
                                 Spacer(modifier = Modifier.width(12.dp))
 
-                                // Send button (发送按钮)
+                                // Send button (发送按钮) - 确保圆形
                                 Box(
                                         modifier =
-                                                Modifier.size(36.dp)
+                                                Modifier.size(42.dp)
                                                         .clip(CircleShape)
                                                         .background(
                                                                 when {
@@ -275,7 +267,7 @@ fun ChatInputSection(
                                                         if (isProcessing)
                                                                 MaterialTheme.colorScheme.onError
                                                         else MaterialTheme.colorScheme.onPrimary,
-                                                modifier = Modifier.size(18.dp)
+                                                modifier = Modifier.size(22.dp)
                                         )
                                 }
                         }
