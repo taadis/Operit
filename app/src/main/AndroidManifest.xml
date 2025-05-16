@@ -122,7 +122,7 @@
         
         <!-- 添加广播接收器配置 -->
         <receiver
-            android:name=".tools.javascript.ScriptExecutionReceiver"
+            android:name=".core.tools.javascript.ScriptExecutionReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="com.ai.assistance.operit.EXECUTE_JS" />

@@ -443,6 +443,9 @@ class JsEngine(private val context: Context) {
             // 加载 AndroidUtils 库
             ${loadAndroidUtilsJs(context)}
             
+            // 加载 OkHttp3 库
+            ${loadOkHttp3Js(context)}
+            
             // 函数处理异步Promise的辅助函数
             function __handleAsync(possiblePromise) {
                 if (possiblePromise instanceof Promise) {
@@ -1004,7 +1007,7 @@ class JsEngine(private val context: Context) {
                                     val resultString = result.result.toString()
                                     Log.d(
                                             TAG,
-                                            "[Async] Tool execution succeeded: ${resultString.take(300)}${if (resultString.length > 300) "..." else ""}"
+                                            "[Async] Tool execution succeeded: ${resultString.take(1000)}${if (resultString.length > 1000) "..." else ""}"
                                     )
                                     // 发送成功结果回调
                                     val resultJson =

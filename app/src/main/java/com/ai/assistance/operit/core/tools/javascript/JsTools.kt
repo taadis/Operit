@@ -41,7 +41,17 @@ fun getJsToolsDefinition(): String {
                 httpGet: (url) => toolCall("http_request", { url, method: "GET" }),
                 httpPost: (url, data) => toolCall("http_request", { url, method: "POST", data }),
                 search: (query) => toolCall("web_search", { query }),
-                fetchPage: (url) => toolCall("fetch_web_page", { url })
+                fetchPage: (url) => toolCall("fetch_web_page", { url }),
+                // 新增增强版HTTP请求
+                http: (options) => toolCall("http_request", options),
+                // 新增文件上传
+                uploadFile: (options) => toolCall("multipart_request", options),
+                // 新增Cookie管理
+                cookies: {
+                    get: (domain) => toolCall("manage_cookies", { action: "get", domain }),
+                    set: (domain, cookies) => toolCall("manage_cookies", { action: "set", domain, cookies }),
+                    clear: (domain) => toolCall("manage_cookies", { action: "clear", domain })
+                }
             },
             // 系统操作
             System: {

@@ -219,7 +219,8 @@ data class HttpResponseData(
         val contentType: String,
         val content: String,
         val contentSummary: String,
-        val size: Int
+        val size: Int,
+        val cookies: Map<String, String> = emptyMap()
 ) : ToolResultData() {
     override fun toString(): String {
         val sb = StringBuilder()
@@ -228,6 +229,18 @@ data class HttpResponseData(
         sb.appendLine("Status: $statusCode $statusMessage")
         sb.appendLine("Content-Type: $contentType")
         sb.appendLine("Size: $size bytes")
+
+        // 添加Cookie信息
+        if (cookies.isNotEmpty()) {
+            sb.appendLine("Cookies: ${cookies.size}")
+            cookies.entries.take(5).forEach { (name, value) ->
+                sb.appendLine("  $name: ${value.take(30)}${if (value.length > 30) "..." else ""}")
+            }
+            if (cookies.size > 5) {
+                sb.appendLine("  ... and ${cookies.size - 5} more cookies")
+            }
+        }
+
         sb.appendLine()
         sb.appendLine("Content Summary:")
         sb.append(contentSummary)
@@ -747,7 +760,7 @@ data class LocationData(
         sb.appendLine(
                 "获取时间: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(java.util.Date(timestamp))}"
         )
-        
+
         if (address.isNotEmpty()) {
             sb.appendLine("地址: $address")
         }
@@ -760,7 +773,7 @@ data class LocationData(
         if (country.isNotEmpty()) {
             sb.appendLine("国家: $country")
         }
-        
+
         return sb.toString()
     }
 }
