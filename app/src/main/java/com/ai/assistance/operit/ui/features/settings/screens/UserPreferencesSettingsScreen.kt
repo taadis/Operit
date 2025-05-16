@@ -45,6 +45,9 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import android.app.DatePickerDialog as AndroidDatePickerDialog
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.foundation.rememberScrollState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -748,6 +751,16 @@ fun ModernPreferenceCategoryItem(
         label = "elevation"
     )
     
+    // 为每个类别提供预设的标签选项
+    val tagOptions = when (title) {
+        "性别" -> listOf("男", "女", "其他", "不愿透露")
+        "性格特点" -> listOf("开朗", "内向", "严谨", "幽默", "理性", "感性", "乐观", "冷静")
+        "身份认同" -> listOf("学生", "专业人士", "父母", "教师", "研究者", "程序员", "创作者", "企业家")
+        "职业" -> listOf("IT/互联网", "金融", "教育", "医疗", "文化/艺术", "服务业", "制造业", "自由职业")
+        "AI风格" -> listOf("专业", "友好", "简明", "详细", "有趣", "技术性", "教学式", "对话式")
+        else -> emptyList()
+    }
+    
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -872,37 +885,57 @@ fun ModernPreferenceCategoryItem(
                             }
                         }
                     } else {
-                        OutlinedTextField(
-                            value = editValue,
-                            onValueChange = { 
-                                if (isNumeric) {
-                                    if (it.all { char -> char.isDigit() } || it.isEmpty()) {
+                        Column {
+                            // 添加标签选择区域（仅当该类别有预设标签选项时显示）
+                            if (tagOptions.isNotEmpty()) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 8.dp)
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    TagSelector(
+                                        options = tagOptions,
+                                        currentValue = editValue,
+                                        onValueChange = onValueChange,
+                                        enabled = !isLocked
+                                    )
+                                }
+                            }
+                            
+                            OutlinedTextField(
+                                value = editValue,
+                                onValueChange = { 
+                                    if (isNumeric) {
+                                        if (it.all { char -> char.isDigit() } || it.isEmpty()) {
+                                            onValueChange(it)
+                                        }
+                                    } else {
                                         onValueChange(it)
                                     }
-                                } else {
-                                    onValueChange(it)
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(50.dp),
+                                enabled = !isLocked,
+                                textStyle = LocalTextStyle.current.copy(fontSize = 16.sp),
+                                shape = RoundedCornerShape(6.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                                    disabledBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                    disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                ),
+                                placeholder = { 
+                                    Text(
+                                        placeholder,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                        fontSize = 16.sp
+                                    ) 
                                 }
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(50.dp),
-                            enabled = !isLocked,
-                            textStyle = LocalTextStyle.current.copy(fontSize = 16.sp),
-                            shape = RoundedCornerShape(6.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                                disabledBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                                disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            ),
-                            placeholder = { 
-                                Text(
-                                    placeholder,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                    fontSize = 16.sp
-                                ) 
-                            }
-                        )
+                            )
+                        }
                     }
                 } else {
                     val displayText = if (value == "未设置") {
@@ -925,4 +958,87 @@ fun ModernPreferenceCategoryItem(
             }
         }
     }
+}
+
+@Composable
+fun TagSelector(
+    options: List<String>,
+    currentValue: String,
+    onValueChange: (String) -> Unit,
+    enabled: Boolean = true
+) {
+    options.forEach { option ->
+        val isSelected = currentValue.contains(option)
+        
+        FilterChip(
+            selected = isSelected,
+            onClick = {
+                // 如果已经选中，那么移除该选项
+                // 如果未选中，则添加该选项（追加在已有文本后）
+                if (isSelected) {
+                    val newValue = currentValue.replace(option, "").trim()
+                    onValueChange(newValue)
+                } else {
+                    // 如果当前为空，直接设置为该选项，否则添加在后面
+                    val newValue = if (currentValue.isBlank()) option else "$currentValue $option"
+                    onValueChange(newValue)
+                }
+            },
+            enabled = enabled,
+            label = {
+                Text(
+                    text = option,
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            },
+            colors = FilterChipDefaults.filterChipColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                disabledLabelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+            ),
+            border = FilterChipDefaults.filterChipBorder(
+                enabled = enabled,
+                selected = isSelected,
+                borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                selectedBorderColor = MaterialTheme.colorScheme.primary
+            ),
+            modifier = Modifier.height(32.dp)
+        )
+    }
+    
+    // 添加自定义标签按钮
+    FilterChip(
+        selected = false,
+        onClick = { /* 这里可以添加显示输入自定义标签的对话框 */ },
+        enabled = enabled,
+        leadingIcon = {
+            Icon(
+                Icons.Default.Add,
+                contentDescription = "添加自定义标签",
+                modifier = Modifier.size(18.dp)
+            )
+        },
+        label = {
+            Text(
+                text = "自定义",
+                fontSize = 14.sp,
+                maxLines = 1
+            )
+        },
+        colors = FilterChipDefaults.filterChipColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+            labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+        ),
+        border = FilterChipDefaults.filterChipBorder(
+            enabled = enabled,
+            selected = false,
+            borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+        ),
+        modifier = Modifier.height(32.dp)
+    )
 } 

@@ -768,8 +768,21 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
             ) { AppContent() }
         } else {
             // 手机布局 - 使用模态导航抽屉
+            val drawerWidth = (screenWidthDp * 0.75).dp // 设置抽屉宽度为屏幕的3/4
+            
             ModalNavigationDrawer(
-                    drawerContent = { ModalDrawerSheet { DrawerContent() } },
+                    drawerContent = { 
+                        ModalDrawerSheet(
+                            modifier = Modifier.width(drawerWidth),
+                            drawerContainerColor = MaterialTheme.colorScheme.surface,
+                            drawerContentColor = MaterialTheme.colorScheme.onSurface
+                        ) { 
+                            DrawerContent() 
+                        } 
+                    },
+                    // 启用点击右侧区域关闭抽屉
+                    scrimColor = Color.Black.copy(alpha = 0.32f), // 半透明遮罩
+                    gesturesEnabled = true, // 启用手势
                     drawerState = drawerState
             ) { AppContent() }
         }

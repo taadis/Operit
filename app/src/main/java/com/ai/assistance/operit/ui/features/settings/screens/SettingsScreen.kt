@@ -85,6 +85,20 @@ fun SettingsScreen(
         var endpointWarningMessage by remember { mutableStateOf<String?>(null) }
         var showEndpointWarning by remember { mutableStateOf(false) }
 
+        // Add state to check if using default API key
+        val isUsingDefaultApiKey = apiKeyInput == ApiPreferences.DEFAULT_API_KEY
+        var showModelRestrictionInfo by remember { mutableStateOf(isUsingDefaultApiKey) }
+
+        // Force deepseek-chat model when using default API key
+        LaunchedEffect(apiKeyInput) {
+                if (apiKeyInput == ApiPreferences.DEFAULT_API_KEY) {
+                        modelNameInput = ApiPreferences.DEFAULT_MODEL_NAME
+                        showModelRestrictionInfo = true
+                } else {
+                        showModelRestrictionInfo = false
+                }
+        }
+
         // Update local state when preferences change
         LaunchedEffect(
                 apiKey,
@@ -163,7 +177,17 @@ fun SettingsScreen(
 
                                 OutlinedTextField(
                                         value = apiKeyInput,
-                                        onValueChange = { apiKeyInput = it },
+                                        onValueChange = { 
+                                            apiKeyInput = it 
+                                            
+                                            // 当API密钥改变时立即检查是否需要限制模型名称
+                                            if (it == ApiPreferences.DEFAULT_API_KEY) {
+                                                modelNameInput = ApiPreferences.DEFAULT_MODEL_NAME
+                                                showModelRestrictionInfo = true
+                                            } else {
+                                                showModelRestrictionInfo = false
+                                            }
+                                        },
                                         label = { Text(stringResource(id = R.string.api_key)) },
                                         visualTransformation = PasswordVisualTransformation(),
                                         modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
@@ -171,10 +195,61 @@ fun SettingsScreen(
 
                                 OutlinedTextField(
                                         value = modelNameInput,
-                                        onValueChange = { modelNameInput = it },
+                                        onValueChange = {
+                                                // Only allow changing model name when not using
+                                                // default API key
+                                                if (!isUsingDefaultApiKey) {
+                                                        modelNameInput = it
+                                                }
+                                        },
                                         label = { Text(stringResource(id = R.string.model_name)) },
-                                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                                        enabled = !isUsingDefaultApiKey,
+                                        colors =
+                                                OutlinedTextFieldDefaults.colors(
+                                                        disabledTextColor =
+                                                                if (isUsingDefaultApiKey)
+                                                                        MaterialTheme.colorScheme
+                                                                                .primary
+                                                                else
+                                                                        MaterialTheme.colorScheme
+                                                                                .onSurface.copy(
+                                                                                alpha = 0.38f
+                                                                        ),
+                                                        disabledBorderColor =
+                                                                if (isUsingDefaultApiKey)
+                                                                        MaterialTheme.colorScheme
+                                                                                .primary.copy(
+                                                                                alpha = 0.3f
+                                                                        )
+                                                                else
+                                                                        MaterialTheme.colorScheme
+                                                                                .outline.copy(
+                                                                                alpha = 0.12f
+                                                                        ),
+                                                        disabledLabelColor =
+                                                                if (isUsingDefaultApiKey)
+                                                                        MaterialTheme.colorScheme
+                                                                                .primary.copy(
+                                                                                alpha = 0.7f
+                                                                        )
+                                                                else
+                                                                        MaterialTheme.colorScheme
+                                                                                .onSurfaceVariant
+                                                                                .copy(alpha = 0.38f)
+                                                )
                                 )
+
+                                // Show model restriction message when using default API key
+                                if (showModelRestrictionInfo) {
+                                        Text(
+                                                text = "使用默认配置时，只能使用deepseek-chat模型",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.padding(bottom = 16.dp),
+                                                fontSize = 12.sp
+                                        )
+                                }
 
                                 Button(
                                         onClick = {
@@ -196,12 +271,27 @@ fun SettingsScreen(
                                                                 // Still proceed with saving
                                                         }
 
+                                                        // Force deepseek-chat model when using
+                                                        // default API key
+                                                        val modelToSave =
+                                                                if (apiKeyInput ==
+                                                                                ApiPreferences
+                                                                                        .DEFAULT_API_KEY
+                                                                ) {
+                                                                        ApiPreferences
+                                                                                .DEFAULT_MODEL_NAME
+                                                                } else {
+                                                                        modelNameInput
+                                                                }
+
                                                         // Save settings with the user's input as-is
                                                         apiPreferences.saveAllSettings(
                                                                 apiKeyInput,
                                                                 apiEndpointInput, // Use the user's
                                                                 // input directly
-                                                                modelNameInput,
+                                                                modelToSave, // Use forced model if
+                                                                // using default API
+                                                                // key
                                                                 showThinkingInput,
                                                                 memoryOptimizationInput,
                                                                 showFpsCounterInput,
