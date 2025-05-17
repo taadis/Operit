@@ -31,7 +31,7 @@ class ChatHistoryDelegate(
     companion object {
         private const val TAG = "ChatHistoryDelegate"
         // 聊天总结的消息数量阈值和间隔
-        private const val SUMMARY_CHUNK_SIZE = 10
+        private const val SUMMARY_CHUNK_SIZE = 12
     }
 
     // 聊天历史管理器
@@ -39,9 +39,6 @@ class ChatHistoryDelegate(
 
     // API设置，用于获取内存优化设置
     private val apiPreferences = ApiPreferences(context)
-
-    // 记录上次总结的位置
-    private var lastSummarizedIndex = 0
 
     // 加载状态跟踪
     private var historiesLoaded = false
@@ -155,10 +152,7 @@ class ChatHistoryDelegate(
                 // 确保计划项被清空
                 resetPlanItems()
 
-                // 重置总结位置
-                lastSummarizedIndex = 0
-
-                Log.d(TAG, "新聊天创建完成，重置总结索引")
+                Log.d(TAG, "新聊天创建完成")
             } catch (e: Exception) {
                 Log.e(TAG, "创建新聊天失败", e)
             }
@@ -189,14 +183,6 @@ class ChatHistoryDelegate(
 
                     // 从聊天历史中重新提取计划项
                     Log.d(TAG, "从聊天历史中重新提取计划项")
-
-                    // 重置总结索引 - 计算当前已有的user/ai消息数量
-                    val userAiMessages =
-                            selectedChat.messages.filter {
-                                it.sender == "user" || it.sender == "ai"
-                            }
-                    lastSummarizedIndex = userAiMessages.size
-                    Log.d(TAG, "切换聊天，设置总结索引为 $lastSummarizedIndex")
 
                     // 检查是否存在总结消息
                     val hasSummary = selectedChat.messages.any { it.sender == "summary" }
@@ -244,9 +230,7 @@ class ChatHistoryDelegate(
                 // 通知ViewModel聊天历史已清空
                 onChatHistoryLoaded(emptyList())
 
-                // 重置总结位置
-                lastSummarizedIndex = 0
-                Log.d(TAG, "清空聊天，重置总结索引")
+                Log.d(TAG, "清空聊天")
 
                 // 通知ViewModel重置token统计
                 onTokenStatisticsLoaded(0, 0)
@@ -349,36 +333,16 @@ class ChatHistoryDelegate(
                                     lastUserIndex
                             )
 
-                    // 检查最近的消息中是否已经有总结消息
-                    val recentMessages = updatedMessages.takeLast(minOf(SUMMARY_CHUNK_SIZE, updatedMessages.size))
-                    val hasRecentSummary = recentMessages.any { it.sender == "summary" }
+                    // 检查是否需要生成总结
+                    val shouldSummarize = shouldGenerateSummary(updatedMessages)
 
-                    // 获取用户和AI消息的数量
-                    val userAiMessages =
-                            updatedMessages.filter { it.sender == "user" || it.sender == "ai" }
-
-                    // 计算新消息数量 - 使用总数而不是相对索引，简化逻辑
-                    val messageCount = userAiMessages.size
-                    val shouldSummarize =
-                            messageCount >= SUMMARY_CHUNK_SIZE &&
-                                    (messageCount - lastSummarizedIndex) >= SUMMARY_CHUNK_SIZE
-
-                    // 仅当应该总结且最近没有总结消息时触发总结
-                    if (shouldSummarize && !hasRecentSummary) {
-                        Log.d(
-                                TAG,
-                                "触发记忆总结: 总消息数量 $messageCount, 上次总结索引 $lastSummarizedIndex, 新消息数量 ${messageCount - lastSummarizedIndex}"
-                        )
+                    // 仅当应该总结时触发总结
+                    if (shouldSummarize) {
+                        Log.d(TAG, "触发记忆总结")
                         // 将总结任务放在单独的协程中执行，不阻塞消息添加流程
                         viewModelScope.launch { summarizeMemory(updatedMessages) }
-                    } else if (hasRecentSummary) {
-                        Log.d(TAG, "最近消息中已有总结，跳过总结生成")
-                    } else if (!shouldSummarize) {
-                        Log.d(
-                                TAG,
-                                "未达到总结条件，消息数量 $messageCount，新消息数量 ${messageCount - lastSummarizedIndex}"
-                        )
                     }
+
                     // 无论是否触发总结，都立即通知ViewModel消息已更新，不等待总结完成
                     onChatHistoryLoaded(_chatHistory.value)
                 } else {
@@ -395,6 +359,63 @@ class ChatHistoryDelegate(
                 Log.e(TAG, "添加消息到聊天失败", e)
             }
         }
+    }
+
+    /** 检查是否应该生成总结 */
+    private fun shouldGenerateSummary(messages: List<ChatMessage>): Boolean {
+        // 获取用户和AI消息
+        val userAiMessages = messages.filter { it.sender == "user" || it.sender == "ai" }
+
+        // 检查最近的消息中是否已经有总结消息
+        val recentMessages =
+                messages
+                        .filter {
+                            it.sender == "user" || it.sender == "ai" || it.sender == "summary"
+                        }
+                        .takeLast(minOf(SUMMARY_CHUNK_SIZE + 1, messages.size))
+        val hasRecentSummary = recentMessages.any { it.sender == "summary" }
+
+        // 如果最近已经有总结消息，不需要再生成
+        if (hasRecentSummary) {
+            Log.d(TAG, "最近消息中已有总结，跳过总结生成")
+            return false
+        }
+
+        // 如果消息数量不足，不需要总结
+        if (userAiMessages.size < SUMMARY_CHUNK_SIZE) {
+            Log.d(TAG, "消息数量不足，不生成总结. 当前消息数: ${userAiMessages.size}")
+            return false
+        }
+
+        // 找到最后一条总结消息的位置
+        val lastSummaryIndex = messages.indexOfLast { it.sender == "summary" }
+
+        // 计算自上次总结后的新消息数量
+        val newMessagesCount =
+                if (lastSummaryIndex == -1) {
+                    // 如果没有总结消息，则所有消息都是新消息
+                    userAiMessages.size
+                } else {
+                    // 计算最后一条总结后的user/ai消息数量
+                    var count = 0
+                    for (i in (lastSummaryIndex + 1) until messages.size) {
+                        if (messages[i].sender == "user" || messages[i].sender == "ai") {
+                            count++
+                        }
+                    }
+                    count
+                }
+
+        // 只有当新消息数量达到阈值时才生成总结
+        val shouldSummarize = newMessagesCount >= SUMMARY_CHUNK_SIZE
+
+        if (shouldSummarize) {
+            Log.d(TAG, "需要生成总结. 自上次总结后的新消息数量: $newMessagesCount")
+        } else {
+            Log.d(TAG, "未达到总结条件. 自上次总结后的新消息数量: $newMessagesCount")
+        }
+
+        return shouldSummarize
     }
 
     /** 正常添加消息到聊天 */
@@ -442,34 +463,51 @@ class ChatHistoryDelegate(
         try {
             Log.d(TAG, "开始生成记忆总结...")
 
-            // 再次检查最近的消息中是否已经有总结消息
-            val recentMessages = messages.takeLast(minOf(SUMMARY_CHUNK_SIZE, messages.size))
-            val hasRecentSummary = recentMessages.any { it.sender == "summary" }
-
-            if (hasRecentSummary) {
-                Log.d(TAG, "总结过程中检测到最近消息已有总结，终止当前总结")
+            // 再次检查是否应该生成总结
+            if (!shouldGenerateSummary(messages)) {
+                Log.d(TAG, "校验后不需要生成总结，终止当前总结")
                 return
             }
 
             // 只有用户和AI消息才会被总结，过滤其他类型的消息
             val messagesForSummary = messages.filter { it.sender == "user" || it.sender == "ai" }
 
-            // 如果消息太少，不需要总结
-            if (messagesForSummary.size < SUMMARY_CHUNK_SIZE) {
-                Log.d(TAG, "消息数量不足，不生成总结")
-                return
-            }
+            // 找到最后一条总结消息
+            val lastSummaryIndex = messages.indexOfLast { it.sender == "summary" }
 
-            // 计算要总结的消息范围 - 从上次总结位置开始，最多SUMMARY_CHUNK_SIZE条
+            // 获取上一条摘要内容（如果存在）
+            val previousSummary =
+                    if (lastSummaryIndex != -1) {
+                        messages[lastSummaryIndex].content.trim()
+                    } else {
+                        null
+                    }
+
+            // 计算要总结的消息范围
             val messagesToSummarize =
-                    messagesForSummary.drop(lastSummarizedIndex).take(SUMMARY_CHUNK_SIZE)
+                    if (lastSummaryIndex == -1) {
+                        // 如果没有总结消息，则总结最前面的SUMMARY_CHUNK_SIZE条
+                        messagesForSummary.take(SUMMARY_CHUNK_SIZE)
+                    } else {
+                        // 从最后一条总结后开始，选取最多SUMMARY_CHUNK_SIZE条消息
+                        val messagesAfterLastSummary = mutableListOf<ChatMessage>()
+                        for (i in (lastSummaryIndex + 1) until messages.size) {
+                            if (messages[i].sender == "user" || messages[i].sender == "ai") {
+                                messagesAfterLastSummary.add(messages[i])
+                                if (messagesAfterLastSummary.size >= SUMMARY_CHUNK_SIZE) {
+                                    break
+                                }
+                            }
+                        }
+                        messagesAfterLastSummary
+                    }
 
             if (messagesToSummarize.isEmpty()) {
                 Log.d(TAG, "没有新消息需要总结")
                 return
             }
 
-            Log.d(TAG, "将总结从索引 $lastSummarizedIndex 开始的 ${messagesToSummarize.size} 条消息")
+            Log.d(TAG, "将总结 ${messagesToSummarize.size} 条消息")
 
             // 确保AI服务可用
             ensureAiServiceAvailable()
@@ -484,10 +522,6 @@ class ChatHistoryDelegate(
                 return
             }
 
-            // 记录当前消息列表的快照
-            val messagesSnapshot = ArrayList(messages)
-            val originalMessageCount = messagesSnapshot.size
-
             try {
                 // 将消息转换为AI可以处理的格式
                 val conversationToSummarize =
@@ -498,8 +532,18 @@ class ChatHistoryDelegate(
 
                 Log.d(TAG, "开始使用AI生成对话总结：总结 ${messagesToSummarize.size} 条消息")
 
-                // 获取总结内容
-                val summary = enhancedAiService.generateSummary(conversationToSummarize)
+                // 如果有上一条摘要，传入它作为上下文
+                val summary =
+                        if (previousSummary != null) {
+                            Log.d(TAG, "使用上一条摘要作为上下文生成新的总结")
+                            enhancedAiService.generateSummary(
+                                    conversationToSummarize,
+                                    previousSummary
+                            )
+                        } else {
+                            enhancedAiService.generateSummary(conversationToSummarize)
+                        }
+
                 Log.d(TAG, "AI生成总结完成: ${summary.take(50)}...")
 
                 if (summary.isBlank()) {
@@ -520,7 +564,7 @@ class ChatHistoryDelegate(
                 val newMessages = currentMessages.toMutableList()
 
                 // 完全重写总结插入位置逻辑，确保总结被插入到正确位置
-                val insertPosition = findProperSummaryPosition(newMessages, messagesForSummary)
+                val insertPosition = findProperSummaryPosition(newMessages)
                 Log.d(TAG, "计算出的总结插入位置: $insertPosition，总消息数量: ${newMessages.size}")
 
                 // 在确定的位置插入总结消息
@@ -533,13 +577,8 @@ class ChatHistoryDelegate(
                 // 通知ViewModel聊天历史已更新
                 onChatHistoryLoaded(_chatHistory.value)
 
-                // 关键修改: 只更新一次总结索引，而且只前进固定间隔
-                // 使用当前用户和AI消息总数减去固定间隔作为新的总结索引
-                // 这确保下一次总结会在积累了SUMMARY_CHUNK_SIZE条新消息后触发
                 val totalMessages = newMessages.count { it.sender == "user" || it.sender == "ai" }
-                lastSummarizedIndex = totalMessages - SUMMARY_CHUNK_SIZE / 2 // 减去一半间隔，提前触发下一次总结
-
-                Log.d(TAG, "总结完成，更新lastSummarizedIndex为 $lastSummarizedIndex，总消息数 $totalMessages")
+                Log.d(TAG, "总结完成，总消息数 $totalMessages")
             } catch (e: Exception) {
                 Log.e(TAG, "AI生成总结失败", e)
                 return
@@ -549,15 +588,11 @@ class ChatHistoryDelegate(
         }
     }
 
-    /**
-     * 找到合适的总结插入位置
-     * 对于第一次总结，放在前SUMMARY_CHUNK_SIZE条消息后面
-     * 对于后续总结，放在上一次总结之后的SUMMARY_CHUNK_SIZE条消息后面
-     */
-    private fun findProperSummaryPosition(messages: List<ChatMessage>, allUserAiMessages: List<ChatMessage>): Int {
+    /** 找到合适的总结插入位置 对于第一次总结，放在前SUMMARY_CHUNK_SIZE条消息后面 对于后续总结，放在上一次总结之后的SUMMARY_CHUNK_SIZE条消息后面 */
+    private fun findProperSummaryPosition(messages: List<ChatMessage>): Int {
         // 找到最后一条总结消息的位置
         val lastSummaryIndex = messages.indexOfLast { it.sender == "summary" }
-        
+
         // 如果没有找到总结消息，说明是第一次总结
         if (lastSummaryIndex == -1) {
             // 找到第SUMMARY_CHUNK_SIZE条user/ai消息在完整消息列表中的位置
@@ -613,30 +648,38 @@ class ChatHistoryDelegate(
 
         // 查找最新的总结消息位置
         val lastSummaryIndex = allMessages.indexOfLast { it.sender == "summary" }
+        val allSummaryMessage = allMessages.filter { it.sender == "summary" }
 
         // 如果找到总结消息
         if (lastSummaryIndex != -1) {
-            // 添加总结消息作为用户消息，使用更清晰的前缀
-            val summaryMessage = allMessages[lastSummaryIndex]
-            // 去除可能存在的Markdown格式，确保AI能直接理解
-            val summaryContent =
-                    summaryMessage
-                            .content
-                            .replace(Regex("^#+\\s*对话摘要[：:]*\\s*"), "") // 移除可能的标题
-                            .trim()
+            var firstUserMessage = ""
+            for (summaryMessage in allSummaryMessage) {
+                val summaryContent =
+                        summaryMessage
+                                .content
+                                .replace(Regex("^#+\\s*对话摘要[：:]*\\s*"), "") // 移除可能的标题
+                                .trim()
 
-            result.add(Pair("user", "【历史对话摘要】\n$summaryContent"))
-            Log.d(TAG, "添加最新总结消息到内存记录: ${summaryMessage.content.take(50)}...")
+                firstUserMessage += "【历史对话摘要】\n$summaryContent\n"
+                Log.d(TAG, "添加最新总结消息到内存记录: ${summaryMessage.content.take(50)}...")
+            }
 
-            // 只处理总结之后的消息（不包括总结消息本身）
-            Log.d(TAG, "跳过总结之前的所有消息，只保留总结和总结之后的消息")
+            firstUserMessage += "【用户本次对话】\n"
+
+            var firstUserAsk = true
+
             for (i in (lastSummaryIndex + 1) until allMessages.size) {
                 val message = allMessages[i]
                 if (message.sender == "user" || message.sender == "ai") {
-                    val role = if (message.sender == "ai") "assistant" else "user"
-                    result.add(Pair(role, message.content))
+                    if (firstUserAsk && message.sender == "user") {
+                        firstUserAsk = false
+                        firstUserMessage += message.content
+                        result.add(Pair("user", firstUserMessage))
+                    } else {
+                        val role = if (message.sender == "ai") "assistant" else "user"
+                        result.add(Pair(role, message.content))
+                    }
                 }
-                // 忽略其他类型的消息（如系统消息、思考消息等）
             }
         } else {
             // 如果没有总结消息，则正常处理所有消息
@@ -645,7 +688,6 @@ class ChatHistoryDelegate(
                     val role = if (message.sender == "ai") "assistant" else "user"
                     result.add(Pair(role, message.content))
                 }
-                // 忽略其他类型的消息
             }
         }
 

@@ -5,14 +5,12 @@ import android.util.Log
 import com.ai.assistance.operit.api.enhance.ConversationMarkupManager
 import com.ai.assistance.operit.api.enhance.ConversationRoundManager
 import com.ai.assistance.operit.api.enhance.InputProcessor
-import com.ai.assistance.operit.api.enhance.ReferenceManager
 import com.ai.assistance.operit.api.enhance.ToolExecutionManager
 import com.ai.assistance.operit.api.library.ProblemLibrary
 import com.ai.assistance.operit.core.config.SystemPromptConfig
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.core.tools.StringResultData
 import com.ai.assistance.operit.core.tools.packTool.PackageManager
-import com.ai.assistance.operit.data.model.AiReference
 import com.ai.assistance.operit.data.model.InputProcessingState
 import com.ai.assistance.operit.data.model.PlanItem
 import com.ai.assistance.operit.data.model.ToolExecutionProgress
@@ -1136,9 +1134,22 @@ class EnhancedAIService(
      * @return 生成的总结文本
      */
     suspend fun generateSummary(messages: List<Pair<String, String>>): String {
+        return generateSummary(messages, null)
+    }
+
+    /**
+     * 生成对话总结，并且包含上一次的总结内容
+     * @param messages 要总结的消息列表
+     * @param previousSummary 上一次的总结内容，可以为null
+     * @return 生成的总结文本
+     */
+    suspend fun generateSummary(
+            messages: List<Pair<String, String>>,
+            previousSummary: String?
+    ): String {
         try {
             // 使用更结构化、更详细的提示词
-            val systemPrompt =
+            var systemPrompt =
                     """
             请对以下对话内容进行简洁但全面的总结。遵循以下格式：
             
@@ -1150,6 +1161,18 @@ class EnhancedAIService(
             
             总结应该尽量保留对后续对话有价值的上下文信息，但不要包含无关细节。内容应该简洁明了，便于AI快速理解历史对话的要点。
             """
+
+            // 如果存在上一次的摘要，将其添加到系统提示中
+            if (previousSummary != null && previousSummary.isNotBlank()) {
+                systemPrompt +=
+                        """
+                
+                以下是之前对话的摘要，请参考它来生成新的总结，确保新总结融合之前的要点，并包含新的信息：
+                
+                ${previousSummary.trim()}
+                """
+                Log.d(TAG, "添加上一条摘要内容到系统提示")
+            }
 
             val finalMessages = listOf(Pair("system", systemPrompt)) + messages
 
