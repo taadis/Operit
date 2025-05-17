@@ -694,7 +694,9 @@ class EnhancedAIService(
                 // Add current assistant message to conversation history
                 try {
                     conversationMutex.withLock {
-                        conversationHistory.add(Pair("assistant", displayContent))
+                        conversationHistory.add(
+                                Pair("assistant", roundManager.getCurrentRoundContent())
+                        )
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Error adding assistant message to history", e)
