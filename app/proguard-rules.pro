@@ -19,3 +19,16 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# 保留 Shizuku 相关类
+-keep class rikka.shizuku.** { *; }
+
+# 保留自定义的 UserService 类及 AIDL 接口
+-keep class com.lyneon.cytoidinfoquerier.service.FileService { *; }
+-keep class com.lyneon.cytoidinfoquerier.IFileService { *; }
+-keep interface com.lyneon.cytoidinfoquerier.IFileService { *; }
+
+# 保留 ServiceConnection 和 Binder 相关方法
+-keepclassmembers class * implements android.os.Parcelable {
+    public static final ** CREATOR;
+}

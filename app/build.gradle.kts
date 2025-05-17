@@ -20,11 +20,18 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+        
+        // Filter to only include x86_64 and arm64-v8a architectures
+        // ndk {
+        //     abiFilters.add("x86_64")
+        //     abiFilters.add("arm64-v8a")
+        // }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -167,8 +174,11 @@ dependencies {
     implementation("androidx.room:room-ktx:2.6.1") // Kotlin扩展和协程支持
     kapt("androidx.room:room-compiler:2.6.1") // 使用kapt代替ksp
 
-    // FFmpeg dependency for media processing
-    implementation("com.arthenica:ffmpeg-kit-full:6.0-2")
+    // FFmpeg dependency with specific architectures
+    implementation("com.arthenica:ffmpeg-kit-full:6.0-2") {
+        // exclude(group = "com.arthenica", module = "ffmpeg-kit-android-lib-armeabi-v7a")
+        // exclude(group = "com.arthenica", module = "ffmpeg-kit-android-lib-x86")
+    }
 
     // Archive/compression libraries
     implementation("org.apache.commons:commons-compress:1.24.0")
@@ -220,4 +230,7 @@ dependencies {
     implementation("io.github.oshai:kotlin-logging-jvm:5.1.0")
     implementation("org.slf4j:slf4j-api:2.0.9")
     implementation("org.slf4j:slf4j-simple:2.0.9")
+
+    // Color picker for theme customization
+    implementation("com.github.skydoves:colorpicker-compose:1.0.6")
 }

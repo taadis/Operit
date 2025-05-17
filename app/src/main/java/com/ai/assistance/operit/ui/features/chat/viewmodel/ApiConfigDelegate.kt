@@ -41,9 +41,6 @@ class ApiConfigDelegate(
     private val _memoryOptimization = MutableStateFlow(ApiPreferences.DEFAULT_MEMORY_OPTIMIZATION)
     val memoryOptimization: StateFlow<Boolean> = _memoryOptimization.asStateFlow()
 
-    private val _collapseExecution = MutableStateFlow(ApiPreferences.DEFAULT_COLLAPSE_EXECUTION)
-    val collapseExecution: StateFlow<Boolean> = _collapseExecution.asStateFlow()
-
     init {
         // Load settings from preferences
         initializeSettingsCollection()
@@ -92,13 +89,6 @@ class ApiConfigDelegate(
         viewModelScope.launch {
             apiPreferences.memoryOptimizationFlow.collect { enabled ->
                 _memoryOptimization.value = enabled
-            }
-        }
-
-        // Collect collapse execution preference
-        viewModelScope.launch {
-            apiPreferences.collapseExecutionFlow.collect { enabled ->
-                _collapseExecution.value = enabled
             }
         }
     }

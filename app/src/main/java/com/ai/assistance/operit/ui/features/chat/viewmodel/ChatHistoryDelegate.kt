@@ -31,7 +31,7 @@ class ChatHistoryDelegate(
     companion object {
         private const val TAG = "ChatHistoryDelegate"
         // 聊天总结的消息数量阈值和间隔
-        private const val SUMMARY_CHUNK_SIZE = 12
+        private const val SUMMARY_CHUNK_SIZE = 5
     }
 
     // 聊天历史管理器
@@ -372,7 +372,7 @@ class ChatHistoryDelegate(
                         .filter {
                             it.sender == "user" || it.sender == "ai" || it.sender == "summary"
                         }
-                        .takeLast(minOf(SUMMARY_CHUNK_SIZE + 1, messages.size))
+                        .takeLast(minOf(SUMMARY_CHUNK_SIZE * 2, messages.size))
         val hasRecentSummary = recentMessages.any { it.sender == "summary" }
 
         // 如果最近已经有总结消息，不需要再生成
@@ -382,7 +382,7 @@ class ChatHistoryDelegate(
         }
 
         // 如果消息数量不足，不需要总结
-        if (userAiMessages.size < SUMMARY_CHUNK_SIZE) {
+        if (userAiMessages.size < SUMMARY_CHUNK_SIZE * 2) {
             Log.d(TAG, "消息数量不足，不生成总结. 当前消息数: ${userAiMessages.size}")
             return false
         }
@@ -407,7 +407,7 @@ class ChatHistoryDelegate(
                 }
 
         // 只有当新消息数量达到阈值时才生成总结
-        val shouldSummarize = newMessagesCount >= SUMMARY_CHUNK_SIZE
+        val shouldSummarize = newMessagesCount >= SUMMARY_CHUNK_SIZE * 2
 
         if (shouldSummarize) {
             Log.d(TAG, "需要生成总结. 自上次总结后的新消息数量: $newMessagesCount")
@@ -462,12 +462,6 @@ class ChatHistoryDelegate(
     private suspend fun summarizeMemory(messages: List<ChatMessage>) {
         try {
             Log.d(TAG, "开始生成记忆总结...")
-
-            // 再次检查是否应该生成总结
-            if (!shouldGenerateSummary(messages)) {
-                Log.d(TAG, "校验后不需要生成总结，终止当前总结")
-                return
-            }
 
             // 只有用户和AI消息才会被总结，过滤其他类型的消息
             val messagesForSummary = messages.filter { it.sender == "user" || it.sender == "ai" }
@@ -648,21 +642,18 @@ class ChatHistoryDelegate(
 
         // 查找最新的总结消息位置
         val lastSummaryIndex = allMessages.indexOfLast { it.sender == "summary" }
-        val allSummaryMessage = allMessages.filter { it.sender == "summary" }
+        // val allSummaryMessage = allMessages.filter { it.sender == "summary" }
 
         // 如果找到总结消息
         if (lastSummaryIndex != -1) {
             var firstUserMessage = ""
-            for (summaryMessage in allSummaryMessage) {
-                val summaryContent =
-                        summaryMessage
-                                .content
-                                .replace(Regex("^#+\\s*对话摘要[：:]*\\s*"), "") // 移除可能的标题
-                                .trim()
+            // for (summaryMessage in allSummaryMessage) {
+            val summaryMessage = allMessages[lastSummaryIndex]
+            val summaryContent = summaryMessage.content.replace(Regex("^#+\\s*对话摘要[：:]*\\s*"), "").trim()
 
-                firstUserMessage += "【历史对话摘要】\n$summaryContent\n"
-                Log.d(TAG, "添加最新总结消息到内存记录: ${summaryMessage.content.take(50)}...")
-            }
+            firstUserMessage += "【历史对话摘要】\n$summaryContent\n"
+            Log.d(TAG, "添加最新总结消息到内存记录: ${summaryMessage.content.take(50)}...")
+            // }
 
             firstUserMessage += "【用户本次对话】\n"
 

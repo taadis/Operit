@@ -50,6 +50,7 @@ fun ChatInputSection(
         onAttachNotifications: () -> Unit = {},
         onAttachLocation: () -> Unit = {},
         onAttachProblemMemory: (String, String) -> Unit = { _, _ -> },
+        hasBackgroundImage: Boolean = false,
         modifier: Modifier = Modifier
 ) {
         val modernTextStyle = TextStyle(fontSize = 13.sp, lineHeight = 16.sp)
@@ -61,7 +62,10 @@ fun ChatInputSection(
                 androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
 
         Surface(
-                color = MaterialTheme.colorScheme.surface,
+                color = if (hasBackgroundImage) 
+                          MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
+                       else 
+                          MaterialTheme.colorScheme.surface,
                 tonalElevation = 3.dp,
                 modifier = modifier.shadow(4.dp)
         ) {
@@ -162,12 +166,16 @@ fun ChatInputSection(
                                         maxLines = 5,
                                         minLines = 1,
                                         singleLine = false,
-                                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
+                                        keyboardOptions =
+                                                KeyboardOptions(imeAction = ImeAction.Default),
                                         keyboardActions = KeyboardActions(),
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                                unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                                        ),
+                                        colors =
+                                                OutlinedTextFieldDefaults.colors(
+                                                        focusedBorderColor =
+                                                                MaterialTheme.colorScheme.primary,
+                                                        unfocusedBorderColor =
+                                                                MaterialTheme.colorScheme.outline
+                                                ),
                                         shape = RoundedCornerShape(16.dp),
                                         enabled = !isProcessing
                                 )

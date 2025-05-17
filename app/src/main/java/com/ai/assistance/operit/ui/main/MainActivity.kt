@@ -66,6 +66,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate: Android SDK version: ${Build.VERSION.SDK_INT}")
 
+        // Set window background to solid color to prevent system theme leaking through
+        window.setBackgroundDrawableResource(android.R.color.black)
+
         initializeComponents()
         setupShizukuListener()
         setupPreferencesListener()
@@ -223,6 +226,9 @@ class MainActivity : ComponentActivity() {
                 android.view.WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
                 android.view.WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
         )
+        
+        // Ensure solid background color
+        window.setBackgroundDrawableResource(android.R.color.black)
     }
 
     // ======== 设置应用内容 ========

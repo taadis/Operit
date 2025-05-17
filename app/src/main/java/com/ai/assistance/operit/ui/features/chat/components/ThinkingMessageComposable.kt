@@ -25,8 +25,7 @@ import com.ai.assistance.operit.ui.common.displays.EnhancedMarkdownText
 fun ThinkingMessageComposable(
         message: ChatMessage,
         backgroundColor: Color,
-        textColor: Color,
-        collapseExecution: Boolean = false
+        textColor: Color
 ) {
         var expanded by remember { mutableStateOf(false) } // Default collapsed
         val haptic = LocalHapticFeedback.current

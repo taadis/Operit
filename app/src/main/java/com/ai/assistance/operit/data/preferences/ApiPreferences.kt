@@ -30,7 +30,6 @@ class ApiPreferences(private val context: Context) {
                 intPreferencesKey("preference_analysis_output_tokens")
         val SHOW_FPS_COUNTER = booleanPreferencesKey("show_fps_counter")
         val ENABLE_AI_PLANNING = booleanPreferencesKey("enable_ai_planning")
-        val COLLAPSE_EXECUTION = booleanPreferencesKey("collapse_execution")
         val AUTO_GRANT_ACCESSIBILITY = booleanPreferencesKey("auto_grant_accessibility")
 
         // Custom Prompt Settings
@@ -54,7 +53,6 @@ class ApiPreferences(private val context: Context) {
         const val DEFAULT_MEMORY_OPTIMIZATION = true
         const val DEFAULT_SHOW_FPS_COUNTER = false
         const val DEFAULT_ENABLE_AI_PLANNING = false
-        const val DEFAULT_COLLAPSE_EXECUTION = true
         const val DEFAULT_AUTO_GRANT_ACCESSIBILITY = false
 
         // Default values for custom prompts
@@ -155,12 +153,6 @@ class ApiPreferences(private val context: Context) {
                 preferences[ENABLE_AI_PLANNING] ?: DEFAULT_ENABLE_AI_PLANNING
             }
 
-    // Get Collapse Execution setting as Flow
-    val collapseExecutionFlow: Flow<Boolean> =
-            context.apiDataStore.data.map { preferences ->
-                preferences[COLLAPSE_EXECUTION] ?: DEFAULT_COLLAPSE_EXECUTION
-            }
-
     // Get Auto Grant Accessibility setting as Flow
     val autoGrantAccessibilityFlow: Flow<Boolean> =
             context.apiDataStore.data.map { preferences ->
@@ -250,13 +242,6 @@ class ApiPreferences(private val context: Context) {
         }
     }
 
-    // Save Collapse Execution setting
-    suspend fun saveCollapseExecution(collapseExecution: Boolean) {
-        context.apiDataStore.edit { preferences ->
-            preferences[COLLAPSE_EXECUTION] = collapseExecution
-        }
-    }
-
     // Save Auto Grant Accessibility setting
     suspend fun saveAutoGrantAccessibility(autoGrantAccessibility: Boolean) {
         context.apiDataStore.edit { preferences ->
@@ -282,7 +267,6 @@ class ApiPreferences(private val context: Context) {
             memoryOptimization: Boolean,
             showFpsCounter: Boolean,
             enableAiPlanning: Boolean,
-            collapseExecution: Boolean,
             autoGrantAccessibility: Boolean = DEFAULT_AUTO_GRANT_ACCESSIBILITY,
             maxTokens: Int = DEFAULT_MAX_TOKENS,
             temperature: Float = DEFAULT_TEMPERATURE,
@@ -300,7 +284,6 @@ class ApiPreferences(private val context: Context) {
             preferences[MEMORY_OPTIMIZATION] = memoryOptimization
             preferences[SHOW_FPS_COUNTER] = showFpsCounter
             preferences[ENABLE_AI_PLANNING] = enableAiPlanning
-            preferences[COLLAPSE_EXECUTION] = collapseExecution
             preferences[AUTO_GRANT_ACCESSIBILITY] = autoGrantAccessibility
             preferences[MAX_TOKENS] = maxTokens
             preferences[TEMPERATURE] = temperature

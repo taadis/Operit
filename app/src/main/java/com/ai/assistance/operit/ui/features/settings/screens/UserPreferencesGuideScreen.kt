@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -52,6 +54,7 @@ import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.clickable
 
 /** 根据用户选择的关键信息生成偏好描述 */
 private fun generatePreferencesDescription(
@@ -546,19 +549,16 @@ fun UserPreferencesGuideScreen(
                             label = { Text(tag) },
                             modifier = Modifier.padding(vertical = 4.dp),
                             trailingIcon = {
-                                IconButton(
-                                        onClick = {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = "删除",
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .clickable {
                                             customPersonalityTags = customPersonalityTags - tag
                                             selectedPersonality = selectedPersonality - tag
-                                        },
-                                        modifier = Modifier.padding(4.dp)
-                                ) {
-                                    Icon(
-                                            Icons.Default.Close,
-                                            contentDescription = "删除",
-                                            modifier = Modifier.padding(4.dp)
-                                    )
-                                }
+                                        }
+                                )
                             }
                     )
                 }
@@ -617,19 +617,16 @@ fun UserPreferencesGuideScreen(
                             label = { Text(tag) },
                             modifier = Modifier.padding(vertical = 4.dp),
                             trailingIcon = {
-                                IconButton(
-                                        onClick = {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = "删除",
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .clickable {
                                             customIdentityTags = customIdentityTags - tag
                                             selectedIdentity = selectedIdentity - tag
-                                        },
-                                        modifier = Modifier.padding(4.dp)
-                                ) {
-                                    Icon(
-                                            Icons.Default.Close,
-                                            contentDescription = "删除",
-                                            modifier = Modifier.padding(4.dp)
-                                    )
-                                }
+                                        }
+                                )
                             }
                     )
                 }
@@ -688,19 +685,16 @@ fun UserPreferencesGuideScreen(
                             label = { Text(tag) },
                             modifier = Modifier.padding(vertical = 4.dp),
                             trailingIcon = {
-                                IconButton(
-                                        onClick = {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = "删除",
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .clickable {
                                             customAiStyleTags = customAiStyleTags - tag
                                             selectedAiStyleTags = selectedAiStyleTags - tag
-                                        },
-                                        modifier = Modifier.padding(4.dp)
-                                ) {
-                                    Icon(
-                                            Icons.Default.Close,
-                                            contentDescription = "删除",
-                                            modifier = Modifier.padding(4.dp)
-                                    )
-                                }
+                                        }
+                                )
                             }
                     )
                 }

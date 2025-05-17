@@ -1,5 +1,6 @@
 package com.ai.assistance.operit.ui.main
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,6 +40,7 @@ import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.data.mcp.MCPRepository
 import com.ai.assistance.operit.data.preferences.AgreementPreferences
 import com.ai.assistance.operit.data.preferences.ApiPreferences
+import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.data.repository.ChatHistoryManager
 import com.ai.assistance.operit.ui.common.NavItem
 import com.ai.assistance.operit.ui.common.displays.FpsCounter
@@ -51,6 +53,7 @@ import com.ai.assistance.operit.ui.features.packages.screens.PackageManagerScree
 import com.ai.assistance.operit.ui.features.problems.screens.ProblemLibraryScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ModelParametersSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.SettingsScreen
+import com.ai.assistance.operit.ui.features.settings.screens.ThemeSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ToolPermissionSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.UserPreferencesGuideScreen
 import com.ai.assistance.operit.ui.features.settings.screens.UserPreferencesSettingsScreen
@@ -86,6 +89,7 @@ sealed class Screen {
     }
     data object UserPreferencesSettings : Screen()
     data object ModelParametersSettings : Screen()
+    data object ThemeSettings : Screen() // Add new ThemeSettings screen
 
     // Toolbox secondary screens
     data object FormatConverter : Screen()
@@ -453,8 +457,17 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
 
     @Composable
     fun AppContent() {
+        // Get background image state
+        val context = LocalContext.current
+        val preferencesManager = remember { UserPreferencesManager(context) }
+        val useBackgroundImage by preferencesManager.useBackgroundImage.collectAsState(initial = false)
+        val backgroundImageUri by preferencesManager.backgroundImageUri.collectAsState(initial = null)
+        val hasBackgroundImage = useBackgroundImage && backgroundImageUri != null
+        
         // 内容区域仅包含顶部应用栏和主内容，不再使用Scaffold
-        Column {
+        Column(
+            modifier = Modifier.fillMaxSize().background(Color.Transparent) // Explicitly set transparent background
+        ) {
             // 单一工具栏 - 使用小型化的设计
             SmallTopAppBar(
                     title = {
@@ -473,6 +486,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                                         id = R.string.user_preferences_settings
                                                 )
                                         is Screen.ModelParametersSettings -> "模型参数设置"
+                                        is Screen.ThemeSettings -> "主题设置"
                                         is Screen.FormatConverter -> "万能格式转换"
                                         is Screen.FileManager -> "文件管理器"
                                         is Screen.Terminal -> "命令终端"
@@ -482,7 +496,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                     },
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 14.sp,
-                                    color = Color.White
+                                    color = MaterialTheme.colorScheme.onPrimary
                             )
 
                             // 显示当前聊天标题（仅在AI对话页面)
@@ -490,7 +504,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                 Text(
                                         text = "- $currentChatTitle",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = Color.White.copy(alpha = 0.8f),
+                                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                 )
@@ -498,12 +512,13 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                         }
                     },
                     navigationIcon = {
-                        // 在平板模式下只在二级界面显示返回按钮
+                        // Updated logic to display back button for all secondary screens, including ThemeSettings
                         if (!useTabletLayout ||
                                         currentScreen is Screen.ToolPermission ||
                                         currentScreen is Screen.UserPreferencesGuide ||
                                         currentScreen is Screen.UserPreferencesSettings ||
                                         currentScreen is Screen.ModelParametersSettings ||
+                                        currentScreen is Screen.ThemeSettings ||
                                         currentScreen is Screen.FormatConverter ||
                                         currentScreen is Screen.FileManager ||
                                         currentScreen is Screen.Terminal ||
@@ -513,23 +528,12 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                             IconButton(
                                     onClick = {
                                         when (currentScreen) {
-                                            is Screen.ToolPermission -> {
-                                                // 如果在工具权限设置页面，返回到设置页面
-                                                currentScreen = Screen.Settings
-                                                selectedItem = NavItem.Settings
-                                            }
-                                            is Screen.UserPreferencesGuide -> {
-                                                // 如果在用户偏好引导页面，返回到设置页面
-                                                currentScreen = Screen.Settings
-                                                selectedItem = NavItem.Settings
-                                            }
-                                            is Screen.UserPreferencesSettings -> {
-                                                // 如果在用户偏好设置页面，返回到设置页面
-                                                currentScreen = Screen.Settings
-                                                selectedItem = NavItem.Settings
-                                            }
+                                            is Screen.ThemeSettings,
+                                            is Screen.ToolPermission,
+                                            is Screen.UserPreferencesGuide,
+                                            is Screen.UserPreferencesSettings,
                                             is Screen.ModelParametersSettings -> {
-                                                // 如果在模型参数设置页面，返回到设置页面
+                                                // Return to settings screen
                                                 currentScreen = Screen.Settings
                                                 selectedItem = NavItem.Settings
                                             }
@@ -558,6 +562,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                                                 Screen.UserPreferencesSettings ||
                                                         currentScreen is
                                                                 Screen.ModelParametersSettings ||
+                                                        currentScreen is Screen.ThemeSettings ||
                                                         currentScreen is Screen.FormatConverter ||
                                                         currentScreen is Screen.FileManager ||
                                                         currentScreen is Screen.Terminal ||
@@ -569,6 +574,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                         else Icons.Default.Menu,
                                         contentDescription =
                                                 when (currentScreen) {
+                                                    is Screen.ThemeSettings -> "返回设置"
                                                     is Screen.ToolPermission,
                                                     is Screen.UserPreferencesGuide,
                                                     is Screen.UserPreferencesSettings,
@@ -583,7 +589,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                                     is Screen.AppPermissions -> "返回工具箱"
                                                     else -> stringResource(id = R.string.menu)
                                                 },
-                                        tint = Color.White
+                                        tint = MaterialTheme.colorScheme.onPrimary
                                 )
                             }
                         }
@@ -591,14 +597,18 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                     colors =
                             TopAppBarDefaults.smallTopAppBarColors(
                                     containerColor = MaterialTheme.colorScheme.primary,
-                                    titleContentColor = Color.White
+                                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
                             )
             )
 
             // 主内容区域
             Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+                    color = if (hasBackgroundImage) 
+                        Color.Transparent 
+                    else 
+                        MaterialTheme.colorScheme.background
             ) {
                 if (isLoading) {
                     // 加载中状态 - 使用简单的Text替代CircularProgressIndicator
@@ -725,9 +735,13 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                             },
                                             navigateToModelParameters = {
                                                 currentScreen = Screen.ModelParametersSettings
+                                            },
+                                            navigateToThemeSettings = {
+                                                currentScreen = Screen.ThemeSettings
                                             }
                                     )
                             is Screen.ModelParametersSettings -> ModelParametersSettingsScreen()
+                            is Screen.ThemeSettings -> ThemeSettingsScreen()
                             is Screen.Packages -> PackageManagerScreen()
                             is Screen.ProblemLibrary -> {
                                 // 问题库页面
@@ -758,7 +772,9 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
     }
 
     // 应用整体结构 - 根据屏幕尺寸选择不同的布局
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier.fillMaxSize().background(Color.Transparent) // Explicitly set transparent background
+    ) {
         if (useTabletLayout) {
             // 平板布局 - 使用永久导航抽屉
             PermanentNavigationDrawer(

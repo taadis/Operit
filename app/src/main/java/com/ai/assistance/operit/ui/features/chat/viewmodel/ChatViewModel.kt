@@ -83,7 +83,6 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     val showThinking: StateFlow<Boolean> by lazy { apiConfigDelegate.showThinking }
     val enableAiPlanning: StateFlow<Boolean> by lazy { apiConfigDelegate.enableAiPlanning }
     val memoryOptimization: StateFlow<Boolean> by lazy { apiConfigDelegate.memoryOptimization }
-    val collapseExecution: StateFlow<Boolean> by lazy { apiConfigDelegate.collapseExecution }
 
     // 聊天历史相关
     val chatHistory: StateFlow<List<ChatMessage>> by lazy { chatHistoryDelegate.chatHistory }

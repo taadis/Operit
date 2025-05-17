@@ -26,7 +26,8 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(
         onNavigateToUserPreferences: () -> Unit,
         navigateToToolPermissions: () -> Unit,
-        navigateToModelParameters: () -> Unit
+        navigateToModelParameters: () -> Unit,
+        navigateToThemeSettings: () -> Unit
 ) {
         val context = LocalContext.current
         val apiPreferences = remember { ApiPreferences(context) }
@@ -59,11 +60,6 @@ fun SettingsScreen(
                                 initial = ApiPreferences.DEFAULT_SHOW_FPS_COUNTER
                         )
                         .value
-        val collapseExecution =
-                apiPreferences.collapseExecutionFlow.collectAsState(
-                                initial = ApiPreferences.DEFAULT_COLLAPSE_EXECUTION
-                        )
-                        .value
         val autoGrantAccessibility =
                 apiPreferences.autoGrantAccessibilityFlow.collectAsState(
                                 initial = ApiPreferences.DEFAULT_AUTO_GRANT_ACCESSIBILITY
@@ -77,7 +73,6 @@ fun SettingsScreen(
         var showThinkingInput by remember { mutableStateOf(showThinking) }
         var memoryOptimizationInput by remember { mutableStateOf(memoryOptimization) }
         var showFpsCounterInput by remember { mutableStateOf(showFpsCounter) }
-        var collapseExecutionInput by remember { mutableStateOf(collapseExecution) }
         var autoGrantAccessibilityInput by remember { mutableStateOf(autoGrantAccessibility) }
         var showSaveSuccessMessage by remember { mutableStateOf(false) }
 
@@ -107,7 +102,6 @@ fun SettingsScreen(
                 showThinking,
                 memoryOptimization,
                 showFpsCounter,
-                collapseExecution,
                 autoGrantAccessibility
         ) {
                 apiKeyInput = apiKey
@@ -116,7 +110,6 @@ fun SettingsScreen(
                 showThinkingInput = showThinking
                 memoryOptimizationInput = memoryOptimization
                 showFpsCounterInput = showFpsCounter
-                collapseExecutionInput = collapseExecution
                 autoGrantAccessibilityInput = autoGrantAccessibility
         }
 
@@ -296,7 +289,6 @@ fun SettingsScreen(
                                                                 memoryOptimizationInput,
                                                                 showFpsCounterInput,
                                                                 false, // enableAiPlanning
-                                                                collapseExecutionInput,
                                                                 autoGrantAccessibilityInput
                                                         )
                                                         showSaveSuccessMessage = true
@@ -319,6 +311,28 @@ fun SettingsScreen(
                                                 textAlign = TextAlign.Center
                                         )
                                 }
+                        }
+                }
+
+                // 主题设置卡片
+                Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                        text = "主题设置",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        modifier = Modifier.padding(bottom = 16.dp)
+                                )
+
+                                Text(
+                                        text = "个性化应用外观，包括深色/浅色模式和自定义配色方案",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.padding(bottom = 16.dp)
+                                )
+
+                                Button(
+                                        onClick = navigateToThemeSettings,
+                                        modifier = Modifier.align(Alignment.End)
+                                ) { Text("自定义主题") }
                         }
                 }
 
@@ -447,39 +461,6 @@ fun SettingsScreen(
                                                                 apiPreferences.saveShowFpsCounter(
                                                                         it
                                                                 )
-                                                                showSaveSuccessMessage = true
-                                                        }
-                                                }
-                                        )
-                                }
-
-                                // 折叠执行开关
-                                Row(
-                                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                        Column {
-                                                Text(
-                                                        text = "折叠执行",
-                                                        style = MaterialTheme.typography.bodyMedium
-                                                )
-                                                Text(
-                                                        text = "执行结果默认折叠显示",
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color =
-                                                                MaterialTheme.colorScheme
-                                                                        .onSurfaceVariant
-                                                )
-                                        }
-
-                                        Switch(
-                                                checked = collapseExecutionInput,
-                                                onCheckedChange = {
-                                                        collapseExecutionInput = it
-                                                        scope.launch {
-                                                                apiPreferences
-                                                                        .saveCollapseExecution(it)
                                                                 showSaveSuccessMessage = true
                                                         }
                                                 }
