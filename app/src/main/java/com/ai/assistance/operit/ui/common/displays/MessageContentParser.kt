@@ -9,7 +9,6 @@ class MessageContentParser {
         // XML markup patterns
         public val xmlStatusPattern = Regex("<status\\s+type=\"([^\"]+)\"(?:\\s+tool=\"([^\"]+)\")?(?:\\s+uuid=\"([^\"]+)\")?(?:\\s+success=\"([^\"]+)\")?(?:\\s+title=\"([^\"]+)\")?(?:\\s+subtitle=\"([^\"]+)\")?>([\\s\\S]*?)</status>")
         public val xmlToolResultPattern = Regex("<tool_result\\s+name=\"([^\"]+)\"\\s+status=\"([^\"]+)\">\\s*<content>([\\s\\S]*?)</content>\\s*</tool_result>")
-        private val xmlToolErrorPattern = Regex("<tool_result\\s+name=\"([^\"]+)\"\\s+status=\"error\">\\s*<e>([\\s\\S]*?)</e>\\s*</tool_result>")
         private val xmlToolRequestPattern = Regex("<tool\\s+name=\"([^\"]+)\"(?:\\s+description=\"([^\"]+)\")?>([\\s\\S]*?)</tool>")
         
         // 添加计划项XML标记的模式匹配
@@ -64,7 +63,6 @@ class MessageContentParser {
             // Find all matches for each pattern
             findMatchesAndAdd(xmlStatusPattern, remainingContent, allMatches)
             findMatchesAndAdd(xmlToolResultPattern, remainingContent, allMatches)
-            findMatchesAndAdd(xmlToolErrorPattern, remainingContent, allMatches)
             findMatchesAndAdd(xmlToolRequestPattern, remainingContent, allMatches)
             // 添加对计划项标记的匹配
             findMatchesAndAdd(planItemPattern, remainingContent, allMatches)
@@ -90,7 +88,6 @@ class MessageContentParser {
                     xmlStatusPattern -> parseStatusMatch(matchText, segments)
                     xmlToolRequestPattern -> parseToolRequestMatch(matchText, segments)
                     xmlToolResultPattern -> parseToolResultMatch(matchText, segments)
-                    xmlToolErrorPattern -> parseToolErrorMatch(matchText, segments)
                     planItemPattern -> parsePlanItemMatch(matchText, segments)
                     planUpdatePattern -> parsePlanUpdateMatch(matchText, segments)
                 }
@@ -167,14 +164,6 @@ class MessageContentParser {
             }
         }
         
-        private fun parseToolErrorMatch(matchText: String, segments: MutableList<ContentSegment>) {
-            val match = xmlToolErrorPattern.find(matchText)
-            if (match != null) {
-                val toolName = match.groupValues[1]
-                val content = match.groupValues[2]
-                segments.add(ContentSegment.ToolResult(toolName, content, true))
-            }
-        }
         
         // 添加解析计划项的方法
         private fun parsePlanItemMatch(matchText: String, segments: MutableList<ContentSegment>) {

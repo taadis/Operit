@@ -30,6 +30,7 @@ import com.ai.assistance.operit.ui.theme.OperitTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import androidx.activity.OnBackPressedCallback
 
 class MainActivity : ComponentActivity() {
     private val TAG = "MainActivity"
@@ -58,6 +59,10 @@ class MainActivity : ComponentActivity() {
 
     // ======== MCP插件状态 ========
     private val pluginLoadingState = PluginLoadingState()
+
+    // ======== 双击返回退出相关变量 ========
+    private var backPressedTime: Long = 0
+    private val backPressedInterval: Long = 2000 // 两次点击的时间间隔，单位为毫秒
 
     // ======== 权限定义 ========
     // UpdateManager实例
@@ -109,6 +114,27 @@ class MainActivity : ComponentActivity() {
 
         // 设置初始界面
         setAppContent()
+        
+        // 设置双击返回退出
+        setupBackPressHandler()
+    }
+
+    // 配置双击返回退出的处理器
+    private fun setupBackPressHandler() {
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                val currentTime = System.currentTimeMillis()
+                
+                if (currentTime - backPressedTime > backPressedInterval) {
+                    // 第一次点击，显示提示
+                    backPressedTime = currentTime
+                    Toast.makeText(this@MainActivity, "再按一次退出应用", Toast.LENGTH_SHORT).show()
+                } else {
+                    // 第二次点击，退出应用
+                    finish()
+                }
+            }
+        })
     }
 
     override fun onResume() {

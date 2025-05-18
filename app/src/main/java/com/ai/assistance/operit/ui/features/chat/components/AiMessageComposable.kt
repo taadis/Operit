@@ -65,7 +65,7 @@ fun AiMessageComposable(
     }
 
     // Removed the Card background - Direct Column for AI response
-    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
         Text(
                 text = "Response",
                 style = MaterialTheme.typography.labelSmall,
@@ -682,7 +682,7 @@ fun AiMessageComposable(
 
                 // Add spacing between segments
                 if (segment != contentSegments.last()) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
                 }
             }
 

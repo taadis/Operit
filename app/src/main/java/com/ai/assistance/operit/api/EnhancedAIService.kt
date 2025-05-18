@@ -975,22 +975,22 @@ class EnhancedAIService(
         // Tool result processing and subsequent AI request
         val toolResultMessage = ConversationMarkupManager.formatToolResultForMessage(result)
 
+        
         // Add tool result to conversation history
         conversationMutex.withLock { conversationHistory.add(Pair("tool", toolResultMessage)) }
-
+        
         // Get current conversation history
         val currentChatHistory = conversationMutex.withLock { conversationHistory }
-
+        
         // Save callback to local variable
         val responseCallback = currentResponseCallback
 
-        // Update UI to show AI thinking status
-        val currentDisplay = currentChatHistory.lastOrNull { it.first == "assistant" }?.second ?: ""
-        if (currentDisplay.isNotEmpty() && responseCallback != null) {
-            val updatedContent = ConversationMarkupManager.appendThinkingStatus(currentDisplay)
-            responseCallback.invoke(updatedContent, null)
+        if (responseCallback != null) {
+            responseCallback(
+                roundManager.appendContent(toolResultMessage),
+                null
+            )
         }
-
         // Start new round - ensure tool execution response will be shown in a new message
         roundManager.startNewRound()
         streamBuffer.clear() // Clear buffer to ensure a new message will be created

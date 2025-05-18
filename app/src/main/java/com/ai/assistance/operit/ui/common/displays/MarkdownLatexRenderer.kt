@@ -1,11 +1,15 @@
 package com.ai.assistance.operit.ui.common.displays
 
+import android.os.Handler
+import android.os.Looper
+import android.text.Layout
 import android.text.method.LinkMovementMethod
 import android.text.util.Linkify
 import android.util.Log
 import android.view.View
 import android.widget.TextView
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -57,6 +61,16 @@ internal fun IntegratedMarkdownLatexRenderer(
                 }
             }
     val colorInt = textColor.toArgb()
+    
+    // 创建一个Handler用于延迟刷新
+    val handler = remember { Handler(Looper.getMainLooper()) }
+
+    // 在组件销毁时清理Handler
+    DisposableEffect(Unit) { 
+        onDispose { 
+            handler.removeCallbacksAndMessages(null) 
+        }
+    }
 
     // 使用全局ImageLoader代替创建新实例
     val globalImageLoader = OperitApplication.globalImageLoader
@@ -94,6 +108,14 @@ internal fun IntegratedMarkdownLatexRenderer(
                     setTextColor(colorInt)
                     setLinkTextColor(colorInt)
                     setLineSpacing(0f, 1.2f) // Set line spacing multiplier to 1.2x
+                    
+                    // 防止布局闪烁
+                    setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NONE)
+                    
+                    // 关闭动画过渡
+                    isHorizontalFadingEdgeEnabled = false
+                    isVerticalFadingEdgeEnabled = false
+                    
                     if (textAlign != null) {
                         textAlignment =
                                 when (textAlign) {
@@ -120,8 +142,9 @@ internal fun IntegratedMarkdownLatexRenderer(
             },
             update = { textView ->
                 try {
-                    // 在设置文本前取消之前正在加载的图片
+                    // 取消所有进行中的图片加载
                     AsyncDrawableScheduler.unschedule(textView)
+                    handler.removeCallbacksAndMessages(null)
 
                     // 处理LaTeX
                     val preprocessed = LatexPreprocessor.preprocessLatexInMarkdown(content)
@@ -140,9 +163,10 @@ internal fun IntegratedMarkdownLatexRenderer(
 
                     // 设置文本
                     textView.text = finalSpannable
-
-                    // 安排加载图片
+                    
+                    // 安排加载图片，但只做一次
                     AsyncDrawableScheduler.schedule(textView)
+                    
                 } catch (e: Exception) {
                     Log.e("MarkdownLatex", "Error rendering content: ${e.message}", e)
                     // 如果发生错误，至少显示原始文本

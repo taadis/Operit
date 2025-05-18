@@ -106,7 +106,9 @@ class ConversationMarkupManager {
             } else {
                 """
                 <tool_result name="${result.toolName}" status="error">
+                <content>
                 <error>${result.error ?: "Unknown error"}</error>
+                </content>
                 </tool_result>
             """.trimIndent()
             }

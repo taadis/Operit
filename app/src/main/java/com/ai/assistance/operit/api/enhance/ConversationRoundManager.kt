@@ -66,7 +66,7 @@ class ConversationRoundManager {
      */
     fun appendContent(content: String): String {
         roundContents[currentResponseRound.get()] +=
-                "\n" + content // Use -1 as a special key for appended content
+                "\n" + content.trim() // Use -1 as a special key for appended content
         return getDisplayContent()
     }
 

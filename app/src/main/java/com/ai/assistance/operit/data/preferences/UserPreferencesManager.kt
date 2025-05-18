@@ -62,12 +62,21 @@ class UserPreferencesManager(private val context: Context) {
         private val BACKGROUND_IMAGE_URI = stringPreferencesKey("background_image_uri")
         private val BACKGROUND_IMAGE_OPACITY = floatPreferencesKey("background_image_opacity")
 
+        // 背景媒体类型和视频设置
+        private val BACKGROUND_MEDIA_TYPE = stringPreferencesKey("background_media_type")
+        private val VIDEO_BACKGROUND_MUTED = booleanPreferencesKey("video_background_muted")
+        private val VIDEO_BACKGROUND_LOOP = booleanPreferencesKey("video_background_loop")
+
         // 默认配置文件ID
         private const val DEFAULT_PROFILE_ID = "default"
 
         // 主题模式常量
         const val THEME_MODE_LIGHT = "light"
         const val THEME_MODE_DARK = "dark"
+
+        // 背景媒体类型常量
+        const val MEDIA_TYPE_IMAGE = "image"
+        const val MEDIA_TYPE_VIDEO = "video"
     }
 
     // 获取当前激活的用户偏好配置文件ID
@@ -136,6 +145,22 @@ class UserPreferencesManager(private val context: Context) {
                 preferences[BACKGROUND_IMAGE_OPACITY] ?: 0.3f
             }
 
+    // 背景媒体类型相关Flow
+    val backgroundMediaType: Flow<String> =
+            context.userPreferencesDataStore.data.map { preferences ->
+                preferences[BACKGROUND_MEDIA_TYPE] ?: MEDIA_TYPE_IMAGE
+            }
+
+    val videoBackgroundMuted: Flow<Boolean> =
+            context.userPreferencesDataStore.data.map { preferences ->
+                preferences[VIDEO_BACKGROUND_MUTED] ?: true
+            }
+
+    val videoBackgroundLoop: Flow<Boolean> =
+            context.userPreferencesDataStore.data.map { preferences ->
+                preferences[VIDEO_BACKGROUND_LOOP] ?: true
+            }
+
     // 保存主题设置
     suspend fun saveThemeSettings(
             themeMode: String? = null,
@@ -145,7 +170,10 @@ class UserPreferencesManager(private val context: Context) {
             useCustomColors: Boolean? = null,
             useBackgroundImage: Boolean? = null,
             backgroundImageUri: String? = null,
-            backgroundImageOpacity: Float? = null
+            backgroundImageOpacity: Float? = null,
+            backgroundMediaType: String? = null,
+            videoBackgroundMuted: Boolean? = null,
+            videoBackgroundLoop: Boolean? = null
     ) {
         context.userPreferencesDataStore.edit { preferences ->
             themeMode?.let { preferences[THEME_MODE] = it }
@@ -154,12 +182,15 @@ class UserPreferencesManager(private val context: Context) {
             customSecondaryColor?.let { preferences[CUSTOM_SECONDARY_COLOR] = it }
             useCustomColors?.let { preferences[USE_CUSTOM_COLORS] = it }
             useBackgroundImage?.let { preferences[USE_BACKGROUND_IMAGE] = it }
-            backgroundImageUri?.let { 
+            backgroundImageUri?.let {
                 // Simply store the URI as a string in preferences
                 // No need to take persistent permissions as we're using internal storage
-                preferences[BACKGROUND_IMAGE_URI] = it 
+                preferences[BACKGROUND_IMAGE_URI] = it
             }
             backgroundImageOpacity?.let { preferences[BACKGROUND_IMAGE_OPACITY] = it }
+            backgroundMediaType?.let { preferences[BACKGROUND_MEDIA_TYPE] = it }
+            videoBackgroundMuted?.let { preferences[VIDEO_BACKGROUND_MUTED] = it }
+            videoBackgroundLoop?.let { preferences[VIDEO_BACKGROUND_LOOP] = it }
         }
     }
 
@@ -174,6 +205,9 @@ class UserPreferencesManager(private val context: Context) {
             preferences.remove(USE_BACKGROUND_IMAGE)
             preferences.remove(BACKGROUND_IMAGE_URI)
             preferences.remove(BACKGROUND_IMAGE_OPACITY)
+            preferences.remove(BACKGROUND_MEDIA_TYPE)
+            preferences.remove(VIDEO_BACKGROUND_MUTED)
+            preferences.remove(VIDEO_BACKGROUND_LOOP)
         }
     }
 

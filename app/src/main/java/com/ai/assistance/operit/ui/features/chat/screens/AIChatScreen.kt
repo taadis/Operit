@@ -55,8 +55,10 @@ fun AIChatScreen(
 
         // Get background image state
         val preferencesManager = remember { UserPreferencesManager(context) }
-        val useBackgroundImage by preferencesManager.useBackgroundImage.collectAsState(initial = false)
-        val backgroundImageUri by preferencesManager.backgroundImageUri.collectAsState(initial = null)
+        val useBackgroundImage by
+                preferencesManager.useBackgroundImage.collectAsState(initial = false)
+        val backgroundImageUri by
+                preferencesManager.backgroundImageUri.collectAsState(initial = null)
         val hasBackgroundImage = useBackgroundImage && backgroundImageUri != null
 
         // Collect state from ViewModel
@@ -106,7 +108,8 @@ fun AIChatScreen(
         }
 
         // Modern chat UI colors - Cursor风格
-        val backgroundColor = if (hasBackgroundImage) Color.Transparent else MaterialTheme.colorScheme.background
+        val backgroundColor =
+                if (hasBackgroundImage) Color.Transparent else MaterialTheme.colorScheme.background
         val userMessageColor = MaterialTheme.colorScheme.primaryContainer
         val aiMessageColor = MaterialTheme.colorScheme.surface
         val userTextColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -799,10 +802,9 @@ fun AIChatScreen(
                                                         modifier =
                                                                 Modifier.fillMaxWidth()
                                                                         .weight(1f)
-                                                                        .background(
-                                                                                backgroundColor
-                                                                        )
-                                                ) { // Use the conditional backgroundColor from above
+                                                                        .background(backgroundColor)
+                                                ) { // Use the conditional backgroundColor from
+                                                        // above
                                                         ChatArea(
                                                                 chatHistory = chatHistory,
                                                                 listState = listState,
@@ -821,7 +823,8 @@ fun AIChatScreen(
                                                                         thinkingBackgroundColor,
                                                                 thinkingTextColor =
                                                                         thinkingTextColor,
-                                                                hasBackgroundImage = hasBackgroundImage,
+                                                                hasBackgroundImage =
+                                                                        hasBackgroundImage,
                                                                 modifier = Modifier.fillMaxSize()
                                                         )
 
@@ -915,114 +918,150 @@ fun AIChatScreen(
                                                 ) + fadeOut(animationSpec = tween(300)),
                                         modifier = Modifier.align(Alignment.TopStart)
                                 ) {
-                                        Box(
-                                                modifier =
-                                                        Modifier.width(280.dp)
-                                                                .fillMaxHeight()
-                                                                .background(
-                                                                        color =
-                                                                                MaterialTheme
-                                                                                        .colorScheme
-                                                                                        .surface
-                                                                                        .copy(
-                                                                                                alpha =
-                                                                                                        0.95f
-                                                                                        ),
-                                                                        shape =
-                                                                                RoundedCornerShape(
-                                                                                        topEnd =
-                                                                                                4.dp,
-                                                                                        bottomEnd =
-                                                                                                4.dp
-                                                                                )
-                                                                )
-                                        ) {
-                                                // 直接使用ChatHistorySelector
-                                                ChatHistorySelector(
+                                        // 添加一个覆盖整个屏幕的半透明点击区域，用于关闭历史选择器
+                                        Box(modifier = Modifier.fillMaxSize()) {
+                                                // 透明遮罩层，点击右侧空白处关闭历史选择器
+                                                Box(
                                                         modifier =
                                                                 Modifier.fillMaxSize()
-                                                                        .padding(top = 8.dp),
-                                                        onNewChat = {
-                                                                viewModel.createNewChat()
-                                                                // 创建新对话后自动收起侧边框
-                                                                viewModel.showChatHistorySelector(
-                                                                        false
-                                                                )
-                                                        },
-                                                        onSelectChat = { chatId ->
-                                                                viewModel.switchChat(chatId)
-                                                                // 切换聊天后也自动收起侧边框
-                                                                viewModel.showChatHistorySelector(
-                                                                        false
-                                                                )
-                                                        },
-                                                        onDeleteChat = { chatId ->
-                                                                viewModel.deleteChatHistory(chatId)
-                                                        },
-                                                        chatHistories =
-                                                                chatHistories.sortedByDescending {
-                                                                        it.createdAt
-                                                                },
-                                                        currentId = currentChatId
+                                                                        .clickable {
+                                                                                viewModel
+                                                                                        .toggleChatHistorySelector()
+                                                                        }
+                                                                        .background(
+                                                                                Color.Black.copy(
+                                                                                        alpha = 0.1f
+                                                                                )
+                                                                        )
                                                 )
 
-                                                // 在右侧添加浮动返回按钮
-                                                OutlinedButton(
-                                                        onClick = {
-                                                                viewModel
-                                                                        .toggleChatHistorySelector()
-                                                        },
+                                                // 历史选择器面板
+                                                Box(
                                                         modifier =
-                                                                Modifier.align(Alignment.TopEnd)
-                                                                        .padding(
-                                                                                top = 16.dp,
-                                                                                end = 8.dp
+                                                                Modifier.width(280.dp)
+                                                                        .fillMaxHeight()
+                                                                        .background(
+                                                                                color =
+                                                                                        MaterialTheme
+                                                                                                .colorScheme
+                                                                                                .surface
+                                                                                                .copy(
+                                                                                                        alpha =
+                                                                                                                0.95f
+                                                                                                ),
+                                                                                shape =
+                                                                                        RoundedCornerShape(
+                                                                                                topEnd =
+                                                                                                        4.dp,
+                                                                                                bottomEnd =
+                                                                                                        4.dp
+                                                                                        )
                                                                         )
-                                                                        .height(28.dp),
-                                                        contentPadding =
-                                                                PaddingValues(
-                                                                        horizontal = 10.dp,
-                                                                        vertical = 0.dp
-                                                                ),
-                                                        colors =
-                                                                ButtonDefaults.outlinedButtonColors(
-                                                                        contentColor =
-                                                                                MaterialTheme
-                                                                                        .colorScheme
-                                                                                        .primary
-                                                                ),
-                                                        border =
-                                                                ButtonDefaults.outlinedButtonBorder
-                                                                        .copy(width = 1.dp),
-                                                        shape = RoundedCornerShape(4.dp)
                                                 ) {
-                                                        Row(
-                                                                verticalAlignment =
-                                                                        Alignment.CenterVertically,
-                                                                horizontalArrangement =
-                                                                        Arrangement.spacedBy(4.dp)
-                                                        ) {
-                                                                Icon(
-                                                                        imageVector =
-                                                                                Icons.Default
-                                                                                        .ArrowBack,
-                                                                        contentDescription = null,
-                                                                        modifier =
-                                                                                Modifier.size(
-                                                                                        14.dp
+                                                        // 直接使用ChatHistorySelector
+                                                        ChatHistorySelector(
+                                                                modifier =
+                                                                        Modifier.fillMaxSize()
+                                                                                .padding(
+                                                                                        top = 8.dp
                                                                                 ),
-                                                                        tint =
-                                                                                MaterialTheme
-                                                                                        .colorScheme
-                                                                                        .primary
-                                                                )
-                                                                Text(
-                                                                        "返回",
-                                                                        style =
-                                                                                MaterialTheme
-                                                                                        .typography
-                                                                                        .bodySmall
-                                                                )
+                                                                onNewChat = {
+                                                                        viewModel.createNewChat()
+                                                                        // 创建新对话后自动收起侧边框
+                                                                        viewModel
+                                                                                .showChatHistorySelector(
+                                                                                        false
+                                                                                )
+                                                                },
+                                                                onSelectChat = { chatId ->
+                                                                        viewModel.switchChat(chatId)
+                                                                        // 切换聊天后也自动收起侧边框
+                                                                        viewModel
+                                                                                .showChatHistorySelector(
+                                                                                        false
+                                                                                )
+                                                                },
+                                                                onDeleteChat = { chatId ->
+                                                                        viewModel.deleteChatHistory(
+                                                                                chatId
+                                                                        )
+                                                                },
+                                                                chatHistories =
+                                                                        chatHistories
+                                                                                .sortedByDescending {
+                                                                                        it.createdAt
+                                                                                },
+                                                                currentId = currentChatId
+                                                        )
+
+                                                        // 在右侧添加浮动返回按钮
+                                                        OutlinedButton(
+                                                                onClick = {
+                                                                        viewModel
+                                                                                .toggleChatHistorySelector()
+                                                                },
+                                                                modifier =
+                                                                        Modifier.align(
+                                                                                        Alignment
+                                                                                                .TopEnd
+                                                                                )
+                                                                                .padding(
+                                                                                        top = 16.dp,
+                                                                                        end = 8.dp
+                                                                                )
+                                                                                .height(28.dp),
+                                                                contentPadding =
+                                                                        PaddingValues(
+                                                                                horizontal = 10.dp,
+                                                                                vertical = 0.dp
+                                                                        ),
+                                                                colors =
+                                                                        ButtonDefaults
+                                                                                .outlinedButtonColors(
+                                                                                        contentColor =
+                                                                                                MaterialTheme
+                                                                                                        .colorScheme
+                                                                                                        .primary
+                                                                                ),
+                                                                border =
+                                                                        ButtonDefaults
+                                                                                .outlinedButtonBorder
+                                                                                .copy(width = 1.dp),
+                                                                shape = RoundedCornerShape(4.dp)
+                                                        ) {
+                                                                Row(
+                                                                        verticalAlignment =
+                                                                                Alignment
+                                                                                        .CenterVertically,
+                                                                        horizontalArrangement =
+                                                                                Arrangement
+                                                                                        .spacedBy(
+                                                                                                4.dp
+                                                                                        )
+                                                                ) {
+                                                                        Icon(
+                                                                                imageVector =
+                                                                                        Icons.Default
+                                                                                                .ArrowBack,
+                                                                                contentDescription =
+                                                                                        null,
+                                                                                modifier =
+                                                                                        Modifier.size(
+                                                                                                14.dp
+                                                                                        ),
+                                                                                tint =
+                                                                                        MaterialTheme
+                                                                                                .colorScheme
+                                                                                                .primary
+                                                                        )
+                                                                        Text(
+                                                                                "返回",
+                                                                                style =
+                                                                                        MaterialTheme
+                                                                                                .typography
+                                                                                                .bodySmall
+                                                                        )
+                                                                }
                                                         }
                                                 }
                                         }

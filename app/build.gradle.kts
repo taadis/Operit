@@ -96,6 +96,14 @@ dependencies {
     // Add missing GIF support for Markwon
     implementation("pl.droidsonroids.gif:android-gif-drawable:1.2.28")
     
+    // Image Cropper for background image cropping
+    implementation("com.vanniktech:android-image-cropper:4.5.0")
+    
+    // ExoPlayer for video background
+    implementation("com.google.android.exoplayer:exoplayer:2.19.1")
+    implementation("com.google.android.exoplayer:exoplayer-core:2.19.1")
+    implementation("com.google.android.exoplayer:exoplayer-ui:2.19.1")
+    
     // Material 3 Window Size Class
     implementation("androidx.compose.material3:material3-window-size-class:1.2.0")
     

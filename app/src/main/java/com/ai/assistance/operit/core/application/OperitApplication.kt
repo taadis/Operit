@@ -76,7 +76,13 @@ class OperitApplication : Application() {
                         .diskCache {
                             DiskCache.Builder()
                                     .directory(filesDir.resolve("image_cache"))
-                                    .maxSizePercent(0.1) // 使用10%的可用磁盘空间
+                                    .maxSizeBytes(50 * 1024 * 1024) // 50MB磁盘缓存上限，比百分比更精确
+                                    .build()
+                        }
+                        .memoryCache {
+                            // 设置内存缓存最大大小为应用可用内存的15%
+                            coil.memory.MemoryCache.Builder(this)
+                                    .maxSizePercent(0.15)
                                     .build()
                         }
                         .build()
