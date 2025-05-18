@@ -30,8 +30,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -89,6 +89,12 @@ dependencies {
     implementation(libs.androidx.ui.graphics.android)
     // Desugaring support for modern Java APIs on older Android
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+    
+    // Add missing SVG support
+    implementation("com.caverock:androidsvg-aar:1.4")
+    
+    // Add missing GIF support for Markwon
+    implementation("pl.droidsonroids.gif:android-gif-drawable:1.2.28")
     
     // Material 3 Window Size Class
     implementation("androidx.compose.material3:material3-window-size-class:1.2.0")

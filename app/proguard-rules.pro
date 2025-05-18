@@ -32,3 +32,52 @@
 -keepclassmembers class * implements android.os.Parcelable {
     public static final ** CREATOR;
 }
+
+# Rules to suppress R8 warnings about missing classes
+# SVG Support
+-dontwarn com.caverock.androidsvg.SVG
+-dontwarn com.caverock.androidsvg.SVGParseException
+
+# Java AWT classes (not available on Android)
+-dontwarn java.awt.**
+-dontwarn java.awt.color.**
+-dontwarn java.awt.geom.**
+-dontwarn java.awt.image.**
+
+# Image processing libraries
+-dontwarn javax.imageio.**
+-dontwarn javax.xml.stream.**
+
+# Saxon XML
+-dontwarn net.sf.saxon.**
+
+# Apache Batik
+-dontwarn org.apache.batik.**
+
+# OSGi Framework
+-dontwarn org.osgi.framework.**
+
+# XZ compression
+-dontwarn org.tukaani.xz.**
+
+# POI dependencies
+-dontwarn org.apache.poi.xslf.draw.**
+-dontwarn org.apache.poi.xslf.usermodel.**
+-dontwarn org.apache.poi.util.**
+
+# PDF Box dependencies
+-dontwarn org.apache.pdfbox.**
+-dontwarn org.apache.fontbox.**
+
+# Apache commons compress
+-dontwarn org.apache.commons.compress.archivers.sevenz.**
+
+# xmlbeans
+-dontwarn org.apache.xmlbeans.**
+
+# GIF handling
+-dontwarn pl.droidsonroids.gif.**
+
+# Reactor BlockHound integration with Netty
+-dontwarn reactor.blockhound.integration.BlockHoundIntegration
+-dontwarn io.netty.util.internal.Hidden$NettyBlockHoundIntegration

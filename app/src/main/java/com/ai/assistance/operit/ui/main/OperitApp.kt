@@ -1,6 +1,7 @@
 package com.ai.assistance.operit.ui.main
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -25,6 +27,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
@@ -67,6 +70,15 @@ import com.ai.assistance.operit.ui.features.toolbox.screens.ToolboxScreen
 import com.ai.assistance.operit.util.NetworkUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.interaction.MutableInteractionSource
 
 // Hierarchical screen representation to replace multiple boolean flags
 sealed class Screen {
@@ -460,13 +472,19 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
         // Get background image state
         val context = LocalContext.current
         val preferencesManager = remember { UserPreferencesManager(context) }
-        val useBackgroundImage by preferencesManager.useBackgroundImage.collectAsState(initial = false)
-        val backgroundImageUri by preferencesManager.backgroundImageUri.collectAsState(initial = null)
+        val useBackgroundImage by
+                preferencesManager.useBackgroundImage.collectAsState(initial = false)
+        val backgroundImageUri by
+                preferencesManager.backgroundImageUri.collectAsState(initial = null)
         val hasBackgroundImage = useBackgroundImage && backgroundImageUri != null
-        
+
         // 内容区域仅包含顶部应用栏和主内容，不再使用Scaffold
         Column(
-            modifier = Modifier.fillMaxSize().background(Color.Transparent) // Explicitly set transparent background
+                modifier =
+                        Modifier.fillMaxSize()
+                                .background(
+                                        Color.Transparent
+                                ) // Explicitly set transparent background
         ) {
             // 单一工具栏 - 使用小型化的设计
             SmallTopAppBar(
@@ -504,7 +522,10 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                 Text(
                                         text = "- $currentChatTitle",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
+                                        color =
+                                                MaterialTheme.colorScheme.onPrimary.copy(
+                                                        alpha = 0.8f
+                                                ),
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                 )
@@ -512,7 +533,8 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                         }
                     },
                     navigationIcon = {
-                        // Updated logic to display back button for all secondary screens, including ThemeSettings
+                        // Updated logic to display back button for all secondary screens, including
+                        // ThemeSettings
                         if (!useTabletLayout ||
                                         currentScreen is Screen.ToolPermission ||
                                         currentScreen is Screen.UserPreferencesGuide ||
@@ -605,10 +627,9 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
             // 主内容区域
             Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = if (hasBackgroundImage) 
-                        Color.Transparent 
-                    else 
-                        MaterialTheme.colorScheme.background
+                    color =
+                            if (hasBackgroundImage) Color.Transparent
+                            else MaterialTheme.colorScheme.background
             ) {
                 if (isLoading) {
                     // 加载中状态 - 使用简单的Text替代CircularProgressIndicator
@@ -773,7 +794,9 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
 
     // 应用整体结构 - 根据屏幕尺寸选择不同的布局
     Box(
-        modifier = Modifier.fillMaxSize().background(Color.Transparent) // Explicitly set transparent background
+            modifier =
+                    Modifier.fillMaxSize()
+                            .background(Color.Transparent) // Explicitly set transparent background
     ) {
         if (useTabletLayout) {
             // 平板布局 - 使用永久导航抽屉
@@ -783,24 +806,68 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                     }
             ) { AppContent() }
         } else {
-            // 手机布局 - 使用模态导航抽屉
+            // 手机布局 - 使用可滑动的导航抽屉，主内容会向左滑动
             val drawerWidth = (screenWidthDp * 0.75).dp // 设置抽屉宽度为屏幕的3/4
             
-            ModalNavigationDrawer(
-                    drawerContent = { 
-                        ModalDrawerSheet(
-                            modifier = Modifier.width(drawerWidth),
-                            drawerContainerColor = MaterialTheme.colorScheme.surface,
-                            drawerContentColor = MaterialTheme.colorScheme.onSurface
-                        ) { 
-                            DrawerContent() 
-                        } 
-                    },
-                    // 启用点击右侧区域关闭抽屉
-                    scrimColor = Color.Black.copy(alpha = 0.32f), // 半透明遮罩
-                    gesturesEnabled = true, // 启用手势
-                    drawerState = drawerState
-            ) { AppContent() }
+            // 创建动画化的内容偏移 - 完全匹配抽屉宽度实现无缝滑动
+            val animatedOffset = animateDpAsState(
+                targetValue = if (drawerState.currentValue == DrawerValue.Open) drawerWidth else 0.dp,
+                animationSpec = tween(durationMillis = 200),
+                label = "contentOffset"
+            ).value
+            
+            // 抽屉动画状态
+            val isDrawerOpen = drawerState.currentValue == DrawerValue.Open || 
+                               drawerState.targetValue == DrawerValue.Open
+
+            // 使用Box布局来手动控制抽屉和内容的位置关系
+            Box(modifier = Modifier.fillMaxSize()) {
+                // 主内容区域，使用动画偏移 - 确保滑动与抽屉同步
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .offset(x = animatedOffset)
+                ) {
+                    AppContent()
+                }
+                
+                // 抽屉内容，从左侧滑动进入
+                AnimatedVisibility(
+                    visible = isDrawerOpen,
+                    enter = slideInHorizontally(
+                        initialOffsetX = { -it }, 
+                        animationSpec = tween(durationMillis = 200)
+                    ),
+                    exit = slideOutHorizontally(
+                        targetOffsetX = { -it },
+                        animationSpec = tween(durationMillis = 200)
+                    )
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(drawerWidth)
+                            .fillMaxHeight()
+                            .background(MaterialTheme.colorScheme.surface)
+                    ) {
+                        DrawerContent()
+                    }
+                }
+                
+                // 移除黑色遮罩层，改为透明的可点击区域以关闭抽屉
+                if (isDrawerOpen) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .offset(x = drawerWidth)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null // 无视觉指示
+                            ) {
+                                scope.launch { drawerState.close() }
+                            }
+                    )
+                }
+            }
         }
 
         // 帧率计数器 - 放在右上角

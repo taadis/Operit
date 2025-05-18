@@ -152,7 +152,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                         },
                         resetPlanItems = { planItemsDelegate.clearPlanItems() },
                         getEnhancedAiService = { enhancedAiService },
-                        ensureAiServiceAvailable = { ensureAiServiceAvailable() }
+                        ensureAiServiceAvailable = { ensureAiServiceAvailable() },
+                        getTokenCounts = { tokenStatsDelegate.getCurrentTokenCounts() }
                 )
 
         // Then initialize message processing delegate

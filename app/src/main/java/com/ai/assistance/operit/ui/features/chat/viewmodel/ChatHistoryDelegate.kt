@@ -26,7 +26,8 @@ class ChatHistoryDelegate(
         private val onTokenStatisticsLoaded: (Int, Int) -> Unit,
         private val resetPlanItems: () -> Unit,
         private val getEnhancedAiService: () -> EnhancedAIService?,
-        private val ensureAiServiceAvailable: () -> Unit = {} // 确保AI服务可用的回调
+        private val ensureAiServiceAvailable: () -> Unit = {}, // 确保AI服务可用的回调
+        private val getTokenCounts: () -> Pair<Int, Int> = { Pair(0, 0) } // 获取当前token统计数据的回调
 ) {
     companion object {
         private const val TAG = "ChatHistoryDelegate"
@@ -132,7 +133,8 @@ class ChatHistoryDelegate(
         viewModelScope.launch {
             try {
                 // 保存当前聊天
-                saveCurrentChat(0, 0)
+                val currentTokenCounts = getCurrentTokenCounts()
+                saveCurrentChat(currentTokenCounts.first, currentTokenCounts.second)
 
                 // 清空计划项
                 resetPlanItems()
@@ -164,7 +166,13 @@ class ChatHistoryDelegate(
         viewModelScope.launch {
             try {
                 // 保存当前聊天
-                saveCurrentChat(0, 0)
+                // 问题所在：原来固定传0,0，导致切换聊天后统计数据丢失
+                // saveCurrentChat(0, 0)
+                
+                // 修复：获取当前token计数并保存，避免丢失统计数据
+                // 通过回调获取当前token统计数据
+                val currentTokenCounts = getCurrentTokenCounts()
+                saveCurrentChat(currentTokenCounts.first, currentTokenCounts.second)
 
                 // 清空计划项
                 resetPlanItems()
@@ -202,6 +210,7 @@ class ChatHistoryDelegate(
             try {
                 // 如果要删除的是当前聊天，先创建一个新的聊天
                 if (chatId == _currentChatId.value) {
+                    // 当删除当前聊天时，不需要保存统计数据，因为我们会创建一个新的聊天
                     val newChat = chatHistoryManager.createNewChat()
                     _chatHistory.value = newChat.messages
 
@@ -210,6 +219,10 @@ class ChatHistoryDelegate(
 
                     // 通知ViewModel重置token统计
                     onTokenStatisticsLoaded(0, 0)
+                } else {
+                    // 如果删除的不是当前聊天，先保存当前聊天的统计数据
+                    val currentTokenCounts = getCurrentTokenCounts()
+                    saveCurrentChat(currentTokenCounts.first, currentTokenCounts.second)
                 }
 
                 // 删除聊天历史
@@ -224,6 +237,10 @@ class ChatHistoryDelegate(
     fun clearCurrentChat() {
         viewModelScope.launch {
             try {
+                // 先保存当前聊天（这一步可能是多余的，但为安全起见）
+                val currentTokenCounts = getCurrentTokenCounts()
+                saveCurrentChat(currentTokenCounts.first, currentTokenCounts.second)
+                
                 // 清空聊天历史
                 _chatHistory.value = emptyList()
 
@@ -354,7 +371,8 @@ class ChatHistoryDelegate(
                 }
 
                 // 自动保存聊天历史
-                saveCurrentChat(0, 0)
+                val currentTokenCounts = getCurrentTokenCounts()
+                saveCurrentChat(currentTokenCounts.first, currentTokenCounts.second)
             } catch (e: Exception) {
                 Log.e(TAG, "添加消息到聊天失败", e)
             }
@@ -690,5 +708,11 @@ class ChatHistoryDelegate(
     private fun getEnhancedAiService(): EnhancedAIService? {
         // 使用构造函数中传入的callback获取EnhancedAIService实例
         return getEnhancedAiService.invoke()
+    }
+
+    /** 通过回调获取当前token统计数据 */
+    private fun getCurrentTokenCounts(): Pair<Int, Int> {
+        // 使用构造函数中传入的回调获取当前token统计数据
+        return getTokenCounts()
     }
 }
