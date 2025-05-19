@@ -93,7 +93,7 @@ fun ModelParametersSettingsScreen() {
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
-        // Screen title
+        // Screen title  
 
         // ======= SECTION 1: GENERATION PARAMETERS =======
         ModelParamSectionTitle(title = "生成参数", icon = Icons.Default.TextFormat)
