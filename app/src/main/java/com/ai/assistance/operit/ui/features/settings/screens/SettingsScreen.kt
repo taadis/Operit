@@ -3,6 +3,8 @@ package com.ai.assistance.operit.ui.features.settings.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,7 +29,8 @@ fun SettingsScreen(
         onNavigateToUserPreferences: () -> Unit,
         navigateToToolPermissions: () -> Unit,
         navigateToModelParameters: () -> Unit,
-        navigateToThemeSettings: () -> Unit
+        navigateToThemeSettings: () -> Unit,
+        navigateToModelPrompts: () -> Unit
 ) {
         val context = LocalContext.current
         val apiPreferences = remember { ApiPreferences(context) }
@@ -117,21 +120,57 @@ fun SettingsScreen(
                 modifier =
                         Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())
         ) {
-                Text(
-                        text = stringResource(id = R.string.settings),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontSize = 16.sp,
-                        color = Color.White,
-                        modifier = Modifier.padding(bottom = 16.dp)
-                )
+                // ======= SECTION 1: PERSONALIZATION =======
+                SettingsSectionTitle(title = "个性化", icon = Icons.Default.Person)
 
+                // 用户偏好设置
+                SettingsCard(
+                        title = "用户偏好设置",
+                        description = "配置个人信息和偏好，让AI更好地了解你，包括年龄、性格、身份、职业和期待的AI风格",
+                        onClick = onNavigateToUserPreferences,
+                        buttonText = "配置用户偏好",
+                        icon = Icons.Default.Face
+                )
+                
+                // 模型提示词设置
+                SettingsCard(
+                        title = "模型提示词设置",
+                        description = "自定义AI助手的系统提示词，包括自我介绍和语气风格，使AI更符合您的预期",
+                        onClick = navigateToModelPrompts,
+                        buttonText = "配置提示词",
+                        icon = Icons.Default.Message
+                )
+                
+                // 主题设置
+                SettingsCard(
+                        title = "主题和外观",
+                        description = "个性化应用外观，包括深色/浅色模式和自定义配色方案",
+                        onClick = navigateToThemeSettings,
+                        buttonText = "自定义主题",
+                        icon = Icons.Default.Palette
+                )
+                
+                // ======= SECTION 2: AI MODEL CONFIGURATION =======
+                SettingsSectionTitle(title = "AI模型配置", icon = Icons.Default.Settings)
+                
+                // API设置卡片
                 Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                                Text(
-                                        text = stringResource(id = R.string.api_settings),
-                                        style = MaterialTheme.typography.titleMedium,
+                                Row(
+                                        verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier.padding(bottom = 16.dp)
-                                )
+                                ) {
+                                        Icon(
+                                                imageVector = Icons.Default.Api,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                                text = stringResource(id = R.string.api_settings),
+                                                style = MaterialTheme.typography.titleMedium
+                                        )
+                                }
 
                                 OutlinedTextField(
                                         value = apiEndpointInput,
@@ -139,7 +178,6 @@ fun SettingsScreen(
                                                 apiEndpointInput = it
 
                                                 // Check if the endpoint contains 'completions' path
-                                                // but don't auto-fix, instead show a warning
                                                 if (it.isNotBlank() &&
                                                                 !ModelEndPointFix
                                                                         .containsCompletionsPath(it)
@@ -249,8 +287,6 @@ fun SettingsScreen(
                                                 scope.launch {
                                                         // Check if the endpoint might be missing
                                                         // completions path
-                                                        // but allow user to save it anyway with a
-                                                        // warning
                                                         if (apiEndpointInput.isNotBlank() &&
                                                                         !ModelEndPointFix
                                                                                 .containsCompletionsPath(
@@ -260,8 +296,6 @@ fun SettingsScreen(
                                                                 endpointWarningMessage =
                                                                         "警告：您的API地址不包含补全路径（如v1/chat/completions）。请确保这是您想要的配置。"
                                                                 showEndpointWarning = true
-
-                                                                // Still proceed with saving
                                                         }
 
                                                         // Force deepseek-chat model when using
@@ -280,11 +314,8 @@ fun SettingsScreen(
                                                         // Save settings with the user's input as-is
                                                         apiPreferences.saveAllSettings(
                                                                 apiKeyInput,
-                                                                apiEndpointInput, // Use the user's
-                                                                // input directly
-                                                                modelToSave, // Use forced model if
-                                                                // using default API
-                                                                // key
+                                                                apiEndpointInput,
+                                                                modelToSave,
                                                                 showThinkingInput,
                                                                 memoryOptimizationInput,
                                                                 showFpsCounterInput,
@@ -314,248 +345,133 @@ fun SettingsScreen(
                         }
                 }
 
-                // 主题设置卡片
-                Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                                Text(
-                                        text = "主题设置",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        modifier = Modifier.padding(bottom = 16.dp)
-                                )
-
-                                Text(
-                                        text = "个性化应用外观，包括深色/浅色模式和自定义配色方案",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        modifier = Modifier.padding(bottom = 16.dp)
-                                )
-
-                                Button(
-                                        onClick = navigateToThemeSettings,
-                                        modifier = Modifier.align(Alignment.End)
-                                ) { Text("自定义主题") }
-                        }
-                }
-
                 // 模型参数设置卡片
-                Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                                Text(
-                                        text = "模型参数设置",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        modifier = Modifier.padding(bottom = 16.dp)
-                                )
+                SettingsCard(
+                        title = "模型参数设置",
+                        description = "配置DeepSeek大模型的参数，包括温度、Token生成数量、采样方式和惩罚系数等",
+                        onClick = navigateToModelParameters,
+                        buttonText = "配置模型参数",
+                        icon = Icons.Default.Tune
+                )
 
-                                Text(
-                                        text = "配置DeepSeek大模型的参数，包括温度、Token生成数量、采样方式和惩罚系数等",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        modifier = Modifier.padding(bottom = 16.dp)
-                                )
-
-                                Button(
-                                        onClick = navigateToModelParameters,
-                                        modifier = Modifier.align(Alignment.End)
-                                ) { Text("配置模型参数") }
-                        }
-                }
+                // ======= SECTION 3: DISPLAY AND BEHAVIOR =======
+                SettingsSectionTitle(title = "显示与行为", icon = Icons.Default.Visibility)
 
                 Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                                Text(
-                                        text = stringResource(id = R.string.display_settings),
-                                        style = MaterialTheme.typography.titleMedium,
-                                        modifier = Modifier.padding(bottom = 16.dp)
-                                )
-
                                 Row(
-                                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
+                                        modifier = Modifier.padding(bottom = 16.dp)
                                 ) {
-                                        Column {
-                                                Text(
-                                                        text =
-                                                                stringResource(
-                                                                        id = R.string.show_thinking
-                                                                ),
-                                                        style = MaterialTheme.typography.bodyMedium
-                                                )
-                                                Text(
-                                                        text = "有的模型不具备思考能力，就可以关掉它",
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color =
-                                                                MaterialTheme.colorScheme
-                                                                        .onSurfaceVariant
-                                                )
-                                        }
-
-                                        Switch(
-                                                checked = showThinkingInput,
-                                                onCheckedChange = {
-                                                        showThinkingInput = it
-                                                        scope.launch {
-                                                                apiPreferences.saveShowThinking(it)
-                                                                showSaveSuccessMessage = true
-                                                        }
-                                                }
+                                        Icon(
+                                                imageVector = Icons.Default.DisplaySettings,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                                text = stringResource(id = R.string.display_settings),
+                                                style = MaterialTheme.typography.titleMedium
                                         )
                                 }
+
+                                // 显示思考过程开关
+                                SettingsToggle(
+                                        title = stringResource(id = R.string.show_thinking),
+                                        description = "有的模型不具备思考能力，就可以关掉它",
+                                        checked = showThinkingInput,
+                                        onCheckedChange = {
+                                                showThinkingInput = it
+                                                scope.launch {
+                                                        apiPreferences.saveShowThinking(it)
+                                                        showSaveSuccessMessage = true
+                                                }
+                                        }
+                                )
 
                                 // 记忆优化开关
-                                Row(
-                                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                        Column {
-                                                Text(
-                                                        text = "记忆优化",
-                                                        style = MaterialTheme.typography.bodyMedium
-                                                )
-                                                Text(
-                                                        text = "开启后，AI会有一定的遗忘能力",
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color =
-                                                                MaterialTheme.colorScheme
-                                                                        .onSurfaceVariant
-                                                )
-                                        }
-
-                                        Switch(
-                                                checked = memoryOptimizationInput,
-                                                onCheckedChange = {
-                                                        memoryOptimizationInput = it
-                                                        scope.launch {
-                                                                apiPreferences
-                                                                        .saveMemoryOptimization(it)
-                                                                showSaveSuccessMessage = true
-                                                        }
+                                SettingsToggle(
+                                        title = "记忆优化",
+                                        description = "开启后，AI会有一定的遗忘能力",
+                                        checked = memoryOptimizationInput,
+                                        onCheckedChange = {
+                                                memoryOptimizationInput = it
+                                                scope.launch {
+                                                        apiPreferences
+                                                                .saveMemoryOptimization(it)
+                                                        showSaveSuccessMessage = true
                                                 }
-                                        )
-                                }
+                                        }
+                                )
 
                                 // 帧率显示开关
-                                Row(
-                                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                        Column {
-                                                Text(
-                                                        text = "显示帧率",
-                                                        style = MaterialTheme.typography.bodyMedium
-                                                )
-                                                Text(
-                                                        text = "在屏幕右上角显示实时帧率",
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color =
-                                                                MaterialTheme.colorScheme
-                                                                        .onSurfaceVariant
-                                                )
-                                        }
-
-                                        Switch(
-                                                checked = showFpsCounterInput,
-                                                onCheckedChange = {
-                                                        showFpsCounterInput = it
-                                                        scope.launch {
-                                                                apiPreferences.saveShowFpsCounter(
-                                                                        it
-                                                                )
-                                                                showSaveSuccessMessage = true
-                                                        }
+                                SettingsToggle(
+                                        title = "显示帧率",
+                                        description = "在屏幕右上角显示实时帧率",
+                                        checked = showFpsCounterInput,
+                                        onCheckedChange = {
+                                                showFpsCounterInput = it
+                                                scope.launch {
+                                                        apiPreferences.saveShowFpsCounter(
+                                                                it
+                                                        )
+                                                        showSaveSuccessMessage = true
                                                 }
-                                        )
-                                }
+                                        }
+                                )
 
                                 // 自动授予无障碍权限开关
-                                Row(
-                                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                        Column {
-                                                Text(
-                                                        text = "自动授予无障碍权限",
-                                                        style = MaterialTheme.typography.bodyMedium
-                                                )
-                                                Text(
-                                                        text = "关闭后需每次打开软件手动授权",
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color =
-                                                                MaterialTheme.colorScheme
-                                                                        .onSurfaceVariant
-                                                )
-                                        }
-
-                                        Switch(
-                                                checked = autoGrantAccessibilityInput,
-                                                onCheckedChange = {
-                                                        autoGrantAccessibilityInput = it
-                                                        scope.launch {
-                                                                apiPreferences
-                                                                        .saveAutoGrantAccessibility(
-                                                                                it
-                                                                        )
-                                                                showSaveSuccessMessage = true
-                                                        }
+                                SettingsToggle(
+                                        title = "自动授予无障碍权限",
+                                        description = "关闭后需每次打开软件手动授权",
+                                        checked = autoGrantAccessibilityInput,
+                                        onCheckedChange = {
+                                                autoGrantAccessibilityInput = it
+                                                scope.launch {
+                                                        apiPreferences
+                                                                .saveAutoGrantAccessibility(
+                                                                        it
+                                                                )
+                                                        showSaveSuccessMessage = true
                                                 }
-                                        )
-                                }
+                                        }
+                                )
                         }
                 }
+
+                // ======= SECTION 4: PERMISSIONS AND SECURITY =======
+                SettingsSectionTitle(title = "权限与安全", icon = Icons.Default.Security)
 
                 // 工具权限设置卡片
-                Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                                Text(
-                                        text = "工具权限设置",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        modifier = Modifier.padding(bottom = 16.dp)
-                                )
+                SettingsCard(
+                        title = "工具权限设置",
+                        description = "配置AI助手工具的权限级别，可以设置为自动允许、询问或禁止",
+                        onClick = navigateToToolPermissions,
+                        buttonText = "配置工具权限",
+                        icon = Icons.Default.AdminPanelSettings
+                )
 
-                                Text(
-                                        text = "配置AI助手工具的权限级别，可以设置为自动允许、询问或禁止",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        modifier = Modifier.padding(bottom = 16.dp)
-                                )
-
-                                Button(
-                                        onClick = navigateToToolPermissions,
-                                        modifier = Modifier.align(Alignment.End)
-                                ) { Text("配置工具权限") }
-                        }
-                }
-
-                // 用户偏好设置
-                Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                                Text(
-                                        text = "用户偏好设置",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        modifier = Modifier.padding(bottom = 16.dp)
-                                )
-
-                                Text(
-                                        text = "配置个人信息和偏好，让AI更好地了解你，包括年龄、性格、身份、职业和期待的AI风格",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        modifier = Modifier.padding(bottom = 16.dp)
-                                )
-
-                                Button(
-                                        onClick = onNavigateToUserPreferences,
-                                        modifier = Modifier.align(Alignment.End)
-                                ) { Text("配置用户偏好") }
-                        }
-                }
+                // ======= SECTION 5: USAGE STATISTICS =======
+                SettingsSectionTitle(title = "使用统计", icon = Icons.Default.Analytics)
 
                 // Token统计卡片
                 Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                                Text(
-                                        text = "Token统计",
-                                        style = MaterialTheme.typography.titleMedium,
+                                Row(
+                                        verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier.padding(bottom = 16.dp)
-                                )
+                                ) {
+                                        Icon(
+                                                imageVector = Icons.Default.DataUsage,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                                text = "Token统计",
+                                                style = MaterialTheme.typography.titleMedium
+                                        )
+                                }
 
                                 // 从数据源读取token统计数据
                                 val chatHistories = remember { ChatHistoryManager(context) }
@@ -564,7 +480,7 @@ fun SettingsScreen(
                                 var preferenceAnalysisInputTokens by remember { mutableStateOf(0) }
                                 var preferenceAnalysisOutputTokens by remember { mutableStateOf(0) }
 
-                                // 计算所有聊天历史的token总和和读取偏好分析token计数
+                                // 读取和统计token数据
                                 LaunchedEffect(Unit) {
                                         // 聊天历史token计数
                                         chatHistories.chatHistoriesFlow.collect { histories ->
@@ -575,41 +491,25 @@ fun SettingsScreen(
                                         }
                                 }
 
-                                // 读取偏好分析token计数
                                 LaunchedEffect(Unit) {
-                                        apiPreferences.preferenceAnalysisInputTokensFlow.collect {
-                                                tokens ->
+                                        apiPreferences.preferenceAnalysisInputTokensFlow.collect { tokens ->
                                                 preferenceAnalysisInputTokens = tokens
                                         }
                                 }
 
                                 LaunchedEffect(Unit) {
-                                        apiPreferences.preferenceAnalysisOutputTokensFlow.collect {
-                                                tokens ->
+                                        apiPreferences.preferenceAnalysisOutputTokensFlow.collect { tokens ->
                                                 preferenceAnalysisOutputTokens = tokens
                                         }
                                 }
 
-                                // 计算费用（使用DeepSeek的价格）
-                                // DeepSeek价格：输入tokens $0.27/百万，输出tokens $1.10/百万
-                                // 添加USD到RMB的汇率转换（假设1 USD = 7.2 RMB）
+                                // 计算费用
                                 val usdToRmbRate = 7.2
-
-                                val chatInputCost =
-                                        totalInputTokens * 0.27 / 1_000_000 * usdToRmbRate
-                                val chatOutputCost =
-                                        totalOutputTokens * 1.10 / 1_000_000 * usdToRmbRate
-                                val preferenceAnalysisInputCost =
-                                        preferenceAnalysisInputTokens * 0.27 / 1_000_000 *
-                                                usdToRmbRate
-                                val preferenceAnalysisOutputCost =
-                                        preferenceAnalysisOutputTokens * 1.10 / 1_000_000 *
-                                                usdToRmbRate
-                                val totalCost =
-                                        chatInputCost +
-                                                chatOutputCost +
-                                                preferenceAnalysisInputCost +
-                                                preferenceAnalysisOutputCost
+                                val chatInputCost = totalInputTokens * 0.27 / 1_000_000 * usdToRmbRate
+                                val chatOutputCost = totalOutputTokens * 1.10 / 1_000_000 * usdToRmbRate
+                                val preferenceAnalysisInputCost = preferenceAnalysisInputTokens * 0.27 / 1_000_000 * usdToRmbRate
+                                val preferenceAnalysisOutputCost = preferenceAnalysisOutputTokens * 1.10 / 1_000_000 * usdToRmbRate
+                                val totalCost = chatInputCost + chatOutputCost + preferenceAnalysisInputCost + preferenceAnalysisOutputCost
 
                                 // 统计信息表格
                                 Column(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
@@ -628,27 +528,20 @@ fun SettingsScreen(
                                         TokenStatRow(
                                                 label = "偏好分析输入Token",
                                                 value = preferenceAnalysisInputTokens.toString(),
-                                                cost =
-                                                        "¥${String.format("%.2f", preferenceAnalysisInputCost)}"
+                                                cost = "¥${String.format("%.2f", preferenceAnalysisInputCost)}"
                                         )
 
                                         TokenStatRow(
                                                 label = "偏好分析输出Token",
                                                 value = preferenceAnalysisOutputTokens.toString(),
-                                                cost =
-                                                        "¥${String.format("%.2f", preferenceAnalysisOutputCost)}"
+                                                cost = "¥${String.format("%.2f", preferenceAnalysisOutputCost)}"
                                         )
 
                                         Divider(modifier = Modifier.padding(vertical = 8.dp))
 
                                         TokenStatRow(
                                                 label = "总计",
-                                                value =
-                                                        (totalInputTokens +
-                                                                        totalOutputTokens +
-                                                                        preferenceAnalysisInputTokens +
-                                                                        preferenceAnalysisOutputTokens)
-                                                                .toString(),
+                                                value = (totalInputTokens + totalOutputTokens + preferenceAnalysisInputTokens + preferenceAnalysisOutputTokens).toString(),
                                                 cost = "¥${String.format("%.2f", totalCost)}",
                                                 isHighlighted = true
                                         )
@@ -673,41 +566,123 @@ fun SettingsScreen(
                                 // 幽默解释
                                 Card(
                                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                                        colors =
-                                                CardDefaults.cardColors(
-                                                        containerColor =
-                                                                MaterialTheme.colorScheme
-                                                                        .surfaceVariant.copy(
-                                                                        alpha = 0.5f
-                                                                )
-                                                )
+                                        colors = CardDefaults.cardColors(
+                                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                        )
                                 ) {
                                         Column(modifier = Modifier.padding(8.dp)) {
                                                 Text(
                                                         text = "为什么我要关心Token统计？",
-                                                        style =
-                                                                MaterialTheme.typography.bodyMedium
-                                                                        .copy(
-                                                                                fontWeight =
-                                                                                        FontWeight
-                                                                                                .Bold
-                                                                        ),
+                                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                                                         modifier = Modifier.padding(bottom = 4.dp)
                                                 )
 
                                                 Text(
-                                                        text =
-                                                                "因为它就像一个饭店账单，只不过这里的'饭'是AI的思考，而'钱'是以人民币计算的！偏好分析是AI暗中观察你的口味，为你定制下次的\"菜单\"。别担心，即使你聊到手指抽筋，这些费用可能还不够买一杯奶茶～",
+                                                        text = "因为它就像一个饭店账单，只不过这里的'饭'是AI的思考，而'钱'是以人民币计算的！偏好分析是AI暗中观察你的口味，为你定制下次的\"菜单\"。别担心，即使你聊到手指抽筋，这些费用可能还不够买一杯奶茶～",
                                                         style = MaterialTheme.typography.bodySmall,
-                                                        color =
-                                                                MaterialTheme.colorScheme
-                                                                        .onSurfaceVariant
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
                                         }
                                 }
                         }
                 }
         }
+}
+
+@Composable
+private fun SettingsCard(
+        title: String,
+        description: String,
+        onClick: () -> Unit,
+        buttonText: String,
+        icon: androidx.compose.ui.graphics.vector.ImageVector
+) {
+        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                        ) {
+                                Icon(
+                                        imageVector = icon,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                        text = title,
+                                        style = MaterialTheme.typography.titleMedium
+                                )
+                        }
+
+                        Text(
+                                text = description,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(bottom = 16.dp)
+                        )
+
+                        Button(
+                                onClick = onClick,
+                                modifier = Modifier.align(Alignment.End)
+                        ) { Text(buttonText) }
+                }
+        }
+}
+
+@Composable
+private fun SettingsToggle(
+        title: String,
+        description: String,
+        checked: Boolean,
+        onCheckedChange: (Boolean) -> Unit
+) {
+        Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+                Column {
+                        Text(
+                                text = title,
+                                style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                                text = description,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                }
+
+                Switch(
+                        checked = checked,
+                        onCheckedChange = onCheckedChange
+                )
+        }
+}
+
+@Composable
+private fun SettingsSectionTitle(
+        title: String,
+        icon: androidx.compose.ui.graphics.vector.ImageVector
+) {
+        Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(vertical = 8.dp)
+        ) {
+                Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                )
+        }
+        Divider(modifier = Modifier.padding(bottom = 8.dp))
 }
 
 @Composable
@@ -757,26 +732,5 @@ private fun TokenStatRow(
                                         else MaterialTheme.colorScheme.onSurface
                         )
                 }
-        }
-}
-
-@Composable
-private fun TemperatureRecommendationRow(useCase: String, tempValue: String) {
-        Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-        ) {
-                Text(
-                        text = useCase,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                )
-
-                Text(
-                        text = tempValue,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary
-                )
         }
 }

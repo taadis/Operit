@@ -75,6 +75,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                         is Screen.UserPreferencesGuide,
                         is Screen.UserPreferencesSettings,
                         is Screen.ModelParametersSettings,
+                        is Screen.ModelPromptsSettings,
                         is Screen.ThemeSettings -> {
                                 // 返回到设置主界面
                                 ParentScreenInfo(true, Screen.Settings, NavItem.Settings)

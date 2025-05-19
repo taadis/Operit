@@ -45,6 +45,7 @@ import com.ai.assistance.operit.ui.features.help.screens.HelpScreen
 import com.ai.assistance.operit.ui.features.packages.screens.PackageManagerScreen
 import com.ai.assistance.operit.ui.features.problems.screens.ProblemLibraryScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ModelParametersSettingsScreen
+import com.ai.assistance.operit.ui.features.settings.screens.ModelPromptsSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.SettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ThemeSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ToolPermissionSettingsScreen
@@ -359,9 +360,13 @@ fun AppContent(
                                         },
                                         navigateToThemeSettings = {
                                             onScreenChange(Screen.ThemeSettings)
+                                        },
+                                        navigateToModelPrompts = {
+                                            onScreenChange(Screen.ModelPromptsSettings)
                                         }
                                 )
                         is Screen.ModelParametersSettings -> ModelParametersSettingsScreen()
+                        is Screen.ModelPromptsSettings -> ModelPromptsSettingsScreen()
                         is Screen.ThemeSettings -> ThemeSettingsScreen()
                         is Screen.Packages -> PackageManagerScreen()
                         is Screen.ProblemLibrary -> {

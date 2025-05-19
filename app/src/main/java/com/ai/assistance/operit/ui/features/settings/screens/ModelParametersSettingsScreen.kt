@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import kotlinx.coroutines.launch
 
@@ -27,7 +28,7 @@ fun ModelParametersSettingsScreen() {
     val scope = rememberCoroutineScope()
     var showSaveSuccessMessage by remember { mutableStateOf(false) }
 
-    // 从 API 偏好中读取模型参数
+    // Read model parameters from API preferences
     val maxTokens =
             apiPreferences.maxTokensFlow.collectAsState(initial = ApiPreferences.DEFAULT_MAX_TOKENS)
                     .value
@@ -54,7 +55,7 @@ fun ModelParametersSettingsScreen() {
                     )
                     .value
 
-    // 可变状态用于编辑
+    // Mutable state for editing
     var maxTokensInput by remember { mutableStateOf(maxTokens.toString()) }
     var temperatureInput by remember { mutableStateOf(temperature.toString()) }
     var topPInput by remember { mutableStateOf(topP.toString()) }
@@ -63,7 +64,7 @@ fun ModelParametersSettingsScreen() {
     var frequencyPenaltyInput by remember { mutableStateOf(frequencyPenalty.toString()) }
     var repetitionPenaltyInput by remember { mutableStateOf(repetitionPenalty.toString()) }
 
-    // 验证状态
+    // Validation state
     var showMaxTokensError by remember { mutableStateOf(false) }
     var showTemperatureError by remember { mutableStateOf(false) }
     var showTopPError by remember { mutableStateOf(false) }
@@ -72,7 +73,7 @@ fun ModelParametersSettingsScreen() {
     var showFrequencyPenaltyError by remember { mutableStateOf(false) }
     var showRepetitionPenaltyError by remember { mutableStateOf(false) }
 
-    // 当偏好改变时更新状态
+    // Update state when preferences change
     LaunchedEffect(
             maxTokens,
             temperature,
@@ -92,52 +93,17 @@ fun ModelParametersSettingsScreen() {
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
-        // 顶部说明卡片
-        Card(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors =
-                        CardDefaults.cardColors(
-                                containerColor =
-                                        MaterialTheme.colorScheme.primaryContainer.copy(
-                                                alpha = 0.7f
-                                        )
-                        )
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                ) {
-                    Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                            text = "DeepSeek 模型参数",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                    )
-                }
+        // Screen title
 
-                Text(
-                        text = "这些参数控制 DeepSeek 大模型的输出行为。调整这些参数可以影响AI回复的创造性、多样性和准确性。",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
-        }
-
-        // 参数卡片
+        // ======= SECTION 1: GENERATION PARAMETERS =======
+        ModelParamSectionTitle(title = "生成参数", icon = Icons.Default.TextFormat)
+        
         Card(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
                 shape = RoundedCornerShape(12.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                // 最大 Token 数量参数
+                // Maximum tokens parameter
                 ParameterSection(
                         icon = Icons.Default.TextFormat,
                         title = "最大生成Token数",
@@ -156,10 +122,18 @@ fun ModelParametersSettingsScreen() {
                         errorMessage = "请输入有效的正整数",
                         keyboardType = KeyboardType.Number
                 )
-
-                Divider(modifier = Modifier.padding(vertical = 12.dp))
-
-                // 温度参数
+            }
+        }
+        
+        // ======= SECTION 2: CREATIVITY PARAMETERS =======
+        ModelParamSectionTitle(title = "创造性参数", icon = Icons.Default.AutoAwesome)
+        
+        Card(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                // Temperature parameter
                 ParameterSection(
                         icon = Icons.Default.Thermostat,
                         title = "温度",
@@ -182,7 +156,7 @@ fun ModelParametersSettingsScreen() {
 
                 Divider(modifier = Modifier.padding(vertical = 12.dp))
 
-                // Top-P 参数
+                // Top-P parameter
                 ParameterSection(
                         icon = Icons.Default.FilterAlt,
                         title = "Top-P 采样",
@@ -205,7 +179,7 @@ fun ModelParametersSettingsScreen() {
 
                 Divider(modifier = Modifier.padding(vertical = 12.dp))
 
-                // Top-K 参数
+                // Top-K parameter
                 ParameterSection(
                         icon = Icons.Default.FilterList,
                         title = "Top-K 采样",
@@ -224,10 +198,18 @@ fun ModelParametersSettingsScreen() {
                         errorMessage = "请输入有效的非负整数",
                         keyboardType = KeyboardType.Number
                 )
-
-                Divider(modifier = Modifier.padding(vertical = 12.dp))
-
-                // 频率惩罚参数
+            }
+        }
+        
+        // ======= SECTION 3: REPETITION CONTROL =======
+        ModelParamSectionTitle(title = "重复控制参数", icon = Icons.Default.Repeat)
+        
+        Card(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                // Frequency penalty parameter
                 ParameterSection(
                         icon = Icons.Default.StackedBarChart,
                         title = "频率惩罚",
@@ -250,7 +232,7 @@ fun ModelParametersSettingsScreen() {
 
                 Divider(modifier = Modifier.padding(vertical = 12.dp))
 
-                // 存在惩罚参数
+                // Presence penalty parameter
                 ParameterSection(
                         icon = Icons.Default.Repeat,
                         title = "存在惩罚",
@@ -273,7 +255,7 @@ fun ModelParametersSettingsScreen() {
 
                 Divider(modifier = Modifier.padding(vertical = 12.dp))
 
-                // 重复惩罚参数
+                // Repetition penalty parameter
                 ParameterSection(
                         icon = Icons.Default.FilterNone,
                         title = "重复惩罚",
@@ -296,7 +278,7 @@ fun ModelParametersSettingsScreen() {
             }
         }
 
-        // 温度推荐卡片
+        // Temperature recommendation card
         Card(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
                 shape = RoundedCornerShape(12.dp),
@@ -341,11 +323,12 @@ fun ModelParametersSettingsScreen() {
             }
         }
 
-        // 保存按钮
+        // Save button for all parameters
         Button(
                 onClick = {
                     scope.launch {
                         try {
+                            // Parse and validate all parameters
                             val newMaxTokens = maxTokensInput.toInt()
                             val newTemperature = temperatureInput.toFloat()
                             val newTopP = topPInput.toFloat()
@@ -354,7 +337,7 @@ fun ModelParametersSettingsScreen() {
                             val newFrequencyPenalty = frequencyPenaltyInput.toFloat()
                             val newRepetitionPenalty = repetitionPenaltyInput.toFloat()
 
-                            // 验证所有参数
+                            // Validate all parameters
                             if (newMaxTokens <= 0) {
                                 showMaxTokensError = true
                                 return@launch
@@ -390,7 +373,7 @@ fun ModelParametersSettingsScreen() {
                                 return@launch
                             }
 
-                            // 保存模型参数
+                            // Save model parameters
                             apiPreferences.saveModelParameters(
                                     maxTokens = newMaxTokens,
                                     temperature = newTemperature,
@@ -400,11 +383,12 @@ fun ModelParametersSettingsScreen() {
                                     frequencyPenalty = newFrequencyPenalty,
                                     repetitionPenalty = newRepetitionPenalty
                             )
+                            
                             showSaveSuccessMessage = true
                         } catch (e: NumberFormatException) {
-                            // 处理无效输入
+                            // Handle invalid input
                             if (e.message?.contains("Int") == true) {
-                                // 整数解析错误
+                                // Integer parsing error
                                 if (!showMaxTokensError && maxTokensInput.toIntOrNull() == null) {
                                     showMaxTokensError = true
                                 }
@@ -412,7 +396,7 @@ fun ModelParametersSettingsScreen() {
                                     showTopKError = true
                                 }
                             } else {
-                                // 浮点数解析错误
+                                // Float parsing error
                                 if (!showTemperatureError &&
                                                 temperatureInput.toFloatOrNull() == null
                                 ) {
@@ -452,13 +436,46 @@ fun ModelParametersSettingsScreen() {
                                 !showRepetitionPenaltyError
         ) {
             Text(
-                    "保存设置",
+                    "保存所有设置",
                     style = MaterialTheme.typography.labelLarge,
                     modifier = Modifier.padding(vertical = 4.dp)
             )
         }
 
-        // 保存成功提示
+        // Reset to defaults button
+        OutlinedButton(
+                onClick = {
+                    scope.launch {
+                        maxTokensInput = ApiPreferences.DEFAULT_MAX_TOKENS.toString()
+                        temperatureInput = ApiPreferences.DEFAULT_TEMPERATURE.toString()
+                        topPInput = ApiPreferences.DEFAULT_TOP_P.toString()
+                        topKInput = ApiPreferences.DEFAULT_TOP_K.toString()
+                        presencePenaltyInput = ApiPreferences.DEFAULT_PRESENCE_PENALTY.toString()
+                        frequencyPenaltyInput = ApiPreferences.DEFAULT_FREQUENCY_PENALTY.toString()
+                        repetitionPenaltyInput =
+                                ApiPreferences.DEFAULT_REPETITION_PENALTY.toString()
+
+                        showMaxTokensError = false
+                        showTemperatureError = false
+                        showTopPError = false
+                        showTopKError = false
+                        showPresencePenaltyError = false
+                        showFrequencyPenaltyError = false
+                        showRepetitionPenaltyError = false
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                shape = RoundedCornerShape(8.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        ) {
+            Text(
+                    "重置为默认值",
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.padding(vertical = 4.dp)
+            )
+        }
+
+        // Save success message
         if (showSaveSuccessMessage) {
             Card(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
@@ -492,157 +509,33 @@ fun ModelParametersSettingsScreen() {
             }
         }
 
-        // 自定义提示词卡片
-        Card(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                shape = RoundedCornerShape(12.dp)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                ) {
-                    Icon(
-                            imageVector = Icons.Default.Message,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                            text = "自定义系统提示词",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Text(
-                        text = "定制AI的行为和语气风格",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 16.dp)
-                )
-
-                // 获取当前的系统提示词设置
-                val defaultIntroPrompt = "你是Operit，一个全能AI助手，旨在解决用户提出的任何任务。你有各种工具可以调用，以高效完成复杂的请求。"
-                val defaultTonePrompt = "保持有帮助的语气，并清楚地传达限制。使用问题库根据用户的风格、偏好和过去的信息个性化响应。"
-
-                // 从 API 偏好中读取自定义提示词
-                val customIntroPrompt =
-                        apiPreferences.customIntroPromptFlow.collectAsState(
-                                        initial = defaultIntroPrompt
-                                )
-                                .value
-                val customTonePrompt =
-                        apiPreferences.customTonePromptFlow.collectAsState(
-                                        initial = defaultTonePrompt
-                                )
-                                .value
-
-                // 可变状态用于编辑
-                var introPromptInput by remember { mutableStateOf(customIntroPrompt) }
-                var tonePromptInput by remember { mutableStateOf(customTonePrompt) }
-
-                // 当偏好改变时更新状态
-                LaunchedEffect(customIntroPrompt, customTonePrompt) {
-                    introPromptInput = customIntroPrompt
-                    tonePromptInput = customTonePrompt
-                }
-
-                // 自我介绍提示词
-                Text(
-                        text = "AI自我介绍",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 4.dp)
-                )
-
-                OutlinedTextField(
-                        value = introPromptInput,
-                        onValueChange = { introPromptInput = it },
-                        label = { Text("自我介绍提示词") },
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                        placeholder = { Text(defaultIntroPrompt) },
-                        minLines = 2
-                )
-
-                // 语气风格提示词
-                Text(
-                        text = "AI语气风格",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 4.dp, top = 8.dp)
-                )
-
-                OutlinedTextField(
-                        value = tonePromptInput,
-                        onValueChange = { tonePromptInput = it },
-                        label = { Text("语气风格提示词") },
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                        placeholder = { Text(defaultTonePrompt) },
-                        minLines = 2
-                )
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(
-                            onClick = {
-                                introPromptInput = defaultIntroPrompt
-                                tonePromptInput = defaultTonePrompt
-                            }
-                    ) { Text("恢复默认提示词") }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    Button(
-                            onClick = {
-                                scope.launch {
-                                    apiPreferences.saveCustomPrompts(
-                                            introPrompt = introPromptInput,
-                                            tonePrompt = tonePromptInput
-                                    )
-                                    showSaveSuccessMessage = true
-                                }
-                            }
-                    ) { Text("保存提示词") }
-                }
-            }
-        }
-
-        // 重置为默认值按钮
-        OutlinedButton(
-                onClick = {
-                    scope.launch {
-                        maxTokensInput = ApiPreferences.DEFAULT_MAX_TOKENS.toString()
-                        temperatureInput = ApiPreferences.DEFAULT_TEMPERATURE.toString()
-                        topPInput = ApiPreferences.DEFAULT_TOP_P.toString()
-                        topKInput = ApiPreferences.DEFAULT_TOP_K.toString()
-                        presencePenaltyInput = ApiPreferences.DEFAULT_PRESENCE_PENALTY.toString()
-                        frequencyPenaltyInput = ApiPreferences.DEFAULT_FREQUENCY_PENALTY.toString()
-                        repetitionPenaltyInput =
-                                ApiPreferences.DEFAULT_REPETITION_PENALTY.toString()
-
-                        showMaxTokensError = false
-                        showTemperatureError = false
-                        showTopPError = false
-                        showTopKError = false
-                        showPresencePenaltyError = false
-                        showFrequencyPenaltyError = false
-                        showRepetitionPenaltyError = false
-                    }
-                },
-                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                shape = RoundedCornerShape(8.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-        ) {
-            Text(
-                    "重置为默认值",
-                    style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.padding(vertical = 4.dp)
-            )
-        }
-
         Spacer(modifier = Modifier.height(16.dp))
     }
+}
+
+@Composable
+private fun ModelParamSectionTitle(
+    title: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(vertical = 8.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+    }
+    Divider(modifier = Modifier.padding(bottom = 8.dp))
 }
 
 @Composable

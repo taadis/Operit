@@ -16,6 +16,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Brightness4
+import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Loop
@@ -28,13 +30,14 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import coil.compose.rememberAsyncImagePainter
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
@@ -43,7 +46,6 @@ import com.ai.assistance.operit.util.FileUtils
 import com.canhub.cropper.CropImageContract
 import com.canhub.cropper.CropImageContractOptions
 import com.canhub.cropper.CropImageOptions
-import com.github.skydoves.colorpicker.compose.*
 import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.MediaItem
 import com.google.android.exoplayer2.Player
@@ -52,15 +54,11 @@ import com.google.android.exoplayer2.ui.StyledPlayerView
 import kotlinx.coroutines.launch
 import com.google.android.exoplayer2.DefaultLoadControl
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.interaction.DragInteraction
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.foundation.gestures.detectTapGestures
+import com.ai.assistance.operit.ui.features.settings.components.ColorPickerDialog
+import com.ai.assistance.operit.ui.features.settings.components.ColorSelectionItem
+import com.ai.assistance.operit.ui.features.settings.components.MediaTypeOption
+import com.ai.assistance.operit.ui.features.settings.components.ThemeModeOption
 
 // Add utility function to calculate the luminance of a color
 private fun calculateLuminance(color: Color): Float {
@@ -74,7 +72,7 @@ fun ThemeSettingsScreen() {
     val preferencesManager = remember { UserPreferencesManager(context) }
     val scope = rememberCoroutineScope()
 
-    // 收集主题设置
+    // Collect theme settings
     val themeMode =
         preferencesManager.themeMode.collectAsState(
             initial = UserPreferencesManager.THEME_MODE_LIGHT
@@ -88,7 +86,7 @@ fun ThemeSettingsScreen() {
     val useCustomColors =
         preferencesManager.useCustomColors.collectAsState(initial = false).value
 
-    // 收集背景图片设置
+    // Collect background image settings
     val useBackgroundImage =
         preferencesManager.useBackgroundImage.collectAsState(initial = false).value
     val backgroundImageUri =
@@ -96,7 +94,7 @@ fun ThemeSettingsScreen() {
     val backgroundImageOpacity =
         preferencesManager.backgroundImageOpacity.collectAsState(initial = 0.3f).value
 
-    // 收集背景媒体类型和视频设置
+    // Collect background media type and video settings
     val backgroundMediaType =
         preferencesManager.backgroundMediaType.collectAsState(
             initial = UserPreferencesManager.MEDIA_TYPE_IMAGE
@@ -107,11 +105,11 @@ fun ThemeSettingsScreen() {
     val videoBackgroundLoop =
         preferencesManager.videoBackgroundLoop.collectAsState(initial = true).value
 
-    // 默认颜色定义
+    // Default color definitions
     val defaultPrimaryColor = Color.Magenta.toArgb()
     val defaultSecondaryColor = Color.Blue.toArgb()
 
-    // 可变状态
+    // Mutable state
     var themeModeInput by remember { mutableStateOf(themeMode) }
     var useSystemThemeInput by remember { mutableStateOf(useSystemTheme) }
     var primaryColorInput by remember {
@@ -122,12 +120,12 @@ fun ThemeSettingsScreen() {
     }
     var useCustomColorsInput by remember { mutableStateOf(useCustomColors) }
 
-    // 背景图片状态
+    // Background image state
     var useBackgroundImageInput by remember { mutableStateOf(useBackgroundImage) }
     var backgroundImageUriInput by remember { mutableStateOf(backgroundImageUri) }
     var backgroundImageOpacityInput by remember { mutableStateOf(backgroundImageOpacity) }
 
-    // 背景媒体类型和视频设置状态
+    // Background media type and video settings state
     var backgroundMediaTypeInput by remember { mutableStateOf(backgroundMediaType) }
     var videoBackgroundMutedInput by remember { mutableStateOf(videoBackgroundMuted) }
     var videoBackgroundLoopInput by remember { mutableStateOf(videoBackgroundLoop) }
@@ -136,30 +134,30 @@ fun ThemeSettingsScreen() {
     var currentColorPickerMode by remember { mutableStateOf("primary") }
     var showSaveSuccessMessage by remember { mutableStateOf(false) }
 
-    // 视频播放器状态
+    // Video player state
     val exoPlayer = remember {
         ExoPlayer.Builder(context)
-            // 添加更严格的内存限制
+            // Add stricter memory limits
             .setLoadControl(
                 DefaultLoadControl.Builder()
                     .setBufferDurationsMs(
-                        5000,  // 最小缓冲时间，减少到5秒
-                        10000, // 最大缓冲时间，减少到10秒
-                        500,   // 回放所需的最小缓冲
-                        1000   // 重新缓冲后回放所需的最小缓冲
+                        5000,  // Minimum buffer time reduced to 5 seconds
+                        10000, // Maximum buffer time reduced to 10 seconds
+                        500,   // Minimum buffer for playback
+                        1000   // Minimum buffer for playback after rebuffering
                     )
-                    .setTargetBufferBytes(5 * 1024 * 1024) // 将缓冲限制为5MB
+                    .setTargetBufferBytes(5 * 1024 * 1024) // Limit buffer to 5MB
                     .setPrioritizeTimeOverSizeThresholds(true)
                     .build()
             )
             .build().apply {
-                // 设置循环播放
+                // Set loop playback
                 repeatMode = Player.REPEAT_MODE_ALL
-                // 设置静音
+                // Set mute
                 volume = if (videoBackgroundMutedInput) 0f else 1f
                 playWhenReady = true
 
-                // 如果有背景视频URI，加载它
+                // If there's a background video URI, load it
                 if (backgroundImageUriInput != null &&
                     backgroundMediaTypeInput ==
                     UserPreferencesManager.MEDIA_TYPE_VIDEO
@@ -169,13 +167,13 @@ fun ThemeSettingsScreen() {
                         setMediaItem(mediaItem)
                         prepare()
                     } catch (e: Exception) {
-                        Log.e("ThemeSettings", "视频加载错误", e)
+                        Log.e("ThemeSettings", "Video loading error", e)
                     }
                 }
             }
     }
 
-    // 当组件销毁时释放ExoPlayer资源
+    // Free ExoPlayer resources when component is destroyed
     DisposableEffect(Unit) {
         onDispose {
             try {
@@ -183,12 +181,12 @@ fun ThemeSettingsScreen() {
                 exoPlayer.clearMediaItems()
                 exoPlayer.release()
             } catch (e: Exception) {
-                Log.e("ThemeSettings", "ExoPlayer释放错误", e)
+                Log.e("ThemeSettings", "ExoPlayer release error", e)
             }
         }
     }
 
-    // 处理视频URI变化
+    // Handle video URI changes
     LaunchedEffect(backgroundImageUriInput, backgroundMediaTypeInput) {
         if (backgroundImageUriInput != null &&
             backgroundMediaTypeInput == UserPreferencesManager.MEDIA_TYPE_VIDEO
@@ -207,7 +205,7 @@ fun ThemeSettingsScreen() {
         }
     }
 
-    // 处理视频设置变化 - 添加错误处理
+    // Handle video settings changes - add error handling
     LaunchedEffect(videoBackgroundMutedInput, videoBackgroundLoopInput) {
         try {
             exoPlayer.volume = if (videoBackgroundMutedInput) 0f else 1f
@@ -219,7 +217,7 @@ fun ThemeSettingsScreen() {
         }
     }
 
-    // 图片裁剪启动器
+    // Image crop launcher
     val cropImageLauncher =
         rememberLauncherForActivityResult(CropImageContract()) { result ->
             if (result.isSuccessful) {
@@ -271,31 +269,31 @@ fun ThemeSettingsScreen() {
             }
         }
 
-    // 启动图片裁剪函数
+    // Launch image crop function
     fun launchImageCrop(uri: Uri) {
-        // 使用安全的方式获取系统颜色
+        // Use safe way to get system colors
         var primaryColor: Int
         var onPrimaryColor: Int
         var surfaceColor: Int
         var statusBarColor: Int
 
-        // 检测系统暗色主题
+        // Check system dark theme
         val isNightMode = context.resources.configuration.uiMode and
             android.content.res.Configuration.UI_MODE_NIGHT_MASK ==
             android.content.res.Configuration.UI_MODE_NIGHT_YES
 
         try {
-            // 尝试使用主题颜色 - 这是一个备选方案
+            // Try to use theme colors - this is a fallback option
             val typedValue = android.util.TypedValue()
             context.theme.resolveAttribute(android.R.attr.colorPrimary, typedValue, true)
             primaryColor = typedValue.data
 
-            // 尝试获取系统的状态栏颜色 (API 23+)
+            // Try to get system status bar color (API 23+)
             try {
                 context.theme.resolveAttribute(android.R.attr.colorPrimaryDark, typedValue, true)
                 statusBarColor = typedValue.data
             } catch (e: Exception) {
-                // 如果无法获取，使用主题色
+                // If unable to get, use theme color
                 statusBarColor = primaryColor
             }
 
@@ -305,9 +303,9 @@ fun ThemeSettingsScreen() {
             onPrimaryColor =
                 if (isNightMode) android.graphics.Color.WHITE else android.graphics.Color.BLACK
         } catch (e: Exception) {
-            // 使用后备颜色
-            primaryColor = if (isNightMode) 0xFF9C27B0.toInt() else 0xFF6200EE.toInt() // 紫色
-            statusBarColor = if (isNightMode) 0xFF7B1FA2.toInt() else 0xFF3700B3.toInt() // 深紫色
+            // Use fallback colors
+            primaryColor = if (isNightMode) 0xFF9C27B0.toInt() else 0xFF6200EE.toInt() // Purple
+            statusBarColor = if (isNightMode) 0xFF7B1FA2.toInt() else 0xFF3700B3.toInt() // Dark purple
             surfaceColor =
                 if (isNightMode) android.graphics.Color.BLACK else android.graphics.Color.WHITE
             onPrimaryColor =
@@ -326,20 +324,20 @@ fun ThemeSettingsScreen() {
                     cropMenuCropButtonTitle = "完成"
                     activityTitle = "裁剪图片"
 
-                    // 设置主题配色
+                    // Set theme colors
                     toolbarColor = primaryColor
                     toolbarBackButtonColor = onPrimaryColor
                     toolbarTitleColor = onPrimaryColor
                     activityBackgroundColor = surfaceColor
                     backgroundColor = surfaceColor
 
-                    // 状态栏颜色
+                    // Status bar color
                     statusBarColor = statusBarColor
 
-                    // 使用亮色/暗色主题
+                    // Use light/dark theme
                     activityMenuIconColor = onPrimaryColor
 
-                    // 改进用户体验
+                    // Improve user experience
                     showCropOverlay = true
                     showProgressBar = true
                     multiTouchEnabled = true
@@ -349,22 +347,22 @@ fun ThemeSettingsScreen() {
         cropImageLauncher.launch(cropOptions)
     }
 
-    // 图片/视频选择器启动器
+    // Image/video picker launcher
     val mediaPickerLauncher =
         rememberLauncherForActivityResult(
             contract = ActivityResultContracts.GetContent()
         ) { uri: Uri? ->
             if (uri != null) {
-                // 检查是否为视频文件
+                // Check if it's a video file
                 val isVideo = FileUtils.isVideoFile(context, uri)
 
                 if (isVideo) {
-                    // 视频文件检查大小
+                    // Video file check size
                     val isVideoSizeAcceptable =
-                        FileUtils.checkVideoSize(context, uri, 30) // 限制为30MB
+                        FileUtils.checkVideoSize(context, uri, 30) // Limit to 30MB
 
                     if (!isVideoSizeAcceptable) {
-                        // 视频过大，显示警告
+                        // Video too large, show warning
                         Toast.makeText(
                             context,
                             "视频文件过大，可能导致应用卡顿或崩溃。请选择小于30MB的视频。",
@@ -373,7 +371,7 @@ fun ThemeSettingsScreen() {
                         return@rememberLauncherForActivityResult
                     }
 
-                    // 视频文件大小合适，直接保存
+                    // Video file size acceptable, directly save
                     scope.launch {
                         val internalUri =
                             FileUtils.copyFileToInternalStorage(
@@ -411,7 +409,7 @@ fun ThemeSettingsScreen() {
                         }
                     }
                 } else {
-                    // 图片文件先启动裁剪
+                    // Image file first launch crop
                     launchImageCrop(uri)
                 }
             }
@@ -473,7 +471,7 @@ fun ThemeSettingsScreen() {
         }
     }
 
-    // 当设置变化时更新本地状态
+    // When settings change, update local state
     LaunchedEffect(
         themeMode,
         useSystemTheme,
@@ -525,11 +523,14 @@ fun ThemeSettingsScreen() {
             .padding(16.dp)
             .verticalScroll(scrollState)
     ) {
-        // 系统主题设置
+        // ======= SECTION 1: THEME MODE =======
+        ThemeSectionTitle(title = "主题模式", icon = Icons.Default.Brightness4)
+        
+        // System theme settings
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 8.dp, bottom = 12.dp),
+                .padding(bottom = 16.dp),
             colors = cardModifier
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
@@ -539,7 +540,7 @@ fun ThemeSettingsScreen() {
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
 
-                // 跟随系统主题
+                // Follow system theme
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -576,7 +577,7 @@ fun ThemeSettingsScreen() {
                     )
                 }
 
-                // 只有当不跟随系统时才显示主题选择
+                // Only show theme selection when not following system
                 if (!useSystemThemeInput) {
                     Divider(modifier = Modifier.padding(vertical = 8.dp))
 
@@ -586,7 +587,7 @@ fun ThemeSettingsScreen() {
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
 
-                    // 主题模式选择
+                    // Theme mode selection
                     Row(
                         modifier =
                         Modifier
@@ -646,11 +647,14 @@ fun ThemeSettingsScreen() {
             }
         }
 
-        // 自定义颜色设置
+        // ======= SECTION 2: COLOR CUSTOMIZATION =======
+        ThemeSectionTitle(title = "颜色定制", icon = Icons.Default.ColorLens)
+        
+        // Custom color settings
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 12.dp),
+                .padding(bottom = 16.dp),
             colors = cardModifier
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
@@ -660,7 +664,7 @@ fun ThemeSettingsScreen() {
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
 
-                // 是否使用自定义颜色
+                // Whether to use custom colors
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -697,7 +701,7 @@ fun ThemeSettingsScreen() {
                     )
                 }
 
-                // 只有当启用自定义颜色时才显示颜色选择
+                // Only show color selection when custom colors are enabled
                 if (useCustomColorsInput) {
                     Divider(modifier = Modifier.padding(vertical = 8.dp))
 
@@ -707,16 +711,15 @@ fun ThemeSettingsScreen() {
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
 
-                    // 颜色选择
+                    // Color selection
                     Row(
-                        modifier =
-                        Modifier
+                        modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = 16.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        // 主色选择
+                        // Primary color selection
                         ColorSelectionItem(
                             title = "主色",
                             color = Color(primaryColorInput),
@@ -727,7 +730,7 @@ fun ThemeSettingsScreen() {
                             }
                         )
 
-                        // 次色选择
+                        // Secondary color selection
                         ColorSelectionItem(
                             title = "次色",
                             color = Color(secondaryColorInput),
@@ -746,87 +749,61 @@ fun ThemeSettingsScreen() {
                         modifier = Modifier.padding(vertical = 8.dp)
                     )
 
-                    // Create a mini-preview of how the selected colors will
-                    // look
+                    // Create a mini-preview of how the selected colors will look
                     Column(
-                        modifier =
-                        Modifier
+                        modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = 16.dp)
                     ) {
                         // Primary color demo
                         Row(
-                            modifier =
-                            Modifier
+                            modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(bottom = 8.dp)
                         ) {
                             val primaryColor = Color(primaryColorInput)
-                            val onPrimaryColor =
-                                getTextColorForBackground(
-                                    primaryColor
-                                )
+                            val onPrimaryColor = getTextColorForBackground(primaryColor)
 
                             // Primary button preview
                             Surface(
-                                modifier =
-                                Modifier
+                                modifier = Modifier
                                     .weight(1f)
                                     .height(40.dp)
-                                    .padding(
-                                        end = 8.dp
-                                    ),
+                                    .padding(end = 8.dp),
                                 color = primaryColor,
                                 shape = RoundedCornerShape(4.dp)
                             ) {
                                 Box(
-                                    modifier =
-                                    Modifier.fillMaxSize(),
-                                    contentAlignment =
-                                    Alignment.Center
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         "主按钮",
-                                        color =
-                                        onPrimaryColor,
-                                        style =
-                                        MaterialTheme
-                                            .typography
-                                            .bodyMedium
+                                        color = onPrimaryColor,
+                                        style = MaterialTheme.typography.bodyMedium
                                     )
                                 }
                             }
 
                             // Secondary button preview
-                            val secondaryColor =
-                                Color(secondaryColorInput)
-                            val onSecondaryColor =
-                                getTextColorForBackground(
-                                    secondaryColor
-                                )
+                            val secondaryColor = Color(secondaryColorInput)
+                            val onSecondaryColor = getTextColorForBackground(secondaryColor)
 
                             Surface(
-                                modifier =
-                                Modifier
+                                modifier = Modifier
                                     .weight(1f)
                                     .height(40.dp),
                                 color = secondaryColor,
                                 shape = RoundedCornerShape(4.dp)
                             ) {
                                 Box(
-                                    modifier =
-                                    Modifier.fillMaxSize(),
-                                    contentAlignment =
-                                    Alignment.Center
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         "次要按钮",
-                                        color =
-                                        onSecondaryColor,
-                                        style =
-                                        MaterialTheme
-                                            .typography
-                                            .bodyMedium
+                                        color = onSecondaryColor,
+                                        style = MaterialTheme.typography.bodyMedium
                                     )
                                 }
                             }
@@ -840,16 +817,14 @@ fun ThemeSettingsScreen() {
                         )
                     }
 
-                    // 保存自定义颜色按钮
+                    // Save custom colors button
                     Button(
                         onClick = {
                             scope.launch {
                                 preferencesManager
                                     .saveThemeSettings(
-                                        customPrimaryColor =
-                                        primaryColorInput,
-                                        customSecondaryColor =
-                                        secondaryColorInput
+                                        customPrimaryColor = primaryColorInput,
+                                        customSecondaryColor = secondaryColorInput
                                     )
                                 showSaveSuccessMessage = true
                             }
@@ -860,11 +835,14 @@ fun ThemeSettingsScreen() {
             }
         }
 
-        // 背景图片设置
+        // ======= SECTION 3: BACKGROUND CUSTOMIZATION =======
+        ThemeSectionTitle(title = "背景定制", icon = Icons.Default. Image)
+        
+        // Background media settings
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 12.dp),
+                .padding(bottom = 16.dp),
             colors = cardModifier
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
@@ -874,7 +852,7 @@ fun ThemeSettingsScreen() {
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
 
-                // 是否使用背景图片
+                // Whether to use background image
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -890,9 +868,7 @@ fun ThemeSettingsScreen() {
                         Text(
                             text = "开启后可以选择自定义背景图片或视频",
                             style = MaterialTheme.typography.bodySmall,
-                            color =
-                            MaterialTheme.colorScheme
-                                .onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
 
@@ -903,8 +879,7 @@ fun ThemeSettingsScreen() {
                             scope.launch {
                                 preferencesManager
                                     .saveThemeSettings(
-                                        useBackgroundImage =
-                                        it
+                                        useBackgroundImage = it
                                     )
                                 showSaveSuccessMessage = true
                             }
@@ -912,11 +887,11 @@ fun ThemeSettingsScreen() {
                     )
                 }
 
-                // 只有当启用背景图片时才显示图片选择
+                // Only show image selection when background image is enabled
                 if (useBackgroundImageInput) {
                     Divider(modifier = Modifier.padding(vertical = 8.dp))
 
-                    // 媒体类型选择
+                    // Media type selection
                     Text(
                         text = "媒体类型",
                         style = MaterialTheme.typography.bodyMedium,
@@ -924,8 +899,7 @@ fun ThemeSettingsScreen() {
                     )
 
                     Row(
-                        modifier =
-                        Modifier
+                        modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -933,27 +907,17 @@ fun ThemeSettingsScreen() {
                         MediaTypeOption(
                             title = "图片",
                             icon = Icons.Default.Image,
-                            selected =
-                            backgroundMediaTypeInput ==
-                                UserPreferencesManager
-                                    .MEDIA_TYPE_IMAGE,
+                            selected = backgroundMediaTypeInput == UserPreferencesManager.MEDIA_TYPE_IMAGE,
                             modifier = Modifier.weight(1f),
                             onClick = {
-                                backgroundMediaTypeInput =
-                                    UserPreferencesManager
-                                        .MEDIA_TYPE_IMAGE
-                                if (backgroundImageUriInput != null
-                                ) {
-                                    // 如果已有背景，保存媒体类型
+                                backgroundMediaTypeInput = UserPreferencesManager.MEDIA_TYPE_IMAGE
+                                if (backgroundImageUriInput != null) {
+                                    // If there's already a background, save the media type
                                     scope.launch {
-                                        preferencesManager
-                                            .saveThemeSettings(
-                                                backgroundMediaType =
-                                                UserPreferencesManager
-                                                    .MEDIA_TYPE_IMAGE
-                                            )
-                                        showSaveSuccessMessage =
-                                            true
+                                        preferencesManager.saveThemeSettings(
+                                            backgroundMediaType = UserPreferencesManager.MEDIA_TYPE_IMAGE
+                                        )
+                                        showSaveSuccessMessage = true
                                     }
                                 }
                             }
@@ -962,34 +926,24 @@ fun ThemeSettingsScreen() {
                         MediaTypeOption(
                             title = "视频",
                             icon = Icons.Default.Videocam,
-                            selected =
-                            backgroundMediaTypeInput ==
-                                UserPreferencesManager
-                                    .MEDIA_TYPE_VIDEO,
+                            selected = backgroundMediaTypeInput == UserPreferencesManager.MEDIA_TYPE_VIDEO,
                             modifier = Modifier.weight(1f),
                             onClick = {
-                                backgroundMediaTypeInput =
-                                    UserPreferencesManager
-                                        .MEDIA_TYPE_VIDEO
-                                if (backgroundImageUriInput != null
-                                ) {
-                                    // 如果已有背景，保存媒体类型
+                                backgroundMediaTypeInput = UserPreferencesManager.MEDIA_TYPE_VIDEO
+                                if (backgroundImageUriInput != null) {
+                                    // If there's already a background, save the media type
                                     scope.launch {
-                                        preferencesManager
-                                            .saveThemeSettings(
-                                                backgroundMediaType =
-                                                UserPreferencesManager
-                                                    .MEDIA_TYPE_VIDEO
-                                            )
-                                        showSaveSuccessMessage =
-                                            true
+                                        preferencesManager.saveThemeSettings(
+                                            backgroundMediaType = UserPreferencesManager.MEDIA_TYPE_VIDEO
+                                        )
+                                        showSaveSuccessMessage = true
                                     }
                                 }
                             }
                         )
                     }
 
-                    // 当前选择的媒体预览
+                    // Current selected media preview
                     if (backgroundImageUriInput != null) {
                         Box(
                             modifier =
@@ -1021,7 +975,7 @@ fun ThemeSettingsScreen() {
                                 UserPreferencesManager
                                     .MEDIA_TYPE_IMAGE
                             ) {
-                                // 图片预览
+                                // Image preview
                                 Image(
                                     painter =
                                     rememberAsyncImagePainter(
@@ -1037,7 +991,7 @@ fun ThemeSettingsScreen() {
                                     ContentScale.Crop
                                 )
 
-                                // 裁剪按钮
+                                // Crop button
                                 IconButton(
                                     onClick = {
                                         backgroundImageUriInput
@@ -1082,7 +1036,7 @@ fun ThemeSettingsScreen() {
                                     )
                                 }
                             } else {
-                                // 视频预览
+                                // Video preview
                                 // Capture the background color from the Composable context
                                 val backgroundColor = MaterialTheme.colorScheme.background.toArgb()
                                 // Determine if it's a light theme
@@ -1138,7 +1092,7 @@ fun ThemeSettingsScreen() {
                                     modifier = Modifier.fillMaxSize()
                                 )
 
-                                // 视频控制按钮
+                                // Video control buttons
                                 Row(
                                     modifier =
                                     Modifier
@@ -1150,7 +1104,7 @@ fun ThemeSettingsScreen() {
                                             8.dp
                                         )
                                 ) {
-                                    // 静音按钮
+                                    // Mute button
                                     IconButton(
                                         onClick = {
                                             videoBackgroundMutedInput =
@@ -1205,7 +1159,7 @@ fun ThemeSettingsScreen() {
                                         )
                                     }
 
-                                    // 循环按钮
+                                    // Loop button
                                     IconButton(
                                         onClick = {
                                             videoBackgroundLoopInput =
@@ -1220,7 +1174,7 @@ fun ThemeSettingsScreen() {
                                                     showSaveSuccessMessage =
                                                         true
 
-                                                    // 显示状态更改的Toast提示
+                                                    // Show Toast notification about status change
                                                     Toast.makeText(
                                                         context,
                                                         if (videoBackgroundLoopInput) "循环播放已开启" else "循环播放已关闭",
@@ -1230,7 +1184,7 @@ fun ThemeSettingsScreen() {
                                         },
                                         modifier =
                                         Modifier.background(
-                                            // 根据循环状态显示不同的背景色
+                                            // Show different background color based on loop state
                                             if (videoBackgroundLoopInput)
                                                 MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
                                             else
@@ -1300,7 +1254,7 @@ fun ThemeSettingsScreen() {
                         }
                     }
 
-                    // 媒体选择按钮和类型
+                    // Media selection button and type
                     Button(
                         onClick = {
                             if (backgroundMediaTypeInput ==
@@ -1330,7 +1284,7 @@ fun ThemeSettingsScreen() {
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // 不透明度调节
+                    // Opacity adjustment
                     Text(
                         text =
                         "背景不透明度: ${(backgroundImageOpacityInput * 100).toInt()}%",
@@ -1338,21 +1292,21 @@ fun ThemeSettingsScreen() {
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
 
-                    // 记住上一次保存的值，以便debounce保存操作
+                    // Remember last saved value for debounce save operation
                     var lastSavedOpacity by remember {
                         mutableStateOf(backgroundImageOpacityInput)
                     }
                     
-                    // 使用 rememberUpdatedState 来稳定回调函数
+                    // Use rememberUpdatedState to stabilize callback function
                     val currentScope = rememberCoroutineScope()
                     
-                    // 创建一个更简单的 disableScrollWhileDragging 状态
+                    // Create a simpler disableScrollWhileDragging state
                     var isDragging by remember { mutableStateOf(false) }
                     
-                    // 自定义交互源，可以帮助我们监控拖动状态
+                    // Custom interaction source, helps us monitor drag state
                     val interactionSource = remember { MutableInteractionSource() }
                     
-                    // 监听拖动状态
+                    // Monitor drag state
                     LaunchedEffect(interactionSource) {
                         interactionSource.interactions.collect { interaction ->
                             when (interaction) {
@@ -1363,7 +1317,7 @@ fun ThemeSettingsScreen() {
                         }
                     }
                     
-                    // 如果是在拖动状态，暂时锁定滚动
+                    // If in drag state, temporarily lock scrolling
                     if (isDragging) {
                         DisposableEffect(Unit) {
                             val previousScrollValue = scrollState.value
@@ -1373,7 +1327,7 @@ fun ThemeSettingsScreen() {
                         }
                     }
                     
-                    // 创建一个固定的更新回调和完成回调
+                    // Create a fixed update callback and finish callback
                     val updateOpacity = remember {
                         { value: Float ->
                             backgroundImageOpacityInput = value
@@ -1394,7 +1348,7 @@ fun ThemeSettingsScreen() {
                         }
                     }
                     
-                    // 使用Box包装滑块，解决拖动问题
+                    // Use Box to wrap slider, solve drag issue
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1416,18 +1370,18 @@ fun ThemeSettingsScreen() {
                         )
                     }
                     
-                    // 增加一个间隔，确保滑块下方有足够空间
+                    // Add a gap, ensure slider below has enough space
                     Spacer(modifier = Modifier.height(16.dp))
                 }
             }
         }
 
-        // 重置按钮
+        // Reset button
         OutlinedButton(
             onClick = {
                 scope.launch {
                     preferencesManager.resetThemeSettings()
-                    // 重置后更新本地状态
+                    // Reset local state after reset
                     themeModeInput = UserPreferencesManager.THEME_MODE_LIGHT
                     useSystemThemeInput = true
                     primaryColorInput = defaultPrimaryColor
@@ -1436,8 +1390,7 @@ fun ThemeSettingsScreen() {
                     useBackgroundImageInput = false
                     backgroundImageUriInput = null
                     backgroundImageOpacityInput = 0.3f
-                    backgroundMediaTypeInput =
-                        UserPreferencesManager.MEDIA_TYPE_IMAGE
+                    backgroundMediaTypeInput = UserPreferencesManager.MEDIA_TYPE_IMAGE
                     videoBackgroundMutedInput = true
                     videoBackgroundLoopInput = true
                     showSaveSuccessMessage = true
@@ -1448,7 +1401,7 @@ fun ThemeSettingsScreen() {
                 .padding(vertical = 16.dp)
         ) { Text("重置为默认主题") }
 
-        // 显示保存成功提示
+        // Show save success message
         if (showSaveSuccessMessage) {
             LaunchedEffect(key1 = showSaveSuccessMessage) {
                 kotlinx.coroutines.delay(2000)
@@ -1461,7 +1414,7 @@ fun ThemeSettingsScreen() {
             ) { Text(text = "设置已保存", color = MaterialTheme.colorScheme.primary) }
         }
 
-        // 颜色选择器对话框
+        // Color picker dialog
         if (showColorPicker) {
             ColorPickerDialog(
                 showColorPicker = showColorPicker,
@@ -1474,18 +1427,13 @@ fun ThemeSettingsScreen() {
 
                     // Save the colors
                     scope.launch {
-                        if (currentColorPickerMode == "primary" &&
-                            primaryColor != null
-                        ) {
+                        if (currentColorPickerMode == "primary" && primaryColor != null) {
                             preferencesManager.saveThemeSettings(
                                 customPrimaryColor = primaryColor
                             )
-                        } else if (currentColorPickerMode == "secondary" &&
-                            secondaryColor != null
-                        ) {
+                        } else if (currentColorPickerMode == "secondary" && secondaryColor != null) {
                             preferencesManager.saveThemeSettings(
-                                customSecondaryColor =
-                                secondaryColor
+                                customSecondaryColor = secondaryColor
                             )
                         }
                         showSaveSuccessMessage = true
@@ -1495,4 +1443,29 @@ fun ThemeSettingsScreen() {
             )
         }
     }
+}
+
+@Composable
+private fun ThemeSectionTitle(
+    title: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(vertical = 8.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+    }
+    Divider(modifier = Modifier.padding(bottom = 8.dp))
 }

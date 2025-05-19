@@ -21,6 +21,7 @@ sealed class Screen {
     }
     data object UserPreferencesSettings : Screen()
     data object ModelParametersSettings : Screen()
+    data object ModelPromptsSettings : Screen() // Add new ModelPromptsSettings screen
     data object ThemeSettings : Screen() // Add new ThemeSettings screen
 
     // Toolbox secondary screens

@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.features.settings.screens
+package com.ai.assistance.operit.ui.features.settings.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
