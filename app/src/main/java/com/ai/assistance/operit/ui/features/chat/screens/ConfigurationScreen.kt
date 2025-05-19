@@ -14,12 +14,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.assistance.operit.data.preferences.ApiPreferences
+import com.ai.assistance.operit.data.preferences.FreeUsagePreferences
 import com.ai.assistance.operit.ui.features.chat.components.config.*
 import com.ai.assistance.operit.util.ModelEndPointFix
 import kotlinx.coroutines.CoroutineScope
@@ -43,6 +45,14 @@ fun ConfigurationScreen(
         onNavigateToChat: () -> Unit = {},
         onNavigateToTokenConfig: () -> Unit = {}
 ) {
+    // 获取Context
+    val context = LocalContext.current
+
+    // 初始化免费使用偏好
+    val freeUsagePreferences = remember { FreeUsagePreferences(context) }
+    val remainingUsages by freeUsagePreferences.remainingUsagesFlow.collectAsState()
+    val maxDailyUsage = freeUsagePreferences.getMaxDailyUsage()
+
     // 状态管理
     var apiKeyInput by remember { mutableStateOf(if (isUsingDefault) "" else apiKey) }
     var apiEndpointInput by remember { mutableStateOf(apiEndpoint) }
@@ -51,6 +61,7 @@ fun ConfigurationScreen(
     var showEndpointWarning by remember { mutableStateOf(false) }
     var endpointWarningMessage by remember { mutableStateOf<String?>(null) }
     var showTokenInfoDialog by remember { mutableStateOf(false) }
+    var showFreeUsageDialog by remember { mutableStateOf(false) }
 
     // 使用默认密钥的状态检测
     val isUsingDefaultApiKey by
@@ -90,13 +101,47 @@ fun ConfigurationScreen(
         )
     }
 
+    // 免费使用确认对话框
+    if (showFreeUsageDialog) {
+        FreeUsageConfirmDialog(
+                onDismiss = { showFreeUsageDialog = false },
+                onConfirm = {
+                    showFreeUsageDialog = false
+
+                    // Record usage
+                    if (freeUsagePreferences.canUseFreeTier()) {
+                        freeUsagePreferences.recordUsage()
+
+                        // Apply free API settings
+                        apiKeyInput = ""
+                        apiEndpointInput = ApiPreferences.DEFAULT_API_ENDPOINT
+                        modelNameInput = ApiPreferences.DEFAULT_MODEL_NAME
+
+                        onApiKeyChange(ApiPreferences.DEFAULT_API_KEY)
+                        onApiEndpointChange(ApiPreferences.DEFAULT_API_ENDPOINT)
+                        onModelNameChange(ApiPreferences.DEFAULT_MODEL_NAME)
+
+                        onUseDefault()
+                        showCustomFields = false
+                    } else {
+                        onError("今日免费次数已用完")
+                    }
+                },
+                remainingUsages = remainingUsages,
+                maxDailyUsage = maxDailyUsage
+        )
+    }
+
     // 主界面 - 简洁设计
     Box(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp),
+            modifier = Modifier.fillMaxSize().padding(horizontal = 36.dp),
             contentAlignment = Alignment.Center
     ) {
         Column(
-                modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp)
+                    .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
         ) {
@@ -207,16 +252,8 @@ fun ConfigurationScreen(
                 // 左侧 - 薅作者的
                 TextButton(
                         onClick = {
-                            apiKeyInput = ""
-                            apiEndpointInput = ApiPreferences.DEFAULT_API_ENDPOINT
-                            modelNameInput = ApiPreferences.DEFAULT_MODEL_NAME
-
-                            onApiKeyChange(ApiPreferences.DEFAULT_API_KEY)
-                            onApiEndpointChange(ApiPreferences.DEFAULT_API_ENDPOINT)
-                            onModelNameChange(ApiPreferences.DEFAULT_MODEL_NAME)
-
-                            onUseDefault()
-                            showCustomFields = false
+                            // 显示确认对话框
+                            showFreeUsageDialog = true
                         },
                         modifier = Modifier.weight(1f)
                 ) {

@@ -45,7 +45,7 @@ fun TokenInfoDialog(onDismiss: () -> Unit, onConfirm: () -> Unit) {
 
                 Text(
                         text =
-                                "你将会前往DeepSeek API官网。我们内置DeepSeek官网访问，是因为我们认为其为国内使用性价比最高的API，不仅性能强悍，而且还有各种优惠和磁盘缓存降低使用成本。\n\nAPI的访问和Token的设置与软件开发者无关，我们不会提供这方面的任何服务也不会赚取任何费用。",
+                                "你将会前往DeepSeek API官网。我们内置DeepSeek官网访问，是因为我们认为其为国内使用性价比最高的API，不仅性能强悍，而且还有各种优惠和磁盘缓存降低使用成本。\n\nAPI的访问和Token的设置与软件开发者无关，我们不会提供这方面的任何服务，也不会赚取任何费用。\n\n第一次使用自己的token建议只充1元，完全够用。",
                         style = MaterialTheme.typography.bodyMedium,
                         textAlign = TextAlign.Center,
                         lineHeight = 20.sp
