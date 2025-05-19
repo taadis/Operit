@@ -51,7 +51,9 @@ import com.ai.assistance.operit.ui.features.token.network.DeepseekApiConstants
 import com.ai.assistance.operit.ui.features.token.webview.WebViewConfig
 import kotlinx.coroutines.launch
 
-/** Deepseek Token配置屏幕 */
+/**
+ * Deepseek Token配置屏幕
+ */
 @Composable
 fun TokenConfigWebViewScreen(onNavigateBack: () -> Unit) {
     val context = LocalContext.current
@@ -264,10 +266,12 @@ fun TokenConfigWebViewScreen(onNavigateBack: () -> Unit) {
             }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            // 确保WebView始终占满整个屏幕宽度
-            AndroidView(factory = { webView }, modifier = Modifier.fillMaxSize())
-
-            // 加载指示器
+            // 确保WebView始终占满整个屏幕宽度，使用更简洁的指针拦截方法
+            AndroidView(
+                factory = { webView }, 
+                modifier = Modifier.fillMaxSize()
+                // 移除指针拦截，因为我们已经在WebView自身设置了更可靠的触摸事件处理
+            )            // 加载指示器
             if (isLoading) {
                 LinearProgressIndicator(
                         modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth(),

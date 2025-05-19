@@ -4,6 +4,8 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Build
 import android.util.Log
+import android.view.MotionEvent
+import android.view.ViewGroup
 import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
@@ -14,7 +16,7 @@ import android.webkit.WebView
 /** WebView配置相关工具类 */
 object WebViewConfig {
     /** 创建一个预配置的WebView实例 */
-    @SuppressLint("SetJavaScriptEnabled")
+    @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
     fun createWebView(context: Context): WebView {
         // Initialize the WebView
         return WebView(context).apply {
@@ -52,6 +54,32 @@ object WebViewConfig {
             
             // Enable WebView debugging
             WebView.setWebContentsDebuggingEnabled(true)
+            
+            // 添加触摸事件拦截，防止父视图拦截WebView的垂直滑动
+            setOnTouchListener { v, event ->
+                // 检测垂直滚动
+                if (event.action == MotionEvent.ACTION_MOVE) {
+                    // 当检测到垂直移动时，告诉父视图不要拦截事件
+                    if (Math.abs(event.y) > Math.abs(event.x)) {
+                        v.parent?.requestDisallowInterceptTouchEvent(true)
+                    }
+                } else if (event.action == MotionEvent.ACTION_UP || event.action == MotionEvent.ACTION_CANCEL) {
+                    // 触摸结束时恢复正常事件传递
+                    v.parent?.requestDisallowInterceptTouchEvent(false)
+                }
+                
+                // 返回false表示WebView仍然需要处理这个事件
+                false
+            }
+            
+            // 为了确保正确处理滚动，设置嵌套滚动启用
+            isNestedScrollingEnabled = true
+            
+            // 设置WebView布局参数，确保它可以正常滚动
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
 
             // Add console logger
             setWebChromeClient(

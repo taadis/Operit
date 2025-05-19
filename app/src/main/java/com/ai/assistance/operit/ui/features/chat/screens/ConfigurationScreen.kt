@@ -134,13 +134,13 @@ fun ConfigurationScreen(
 
     // 主界面 - 简洁设计
     Box(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 36.dp),
+            modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp),
             contentAlignment = Alignment.Center
     ) {
         Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp)
+                    .padding(horizontal = 4.dp)
                     .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
@@ -148,48 +148,52 @@ fun ConfigurationScreen(
             // 标题和说明
             Text(
                     text = "Operit AI 助手",
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = 20.sp
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             Text(
                     text = "我们默认使用DeepSeek API，如需更换请点击下方自定义选项",
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    fontSize = 14.sp
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // API密钥输入框 - 简洁设计
             OutlinedTextField(
                     value = apiKeyInput,
                     onValueChange = { apiKeyInput = it },
-                    label = { Text("API密钥") },
-                    placeholder = { Text("DeepSeek API密钥") },
+                    label = { Text("API密钥", fontSize = 12.sp) },
+                    placeholder = { Text("DeepSeek API密钥", fontSize = 12.sp) },
                     leadingIcon = {
                         Icon(
                                 imageVector = Icons.Default.Key,
                                 contentDescription = "API密钥",
-                                tint = MaterialTheme.colorScheme.primary
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
                         )
                     },
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp),
+                    shape = RoundedCornerShape(6.dp),
                     colors =
                             OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = MaterialTheme.colorScheme.primary,
                                     unfocusedBorderColor =
                                             MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)
                             ),
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
                     singleLine = true
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // 主按钮 - 根据输入状态动态变化
             Button(
@@ -208,8 +212,8 @@ fun ConfigurationScreen(
                             showTokenInfoDialog = true
                         }
                     },
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth().height(40.dp),
+                    shape = RoundedCornerShape(6.dp),
                     colors =
                             ButtonDefaults.buttonColors(
                                     containerColor =
@@ -226,14 +230,14 @@ fun ConfigurationScreen(
                         Icon(
                                 imageVector = Icons.Default.Save,
                                 contentDescription = null,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(16.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                     }
                     Text(
                             if (hasEnteredToken) "确认并保存" else "获取Token",
                             fontWeight = FontWeight.Medium,
-                            fontSize = 16.sp,
+                            fontSize = 14.sp,
                             color =
                                     if (hasEnteredToken)
                                             MaterialTheme.colorScheme.onPrimaryContainer
@@ -242,7 +246,7 @@ fun ConfigurationScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // 底部选项 - 左右并排
             Row(
@@ -260,14 +264,15 @@ fun ConfigurationScreen(
                     Text(
                             "薅作者的",
                             color = MaterialTheme.colorScheme.secondary,
-                            fontWeight = FontWeight.Medium
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 12.sp
                     )
                 }
 
                 // 分隔线
                 Divider(
                         modifier =
-                                Modifier.height(24.dp)
+                                Modifier.height(20.dp)
                                         .width(1.dp)
                                         .align(Alignment.CenterVertically),
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
@@ -281,7 +286,8 @@ fun ConfigurationScreen(
                     Text(
                             "自定义",
                             color = MaterialTheme.colorScheme.tertiary,
-                            fontWeight = FontWeight.Medium
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 12.sp
                     )
                 }
             }
@@ -289,11 +295,11 @@ fun ConfigurationScreen(
             // 自定义配置区域 - 保持简洁
             AnimatedVisibility(visible = showCustomFields) {
                 Column(
-                        modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Divider(
-                            modifier = Modifier.padding(bottom = 24.dp),
+                            modifier = Modifier.padding(bottom = 16.dp),
                             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                     )
 
@@ -317,17 +323,25 @@ fun ConfigurationScreen(
                                     showEndpointWarning = false
                                 }
                             },
-                            label = { Text("API接口地址") },
-                            placeholder = { Text("API地址应包含补全路径") },
+                            label = { Text("API接口地址", fontSize = 12.sp) },
+                            placeholder = { Text("API地址应包含补全路径", fontSize = 12.sp) },
                             leadingIcon = {
                                 Icon(
                                         imageVector = Icons.Default.Public,
                                         contentDescription = "API接口地址",
-                                        tint = MaterialTheme.colorScheme.primary
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
                                 )
                             },
-                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(6.dp),
+                            colors =
+                                    OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                            unfocusedBorderColor =
+                                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)
+                                    ),
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
                             singleLine = true
                     )
 
@@ -339,10 +353,12 @@ fun ConfigurationScreen(
                                         if (endpointWarningMessage?.startsWith("警告") == true)
                                                 MaterialTheme.colorScheme.error
                                         else MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(bottom = 8.dp).fillMaxWidth(),
-                                fontSize = 12.sp
+                                modifier = Modifier.padding(bottom = 6.dp).fillMaxWidth(),
+                                fontSize = 10.sp
                         )
                     }
+
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     // 模型名称
                     OutlinedTextField(
@@ -353,20 +369,30 @@ fun ConfigurationScreen(
                                     onModelNameChange(it)
                                 }
                             },
-                            label = { Text("模型名称") },
-                            placeholder = { Text("例如：deepseek-chat") },
+                            label = { Text("模型名称", fontSize = 12.sp) },
+                            placeholder = { Text("例如：deepseek-chat", fontSize = 12.sp) },
                             leadingIcon = {
                                 Icon(
                                         imageVector = Icons.Default.SmartToy,
                                         contentDescription = "模型名称",
-                                        tint = MaterialTheme.colorScheme.primary
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
                                 )
                             },
                             enabled = !isUsingDefaultApiKey,
-                            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(6.dp),
+                            colors =
+                                    OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                            unfocusedBorderColor =
+                                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)
+                                    ),
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
                             singleLine = true
                     )
+
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     // 保存按钮
                     Button(
@@ -397,13 +423,19 @@ fun ConfigurationScreen(
                                     onError("请完成所有配置项")
                                 }
                             },
-                            modifier = Modifier.fillMaxWidth().height(48.dp),
-                            shape = RoundedCornerShape(8.dp)
-                    ) { Text("保存并开始使用", fontWeight = FontWeight.Medium) }
+                            modifier = Modifier.fillMaxWidth().height(40.dp),
+                            shape = RoundedCornerShape(6.dp)
+                    ) { 
+                        Text(
+                            "保存并开始使用", 
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 14.sp
+                        ) 
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             // 极简底部提示
             if (!showCustomFields) {
@@ -412,7 +444,8 @@ fun ConfigurationScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                         textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(top = 8.dp)
+                        modifier = Modifier.padding(top = 4.dp),
+                        fontSize = 10.sp
                 )
             }
         }
