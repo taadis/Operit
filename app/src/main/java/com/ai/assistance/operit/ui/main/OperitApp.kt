@@ -380,7 +380,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                     }
             )
 
-            // 配置Token
+            // 获取密钥
             CompactNavigationDrawerItem(
                     icon = NavItem.TokenConfig.icon,
                     label = stringResource(id = NavItem.TokenConfig.titleResId),

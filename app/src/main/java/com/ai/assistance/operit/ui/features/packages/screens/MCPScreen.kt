@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -36,6 +37,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.ai.assistance.operit.data.mcp.InstallResult
 import com.ai.assistance.operit.data.mcp.MCPRepository
 import com.ai.assistance.operit.data.mcp.MCPRepositoryConstants.SortDirection
 import com.ai.assistance.operit.data.mcp.MCPRepositoryConstants.SortOptions
@@ -48,8 +50,6 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
-import com.ai.assistance.operit.data.mcp.InstallResult
-import com.ai.assistance.operit.data.mcp.InstallProgress
 
 /**
  * The main screen for displaying and managing MCP servers.
@@ -465,6 +465,38 @@ fun MCPScreen(mcpRepository: MCPRepository) {
                                                 modifier = Modifier.size(18.dp)
                                         )
                                 }
+                        }
+                }
+
+                // 实验性功能警告横幅
+                Card(
+                        modifier =
+                                Modifier.fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                        colors =
+                                CardDefaults.cardColors(
+                                        containerColor =
+                                                MaterialTheme.colorScheme.errorContainer.copy(
+                                                        alpha = 0.7f
+                                                )
+                                ),
+                        shape = RoundedCornerShape(8.dp)
+                ) {
+                        Row(
+                                modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                                Icon(
+                                        imageVector = Icons.Default.Warning,
+                                        contentDescription = "警告",
+                                        tint = MaterialTheme.colorScheme.error
+                                )
+                                Text(
+                                        text = "该功能为实验性，目前还不太稳定。如有疑问，后续将会在Github跟进文档。",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                )
                         }
                 }
 
@@ -911,13 +943,13 @@ fun MCPScreen(mcpRepository: MCPRepository) {
                 // 将值存储在本地变量中以避免智能转换问题
                 val currentInstallResult = installResult
                 // 判断当前是否是卸载操作
-                val isUninstallOperation = 
-                    if (currentInstallResult is InstallResult.Success) {
-                        currentInstallResult.pluginPath.isEmpty()
-                    } else {
-                        false
-                    }
-                                   
+                val isUninstallOperation =
+                        if (currentInstallResult is InstallResult.Success) {
+                                currentInstallResult.pluginPath.isEmpty()
+                        } else {
+                                false
+                        }
+
                 MCPInstallProgressDialog(
                         installProgress = installProgress,
                         onDismissRequest = { viewModel.resetInstallState() },

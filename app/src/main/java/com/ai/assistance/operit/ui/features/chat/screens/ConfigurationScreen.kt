@@ -1,50 +1,32 @@
 package com.ai.assistance.operit.ui.features.chat.screens
 
-import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Public
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.SmartToy
-import androidx.compose.material.icons.filled.Token
-import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import com.ai.assistance.operit.data.preferences.ApiPreferences
-import com.ai.assistance.operit.data.promotion.PromotionalTexts
+import com.ai.assistance.operit.ui.features.chat.components.config.*
 import com.ai.assistance.operit.util.ModelEndPointFix
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+/** 简洁风格的AI助手配置界面 */
 @Composable
 fun ConfigurationScreen(
         apiEndpoint: String,
@@ -56,778 +38,346 @@ fun ConfigurationScreen(
         onSaveConfig: () -> Unit,
         onError: (String) -> Unit,
         coroutineScope: CoroutineScope,
-        onUseDefault: () -> Unit = {}, // 使用默认配置的回调
-        isUsingDefault: Boolean = false, // 标识是否在使用默认配置
-        onNavigateToChat: () -> Unit = {}, // 导航到聊天界面的回调
-        onNavigateToTokenConfig: () -> Unit = {} // 导航到Token配置界面的回调
+        onUseDefault: () -> Unit = {},
+        isUsingDefault: Boolean = false,
+        onNavigateToChat: () -> Unit = {},
+        onNavigateToTokenConfig: () -> Unit = {}
 ) {
-    val context = LocalContext.current
-    val apiPreferences = remember { ApiPreferences(context) }
-    val scrollState = rememberScrollState()
-
-    // 推广对话框状态
-    var showPromotionDialog by remember { mutableStateOf(false) }
-    var currentPromotionText by remember {
-        mutableStateOf(PromotionalTexts.getPromotionByCategory(1))
-    }
-    var currentCategory by remember { mutableStateOf(1) } // 0 for functional, 1 for memes
-    var isSharing by remember { mutableStateOf(false) }
-    var shareSuccess by remember { mutableStateOf(false) }
-    var showSuccessMessage by remember { mutableStateOf(false) }
-
-    // 获取屏幕尺寸以适配不同设备
-    val configuration = LocalConfiguration.current
-    val screenWidthDp = configuration.screenWidthDp
-    val screenHeightDp = configuration.screenHeightDp
-    val isTablet = screenWidthDp >= 600
-
-    // 根据是否为平板调整整体布局
-    val mainPadding = if (isTablet) 16.dp else 12.dp
-    val fieldHeight = if (isTablet) 56.dp else 52.dp
-    val cardWidth = if (isTablet) 0.7f else 0.95f
-
-    // 直接从 DataStore 读取最新设置
-    val storedApiKey = apiPreferences.apiKeyFlow.collectAsState(initial = "").value
-    val storedApiEndpoint = apiPreferences.apiEndpointFlow.collectAsState(initial = "").value
-    val storedModelName = apiPreferences.modelNameFlow.collectAsState(initial = "").value
-
-    // 如果不是使用默认配置，则自动导航到聊天界面
-    LaunchedEffect(isUsingDefault) {
-        if (!isUsingDefault) {
-            onNavigateToChat()
-            return@LaunchedEffect
-        }
-    }
-
-    // 本地状态用于表单输入 - 修改初始化逻辑，保留用户输入
-    var apiKeyInput by remember { mutableStateOf("") }
+    // 状态管理
+    var apiKeyInput by remember { mutableStateOf(if (isUsingDefault) "" else apiKey) }
     var apiEndpointInput by remember { mutableStateOf(apiEndpoint) }
     var modelNameInput by remember { mutableStateOf(modelName) }
-
-    // 添加标记表示是否显示端点修复提示
-    var showEndpointFixedInfo by remember { mutableStateOf(false) }
-    
-    // 添加警告消息
+    var showCustomFields by remember { mutableStateOf(false) }
+    var showEndpointWarning by remember { mutableStateOf(false) }
     var endpointWarningMessage by remember { mutableStateOf<String?>(null) }
+    var showTokenInfoDialog by remember { mutableStateOf(false) }
 
-    // 添加模型限制提示消息 - 初始值基于isUsingDefault
-    var showModelRestrictionInfo by remember { mutableStateOf(isUsingDefault) }
-    
-    // 动态判断是否使用默认API密钥 - 同时考虑输入框内容和isUsingDefault标志
-    // 使用derivedStateOf根据apiKeyInput的变化自动更新
-    val isUsingDefaultApiKey by remember(apiKeyInput) { 
-        derivedStateOf { 
-            apiKeyInput == ApiPreferences.DEFAULT_API_KEY || 
-            (apiKeyInput.isBlank() && isUsingDefault) 
-        } 
-    }
+    // 使用默认密钥的状态检测
+    val isUsingDefaultApiKey by
+            remember(apiKeyInput) {
+                derivedStateOf {
+                    apiKeyInput == ApiPreferences.DEFAULT_API_KEY ||
+                            (apiKeyInput.isBlank() && isUsingDefault)
+                }
+            }
 
-    // 当isUsingDefaultApiKey改变时更新模型
+    // 检测用户是否输入了自己的token
+    val hasEnteredToken = apiKeyInput.isNotBlank() && apiKeyInput != ApiPreferences.DEFAULT_API_KEY
+
+    // 默认API密钥效果
     LaunchedEffect(isUsingDefaultApiKey) {
         if (isUsingDefaultApiKey) {
             modelNameInput = ApiPreferences.DEFAULT_MODEL_NAME
             onModelNameChange(ApiPreferences.DEFAULT_MODEL_NAME)
-            showModelRestrictionInfo = true
-        } else {
-            // 不使用默认API密钥时，不自动重置模型名称
-            showModelRestrictionInfo = false
         }
     }
 
-    // 添加一个标志，用于控制是否允许更新API密钥
-    var shouldUpdateApiKey by remember { mutableStateOf(false) }
-
-    // 当从 DataStore 读取到的值改变时，更新本地状态
-    LaunchedEffect(Unit) {
-        // API Key 字段保持为空，不从存储中加载值
-        if (apiEndpointInput.isBlank()) {
-            apiEndpointInput = storedApiEndpoint
-            onApiEndpointChange(storedApiEndpoint)
-        }
-        if (modelNameInput.isBlank()) {
-            modelNameInput = storedModelName
-            onModelNameChange(storedModelName)
+    // 导航处理
+    LaunchedEffect(isUsingDefault) {
+        if (!isUsingDefault) {
+            onNavigateToChat()
         }
     }
 
-    val modernTextStyle = TextStyle(fontSize = 14.sp)
-
-    // 宣传弹窗
-    if (showPromotionDialog) {
-        Dialog(onDismissRequest = { showPromotionDialog = false }) {
-            Card(
-                    modifier = Modifier.fillMaxWidth(0.9f).padding(16.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors =
-                            CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surface
-                            )
-            ) {
-                Column(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    // 标题
-                    Text(
-                            text = "助力推广，共创未来",
-                            style =
-                                    MaterialTheme.typography.titleMedium.copy(
-                                            fontWeight = FontWeight.Bold
-                                    ),
-                            color = MaterialTheme.colorScheme.primary
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // 说明文字 - 修改为更有感染力的表达，明确要求分享一次
-                    Text(
-                            text = "作为开源项目，我们希望您的帮助让更多人发现这款AI助手！分享的话，软件未来可能会更好哦！",
-                            style = MaterialTheme.typography.bodyMedium,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // 推广文案卡片
-                    Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(8.dp),
-                            colors =
-                                    CardDefaults.cardColors(
-                                            containerColor =
-                                                    MaterialTheme.colorScheme.primaryContainer
-                                    )
-                    ) {
-                        // 创建滚动状态
-                        val promotionScrollState = rememberScrollState()
-
-                        Column(
-                                modifier =
-                                        Modifier.padding(16.dp)
-                                                .height(160.dp) // 增加高度从120dp到160dp
-                                                .verticalScroll(promotionScrollState), // 添加滚动功能
-                                horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            // 动画效果显示推广文案
-                            AnimatedVisibility(
-                                    visible = true,
-                                    enter = fadeIn(animationSpec = tween(300)),
-                                    exit = fadeOut(animationSpec = tween(300))
-                            ) {
-                                Text(
-                                        text = currentPromotionText,
-                                        style =
-                                                MaterialTheme.typography.bodyMedium.copy(
-                                                        fontSize = 13.sp
-                                                ), // 从bodyLarge改为bodyMedium并设置更小的字体大小
-                                        textAlign = TextAlign.Center,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // 成功消息
-                    AnimatedVisibility(
-                            visible = showSuccessMessage,
-                            enter = fadeIn(animationSpec = tween(300)),
-                            exit = fadeOut(animationSpec = tween(300))
-                    ) {
-                        Text(
-                                text = "感谢分享！默认配置已成功启用",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // 按钮行
-                    Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        // 刷新按钮 - 在功能型和梗型文案之间切换
-                        Button(
-                                onClick = {
-                                    // 切换文案类别
-                                    currentCategory = 1 - currentCategory // Toggle between 0 and 1
-                                    currentPromotionText =
-                                            PromotionalTexts.getPromotionByCategory(currentCategory)
-                                },
-                                colors =
-                                        ButtonDefaults.buttonColors(
-                                                containerColor =
-                                                        MaterialTheme.colorScheme
-                                                                .secondaryContainer,
-                                                contentColor =
-                                                        MaterialTheme.colorScheme
-                                                                .onSecondaryContainer
-                                        ),
-                                modifier = Modifier.weight(1f).padding(end = 8.dp),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
-                        ) {
-                            Icon(
-                                    imageVector = Icons.Filled.Refresh,
-                                    contentDescription = "切换文案风格",
-                                    modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                    if (currentCategory == 0) "抽象梗" else "正经文",
-                                    maxLines = 1,
-                                    style = MaterialTheme.typography.labelMedium
-                            )
-                        }
-
-                        // 分享按钮 - 简化为使用更短的文字
-                        Button(
-                                onClick = {
-                                    if (!isSharing) {
-                                        isSharing = true
-
-                                        // 创建分享意图（跳转到QQ）
-                                        val shareIntent =
-                                                Intent().apply {
-                                                    action = Intent.ACTION_SEND
-                                                    putExtra(
-                                                            Intent.EXTRA_TEXT,
-                                                            currentPromotionText
-                                                    )
-                                                    type = "text/plain"
-                                                    // 尝试指定QQ包名（实际实现可能需要调整）
-                                                    setPackage("com.tencent.mobileqq")
-                                                }
-
-                                        try {
-                                            context.startActivity(shareIntent)
-
-                                            // 模拟分享成功检测（实际应用中可能需要更复杂的逻辑）
-                                            coroutineScope.launch {
-                                                delay(2000) // 延迟2秒
-                                                shareSuccess = true
-                                                showSuccessMessage = true
-
-                                                // 延迟后执行默认配置并关闭对话框
-                                                delay(1500)
-
-                                                // 保存当前输入到ViewModel
-                                                onApiEndpointChange(apiEndpointInput)
-                                                if (apiKeyInput.isNotBlank()) {
-                                                    onApiKeyChange(apiKeyInput)
-                                                }
-                                                // 使用默认配置时强制使用deepseek-chat模型
-                                                onModelNameChange(ApiPreferences.DEFAULT_MODEL_NAME)
-
-                                                // 调用使用默认配置的回调
-                                                onUseDefault()
-
-                                                // 关闭对话框
-                                                showPromotionDialog = false
-                                            }
-                                        } catch (e: Exception) {
-                                            // 处理没有安装QQ的情况
-                                            coroutineScope.launch {
-                                                // 显示通用分享选择器
-                                                context.startActivity(
-                                                        Intent.createChooser(
-                                                                Intent().apply {
-                                                                    action = Intent.ACTION_SEND
-                                                                    putExtra(
-                                                                            Intent.EXTRA_TEXT,
-                                                                            currentPromotionText
-                                                                    )
-                                                                    type = "text/plain"
-                                                                },
-                                                                "分享到"
-                                                        )
-                                                )
-
-                                                delay(2000) // 延迟2秒
-                                                shareSuccess = true
-                                                showSuccessMessage = true
-
-                                                // 延迟后执行默认配置并关闭对话框
-                                                delay(1500)
-                                                onApiEndpointChange(apiEndpointInput)
-                                                if (apiKeyInput.isNotBlank()) {
-                                                    onApiKeyChange(apiKeyInput)
-                                                }
-                                                // 使用默认配置时强制使用deepseek-chat模型
-                                                onModelNameChange(ApiPreferences.DEFAULT_MODEL_NAME)
-                                                onUseDefault()
-                                                showPromotionDialog = false
-                                            }
-                                        } finally {
-                                            isSharing = false
-                                        }
-                                    }
-                                },
-                                colors =
-                                        ButtonDefaults.buttonColors(
-                                                containerColor = MaterialTheme.colorScheme.primary,
-                                                contentColor = MaterialTheme.colorScheme.onPrimary
-                                        ),
-                                enabled = !isSharing,
-                                modifier = Modifier.weight(1f),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
-                        ) {
-                            Icon(
-                                    imageVector = Icons.Filled.Share,
-                                    contentDescription = "分享到QQ",
-                                    modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("分享", maxLines = 1, style = MaterialTheme.typography.labelMedium)
-                        }
-                    }
-
-                    // 添加直接使用按钮
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    OutlinedButton(
-                            onClick = {
-                                // 直接使用默认配置，无需分享
-                                // 保存当前输入到ViewModel
-                                onApiEndpointChange(apiEndpointInput)
-                                if (apiKeyInput.isNotBlank()) {
-                                    onApiKeyChange(apiKeyInput)
-                                }
-                                // 使用默认配置时强制使用deepseek-chat模型
-                                onModelNameChange(ApiPreferences.DEFAULT_MODEL_NAME)
-
-                                // 调用使用默认配置的回调
-                                onUseDefault()
-
-                                // 关闭对话框
-                                showPromotionDialog = false
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors =
-                                    ButtonDefaults.outlinedButtonColors(
-                                            contentColor = MaterialTheme.colorScheme.tertiary
-                                    ),
-                            border =
-                                    BorderStroke(
-                                            width = 1.dp,
-                                            color =
-                                                    MaterialTheme.colorScheme.tertiary.copy(
-                                                            alpha = 0.5f
-                                                    )
-                                    ),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
-                    ) { Text("直接使用", maxLines = 1, style = MaterialTheme.typography.labelMedium) }
+    // 密钥信息对话框
+    if (showTokenInfoDialog) {
+        TokenInfoDialog(
+                onDismiss = { showTokenInfoDialog = false },
+                onConfirm = {
+                    showTokenInfoDialog = false
+                    onNavigateToTokenConfig()
                 }
-            }
-        }
+        )
     }
 
+    // 主界面 - 简洁设计
     Box(
-            modifier = Modifier.fillMaxSize().padding(mainPadding),
+            modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp),
             contentAlignment = Alignment.Center
     ) {
         Column(
-                modifier =
-                        Modifier.fillMaxWidth(cardWidth).padding(8.dp).verticalScroll(scrollState),
+                modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.Center
         ) {
-            // 紧凑的标题区域
+            // 标题和说明
             Text(
-                    text = "配置AI助手",
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(vertical = 8.dp)
+                    text = "Operit AI 助手",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
             )
 
-            // 子标题/状态提示
+            Spacer(modifier = Modifier.height(8.dp))
+
             Text(
-                    text = if (isUsingDefault) "当前使用默认配置，可直接开始使用" else "请设置API信息或使用默认配置",
+                    text = "我们默认使用DeepSeek API，如需更换请点击下方自定义选项",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(bottom = 10.dp)
+                    textAlign = TextAlign.Center
             )
 
-            // API接口地址输入框
-            OutlinedTextField(
-                    value = apiEndpointInput,
-                    onValueChange = {
-                        apiEndpointInput = it
+            Spacer(modifier = Modifier.height(32.dp))
 
-                        // 更新ViewModel值
-                        onApiEndpointChange(apiEndpointInput)
-
-                        // 检查端点，但不自动修复，而是显示警告
-                        if (it.isNotBlank()) {
-                            // 如果不包含completions路径，显示警告
-                            if (!ModelEndPointFix.containsCompletionsPath(it)) {
-                                endpointWarningMessage = "提示：API地址应包含补全路径，如v1/chat/completions"
-                                showEndpointFixedInfo = true
-                                // 自动隐藏提示
-                                coroutineScope.launch {
-                                    delay(5000)
-                                    showEndpointFixedInfo = false
-                                }
-                            } else {
-                                // 正确包含了completions
-                                showEndpointFixedInfo = false
-                            }
-                        }
-                    },
-                    label = { Text("API接口地址", fontSize = 13.sp) },
-                    placeholder = { Text("API地址应包含补全路径", fontSize = 12.sp) },
-                    leadingIcon = {
-                        Icon(
-                                imageVector = Icons.Filled.Public,
-                                contentDescription = "API接口地址",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(18.dp)
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    textStyle = modernTextStyle,
-                    shape = RoundedCornerShape(8.dp),
-                    colors =
-                            OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                                    focusedLabelColor = MaterialTheme.colorScheme.primary,
-                                    cursorColor = MaterialTheme.colorScheme.primary
-                            ),
-                    singleLine = true,
-                    maxLines = 1
-            )
-
-            // 显示端点相关提示
-            if (showEndpointFixedInfo) {
-                Text(
-                        text = endpointWarningMessage ?: "",
-                        style = MaterialTheme.typography.bodySmall,
-                        color =
-                                if (endpointWarningMessage?.startsWith("警告") == true)
-                                        MaterialTheme.colorScheme.error
-                                else MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(bottom = 4.dp),
-                        fontSize = 11.sp
-                )
-            }
-
-            // API密钥输入框
+            // API密钥输入框 - 简洁设计
             OutlinedTextField(
                     value = apiKeyInput,
-                    onValueChange = {
-                        apiKeyInput = it
-                        // 只在特定情况下才更新ViewModel
-                        if (shouldUpdateApiKey) {
-                            onApiKeyChange(it)
-                        }
-                        
-                        // 检查用户是否输入了默认API密钥
-                        if (it == ApiPreferences.DEFAULT_API_KEY) {
-                            // 如果输入了默认密钥，强制使用默认模型
-                            modelNameInput = ApiPreferences.DEFAULT_MODEL_NAME
-                            onModelNameChange(ApiPreferences.DEFAULT_MODEL_NAME)
-                            showModelRestrictionInfo = true
-                        } else if (it.isNotBlank()) {
-                            // 如果输入了非默认密钥，允许自定义模型
-                            showModelRestrictionInfo = false
-                        }
-                    },
-                    label = { Text("API密钥", fontSize = 13.sp) },
+                    onValueChange = { apiKeyInput = it },
+                    label = { Text("API密钥") },
+                    placeholder = { Text("DeepSeek API密钥") },
                     leadingIcon = {
                         Icon(
-                                imageVector = Icons.Filled.Lock,
+                                imageVector = Icons.Default.Key,
                                 contentDescription = "API密钥",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(18.dp)
+                                tint = MaterialTheme.colorScheme.primary
                         )
                     },
                     visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    textStyle = modernTextStyle,
+                    modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp),
                     colors =
                             OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                                    focusedLabelColor = MaterialTheme.colorScheme.primary,
-                                    cursorColor = MaterialTheme.colorScheme.primary
+                                    unfocusedBorderColor =
+                                            MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)
                             ),
-                    singleLine = true,
-                    maxLines = 1
+                    singleLine = true
             )
 
-            // 模型名称输入框
-            OutlinedTextField(
-                    value = modelNameInput,
-                    onValueChange = {
-                        // 只有在不使用默认API密钥时才允许更改模型名称
-                        if (!isUsingDefaultApiKey) {
-                            modelNameInput = it
-                            onModelNameChange(it)
-                        }
-                    },
-                    label = { Text("模型名称", fontSize = 13.sp) },
-                    leadingIcon = {
-                        Icon(
-                                imageVector = Icons.Filled.SmartToy,
-                                contentDescription = "模型名称",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(18.dp)
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    textStyle = modernTextStyle,
-                    shape = RoundedCornerShape(8.dp),
-                    colors =
-                            OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                                    focusedLabelColor = MaterialTheme.colorScheme.primary,
-                                    cursorColor = MaterialTheme.colorScheme.primary,
-                                    // 当使用默认API密钥时，使用禁用的颜色
-                                    disabledTextColor =
-                                            if (isUsingDefaultApiKey)
-                                                    MaterialTheme.colorScheme.primary
-                                            else
-                                                    MaterialTheme.colorScheme.onSurface.copy(
-                                                            alpha = 0.38f
-                                                    ),
-                                    disabledBorderColor =
-                                            if (isUsingDefaultApiKey)
-                                                    MaterialTheme.colorScheme.primary.copy(
-                                                            alpha = 0.3f
-                                                    )
-                                            else
-                                                    MaterialTheme.colorScheme.outline.copy(
-                                                            alpha = 0.12f
-                                                    ),
-                                    disabledLabelColor =
-                                            if (isUsingDefaultApiKey)
-                                                    MaterialTheme.colorScheme.primary.copy(
-                                                            alpha = 0.7f
-                                                    )
-                                            else
-                                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                                                            alpha = 0.38f
-                                                    )
-                            ),
-                    singleLine = true,
-                    maxLines = 1,
-                    // 当使用默认API密钥时，禁用输入框
-                    enabled = !isUsingDefaultApiKey
-            )
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // 显示模型限制提示
-            if (showModelRestrictionInfo) {
-                Text(
-                        text = "使用默认配置时，只能使用deepseek-chat模型",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(bottom = 4.dp),
-                        fontSize = 11.sp
-                )
-            }
-
-            // 保存按钮
+            // 主按钮 - 根据输入状态动态变化
             Button(
                     onClick = {
-                        // 检查endpoint是否包含completions，如果不包含则显示警告但不自动修复
-                        if (apiEndpointInput.isNotBlank() &&
-                                        !ModelEndPointFix.containsCompletionsPath(apiEndpointInput)
-                        ) {
-                            endpointWarningMessage =
-                                    "警告：您的API地址不包含补全路径（如v1/chat/completions）。请确保这是您想要的配置。"
-                            showEndpointFixedInfo = true
-                            // 显示较长时间
-                            coroutineScope.launch {
-                                delay(6000)
-                                showEndpointFixedInfo = false
+                        if (hasEnteredToken) {
+                            // 如果用户已输入token，直接保存配置
+                            onApiKeyChange(apiKeyInput)
+                            if (!showCustomFields) {
+                                // 如果没有显示自定义字段，使用默认端点和模型
+                                onApiEndpointChange(ApiPreferences.DEFAULT_API_ENDPOINT)
+                                onModelNameChange(ApiPreferences.DEFAULT_MODEL_NAME)
                             }
-                        }
-
-                        if (apiEndpointInput.isNotBlank() &&
-                                        (apiKeyInput.isNotBlank() || isUsingDefault) &&
-                                        modelNameInput.isNotBlank()
-                        ) {
-                            // 只在保存时更新API密钥
-                            shouldUpdateApiKey = true
-                            // 如果输入框为空但是isUsingDefault为true，说明使用的是默认配置
-                            // 此时不应该更新API密钥为空字符串
-                            if (apiKeyInput.isNotBlank() || !isUsingDefault) {
-                                onApiKeyChange(apiKeyInput)
-                            }
-                            shouldUpdateApiKey = false
-
                             onSaveConfig()
                         } else {
-                            onError("请输入API密钥、接口地址和模型名称")
+                            // 否则显示获取token的对话框
+                            showTokenInfoDialog = true
                         }
                     },
-                    modifier = Modifier.fillMaxWidth().height(48.dp).padding(top = 4.dp),
-                    shape = RoundedCornerShape(24.dp),
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = RoundedCornerShape(8.dp),
                     colors =
                             ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary
+                                    containerColor =
+                                            if (hasEnteredToken)
+                                                    MaterialTheme.colorScheme.primaryContainer
+                                            else MaterialTheme.colorScheme.primary
                             )
             ) {
-                Text(
-                        "保存并开始使用",
-                        style =
-                                MaterialTheme.typography.labelLarge.copy(
-                                        fontWeight = FontWeight.Medium
+                Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                ) {
+                    if (hasEnteredToken) {
+                        Icon(
+                                imageVector = Icons.Default.Save,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                    Text(
+                            if (hasEnteredToken) "确认并保存" else "获取Token",
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 16.sp,
+                            color =
+                                    if (hasEnteredToken)
+                                            MaterialTheme.colorScheme.onPrimaryContainer
+                                    else MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // 底部选项 - 左右并排
+            Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // 左侧 - 薅作者的
+                TextButton(
+                        onClick = {
+                            apiKeyInput = ""
+                            apiEndpointInput = ApiPreferences.DEFAULT_API_ENDPOINT
+                            modelNameInput = ApiPreferences.DEFAULT_MODEL_NAME
+
+                            onApiKeyChange(ApiPreferences.DEFAULT_API_KEY)
+                            onApiEndpointChange(ApiPreferences.DEFAULT_API_ENDPOINT)
+                            onModelNameChange(ApiPreferences.DEFAULT_MODEL_NAME)
+
+                            onUseDefault()
+                            showCustomFields = false
+                        },
+                        modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                            "薅作者的",
+                            color = MaterialTheme.colorScheme.secondary,
+                            fontWeight = FontWeight.Medium
+                    )
+                }
+
+                // 分隔线
+                Divider(
+                        modifier =
+                                Modifier.height(24.dp)
+                                        .width(1.dp)
+                                        .align(Alignment.CenterVertically),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                )
+
+                // 右侧 - 自定义
+                TextButton(
+                        onClick = { showCustomFields = !showCustomFields },
+                        modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                            "自定义",
+                            color = MaterialTheme.colorScheme.tertiary,
+                            fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+
+            // 自定义配置区域 - 保持简洁
+            AnimatedVisibility(visible = showCustomFields) {
+                Column(
+                        modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Divider(
+                            modifier = Modifier.padding(bottom = 24.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
+
+                    // API接口地址
+                    OutlinedTextField(
+                            value = apiEndpointInput,
+                            onValueChange = {
+                                apiEndpointInput = it
+                                onApiEndpointChange(it)
+
+                                if (it.isNotBlank() && !ModelEndPointFix.containsCompletionsPath(it)
+                                ) {
+                                    endpointWarningMessage = "提示：应包含补全路径，如v1/chat/completions"
+                                    showEndpointWarning = true
+
+                                    coroutineScope.launch {
+                                        delay(5000)
+                                        showEndpointWarning = false
+                                    }
+                                } else {
+                                    showEndpointWarning = false
+                                }
+                            },
+                            label = { Text("API接口地址") },
+                            placeholder = { Text("API地址应包含补全路径") },
+                            leadingIcon = {
+                                Icon(
+                                        imageVector = Icons.Default.Public,
+                                        contentDescription = "API接口地址",
+                                        tint = MaterialTheme.colorScheme.primary
                                 )
+                            },
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            singleLine = true
+                    )
+
+                    if (showEndpointWarning && endpointWarningMessage != null) {
+                        Text(
+                                text = endpointWarningMessage!!,
+                                style = MaterialTheme.typography.bodySmall,
+                                color =
+                                        if (endpointWarningMessage?.startsWith("警告") == true)
+                                                MaterialTheme.colorScheme.error
+                                        else MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(bottom = 8.dp).fillMaxWidth(),
+                                fontSize = 12.sp
+                        )
+                    }
+
+                    // 模型名称
+                    OutlinedTextField(
+                            value = modelNameInput,
+                            onValueChange = {
+                                if (!isUsingDefaultApiKey) {
+                                    modelNameInput = it
+                                    onModelNameChange(it)
+                                }
+                            },
+                            label = { Text("模型名称") },
+                            placeholder = { Text("例如：deepseek-chat") },
+                            leadingIcon = {
+                                Icon(
+                                        imageVector = Icons.Default.SmartToy,
+                                        contentDescription = "模型名称",
+                                        tint = MaterialTheme.colorScheme.primary
+                                )
+                            },
+                            enabled = !isUsingDefaultApiKey,
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            singleLine = true
+                    )
+
+                    // 保存按钮
+                    Button(
+                            onClick = {
+                                if (apiEndpointInput.isNotBlank() &&
+                                                (apiKeyInput.isNotBlank() || isUsingDefault) &&
+                                                modelNameInput.isNotBlank()
+                                ) {
+                                    // 检查端点格式
+                                    if (!ModelEndPointFix.containsCompletionsPath(apiEndpointInput)
+                                    ) {
+                                        endpointWarningMessage = "警告：API地址不包含补全路径"
+                                        showEndpointWarning = true
+                                        coroutineScope.launch {
+                                            delay(5000)
+                                            showEndpointWarning = false
+                                        }
+                                    }
+
+                                    // 保存API密钥
+                                    if (apiKeyInput.isNotBlank() || !isUsingDefault) {
+                                        onApiKeyChange(apiKeyInput)
+                                    }
+
+                                    // 保存配置
+                                    onSaveConfig()
+                                } else {
+                                    onError("请完成所有配置项")
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            shape = RoundedCornerShape(8.dp)
+                    ) { Text("保存并开始使用", fontWeight = FontWeight.Medium) }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 极简底部提示
+            if (!showCustomFields) {
+                Text(
+                        text = "自己的token更加稳定，薅作者的用多了作者会破产，软件就没有更新了",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 8.dp)
                 )
             }
-
-            // 分隔线
-            Box(
-                    modifier =
-                            Modifier.fillMaxWidth()
-                                    .padding(vertical = 8.dp)
-                                    .height(1.dp)
-                                    .background(
-                                            brush =
-                                                    Brush.horizontalGradient(
-                                                            colors =
-                                                                    listOf(
-                                                                            Color.Transparent,
-                                                                            MaterialTheme
-                                                                                    .colorScheme
-                                                                                    .outlineVariant,
-                                                                            MaterialTheme
-                                                                                    .colorScheme
-                                                                                    .outlineVariant,
-                                                                            Color.Transparent
-                                                                    )
-                                                    )
-                                    )
-            )
-
-            // 底部选项区域 - 更紧凑的按钮排列
-            Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // 使用默认配置按钮 - 修改为显示推广对话框
-                Button(
-                        onClick = {
-                            // 显示推广对话框而不是直接使用默认配置
-                            showPromotionDialog = true
-                        },
-                        modifier =
-                                Modifier.weight(1f) // 相同的权重
-                                        .height(40.dp), // 减小高度
-                        shape = RoundedCornerShape(8.dp),
-                        colors =
-                                ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                ),
-                        contentPadding =
-                                PaddingValues(horizontal = 6.dp, vertical = 4.dp) // 减小内部padding
-                ) {
-                    Icon(
-                            imageVector = Icons.Outlined.CheckCircle,
-                            contentDescription = "使用默认配置",
-                            modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                            "默认配置",
-                            style =
-                                    MaterialTheme.typography.labelMedium.copy(
-                                            fontWeight = FontWeight.Medium,
-                                            fontSize = 12.sp
-                                    ),
-                            maxLines = 1
-                    )
-                }
-
-                // 获取Token按钮
-                Button(
-                        onClick = {
-                            // 使用内部导航而不是Intent跳转到外部浏览器
-                            onNavigateToTokenConfig()
-                        },
-                        modifier =
-                                Modifier.weight(1f) // 相同的权重
-                                        .height(40.dp), // 减小高度
-                        shape = RoundedCornerShape(8.dp),
-                        colors =
-                                ButtonDefaults.buttonColors(
-                                        containerColor =
-                                                MaterialTheme.colorScheme.secondaryContainer,
-                                        contentColor =
-                                                MaterialTheme.colorScheme.onSecondaryContainer
-                                ),
-                        contentPadding =
-                                PaddingValues(horizontal = 6.dp, vertical = 4.dp) // 减小内部padding
-                ) {
-                    Icon(
-                            imageVector = Icons.Filled.Token,
-                            contentDescription = "获取Token",
-                            modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                            "获取Token",
-                            style =
-                                    MaterialTheme.typography.labelMedium.copy(
-                                            fontWeight = FontWeight.Medium,
-                                            fontSize = 12.sp
-                                    ),
-                            maxLines = 1
-                    )
-                }
-
-                // 捐赠支持按钮
-                Button(
-                        onClick = { /* 跳转到捐赠页面 */},
-                        modifier =
-                                Modifier.weight(1f) // 相同的权重
-                                        .height(40.dp), // 减小高度
-                        shape = RoundedCornerShape(8.dp),
-                        colors =
-                                ButtonDefaults.buttonColors(
-                                        containerColor =
-                                                MaterialTheme.colorScheme.tertiaryContainer,
-                                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-                                ),
-                        contentPadding =
-                                PaddingValues(horizontal = 6.dp, vertical = 4.dp) // 减小内部padding
-                ) {
-                    Icon(
-                            imageVector = Icons.Filled.Favorite,
-                            contentDescription = "捐赠支持",
-                            modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                            "捐赠",
-                            style =
-                                    MaterialTheme.typography.labelMedium.copy(
-                                            fontWeight = FontWeight.Medium,
-                                            fontSize = 12.sp
-                                    ),
-                            maxLines = 1
-                    )
-                }
-            }
-
-            // 底部说明文字 - 更紧凑的样式
-            Text(
-                    text = "默认配置使用开发者的API接口和费用，您可以通过自定义配置使用自己的API。接口地址必须包含v1/chat/completions路径。",
-                    style = MaterialTheme.typography.bodySmall,
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 12.dp)
-            )
         }
     }
 }

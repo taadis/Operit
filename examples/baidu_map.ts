@@ -1,7 +1,7 @@
 /*
 METADATA
 {
-    "name": "baidu_map",
+    "name": "Experimental_baidu_map",
     "description": "百度地图工具集合，提供POI（兴趣点）和AOI（兴趣区域）数据获取接口。通过调用百度地图API，支持按名称、类别或地理范围查询地点信息、获取详细的POI数据和AOI边界坐标，基于位置的路线规划、周边设施推荐等高级功能，助力地理信息系统应用开发、位置服务和空间数据分析。",
     "tools": [
         {
