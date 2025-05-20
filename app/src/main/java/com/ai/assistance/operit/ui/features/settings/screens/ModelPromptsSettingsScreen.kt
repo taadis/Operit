@@ -3,10 +3,9 @@ package com.ai.assistance.operit.ui.features.settings.screens
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -18,25 +17,20 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.PopupProperties
 import com.ai.assistance.operit.data.model.PromptProfile
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.PromptPreferencesManager
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
-fun ModelPromptsSettingsScreen() {
+fun ModelPromptsSettingsScreen(onBackPressed: () -> Unit = {}) {
     val context = LocalContext.current
     val apiPreferences = remember { ApiPreferences(context) }
     val promptPreferencesManager = remember { PromptPreferencesManager(context) }
@@ -44,8 +38,11 @@ fun ModelPromptsSettingsScreen() {
     var showSaveSuccessMessage by remember { mutableStateOf(false) }
 
     // 提示词配置文件列表
-    val profileList = promptPreferencesManager.profileListFlow.collectAsState(initial = listOf("default")).value
-    val activeProfileId = promptPreferencesManager.activeProfileIdFlow.collectAsState(initial = "default").value
+    val profileList =
+            promptPreferencesManager.profileListFlow.collectAsState(initial = listOf("default"))
+                    .value
+    val activeProfileId =
+            promptPreferencesManager.activeProfileIdFlow.collectAsState(initial = "default").value
 
     // 对话框状态
     var showAddProfileDialog by remember { mutableStateOf(false) }
@@ -69,10 +66,22 @@ fun ModelPromptsSettingsScreen() {
     // 动画状态
     val listState = rememberLazyListState()
 
-    // 初始化提示词配置
-    LaunchedEffect(Unit) {
-        promptPreferencesManager.initializeIfNeeded()
+    // 下拉菜单状态
+    var isDropdownExpanded by remember { mutableStateOf(false) }
+
+    // 获取所有配置文件的名称映射(id -> name)
+    val profileNameMap = remember { mutableStateMapOf<String, String>() }
+
+    // 加载所有配置文件名称
+    LaunchedEffect(profileList) {
+        profileList.forEach { profileId ->
+            val profile = promptPreferencesManager.getPromptProfileFlow(profileId).first()
+            profileNameMap[profileId] = profile.name
+        }
     }
+
+    // 初始化提示词配置
+    LaunchedEffect(Unit) { promptPreferencesManager.initializeIfNeeded() }
 
     // 加载选中的配置文件
     LaunchedEffect(selectedProfileId) {
@@ -102,153 +111,285 @@ fun ModelPromptsSettingsScreen() {
     ) { paddingValues ->
         Box(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 12.dp, vertical = 4.dp)
-                    .verticalScroll(rememberScrollState())
+                    modifier =
+                            Modifier.fillMaxSize()
+                                .padding(horizontal = 12.dp, vertical = 4.dp)
+                                .verticalScroll(rememberScrollState())
             ) {
-                // 配置文件选择区域
+                // 配置文件选择区域 - 卡片内的布局重新组织
                 Card(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 12.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                        containerColor = MaterialTheme.colorScheme.surface
                     ),
+                    border = BorderStroke(0.7.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
                     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
-                    Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        // 头部操作区：新建按钮和保存按钮
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Default.Message,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "提示词配置",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                AnimatedVisibility(
-                                    visible = selectedProfile.value != null && editMode,
-                                    enter = fadeIn() + expandHorizontally(),
-                                    exit = fadeOut() + shrinkHorizontally()
-                                ) {
-                                    IconButton(
-                                        onClick = {
-                                            scope.launch {
-                                                val profile = selectedProfile.value
-                                                if (profile != null) {
-                                                    // 保存到自定义提示词配置
-                                                    promptPreferencesManager.updatePromptProfile(
-                                                        profileId = profile.id,
+                            // 保存按钮（编辑模式下显示）
+                            AnimatedVisibility(
+                                visible = selectedProfile.value != null && editMode,
+                                enter = fadeIn() + expandHorizontally(),
+                                exit = fadeOut() + shrinkHorizontally()
+                            ) {
+                                IconButton(
+                                    onClick = {
+                                        scope.launch {
+                                            val profile = selectedProfile.value
+                                            if (profile != null) {
+                                                // 保存到自定义提示词配置
+                                                promptPreferencesManager.updatePromptProfile(
+                                                    profileId = profile.id,
+                                                    introPrompt = introPromptInput,
+                                                    tonePrompt = tonePromptInput
+                                                )
+                                            
+                                                // 如果是当前激活的配置，也更新到ApiPreferences
+                                                if (profile.isActive) {
+                                                    apiPreferences.saveCustomPrompts(
                                                         introPrompt = introPromptInput,
                                                         tonePrompt = tonePromptInput
                                                     )
-                                                    
-                                                    // 如果是当前激活的配置，也更新到ApiPreferences
-                                                    if (profile.isActive) {
-                                                        apiPreferences.saveCustomPrompts(
-                                                            introPrompt = introPromptInput,
-                                                            tonePrompt = tonePromptInput
-                                                        )
-                                                    }
-                                                    
-                                                    showSaveSuccessMessage = true
-                                                    editMode = false
                                                 }
+                                            
+                                                showSaveSuccessMessage = true
+                                                editMode = false
                                             }
-                                        },
-                                        modifier = Modifier.size(28.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Save,
-                                            contentDescription = "保存",
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(18.dp)
-                                        )
+                                        }
                                     }
-                                }
-
-                                OutlinedButton(
-                                    onClick = { showAddProfileDialog = true },
-                                    shape = RoundedCornerShape(16.dp),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                                    modifier = Modifier.height(32.dp),
-                                    colors = ButtonDefaults.outlinedButtonColors(
-                                        contentColor = MaterialTheme.colorScheme.primary
-                                    )
                                 ) {
                                     Icon(
-                                        Icons.Default.Add,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        "新建",
-                                        fontSize = 14.sp,
-                                        style = MaterialTheme.typography.labelMedium
+                                        Icons.Default.Save,
+                                        contentDescription = "保存",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
                                     )
                                 }
                             }
                         }
 
-                        // 配置文件列表
-                        LazyColumn(
-                            state = listState,
-                            modifier = Modifier.fillMaxWidth().height(130.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        // 水平分隔线 - 减小垂直间距
+                        Divider(
+                            thickness = 0.5.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                        
+                        // 配置选择器区 - 标签和新建按钮放在一行
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            items(profileList) { profileId ->
-                                val isActive = profileId == activeProfileId
-                                val isSelected = profileId == selectedProfileId
-                                val profileName = runBlocking {
-                                    promptPreferencesManager.getPromptProfileFlow(profileId).first().name
+                            // 配置文件选择标签 - 更大的字体
+                            Text(
+                                "请选择提示词配置",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            
+                            // 新建按钮 - 更小的尺寸
+                            OutlinedButton(
+                                onClick = { showAddProfileDialog = true },
+                                shape = RoundedCornerShape(16.dp),
+                                border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.primary),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                modifier = Modifier.height(28.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.primary
+                                )
+                            ) {
+                                Icon(
+                                    Icons.Default.Add,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Text(
+                                    "新建",
+                                    fontSize = 12.sp,
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
+                        }
+                        
+                        val selectedProfileName = profileNameMap[selectedProfileId] ?: "默认配置"
+                        val isActive = selectedProfileId == activeProfileId
+                        
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { isDropdownExpanded = true },
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            tonalElevation = 0.5.dp,
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 12.dp, horizontal = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    // 活跃状态指示
+                                    if (isActive) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(8.dp)
+                                                .background(
+                                                    MaterialTheme.colorScheme.primary,
+                                                    CircleShape
+                                                )
+                                        )
+                                    }
+                                    
+                                    Text(
+                                        text = selectedProfileName,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = if (isActive) FontWeight.Medium else FontWeight.Normal,
+                                        color = if (isActive) MaterialTheme.colorScheme.primary 
+                                               else MaterialTheme.colorScheme.onSurface
+                                    )
                                 }
-
-                                // 配置项
-                                PromptProfileItem(
-                                    profileName = profileName,
-                                    isActive = isActive,
-                                    isSelected = isSelected,
-                                    onSelect = {
-                                        selectedProfileId = profileId
-                                        editMode = false
-                                    },
-                                    onActivate = {
+                                
+                                AnimatedContent(
+                                    targetState = isDropdownExpanded,
+                                    transitionSpec = {
+                                        fadeIn() + scaleIn() with fadeOut() + scaleOut()
+                                    }
+                                ) { expanded ->
+                                    Icon(
+                                        if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                        contentDescription = "选择配置",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                        
+                        // 操作按钮
+                        Row(
+                            modifier = Modifier.padding(top = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            // 激活按钮
+                            if (!isActive) {
+                                TextButton(
+                                    onClick = {
                                         scope.launch {
-                                            promptPreferencesManager.setActiveProfile(profileId)
-                                            
-                                            // 更新激活的配置到ApiPreferences
-                                            val profile = promptPreferencesManager.getPromptProfileFlow(profileId).first()
+                                            promptPreferencesManager.setActiveProfile(selectedProfileId)
+                                            val profile = promptPreferencesManager.getPromptProfileFlow(selectedProfileId).first()
                                             apiPreferences.saveCustomPrompts(
                                                 introPrompt = profile.introPrompt,
                                                 tonePrompt = profile.tonePrompt
                                             )
                                         }
                                     },
-                                    onDelete = if (profileId != "default") {
-                                        {
-                                            scope.launch {
-                                                promptPreferencesManager.deleteProfile(profileId)
-                                                if (selectedProfileId == profileId) {
-                                                    selectedProfileId = activeProfileId
-                                                }
-                                            }
+                                    contentPadding = PaddingValues(horizontal = 12.dp),
+                                    modifier = Modifier.height(36.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("设为活跃", fontSize = 14.sp)
+                                }
+                            }
+                            
+                            // 删除按钮
+                            if (selectedProfileId != "default") {
+                                TextButton(
+                                    onClick = {
+                                        scope.launch {
+                                            promptPreferencesManager.deleteProfile(selectedProfileId)
+                                            selectedProfileId = activeProfileId
                                         }
-                                    } else null
-                                )
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 12.dp),
+                                    colors = ButtonDefaults.textButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.error
+                                    ),
+                                    modifier = Modifier.height(36.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("删除", fontSize = 14.sp)
+                                }
+                            }
+                        }
+                    }
+
+                    // 下拉菜单
+                    DropdownMenu(
+                        expanded = isDropdownExpanded,
+                        onDismissRequest = { isDropdownExpanded = false },
+                        modifier = Modifier.width(280.dp),
+                        properties = PopupProperties(focusable = true)
+                    ) {
+                        profileList.forEach { profileId ->
+                            val profileName = profileNameMap[profileId] ?: "未命名配置"
+                            val isCurrentActive = profileId == activeProfileId
+                            val isSelected = profileId == selectedProfileId
+                            
+                            DropdownMenuItem(
+                                text = { 
+                                    Text(
+                                        text = profileName,
+                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                        color = when {
+                                            isSelected -> MaterialTheme.colorScheme.primary
+                                            isCurrentActive -> MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                                            else -> MaterialTheme.colorScheme.onSurface
+                                        }
+                                    )
+                                },
+                                leadingIcon = if (isCurrentActive) { {
+                                    Icon(
+                                        Icons.Default.Check,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }} else null,
+                                trailingIcon = if (isSelected) { {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .background(MaterialTheme.colorScheme.primary, CircleShape)
+                                    )
+                                }} else null,
+                                onClick = {
+                                    selectedProfileId = profileId
+                                    isDropdownExpanded = false
+                                    editMode = false
+                                },
+                                colors = MenuDefaults.itemColors(
+                                    textColor = if (isSelected) MaterialTheme.colorScheme.primary 
+                                              else MaterialTheme.colorScheme.onSurface
+                                ),
+                                modifier = Modifier.padding(horizontal = 4.dp)
+                            )
+                            
+                            if (profileId != profileList.last()) {
+                                Divider(modifier = Modifier.padding(horizontal = 8.dp), thickness = 0.5.dp)
                             }
                         }
                     }
@@ -267,7 +408,8 @@ fun ModelPromptsSettingsScreen() {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(8.dp),
-                            colors = CardDefaults.cardColors(
+                                colors =
+                                        CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.surface
                             ),
                             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
@@ -307,7 +449,9 @@ fun ModelPromptsSettingsScreen() {
                                 )
 
                                 OutlinedTextField(
-                                    value = if (editMode) introPromptInput else profile.introPrompt,
+                                        value =
+                                                if (editMode) introPromptInput
+                                                else profile.introPrompt,
                                     onValueChange = { if (editMode) introPromptInput = it },
                                     label = { Text("自我介绍提示词") },
                                     modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
@@ -325,7 +469,9 @@ fun ModelPromptsSettingsScreen() {
                                 )
 
                                 OutlinedTextField(
-                                    value = if (editMode) tonePromptInput else profile.tonePrompt,
+                                        value =
+                                                if (editMode) tonePromptInput
+                                                else profile.tonePrompt,
                                     onValueChange = { if (editMode) tonePromptInput = it },
                                     label = { Text("语气风格提示词") },
                                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
@@ -335,7 +481,10 @@ fun ModelPromptsSettingsScreen() {
                                 )
 
                                 if (editMode) {
-                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                    Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.End
+                                    ) {
                                         TextButton(
                                             onClick = {
                                                 introPromptInput = defaultIntroPrompt
@@ -349,9 +498,11 @@ fun ModelPromptsSettingsScreen() {
                                             onClick = {
                                                 scope.launch {
                                                     // 保存到提示词配置
-                                                    promptPreferencesManager.updatePromptProfile(
+                                                        promptPreferencesManager
+                                                                .updatePromptProfile(
                                                         profileId = profile.id,
-                                                        introPrompt = introPromptInput,
+                                                                        introPrompt =
+                                                                                introPromptInput,
                                                         tonePrompt = tonePromptInput
                                                     )
                                                     
@@ -379,8 +530,12 @@ fun ModelPromptsSettingsScreen() {
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                        colors =
+                                CardDefaults.cardColors(
+                                        containerColor =
+                                                MaterialTheme.colorScheme.surfaceVariant.copy(
+                                                        alpha = 0.7f
+                                                )
                     )
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -426,8 +581,10 @@ fun ModelPromptsSettingsScreen() {
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                         shape = RoundedCornerShape(8.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                            colors =
+                                    CardDefaults.cardColors(
+                                            containerColor =
+                                                    MaterialTheme.colorScheme.primaryContainer
                         )
                     ) {
                         Row(
@@ -495,7 +652,10 @@ fun ModelPromptsSettingsScreen() {
                     onClick = {
                         if (newProfileName.isNotBlank()) {
                             scope.launch {
-                                val profileId = promptPreferencesManager.createProfile(newProfileName)
+                                        val profileId =
+                                                promptPreferencesManager.createProfile(
+                                                        newProfileName
+                                                )
                                 selectedProfileId = profileId
                                 showAddProfileDialog = false
                                 newProfileName = ""
@@ -519,101 +679,8 @@ fun ModelPromptsSettingsScreen() {
 }
 
 @Composable
-fun PromptProfileItem(
-    profileName: String,
-    isActive: Boolean,
-    isSelected: Boolean,
-    onSelect: () -> Unit,
-    onActivate: () -> Unit,
-    onDelete: (() -> Unit)? = null
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth().height(50.dp).clickable(onClick = onSelect),
-        shape = RoundedCornerShape(8.dp),
-        color = when {
-            isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
-            isActive -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
-            else -> MaterialTheme.colorScheme.surface
-        },
-        border = BorderStroke(
-            width = if (isSelected) 1.dp else 0.dp,
-            color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent
-        )
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            RadioButton(
-                selected = isSelected,
-                onClick = onSelect,
-                colors = RadioButtonDefaults.colors(
-                    selectedColor = MaterialTheme.colorScheme.primary,
-                    unselectedColor = MaterialTheme.colorScheme.outline
-                ),
-                modifier = Modifier.size(36.dp)
-            )
-
-            Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
-                Text(
-                    text = profileName,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                    fontSize = 16.sp,
-                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                if (isActive) {
-                    Text(
-                        text = "当前激活",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                if (!isActive) {
-                    OutlinedButton(
-                        onClick = onActivate,
-                        shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
-                        modifier = Modifier.height(28.dp)
-                    ) { 
-                        Text("激活", style = MaterialTheme.typography.labelMedium, fontSize = 13.sp) 
-                    }
-                }
-
-                if (onDelete != null) {
-                    IconButton(
-                        onClick = onDelete,
-                        modifier = Modifier.size(28.dp).clip(CircleShape)
-                    ) {
-                        Icon(
-                            Icons.Default.Delete,
-                            contentDescription = "删除",
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 fun PromptInfoRow(title: String, description: String) {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-    ) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Text(
             text = title,
             style = MaterialTheme.typography.bodyMedium,

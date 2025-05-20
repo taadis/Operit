@@ -121,6 +121,7 @@ fun AppContent(
                                     is Screen.UserPreferencesSettings ->
                                             stringResource(id = R.string.user_preferences_settings)
                                     is Screen.ModelParametersSettings -> "模型参数设置"
+                                    is Screen.ModelPromptsSettings -> "模型提示词设置"
                                     is Screen.ThemeSettings -> "主题设置"
                                     is Screen.FormatConverter -> "万能格式转换"
                                     is Screen.FileManager -> "文件管理器"
@@ -155,7 +156,8 @@ fun AppContent(
                                     is Screen.ToolPermission,
                                     is Screen.UserPreferencesGuide,
                                     is Screen.UserPreferencesSettings,
-                                    is Screen.ModelParametersSettings -> {
+                                    is Screen.ModelParametersSettings,
+                                    is Screen.ModelPromptsSettings -> {
                                         // Return to settings screen
                                         onScreenChange(Screen.Settings)
                                         onNavItemChange(NavItem.Settings)
@@ -186,6 +188,7 @@ fun AppContent(
                                                 currentScreen is Screen.UserPreferencesSettings ||
                                                 currentScreen is Screen.ModelParametersSettings ||
                                                 currentScreen is Screen.ThemeSettings ||
+                                                currentScreen is Screen.ModelPromptsSettings ||
                                                 currentScreen is Screen.FormatConverter ||
                                                 currentScreen is Screen.FileManager ||
                                                 currentScreen is Screen.Terminal ||
@@ -204,7 +207,8 @@ fun AppContent(
                                             is Screen.ToolPermission,
                                             is Screen.UserPreferencesGuide,
                                             is Screen.UserPreferencesSettings,
-                                            is Screen.ModelParametersSettings ->
+                                            is Screen.ModelParametersSettings,
+                                            is Screen.ModelPromptsSettings ->
                                                     stringResource(id = R.string.nav_settings)
                                             is Screen.FormatConverter,
                                             is Screen.FileManager,
@@ -366,7 +370,12 @@ fun AppContent(
                                         }
                                 )
                         is Screen.ModelParametersSettings -> ModelParametersSettingsScreen()
-                        is Screen.ModelPromptsSettings -> ModelPromptsSettingsScreen()
+                        is Screen.ModelPromptsSettings -> ModelPromptsSettingsScreen(
+                            onBackPressed = {
+                                onScreenChange(Screen.Settings)
+                                onNavItemChange(NavItem.Settings)
+                            }
+                        )
                         is Screen.ThemeSettings -> ThemeSettingsScreen()
                         is Screen.Packages -> PackageManagerScreen()
                         is Screen.ProblemLibrary -> {
