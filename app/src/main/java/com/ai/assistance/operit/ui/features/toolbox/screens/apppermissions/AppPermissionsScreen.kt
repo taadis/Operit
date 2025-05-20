@@ -33,7 +33,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import androidx.navigation.NavController
-import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor
+import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
+import com.ai.assistance.operit.core.tools.system.ShizukuAuthorizer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -117,7 +118,7 @@ fun AppPermissionsScreen(navController: NavController) {
 
     // 检查Shizuku是否可用
     LaunchedEffect(Unit) {
-        shizukuAvailable = AdbCommandExecutor.hasShizukuPermission()
+        shizukuAvailable = ShizukuAuthorizer.hasShizukuPermission()
         if (!shizukuAvailable) {
             errorMessage = "需要Shizuku权限才能管理应用权限"
             showError = true
@@ -186,7 +187,7 @@ fun AppPermissionsScreen(navController: NavController) {
             try {
                 val result =
                     withContext(Dispatchers.IO) {
-                        AdbCommandExecutor.executeAdbCommand(
+                        AndroidShellExecutor.executeAdbCommand(
                             "pm $action $packageName ${permission.rawName}"
                         )
                     }
@@ -213,7 +214,7 @@ fun AppPermissionsScreen(navController: NavController) {
             try {
                 val result =
                     withContext(Dispatchers.IO) {
-                        AdbCommandExecutor.executeAdbCommand(
+                        AndroidShellExecutor.executeAdbCommand(
                             "pm reset-permissions $packageName"
                         )
                     }
@@ -1047,7 +1048,7 @@ fun AppPermissionsScreen(navController: NavController) {
 
                                                     try {
                                                         val result = withContext(Dispatchers.IO) {
-                                                            AdbCommandExecutor.executeAdbCommand(
+                                                            AndroidShellExecutor.executeAdbCommand(
                                                                 "pm $action $packageName ${permission.rawName}"
                                                             )
                                                         }
@@ -1506,11 +1507,11 @@ private suspend fun getAppPermissions(packageName: String): List<PermissionInfo>
         try {
             // 获取应用请求的权限 - 无需预过滤，直接获取完整输出
             val packageInfoResult =
-                AdbCommandExecutor.executeAdbCommand("dumpsys package $packageName")
+                AndroidShellExecutor.executeAdbCommand("dumpsys package $packageName")
 
             // 获取所有已授予的权限 - 单独提取
             val grantedPermsResult =
-                AdbCommandExecutor.executeAdbCommand(
+                AndroidShellExecutor.executeAdbCommand(
                     "dumpsys package $packageName | grep -E \"granted=true|:granted=true\""
                 )
 

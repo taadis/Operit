@@ -1,7 +1,7 @@
 package com.ai.assistance.operit.core.tools.system
 
 import android.content.Context
-import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor.CommandResult
+import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor.CommandResult
 import com.ai.assistance.operit.core.tools.system.termux.TermuxCommandExecutionImpl
 import com.ai.assistance.operit.core.tools.system.termux.TermuxCommandInteraction
 import com.ai.assistance.operit.core.tools.system.termux.TermuxCommandOptions

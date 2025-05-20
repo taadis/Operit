@@ -10,8 +10,8 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import com.ai.assistance.operit.services.TermuxCommandResultService
-import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor
-import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor.CommandResult
+import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
+import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor.CommandResult
 import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
@@ -311,7 +311,7 @@ object TermuxCommandExecutionImpl {
 
                                 // 使用AdbCommandExecutor删除临时文件，避免再次调用Termux
                                 try {
-                                    AdbCommandExecutor.executeAdbCommand(
+                                    AndroidShellExecutor.executeAdbCommand(
                                             "run-as com.termux sh -c 'rm -f \"$tempOutputFile\"'"
                                     )
                                     Log.d(
@@ -325,7 +325,7 @@ object TermuxCommandExecutionImpl {
                                     // 尝试清理FIFO管道
                                     val fifoFile =
                                             "/data/data/com.termux/files/home/.termux_input_$executionId.fifo"
-                                    AdbCommandExecutor.executeAdbCommand(
+                                    AndroidShellExecutor.executeAdbCommand(
                                             "run-as com.termux sh -c 'rm -f \"$fifoFile\" 2>/dev/null'"
                                     )
 

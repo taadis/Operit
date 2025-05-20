@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.core.tools.defaultTool
+package com.ai.assistance.operit.core.tools.defaultTool.standard
 
 import android.content.Context
 import android.util.Log
@@ -11,7 +11,7 @@ import kotlin.coroutines.suspendCoroutine
 import kotlinx.coroutines.*
 
 /** 终端命令执行工具 - 非流式输出版本 执行终端命令并一次性收集全部输出后返回 */
-class TerminalCommandExecutor(private val context: Context) {
+class StandardTerminalCommandExecutor(private val context: Context) {
 
     private val TAG = "TerminalCommandExecutor"
 

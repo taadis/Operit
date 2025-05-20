@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.core.tools.defaultTool
+package com.ai.assistance.operit.core.tools.defaultTool.standard
 
 import android.content.Context
 import android.content.Intent
@@ -18,8 +18,7 @@ import com.ai.assistance.operit.data.model.ToolResult
  * Device information tool that collects comprehensive system details Provides information about
  * hardware, software, network, and current device state
  */
-class DeviceInfoToolExecutor(private val context: Context) : ToolExecutor {
-
+open class StandardDeviceInfoToolExecutor(private val context: Context) : ToolExecutor {
     override fun invoke(tool: AITool): ToolResult {
         return try {
             // Get basic device information

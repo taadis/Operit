@@ -4,7 +4,6 @@ import android.content.Context
 import android.util.Log
 import com.ai.assistance.operit.core.tools.mcp.MCPManager
 import com.ai.assistance.operit.core.tools.mcp.MCPServerConfig
-import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor
 import com.ai.assistance.operit.core.tools.system.termux.TermuxAuthorizer
 import com.ai.assistance.operit.core.tools.system.termux.TermuxUtils
 import com.ai.assistance.operit.data.mcp.MCPConfigPreferences

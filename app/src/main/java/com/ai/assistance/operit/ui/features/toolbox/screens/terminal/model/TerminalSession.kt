@@ -5,7 +5,7 @@ import android.content.Context
 import android.util.Log
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.snapshots.SnapshotStateList
-import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor.CommandResult
+import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor.CommandResult
 import com.ai.assistance.operit.core.tools.system.TermuxCommandExecutor
 import com.ai.assistance.operit.core.tools.system.termux.TermuxCommandOptions
 import com.ai.assistance.operit.core.tools.system.termux.TermuxCommandOutputReceiver

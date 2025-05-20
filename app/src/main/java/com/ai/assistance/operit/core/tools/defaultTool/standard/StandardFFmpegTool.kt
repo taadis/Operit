@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.core.tools.defaultTool
+package com.ai.assistance.operit.core.tools.defaultTool.standard
 
 import android.content.Context
 import com.ai.assistance.operit.core.tools.FFmpegResultData
@@ -15,7 +15,7 @@ import com.arthenica.ffmpegkit.ReturnCode
 import java.io.File
 
 /** FFmpeg工具执行器 提供媒体文件处理能力，包括转换、裁剪、合并等功能 */
-class FFmpegToolExecutor(private val context: Context) : ToolExecutor {
+class StandardFFmpegToolExecutor(private val context: Context) : ToolExecutor {
     companion object {
         private const val TAG = "FFmpegToolExecutor"
     }
@@ -94,7 +94,7 @@ class FFmpegToolExecutor(private val context: Context) : ToolExecutor {
 }
 
 /** FFmpeg信息工具执行器 获取有关系统FFmpeg配置的信息 */
-class FFmpegInfoToolExecutor : ToolExecutor {
+class StandardFFmpegInfoToolExecutor : ToolExecutor {
     companion object {
         private const val TAG = "FFmpegInfoToolExecutor"
     }
@@ -148,7 +148,7 @@ class FFmpegInfoToolExecutor : ToolExecutor {
 }
 
 /** FFmpeg转换视频工具执行器 提供一个简化的接口用于常见的视频转换操作 */
-class FFmpegConvertToolExecutor(private val context: Context) : ToolExecutor {
+class StandardFFmpegConvertToolExecutor(private val context: Context) : ToolExecutor {
     companion object {
         private const val TAG = "FFmpegConvertToolExecutor"
     }

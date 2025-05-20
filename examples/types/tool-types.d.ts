@@ -36,7 +36,7 @@ export type NetToolName = 'http_request' | 'web_search' | 'fetch_web_page' | 'mu
  */
 export type SystemToolName = 'sleep' | 'get_system_setting' | 'modify_system_setting' |
     'install_app' | 'uninstall_app' | 'list_installed_apps' | 'start_app' | 'stop_app' |
-    'device_info' | 'execute_adb' | 'execute_intent' | 'execute_terminal' |
+    'device_info' | 'execute_shell' | 'execute_intent' | 'execute_terminal' |
     'get_notifications' | 'get_device_location';
 
 /**
@@ -144,7 +144,7 @@ export interface ToolResultMap {
     'ffmpeg_convert': FFmpegResultData;
 
     // ADB operations
-    'execute_adb': ADBResultData;
+    'execute_shell': ADBResultData;
 
     // Intent operations
     'execute_intent': IntentResultData;

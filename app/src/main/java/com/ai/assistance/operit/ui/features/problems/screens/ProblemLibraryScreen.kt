@@ -33,8 +33,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.ai.assistance.operit.R
+import com.ai.assistance.operit.api.library.ProblemLibraryTool
 import com.ai.assistance.operit.core.tools.AIToolHandler
-import com.ai.assistance.operit.core.tools.defaultTool.ProblemLibraryTool
 import com.ai.assistance.operit.ui.features.problems.viewmodel.ProblemLibraryViewModel
 import java.text.SimpleDateFormat
 import java.util.*
@@ -378,8 +378,8 @@ fun EmptyLibraryView() {
 
 @Composable
 fun ProblemList(
-        problems: List<ProblemLibraryTool.ProblemRecord>,
-        onProblemClick: (ProblemLibraryTool.ProblemRecord) -> Unit
+    problems: List<ProblemLibraryTool.ProblemRecord>,
+    onProblemClick: (ProblemLibraryTool.ProblemRecord) -> Unit
 ) {
     LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         items(problems) { problem ->

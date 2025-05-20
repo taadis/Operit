@@ -4,8 +4,7 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
-import com.ai.assistance.operit.core.tools.defaultTool.ProblemLibraryTool
-import kotlinx.serialization.decodeFromString
+import com.ai.assistance.operit.api.library.ProblemLibraryTool
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -68,8 +67,8 @@ data class ProblemEntity(
     companion object {
         // 从ProblemRecord转换为ProblemEntity
         fun fromProblemRecord(
-                record: ProblemLibraryTool.ProblemRecord,
-                vectorData: ByteArray? = null
+            record: ProblemLibraryTool.ProblemRecord,
+            vectorData: ByteArray? = null
         ): ProblemEntity {
             return ProblemEntity(
                     uuid = record.uuid,

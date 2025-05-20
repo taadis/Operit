@@ -51,7 +51,7 @@ class AdbExecutor {
      */
     async executeShell(command, timeout = 15000) {
         try {
-            const result = await Tools.System.adb(command, timeout);
+            const result = await Tools.system.shell(command, timeout);
             if (result && result.output) {
                 return result.output;
             }

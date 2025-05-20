@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.core.tools.defaultTool
+package com.ai.assistance.operit.core.tools.defaultTool.standard
 
 import android.content.Context
 import android.util.Log
@@ -22,7 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /** Tool for converting between different file formats */
-class FileConverterTool(private val context: Context) {
+class StandardFileConverterTool(private val context: Context) {
         companion object {
                 private const val TAG = "FileConverterTool"
         }
@@ -613,7 +613,7 @@ class FileConverterToolExecutor(private val context: Context) : ToolExecutor {
         }
 
         override fun invoke(tool: AITool): ToolResult {
-                val fileConverterTool = FileConverterTool(context)
+                val fileConverterTool = StandardFileConverterTool(context)
 
                 return when (tool.name) {
                         "convert_file" ->

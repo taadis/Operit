@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.core.tools.defaultTool
+package com.ai.assistance.operit.core.tools.defaultTool.standard
 
 import android.content.Context
 import android.util.Log
@@ -11,8 +11,6 @@ import java.io.File
 import java.net.InetSocketAddress
 import java.net.Proxy
 import java.net.URL
-import java.nio.charset.Charset
-import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeUnit
 import okhttp3.Cookie
 import okhttp3.CookieJar
@@ -32,7 +30,7 @@ import org.json.JSONObject
 import org.jsoup.Jsoup
 
 /** HTTP网络请求工具 提供直接访问网页和发送HTTP请求的能力 */
-class HttpTools(private val context: Context) {
+class StandardHttpTools(private val context: Context) {
 
     companion object {
         private const val TAG = "HttpTools"

@@ -1,10 +1,11 @@
-package com.ai.assistance.operit.core.tools.defaultTool
+package com.ai.assistance.operit.core.tools.defaultTool.standard
 
 import android.content.Context
 import android.util.Log
 import com.ai.assistance.operit.core.tools.ADBResultData
 import com.ai.assistance.operit.core.tools.StringResultData
-import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor
+import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
+import com.ai.assistance.operit.core.tools.system.ShizukuAuthorizer
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.data.model.ToolValidationResult
@@ -14,7 +15,7 @@ import kotlinx.coroutines.runBlocking
  * Tool for executing ADB commands directly. This provides direct access to ADB shell commands for
  * system operations. Note: This requires Shizuku service to be running with proper permissions.
  */
-class ADBToolExecutor(private val context: Context) {
+open class StandardShellToolExecutor(private val context: Context) {
 
     companion object {
         private const val TAG = "ADBToolExecutor"
@@ -38,7 +39,7 @@ class ADBToolExecutor(private val context: Context) {
 
         return try {
             // Use AdbCommandExecutor to execute the command
-            val result = runBlocking { AdbCommandExecutor.executeAdbCommand(command) }
+            val result = runBlocking { AndroidShellExecutor.executeAdbCommand(command) }
 
             if (result.success) {
                 ToolResult(
@@ -95,16 +96,16 @@ class ADBToolExecutor(private val context: Context) {
             }
             else -> {
                 // Check if Shizuku service is available
-                if (!AdbCommandExecutor.isShizukuServiceRunning()) {
+                if (!ShizukuAuthorizer.isShizukuServiceRunning()) {
                     return ToolValidationResult(
                             valid = false,
                             errorMessage =
-                                    "Shizuku service is not running. ${AdbCommandExecutor.getShizukuStartupInstructions()}"
+                                    "Shizuku service is not running. ${ShizukuAuthorizer.getShizukuStartupInstructions()}"
                     )
                 }
 
                 // Check if we have Shizuku permission
-                if (!AdbCommandExecutor.hasShizukuPermission()) {
+                if (!ShizukuAuthorizer.hasShizukuPermission()) {
                     return ToolValidationResult(
                             valid = false,
                             errorMessage =

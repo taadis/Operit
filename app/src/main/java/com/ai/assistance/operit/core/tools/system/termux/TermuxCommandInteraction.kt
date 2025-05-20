@@ -2,7 +2,7 @@ package com.ai.assistance.operit.core.tools.system.termux
 
 import android.content.Context
 import android.util.Log
-import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor
+import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -40,7 +40,7 @@ object TermuxCommandInteraction {
                     // 检查FIFO是否存在
                     val checkFifoCmd =
                             "run-as com.termux sh -c 'if [ -p \"$fifoPath\" ]; then echo \"EXISTS\"; else echo \"NOT_EXISTS\"; fi'"
-                    val checkFifoResult = AdbCommandExecutor.executeAdbCommand(checkFifoCmd)
+                    val checkFifoResult = AndroidShellExecutor.executeAdbCommand(checkFifoCmd)
 
                     if (checkFifoResult.stdout.trim() == "EXISTS") {
                         Log.d(TAG, "FIFO存在，写入数据: '$inputWithNewline'")
@@ -50,18 +50,18 @@ object TermuxCommandInteraction {
                         // 方法1: 使用echo直接写入
                         val echoCmd =
                                 "run-as com.termux sh -c 'echo \"$inputWithNewline\" > \"$fifoPath\"'"
-                        AdbCommandExecutor.executeAdbCommand(echoCmd)
+                        AndroidShellExecutor.executeAdbCommand(echoCmd)
 
                         // 方法2: 使用printf写入原始数据(避免echo对特殊字符的处理)
                         val printfCmd =
                                 "run-as com.termux sh -c 'printf \"$inputWithNewline\" > \"$fifoPath\"'"
-                        AdbCommandExecutor.executeAdbCommand(printfCmd)
+                        AndroidShellExecutor.executeAdbCommand(printfCmd)
 
                         // 方法3: 字符一个一个地写入
                         val chars = inputWithNewline.toCharArray()
                         for (c in chars) {
                             val charCmd = "run-as com.termux sh -c 'printf \"$c\" > \"$fifoPath\"'"
-                            AdbCommandExecutor.executeAdbCommand(charCmd)
+                            AndroidShellExecutor.executeAdbCommand(charCmd)
                             delay(5) // 短暂延迟，避免写入太快
                         }
 

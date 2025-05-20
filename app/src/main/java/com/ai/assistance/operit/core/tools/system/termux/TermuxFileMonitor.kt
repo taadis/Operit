@@ -6,8 +6,8 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import com.ai.assistance.operit.services.TermuxCommandResultService
-import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor
-import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor.CommandResult
+import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
+import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor.CommandResult
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
@@ -48,7 +48,7 @@ object TermuxFileMonitor {
         while (System.currentTimeMillis() - startTime < fileCheckTimeout) {
             val checkFileCmd =
                     "run-as com.termux sh -c 'if [ -f \"$tempOutputFile\" ]; then echo \"EXISTS\"; else echo \"NOT_EXISTS\"; fi'"
-            val checkResult = AdbCommandExecutor.executeAdbCommand(checkFileCmd)
+            val checkResult = AndroidShellExecutor.executeAdbCommand(checkFileCmd)
 
             if (checkResult.stdout.contains("EXISTS")) {
                 fileCreated = true
@@ -119,7 +119,7 @@ object TermuxFileMonitor {
 
                                         GlobalScope.launch(Dispatchers.IO) {
                                             result =
-                                                    AdbCommandExecutor.executeAdbCommand(
+                                                    AndroidShellExecutor.executeAdbCommand(
                                                             sizeCommand
                                                     )
                                             latch.countDown()
@@ -183,7 +183,7 @@ object TermuxFileMonitor {
 
                                         GlobalScope.launch(Dispatchers.IO) {
                                             result =
-                                                    AdbCommandExecutor.executeAdbCommand(
+                                                    AndroidShellExecutor.executeAdbCommand(
                                                             readCommand
                                                     )
                                             latch.countDown()
@@ -212,7 +212,7 @@ object TermuxFileMonitor {
 
                                             GlobalScope.launch(Dispatchers.IO) {
                                                 result =
-                                                        AdbCommandExecutor.executeAdbCommand(
+                                                        AndroidShellExecutor.executeAdbCommand(
                                                                 fallbackCommand
                                                         )
                                                 latch.countDown()
@@ -378,7 +378,7 @@ object TermuxFileMonitor {
         // 清理临时文件
         GlobalScope.launch(Dispatchers.IO) {
             try {
-                AdbCommandExecutor.executeAdbCommand(
+                AndroidShellExecutor.executeAdbCommand(
                         "run-as com.termux sh -c 'rm -f \"$tempOutputFile\"'"
                 )
             } catch (e: Exception) {
@@ -429,7 +429,7 @@ object TermuxFileMonitor {
         // 清理临时文件
         GlobalScope.launch(Dispatchers.IO) {
             try {
-                AdbCommandExecutor.executeAdbCommand(
+                AndroidShellExecutor.executeAdbCommand(
                         "run-as com.termux sh -c 'rm -f \"$tempOutputFile\"'"
                 )
             } catch (e: Exception) {

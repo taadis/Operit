@@ -22,7 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor.CommandResult
+import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor.CommandResult
 import com.ai.assistance.operit.core.tools.system.TermuxCommandExecutor
 import com.ai.assistance.operit.core.tools.system.termux.TermuxCommandOutputReceiver
 import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.components.InteractiveInputDialog

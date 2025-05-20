@@ -1,15 +1,8 @@
-package com.ai.assistance.operit.core.tools.defaultTool
+package com.ai.assistance.operit.api.library
 
 import android.content.Context
 import android.util.Log
-import com.ai.assistance.operit.core.tools.AIToolHandler
-import com.ai.assistance.operit.core.tools.StringResultData
-import com.ai.assistance.operit.core.tools.ToolExecutor
 import com.ai.assistance.operit.data.db.AppDatabase
-import com.ai.assistance.operit.data.model.AITool
-import com.ai.assistance.operit.data.model.ToolResult
-import com.ai.assistance.operit.data.model.ToolValidationResult
-import com.ai.assistance.operit.ui.permissions.ToolCategory
 import com.ai.assistance.operit.util.TextSegmenter
 import com.ai.assistance.operit.util.VectorDatabaseHelper
 import java.text.SimpleDateFormat
@@ -66,6 +59,20 @@ class ProblemLibraryTool private constructor(private val context: Context) {
     // 向量索引是否准备好
     private var vectorIndexReady = false
 
+    // 转换方法：从标准ProblemRecord转为本地ProblemRecord
+    private fun convertToProblemRecord(
+            standardRecord: ProblemRecord
+    ): ProblemRecord {
+        return ProblemRecord(
+                uuid = standardRecord.uuid,
+                query = standardRecord.query,
+                solution = standardRecord.solution,
+                tools = standardRecord.tools,
+                summary = standardRecord.summary,
+                timestamp = standardRecord.timestamp
+        )
+    }
+
     // 初始化向量索引
     private fun initVectorIndex() {
         try {
@@ -108,7 +115,16 @@ class ProblemLibraryTool private constructor(private val context: Context) {
     fun saveProblemRecord(record: ProblemRecord) {
         // 保存到Room数据库，同时会更新向量索引
         kotlinx.coroutines.runBlocking {
-            vectorDB.addRecord(record)
+            // 转换为标准ProblemRecord
+            val standardRecord = ProblemRecord(
+                    uuid = record.uuid,
+                    query = record.query,
+                    solution = record.solution,
+                    tools = record.tools,
+                    summary = record.summary,
+                    timestamp = record.timestamp
+            )
+            vectorDB.addRecord(standardRecord)
             Log.d(TAG, "问题记录已保存到数据库: ${record.uuid}")
         }
     }
@@ -118,14 +134,14 @@ class ProblemLibraryTool private constructor(private val context: Context) {
         // 从Room数据库获取所有记录
         return kotlinx.coroutines.runBlocking {
             val entities = problemDao.getAllProblems()
-            entities.map { it.toProblemRecord() }
+            entities.map { convertToProblemRecord(it.toProblemRecord()) }
         }
     }
 
     // 通过ID列表获取问题记录
     private suspend fun getRecordsByIds(ids: List<String>): List<ProblemRecord> {
         val entities = problemDao.getProblemsByIds(ids)
-        return entities.map { it.toProblemRecord() }
+        return entities.map { convertToProblemRecord(it.toProblemRecord()) }
     }
 
     // 搜索问题库
@@ -144,7 +160,7 @@ class ProblemLibraryTool private constructor(private val context: Context) {
                 if (query.isBlank()) {
                     Log.d(TAG, "查询为空，返回所有记录")
                     val entities = problemDao.getAllProblems()
-                    return@withContext entities.map { it.toProblemRecord() }
+                    return@withContext entities.map { convertToProblemRecord(it.toProblemRecord()) }
                 }
 
                 // 如果向量索引已准备好且启用了向量搜索，使用向量搜索
@@ -159,7 +175,7 @@ class ProblemLibraryTool private constructor(private val context: Context) {
                         val endTime = System.currentTimeMillis()
                         Log.d(TAG, "向量搜索完成，耗时: ${endTime - startTime}ms，结果数: ${result.size}")
 
-                        return@withContext result
+                        return@withContext result.map { convertToProblemRecord(it) }
                     } catch (e: Exception) {
                         Log.e(TAG, "向量搜索失败，回退到传统搜索: ${e.message}", e)
                         // 出错时回退到传统搜索
@@ -182,7 +198,9 @@ class ProblemLibraryTool private constructor(private val context: Context) {
 
                 // 如果直接匹配到了内容，直接返回结果，避免昂贵的分词操作
                 if (directMatches.size >= 5) {
-                    return@withContext directMatches.map { it.toProblemRecord() }
+                    return@withContext directMatches.map {
+                        convertToProblemRecord(it.toProblemRecord())
+                    }
                 }
 
                 // 对查询文本进行分词
@@ -202,7 +220,7 @@ class ProblemLibraryTool private constructor(private val context: Context) {
                 // 如果没有有效关键词，返回所有记录
                 if (keywords.isEmpty()) {
                     val entities = problemDao.getAllProblems()
-                    return@withContext entities.map { it.toProblemRecord() }
+                    return@withContext entities.map { convertToProblemRecord(it.toProblemRecord()) }
                 }
 
                 // 限制问题库的搜索规模，避免处理过多数据
@@ -219,7 +237,7 @@ class ProblemLibraryTool private constructor(private val context: Context) {
                 val result =
                         recordsToSearch
                                 .map { entity ->
-                                    val record = entity.toProblemRecord()
+                                    val record = convertToProblemRecord(entity.toProblemRecord())
 
                                     // 使用文本分词器计算相关性得分
                                     val queryRelevance =
@@ -230,7 +248,7 @@ class ProblemLibraryTool private constructor(private val context: Context) {
 
                                     // 如果查询得分为0，且摘要得分可能也为0，则跳过其他计算以提高性能
                                     if (queryRelevance == 0.0 && record.summary.isBlank()) {
-                                        return@map Pair(record, 0.0)
+                                        return@map Pair(convertToProblemRecord(record), 0.0)
                                     }
 
                                     val summaryRelevance =
@@ -273,7 +291,7 @@ class ProblemLibraryTool private constructor(private val context: Context) {
                                                     solutionRelevance +
                                                     toolsRelevance
 
-                                    Pair(record, totalScore)
+                                    Pair(convertToProblemRecord(record), totalScore)
                                 }
                                 .filter { it.second > 0 } // 只返回有相关性的记录
                                 .sortedByDescending { it.second } // 按相关性排序
@@ -358,64 +376,4 @@ class ProblemLibraryTool private constructor(private val context: Context) {
             vectorDB.release()
         }
     }
-    // 向AIToolHandler注册工具
-    fun registerTools(toolHandler: AIToolHandler) {
-        // 查询问题库工具
-        toolHandler.registerTool(
-                name = "query_problem_library",
-                category = ToolCategory.FILE_READ,
-                dangerCheck = null,
-                descriptionGenerator = { tool ->
-                    val query = tool.parameters.find { it.name == "query" }?.value ?: ""
-                    "查询问题库: $query"
-                },
-                executor =
-                        object : ToolExecutor {
-                            override fun invoke(tool: AITool): ToolResult {
-                                val query = tool.parameters.find { it.name == "query" }?.value ?: ""
-
-                                val result =
-                                        kotlinx.coroutines.runBlocking {
-                                            queryProblemLibrary(query)
-                                        }
-
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = true,
-                                        result = StringResultData(result)
-                                )
-                            }
-
-                            override fun validateParameters(tool: AITool): ToolValidationResult {
-                                val query = tool.parameters.find { it.name == "query" }?.value
-                                if (query == null) {
-                                    return ToolValidationResult(
-                                            valid = false,
-                                            errorMessage = "缺少必要参数: query"
-                                    )
-                                }
-                                return ToolValidationResult(valid = true)
-                            }
-
-                            override fun getCategory(): ToolCategory {
-                                return ToolCategory.FILE_READ
-                            }
-                        }
-        )
-    }
-}
-/** 向AIToolHandler注册问题库工具 */
-fun registerProblemLibraryTool(toolHandler: AIToolHandler, context: Context) {
-    // 添加顶级函数自己的TAG常量
-    val TAG = "ProblemLibraryTool_Reg"
-
-    // 获取单例实例
-    val problemLibraryTool = ProblemLibraryTool.getInstance(context)
-
-    // 向AIToolHandler中注册问题库工具
-    problemLibraryTool.registerTools(toolHandler)
-
-    // 保存ProblemLibraryTool实例到AIToolHandler中
-    toolHandler.setProblemLibraryTool(problemLibraryTool)
-    Log.d(TAG, "ProblemLibraryTool 已注册到 AIToolHandler")
 }

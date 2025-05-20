@@ -14,7 +14,7 @@ import androidx.compose.ui.zIndex
 import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
 import com.ai.assistance.operit.core.tools.AIToolHandler
-import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor
+import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
 import com.ai.assistance.operit.core.tools.system.ShizukuInstaller
 import com.ai.assistance.operit.core.tools.system.termux.TermuxUtils
 import com.ai.assistance.operit.data.preferences.AgreementPreferences
@@ -31,6 +31,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import androidx.activity.OnBackPressedCallback
+import com.ai.assistance.operit.core.tools.system.ShizukuAuthorizer
 
 class MainActivity : ComponentActivity() {
     private val TAG = "MainActivity"
@@ -152,7 +153,7 @@ class MainActivity : ComponentActivity() {
         // 移除Shizuku状态变化监听器
         try {
             if (::shizukuStateListener.isInitialized) {
-                AdbCommandExecutor.removeStateChangeListener(shizukuStateListener)
+                ShizukuAuthorizer.removeStateChangeListener(shizukuStateListener)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error removing Shizuku state change listener", e)
@@ -212,7 +213,7 @@ class MainActivity : ComponentActivity() {
         }
 
         // 注册Shizuku状态变化监听器
-        AdbCommandExecutor.addStateChangeListener(listener)
+        ShizukuAuthorizer.addStateChangeListener(listener)
         this.shizukuStateListener = listener
 
         // 检查无障碍服务状态
@@ -290,7 +291,7 @@ class MainActivity : ComponentActivity() {
         Log.d(TAG, "Initializing Shizuku")
 
         // 初始化Shizuku绑定
-        AdbCommandExecutor.initializeShizuku()
+        ShizukuAuthorizer.initialize()
 
         // 预先提取Shizuku APK以加速安装
         extractShizukuApkIfNeeded()
@@ -314,7 +315,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun updateShizukuStatus() {
-        if (!AdbCommandExecutor.isShizukuInstalled(this)) {
+        if (!ShizukuAuthorizer.isShizukuInstalled(this)) {
             Log.d(TAG, "Shizuku not installed")
             Toast.makeText(this, "请先安装Shizuku应用", Toast.LENGTH_LONG).show()
             navigateToShizukuScreen = true
@@ -322,8 +323,8 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        val isRunning = AdbCommandExecutor.isShizukuServiceRunning()
-        val hasPermission = AdbCommandExecutor.hasShizukuPermission()
+        val isRunning = ShizukuAuthorizer.isShizukuServiceRunning()
+        val hasPermission = ShizukuAuthorizer.hasShizukuPermission()
         Log.d(TAG, "Shizuku status: running=$isRunning, permission=$hasPermission")
 
         if (isRunning && hasPermission) {
@@ -348,14 +349,14 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun isShizukuFullyAvailable(): Boolean {
-        return AdbCommandExecutor.isShizukuServiceRunning() &&
-                AdbCommandExecutor.hasShizukuPermission()
+        return ShizukuAuthorizer.isShizukuServiceRunning() &&
+            ShizukuAuthorizer.hasShizukuPermission()
     }
 
     private fun checkShizukuStatus() {
-        if (AdbCommandExecutor.isShizukuInstalled(this)) {
-            val isRunning = AdbCommandExecutor.isShizukuServiceRunning()
-            val hasPermission = AdbCommandExecutor.hasShizukuPermission()
+        if (ShizukuAuthorizer.isShizukuInstalled(this)) {
+            val isRunning = ShizukuAuthorizer.isShizukuServiceRunning()
+            val hasPermission = ShizukuAuthorizer.hasShizukuPermission()
 
             // 仅当状态变化时才更新UI
             if (!isRunning || !hasPermission) {

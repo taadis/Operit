@@ -118,7 +118,7 @@
     <string name="show_help">显示帮助</string>
     <string name="hide_help">隐藏帮助</string>
     <string name="request_permission">请求Shizuku权限</string>
-    <string name="execute_adb">执行ADB命令</string>
+    <string name="execute_shell">执行shell命令</string>
     <string name="enter_command">输入ADB命令</string>
     <string name="show_samples">显示示例命令</string>
     <string name="hide_samples">隐藏示例命令</string>

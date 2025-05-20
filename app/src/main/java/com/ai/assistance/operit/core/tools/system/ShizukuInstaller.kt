@@ -62,7 +62,7 @@ class ShizukuInstaller {
          */
         fun installBundledShizuku(context: Context): Boolean {
             // 检查是否已经安装了Shizuku
-            if (AdbCommandExecutor.isShizukuInstalled(context)) {
+            if (ShizukuAuthorizer.isShizukuInstalled(context)) {
                 Log.d(TAG, "Shizuku is already installed")
                 return false
             }

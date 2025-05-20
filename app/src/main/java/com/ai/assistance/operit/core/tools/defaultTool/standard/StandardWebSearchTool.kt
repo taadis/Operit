@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.core.tools.defaultTool
+package com.ai.assistance.operit.core.tools.defaultTool.standard
 
 import android.content.Context
 import android.graphics.PixelFormat
@@ -56,7 +56,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.OkHttpClient
 
 /** Tool for web search functionality 实现百度搜索爬虫，无需API密钥 */
-class WebSearchTool(private val context: Context) : ToolExecutor {
+class StandardWebSearchTool(private val context: Context) : ToolExecutor {
 
     companion object {
         private const val TAG = "WebSearchTool"

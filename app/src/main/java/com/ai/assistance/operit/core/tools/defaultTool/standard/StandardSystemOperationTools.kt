@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.core.tools.defaultTool
+package com.ai.assistance.operit.core.tools.defaultTool.standard
 
 import android.content.Context
 import android.location.Geocoder
@@ -11,7 +11,7 @@ import com.ai.assistance.operit.core.tools.LocationData
 import com.ai.assistance.operit.core.tools.NotificationData
 import com.ai.assistance.operit.core.tools.StringResultData
 import com.ai.assistance.operit.core.tools.SystemSettingData
-import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor
+import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolResult
 import java.util.Locale
@@ -19,7 +19,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /** 提供系统级操作的工具类 包括系统设置修改、应用安装和卸载等 这些操作需要用户明确授权 */
-class SystemOperationTools(private val context: Context) {
+open class StandardSystemOperationTools(private val context: Context) {
 
     companion object {
         private const val TAG = "SystemOperationTools"
@@ -53,7 +53,7 @@ class SystemOperationTools(private val context: Context) {
 
         return try {
             val command = "settings put $namespace $setting $value"
-            val result = AdbCommandExecutor.executeAdbCommand(command)
+            val result = AndroidShellExecutor.executeAdbCommand(command)
 
             if (result.success) {
                 val resultData =
@@ -111,7 +111,7 @@ class SystemOperationTools(private val context: Context) {
 
         return try {
             val command = "settings get $namespace $setting"
-            val result = AdbCommandExecutor.executeAdbCommand(command)
+            val result = AndroidShellExecutor.executeAdbCommand(command)
 
             if (result.success) {
                 val resultData =
@@ -161,7 +161,7 @@ class SystemOperationTools(private val context: Context) {
 
         // 检查文件是否存在
         val existsResult =
-                AdbCommandExecutor.executeAdbCommand(
+                AndroidShellExecutor.executeAdbCommand(
                         "test -f $apkPath && echo 'exists' || echo 'not exists'"
                 )
         if (existsResult.stdout.trim() != "exists") {
@@ -176,7 +176,7 @@ class SystemOperationTools(private val context: Context) {
         return try {
             // 使用pm安装应用
             val command = "pm install -r $apkPath"
-            val result = AdbCommandExecutor.executeAdbCommand(command)
+            val result = AndroidShellExecutor.executeAdbCommand(command)
 
             if (result.success && result.stdout.contains("Success")) {
                 val resultData =
@@ -227,7 +227,7 @@ class SystemOperationTools(private val context: Context) {
 
         // 检查应用是否已安装
         val checkCommand = "pm list packages | grep -c \"$packageName\""
-        val checkResult = AdbCommandExecutor.executeAdbCommand(checkCommand)
+        val checkResult = AndroidShellExecutor.executeAdbCommand(checkCommand)
 
         if (checkResult.stdout.trim() == "0") {
             return ToolResult(
@@ -247,7 +247,7 @@ class SystemOperationTools(private val context: Context) {
                         "pm uninstall $packageName"
                     }
 
-            val result = AdbCommandExecutor.executeAdbCommand(command)
+            val result = AndroidShellExecutor.executeAdbCommand(command)
 
             if (result.success && result.stdout.contains("Success")) {
                 val details = if (keepData) "(保留数据)" else ""
@@ -298,7 +298,7 @@ class SystemOperationTools(private val context: Context) {
                         "pm list packages -3" // 只显示第三方应用
                     }
 
-            val result = AdbCommandExecutor.executeAdbCommand(command)
+            val result = AndroidShellExecutor.executeAdbCommand(command)
 
             if (result.success) {
                 // 格式化输出，使其更易读
@@ -359,7 +359,7 @@ class SystemOperationTools(private val context: Context) {
                         "am start -n $packageName/$activity"
                     }
 
-            val result = AdbCommandExecutor.executeAdbCommand(command)
+            val result = AndroidShellExecutor.executeAdbCommand(command)
 
             if (result.success) {
                 val details = if (activity.isNotBlank()) "活动: $activity" else ""
@@ -411,7 +411,7 @@ class SystemOperationTools(private val context: Context) {
 
         return try {
             val command = "am force-stop $packageName"
-            val result = AdbCommandExecutor.executeAdbCommand(command)
+            val result = AndroidShellExecutor.executeAdbCommand(command)
 
             if (result.success) {
                 val resultData =
@@ -461,7 +461,7 @@ class SystemOperationTools(private val context: Context) {
                         "dumpsys notification --noredact | grep -v 'ongoing' | grep -E 'pkg=|text=' | head -${limit * 2}"
                     }
 
-            val result = AdbCommandExecutor.executeAdbCommand(command)
+            val result = AndroidShellExecutor.executeAdbCommand(command)
 
             if (result.success) {
                 // 解析通知内容

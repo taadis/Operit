@@ -5,7 +5,8 @@ import android.content.Intent
 import android.provider.Settings
 import android.util.Log
 import com.ai.assistance.operit.services.UIAccessibilityService
-import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor
+import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
+import com.ai.assistance.operit.core.tools.system.ShizukuAuthorizer
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -110,8 +111,8 @@ object UIHierarchyManager {
     suspend fun enableAccessibilityServiceViaAdb(context: Context): Boolean {
         try {
             // 检查Shizuku服务是否正常运行并有权限
-            if (!AdbCommandExecutor.isShizukuServiceRunning() ||
-                !AdbCommandExecutor.hasShizukuPermission()
+            if (!ShizukuAuthorizer.isShizukuServiceRunning() ||
+                !ShizukuAuthorizer.hasShizukuPermission()
             ) {
                 Log.d(TAG, "Shizuku服务未运行或无权限，无法启用无障碍服务")
                 return false
@@ -170,7 +171,7 @@ object UIHierarchyManager {
      */
     private suspend fun executeAdbCommand(command: String): Boolean {
         return try {
-            val result = AdbCommandExecutor.executeAdbCommand(command)
+            val result = AndroidShellExecutor.executeAdbCommand(command)
             Log.d(TAG, "执行命令结果: ${result.stdout}")
             !result.stdout.contains("error", ignoreCase = true) &&
             !result.stdout.contains("Exception", ignoreCase = true) &&

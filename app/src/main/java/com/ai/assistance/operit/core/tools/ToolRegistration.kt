@@ -1,10 +1,21 @@
 package com.ai.assistance.operit.core.tools
 
 import android.content.Context
-import com.ai.assistance.operit.core.tools.defaultTool.*
-import com.ai.assistance.operit.core.tools.defaultTool.ADBToolExecutor
-import com.ai.assistance.operit.core.tools.defaultTool.IntentToolExecutor
-import com.ai.assistance.operit.core.tools.defaultTool.TerminalCommandExecutor
+import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardFFmpegConvertToolExecutor
+import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardFFmpegInfoToolExecutor
+import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardFFmpegToolExecutor
+import com.ai.assistance.operit.core.tools.defaultTool.standard.FileConverterToolExecutor
+import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardProblemLibraryToolExecutor
+import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardCalculator
+import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardDeviceInfoToolExecutor
+import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardFileSystemTools
+import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardHttpTools
+import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardIntentToolExecutor
+import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardShellToolExecutor
+import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardSystemOperationTools
+import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardTerminalCommandExecutor
+import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardUITools
+import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardWebSearchTool
 import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.ui.permissions.ToolCategory
 import org.json.JSONArray
@@ -22,15 +33,15 @@ import org.json.JSONArray
 fun registerAllTools(handler: AIToolHandler, context: Context) {
     // 不在提示词加入的工具
     handler.registerTool(
-            name = "execute_adb",
+            name = "execute_shell",
             category = ToolCategory.SYSTEM_OPERATION,
             dangerCheck = { true }, // 总是危险操作
             descriptionGenerator = { tool ->
                 val command = tool.parameters.find { it.name == "command" }?.value ?: ""
-                "执行ADB命令: $command"
+                "执行ADB Shell: $command"
             },
             executor = { tool ->
-                val adbTool = ADBToolExecutor(context)
+                val adbTool = StandardShellToolExecutor(context)
                 adbTool.invoke(tool)
             }
     )
@@ -50,13 +61,25 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
                 }
             },
             executor = { tool ->
-                val terminalTool = TerminalCommandExecutor(context)
+                val terminalTool = StandardTerminalCommandExecutor(context)
                 terminalTool.invoke(tool)
             }
     )
 
-    // 注册问题库工具
-    registerProblemLibraryTool(handler, context)
+    // 注册问题库查询工具
+    handler.registerTool(
+            name = "query_problem_library",
+            category = ToolCategory.FILE_READ,
+            dangerCheck = null,
+            descriptionGenerator = { tool ->
+                val query = tool.parameters.find { it.name == "query" }?.value ?: ""
+                "查询问题库: $query"
+            },
+            executor = { tool ->
+                val problemLibraryTool = StandardProblemLibraryToolExecutor(context)
+                problemLibraryTool.invoke(tool)
+            }
+    )
 
     // 系统操作工具
     handler.registerTool(
@@ -86,7 +109,7 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             executor = { tool ->
                 val expression = tool.parameters.find { it.name == "expression" }?.value ?: ""
                 try {
-                    val result = Calculator.evalExpression(expression)
+                    val result = StandardCalculator.evalExpression(expression)
                     ToolResult(
                             toolName = tool.name,
                             success = true,
@@ -112,7 +135,7 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
                 "网络搜索: $query"
             },
             executor = { tool ->
-                val webSearchTool = WebSearchTool(context)
+                val webSearchTool = StandardWebSearchTool(context)
                 webSearchTool.invoke(tool)
             }
     )
@@ -163,7 +186,7 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
                 }
             },
             executor = { tool ->
-                val intentTool = IntentToolExecutor(context)
+                val intentTool = StandardIntentToolExecutor(context)
                 kotlinx.coroutines.runBlocking { intentTool.invoke(tool) }
             }
     )
@@ -174,13 +197,13 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             category = ToolCategory.SYSTEM_OPERATION,
             descriptionGenerator = { _ -> "获取设备信息" },
             executor = { tool ->
-                val deviceInfoTool = DeviceInfoToolExecutor(context)
+                val deviceInfoTool = StandardDeviceInfoToolExecutor(context)
                 deviceInfoTool.invoke(tool)
             }
     )
 
     // 文件系统工具
-    val fileSystemTools = FileSystemTools(context)
+    val fileSystemTools = StandardFileSystemTools(context)
 
     // 列出目录内容
     handler.registerTool(
@@ -237,7 +260,7 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
     )
 
     // UI自动化工具
-    val uiTools = UITools(context)
+    val uiTools = StandardUITools(context)
 
     // 点击元素
     handler.registerTool(
@@ -305,7 +328,7 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
     )
 
     // HTTP请求工具
-    val httpTools = HttpTools(context)
+    val httpTools = StandardHttpTools(context)
 
     // 发送HTTP请求
     handler.registerTool(
@@ -509,7 +532,7 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
     )
 
     // 系统操作工具
-    val systemOperationTools = SystemOperationTools(context)
+    val systemOperationTools = StandardSystemOperationTools(context)
 
     // 修改系统设置
     handler.registerTool(
@@ -724,7 +747,7 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
                 "执行FFmpeg命令: $command"
             },
             executor = { tool ->
-                val ffmpegTool = FFmpegToolExecutor(context)
+                val ffmpegTool = StandardFFmpegToolExecutor(context)
                 ffmpegTool.invoke(tool)
             }
     )
@@ -735,7 +758,7 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             category = ToolCategory.FILE_READ,
             descriptionGenerator = { _ -> "获取FFmpeg信息" },
             executor = { tool ->
-                val ffmpegInfoTool = FFmpegInfoToolExecutor()
+                val ffmpegInfoTool = StandardFFmpegInfoToolExecutor()
                 ffmpegInfoTool.invoke(tool)
             }
     )
@@ -751,7 +774,7 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
                 "转换视频: $inputPath → $outputPath"
             },
             executor = { tool ->
-                val ffmpegConvertTool = FFmpegConvertToolExecutor(context)
+                val ffmpegConvertTool = StandardFFmpegConvertToolExecutor(context)
                 ffmpegConvertTool.invoke(tool)
             }
     )

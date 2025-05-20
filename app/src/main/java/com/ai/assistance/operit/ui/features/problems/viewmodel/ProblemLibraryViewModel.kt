@@ -3,8 +3,8 @@ package com.ai.assistance.operit.ui.features.problems.viewmodel
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ai.assistance.operit.api.library.ProblemLibraryTool
 import com.ai.assistance.operit.core.tools.AIToolHandler
-import com.ai.assistance.operit.core.tools.defaultTool.ProblemLibraryTool
 import com.ai.assistance.operit.util.TextSegmenter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow

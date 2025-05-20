@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.core.tools.defaultTool
+package com.ai.assistance.operit.core.tools.defaultTool.standard
 
 import android.content.Context
 import android.content.Intent
@@ -19,7 +19,7 @@ import org.json.JSONObject
  * Tool for executing Android Intents. This provides the ability to create and launch Android
  * intents for various operations like starting activities, services, or broadcasts.
  */
-class IntentToolExecutor(private val context: Context) {
+class StandardIntentToolExecutor(private val context: Context) {
 
     companion object {
         private const val TAG = "IntentToolExecutor"

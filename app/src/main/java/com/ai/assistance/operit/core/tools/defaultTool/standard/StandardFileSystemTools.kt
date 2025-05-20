@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.core.tools.defaultTool
+package com.ai.assistance.operit.core.tools.defaultTool.standard
 
 import android.content.Context
 import android.util.Log
@@ -10,7 +10,7 @@ import com.ai.assistance.operit.core.tools.FileInfoData
 import com.ai.assistance.operit.core.tools.FileOperationData
 import com.ai.assistance.operit.core.tools.FindFilesResultData
 import com.ai.assistance.operit.core.tools.StringResultData
-import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor
+import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolParameter
 import com.ai.assistance.operit.data.model.ToolResult
@@ -27,12 +27,12 @@ import java.util.zip.ZipOutputStream
  * Collection of file system operation tools for the AI assistant These tools leverage the
  * AdbCommandExecutor to perform operations safely
  */
-class FileSystemTools(private val context: Context) {
+open class StandardFileSystemTools(private val context: Context) {
         companion object {
                 private const val TAG = "FileSystemTools"
 
                 // Maximum allowed file size for operations
-                private const val MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024 // 10MB
+                protected const val MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024 // 10MB
         }
 
         /** List files in a directory */
@@ -51,7 +51,7 @@ class FileSystemTools(private val context: Context) {
                 return try {
                         // 首先尝试使用基本的ls命令
                         Log.d(TAG, "Trying basic ls command for path: $path")
-                        val basicResult = AdbCommandExecutor.executeAdbCommand("ls \"$path\"")
+                        val basicResult = AndroidShellExecutor.executeAdbCommand("ls \"$path\"")
 
                         if (basicResult.success) {
                                 Log.d(TAG, "Basic ls command output: ${basicResult.stdout}")
@@ -73,7 +73,7 @@ class FileSystemTools(private val context: Context) {
                                 // 如果基本ls命令失败，尝试使用find命令
                                 Log.d(TAG, "Trying find command for path: $path")
                                 val findResult =
-                                        AdbCommandExecutor.executeAdbCommand(
+                                        AndroidShellExecutor.executeAdbCommand(
                                                 "find \"$path\" -maxdepth 1 -mindepth 1 -printf \"%y|%s|%T@|%f\\n\""
                                         )
 
@@ -119,7 +119,7 @@ class FileSystemTools(private val context: Context) {
         }
 
         /** Parse the output of the find command into structured data */
-        private fun parseFindCommandOutput(
+        protected fun parseFindCommandOutput(
                 output: String,
                 path: String
         ): List<DirectoryListingData.FileEntry> {
@@ -172,7 +172,7 @@ class FileSystemTools(private val context: Context) {
         }
 
         /** Parse the output of the basic ls command into structured data */
-        private suspend fun parseBasicDirectoryListing(
+        protected suspend fun parseBasicDirectoryListing(
                 output: String,
                 path: String
         ): List<DirectoryListingData.FileEntry> {
@@ -189,7 +189,7 @@ class FileSystemTools(private val context: Context) {
                 // 执行命令获取哪些是目录
                 val dirResult =
                         try {
-                                AdbCommandExecutor.executeAdbCommand(dirCheckCommand.toString())
+                                AndroidShellExecutor.executeAdbCommand(dirCheckCommand.toString())
                         } catch (e: Exception) {
                                 Log.e(TAG, "Error checking directories", e)
                                 null
@@ -242,7 +242,7 @@ class FileSystemTools(private val context: Context) {
         }
 
         /** 将八进制权限格式转换为字符串表示 (如 "rwxr-xr-x") */
-        private fun convertOctalPermToString(octalPerm: String): String {
+        protected fun convertOctalPermToString(octalPerm: String): String {
                 try {
                         val permInt = octalPerm.toInt(8)
                         val permChars = CharArray(9)
@@ -285,7 +285,7 @@ class FileSystemTools(private val context: Context) {
                 return try {
                         // First check if the file exists
                         val existsResult =
-                                AdbCommandExecutor.executeAdbCommand(
+                                AndroidShellExecutor.executeAdbCommand(
                                         "test -f \"$path\" && echo 'exists' || echo 'not exists'"
                                 )
                         if (existsResult.stdout.trim() != "exists") {
@@ -299,7 +299,7 @@ class FileSystemTools(private val context: Context) {
 
                         // Check file size before reading
                         val sizeResult =
-                                AdbCommandExecutor.executeAdbCommand("stat -c %s \"$path\"")
+                                AndroidShellExecutor.executeAdbCommand("stat -c %s \"$path\"")
                         if (sizeResult.success) {
                                 val size = sizeResult.stdout.trim().toLongOrNull() ?: 0
                                 if (size > MAX_FILE_SIZE_BYTES) {
@@ -360,7 +360,7 @@ class FileSystemTools(private val context: Context) {
 
                                                 // 读取转换后的文本文件
                                                 val textContent =
-                                                        AdbCommandExecutor.executeAdbCommand(
+                                                        AndroidShellExecutor.executeAdbCommand(
                                                                 "cat \"$tempFilePath\""
                                                         )
 
@@ -386,7 +386,7 @@ class FileSystemTools(private val context: Context) {
                                                                 )
 
                                                         // 删除临时文件
-                                                        AdbCommandExecutor.executeAdbCommand(
+                                                        AndroidShellExecutor.executeAdbCommand(
                                                                 "rm -f \"$tempFilePath\""
                                                         )
 
@@ -405,7 +405,7 @@ class FileSystemTools(private val context: Context) {
                         }
 
                         // 对于非Word文档或转换失败的情况，直接读取文件内容
-                        val result = AdbCommandExecutor.executeAdbCommand("cat \"$path\"")
+                        val result = AndroidShellExecutor.executeAdbCommand("cat \"$path\"")
 
                         if (result.success) {
                                 val size =
@@ -469,7 +469,7 @@ class FileSystemTools(private val context: Context) {
                         val directory = File(path).parent
                         if (directory != null) {
                                 val mkdirResult =
-                                        AdbCommandExecutor.executeAdbCommand(
+                                        AndroidShellExecutor.executeAdbCommand(
                                                 "mkdir -p '$directory'"
                                         )
                                 if (!mkdirResult.success) {
@@ -492,7 +492,7 @@ class FileSystemTools(private val context: Context) {
                         // 方法1: 使用base64命令解码并写入文件
                         val redirectOperator = if (append) ">>" else ">"
                         val writeResult =
-                                AdbCommandExecutor.executeAdbCommand(
+                                AndroidShellExecutor.executeAdbCommand(
                                         "echo '$contentBase64' | base64 -d $redirectOperator '$path'"
                                 )
 
@@ -503,7 +503,7 @@ class FileSystemTools(private val context: Context) {
                                 )
                                 // 方法2: 尝试直接写入，无需base64
                                 val fallbackResult =
-                                        AdbCommandExecutor.executeAdbCommand(
+                                        AndroidShellExecutor.executeAdbCommand(
                                                 "printf '%s' '$content' $redirectOperator '$path'"
                                         )
                                 if (!fallbackResult.success) {
@@ -528,7 +528,7 @@ class FileSystemTools(private val context: Context) {
 
                         // 验证写入是否成功
                         val verifyResult =
-                                AdbCommandExecutor.executeAdbCommand(
+                                AndroidShellExecutor.executeAdbCommand(
                                         "test -f '$path' && echo 'exists' || echo 'not exists'"
                                 )
                         if (verifyResult.stdout.trim() != "exists") {
@@ -551,7 +551,7 @@ class FileSystemTools(private val context: Context) {
 
                         // 检查文件大小确认内容被写入
                         val sizeResult =
-                                AdbCommandExecutor.executeAdbCommand(
+                                AndroidShellExecutor.executeAdbCommand(
                                         "stat -c %s '$path' 2>/dev/null || echo '0'"
                                 )
                         val size = sizeResult.stdout.trim().toLongOrNull() ?: 0
@@ -670,7 +670,7 @@ class FileSystemTools(private val context: Context) {
 
                 return try {
                         val deleteCommand = if (recursive) "rm -rf $path" else "rm -f $path"
-                        val result = AdbCommandExecutor.executeAdbCommand(deleteCommand)
+                        val result = AndroidShellExecutor.executeAdbCommand(deleteCommand)
 
                         if (result.success) {
                                 return ToolResult(
@@ -734,7 +734,7 @@ class FileSystemTools(private val context: Context) {
                 return try {
                         // Check if the path exists
                         val existsResult =
-                                AdbCommandExecutor.executeAdbCommand(
+                                AndroidShellExecutor.executeAdbCommand(
                                         "test -e '$path' && echo 'exists' || echo 'not exists'"
                                 )
                         val exists = existsResult.success && existsResult.stdout.trim() == "exists"
@@ -752,14 +752,14 @@ class FileSystemTools(private val context: Context) {
 
                         // If it exists, check if it's a directory
                         val isDirResult =
-                                AdbCommandExecutor.executeAdbCommand(
+                                AndroidShellExecutor.executeAdbCommand(
                                         "test -d '$path' && echo 'true' || echo 'false'"
                                 )
                         val isDirectory = isDirResult.success && isDirResult.stdout.trim() == "true"
 
                         // Get the size
                         val sizeResult =
-                                AdbCommandExecutor.executeAdbCommand(
+                                AndroidShellExecutor.executeAdbCommand(
                                         "stat -c %s '$path' 2>/dev/null || echo '0'"
                                 )
                         val size = sizeResult.stdout.trim().toLongOrNull() ?: 0
@@ -833,7 +833,9 @@ class FileSystemTools(private val context: Context) {
 
                 return try {
                         val result =
-                                AdbCommandExecutor.executeAdbCommand("mv '$sourcePath' '$destPath'")
+                                AndroidShellExecutor.executeAdbCommand(
+                                        "mv '$sourcePath' '$destPath'"
+                                )
 
                         if (result.success) {
                                 return ToolResult(
@@ -908,7 +910,7 @@ class FileSystemTools(private val context: Context) {
                 return try {
                         // 首先检查源路径是否存在
                         val existsResult =
-                                AdbCommandExecutor.executeAdbCommand(
+                                AndroidShellExecutor.executeAdbCommand(
                                         "test -e '$sourcePath' && echo 'exists' || echo 'not exists'"
                                 )
                         if (existsResult.stdout.trim() != "exists") {
@@ -929,7 +931,7 @@ class FileSystemTools(private val context: Context) {
 
                         // 检查是否为目录
                         val isDirResult =
-                                AdbCommandExecutor.executeAdbCommand(
+                                AndroidShellExecutor.executeAdbCommand(
                                         "test -d '$sourcePath' && echo 'true' || echo 'false'"
                                 )
                         val isDirectory = isDirResult.stdout.trim() == "true"
@@ -937,7 +939,7 @@ class FileSystemTools(private val context: Context) {
                         // 确保目标父目录存在
                         val destParentDir = destPath.substringBeforeLast('/')
                         if (destParentDir.isNotEmpty()) {
-                                AdbCommandExecutor.executeAdbCommand("mkdir -p '$destParentDir'")
+                                AndroidShellExecutor.executeAdbCommand("mkdir -p '$destParentDir'")
                         }
 
                         // 根据是否为目录选择不同的复制命令
@@ -963,12 +965,12 @@ class FileSystemTools(private val context: Context) {
                                         )
                                 }
 
-                        val result = AdbCommandExecutor.executeAdbCommand(copyCommand)
+                        val result = AndroidShellExecutor.executeAdbCommand(copyCommand)
 
                         if (result.success) {
                                 // 验证复制是否成功
                                 val verifyResult =
-                                        AdbCommandExecutor.executeAdbCommand(
+                                        AndroidShellExecutor.executeAdbCommand(
                                                 "test -e '$destPath' && echo 'exists' || echo 'not exists'"
                                         )
                                 if (verifyResult.stdout.trim() != "exists") {
@@ -1058,7 +1060,7 @@ class FileSystemTools(private val context: Context) {
                 return try {
                         val mkdirCommand =
                                 if (createParents) "mkdir -p '$path'" else "mkdir '$path'"
-                        val result = AdbCommandExecutor.executeAdbCommand(mkdirCommand)
+                        val result = AndroidShellExecutor.executeAdbCommand(mkdirCommand)
 
                         if (result.success) {
                                 return ToolResult(
@@ -1166,7 +1168,7 @@ class FileSystemTools(private val context: Context) {
                         val command =
                                 "find ${if(path.endsWith("/")) path else "$path/"} $depthOption $searchOption $patternForCommand"
 
-                        val result = AdbCommandExecutor.executeAdbCommand(command)
+                        val result = AndroidShellExecutor.executeAdbCommand(command)
 
                         // Always consider the command successful, and check the output
                         val fileList = result.stdout.trim()
@@ -1235,7 +1237,7 @@ class FileSystemTools(private val context: Context) {
                 return try {
                         // Check if file exists
                         val existsResult =
-                                AdbCommandExecutor.executeAdbCommand(
+                                AndroidShellExecutor.executeAdbCommand(
                                         "test -e '$path' && echo 'exists' || echo 'not exists'"
                                 )
                         if (existsResult.stdout.trim() != "exists") {
@@ -1259,46 +1261,46 @@ class FileSystemTools(private val context: Context) {
                         }
 
                         // Get file details using stat
-                        val statResult = AdbCommandExecutor.executeAdbCommand("stat '$path'")
+                        val statResult = AndroidShellExecutor.executeAdbCommand("stat '$path'")
 
                         if (statResult.success) {
                                 // Get file type
                                 val fileTypeResult =
-                                        AdbCommandExecutor.executeAdbCommand(
+                                        AndroidShellExecutor.executeAdbCommand(
                                                 "test -d '$path' && echo 'directory' || (test -f '$path' && echo 'file' || echo 'other')"
                                         )
                                 val fileType = fileTypeResult.stdout.trim()
 
                                 // Get file size
                                 val sizeResult =
-                                        AdbCommandExecutor.executeAdbCommand(
+                                        AndroidShellExecutor.executeAdbCommand(
                                                 "stat -c %s '$path' 2>/dev/null || echo '0'"
                                         )
                                 val size = sizeResult.stdout.trim().toLongOrNull() ?: 0
 
                                 // Get file permissions
                                 val permissionsResult =
-                                        AdbCommandExecutor.executeAdbCommand(
+                                        AndroidShellExecutor.executeAdbCommand(
                                                 "stat -c %A '$path' 2>/dev/null || echo ''"
                                         )
                                 val permissions = permissionsResult.stdout.trim()
 
                                 // Get owner and group
                                 val ownerResult =
-                                        AdbCommandExecutor.executeAdbCommand(
+                                        AndroidShellExecutor.executeAdbCommand(
                                                 "stat -c %U '$path' 2>/dev/null || echo ''"
                                         )
                                 val owner = ownerResult.stdout.trim()
 
                                 val groupResult =
-                                        AdbCommandExecutor.executeAdbCommand(
+                                        AndroidShellExecutor.executeAdbCommand(
                                                 "stat -c %G '$path' 2>/dev/null || echo ''"
                                         )
                                 val group = groupResult.stdout.trim()
 
                                 // Get last modified time
                                 val modifiedResult =
-                                        AdbCommandExecutor.executeAdbCommand(
+                                        AndroidShellExecutor.executeAdbCommand(
                                                 "stat -c %y '$path' 2>/dev/null || echo ''"
                                         )
                                 val lastModified = modifiedResult.stdout.trim()
@@ -1379,7 +1381,7 @@ class FileSystemTools(private val context: Context) {
                 return try {
                         // First, check if the source path exists
                         val existsResult =
-                                AdbCommandExecutor.executeAdbCommand(
+                                AndroidShellExecutor.executeAdbCommand(
                                         "test -e '$sourcePath' && echo 'exists' || echo 'not exists'"
                                 )
                         if (existsResult.stdout.trim() != "exists") {
@@ -1394,7 +1396,7 @@ class FileSystemTools(private val context: Context) {
 
                         // Check if source is a directory
                         val isDirResult =
-                                AdbCommandExecutor.executeAdbCommand(
+                                AndroidShellExecutor.executeAdbCommand(
                                         "test -d '$sourcePath' && echo 'true' || echo 'false'"
                                 )
                         val isDirectory = isDirResult.stdout.trim() == "true"
@@ -1402,7 +1404,7 @@ class FileSystemTools(private val context: Context) {
                         // Create parent directory for zip file if needed
                         val zipDir = File(zipPath).parent
                         if (zipDir != null) {
-                                AdbCommandExecutor.executeAdbCommand("mkdir -p '$zipDir'")
+                                AndroidShellExecutor.executeAdbCommand("mkdir -p '$zipDir'")
                         }
 
                         // Use Java's ZipOutputStream to create the zip file
@@ -1430,7 +1432,7 @@ class FileSystemTools(private val context: Context) {
                                         // For directories, we need to list all files and add them
                                         // to the zip
                                         val listResult =
-                                                AdbCommandExecutor.executeAdbCommand(
+                                                AndroidShellExecutor.executeAdbCommand(
                                                         "find '$sourcePath' -type f"
                                                 )
                                         val fileList =
@@ -1453,7 +1455,7 @@ class FileSystemTools(private val context: Context) {
 
                                                         // Copy the file from device to temp file
                                                         val pullResult =
-                                                                AdbCommandExecutor
+                                                                AndroidShellExecutor
                                                                         .executeAdbCommand(
                                                                                 "cat '$filePath' > '${tempSourceFile.absolutePath}'"
                                                                         )
@@ -1494,7 +1496,7 @@ class FileSystemTools(private val context: Context) {
                                         // For a single file, simpler process
                                         // Copy the file from device to temp file
                                         val pullResult =
-                                                AdbCommandExecutor.executeAdbCommand(
+                                                AndroidShellExecutor.executeAdbCommand(
                                                         "cat '$sourcePath' > '${tempSourceFile.absolutePath}'"
                                                 )
                                         if (!pullResult.success) {
@@ -1546,7 +1548,7 @@ class FileSystemTools(private val context: Context) {
 
                                 // Push the ZIP file to the destination
                                 val pushResult =
-                                        AdbCommandExecutor.executeAdbCommand(
+                                        AndroidShellExecutor.executeAdbCommand(
                                                 "cat '${tempZipFile.absolutePath}' > '$zipPath'"
                                         )
                                 if (!pushResult.success) {
@@ -1605,7 +1607,7 @@ class FileSystemTools(private val context: Context) {
                 return try {
                         // Check if the zip file exists
                         val existsResult =
-                                AdbCommandExecutor.executeAdbCommand(
+                                AndroidShellExecutor.executeAdbCommand(
                                         "test -f '$zipPath' && echo 'exists' || echo 'not exists'"
                                 )
                         if (existsResult.stdout.trim() != "exists") {
@@ -1618,7 +1620,7 @@ class FileSystemTools(private val context: Context) {
                         }
 
                         // Create destination directory if it doesn't exist
-                        AdbCommandExecutor.executeAdbCommand("mkdir -p '$destPath'")
+                        AndroidShellExecutor.executeAdbCommand("mkdir -p '$destPath'")
 
                         // Create temporary files for processing - using external files directory
                         // for better
@@ -1633,7 +1635,7 @@ class FileSystemTools(private val context: Context) {
 
                                 // Copy the zip file from device to temp file
                                 val pullResult =
-                                        AdbCommandExecutor.executeAdbCommand(
+                                        AndroidShellExecutor.executeAdbCommand(
                                                 "cat '$zipPath' > '${tempZipFile.absolutePath}'"
                                         )
                                 if (!pullResult.success) {
@@ -1672,7 +1674,7 @@ class FileSystemTools(private val context: Context) {
                                                 // Skip directories, but make sure they exist
                                                 if (zipEntry.isDirectory) {
                                                         val dirPath = "$destPath/$fileName"
-                                                        AdbCommandExecutor.executeAdbCommand(
+                                                        AndroidShellExecutor.executeAdbCommand(
                                                                 "mkdir -p '$dirPath'"
                                                         )
                                                         zipInputStream.closeEntry()
@@ -1684,7 +1686,7 @@ class FileSystemTools(private val context: Context) {
                                                 val filePath = "$destPath/$fileName"
                                                 val parentDirPath = File(filePath).parent
                                                 if (parentDirPath != null) {
-                                                        AdbCommandExecutor.executeAdbCommand(
+                                                        AndroidShellExecutor.executeAdbCommand(
                                                                 "mkdir -p '$parentDirPath'"
                                                         )
                                                 }
@@ -1709,7 +1711,7 @@ class FileSystemTools(private val context: Context) {
 
                                                 // Copy the extracted file to device
                                                 val pushResult =
-                                                        AdbCommandExecutor.executeAdbCommand(
+                                                        AndroidShellExecutor.executeAdbCommand(
                                                                 "cat '${newFile.absolutePath}' > '$filePath'"
                                                         )
                                                 if (!pushResult.success) {
@@ -1779,7 +1781,7 @@ class FileSystemTools(private val context: Context) {
                 return try {
                         // 首先检查文件是否存在
                         val existsResult =
-                                AdbCommandExecutor.executeAdbCommand(
+                                AndroidShellExecutor.executeAdbCommand(
                                         "test -f '$path' && echo 'exists' || echo 'not exists'"
                                 )
                         if (existsResult.stdout.trim() != "exists") {
@@ -1799,7 +1801,9 @@ class FileSystemTools(private val context: Context) {
 
                         // 获取文件MIME类型
                         val mimeTypeResult =
-                                AdbCommandExecutor.executeAdbCommand("file --mime-type -b '$path'")
+                                AndroidShellExecutor.executeAdbCommand(
+                                        "file --mime-type -b '$path'"
+                                )
                         val mimeType =
                                 if (mimeTypeResult.success) mimeTypeResult.stdout.trim()
                                 else "application/octet-stream"
@@ -1807,7 +1811,7 @@ class FileSystemTools(private val context: Context) {
                         // 使用Android intent打开文件
                         val command =
                                 "am start -a android.intent.action.VIEW -d 'file://$path' -t '$mimeType'"
-                        val result = AdbCommandExecutor.executeAdbCommand(command)
+                        val result = AndroidShellExecutor.executeAdbCommand(command)
 
                         if (result.success) {
                                 return ToolResult(
@@ -1876,7 +1880,7 @@ class FileSystemTools(private val context: Context) {
                 return try {
                         // 首先检查文件是否存在
                         val existsResult =
-                                AdbCommandExecutor.executeAdbCommand(
+                                AndroidShellExecutor.executeAdbCommand(
                                         "test -f '$path' && echo 'exists' || echo 'not exists'"
                                 )
                         if (existsResult.stdout.trim() != "exists") {
@@ -1896,7 +1900,9 @@ class FileSystemTools(private val context: Context) {
 
                         // 获取文件MIME类型
                         val mimeTypeResult =
-                                AdbCommandExecutor.executeAdbCommand("file --mime-type -b '$path'")
+                                AndroidShellExecutor.executeAdbCommand(
+                                        "file --mime-type -b '$path'"
+                                )
                         val mimeType =
                                 if (mimeTypeResult.success) mimeTypeResult.stdout.trim()
                                 else "application/octet-stream"
@@ -1904,7 +1910,7 @@ class FileSystemTools(private val context: Context) {
                         // 使用Android intent分享文件
                         val command =
                                 "am start -a android.intent.action.SEND -t '$mimeType' --es android.intent.extra.SUBJECT '$title' --es android.intent.extra.STREAM 'file://$path' --ez android.intent.extra.STREAM_REFERENCE true"
-                        val result = AdbCommandExecutor.executeAdbCommand(command)
+                        val result = AndroidShellExecutor.executeAdbCommand(command)
 
                         if (result.success) {
                                 return ToolResult(
@@ -1991,7 +1997,7 @@ class FileSystemTools(private val context: Context) {
                         val directory = File(destPath).parent
                         if (directory != null) {
                                 val mkdirResult =
-                                        AdbCommandExecutor.executeAdbCommand(
+                                        AndroidShellExecutor.executeAdbCommand(
                                                 "mkdir -p '$directory'"
                                         )
                                 if (!mkdirResult.success) {
@@ -2013,7 +2019,7 @@ class FileSystemTools(private val context: Context) {
 
                         // 使用wget或curl下载文件
                         // 首先检查是否有wget
-                        val wgetCheckResult = AdbCommandExecutor.executeAdbCommand("which wget")
+                        val wgetCheckResult = AndroidShellExecutor.executeAdbCommand("which wget")
 
                         val downloadCommand =
                                 if (wgetCheckResult.success) {
@@ -2021,7 +2027,7 @@ class FileSystemTools(private val context: Context) {
                                 } else {
                                         // 如果没有wget，尝试使用curl
                                         val curlCheckResult =
-                                                AdbCommandExecutor.executeAdbCommand("which curl")
+                                                AndroidShellExecutor.executeAdbCommand("which curl")
                                         if (!curlCheckResult.success) {
                                                 return ToolResult(
                                                         toolName = tool.name,
@@ -2040,12 +2046,12 @@ class FileSystemTools(private val context: Context) {
                                         "curl -L '$url' -o '$destPath' -s"
                                 }
 
-                        val result = AdbCommandExecutor.executeAdbCommand(downloadCommand)
+                        val result = AndroidShellExecutor.executeAdbCommand(downloadCommand)
 
                         if (result.success) {
                                 // 验证文件是否已下载
                                 val checkFileResult =
-                                        AdbCommandExecutor.executeAdbCommand(
+                                        AndroidShellExecutor.executeAdbCommand(
                                                 "test -f '$destPath' && echo 'exists' || echo 'not exists'"
                                         )
                                 if (checkFileResult.stdout.trim() != "exists") {
@@ -2065,7 +2071,7 @@ class FileSystemTools(private val context: Context) {
 
                                 // 获取文件大小
                                 val fileSizeResult =
-                                        AdbCommandExecutor.executeAdbCommand(
+                                        AndroidShellExecutor.executeAdbCommand(
                                                 "stat -c %s '$destPath'"
                                         )
                                 val fileSize =

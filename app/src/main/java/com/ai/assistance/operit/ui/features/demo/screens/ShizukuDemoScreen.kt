@@ -2,13 +2,9 @@ package com.ai.assistance.operit.ui.features.demo.screens
 
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
-import android.os.Environment
-import android.os.PowerManager
 import android.provider.Settings
-import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -24,53 +20,20 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
-import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor
+import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
+import com.ai.assistance.operit.core.tools.system.ShizukuAuthorizer
 import com.ai.assistance.operit.core.tools.system.ShizukuInstaller
-import com.ai.assistance.operit.core.tools.system.TermuxCommandExecutor
-import com.ai.assistance.operit.core.tools.system.termux.TermuxAuthorizer
-import com.ai.assistance.operit.core.tools.system.termux.TermuxInstaller
-import com.ai.assistance.operit.core.tools.system.termux.TermuxUtils
-import com.ai.assistance.operit.data.repository.UIHierarchyManager
 import com.ai.assistance.operit.ui.features.demo.components.*
+import com.ai.assistance.operit.ui.features.demo.helpers.*
 import com.ai.assistance.operit.ui.features.demo.model.ShizukuScreenState
+import com.ai.assistance.operit.ui.features.demo.utils.getTermuxConfigStatus
 import com.ai.assistance.operit.ui.features.demo.wizards.ShizukuWizardCard
 import com.ai.assistance.operit.ui.features.demo.wizards.TermuxWizardCard
 import java.io.File
 import java.io.FileOutputStream
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
-private const val TAG = "ShizukuDemoScreen"
-private const val TERMUX_CONFIG_PREFS = "termux_config_preferences"
-private const val KEY_TERMUX_FULLY_CONFIGURED = "termux_fully_configured"
-
-/**
- * 保存Termux配置状态到持久化存储
- * @param context 上下文
- * @param isFullyConfigured 是否已完全配置
- */
-private fun saveTermuxConfigStatus(context: Context, isFullyConfigured: Boolean) {
-    context.getSharedPreferences(TERMUX_CONFIG_PREFS, Context.MODE_PRIVATE)
-            .edit()
-            .putBoolean(KEY_TERMUX_FULLY_CONFIGURED, isFullyConfigured)
-            .apply()
-    Log.d(TAG, "保存Termux配置状态: $isFullyConfigured")
-}
-
-/**
- * 获取Termux配置状态
- * @param context 上下文
- * @return 是否已完全配置
- */
-private fun getTermuxConfigStatus(context: Context): Boolean {
-    val status =
-            context.getSharedPreferences(TERMUX_CONFIG_PREFS, Context.MODE_PRIVATE)
-                    .getBoolean(KEY_TERMUX_FULLY_CONFIGURED, false)
-    Log.d(TAG, "获取Termux配置状态: $status")
-    return status
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -95,7 +58,6 @@ fun ShizukuDemoScreen() {
     val isTermuxFullyConfigured = remember {
         // 立即读取持久化配置，避免LaunchedEffect中读取导致的UI闪烁
         val savedStatus = getTermuxConfigStatus(context)
-        Log.d(TAG, "初始化时 - Termux持久化配置状态: $savedStatus")
         mutableStateOf(savedStatus)
     }
 
@@ -103,21 +65,51 @@ fun ShizukuDemoScreen() {
     var outputText by remember { mutableStateOf("欢迎使用Termux配置工具\n点击对应按钮开始配置") }
     var currentTask by remember { mutableStateOf("") }
 
-    // 执行Termux命令的辅助函数
-    val executeTermuxCommand: suspend (Context, String) -> AdbCommandExecutor.CommandResult =
-            { context, command ->
-                val result =
-                        TermuxCommandExecutor.executeCommand(
+    // 检查已安装组件的函数
+    val checkInstalledComponentsFunc: () -> Unit = {
+        scope.launch {
+            checkInstalledComponents(
                                 context = context,
-                                command = command,
-                                autoAuthorize = true
-                        )
+                isTermuxRunning = isTermuxRunning.value,
+                isTermuxAuthorized = state.isTermuxAuthorized.value,
+                isTunaSourceEnabled = isTunaSourceEnabled.value,
+                isPythonInstalled = isPythonInstalled.value,
+                isUvInstalled = isUvInstalled.value,
+                isNodeInstalled = isNodeInstalled.value,
+                isTermuxBatteryOptimizationExempted = isTermuxBatteryOptimizationExempted.value,
+                updateConfigStatus = { isTermuxFullyConfigured.value = it },
+                updateSourceStatus = { isTunaSourceEnabled.value = it },
+                updatePythonStatus = { isPythonInstalled.value = it },
+                updateUvStatus = { isUvInstalled.value = it },
+                updateNodeStatus = { isNodeInstalled.value = it },
+                updateBatteryStatus = { isTermuxBatteryOptimizationExempted.value = it }
+            )
+        }
+    }
 
-                // 给命令一些执行时间
-                delay(500)
+    // 刷新状态函数
+    val refreshStatus: () -> Unit = {
+        refreshAppStatus(
+            context = context,
+            state = state,
+            scope = scope,
+            isTermuxFullyConfigured = isTermuxFullyConfigured,
+            checkInstalledComponentsFunc = checkInstalledComponentsFunc
+        )
+    }
 
-                result
-            }
+    // 检查Termux授权状态
+    val checkTermuxAuth: () -> Unit = {
+        scope.launch {
+            checkTermuxAuthState(
+                context = context,
+                state = state,
+                scope = scope,
+                isTermuxFullyConfigured = isTermuxFullyConfigured,
+                checkInstalledComponentsFunc = checkInstalledComponentsFunc
+            )
+        }
+    }
 
     // Location permission launcher
     val locationPermissionLauncher =
@@ -129,163 +121,16 @@ fun ShizukuDemoScreen() {
                 val coarseLocationGranted =
                         permissions[android.Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
                 state.hasLocationPermission.value = fineLocationGranted || coarseLocationGranted
-            }
-
-    // 检查Termux是否在运行 - 单独函数
-    fun checkTermuxRunning() {
-        val wasRunning = isTermuxRunning.value
-        isTermuxRunning.value = TermuxUtils.isTermuxRunning(context)
-        // 只在状态变化时打印日志，避免过多日志
-        if (wasRunning != isTermuxRunning.value) {
-            Log.d(TAG, "Termux运行状态变更: ${isTermuxRunning.value}")
-        }
-    }
-
-    // 启动Termux函数
-    val startTermux: () -> Unit = {
-        scope.launch {
-            // 先检查Termux是否运行
-            checkTermuxRunning()
-
-            if (!isTermuxRunning.value) {
-                // 简单地尝试启动Termux
-                if (TermuxInstaller.openTermux(context)) {
-                    Toast.makeText(context, "已发送启动Termux命令", Toast.LENGTH_SHORT).show()
-                    // 给Termux一点启动时间
-                    delay(1000)
-                    // 再次检查状态，更新UI
-                    checkTermuxRunning()
-                } else {
-                    Toast.makeText(context, "启动Termux失败", Toast.LENGTH_SHORT).show()
-                }
-            } else {
-                // Termux已经在运行中，显示通知
-                Toast.makeText(context, "Termux已在运行中", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    // 检查Tuna源是否启用 - 只在初始加载时调用一次
-    suspend fun checkTunaSourceEnabled() {
-        try {
-            // 更可靠的检测方式: 直接查看文件内容
-            val result = executeTermuxCommand(context, "cat ${'$'}PREFIX/etc/apt/sources.list")
-
-            // 检查文件内容中是否包含清华源URL
-            val containsTuna =
-                    result.success &&
-                            (result.stdout.contains("mirrors.tuna.tsinghua.edu.cn") ||
-                                    result.stdout.contains("tsinghua.edu.cn"))
-
-            Log.d(TAG, "源文件内容: ${result.stdout}")
-            Log.d(TAG, "检查清华源: $containsTuna")
-
-            isTunaSourceEnabled.value = containsTuna
-        } catch (e: Exception) {
-            Log.e(TAG, "检查清华源错误: ${e.message}")
-            isTunaSourceEnabled.value = false
-        }
-    }
-
-    // 检查Python是否安装 - 只在初始加载时调用一次
-    suspend fun checkPythonInstalled() {
-        try {
-            val result = executeTermuxCommand(context, "command -v python3")
-            isPythonInstalled.value = result.success && result.stdout.contains("python3")
-            Log.d(TAG, "检查Python: ${isPythonInstalled.value}")
-        } catch (e: Exception) {
-            Log.e(TAG, "检查Python错误: ${e.message}")
-            isPythonInstalled.value = false
-        }
-    }
-
-    // 检查Node.js是否安装 - 只在初始加载时调用一次
-    suspend fun checkNodeInstalled() {
-        try {
-            val result = executeTermuxCommand(context, "command -v node")
-            isNodeInstalled.value = result.success && result.stdout.contains("node")
-            Log.d(TAG, "检查Node.js: ${isNodeInstalled.value}")
-        } catch (e: Exception) {
-            Log.e(TAG, "检查Node.js错误: ${e.message}")
-            isNodeInstalled.value = false
-        }
-    }
-
-    // 检查UV是否安装 - 只在初始加载时调用一次
-    suspend fun checkUvInstalled() {
-        try {
-            val result = executeTermuxCommand(context, "command -v uv")
-            isUvInstalled.value = result.success && result.stdout.contains("uv")
-            Log.d(TAG, "检查UV: ${isUvInstalled.value}")
-        } catch (e: Exception) {
-            Log.e(TAG, "检查UV错误: ${e.message}")
-            isUvInstalled.value = false
-        }
-    }
-
-    // 检查Termux是否获得电池优化豁免
-    suspend fun checkTermuxBatteryOptimization() {
-        try {
-            val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-            isTermuxBatteryOptimizationExempted.value =
-                    powerManager.isIgnoringBatteryOptimizations("com.termux")
-            Log.d(TAG, "检查Termux电池优化豁免: ${isTermuxBatteryOptimizationExempted.value}")
-        } catch (e: Exception) {
-            Log.e(TAG, "检查Termux电池优化豁免错误: ${e.message}")
-            isTermuxBatteryOptimizationExempted.value = false
-        }
-    }
-
-    // 检查已安装的组件 - 只在初始加载和授权成功后调用一次
-    suspend fun checkInstalledComponents() {
-        withContext(Dispatchers.IO) {
-            // 只在Termux已安装且已授权时才检查
-            if (state.isTermuxInstalled.value && state.isTermuxAuthorized.value) {
-                // 检查Termux是否在运行
-                checkTermuxRunning()
-
-                // 检查Termux电池优化豁免状态
-                checkTermuxBatteryOptimization()
-
-                checkTunaSourceEnabled()
-                checkPythonInstalled()
-                checkUvInstalled()
-                checkNodeInstalled()
-
-                // 检查完成后，更新持久化状态
-                val allConfigured =
-                        isTermuxBatteryOptimizationExempted.value &&
-                                isTunaSourceEnabled.value &&
-                                isPythonInstalled.value &&
-                                isUvInstalled.value &&
-                                isNodeInstalled.value
-
-                if (allConfigured) {
-                    // 如果所有组件都已配置好，保存持久化状态
-                    if (!isTermuxFullyConfigured.value) {
-                        saveTermuxConfigStatus(context, true)
-                        isTermuxFullyConfigured.value = true
-                        Log.d(TAG, "所有Termux组件配置完成，保存持久化状态")
-                    }
-                } else if (isTermuxFullyConfigured.value) {
-                    // 如果之前认为配置完成，但现在检测到有组件未配置，重置状态
-                    saveTermuxConfigStatus(context, false)
-                    isTermuxFullyConfigured.value = false
-                    Log.d(
-                            TAG,
-                            "检测到Termux组件配置不完整（电池优化: ${isTermuxBatteryOptimizationExempted.value}, 清华源: ${isTunaSourceEnabled.value}, Python: ${isPythonInstalled.value}, UV: ${isUvInstalled.value}, Node: ${isNodeInstalled.value}），重置持久化状态"
-                    )
-                }
-            }
-        }
     }
 
     // 配置清华源
-    val configureTunaSource = {
+    val configureTunaSourceFunc: () -> Unit = {
         scope.launch {
             // 先检查Termux是否在运行
-            checkTermuxRunning()
-            if (!isTermuxRunning.value) {
+            val isRunning = checkTermuxRunning(context)
+            isTermuxRunning.value = isRunning
+            
+            if (!isRunning) {
                 outputText += "\nTermux未运行，请先启动Termux"
                 Toast.makeText(context, "请先启动Termux", Toast.LENGTH_SHORT).show()
                 return@launch
@@ -294,63 +139,19 @@ fun ShizukuDemoScreen() {
             isTermuxConfiguring.value = true
             currentTask = "配置清华源"
             outputText += "\n开始配置清华源..."
+            
             try {
-                // 备份原有sources.list
-                val backupResult =
-                        executeTermuxCommand(
-                                context,
-                                "cp ${'$'}PREFIX/etc/apt/sources.list ${'$'}PREFIX/etc/apt/sources.list.bak"
-                        )
-                outputText += "\n备份原始软件源配置${if (backupResult.success) "成功" else "失败"}"
-
-                // 设置清华源 - 使用更明确的方式
-                val setTunaSourceResult =
-                        executeTermuxCommand(
-                                context,
-                                """
-                    echo "# 清华大学开源软件镜像站 Termux 镜像源
-deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" > ${'$'}PREFIX/etc/apt/sources.list
-                    """
-                        )
-                outputText += "\n设置清华源${if (setTunaSourceResult.success) "成功" else "失败"}"
-
-                // 更新软件包列表
-                outputText += "\n正在更新软件包列表..."
-                val updateResult = executeTermuxCommand(context, "apt update -y")
-                outputText += "\n软件包列表更新${if (updateResult.success) "成功" else "失败"}"
-
-                if (setTunaSourceResult.success && updateResult.success) {
-                    isTunaSourceEnabled.value = true
-                    outputText += "\n清华源配置成功！"
-                    // 重新检查，确保状态正确
-                    checkTunaSourceEnabled()
-
-                    // 检查是否所有组件都已配置完成
-                    if (isTunaSourceEnabled.value &&
-                                    isPythonInstalled.value &&
-                                    isNodeInstalled.value &&
-                                    isUvInstalled.value
-                    ) {
-                        saveTermuxConfigStatus(context, true)
-                        isTermuxFullyConfigured.value = true
-                        outputText += "\n所有Termux组件已配置完成，配置状态已保存！"
-                    }
-
-                    Toast.makeText(context, "清华源设置成功", Toast.LENGTH_SHORT).show()
-                } else {
-                    outputText += "\n清华源配置失败，正在恢复备份..."
-                    // 恢复备份
-                    executeTermuxCommand(
-                            context,
-                            "cp ${'$'}PREFIX/etc/apt/sources.list.bak ${'$'}PREFIX/etc/apt/sources.list"
-                    )
-                    executeTermuxCommand(context, "apt update -y")
-                    Toast.makeText(context, "清华源设置失败", Toast.LENGTH_SHORT).show()
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "配置清华源错误: ${e.message}")
-                outputText += "\n配置清华源出错: ${e.message}"
-                Toast.makeText(context, "配置清华源出错", Toast.LENGTH_SHORT).show()
+                outputText = configureTunaSource(
+                    context = context,
+                    updateOutputText = { outputText = it },
+                    updateSourceStatus = { isTunaSourceEnabled.value = it },
+                    updateConfigStatus = { isTermuxFullyConfigured.value = it },
+                    isTunaSourceEnabled = isTunaSourceEnabled.value,
+                    isPythonInstalled = isPythonInstalled.value,
+                    isUvInstalled = isUvInstalled.value,
+                    isNodeInstalled = isNodeInstalled.value,
+                    currentOutputText = outputText
+                )
             } finally {
                 isTermuxConfiguring.value = false
                 currentTask = ""
@@ -360,12 +161,14 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
         }
     }
 
-    // 安装Python环境
-    val installPython = {
+    // 安装Python
+    val installPythonFunc: () -> Unit = {
         scope.launch {
-            // 简单地检查Termux是否在运行
-            checkTermuxRunning()
-            if (!isTermuxRunning.value) {
+            // 先检查Termux是否在运行
+            val isRunning = checkTermuxRunning(context)
+            isTermuxRunning.value = isRunning
+            
+            if (!isRunning) {
                 outputText += "\nTermux未运行，请先启动Termux"
                 Toast.makeText(context, "请先启动Termux", Toast.LENGTH_SHORT).show()
                 return@launch
@@ -373,37 +176,20 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
 
             isTermuxConfiguring.value = true
             currentTask = "安装Python"
-            outputText += "\n开始安装Python环境..."
+            outputText += "\n开始安装Python..."
+            
             try {
-                // 安装Python和pip
-                outputText += "\n正在安装Python..."
-                val installPythonResult = executeTermuxCommand(context, "pkg install python -y")
-                outputText += "\nPython安装${if (installPythonResult.success) "成功" else "失败"}"
-
-                if (installPythonResult.success) {
-                    isPythonInstalled.value = true
-                    outputText += "\nPython环境安装成功！"
-
-                    // 检查是否所有组件都已配置完成
-                    if (isTunaSourceEnabled.value &&
-                                    isPythonInstalled.value &&
-                                    isUvInstalled.value &&
-                                    isNodeInstalled.value
-                    ) {
-                        saveTermuxConfigStatus(context, true)
-                        isTermuxFullyConfigured.value = true
-                        outputText += "\n所有Termux组件已配置完成，配置状态已保存！"
-                    }
-
-                    Toast.makeText(context, "Python安装成功", Toast.LENGTH_SHORT).show()
-                } else {
-                    outputText += "\nPython安装失败"
-                    Toast.makeText(context, "Python安装失败", Toast.LENGTH_SHORT).show()
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "安装Python环境错误: ${e.message}")
-                outputText += "\n安装Python环境出错: ${e.message}"
-                Toast.makeText(context, "安装Python环境出错", Toast.LENGTH_SHORT).show()
+                outputText = installPython(
+                    context = context,
+                    updateOutputText = { outputText = it },
+                    updatePythonStatus = { isPythonInstalled.value = it },
+                    updateConfigStatus = { isTermuxFullyConfigured.value = it },
+                    isTunaSourceEnabled = isTunaSourceEnabled.value,
+                    isPythonInstalled = isPythonInstalled.value,
+                    isUvInstalled = isUvInstalled.value,
+                    isNodeInstalled = isNodeInstalled.value,
+                    currentOutputText = outputText
+                )
             } finally {
                 isTermuxConfiguring.value = false
                 currentTask = ""
@@ -413,12 +199,14 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
         }
     }
 
-    // 安装UV包管理器
-    val installUv = {
+    // 安装UV包管理工具
+    val installUvFunc: () -> Unit = {
         scope.launch {
             // 先检查Termux是否在运行
-            checkTermuxRunning()
-            if (!isTermuxRunning.value) {
+            val isRunning = checkTermuxRunning(context)
+            isTermuxRunning.value = isRunning
+            
+            if (!isRunning) {
                 outputText += "\nTermux未运行，请先启动Termux"
                 Toast.makeText(context, "请先启动Termux", Toast.LENGTH_SHORT).show()
                 return@launch
@@ -426,37 +214,20 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
 
             isTermuxConfiguring.value = true
             currentTask = "安装UV"
-            outputText += "\n开始安装UV包管理器..."
+            outputText += "\n开始安装UV..."
+            
             try {
-                // 安装UV
-                outputText += "\n正在安装UV..."
-                val installUvResult = executeTermuxCommand(context, "pkg install uv -y")
-                outputText += "\nUV安装${if (installUvResult.success) "成功" else "失败"}"
-
-                if (installUvResult.success) {
-                    isUvInstalled.value = true
-                    outputText += "\nUV包管理器安装成功！"
-
-                    // 检查是否所有组件都已配置完成
-                    if (isTunaSourceEnabled.value &&
-                                    isPythonInstalled.value &&
-                                    isUvInstalled.value &&
-                                    isNodeInstalled.value
-                    ) {
-                        saveTermuxConfigStatus(context, true)
-                        isTermuxFullyConfigured.value = true
-                        outputText += "\n所有Termux组件已配置完成，配置状态已保存！"
-                    }
-
-                    Toast.makeText(context, "UV安装成功", Toast.LENGTH_SHORT).show()
-                } else {
-                    outputText += "\nUV安装失败"
-                    Toast.makeText(context, "UV安装失败", Toast.LENGTH_SHORT).show()
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "安装UV包管理器错误: ${e.message}")
-                outputText += "\n安装UV包管理器出错: ${e.message}"
-                Toast.makeText(context, "安装UV包管理器出错", Toast.LENGTH_SHORT).show()
+                outputText = installUv(
+                    context = context,
+                    updateOutputText = { outputText = it },
+                    updateUvStatus = { isUvInstalled.value = it },
+                    updateConfigStatus = { isTermuxFullyConfigured.value = it },
+                    isTunaSourceEnabled = isTunaSourceEnabled.value,
+                    isPythonInstalled = isPythonInstalled.value,
+                    isUvInstalled = isUvInstalled.value,
+                    isNodeInstalled = isNodeInstalled.value,
+                    currentOutputText = outputText
+                )
             } finally {
                 isTermuxConfiguring.value = false
                 currentTask = ""
@@ -466,12 +237,14 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
         }
     }
 
-    // 安装Node.js环境
-    val installNode = {
+    // 安装Node.js
+    val installNodeFunc: () -> Unit = {
         scope.launch {
-            // 简单地检查Termux是否在运行
-            checkTermuxRunning()
-            if (!isTermuxRunning.value) {
+            // 先检查Termux是否在运行
+            val isRunning = checkTermuxRunning(context)
+            isTermuxRunning.value = isRunning
+            
+            if (!isRunning) {
                 outputText += "\nTermux未运行，请先启动Termux"
                 Toast.makeText(context, "请先启动Termux", Toast.LENGTH_SHORT).show()
                 return@launch
@@ -479,37 +252,20 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
 
             isTermuxConfiguring.value = true
             currentTask = "安装Node.js"
-            outputText += "\n开始安装Node.js环境..."
+            outputText += "\n开始安装Node.js..."
+            
             try {
-                // 安装Node.js
-                outputText += "\n正在安装Node.js..."
-                val installNodeResult = executeTermuxCommand(context, "pkg install nodejs -y")
-                outputText += "\nNode.js安装${if (installNodeResult.success) "成功" else "失败"}"
-
-                if (installNodeResult.success) {
-                    isNodeInstalled.value = true
-                    outputText += "\nNode.js环境安装成功！"
-
-                    // 检查是否所有组件都已配置完成
-                    if (isTunaSourceEnabled.value &&
-                                    isPythonInstalled.value &&
-                                    isNodeInstalled.value &&
-                                    isUvInstalled.value
-                    ) {
-                        saveTermuxConfigStatus(context, true)
-                        isTermuxFullyConfigured.value = true
-                        outputText += "\n所有Termux组件已配置完成，配置状态已保存！"
-                    }
-
-                    Toast.makeText(context, "Node.js安装成功", Toast.LENGTH_SHORT).show()
-                } else {
-                    outputText += "\nNode.js安装失败"
-                    Toast.makeText(context, "Node.js安装失败", Toast.LENGTH_SHORT).show()
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "安装Node.js环境错误: ${e.message}")
-                outputText += "\n安装Node.js环境出错: ${e.message}"
-                Toast.makeText(context, "安装Node.js环境出错", Toast.LENGTH_SHORT).show()
+                outputText = installNode(
+                    context = context,
+                    updateOutputText = { outputText = it },
+                    updateNodeStatus = { isNodeInstalled.value = it },
+                    updateConfigStatus = { isTermuxFullyConfigured.value = it },
+                    isTunaSourceEnabled = isTunaSourceEnabled.value,
+                    isPythonInstalled = isPythonInstalled.value,
+                    isUvInstalled = isUvInstalled.value, 
+                    isNodeInstalled = isNodeInstalled.value,
+                    currentOutputText = outputText
+                )
             } finally {
                 isTermuxConfiguring.value = false
                 currentTask = ""
@@ -520,11 +276,13 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
     }
 
     // 请求Termux电池优化豁免
-    val requestTermuxBatteryOptimization = {
+    val requestTermuxBatteryOptimizationFunc: () -> Unit = {
         scope.launch {
             // 先检查Termux是否在运行
-            checkTermuxRunning()
-            if (!isTermuxRunning.value) {
+            val isRunning = checkTermuxRunning(context)
+            isTermuxRunning.value = isRunning
+            
+            if (!isRunning) {
                 outputText += "\nTermux未运行，请先启动Termux"
                 Toast.makeText(context, "请先启动Termux", Toast.LENGTH_SHORT).show()
                 return@launch
@@ -534,24 +292,9 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
             currentTask = "设置Termux电池优化豁免"
             outputText += "\n开始设置Termux电池优化豁免..."
             try {
-                // 使用Intent打开Termux的电池优化设置
-                val intent =
-                        Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                            data = Uri.parse("package:com.termux")
-                        }
-                context.startActivity(intent)
-
+                requestTermuxBatteryOptimization(context)
                 outputText += "\n已打开Termux电池优化设置页面。请在系统设置中点击「允许」以豁免Termux的电池优化。"
                 outputText += "\n完成设置后，请返回本应用并点击刷新按钮检查状态。"
-
-                Toast.makeText(context, "请在系统设置中允许Termux的电池优化豁免", Toast.LENGTH_LONG).show()
-
-                // 由于需要用户在系统界面操作，这里不自动更新状态
-                // 用户需要手动点击刷新按钮来更新状态
-            } catch (e: Exception) {
-                Log.e(TAG, "请求Termux电池优化豁免错误: ${e.message}")
-                outputText += "\n请求Termux电池优化豁免出错: ${e.message}"
-                Toast.makeText(context, "无法打开Termux电池优化设置", Toast.LENGTH_SHORT).show()
             } finally {
                 isTermuxConfiguring.value = false
                 currentTask = ""
@@ -561,119 +304,43 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
         }
     }
 
-    // 刷新状态函数 - 不要重复检查Termux配置，减少不必要的跳转
-    val refreshStatus = {
-        Log.d(TAG, "刷新应用权限状态...")
-
-        // 检查Shizuku安装、运行和权限状态
-        state.isShizukuInstalled.value = AdbCommandExecutor.isShizukuInstalled(context)
-        state.isShizukuRunning.value = AdbCommandExecutor.isShizukuServiceRunning()
-
-        // 更明确地检查 moe.shizuku.manager.permission.API_V23 权限
-        val hasShizukuPermission =
-                if (state.isShizukuInstalled.value && state.isShizukuRunning.value) {
-                    AdbCommandExecutor.hasShizukuPermission()
-                } else {
-                    false
-                }
-        state.hasShizukuPermission.value = hasShizukuPermission
-
-        // 如果Shizuku权限检查失败，确保Shizuku向导卡片显示
-        if (!state.hasShizukuPermission.value) {
-            Log.d(TAG, "缺少Shizuku权限，显示Shizuku向导卡片")
-            // 强制显示Shizuku向导卡片
-            state.showShizukuWizard.value = true
-        }
-
-        // 检查Termux是否安装及检查清单中是否声明了RUN_COMMAND权限
-        state.isTermuxInstalled.value = TermuxInstaller.isTermuxInstalled(context)
-
-        // 检查Termux是否在运行 - 确保每次刷新状态时都检查Termux运行状态
-        checkTermuxRunning()
-
-        // 检查应用清单中是否声明了RUN_COMMAND权限
-        var hasTermuxPermissionDeclared = false
-        try {
-            val packageInfo =
-                    context.packageManager.getPackageInfo(
-                            context.packageName,
-                            PackageManager.GET_PERMISSIONS
-                    )
-            val declaredPermissions = packageInfo.requestedPermissions ?: emptyArray()
-            hasTermuxPermissionDeclared =
-                    declaredPermissions.any { it == "com.termux.permission.RUN_COMMAND" }
-
-            if (!hasTermuxPermissionDeclared) {
-                Log.w(TAG, "应用清单中未声明Termux RUN_COMMAND权限，Termux功能将无法正常运行")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "检查应用权限声明时出错: ${e.message}")
-        }
-
-        // 检查存储权限
-        state.hasStoragePermission.value =
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    Environment.isExternalStorageManager()
-                } else {
-                    context.checkSelfPermission(
-                            android.Manifest.permission.READ_EXTERNAL_STORAGE
-                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED &&
-                            context.checkSelfPermission(
-                                    android.Manifest.permission.WRITE_EXTERNAL_STORAGE
-                            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-                }
-
-        // 检查位置权限
-        state.hasLocationPermission.value =
-                context.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) ==
-                        android.content.pm.PackageManager.PERMISSION_GRANTED ||
-                        context.checkSelfPermission(
-                                android.Manifest.permission.ACCESS_COARSE_LOCATION
-                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-
-        // 检查悬浮窗权限
-        state.hasOverlayPermission.value = Settings.canDrawOverlays(context)
-
-        // 检查电池优化豁免
-        val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-        state.hasBatteryOptimizationExemption.value =
-                powerManager.isIgnoringBatteryOptimizations(context.packageName)
-
-        // 检查无障碍服务状态
-        state.hasAccessibilityServiceEnabled.value =
-                UIHierarchyManager.isAccessibilityServiceEnabled(context)
-
-        // 同时在刷新状态时检查Termux电池优化豁免状态
+    // 授权Termux
+    val authorizeTermuxFunc: () -> Unit = {
         scope.launch {
-            if (state.isTermuxInstalled.value) {
-                checkTermuxBatteryOptimization()
+            isTermuxConfiguring.value = true
+            currentTask = "授权Termux"
+            state.resultDialogTitle.value = "授权Termux"
+            state.resultDialogContent.value = outputText
+            state.showResultDialogState.value = true
+
+            try {
+                outputText = authorizeTermux(
+                    context = context,
+                    updateOutputText = { outputText = it },
+                    updateTermuxAuthorized = { state.isTermuxAuthorized.value = it },
+                    updateTermuxRunning = { isTermuxRunning.value = it },
+                    currentOutputText = outputText
+                )
+                
+                // 授权成功后进行组件检查
+                if (state.isTermuxAuthorized.value) {
+                    checkInstalledComponentsFunc()
+                }
+            } finally {
+                isTermuxConfiguring.value = false
+                currentTask = ""
+                state.resultDialogContent.value = outputText
+                // 自动关闭对话框
+                state.showResultDialogState.value = false
             }
         }
     }
 
-    // 检查Termux授权状态 - 单独优化
-    fun checkTermuxAuth() {
+    // 启动Termux函数
+    val startTermuxFunc: () -> Unit = {
         scope.launch {
-            // 这里只在特定情况下检查，而不是无条件检查
-            if (state.isTermuxInstalled.value) {
-                // 检查Termux是否在运行
-                checkTermuxRunning()
-
-                // 更明确地检查Termux RUN_COMMAND权限
-                state.isTermuxAuthorized.value = TermuxAuthorizer.isTermuxAuthorized(context)
-
-                // 如果Termux未授权，确保Termux向导卡片显示
-                if (!state.isTermuxAuthorized.value) {
-                    // 强制显示Termux向导卡片
-                    state.showTermuxWizard.value = true
-                }
-
-                // 只有在授权通过后才检查各项配置
-                if (state.isTermuxAuthorized.value) {
-                    // 即使isTermuxFullyConfigured为true也执行检查，确保状态是最新的
-                    // 但不会影响初始UI显示，因为isTermuxFullyConfigured已经在初始化时设置
-                    checkInstalledComponents()
-                }
+            startTermux(context) { isRunning ->
+                isTermuxRunning.value = isRunning
             }
         }
     }
@@ -685,64 +352,55 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
             // 在Shizuku状态变化时检查Termux授权状态
             checkTermuxAuth()
         }
-        AdbCommandExecutor.addStateChangeListener(shizukuListener)
+        ShizukuAuthorizer.addStateChangeListener(shizukuListener)
 
         val termuxListener: () -> Unit = {
             refreshStatus()
             // 在Termux状态变化时检查授权状态
             checkTermuxAuth()
         }
-        TermuxInstaller.addStateChangeListener(termuxListener)
+        
+        initStateListeners(state, refreshStatus, checkTermuxAuth)
 
         onDispose {
-            AdbCommandExecutor.removeStateChangeListener(shizukuListener)
-            TermuxInstaller.removeStateChangeListener(termuxListener)
+            removeStateListeners(shizukuListener, termuxListener)
         }
     }
 
     // 初始状态加载
     LaunchedEffect(Unit) {
-        Log.d(TAG, "初始化时加载各项权限和配置状态")
+        initializeState(
+            context = context,
+            state = state,
+            scope = scope,
+            isTunaSourceEnabled = isTunaSourceEnabled,
+            isPythonInstalled = isPythonInstalled,
+            isUvInstalled = isUvInstalled,
+            isNodeInstalled = isNodeInstalled,
+            isTermuxBatteryOptimizationExempted = isTermuxBatteryOptimizationExempted,
+            isTermuxFullyConfigured = isTermuxFullyConfigured,
+            updateConfigStatus = { isTermuxFullyConfigured.value = it },
+            checkInstalledComponentsFunc = checkInstalledComponentsFunc
+        )
+    }
 
-        // 先刷新基本状态（包括检查Shizuku是否安装、运行）
-        refreshStatus()
+    // 显示对话框函数
+    val showDialogFunc: (String, String) -> Unit = { title, content ->
+        state.resultDialogTitle.value = title
+        state.resultDialogContent.value = content
+        state.showResultDialogState.value = true
+    }
 
-        // 专门检查Shizuku API_V23权限
-        if (state.isShizukuInstalled.value && state.isShizukuRunning.value) {
-            // 明确检查 moe.shizuku.manager.permission.API_V23 权限
-            state.hasShizukuPermission.value = AdbCommandExecutor.hasShizukuPermission()
+    // 显示结果对话框函数
+    val showResultDialog: () -> Unit = {
+        state.resultDialogTitle.value = "配置结果"
+        state.resultDialogContent.value = outputText
+        state.showResultDialogState.value = true
+    }
 
-            // 如果没有Shizuku权限，强制显示Shizuku向导卡片
-            if (!state.hasShizukuPermission.value) {
-                Log.d(TAG, "缺少Shizuku API_V23权限，显示Shizuku向导卡片")
-                state.showShizukuWizard.value = true
-            }
-        } else {
-            state.hasShizukuPermission.value = false
-            state.showShizukuWizard.value = true
-        }
-
-        // 检查Termux安装和权限状态
-        // com.termux.permission.RUN_COMMAND权限检查包含在isTermuxAuthorized中
-        if (state.isTermuxInstalled.value) {
-            // 检查Termux是否在运行
-            checkTermuxRunning()
-
-            state.isTermuxAuthorized.value = TermuxAuthorizer.isTermuxAuthorized(context)
-
-            // 如果Termux未授权，显示Termux向导卡片
-            if (!state.isTermuxAuthorized.value) {
-                Log.d(TAG, "缺少Termux RUN_COMMAND权限或配置，显示Termux向导卡片")
-                state.showTermuxWizard.value = true
-            } else {
-                // 如果Termux已获得权限，进行组件检查
-                Log.d(TAG, "Termux权限验证通过，验证组件配置状态")
-                checkInstalledComponents() // 该函数会自动更新持久化状态
-            }
-        } else {
-            state.isTermuxAuthorized.value = false
-            state.showTermuxWizard.value = true
-        }
+    // 关闭对话框
+    val closeDialog: () -> Unit = {
+        state.showResultDialogState.value = false
     }
 
     Column(
@@ -831,7 +489,7 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
                         }
                     },
                     onRequestPermission = {
-                        AdbCommandExecutor.requestShizukuPermission { granted ->
+                        ShizukuAuthorizer.requestShizukuPermission { granted ->
                             if (granted) {
                                 Toast.makeText(context, "Shizuku权限已授予", Toast.LENGTH_SHORT).show()
                             } else {
@@ -867,9 +525,9 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
                             isTermuxFullyConfigured.value ||
                                     isTermuxBatteryOptimizationExempted.value,
                     // 添加启动Termux的回调
-                    onStartTermux = startTermux,
+                    onStartTermux = startTermuxFunc,
                     // 添加电池优化豁免的回调
-                    onRequestTermuxBatteryOptimization = { requestTermuxBatteryOptimization() },
+                    onRequestTermuxBatteryOptimization = { requestTermuxBatteryOptimizationFunc() },
                     // 添加新的回调函数
                     onConfigureTunaSource = {
                         if (!isTermuxConfiguring.value) {
@@ -877,7 +535,7 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
                             state.resultDialogTitle.value = "配置清华源"
                             state.resultDialogContent.value = outputText
                             state.showResultDialogState.value = true
-                            configureTunaSource()
+                            configureTunaSourceFunc()
                         } else {
                             Toast.makeText(context, "请等待当前配置完成", Toast.LENGTH_SHORT).show()
                         }
@@ -888,7 +546,7 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
                             state.resultDialogTitle.value = "安装Python环境"
                             state.resultDialogContent.value = outputText
                             state.showResultDialogState.value = true
-                            installPython()
+                            installPythonFunc()
                         } else {
                             Toast.makeText(context, "请等待当前配置完成", Toast.LENGTH_SHORT).show()
                         }
@@ -899,7 +557,7 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
                             state.resultDialogTitle.value = "安装UV包管理器"
                             state.resultDialogContent.value = outputText
                             state.showResultDialogState.value = true
-                            installUv()
+                            installUvFunc()
                         } else {
                             Toast.makeText(context, "请等待当前配置完成", Toast.LENGTH_SHORT).show()
                         }
@@ -910,7 +568,7 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
                             state.resultDialogTitle.value = "安装Node.js环境"
                             state.resultDialogContent.value = outputText
                             state.showResultDialogState.value = true
-                            installNode()
+                            installNodeFunc()
                         } else {
                             Toast.makeText(context, "请等待当前配置完成", Toast.LENGTH_SHORT).show()
                         }
@@ -978,124 +636,7 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
                             Toast.makeText(context, "无法启动Termux应用", Toast.LENGTH_SHORT).show()
                         }
                     },
-                    onAuthorizeTermux = {
-                        // 授权Termux
-                        scope.launch {
-                            outputText = "欢迎使用Termux配置工具\n开始授权Termux..."
-
-                            // 先检查Termux是否在运行
-                            checkTermuxRunning()
-                            if (!isTermuxRunning.value) {
-                                outputText += "\nTermux未运行，将尝试启动Termux..."
-                                if (TermuxInstaller.openTermux(context)) {
-                                    outputText += "\n已启动Termux，请稍等..."
-                                    // 简单等待1秒钟
-                                    delay(1000)
-                                    // 再次检查状态
-                                    checkTermuxRunning()
-                                    if (!isTermuxRunning.value) {
-                                        outputText += "\nTermux似乎未成功启动，请手动启动Termux后再尝试"
-                                        Toast.makeText(context, "请手动启动Termux", Toast.LENGTH_SHORT)
-                                                .show()
-                                        return@launch
-                                    }
-                                    outputText += "\nTermux已启动"
-                                } else {
-                                    outputText += "\nTermux启动失败，请确保Termux已正确安装"
-                                    Toast.makeText(context, "启动Termux失败", Toast.LENGTH_SHORT).show()
-                                    return@launch
-                                }
-                            }
-
-                            isTermuxConfiguring.value = true
-                            currentTask = "授权Termux"
-                            state.resultDialogTitle.value = "授权Termux"
-                            state.resultDialogContent.value = outputText
-                            state.showResultDialogState.value = true
-
-                            try {
-                                // 先检查Shizuku权限
-                                if (!AdbCommandExecutor.hasShizukuPermission()) {
-                                    outputText += "\n缺少Shizuku API_V23权限，无法执行授权操作"
-                                    outputText += "\n请先点击Shizuku卡片，完成Shizuku设置和授权"
-                                    currentTask = "Termux授权失败"
-                                    state.resultDialogContent.value = outputText
-                                    delay(3000) // 给用户时间阅读错误信息
-                                    return@launch
-                                }
-
-                                // 再检查应用清单中是否声明了RUN_COMMAND权限
-                                val packageInfo =
-                                        context.packageManager.getPackageInfo(
-                                                context.packageName,
-                                                PackageManager.GET_PERMISSIONS
-                                        )
-                                val declaredPermissions =
-                                        packageInfo.requestedPermissions ?: emptyArray()
-                                val hasPermissionDeclared =
-                                        declaredPermissions.any {
-                                            it == "com.termux.permission.RUN_COMMAND"
-                                        }
-
-                                if (!hasPermissionDeclared) {
-                                    outputText += "\n应用清单中未声明Termux RUN_COMMAND权限"
-                                    outputText += "\n请联系开发者修复此问题"
-                                    currentTask = "Termux授权失败"
-                                    state.resultDialogContent.value = outputText
-                                    delay(3000) // 给用户时间阅读错误信息
-                                    return@launch
-                                }
-
-                                outputText += "\n开始授予Termux权限..."
-
-                                val success = TermuxAuthorizer.grantAllTermuxPermissions(context)
-
-                                if (success) {
-                                    outputText += "\nTermux授权成功！"
-                                    state.isTermuxAuthorized.value = true
-                                    Toast.makeText(context, "成功授权Termux", Toast.LENGTH_SHORT).show()
-
-                                    // 授权成功后检查各项配置状态
-                                    outputText += "\n正在检查Termux配置状态..."
-                                    delay(1000) // 给授权一点时间完成
-
-                                    // 先读取持久化状态
-                                    isTermuxFullyConfigured.value = getTermuxConfigStatus(context)
-
-                                    if (isTermuxFullyConfigured.value) {
-                                        outputText += "\n检测到Termux已完成所有配置（从持久化记录）"
-                                        // 即使有持久化记录，还是检查一下实际状态
-                                        checkInstalledComponents()
-                                    } else {
-                                        // 没有持久化记录，正常检查组件状态
-                                        checkInstalledComponents()
-                                        outputText += "\n检查完成，请点击相应按钮进行配置"
-                                    }
-                                } else {
-                                    outputText += "\nTermux授权失败，请确认以下事项:"
-                                    outputText += "\n1. Shizuku服务是否正常运行"
-                                    outputText +=
-                                            "\n2. 应用是否在AndroidManifest中声明了com.termux.permission.RUN_COMMAND权限"
-                                    outputText += "\n3. Termux应用是否已正确安装"
-                                    Toast.makeText(
-                                                    context,
-                                                    "授权Termux失败，请检查Termux设置",
-                                                    Toast.LENGTH_SHORT
-                                            )
-                                            .show()
-                                }
-                            } catch (e: Exception) {
-                                Log.e(TAG, "授权Termux出错: ${e.message}")
-                                outputText += "\n授权Termux出错: ${e.message}"
-                            } finally {
-                                isTermuxConfiguring.value = false
-                                currentTask = ""
-                                state.resultDialogContent.value = outputText
-                                // 自动关闭对话框
-                                state.showResultDialogState.value = false
-                            }
-                        }
-                    }
+                    onAuthorizeTermux = authorizeTermuxFunc
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -1104,56 +645,7 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
         // 权限状态卡片
         PermissionStatusCard(
                 isRefreshing = state.isRefreshing.value,
-                onRefresh = {
-                    state.isRefreshing.value = true
-                    scope.launch {
-                        try {
-                            // 使用与初始页面加载相同的逻辑进行刷新
-                            refreshStatus()
-
-                            // 与初始加载保持一致，检查Termux授权状态
-                            if (state.isTermuxInstalled.value) {
-                                state.isTermuxAuthorized.value =
-                                        TermuxAuthorizer.isTermuxAuthorized(context)
-
-                                // 读取持久化配置状态
-                                isTermuxFullyConfigured.value = getTermuxConfigStatus(context)
-
-                                // 仅在授权成功时进行组件检查
-                                if (state.isTermuxAuthorized.value) {
-                                    // 检查组件状态，该函数会自动更新持久化状态
-                                    checkInstalledComponents()
-                                }
-                            } else {
-                                state.isTermuxAuthorized.value = false
-
-                                // 如果Termux未安装，重置配置状态
-                                if (isTermuxFullyConfigured.value) {
-                                    saveTermuxConfigStatus(context, false)
-                                    isTermuxFullyConfigured.value = false
-                                }
-
-                                // 重置组件状态
-                                isTunaSourceEnabled.value = false
-                                isPythonInstalled.value = false
-                                isNodeInstalled.value = false
-                                isUvInstalled.value = false
-                            }
-
-                            // 给UI更新一些时间
-                            delay(300)
-                        } catch (e: Exception) {
-                            Log.e(TAG, "刷新状态时出错: ${e.message}", e)
-                            withContext(Dispatchers.Main) {
-                                Toast.makeText(context, "刷新状态时出错: ${e.message}", Toast.LENGTH_SHORT)
-                                        .show()
-                            }
-                        } finally {
-                            // 刷新完成
-                            state.isRefreshing.value = false
-                        }
-                    }
-                },
+                onRefresh = refreshStatus,
                 hasStoragePermission = state.hasStoragePermission.value,
                 hasOverlayPermission = state.hasOverlayPermission.value,
                 hasBatteryOptimizationExemption = state.hasBatteryOptimizationExemption.value,
@@ -1295,77 +787,12 @@ deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" 
                 modifier = Modifier.padding(bottom = 8.dp)
         )
 
-        // 命令输入部分 - 只在用户长按Shizuku权限状态时显示
-        if (state.showAdbCommandExecutor.value &&
-                        state.isShizukuRunning.value &&
-                        state.hasShizukuPermission.value
-        ) {
-            AdbCommandExecutor(
-                    commandText = state.commandText.value,
-                    onCommandTextChange = { state.commandText.value = it },
-                    resultText = state.resultText.value,
-                    showSampleCommands = state.showSampleCommands.value,
-                    onToggleSampleCommands = {
-                        state.showSampleCommands.value = !state.showSampleCommands.value
-                    },
-                    onExecuteCommand = {
-                        if (state.commandText.value.isNotBlank()) {
-                            scope.launch {
-                                state.resultText.value = "执行中..."
-                                val result =
-                                        AdbCommandExecutor.executeAdbCommand(
-                                                state.commandText.value
-                                        )
-                                state.resultText.value =
-                                        if (result.success) {
-                                            "命令执行成功:\n${result.stdout}"
-                                        } else {
-                                            "命令执行失败 (退出码: ${result.exitCode}):\n${result.stderr}"
-                                        }
-                            }
-                        }
-                    },
-                    onSampleCommandSelected = { state.commandText.value = it }
-            )
-        } else if (state.showAdbCommandExecutor.value) {
-            FeatureErrorCard(
-                    message =
-                            if (!state.isShizukuRunning.value) "请先启动Shizuku服务"
-                            else if (!state.hasShizukuPermission.value) "请授予Shizuku权限"
-                            else "无法使用ADB命令功能"
-            )
-        }
-
-        // Termux命令执行器 - 只在用户长按Termux状态时显示
-        if (state.showTermuxCommandExecutor.value && state.isTermuxInstalled.value) {
-            TermuxCommandExecutor(
-                    isTermuxAuthorized = state.isTermuxAuthorized.value,
-                    commandText = state.commandText.value,
-                    onCommandTextChange = { state.commandText.value = it },
-                    showSampleCommands = state.showSampleCommands.value,
-                    onToggleSampleCommands = {
-                        state.showSampleCommands.value = !state.showSampleCommands.value
-                    },
-                    onSampleCommandSelected = { state.commandText.value = it },
-                    onAuthorizeTermux = {
-                        scope.launch {
-                            state.resultText.value = "正在授权Termux..."
-                            val authorized = TermuxAuthorizer.grantAllTermuxPermissions(context)
-                            if (authorized) {
-                                state.resultText.value = "Termux授权成功！"
-                                state.isTermuxAuthorized.value = true
-
-                                // 授权成功后检查各项配置状态
-                                checkInstalledComponents()
-                            } else {
-                                state.resultText.value = "Termux授权失败，请检查Shizuku权限和应用权限"
-                            }
-                        }
-                    }
-            )
-        } else if (state.showTermuxCommandExecutor.value && !state.isTermuxInstalled.value) {
-            FeatureErrorCard(message = "请先安装Termux应用")
-        }
+        // 命令输入部分的UI
+        ShizukuDemoScreenCommandUI(
+            state = state,
+            scope = scope,
+            isTermuxAuthorized = state.isTermuxAuthorized.value
+        )
     }
 
     // 显示命令结果对话框

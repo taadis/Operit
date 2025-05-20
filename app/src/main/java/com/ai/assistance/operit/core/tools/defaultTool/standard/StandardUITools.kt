@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.core.tools.defaultTool
+package com.ai.assistance.operit.core.tools.defaultTool.standard
 
 import android.content.Context
 import android.util.Log
@@ -7,7 +7,7 @@ import com.ai.assistance.operit.core.tools.SimplifiedUINode
 import com.ai.assistance.operit.core.tools.StringResultData
 import com.ai.assistance.operit.core.tools.UIActionResultData
 import com.ai.assistance.operit.core.tools.UIPageResultData
-import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor
+import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolParameter
 import com.ai.assistance.operit.data.model.ToolResult
@@ -18,7 +18,7 @@ import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
 
 /** Tools for UI automation via ADB shell commands */
-class UITools(private val context: Context) {
+open class StandardUITools(private val context: Context) {
 
     companion object {
         private const val TAG = "UITools"
@@ -111,7 +111,7 @@ class UITools(private val context: Context) {
 
             // 执行UI dump命令
             val dumpCommand = "uiautomator dump /sdcard/window_dump.xml"
-            val dumpResult = AdbCommandExecutor.executeAdbCommand(dumpCommand)
+            val dumpResult = AndroidShellExecutor.executeAdbCommand(dumpCommand)
             if (!dumpResult.success) {
                 Log.e(TAG, "uiautomator dump失败: ${dumpResult.stderr}")
                 return null
@@ -121,7 +121,7 @@ class UITools(private val context: Context) {
 
             // 读取dump文件内容
             val readCommand = "cat /sdcard/window_dump.xml"
-            val readResult = AdbCommandExecutor.executeAdbCommand(readCommand)
+            val readResult = AndroidShellExecutor.executeAdbCommand(readCommand)
             if (!readResult.success) {
                 Log.e(TAG, "读取UI dump文件失败: ${readResult.stderr}")
                 return null
@@ -164,7 +164,7 @@ class UITools(private val context: Context) {
         // 依次尝试每个命令，直到有一个成功
         for (command in commands) {
             try {
-                val result = AdbCommandExecutor.executeAdbCommand(command)
+                val result = AndroidShellExecutor.executeAdbCommand(command)
                 if (result.success && result.stdout.isNotEmpty()) {
                     Log.d(TAG, "成功获取窗口信息: ${result.stdout.take(100)}")
                     return result.stdout
@@ -181,7 +181,7 @@ class UITools(private val context: Context) {
         try {
             val topActivityCommand =
                     "dumpsys activity activities | grep -E 'topResumedActivity|topActivity'"
-            val result = AdbCommandExecutor.executeAdbCommand(topActivityCommand)
+            val result = AndroidShellExecutor.executeAdbCommand(topActivityCommand)
             if (result.success && result.stdout.isNotEmpty()) {
                 Log.d(TAG, "使用topActivity作为窗口信息替代: ${result.stdout.take(100)}")
                 return result.stdout
@@ -599,7 +599,7 @@ class UITools(private val context: Context) {
         val command = "input tap $x $y"
 
         return try {
-            val result = AdbCommandExecutor.executeAdbCommand(command)
+            val result = AndroidShellExecutor.executeAdbCommand(command)
 
             if (result.success) {
                 Log.d(TAG, "Tap successful at coordinates: ($x, $y)")
@@ -679,7 +679,7 @@ class UITools(private val context: Context) {
                 // 执行点击命令
                 Log.d(TAG, "点击边界坐标: ($centerX, $centerY) 从bounds: $bounds")
                 val tapCommand = "input tap $centerX $centerY"
-                val tapResult = AdbCommandExecutor.executeAdbCommand(tapCommand)
+                val tapResult = AndroidShellExecutor.executeAdbCommand(tapCommand)
 
                 if (tapResult.success) {
                     return ToolResult(
@@ -755,7 +755,7 @@ class UITools(private val context: Context) {
 
             // First, dump the UI hierarchy
             val dumpCommand = "uiautomator dump /sdcard/window_dump.xml"
-            val dumpResult = AdbCommandExecutor.executeAdbCommand(dumpCommand)
+            val dumpResult = AndroidShellExecutor.executeAdbCommand(dumpCommand)
 
             if (!dumpResult.success) {
                 return ToolResult(
@@ -769,7 +769,7 @@ class UITools(private val context: Context) {
 
             // Then read the dumped file
             val readCommand = "cat /sdcard/window_dump.xml"
-            val readResult = AdbCommandExecutor.executeAdbCommand(readCommand)
+            val readResult = AndroidShellExecutor.executeAdbCommand(readCommand)
 
             if (!readResult.success) {
                 return ToolResult(
@@ -902,7 +902,7 @@ class UITools(private val context: Context) {
 
             // Execute the tap command at the center point
             val tapCommand = "input tap $centerX $centerY"
-            val tapResult = AdbCommandExecutor.executeAdbCommand(tapCommand)
+            val tapResult = AndroidShellExecutor.executeAdbCommand(tapCommand)
 
             if (tapResult.success) {
                 val identifierDescription =
@@ -976,12 +976,12 @@ class UITools(private val context: Context) {
 
             // First try select all (CTRL+A) then delete
             val selectAllCommand = "input keyevent KEYCODE_CTRL_A"
-            AdbCommandExecutor.executeAdbCommand(selectAllCommand)
+            AndroidShellExecutor.executeAdbCommand(selectAllCommand)
 
             // Then press delete - do this a few times to ensure the field is clear
             val deleteCommand = "input keyevent KEYCODE_DEL"
             repeat(5) { // Send delete a few times to make sure the field is clear
-                AdbCommandExecutor.executeAdbCommand(deleteCommand)
+                AndroidShellExecutor.executeAdbCommand(deleteCommand)
             }
 
             // Short delay before typing
@@ -1171,7 +1171,7 @@ class UITools(private val context: Context) {
 
             // If that fails, try using numeric keycodes
             val pasteCommand = "input keyevent 17 86" // KEYCODE_CTRL_LEFT KEYCODE_V
-            val pasteResult = AdbCommandExecutor.executeAdbCommand(pasteCommand)
+            val pasteResult = AndroidShellExecutor.executeAdbCommand(pasteCommand)
 
             if (pasteResult.success) {
                 Log.d(TAG, "Pasted text using CTRL+V method")
@@ -1226,7 +1226,7 @@ class UITools(private val context: Context) {
         val command = "input keyevent $keyCode"
 
         return try {
-            val result = AdbCommandExecutor.executeAdbCommand(command)
+            val result = AndroidShellExecutor.executeAdbCommand(command)
 
             if (result.success) {
                 ToolResult(
@@ -1282,7 +1282,7 @@ class UITools(private val context: Context) {
         val command = "input swipe $startX $startY $endX $endY $duration"
 
         return try {
-            val result = AdbCommandExecutor.executeAdbCommand(command)
+            val result = AndroidShellExecutor.executeAdbCommand(command)
 
             if (result.success) {
                 ToolResult(
@@ -1803,7 +1803,7 @@ class UITools(private val context: Context) {
 
         // 执行点击命令
         val tapCommand = "input tap $centerX $centerY"
-        val tapResult = AdbCommandExecutor.executeAdbCommand(tapCommand)
+        val tapResult = AndroidShellExecutor.executeAdbCommand(tapCommand)
 
         if (tapResult.success) {
             val identifierDescription =
@@ -1884,7 +1884,7 @@ class UITools(private val context: Context) {
 
             // Execute UI dump command
             val dumpCommand = "uiautomator dump /sdcard/window_dump.xml"
-            val dumpResult = AdbCommandExecutor.executeAdbCommand(dumpCommand)
+            val dumpResult = AndroidShellExecutor.executeAdbCommand(dumpCommand)
             if (!dumpResult.success) {
                 return ToolResult(
                         toolName = tool.name,
@@ -1897,7 +1897,7 @@ class UITools(private val context: Context) {
 
             // Read the dumped file
             val readCommand = "cat /sdcard/window_dump.xml"
-            val readResult = AdbCommandExecutor.executeAdbCommand(readCommand)
+            val readResult = AndroidShellExecutor.executeAdbCommand(readCommand)
 
             if (!readResult.success) {
                 return ToolResult(

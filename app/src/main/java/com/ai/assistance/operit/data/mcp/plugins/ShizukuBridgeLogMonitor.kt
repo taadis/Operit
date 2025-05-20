@@ -2,7 +2,7 @@ package com.ai.assistance.operit.data.mcp.plugins
 
 import android.content.Context
 import android.util.Log
-import com.ai.assistance.operit.core.tools.system.AdbCommandExecutor
+import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CoroutineScope
@@ -92,7 +92,7 @@ object BridgeLogMonitor {
                 try {
                     val command =
                             "run-as com.termux sh -c '[ -f \"$BRIDGE_LOG_FILE\" ] && echo \"EXISTS\" || echo \"NOT_EXISTS\"'"
-                    val result = AdbCommandExecutor.executeAdbCommand(command)
+                    val result = AndroidShellExecutor.executeAdbCommand(command)
                     result.stdout.trim() == "EXISTS"
                 } catch (e: Exception) {
                     Log.e(TAG, "检查文件是否存在时出错: ${e.message}")
@@ -106,7 +106,7 @@ object BridgeLogMonitor {
                 try {
                     val command =
                             "run-as com.termux sh -c 'if [ -f \"$BRIDGE_LOG_FILE\" ]; then stat -c %s \"$BRIDGE_LOG_FILE\" 2>/dev/null || stat -f %z \"$BRIDGE_LOG_FILE\"; else echo \"0\"; fi'"
-                    val result = AdbCommandExecutor.executeAdbCommand(command)
+                    val result = AndroidShellExecutor.executeAdbCommand(command)
                     result.stdout.trim().toLongOrNull() ?: 0L
                 } catch (e: Exception) {
                     Log.e(TAG, "获取文件大小失败: ${e.message}")
@@ -132,7 +132,7 @@ object BridgeLogMonitor {
                 val readCommand = "run-as com.termux sh -c '$readCommandBody'"
 
                 try {
-                    val result = AdbCommandExecutor.executeAdbCommand(readCommand)
+                    val result = AndroidShellExecutor.executeAdbCommand(readCommand)
                     val newContent = result.stdout
 
                     if (newContent.isNotEmpty()) {
@@ -151,7 +151,7 @@ object BridgeLogMonitor {
                         val fallbackCommandBody =
                                 "tail -c +${startPosition + 1} \"$BRIDGE_LOG_FILE\" | head -c ${endPosition - startPosition}"
                         val fallbackCommand = "run-as com.termux sh -c '$fallbackCommandBody'"
-                        val result = AdbCommandExecutor.executeAdbCommand(fallbackCommand)
+                        val result = AndroidShellExecutor.executeAdbCommand(fallbackCommand)
                         val newContent = result.stdout
 
                         if (newContent.isNotEmpty()) {
@@ -173,7 +173,7 @@ object BridgeLogMonitor {
                 try {
                     val clearCommand =
                             "run-as com.termux sh -c 'rm -f \"$BRIDGE_LOG_FILE\" || true'"
-                    AdbCommandExecutor.executeAdbCommand(clearCommand)
+                    AndroidShellExecutor.executeAdbCommand(clearCommand)
                     lastPosition.set(0)
                     Log.d(TAG, "Bridge日志文件已清理")
                 } catch (e: Exception) {
