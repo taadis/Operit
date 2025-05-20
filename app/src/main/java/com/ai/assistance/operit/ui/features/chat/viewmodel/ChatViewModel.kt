@@ -6,7 +6,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ai.assistance.operit.api.EnhancedAIService
 import com.ai.assistance.operit.core.tools.AIToolHandler
-import com.ai.assistance.operit.data.model.AiReference
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatHistory
 import com.ai.assistance.operit.data.model.ChatMessage
@@ -55,11 +54,11 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                     onConfigChanged = { service ->
                         enhancedAiService = service
                         // API配置变更后，异步设置服务收集器
-                        viewModelScope.launch { 
+                        viewModelScope.launch {
                             // 重置服务收集器状态，因为服务实例已变更
                             serviceCollectorSetupComplete = false
                             Log.d(TAG, "API配置变更，重置服务收集器状态并重新设置")
-                            setupServiceCollectors() 
+                            setupServiceCollectors()
                         }
                     }
             )
@@ -197,14 +196,6 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                         onAttachmentRequested = { request -> processAttachmentRequest(request) },
                         onAttachmentRemoveRequested = { filePath -> removeAttachment(filePath) }
                 )
-
-        // 确保所有委托都初始化好后，尝试重新设置服务收集器
-        if (enhancedAiService != null) {
-            viewModelScope.launch {
-                Log.d(TAG, "委托初始化完成，重新设置服务收集器")
-                setupServiceCollectors()
-            }
-        }
     }
 
     private fun setupPermissionSystemCollection() {
@@ -246,64 +237,77 @@ class ChatViewModel(private val context: Context) : ViewModel() {
 
         // 设置工具进度收集
         viewModelScope.launch {
-            enhancedAiService?.getToolProgressFlow()?.collect { progress ->
-                uiStateDelegate.updateToolProgress(progress)
+            try {
+                enhancedAiService?.getToolProgressFlow()?.collect { progress ->
+                    uiStateDelegate.updateToolProgress(progress)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "工具进度收集出错: ${e.message}", e)
             }
         }
 
         // 设置输入处理状态收集和计划项收集
-        // 添加确保设置完成的机制
         viewModelScope.launch {
-            var inputProcessingSetupComplete = false
-            var planItemsSetupComplete = false
-            var retryCount = 0
-            val maxRetries = 3
+            try {
+                var inputProcessingSetupComplete = false
+                var planItemsSetupComplete = false
+                var retryCount = 0
+                val maxRetries = 3
 
-            while ((!inputProcessingSetupComplete || !planItemsSetupComplete) &&
-                    retryCount < maxRetries) {
-                
-                if (::messageProcessingDelegate.isInitialized && !inputProcessingSetupComplete) {
-                    try {
-                        Log.d(TAG, "设置输入处理状态收集，尝试 ${retryCount + 1}/${maxRetries}")
-                        messageProcessingDelegate.setupInputProcessingStateCollection()
-                        inputProcessingSetupComplete = true
-                        Log.d(TAG, "输入处理状态收集设置成功")
-                    } catch (e: Exception) {
-                        Log.e(TAG, "设置输入处理状态收集时出错: ${e.message}", e)
+                while ((!inputProcessingSetupComplete || !planItemsSetupComplete) &&
+                        retryCount < maxRetries) {
+
+                    // 先设置输入处理状态收集
+                    if (::messageProcessingDelegate.isInitialized && !inputProcessingSetupComplete) {
+                        try {
+                            Log.d(TAG, "设置输入处理状态收集，尝试 ${retryCount + 1}/${maxRetries}")
+                            messageProcessingDelegate.setupInputProcessingStateCollection()
+                            inputProcessingSetupComplete = true
+                            Log.d(TAG, "输入处理状态收集设置成功")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "设置输入处理状态收集时出错: ${e.message}", e)
+                        }
                     }
-                }
 
-                // planItemsDelegate 不是 lateinit 变量，所以直接尝试设置
-                if (!planItemsSetupComplete) {
-                    try {
-                        Log.d(TAG, "设置计划项收集，尝试 ${retryCount + 1}/${maxRetries}")
-                        planItemsDelegate.setupPlanItemsCollection()
-                        planItemsSetupComplete = true
-                        Log.d(TAG, "计划项收集设置成功")
-                    } catch (e: Exception) {
-                        Log.e(TAG, "设置计划项收集时出错")
+                    // 再设置计划项收集
+                    if (!planItemsSetupComplete) {
+                        try {
+                            Log.d(TAG, "设置计划项收集，尝试 ${retryCount + 1}/${maxRetries}")
+                            planItemsDelegate.setupPlanItemsCollection()
+                            planItemsSetupComplete = true
+                            Log.d(TAG, "计划项收集设置成功")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "设置计划项收集时出错: ${e.message}", e)
+                        }
                     }
-                }
 
-                // 如果还未完成设置，则等待一段时间后重试
-                if (!inputProcessingSetupComplete || !planItemsSetupComplete) {
+                    // 如果都已完成，直接退出循环
+                    if (inputProcessingSetupComplete && planItemsSetupComplete) {
+                        break
+                    }
+
+                    // 如果还未完成设置，则等待一段时间后重试
                     retryCount++
-                    kotlinx.coroutines.delay(500) // 延迟500毫秒后重试
+                    if (retryCount < maxRetries) {
+                        kotlinx.coroutines.delay(500L) // 延迟500毫秒后重试
+                    }
                 }
-            }
 
-            // 记录最终设置状态
-            if (!inputProcessingSetupComplete) {
-                Log.e(TAG, "无法设置输入处理状态收集，已达到最大重试次数")
-            }
-            if (!planItemsSetupComplete) {
-                Log.e(TAG, "无法设置计划项收集，已达到最大重试次数")
-            }
-            
-            // 如果任一设置成功，标记整体服务收集器设置为已完成
-            if (inputProcessingSetupComplete || planItemsSetupComplete) {
-                serviceCollectorSetupComplete = true
-                Log.d(TAG, "服务收集器设置已标记为完成")
+                // 记录最终设置状态
+                if (!inputProcessingSetupComplete) {
+                    Log.e(TAG, "无法设置输入处理状态收集，已达到最大重试次数")
+                }
+                if (!planItemsSetupComplete) {
+                    Log.e(TAG, "无法设置计划项收集，已达到最大重试次数")
+                }
+
+                // 只要有一项设置成功，就标记整体服务收集器设置为已完成
+                if (inputProcessingSetupComplete || planItemsSetupComplete) {
+                    serviceCollectorSetupComplete = true
+                    Log.d(TAG, "服务收集器设置已标记为完成")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "设置服务收集器时发生异常: ${e.message}", e)
             }
         }
     }

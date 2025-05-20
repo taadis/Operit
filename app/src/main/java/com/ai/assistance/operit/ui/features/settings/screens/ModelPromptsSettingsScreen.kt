@@ -93,10 +93,44 @@ fun ModelPromptsSettingsScreen(onBackPressed: () -> Unit = {}) {
         }
     }
 
+    // 保存提示词函数
+    fun savePrompts() {
+        val profile = selectedProfile.value
+        if (profile != null) {
+            scope.launch {
+                // 保存到提示词配置
+                promptPreferencesManager.updatePromptProfile(
+                    profileId = profile.id,
+                    introPrompt = introPromptInput,
+                    tonePrompt = tonePromptInput
+                )
+                
+                // 如果是当前激活的配置，也更新到ApiPreferences
+                if (profile.isActive) {
+                    apiPreferences.saveCustomPrompts(
+                        introPrompt = introPromptInput,
+                        tonePrompt = tonePromptInput
+                    )
+                }
+                
+                showSaveSuccessMessage = true
+                editMode = false
+            }
+        }
+    }
+
     Scaffold(
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { editMode = !editMode },
+                onClick = { 
+                    if (editMode) {
+                        // 如果是编辑模式，点击时保存
+                        savePrompts()
+                    } else {
+                        // 如果不是编辑模式，进入编辑模式
+                        editMode = true
+                    }
+                },
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 shape = CircleShape,
@@ -104,7 +138,7 @@ fun ModelPromptsSettingsScreen(onBackPressed: () -> Unit = {}) {
             ) {
                 Icon(
                     if (editMode) Icons.Default.Check else Icons.Default.Edit,
-                    contentDescription = if (editMode) "完成编辑" else "编辑提示词"
+                    contentDescription = if (editMode) "保存提示词" else "编辑提示词"
                 )
             }
         }
@@ -127,60 +161,6 @@ fun ModelPromptsSettingsScreen(onBackPressed: () -> Unit = {}) {
                     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
                     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                        // 头部操作区：新建按钮和保存按钮
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
-                            horizontalArrangement = Arrangement.End,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // 保存按钮（编辑模式下显示）
-                            AnimatedVisibility(
-                                visible = selectedProfile.value != null && editMode,
-                                enter = fadeIn() + expandHorizontally(),
-                                exit = fadeOut() + shrinkHorizontally()
-                            ) {
-                                IconButton(
-                                    onClick = {
-                                        scope.launch {
-                                            val profile = selectedProfile.value
-                                            if (profile != null) {
-                                                // 保存到自定义提示词配置
-                                                promptPreferencesManager.updatePromptProfile(
-                                                    profileId = profile.id,
-                                                    introPrompt = introPromptInput,
-                                                    tonePrompt = tonePromptInput
-                                                )
-                                            
-                                                // 如果是当前激活的配置，也更新到ApiPreferences
-                                                if (profile.isActive) {
-                                                    apiPreferences.saveCustomPrompts(
-                                                        introPrompt = introPromptInput,
-                                                        tonePrompt = tonePromptInput
-                                                    )
-                                                }
-                                            
-                                                showSaveSuccessMessage = true
-                                                editMode = false
-                                            }
-                                        }
-                                    }
-                                ) {
-                                    Icon(
-                                        Icons.Default.Save,
-                                        contentDescription = "保存",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-                        }
-
-                        // 水平分隔线 - 减小垂直间距
-                        Divider(
-                            thickness = 0.5.dp,
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.padding(vertical = 4.dp)
-                        )
                         
                         // 配置选择器区 - 标签和新建按钮放在一行
                         Row(
@@ -496,27 +476,7 @@ fun ModelPromptsSettingsScreen(onBackPressed: () -> Unit = {}) {
 
                                         Button(
                                             onClick = {
-                                                scope.launch {
-                                                    // 保存到提示词配置
-                                                        promptPreferencesManager
-                                                                .updatePromptProfile(
-                                                        profileId = profile.id,
-                                                                        introPrompt =
-                                                                                introPromptInput,
-                                                        tonePrompt = tonePromptInput
-                                                    )
-                                                    
-                                                    // 如果是当前激活的配置，也更新到ApiPreferences
-                                                    if (profile.isActive) {
-                                                        apiPreferences.saveCustomPrompts(
-                                                            introPrompt = introPromptInput,
-                                                            tonePrompt = tonePromptInput
-                                                        )
-                                                    }
-                                                    
-                                                    showSaveSuccessMessage = true
-                                                    editMode = false
-                                                }
+                                                savePrompts()
                                             }
                                         ) { Text("保存提示词") }
                                     }

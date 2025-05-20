@@ -118,6 +118,24 @@ fun UserPreferencesSettingsScreen(
         }
     }
 
+    // 保存用户偏好配置函数
+    fun saveUserPreferences() {
+        scope.launch {
+            selectedProfile?.let { profile ->
+                preferencesManager.updateProfileCategory(
+                    profileId = profile.id,
+                    birthDate = editBirthDate,
+                    gender = editGender.takeIf { it.isNotBlank() },
+                    personality = editPersonality.takeIf { it.isNotBlank() },
+                    identity = editIdentity.takeIf { it.isNotBlank() },
+                    occupation = editOccupation.takeIf { it.isNotBlank() },
+                    aiStyle = editAiStyle.takeIf { it.isNotBlank() }
+                )
+                editMode = false
+            }
+        }
+    }
+
     // 日期选择器函数
     val showDatePickerDialog = {
         val calendar =
@@ -156,15 +174,21 @@ fun UserPreferencesSettingsScreen(
     Scaffold(
             floatingActionButton = {
                 FloatingActionButton(
-                        onClick = { editMode = !editMode },
+                        onClick = { 
+                            if (editMode) {
+                                saveUserPreferences()
+                            } else {
+                                editMode = true
+                            }
+                        },
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
                         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                         shape = CircleShape,
                         modifier = Modifier.size(48.dp)
                 ) {
                     Icon(
-                            if (editMode) Icons.Default.Check else Icons.Default.Edit,
-                            contentDescription = if (editMode) "完成编辑" else "编辑配置"
+                            if (editMode) Icons.Default.Save else Icons.Default.Edit,
+                            contentDescription = if (editMode) "保存" else "编辑配置"
                     )
                 }
             }
@@ -187,60 +211,6 @@ fun UserPreferencesSettingsScreen(
                         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
                     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                        // 头部操作区：只保留保存按钮
-                        Row(
-                                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
-                                horizontalArrangement = Arrangement.End,
-                                verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // 保存按钮（编辑模式下显示）
-                            AnimatedVisibility(
-                                    visible = selectedProfile != null && editMode,
-                                    enter = fadeIn() + expandHorizontally(),
-                                    exit = fadeOut() + shrinkHorizontally()
-                            ) {
-                                IconButton(
-                                        onClick = {
-                                            scope.launch {
-                                                preferencesManager.updateProfileCategory(
-                                                        profileId = selectedProfile?.id ?: "",
-                                                        birthDate = editBirthDate,
-                                                        gender =
-                                                                editGender.takeIf {
-                                                                    it.isNotBlank()
-                                                                },
-                                                        personality =
-                                                                editPersonality.takeIf {
-                                                                    it.isNotBlank()
-                                                                },
-                                                        identity =
-                                                                editIdentity.takeIf {
-                                                                    it.isNotBlank()
-                                                                },
-                                                        occupation =
-                                                                editOccupation.takeIf {
-                                                                    it.isNotBlank()
-                                                                },
-                                                        aiStyle =
-                                                                editAiStyle.takeIf {
-                                                                    it.isNotBlank()
-                                                                }
-                                                )
-                                                editMode = false
-                                            }
-                                        },
-                                        modifier = Modifier.size(28.dp)
-                                ) {
-                                    Icon(
-                                            Icons.Default.Save,
-                                            contentDescription = "保存",
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-                        }
-
                         // 水平分隔线 - 减小垂直间距
                         Divider(
                                 thickness = 0.5.dp,
@@ -723,40 +693,7 @@ fun UserPreferencesSettingsScreen(
                                         item {
                                             Button(
                                                     onClick = {
-                                                        scope.launch {
-                                                            preferencesManager
-                                                                    .updateProfileCategory(
-                                                                            profileId = profile.id,
-                                                                            birthDate =
-                                                                                    editBirthDate,
-                                                                            gender =
-                                                                                    editGender
-                                                                                            .takeIf {
-                                                                                                it.isNotBlank()
-                                                                                            },
-                                                                            personality =
-                                                                                    editPersonality
-                                                                                            .takeIf {
-                                                                                                it.isNotBlank()
-                                                                                            },
-                                                                            identity =
-                                                                                    editIdentity
-                                                                                            .takeIf {
-                                                                                                it.isNotBlank()
-                                                                                            },
-                                                                            occupation =
-                                                                                    editOccupation
-                                                                                            .takeIf {
-                                                                                                it.isNotBlank()
-                                                                                            },
-                                                                            aiStyle =
-                                                                                    editAiStyle
-                                                                                            .takeIf {
-                                                                                                it.isNotBlank()
-                                                                                            }
-                                                                    )
-                                                            editMode = false
-                                                        }
+                                                        saveUserPreferences()
                                                     },
                                                     modifier =
                                                             Modifier.fillMaxWidth()

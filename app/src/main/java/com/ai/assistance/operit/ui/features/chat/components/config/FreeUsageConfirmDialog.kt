@@ -27,88 +27,93 @@ fun FreeUsageConfirmDialog(
         remainingUsages: Int,
         maxDailyUsage: Int
 ) {
-    // Generate a random cute message
-    val cuteMessages =
-            listOf(
-                    "少薅点，再薅真破产了qwq",
-                    "别老薅作者的哇，作者也不容易呜呜",
-                    "作者的资源真的不多了，求放过>_<",
-                    "薅一次少一次，请珍惜每一次使用机会~",
-                    "作者的钱包在哭泣，请温柔一点qaq"
-            )
-    val randomMessage = cuteMessages.random()
+        // Generate a random cute message
+        val cuteMessages =
+                listOf(
+                        "少薅点，再薅真破产了qwq",
+                        "别老薅作者的哇，作者也不容易呜呜",
+                        "作者的资源真的不多了，求放过>_<",
+                        "薅一次少一次，请珍惜每一次使用机会~",
+                        "作者的钱包在哭泣，请温柔一点qaq"
+                )
+        val randomMessage = cuteMessages.random()
 
-    Dialog(
-            onDismissRequest = onDismiss,
-            properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = true)
-    ) {
-        Surface(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 8.dp
+        Dialog(
+                onDismissRequest = onDismiss,
+                properties =
+                        DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = true)
         ) {
-            Column(
-                    modifier = Modifier.fillMaxWidth().padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                // Title
-                Text(
-                        text = "确认使用免费资源",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Cute message
-                Text(
-                        text = randomMessage,
-                        style = MaterialTheme.typography.bodyLarge,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.9f)
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Usage counter
-                val usageText = "今日免费次数：已用${maxDailyUsage - remainingUsages}次，剩余${remainingUsages}次"
-                Text(
-                        text = usageText,
-                        style = MaterialTheme.typography.bodyMedium,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // Action buttons
-                Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                Surface(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 8.dp
                 ) {
-                    TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("取消") }
+                        Column(
+                                modifier = Modifier.fillMaxWidth().padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                                // Title
+                                Text(
+                                        text = "确认使用免费资源",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                )
 
-                    Button(
-                            onClick = onConfirm,
-                            modifier = Modifier.weight(1f),
-                            enabled = remainingUsages > 0
-                    ) { Text(if (remainingUsages > 0) "确认使用" else "今日已用完") }
-                }
+                                Spacer(modifier = Modifier.height(16.dp))
 
-                // Show tip if no usages left
-                if (remainingUsages <= 0) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                            text = "明天再来吧，或者使用您自己的API密钥",
-                            style = MaterialTheme.typography.bodySmall,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.error,
-                            fontSize = 12.sp
-                    )
+                                // Cute message
+                                Text(
+                                        text = randomMessage,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        textAlign = TextAlign.Center,
+                                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.9f)
+                                )
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                // Usage counter
+                                val usageText =
+                                        "今日免费次数：已用${maxDailyUsage - remainingUsages}次，剩余${remainingUsages}次\n单次免费状态将会持续到软件退出"
+                                Text(
+                                        text = usageText,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        textAlign = TextAlign.Center,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+
+                                Spacer(modifier = Modifier.height(24.dp))
+
+                                // Action buttons
+                                Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                        TextButton(
+                                                onClick = onDismiss,
+                                                modifier = Modifier.weight(1f)
+                                        ) { Text("取消") }
+
+                                        Button(
+                                                onClick = onConfirm,
+                                                modifier = Modifier.weight(1f),
+                                                enabled = remainingUsages > 0
+                                        ) { Text(if (remainingUsages > 0) "确认使用" else "今日已用完") }
+                                }
+
+                                // Show tip if no usages left
+                                if (remainingUsages <= 0) {
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        Text(
+                                                text = "明天再来吧，或者使用您自己的API密钥",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                textAlign = TextAlign.Center,
+                                                color = MaterialTheme.colorScheme.error,
+                                                fontSize = 12.sp
+                                        )
+                                }
+                        }
                 }
-            }
         }
-    }
 }

@@ -1,10 +1,13 @@
 package com.ai.assistance.operit.ui.features.chat.viewmodel
 
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.viewModelScope
 import com.ai.assistance.operit.api.EnhancedAIService
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,6 +19,11 @@ class ApiConfigDelegate(
         private val viewModelScope: CoroutineScope,
         private val onConfigChanged: (EnhancedAIService) -> Unit
 ) {
+    companion object {
+        private const val TAG = "ApiConfigDelegate"
+        private const val SERVICE_INIT_DEBOUNCE_MS = 300L // 服务初始化防抖时间
+    }
+
     // Preferences
     private val apiPreferences = ApiPreferences(context)
 
@@ -40,6 +48,10 @@ class ApiConfigDelegate(
 
     private val _memoryOptimization = MutableStateFlow(ApiPreferences.DEFAULT_MEMORY_OPTIMIZATION)
     val memoryOptimization: StateFlow<Boolean> = _memoryOptimization.asStateFlow()
+
+    // 防抖相关变量
+    private var serviceInitJob: Job? = null
+    private var configUpdateCount = 0
 
     init {
         // Load settings from preferences
@@ -100,14 +112,29 @@ class ApiConfigDelegate(
         val model = _modelName.value
 
         if (key.isNotBlank() && endpoint.isNotBlank() && model.isNotBlank()) {
-            // 创建新的AI服务实例
-            val enhancedAiService = EnhancedAIService(endpoint, key, model, context)
+            // 取消任何之前的初始化任务
+            serviceInitJob?.cancel()
+            configUpdateCount++
+            val currentUpdateCount = configUpdateCount
 
-            // 通知ViewModel配置已更改
-            onConfigChanged(enhancedAiService)
+            // 添加防抖机制，延迟初始化服务
+            serviceInitJob = viewModelScope.launch {
+                delay(SERVICE_INIT_DEBOUNCE_MS)
+                // 检查是否是最新的更新请求
+                if (currentUpdateCount == configUpdateCount) {
+                    Log.d(TAG, "初始化EnhancedAIService (apiKey=${key.take(5)}..., endpoint=$endpoint, model=$model)")
+                    // 创建新的AI服务实例
+                    val enhancedAiService = EnhancedAIService(endpoint, key, model, context)
 
-            // 更新已配置状态
-            _isConfigured.value = true
+                    // 通知ViewModel配置已更改
+                    onConfigChanged(enhancedAiService)
+
+                    // 更新已配置状态
+                    _isConfigured.value = true
+                } else {
+                    Log.d(TAG, "跳过过期的服务初始化请求")
+                }
+            }
         }
     }
 
@@ -131,7 +158,8 @@ class ApiConfigDelegate(
         viewModelScope.launch {
             apiPreferences.saveApiSettings(_apiKey.value, _apiEndpoint.value, _modelName.value)
 
-            // 重新初始化服务
+            // 直接调用初始化服务 - 无需防抖机制，因为这是用户主动操作
+            Log.d(TAG, "保存API设置并初始化服务")
             val enhancedAiService =
                     EnhancedAIService(_apiEndpoint.value, _apiKey.value, _modelName.value, context)
 
@@ -157,6 +185,7 @@ class ApiConfigDelegate(
             _isConfigured.value = true
 
             // 初始化AI服务
+            Log.d(TAG, "使用默认配置初始化服务")
             val enhancedAiService =
                     EnhancedAIService(_apiEndpoint.value, _apiKey.value, _modelName.value, context)
 
