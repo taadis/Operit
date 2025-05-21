@@ -1,285 +1,133 @@
 package com.ai.assistance.operit.ui.features.demo.viewmodel
 
+import android.app.Application
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
-import android.os.Environment
-import android.os.PowerManager
 import android.provider.Settings
 import android.widget.Toast
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
-import com.ai.assistance.operit.core.tools.system.ShizukuAuthorizer
-import com.ai.assistance.operit.data.repository.UIHierarchyManager
-import com.ai.assistance.operit.ui.features.demo.model.ShizukuScreenState
-import com.ai.assistance.operit.ui.features.demo.utils.getTermuxConfigStatus
-import kotlinx.coroutines.flow.MutableStateFlow
+import com.ai.assistance.operit.ui.features.demo.state.DemoStateManager
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/**
- * ViewModel for the ShizukuDemoScreen Handles business logic and state management for Shizuku and
- * Termux related operations
- */
-class ShizukuDemoViewModel : ViewModel() {
-    // Main UI state holder
-    private val _uiState = MutableStateFlow(ShizukuScreenState())
-    val uiState: StateFlow<ShizukuScreenState> = _uiState.asStateFlow()
+/** ViewModel for the ShizukuDemoScreen Delegates most state management to DemoStateManager */
+class ShizukuDemoViewModel(application: Application) : AndroidViewModel(application) {
+    // 初始化时直接创建stateManager
+    private val stateManager: DemoStateManager = DemoStateManager(application, viewModelScope)
+    
+    // Expose state from the manager
+    val uiState: StateFlow<com.ai.assistance.operit.ui.features.demo.state.DemoScreenState> = stateManager.uiState
 
-    // Termux configuration states
-    var isTunaSourceEnabled by mutableStateOf(false)
-        private set
-    var isPythonInstalled by mutableStateOf(false)
-        private set
-    var isUvInstalled by mutableStateOf(false)
-        private set
-    var isNodeInstalled by mutableStateOf(false)
-        private set
-    var isTermuxConfiguring by mutableStateOf(false)
-        private set
-    var isTermuxRunning by mutableStateOf(false)
-        private set
-    var isTermuxBatteryOptimizationExempted by mutableStateOf(false)
-        private set
-    var isTermuxFullyConfigured by mutableStateOf(false)
-        private set
-
-    // Output text for commands and configuration operations
-    var outputText by mutableStateOf("欢迎使用Termux配置工具\n点击对应按钮开始配置")
-        private set
-    var currentTask by mutableStateOf("")
-        private set
+    // Expose properties for Termux configuration
+    val isTunaSourceEnabled get() = stateManager.isTunaSourceEnabled
+    val isPythonInstalled get() = stateManager.isPythonInstalled
+    val isUvInstalled get() = stateManager.isUvInstalled
+    val isNodeInstalled get() = stateManager.isNodeInstalled
+    val isTermuxConfiguring get() = stateManager.isTermuxConfiguring
+    val isTermuxRunning get() = stateManager.isTermuxRunning
+    val isTermuxBatteryOptimizationExempted get() = stateManager.isTermuxBatteryOptimizationExempted
+    val isTermuxFullyConfigured get() = stateManager.isTermuxFullyConfigured
+    val outputText get() = stateManager.outputText
+    val currentTask get() = stateManager.currentTask
 
     /** Initialize the ViewModel with context data */
     fun initialize(context: Context) {
-        viewModelScope.launch {
-            // Load termux config status
-            isTermuxFullyConfigured = getTermuxConfigStatus(context)
-
-            // Initialize state
-            initializeState(context)
-        }
-    }
-
-    /**
-     * Initialize the state with current system status
-     */
-    private fun initializeState(context: Context) {
-        viewModelScope.launch {
-            _uiState.update { currentState ->
-                currentState.copy(
-                    isRefreshing = mutableStateOf(true)
-                )
-            }
-            
-            // Check Shizuku status
-            val isShizukuInstalled = ShizukuAuthorizer.isShizukuInstalled(context)
-            val isShizukuRunning = ShizukuAuthorizer.isShizukuServiceRunning()
-            val hasShizukuPermission = ShizukuAuthorizer.hasShizukuPermission()
-            
-            // Check Termux status
-            val isTermuxInstalled = isPackageInstalled(context, "com.termux")
-            
-            // Check Storage Permission
-            val hasStoragePermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                Environment.isExternalStorageManager()
-            } else {
-                context.checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) == 
-                    PackageManager.PERMISSION_GRANTED &&
-                context.checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) == 
-                    PackageManager.PERMISSION_GRANTED
-            }
-            
-            // Check Location Permission
-            val hasLocationPermission = context.checkSelfPermission(
-                android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
-                context.checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION) == 
-                    PackageManager.PERMISSION_GRANTED
-            
-            // Check Overlay Permission
-            val hasOverlayPermission = Settings.canDrawOverlays(context)
-            
-            // Check Battery Optimization Exemption
-            val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-            val hasBatteryOptimizationExemption = powerManager.isIgnoringBatteryOptimizations(context.packageName)
-            
-            // Check Accessibility Service
-            val hasAccessibilityServiceEnabled = UIHierarchyManager.isAccessibilityServiceEnabled(context)
-            
-            // Update UI state
-            _uiState.update { currentState ->
-                currentState.copy(
-                    isShizukuInstalled = mutableStateOf(isShizukuInstalled),
-                    isShizukuRunning = mutableStateOf(isShizukuRunning),
-                    hasShizukuPermission = mutableStateOf(hasShizukuPermission),
-                    isTermuxInstalled = mutableStateOf(isTermuxInstalled),
-                    hasStoragePermission = mutableStateOf(hasStoragePermission),
-                    hasLocationPermission = mutableStateOf(hasLocationPermission),
-                    hasOverlayPermission = mutableStateOf(hasOverlayPermission),
-                    hasBatteryOptimizationExemption = mutableStateOf(hasBatteryOptimizationExemption),
-                    hasAccessibilityServiceEnabled = mutableStateOf(hasAccessibilityServiceEnabled),
-                    isRefreshing = mutableStateOf(false)
-                )
-            }
-            
-            // If Shizuku is running and has permission, check Termux authorization
-            if (isShizukuRunning && hasShizukuPermission) {
-                checkTermuxAuthState(context)
-            }
-            
-            // Check installed components if Termux is authorized
-            if (_uiState.value.isTermuxAuthorized.value) {
-                checkInstalledComponents(context)
-            }
-        }
+        // 只需要调用stateManager的initialize方法
+        stateManager.initialize()
     }
 
     /** Refresh app status */
     fun refreshStatus(context: Context) {
-        viewModelScope.launch {
-            _uiState.update { currentState ->
-                currentState.copy(isRefreshing = mutableStateOf(true))
-            }
-
-            initializeState(context)
-        }
+        stateManager.refreshStatus()
     }
 
     /** Check Termux authorization state */
     fun checkTermuxAuthState(context: Context) {
-        viewModelScope.launch {
-            // Check if Termux is authorized
-            // Implementation depends on your specific requirements
-
-            // Placeholder for actual implementation
-            val isAuthorized = false // Replace with actual check
-
-            _uiState.update { currentState ->
-                currentState.copy(isTermuxAuthorized = mutableStateOf(isAuthorized))
-            }
-
-            if (isAuthorized) {
-                checkInstalledComponents(context)
-            }
-        }
+        stateManager.checkTermuxAuthState()
     }
 
     /** Check installed components in Termux */
     fun checkInstalledComponents(context: Context) {
-        viewModelScope.launch {
-            // Check for installed components in Termux
-            // Implementation depends on your specific requirements
-
-            // Placeholder for actual implementation
-            updateConfigStatus(getTermuxConfigStatus(context))
-        }
+        stateManager.checkInstalledComponents()
     }
 
-    /** Update component status */
+    /** Update configuration status and components */
     fun updateSourceStatus(isEnabled: Boolean) {
-        isTunaSourceEnabled = isEnabled
+        stateManager.updateSourceStatus(isEnabled)
     }
 
     fun updatePythonStatus(isInstalled: Boolean) {
-        isPythonInstalled = isInstalled
+        stateManager.updatePythonStatus(isInstalled)
     }
 
     fun updateUvStatus(isInstalled: Boolean) {
-        isUvInstalled = isInstalled
+        stateManager.updateUvStatus(isInstalled)
     }
 
     fun updateNodeStatus(isInstalled: Boolean) {
-        isNodeInstalled = isInstalled
+        stateManager.updateNodeStatus(isInstalled)
     }
 
     fun updateBatteryStatus(isExempted: Boolean) {
-        isTermuxBatteryOptimizationExempted = isExempted
+        stateManager.updateBatteryStatus(isExempted)
     }
 
     fun updateConfigStatus(isConfigured: Boolean) {
-        isTermuxFullyConfigured = isConfigured
+        stateManager.updateConfigStatus(isConfigured)
     }
 
     /** Update output text */
     fun updateOutputText(text: String) {
-        outputText = text
+        stateManager.updateOutputText(text)
     }
 
-    /** Start configuration process */
+    /** Configuration management */
     fun startConfiguration(taskName: String) {
-        isTermuxConfiguring = true
-        currentTask = taskName
-        showResultDialog(taskName, outputText)
+        stateManager.startConfiguration(taskName)
     }
 
-    /** End configuration process */
     fun endConfiguration() {
-        isTermuxConfiguring = false
-        currentTask = ""
-        hideResultDialog()
+        stateManager.endConfiguration()
     }
 
-    /** Show result dialog */
+    /** Dialog management */
     fun showResultDialog(title: String, content: String) {
-        _uiState.update { currentState ->
-            currentState.copy(
-                    resultDialogTitle = mutableStateOf(title),
-                    resultDialogContent = mutableStateOf(content),
-                    showResultDialogState = mutableStateOf(true)
-            )
-        }
+        stateManager.showResultDialog(title, content)
     }
 
-    /** Hide result dialog */
     fun hideResultDialog() {
-        _uiState.update { currentState ->
-            currentState.copy(showResultDialogState = mutableStateOf(false))
-        }
+        stateManager.hideResultDialog()
     }
 
-    /** Toggle wizard visibility */
+    /** UI visibility toggles */
     fun toggleShizukuWizard() {
-        _uiState.update { currentState ->
-            currentState.copy(
-                    showShizukuWizard = mutableStateOf(!currentState.showShizukuWizard.value)
-            )
-        }
+        stateManager.toggleShizukuWizard()
     }
 
     fun toggleTermuxWizard() {
-        _uiState.update { currentState ->
-            currentState.copy(
-                    showTermuxWizard = mutableStateOf(!currentState.showTermuxWizard.value)
-            )
-        }
+        stateManager.toggleTermuxWizard()
     }
 
-    /** Toggle command executor visibility */
     fun toggleAdbCommandExecutor() {
-        _uiState.update { currentState ->
-            currentState.copy(
-                    showAdbCommandExecutor =
-                            mutableStateOf(!currentState.showAdbCommandExecutor.value)
-            )
-        }
+        stateManager.toggleAdbCommandExecutor()
     }
 
     fun toggleTermuxCommandExecutor() {
-        _uiState.update { currentState ->
-            currentState.copy(
-                    showTermuxCommandExecutor =
-                            mutableStateOf(!currentState.showTermuxCommandExecutor.value)
-            )
-        }
+        stateManager.toggleTermuxCommandExecutor()
+    }
+
+    fun toggleSampleCommands() {
+        stateManager.toggleSampleCommands()
+    }
+
+    /** Command handling */
+    fun updateCommandText(text: String) {
+        stateManager.updateCommandText(text)
     }
 
     /** Functional operations */
@@ -289,22 +137,18 @@ class ShizukuDemoViewModel : ViewModel() {
 
             try {
                 // Check if Termux is running
-                val isRunning = checkTermuxRunning(context)
-                isTermuxRunning = isRunning
-
-                if (!isRunning) {
-                    updateOutputText("${outputText}\nTermux未运行，请先启动Termux")
+                if (!isTermuxRunning.value) {
+                    updateOutputText("${outputText.value}\nTermux未运行，请先启动Termux")
                     Toast.makeText(context, "请先启动Termux", Toast.LENGTH_SHORT).show()
                     return@launch
                 }
 
                 // Implementation of configureTunaSource
-                // This is a placeholder for the actual implementation
-                updateOutputText("${outputText}\n开始配置清华源...")
+                updateOutputText("${outputText.value}\n开始配置清华源...")
 
                 // Simulate configuration
                 updateSourceStatus(true)
-                updateOutputText("${outputText}\n清华源配置成功")
+                updateOutputText("${outputText.value}\n清华源配置成功")
             } finally {
                 endConfiguration()
             }
@@ -317,22 +161,18 @@ class ShizukuDemoViewModel : ViewModel() {
 
             try {
                 // Check if Termux is running
-                val isRunning = checkTermuxRunning(context)
-                isTermuxRunning = isRunning
-
-                if (!isRunning) {
-                    updateOutputText("${outputText}\nTermux未运行，请先启动Termux")
+                if (!isTermuxRunning.value) {
+                    updateOutputText("${outputText.value}\nTermux未运行，请先启动Termux")
                     Toast.makeText(context, "请先启动Termux", Toast.LENGTH_SHORT).show()
                     return@launch
                 }
 
                 // Implementation of installPython
-                // This is a placeholder for the actual implementation
-                updateOutputText("${outputText}\n开始安装Python...")
+                updateOutputText("${outputText.value}\n开始安装Python...")
 
                 // Simulate installation
                 updatePythonStatus(true)
-                updateOutputText("${outputText}\nPython安装成功")
+                updateOutputText("${outputText.value}\nPython安装成功")
             } finally {
                 endConfiguration()
             }
@@ -345,22 +185,18 @@ class ShizukuDemoViewModel : ViewModel() {
 
             try {
                 // Check if Termux is running
-                val isRunning = checkTermuxRunning(context)
-                isTermuxRunning = isRunning
-
-                if (!isRunning) {
-                    updateOutputText("${outputText}\nTermux未运行，请先启动Termux")
+                if (!isTermuxRunning.value) {
+                    updateOutputText("${outputText.value}\nTermux未运行，请先启动Termux")
                     Toast.makeText(context, "请先启动Termux", Toast.LENGTH_SHORT).show()
                     return@launch
                 }
 
                 // Implementation of installUv
-                // This is a placeholder for the actual implementation
-                updateOutputText("${outputText}\n开始安装UV...")
+                updateOutputText("${outputText.value}\n开始安装UV...")
 
                 // Simulate installation
                 updateUvStatus(true)
-                updateOutputText("${outputText}\nUV安装成功")
+                updateOutputText("${outputText.value}\nUV安装成功")
             } finally {
                 endConfiguration()
             }
@@ -373,22 +209,18 @@ class ShizukuDemoViewModel : ViewModel() {
 
             try {
                 // Check if Termux is running
-                val isRunning = checkTermuxRunning(context)
-                isTermuxRunning = isRunning
-
-                if (!isRunning) {
-                    updateOutputText("${outputText}\nTermux未运行，请先启动Termux")
+                if (!isTermuxRunning.value) {
+                    updateOutputText("${outputText.value}\nTermux未运行，请先启动Termux")
                     Toast.makeText(context, "请先启动Termux", Toast.LENGTH_SHORT).show()
                     return@launch
                 }
 
                 // Implementation of installNode
-                // This is a placeholder for the actual implementation
-                updateOutputText("${outputText}\n开始安装Node.js...")
+                updateOutputText("${outputText.value}\n开始安装Node.js...")
 
                 // Simulate installation
                 updateNodeStatus(true)
-                updateOutputText("${outputText}\nNode.js安装成功")
+                updateOutputText("${outputText.value}\nNode.js安装成功")
             } finally {
                 endConfiguration()
             }
@@ -401,20 +233,16 @@ class ShizukuDemoViewModel : ViewModel() {
 
             try {
                 // Check if Termux is running
-                val isRunning = checkTermuxRunning(context)
-                isTermuxRunning = isRunning
-
-                if (!isRunning) {
-                    updateOutputText("${outputText}\nTermux未运行，请先启动Termux")
+                if (!isTermuxRunning.value) {
+                    updateOutputText("${outputText.value}\nTermux未运行，请先启动Termux")
                     Toast.makeText(context, "请先启动Termux", Toast.LENGTH_SHORT).show()
                     return@launch
                 }
 
                 // Implementation of requestTermuxBatteryOptimization
-                // This would typically open the battery optimization settings
-                updateOutputText("${outputText}\n开始设置Termux电池优化豁免...")
-                updateOutputText("${outputText}\n已打开Termux电池优化设置页面。请在系统设置中点击「允许」以豁免Termux的电池优化。")
-                updateOutputText("${outputText}\n完成设置后，请返回本应用并点击刷新按钮检查状态。")
+                updateOutputText("${outputText.value}\n开始设置Termux电池优化豁免...")
+                updateOutputText("${outputText.value}\n已打开Termux电池优化设置页面。请在系统设置中点击「允许」以豁免Termux的电池优化。")
+                updateOutputText("${outputText.value}\n完成设置后，请返回本应用并点击刷新按钮检查状态。")
 
                 // Open battery optimization settings for Termux
                 try {
@@ -424,7 +252,7 @@ class ShizukuDemoViewModel : ViewModel() {
                             }
                     context.startActivity(intent)
                 } catch (e: Exception) {
-                    updateOutputText("${outputText}\n无法打开电池优化设置: ${e.message}")
+                    updateOutputText("${outputText.value}\n无法打开电池优化设置: ${e.message}")
                 }
             } finally {
                 endConfiguration()
@@ -438,15 +266,10 @@ class ShizukuDemoViewModel : ViewModel() {
 
             try {
                 // Implementation of authorizeTermux
-                // This is a placeholder for the actual implementation
-                updateOutputText("${outputText}\n开始授权Termux...")
+                updateOutputText("${outputText.value}\n开始授权Termux...")
 
-                // Simulate authorization
-                _uiState.update { currentState ->
-                    currentState.copy(isTermuxAuthorized = mutableStateOf(true))
-                }
-
-                updateOutputText("${outputText}\nTermux授权成功")
+                // After successful authorization
+                updateOutputText("${outputText.value}\nTermux授权成功")
 
                 // Check installed components after successful authorization
                 checkInstalledComponents(context)
@@ -462,7 +285,7 @@ class ShizukuDemoViewModel : ViewModel() {
                 val intent = context.packageManager.getLaunchIntentForPackage("com.termux")
                 if (intent != null) {
                     context.startActivity(intent)
-                    isTermuxRunning = true
+                    stateManager.isTermuxRunning.value = true
                 } else {
                     Toast.makeText(context, "无法找到Termux应用", Toast.LENGTH_SHORT).show()
                 }
@@ -472,83 +295,45 @@ class ShizukuDemoViewModel : ViewModel() {
         }
     }
 
-    /** Utility functions */
-    private fun isPackageInstalled(context: Context, packageName: String): Boolean {
-        return try {
-            context.packageManager.getPackageInfo(packageName, 0)
-            true
-        } catch (e: Exception) {
-            false
-        }
-    }
+    fun executeAdbCommand() {
+        viewModelScope.launch {
+            // Update result text to indicate execution in progress
+            stateManager.updateResultText("执行中...")
 
-    private fun checkTermuxRunning(context: Context): Boolean {
-        // Check if Termux is running
-        // This is a placeholder for the actual implementation
-        return isPackageInstalled(context, "com.termux") // Replace with actual check
+            try {
+                // Execute the command
+                val commandText = uiState.value.commandText.value
+                val result = AndroidShellExecutor.executeAdbCommand(commandText)
+
+                // Update with the result
+                stateManager.updateResultText(
+                    if (result.success) {
+                        "命令执行成功:\n${result.stdout}"
+                    } else {
+                        "命令执行失败 (退出码: ${result.exitCode}):\n${result.stderr}"
+                    }
+                )
+            } catch (e: Exception) {
+                // Handle execution errors
+                stateManager.updateResultText("命令执行出错: ${e.message}")
+            }
+        }
     }
 
     /** Cleanup when ViewModel is cleared */
     override fun onCleared() {
         super.onCleared()
-        // Cleanup resources if needed
+        stateManager.cleanup()
     }
 
     /** ViewModelFactory for creating ShizukuDemoViewModel with dependencies */
-    class Factory : ViewModelProvider.Factory {
+    class Factory(private val application: Application) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(ShizukuDemoViewModel::class.java)) {
-                return ShizukuDemoViewModel() as T
+                return ShizukuDemoViewModel(application) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class")
-        }
-    }
-
-    /** Command handling methods */
-    fun updateCommandText(text: String) {
-        _uiState.update { currentState -> currentState.copy(commandText = mutableStateOf(text)) }
-    }
-
-    fun toggleSampleCommands() {
-        _uiState.update { currentState ->
-            currentState.copy(
-                    showSampleCommands = mutableStateOf(!currentState.showSampleCommands.value)
-            )
-        }
-    }
-
-    fun executeAdbCommand() {
-        viewModelScope.launch {
-            // Update result text to indicate execution in progress
-            _uiState.update { currentState ->
-                currentState.copy(resultText = mutableStateOf("执行中..."))
-            }
-
-            try {
-                // Execute the command
-                val result =
-                        AndroidShellExecutor.executeAdbCommand(_uiState.value.commandText.value)
-
-                // Update with the result
-                _uiState.update { currentState ->
-                    currentState.copy(
-                            resultText =
-                                    mutableStateOf(
-                                            if (result.success) {
-                                                "命令执行成功:\n${result.stdout}"
-                                            } else {
-                                                "命令执行失败 (退出码: ${result.exitCode}):\n${result.stderr}"
-                                            }
-                                    )
-                    )
-                }
-            } catch (e: Exception) {
-                // Handle execution errors
-                _uiState.update { currentState ->
-                    currentState.copy(resultText = mutableStateOf("命令执行出错: ${e.message}"))
-                }
-            }
         }
     }
 }

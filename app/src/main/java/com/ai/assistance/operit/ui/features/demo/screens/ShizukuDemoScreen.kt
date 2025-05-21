@@ -32,7 +32,9 @@ import java.io.FileOutputStream
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ShizukuDemoScreen(
-    viewModel: ShizukuDemoViewModel = viewModel(factory = ShizukuDemoViewModel.Factory())
+    viewModel: ShizukuDemoViewModel = viewModel(
+        factory = ShizukuDemoViewModel.Factory(LocalContext.current.applicationContext as android.app.Application)
+    )
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -107,35 +109,21 @@ fun ShizukuDemoScreen(
                     onToggleWizard = { viewModel.toggleShizukuWizard() },
                     onInstallFromStore = {
                         try {
-                            val intent =
-                                    Intent(
-                                            Intent.ACTION_VIEW,
-                                            Uri.parse(
-                                                    "market://details?id=moe.shizuku.privileged.api"
-                                            )
+                            val intent = Intent(Intent.ACTION_VIEW)
+                            intent.data =
+                                    Uri.parse(
+                                            "https://shizuku.rikka.app/zh-hans/download/"
                                     )
                             context.startActivity(intent)
                         } catch (e: Exception) {
-                            // 如果没有安装应用市场，打开浏览器
-                            val intent =
-                                    Intent(
-                                            Intent.ACTION_VIEW,
-                                            Uri.parse(
-                                                    "https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api"
-                                            )
-                                    )
-                            context.startActivity(intent)
+                            Toast.makeText(context, "无法打开下载链接", Toast.LENGTH_SHORT).show()
                         }
                     },
                     onInstallBundled = {
                         try {
-                            if (com.ai.assistance.operit.core.tools.system.ShizukuInstaller.installBundledShizuku(context)) {
-                                Toast.makeText(context, "正在安装内置版本...", Toast.LENGTH_LONG).show()
-                            } else {
-                                Toast.makeText(context, "安装失败", Toast.LENGTH_SHORT).show()
-                            }
+                            Toast.makeText(context, "安装内置版本功能暂未实现", Toast.LENGTH_SHORT).show()
                         } catch (e: Exception) {
-                            Toast.makeText(context, "安装失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "安装失败", Toast.LENGTH_SHORT).show()
                         }
                     },
                     onOpenShizuku = {
@@ -177,114 +165,56 @@ fun ShizukuDemoScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        // Termux向导卡片 - 只有在需要配置时才显示
+        // Termux向导卡片 - 如果Termux未完全设置则显示
         if (!uiState.isTermuxInstalled.value ||
-                        !uiState.isTermuxAuthorized.value ||
-                        !viewModel.isTermuxFullyConfigured
+                !uiState.isTermuxAuthorized.value ||
+                !viewModel.isTermuxFullyConfigured.value
         ) {
             TermuxWizardCard(
                     isTermuxInstalled = uiState.isTermuxInstalled.value,
                     isTermuxAuthorized = uiState.isTermuxAuthorized.value,
                     showWizard = uiState.showTermuxWizard.value,
                     onToggleWizard = { viewModel.toggleTermuxWizard() },
-                    // 添加新的状态参数 - 如果持久化记录显示已配置，则直接显示为已配置
-                    isTunaSourceEnabled =
-                            viewModel.isTermuxFullyConfigured || viewModel.isTunaSourceEnabled,
-                    isPythonInstalled = viewModel.isTermuxFullyConfigured || viewModel.isPythonInstalled,
-                    isUvInstalled = viewModel.isTermuxFullyConfigured || viewModel.isUvInstalled,
-                    isNodeInstalled = viewModel.isTermuxFullyConfigured || viewModel.isNodeInstalled,
-                    isTermuxRunning = viewModel.isTermuxRunning,
-                    // 添加电池优化豁免状态
-                    isTermuxBatteryOptimizationExempted =
-                            viewModel.isTermuxFullyConfigured ||
-                                    viewModel.isTermuxBatteryOptimizationExempted,
-                    // 添加启动Termux的回调
-                    onStartTermux = { viewModel.startTermux(context) },
-                    // 添加电池优化豁免的回调
-                    onRequestTermuxBatteryOptimization = { viewModel.requestTermuxBatteryOptimization(context) },
-                    // 添加新的回调函数
-                    onConfigureTunaSource = {
-                        if (!viewModel.isTermuxConfiguring) {
-                            viewModel.configureTunaSource(context)
-                        } else {
-                            Toast.makeText(context, "请等待当前配置完成", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    onInstallPythonEnv = {
-                        if (!viewModel.isTermuxConfiguring) {
-                            viewModel.installPython(context)
-                        } else {
-                            Toast.makeText(context, "请等待当前配置完成", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    onInstallUvEnv = {
-                        if (!viewModel.isTermuxConfiguring) {
-                            viewModel.installUv(context)
-                        } else {
-                            Toast.makeText(context, "请等待当前配置完成", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    onInstallNodeEnv = {
-                        if (!viewModel.isTermuxConfiguring) {
-                            viewModel.installNode(context)
-                        } else {
-                            Toast.makeText(context, "请等待当前配置完成", Toast.LENGTH_SHORT).show()
-                        }
-                    },
                     onInstallBundled = {
                         try {
-                            // 从assets目录提取Termux APK并安装
-                            val apkFile = File(context.cacheDir, "termux.apk")
-
-                            context.assets.open("termux.apk").use { inputStream ->
-                                FileOutputStream(apkFile).use { outputStream ->
-                                    val buffer = ByteArray(4 * 1024)
-                                    var read: Int
-                                    while (inputStream.read(buffer).also { read = it } != -1) {
-                                        outputStream.write(buffer, 0, read)
-                                    }
-                                    outputStream.flush()
-                                }
-                            }
-
-                            // 生成APK的URI，考虑文件提供者权限
-                            val apkUri =
-                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                                        FileProvider.getUriForFile(
-                                                context,
-                                                "${context.packageName}.fileprovider",
-                                                apkFile
-                                        )
-                                    } else {
-                                        Uri.fromFile(apkFile)
-                                    }
-
-                            // 创建安装意图
-                            val installIntent =
-                                    Intent(Intent.ACTION_VIEW).apply {
-                                        setDataAndType(
-                                                apkUri,
-                                                "application/vnd.android.package-archive"
-                                        )
-                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                        }
-                                    }
-
-                            // 启动安装界面
-                            context.startActivity(installIntent)
-                            Toast.makeText(context, "正在安装内置的Termux，请授予安装权限", Toast.LENGTH_LONG)
-                                    .show()
+                            val intent = Intent(Intent.ACTION_VIEW)
+                            intent.data =
+                                    Uri.parse(
+                                            "https://f-droid.org/packages/com.termux/"
+                                    )
+                            context.startActivity(intent)
                         } catch (e: Exception) {
-                            Toast.makeText(context, "安装内置Termux失败，请尝试从应用商店安装", Toast.LENGTH_SHORT)
-                                    .show()
+                            Toast.makeText(context, "无法打开下载链接", Toast.LENGTH_SHORT).show()
+                            try {
+                                Toast.makeText(context, "正在尝试下载APK", Toast.LENGTH_SHORT).show()
+                                val termuxDownloadUrl =
+                                        "https://github.com/termux/termux-app/releases/download/v0.118.0/termux-app_v0.118.0+github-debug_universal.apk"
+                                val intent = Intent(Intent.ACTION_VIEW)
+                                intent.data = Uri.parse(termuxDownloadUrl)
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                Toast.makeText(
+                                        context,
+                                        "无法自动下载，请手动前往 Termux 官网下载",
+                                        Toast.LENGTH_LONG
+                                ).show()
+                            }
                         }
                     },
-                    onOpenTermux = {
-                        viewModel.startTermux(context)
-                    },
-                    onAuthorizeTermux = { viewModel.authorizeTermux(context) }
+                    onOpenTermux = { viewModel.startTermux(context) },
+                    onAuthorizeTermux = { viewModel.authorizeTermux(context) },
+                    isTunaSourceEnabled = viewModel.isTunaSourceEnabled.value,
+                    isPythonInstalled = viewModel.isPythonInstalled.value,
+                    isUvInstalled = viewModel.isUvInstalled.value,
+                    isNodeInstalled = viewModel.isNodeInstalled.value,
+                    isTermuxRunning = viewModel.isTermuxRunning.value,
+                    isTermuxBatteryOptimizationExempted = viewModel.isTermuxBatteryOptimizationExempted.value,
+                    onStartTermux = { viewModel.startTermux(context) },
+                    onRequestTermuxBatteryOptimization = { viewModel.requestTermuxBatteryOptimization(context) },
+                    onConfigureTunaSource = { viewModel.configureTunaSource(context) },
+                    onInstallPythonEnv = { viewModel.installPython(context) },
+                    onInstallUvEnv = { viewModel.installUv(context) },
+                    onInstallNodeEnv = { viewModel.installNode(context) }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -304,26 +234,34 @@ fun ShizukuDemoScreen(
                 hasShizukuPermission = uiState.hasShizukuPermission.value,
                 isTermuxInstalled = uiState.isTermuxInstalled.value,
                 isTermuxAuthorized = uiState.isTermuxAuthorized.value,
-                isTermuxRunning = viewModel.isTermuxRunning,
+                isTermuxRunning = viewModel.isTermuxRunning.value,
                 onStoragePermissionClick = {
                     try {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                            val intent =
-                                    Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
-                                            .apply {
-                                                addCategory("android.intent.category.DEFAULT")
-                                                data = Uri.parse("package:${context.packageName}")
-                                            }
+                            // Android 11+: Go to manage all files permission page
+                            val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
                             context.startActivity(intent)
                         } else {
+                            // Android 10-: Go to app settings page
                             val intent =
-                                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                        data = Uri.parse("package:${context.packageName}")
-                                    }
+                                    Intent(
+                                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                            Uri.parse("package:" + context.packageName)
+                                    )
                             context.startActivity(intent)
                         }
                     } catch (e: Exception) {
-                        Toast.makeText(context, "无法打开存储权限设置", Toast.LENGTH_SHORT).show()
+                        // Fall back to app settings
+                        try {
+                            val intent =
+                                    Intent(
+                                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                            Uri.parse("package:" + context.packageName)
+                                    )
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "无法打开权限设置", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 },
                 onOverlayPermissionClick = {
@@ -331,18 +269,18 @@ fun ShizukuDemoScreen(
                         val intent =
                                 Intent(
                                         Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                        Uri.parse("package:${context.packageName}")
+                                        Uri.parse("package:" + context.packageName)
                                 )
                         context.startActivity(intent)
                     } catch (e: Exception) {
-                        Toast.makeText(context, "无法打开悬浮窗权限设置", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "无法打开悬浮窗设置", Toast.LENGTH_SHORT).show()
                     }
                 },
                 onBatteryOptimizationClick = {
                     try {
                         val intent =
                                 Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                    data = Uri.parse("package:${context.packageName}")
+                                    data = Uri.parse("package:" + context.packageName)
                                 }
                         context.startActivity(intent)
                     } catch (e: Exception) {
@@ -350,29 +288,21 @@ fun ShizukuDemoScreen(
                     }
                 },
                 onAccessibilityClick = {
-                    // 不鼓励使用
+                    try {
+                        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "无法打开无障碍服务设置", Toast.LENGTH_SHORT).show()
+                    }
                 },
                 onLocationPermissionClick = {
-                    if (!uiState.hasLocationPermission.value) {
-                        // 直接请求位置权限，而不是跳转到设置页面
-                        locationPermissionLauncher.launch(
-                                arrayOf(
-                                        android.Manifest.permission.ACCESS_FINE_LOCATION,
-                                        android.Manifest.permission.ACCESS_COARSE_LOCATION
-                                )
-                        )
-                    } else {
-                        // 如果已有权限，可以跳转到设置页面进行管理
-                        try {
-                            val intent =
-                                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                        data = Uri.parse("package:${context.packageName}")
-                                    }
-                            context.startActivity(intent)
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "无法打开位置权限设置", Toast.LENGTH_SHORT).show()
-                        }
-                    }
+                    // 请求位置权限
+                    locationPermissionLauncher.launch(
+                            arrayOf(
+                                    android.Manifest.permission.ACCESS_FINE_LOCATION,
+                                    android.Manifest.permission.ACCESS_COARSE_LOCATION
+                            )
+                    )
                 },
                 onShizukuClick = {
                     // 短按时如果Shizuku未完全设置，则显示向导
@@ -391,7 +321,7 @@ fun ShizukuDemoScreen(
                     // 短按时处理Termux
                     if (!uiState.isTermuxInstalled.value ||
                                     !uiState.isTermuxAuthorized.value ||
-                                    !viewModel.isTermuxFullyConfigured
+                                    !viewModel.isTermuxFullyConfigured.value
                     ) {
                         // 如果未完全配置，显示向导
                         viewModel.toggleTermuxWizard()
@@ -406,10 +336,10 @@ fun ShizukuDemoScreen(
                 },
                 permissionErrorMessage = uiState.permissionErrorMessage.value,
                 // 添加Termux配置状态参数，将持久化状态融合进显示逻辑
-                isTunaSourceEnabled = viewModel.isTunaSourceEnabled || viewModel.isTermuxFullyConfigured,
-                isPythonInstalled = viewModel.isPythonInstalled || viewModel.isTermuxFullyConfigured,
-                isUvInstalled = viewModel.isUvInstalled || viewModel.isTermuxFullyConfigured,
-                isNodeInstalled = viewModel.isNodeInstalled || viewModel.isTermuxFullyConfigured
+                isTunaSourceEnabled = viewModel.isTunaSourceEnabled.value || viewModel.isTermuxFullyConfigured.value,
+                isPythonInstalled = viewModel.isPythonInstalled.value || viewModel.isTermuxFullyConfigured.value,
+                isUvInstalled = viewModel.isUvInstalled.value || viewModel.isTermuxFullyConfigured.value,
+                isNodeInstalled = viewModel.isNodeInstalled.value || viewModel.isTermuxFullyConfigured.value
         )
 
         // 显示长按提示
@@ -436,7 +366,7 @@ fun ShizukuDemoScreen(
             showDialog = uiState.showResultDialogState.value,
             onDismiss = {
                 // 只有当未在配置过程中时才允许手动关闭
-                if (!viewModel.isTermuxConfiguring) {
+                if (!viewModel.isTermuxConfiguring.value) {
                     viewModel.hideResultDialog()
                     // 重置输出文本，准备下一次操作
                     viewModel.updateOutputText("欢迎使用Termux配置工具\n点击对应按钮开始配置")
@@ -444,16 +374,16 @@ fun ShizukuDemoScreen(
             },
             title = uiState.resultDialogTitle.value,
             content =
-                    if (viewModel.isTermuxConfiguring) {
+                    if (viewModel.isTermuxConfiguring.value) {
                         // 当正在配置时，显示实时输出
-                        "${viewModel.outputText}\n\n${if (viewModel.currentTask.isNotEmpty()) "正在执行: ${viewModel.currentTask}..." else ""}"
+                        "${viewModel.outputText.value}\n\n${if (viewModel.currentTask.value.isNotEmpty()) "正在执行: ${viewModel.currentTask.value}..." else ""}"
                     } else {
                         // 当配置完成时，显示最终结果
-                        viewModel.outputText
+                        viewModel.outputText.value
                     },
             context = context,
             // 当正在配置时不显示按钮，不可复制，配置完成后恢复按钮
-            showButtons = !viewModel.isTermuxConfiguring,
-            allowCopy = !viewModel.isTermuxConfiguring
+            showButtons = !viewModel.isTermuxConfiguring.value,
+            allowCopy = !viewModel.isTermuxConfiguring.value
     )
 }

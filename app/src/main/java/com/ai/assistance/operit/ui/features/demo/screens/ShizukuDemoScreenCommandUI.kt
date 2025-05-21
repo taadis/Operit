@@ -53,27 +53,37 @@ fun ShizukuDemoScreenCommandUI(
                         else "无法使用ADB命令功能"
         )
     }
-
-    // Termux命令执行器 - 只在用户长按Termux状态时显示
-    if (uiState.showTermuxCommandExecutor.value && uiState.isTermuxInstalled.value) {
+    
+    // Termux命令输入部分 - 只在用户长按Termux权限状态时显示
+    if (uiState.showTermuxCommandExecutor.value &&
+                        uiState.isTermuxInstalled.value &&
+                        uiState.isTermuxAuthorized.value &&
+                        viewModel.isTermuxRunning.value
+    ) {
         TermuxCommandExecutor(
                 isTermuxAuthorized = uiState.isTermuxAuthorized.value,
                 commandText = uiState.commandText.value,
-                onCommandTextChange = { 
+                onCommandTextChange = {
                     viewModel.updateCommandText(it)
                 },
                 showSampleCommands = uiState.showSampleCommands.value,
                 onToggleSampleCommands = {
                     viewModel.toggleSampleCommands()
                 },
-                onSampleCommandSelected = { 
+                onSampleCommandSelected = {
                     viewModel.updateCommandText(it)
                 },
                 onAuthorizeTermux = {
                     viewModel.authorizeTermux(context)
                 }
         )
-    } else if (uiState.showTermuxCommandExecutor.value && !uiState.isTermuxInstalled.value) {
-        FeatureErrorCard(message = "请先安装Termux应用")
+    } else if (uiState.showTermuxCommandExecutor.value) {
+        FeatureErrorCard(
+                message =
+                        if (!uiState.isTermuxInstalled.value) "请先安装Termux"
+                        else if (!uiState.isTermuxAuthorized.value) "请先授权Termux"
+                        else if (!viewModel.isTermuxRunning.value) "请先启动Termux"
+                        else "无法使用Termux命令功能"
+        )
     }
 } 

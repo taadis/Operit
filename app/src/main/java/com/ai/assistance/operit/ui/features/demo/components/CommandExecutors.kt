@@ -5,8 +5,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.ai.assistance.operit.ui.features.demo.model.sampleAdbCommands
-import com.ai.assistance.operit.ui.features.demo.model.termuxSampleCommands
+import com.ai.assistance.operit.ui.features.demo.state.sampleAdbCommands
+import com.ai.assistance.operit.ui.features.demo.state.termuxSampleCommands
 
 /** ADB command execution component */
 @Composable

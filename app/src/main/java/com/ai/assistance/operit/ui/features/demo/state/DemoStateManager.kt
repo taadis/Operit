@@ -1,0 +1,364 @@
+package com.ai.assistance.operit.ui.features.demo.state
+
+import android.content.Context
+import android.util.Log
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
+import com.ai.assistance.operit.core.tools.system.ShizukuAuthorizer
+import com.ai.assistance.operit.core.tools.system.termux.TermuxAuthorizer
+import com.ai.assistance.operit.core.tools.system.termux.TermuxInstaller
+import com.ai.assistance.operit.ui.features.demo.utils.TermuxDemoUtil
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+
+private const val TAG = "DemoStateManager"
+
+/**
+ * Consolidated state management for the demo screens. Handles state initialization, updates, and
+ * listeners for Shizuku and Termux features.
+ */
+class DemoStateManager(private val context: Context, private val coroutineScope: CoroutineScope) {
+    // Main UI state holder
+    private val _uiState = MutableStateFlow(DemoScreenState())
+    val uiState: StateFlow<DemoScreenState> = _uiState.asStateFlow()
+
+    // Termux configuration states
+    var isTunaSourceEnabled = mutableStateOf(false)
+    var isPythonInstalled = mutableStateOf(false)
+    var isUvInstalled = mutableStateOf(false)
+    var isNodeInstalled = mutableStateOf(false)
+    var isTermuxBatteryOptimizationExempted = mutableStateOf(false)
+    var isTermuxFullyConfigured = mutableStateOf(false)
+    var isTermuxRunning = mutableStateOf(false)
+    var isTermuxConfiguring = mutableStateOf(false)
+
+    // Output text for commands and configuration operations
+    var outputText = mutableStateOf("欢迎使用Termux配置工具\n点击对应按钮开始配置")
+    var currentTask = mutableStateOf("")
+
+    // Shizuku/Termux state change listeners
+    private val shizukuListener: () -> Unit = {
+        refreshStatus()
+        checkTermuxAuthState()
+    }
+
+    private val termuxListener: () -> Unit = {
+        refreshStatus()
+        checkTermuxAuthState()
+    }
+
+    init {
+        // Register listeners for Shizuku and Termux state changes
+        ShizukuAuthorizer.addStateChangeListener(shizukuListener)
+        TermuxInstaller.addStateChangeListener(termuxListener)
+    }
+
+    /** Initialize state */
+    fun initialize() {
+        coroutineScope.launch {
+            Log.d(TAG, "初始化状态...")
+
+            // 读取Termux配置持久化状态
+            isTermuxFullyConfigured.value = TermuxDemoUtil.getTermuxConfigStatus(context)
+
+            // 注册状态变更监听器
+            registerStateChangeListeners()
+
+            // 刷新所有权限状态
+            refreshStatus()
+        }
+    }
+
+    /** Refresh permissions and component status */
+    fun refreshStatus() {
+        _uiState.update { currentState -> currentState.copy(isRefreshing = mutableStateOf(true)) }
+
+        coroutineScope.launch {
+            try {
+                // Refresh permissions and status
+                TermuxDemoUtil.refreshPermissionsAndStatus(
+                        context = context,
+                        updateShizukuInstalled = { _uiState.value.isShizukuInstalled.value = it },
+                        updateShizukuRunning = { _uiState.value.isShizukuRunning.value = it },
+                        updateShizukuPermission = {
+                            _uiState.value.hasShizukuPermission.value = it
+                        },
+                        updateTermuxInstalled = { _uiState.value.isTermuxInstalled.value = it },
+                        updateTermuxRunning = { isTermuxRunning.value = it },
+                        updateStoragePermission = {
+                            _uiState.value.hasStoragePermission.value = it
+                        },
+                        updateLocationPermission = {
+                            _uiState.value.hasLocationPermission.value = it
+                        },
+                        updateOverlayPermission = {
+                            _uiState.value.hasOverlayPermission.value = it
+                        },
+                        updateBatteryOptimizationExemption = {
+                            _uiState.value.hasBatteryOptimizationExemption.value = it
+                        },
+                        updateAccessibilityServiceEnabled = {
+                            _uiState.value.hasAccessibilityServiceEnabled.value = it
+                        }
+                )
+
+                // Check Shizuku API_V23 permission
+                if (_uiState.value.isShizukuInstalled.value && _uiState.value.isShizukuRunning.value
+                ) {
+                    _uiState.value.hasShizukuPermission.value =
+                            ShizukuAuthorizer.hasShizukuPermission()
+
+                    if (!_uiState.value.hasShizukuPermission.value) {
+                        Log.d(TAG, "缺少Shizuku API_V23权限，显示Shizuku向导卡片")
+                        _uiState.value.showShizukuWizard.value = true
+                    }
+                } else {
+                    _uiState.value.hasShizukuPermission.value = false
+                    _uiState.value.showShizukuWizard.value = true
+                }
+
+                // Check Termux authorization status
+                checkTermuxAuthState()
+
+                // Give UI time to update
+                delay(300)
+            } catch (e: Exception) {
+                Log.e(TAG, "刷新状态时出错: ${e.message}", e)
+            } finally {
+                // Refresh complete
+                _uiState.update { currentState ->
+                    currentState.copy(isRefreshing = mutableStateOf(false))
+                }
+            }
+        }
+    }
+
+    /** Check Termux authorization state */
+    fun checkTermuxAuthState() {
+        coroutineScope.launch {
+            try {
+                // 检查是否存在一个运行中的Termux实例
+                val isRunning = TermuxDemoUtil.checkTermuxRunning(context)
+                isTermuxRunning.value = isRunning
+
+                // Update Termux authorization status
+                _uiState.value.isTermuxAuthorized.value =
+                        TermuxAuthorizer.isTermuxAuthorized(context)
+
+                // If Termux is not authorized, ensure the wizard card is shown
+                if (!_uiState.value.isTermuxAuthorized.value) {
+                    _uiState.value.showTermuxWizard.value = true
+                }
+
+                // Only check configurations if authorized
+                if (_uiState.value.isTermuxAuthorized.value) {
+                    checkInstalledComponents()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "检查Termux授权状态时出错: ${e.message}", e)
+            }
+        }
+    }
+
+    /** Check installed components */
+    fun checkInstalledComponents() {
+        coroutineScope.launch {
+            try {
+                // 读取持久化状态
+                isTermuxFullyConfigured.value = TermuxDemoUtil.getTermuxConfigStatus(context)
+
+                // Update individual component status
+                // Here you would implement logic to check each component
+                // For now, we'll use the consolidated status
+            } catch (e: Exception) {
+                Log.e(TAG, "检查已安装组件时出错: ${e.message}", e)
+            }
+        }
+    }
+
+    /** Update configuration status */
+    fun updateConfigStatus(isConfigured: Boolean) {
+        isTermuxFullyConfigured.value = isConfigured
+    }
+
+    /** Update component status */
+    fun updateSourceStatus(isEnabled: Boolean) {
+        isTunaSourceEnabled.value = isEnabled
+    }
+
+    fun updatePythonStatus(isInstalled: Boolean) {
+        isPythonInstalled.value = isInstalled
+    }
+
+    fun updateUvStatus(isInstalled: Boolean) {
+        isUvInstalled.value = isInstalled
+    }
+
+    fun updateNodeStatus(isInstalled: Boolean) {
+        isNodeInstalled.value = isInstalled
+    }
+
+    fun updateBatteryStatus(isExempted: Boolean) {
+        isTermuxBatteryOptimizationExempted.value = isExempted
+    }
+
+    /** Update UI state */
+    fun updateOutputText(text: String) {
+        outputText.value = text
+    }
+
+    fun startConfiguration(taskName: String) {
+        isTermuxConfiguring.value = true
+        currentTask.value = taskName
+        showResultDialog(taskName, outputText.value)
+    }
+
+    fun endConfiguration() {
+        isTermuxConfiguring.value = false
+        currentTask.value = ""
+        hideResultDialog()
+    }
+
+    /** Dialog management */
+    fun showResultDialog(title: String, content: String) {
+        _uiState.update { currentState ->
+            currentState.copy(
+                    resultDialogTitle = mutableStateOf(title),
+                    resultDialogContent = mutableStateOf(content),
+                    showResultDialogState = mutableStateOf(true)
+            )
+        }
+    }
+
+    fun hideResultDialog() {
+        _uiState.update { currentState ->
+            currentState.copy(showResultDialogState = mutableStateOf(false))
+        }
+    }
+
+    /** Toggle UI visibility */
+    fun toggleShizukuWizard() {
+        _uiState.update { currentState ->
+            currentState.copy(
+                    showShizukuWizard = mutableStateOf(!currentState.showShizukuWizard.value)
+            )
+        }
+    }
+
+    fun toggleTermuxWizard() {
+        _uiState.update { currentState ->
+            currentState.copy(
+                    showTermuxWizard = mutableStateOf(!currentState.showTermuxWizard.value)
+            )
+        }
+    }
+
+    fun toggleAdbCommandExecutor() {
+        _uiState.update { currentState ->
+            currentState.copy(
+                    showAdbCommandExecutor =
+                            mutableStateOf(!currentState.showAdbCommandExecutor.value)
+            )
+        }
+    }
+
+    fun toggleTermuxCommandExecutor() {
+        _uiState.update { currentState ->
+            currentState.copy(
+                    showTermuxCommandExecutor =
+                            mutableStateOf(!currentState.showTermuxCommandExecutor.value)
+            )
+        }
+    }
+
+    fun toggleSampleCommands() {
+        _uiState.update { currentState ->
+            currentState.copy(
+                    showSampleCommands = mutableStateOf(!currentState.showSampleCommands.value)
+            )
+        }
+    }
+
+    /** Command handling */
+    fun updateCommandText(text: String) {
+        _uiState.update { currentState -> currentState.copy(commandText = mutableStateOf(text)) }
+    }
+
+    fun updateResultText(text: String) {
+        _uiState.update { currentState -> currentState.copy(resultText = mutableStateOf(text)) }
+    }
+
+    /** Clean up resources */
+    fun cleanup() {
+        // Remove listeners
+        ShizukuAuthorizer.removeStateChangeListener(shizukuListener)
+        TermuxInstaller.removeStateChangeListener(termuxListener)
+    }
+
+    private fun registerStateChangeListeners() {
+        // Implementation of registerStateChangeListeners method
+    }
+}
+
+/** Data class to hold all UI state */
+data class DemoScreenState(
+        // Permission states
+        val isShizukuInstalled: MutableState<Boolean> = mutableStateOf(false),
+        val isShizukuRunning: MutableState<Boolean> = mutableStateOf(false),
+        val hasShizukuPermission: MutableState<Boolean> = mutableStateOf(false),
+        val isTermuxInstalled: MutableState<Boolean> = mutableStateOf(false),
+        val isTermuxAuthorized: MutableState<Boolean> = mutableStateOf(false),
+        val hasStoragePermission: MutableState<Boolean> = mutableStateOf(false),
+        val hasOverlayPermission: MutableState<Boolean> = mutableStateOf(false),
+        val hasBatteryOptimizationExemption: MutableState<Boolean> = mutableStateOf(false),
+        val hasAccessibilityServiceEnabled: MutableState<Boolean> = mutableStateOf(false),
+        val hasLocationPermission: MutableState<Boolean> = mutableStateOf(false),
+
+        // UI states
+        val isRefreshing: MutableState<Boolean> = mutableStateOf(false),
+        val showHelp: MutableState<Boolean> = mutableStateOf(false),
+        val permissionErrorMessage: MutableState<String?> = mutableStateOf(null),
+        val showSampleCommands: MutableState<Boolean> = mutableStateOf(false),
+        val showAdbCommandExecutor: MutableState<Boolean> = mutableStateOf(false),
+        val showTermuxCommandExecutor: MutableState<Boolean> = mutableStateOf(false),
+        val showShizukuWizard: MutableState<Boolean> = mutableStateOf(false),
+        val showTermuxWizard: MutableState<Boolean> = mutableStateOf(false),
+        val showResultDialogState: MutableState<Boolean> = mutableStateOf(false),
+
+        // Command execution
+        val commandText: MutableState<String> = mutableStateOf(""),
+        val resultText: MutableState<String> = mutableStateOf("结果将显示在这里"),
+        val resultDialogTitle: MutableState<String> = mutableStateOf(""),
+        val resultDialogContent: MutableState<String> = mutableStateOf("")
+)
+
+// Sample command lists that can be reused
+val sampleAdbCommands =
+        listOf(
+                "getprop ro.build.version.release" to "获取Android版本",
+                "pm list packages" to "列出已安装的应用包名",
+                "dumpsys battery" to "查看电池状态",
+                "settings list system" to "列出系统设置",
+                "am start -a android.intent.action.VIEW -d https://www.example.com" to "打开网页",
+                "dumpsys activity activities" to "查看活动的Activity",
+                "service list" to "列出系统服务",
+                "wm size" to "查看屏幕分辨率"
+        )
+
+// Predefined Termux commands
+val termuxSampleCommands =
+        listOf(
+                "echo 'Hello Termux'" to "打印Hello Termux",
+                "ls -la" to "列出文件和目录",
+                "whoami" to "显示当前用户",
+                "pkg update" to "更新包管理器",
+                "pkg install python" to "安装Python",
+                "termux-info" to "显示Termux信息",
+                "termux-notification -t '测试通知' -c '这是一条测试通知'" to "发送通知",
+                "termux-clipboard-get" to "获取剪贴板内容"
+        )
