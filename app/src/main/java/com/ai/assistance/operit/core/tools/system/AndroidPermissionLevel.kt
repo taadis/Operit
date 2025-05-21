@@ -11,8 +11,8 @@ package com.ai.assistance.operit.core.tools.system
 enum class AndroidPermissionLevel {
     STANDARD,      // 普通应用权限
     ACCESSIBILITY, // 无障碍服务权限
-    ADMIN,         // 管理员权限  
     DEBUGGER,      // 调试权限
+    ADMIN,         // 管理员权限  
     ROOT;          // Root权限
 
     companion object {
@@ -25,8 +25,8 @@ enum class AndroidPermissionLevel {
             return when(value?.uppercase()) {
                 "STANDARD" -> STANDARD
                 "ACCESSIBILITY" -> ACCESSIBILITY
-                "ADMIN" -> ADMIN
                 "DEBUGGER" -> DEBUGGER
+                "ADMIN" -> ADMIN
                 "ROOT" -> ROOT
                 else -> STANDARD // 默认为最低权限
             }

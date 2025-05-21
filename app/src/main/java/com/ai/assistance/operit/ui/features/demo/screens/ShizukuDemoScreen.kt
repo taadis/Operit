@@ -9,16 +9,18 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ai.assistance.operit.core.tools.system.AndroidPermissionLevel
 import com.ai.assistance.operit.core.tools.system.ShizukuAuthorizer
 import com.ai.assistance.operit.ui.features.demo.components.*
 import com.ai.assistance.operit.ui.features.demo.viewmodel.ShizukuDemoViewModel
@@ -35,15 +37,18 @@ fun ShizukuDemoScreen(
                                         LocalContext.current.applicationContext as
                                                 android.app.Application
                                 )
-    )
+                )
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
-    
+
     // Collect UI state from ViewModel
     val uiState by viewModel.uiState.collectAsState()
     
+    // 跟踪当前显示的权限级别
+    var currentDisplayedPermissionLevel by remember { mutableStateOf(AndroidPermissionLevel.STANDARD) }
+
     // Location permission launcher
     val locationPermissionLauncher =
             rememberLauncherForActivityResult(
@@ -56,7 +61,7 @@ fun ShizukuDemoScreen(
                 if (fineLocationGranted || coarseLocationGranted) {
                     viewModel.refreshStatus(context)
                 }
-    }
+            }
 
     // Register state change listeners
     DisposableEffect(Unit) {
@@ -65,7 +70,7 @@ fun ShizukuDemoScreen(
             viewModel.checkTermuxAuthState(context)
         }
         ShizukuAuthorizer.addStateChangeListener(shizukuListener)
-        
+
         onDispose { ShizukuAuthorizer.removeStateChangeListener(shizukuListener) }
     }
 
@@ -76,15 +81,7 @@ fun ShizukuDemoScreen(
             modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(scrollState),
             horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // 设备信息卡片
-        DeviceInfoCard(
-                androidVersion = Build.VERSION.RELEASE,
-                apiLevel = Build.VERSION.SDK_INT,
-                deviceModel = Build.MODEL,
-                manufacturer = Build.MANUFACTURER
-        )
-
-        // 权限级别卡片 - 新添加的组件
+        // 权限管理卡片
         PermissionLevelCard(
                 hasStoragePermission = uiState.hasStoragePermission.value,
                 hasOverlayPermission = uiState.hasOverlayPermission.value,
@@ -189,127 +186,182 @@ fun ShizukuDemoScreen(
                         // 如果已完全配置，尝试打开Termux
                         viewModel.startTermux(context)
                     }
+                },
+                onPermissionLevelChange = { level ->
+                    currentDisplayedPermissionLevel = level
                 }
         )
 
-        // Shizuku向导卡片 - 如果Shizuku未完全设置则显示
-        if (!uiState.isShizukuInstalled.value ||
-                        !uiState.isShizukuRunning.value ||
-                        !uiState.hasShizukuPermission.value
-        ) {
-            ShizukuWizardCard(
-                    isShizukuInstalled = uiState.isShizukuInstalled.value,
-                    isShizukuRunning = uiState.isShizukuRunning.value,
-                    hasShizukuPermission = uiState.hasShizukuPermission.value,
-                    showWizard = uiState.showShizukuWizard.value,
-                    onToggleWizard = { viewModel.toggleShizukuWizard() },
-                    onInstallFromStore = {
-                        try {
-                            val intent = Intent(Intent.ACTION_VIEW)
-                            intent.data = Uri.parse("https://shizuku.rikka.app/zh-hans/download/")
-                            context.startActivity(intent)
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "无法打开下载链接", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    onInstallBundled = {
-                        try {
-                            Toast.makeText(context, "安装内置版本功能暂未实现", Toast.LENGTH_SHORT).show()
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "安装失败", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    onOpenShizuku = {
-                        try {
-                            val intent =
-                                    context.packageManager.getLaunchIntentForPackage(
-                                            "moe.shizuku.privileged.api"
-                                    )
-                            if (intent != null) {
-                                context.startActivity(intent)
-                            } else {
-                                Toast.makeText(context, "无法找到Shizuku应用", Toast.LENGTH_SHORT).show()
-                            }
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "无法启动Shizuku应用", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    onWatchTutorial = {
-                        try {
-                            val videoUrl = "https://shizuku.rikka.app/zh-hans/guide/setup/"
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(videoUrl))
-                            context.startActivity(intent)
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "无法打开文档链接", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    onRequestPermission = {
-                        ShizukuAuthorizer.requestShizukuPermission { granted ->
-                            if (granted) {
-                                Toast.makeText(context, "Shizuku权限已授予", Toast.LENGTH_SHORT).show()
-                            } else {
-                                Toast.makeText(context, "Shizuku权限请求被拒绝", Toast.LENGTH_SHORT).show()
-                            }
-                            viewModel.refreshStatus(context)
-                        }
-                    }
+        // 组合向导卡片到一个专门的设置区域
+        val needTermuxSetupGuide = 
+                (!uiState.isTermuxInstalled.value ||
+                        !uiState.isTermuxAuthorized.value ||
+                        !viewModel.isTermuxFullyConfigured.value)
+        
+        val needShizukuSetupGuide =
+                currentDisplayedPermissionLevel == AndroidPermissionLevel.DEBUGGER && 
+                        (!uiState.isShizukuInstalled.value ||
+                         !uiState.isShizukuRunning.value ||
+                         !uiState.hasShizukuPermission.value)
+        
+        val needSetupGuide = needTermuxSetupGuide || needShizukuSetupGuide
+
+        if (needSetupGuide) {
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 修改为左对齐带图标的标题样式
+            Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.Start,
+                    verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                        imageVector = Icons.Default.Build,
+                        contentDescription = "设置向导图标",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                )
+
+                Spacer(modifier = Modifier.width(6.dp))
+
+                Text(
+                        text = "设置向导",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary
+                )
+            }
+            
+            // 添加分割线
+            Divider(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-
-        // Termux向导卡片 - 如果Termux未完全设置则显示
-        if (!uiState.isTermuxInstalled.value ||
-                        !uiState.isTermuxAuthorized.value ||
-                        !viewModel.isTermuxFullyConfigured.value
-        ) {
-            TermuxWizardCard(
-                    isTermuxInstalled = uiState.isTermuxInstalled.value,
-                    isTermuxAuthorized = uiState.isTermuxAuthorized.value,
-                    showWizard = uiState.showTermuxWizard.value,
-                    onToggleWizard = { viewModel.toggleTermuxWizard() },
-                    onInstallBundled = {
-                        try {
-                            val intent = Intent(Intent.ACTION_VIEW)
-                            intent.data = Uri.parse("https://f-droid.org/packages/com.termux/")
-                            context.startActivity(intent)
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "无法打开下载链接", Toast.LENGTH_SHORT).show()
+            // Shizuku向导卡片 - 如果正在浏览DEBUGGER权限级别且Shizuku未完全设置则显示
+            if (needShizukuSetupGuide) {
+                ShizukuWizardCard(
+                        isShizukuInstalled = uiState.isShizukuInstalled.value,
+                        isShizukuRunning = uiState.isShizukuRunning.value,
+                        hasShizukuPermission = uiState.hasShizukuPermission.value,
+                        showWizard = uiState.showShizukuWizard.value,
+                        onToggleWizard = { viewModel.toggleShizukuWizard() },
+                        onInstallFromStore = {
                             try {
-                                Toast.makeText(context, "正在尝试下载APK", Toast.LENGTH_SHORT).show()
-                                val termuxDownloadUrl =
-                                        "https://github.com/termux/termux-app/releases/download/v0.118.0/termux-app_v0.118.0+github-debug_universal.apk"
                                 val intent = Intent(Intent.ACTION_VIEW)
-                                intent.data = Uri.parse(termuxDownloadUrl)
+                                intent.data =
+                                        Uri.parse("https://shizuku.rikka.app/zh-hans/download/")
                                 context.startActivity(intent)
                             } catch (e: Exception) {
-                                Toast.makeText(
-                                                context,
-                                                "无法自动下载，请手动前往 Termux 官网下载",
-                                                Toast.LENGTH_LONG
+                                Toast.makeText(context, "无法打开下载链接", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        onInstallBundled = {
+                            try {
+                                Toast.makeText(context, "安装内置版本功能暂未实现", Toast.LENGTH_SHORT)
+                                        .show()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "安装失败", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        onOpenShizuku = {
+                            try {
+                                val intent =
+                                        context.packageManager.getLaunchIntentForPackage(
+                                                "moe.shizuku.privileged.api"
                                         )
+                                if (intent != null) {
+                                    context.startActivity(intent)
+                                } else {
+                                    Toast.makeText(context, "无法找到Shizuku应用", Toast.LENGTH_SHORT)
+                                            .show()
+                                }
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "无法启动Shizuku应用", Toast.LENGTH_SHORT)
                                         .show()
                             }
+                        },
+                        onWatchTutorial = {
+                            try {
+                                val videoUrl = "https://shizuku.rikka.app/zh-hans/guide/setup/"
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(videoUrl))
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "无法打开文档链接", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        onRequestPermission = {
+                            ShizukuAuthorizer.requestShizukuPermission { granted ->
+                                if (granted) {
+                                    Toast.makeText(context, "Shizuku权限已授予", Toast.LENGTH_SHORT)
+                                            .show()
+                                } else {
+                                    Toast.makeText(
+                                                    context,
+                                                    "Shizuku权限请求被拒绝",
+                                                    Toast.LENGTH_SHORT
+                                            )
+                                            .show()
+                                }
+                                viewModel.refreshStatus(context)
+                            }
                         }
-                    },
-                    onOpenTermux = { viewModel.startTermux(context) },
-                    onAuthorizeTermux = { viewModel.authorizeTermux(context) },
-                    isTunaSourceEnabled = viewModel.isTunaSourceEnabled.value,
-                    isPythonInstalled = viewModel.isPythonInstalled.value,
-                    isUvInstalled = viewModel.isUvInstalled.value,
-                    isNodeInstalled = viewModel.isNodeInstalled.value,
-                    isTermuxRunning = viewModel.isTermuxRunning.value,
-                    isTermuxBatteryOptimizationExempted =
-                            viewModel.isTermuxBatteryOptimizationExempted.value,
-                    onStartTermux = { viewModel.startTermux(context) },
-                    onRequestTermuxBatteryOptimization = {
-                        viewModel.requestTermuxBatteryOptimization(context)
-                    },
-                    onConfigureTunaSource = { viewModel.configureTunaSource(context) },
-                    onInstallPythonEnv = { viewModel.installPython(context) },
-                    onInstallUvEnv = { viewModel.installUv(context) },
-                    onInstallNodeEnv = { viewModel.installNode(context) }
-            )
+                )
+                
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            // Termux向导卡片 - 如果Termux未完全设置则显示
+            if (needTermuxSetupGuide) {
+                TermuxWizardCard(
+                        isTermuxInstalled = uiState.isTermuxInstalled.value,
+                        isTermuxAuthorized = uiState.isTermuxAuthorized.value,
+                        showWizard = uiState.showTermuxWizard.value,
+                        onToggleWizard = { viewModel.toggleTermuxWizard() },
+                        onInstallBundled = {
+                            try {
+                                val intent = Intent(Intent.ACTION_VIEW)
+                                intent.data =
+                                        Uri.parse("https://f-droid.org/packages/com.termux/")
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "无法打开下载链接", Toast.LENGTH_SHORT).show()
+                                try {
+                                    Toast.makeText(context, "正在尝试下载APK", Toast.LENGTH_SHORT)
+                                            .show()
+                                    val termuxDownloadUrl =
+                                            "https://github.com/termux/termux-app/releases/download/v0.118.0/termux-app_v0.118.0+github-debug_universal.apk"
+                                    val intent = Intent(Intent.ACTION_VIEW)
+                                    intent.data = Uri.parse(termuxDownloadUrl)
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    Toast.makeText(
+                                                    context,
+                                                    "无法自动下载，请手动前往 Termux 官网下载",
+                                                    Toast.LENGTH_LONG
+                                            )
+                                            .show()
+                                }
+                            }
+                        },
+                        onOpenTermux = { viewModel.startTermux(context) },
+                        onAuthorizeTermux = { viewModel.authorizeTermux(context) },
+                        isTunaSourceEnabled = viewModel.isTunaSourceEnabled.value,
+                        isPythonInstalled = viewModel.isPythonInstalled.value,
+                        isUvInstalled = viewModel.isUvInstalled.value,
+                        isNodeInstalled = viewModel.isNodeInstalled.value,
+                        isTermuxRunning = viewModel.isTermuxRunning.value,
+                        isTermuxBatteryOptimizationExempted =
+                                viewModel.isTermuxBatteryOptimizationExempted.value,
+                        onStartTermux = { viewModel.startTermux(context) },
+                        onRequestTermuxBatteryOptimization = {
+                            viewModel.requestTermuxBatteryOptimization(context)
+                        },
+                        onConfigureTunaSource = { viewModel.configureTunaSource(context) },
+                        onInstallPythonEnv = { viewModel.installPython(context) },
+                        onInstallUvEnv = { viewModel.installUv(context) },
+                        onInstallNodeEnv = { viewModel.installNode(context) }
+                )
+            }
         }
     }
 
