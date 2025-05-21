@@ -1,21 +1,7 @@
 package com.ai.assistance.operit.core.tools
 
 import android.content.Context
-import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardFFmpegConvertToolExecutor
-import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardFFmpegInfoToolExecutor
-import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardFFmpegToolExecutor
-import com.ai.assistance.operit.core.tools.defaultTool.standard.FileConverterToolExecutor
-import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardProblemLibraryToolExecutor
-import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardCalculator
-import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardDeviceInfoToolExecutor
-import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardFileSystemTools
-import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardHttpTools
-import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardIntentToolExecutor
-import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardShellToolExecutor
-import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardSystemOperationTools
-import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardTerminalCommandExecutor
-import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardUITools
-import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardWebSearchTool
+import com.ai.assistance.operit.core.tools.defaultTool.ToolGetter
 import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.ui.permissions.ToolCategory
 import org.json.JSONArray
@@ -41,7 +27,7 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
                 "执行ADB Shell: $command"
             },
             executor = { tool ->
-                val adbTool = StandardShellToolExecutor(context)
+                val adbTool = ToolGetter.getShellToolExecutor(context)
                 adbTool.invoke(tool)
             }
     )
@@ -61,7 +47,7 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
                 }
             },
             executor = { tool ->
-                val terminalTool = StandardTerminalCommandExecutor(context)
+                val terminalTool = ToolGetter.getTerminalCommandExecutor(context)
                 terminalTool.invoke(tool)
             }
     )
@@ -76,7 +62,7 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
                 "查询问题库: $query"
             },
             executor = { tool ->
-                val problemLibraryTool = StandardProblemLibraryToolExecutor(context)
+                val problemLibraryTool = ToolGetter.getProblemLibraryToolExecutor(context)
                 problemLibraryTool.invoke(tool)
             }
     )
@@ -109,7 +95,7 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             executor = { tool ->
                 val expression = tool.parameters.find { it.name == "expression" }?.value ?: ""
                 try {
-                    val result = StandardCalculator.evalExpression(expression)
+                    val result = ToolGetter.getCalculator().evalExpression(expression)
                     ToolResult(
                             toolName = tool.name,
                             success = true,
@@ -135,7 +121,7 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
                 "网络搜索: $query"
             },
             executor = { tool ->
-                val webSearchTool = StandardWebSearchTool(context)
+                val webSearchTool = ToolGetter.getWebSearchTool(context)
                 webSearchTool.invoke(tool)
             }
     )
@@ -186,7 +172,7 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
                 }
             },
             executor = { tool ->
-                val intentTool = StandardIntentToolExecutor(context)
+                val intentTool = ToolGetter.getIntentToolExecutor(context)
                 kotlinx.coroutines.runBlocking { intentTool.invoke(tool) }
             }
     )
@@ -197,13 +183,13 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             category = ToolCategory.SYSTEM_OPERATION,
             descriptionGenerator = { _ -> "获取设备信息" },
             executor = { tool ->
-                val deviceInfoTool = StandardDeviceInfoToolExecutor(context)
+                val deviceInfoTool = ToolGetter.getDeviceInfoToolExecutor(context)
                 deviceInfoTool.invoke(tool)
             }
     )
 
     // 文件系统工具
-    val fileSystemTools = StandardFileSystemTools(context)
+    val fileSystemTools = ToolGetter.getFileSystemTools(context)
 
     // 列出目录内容
     handler.registerTool(
@@ -260,7 +246,7 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
     )
 
     // UI自动化工具
-    val uiTools = StandardUITools(context)
+    val uiTools = ToolGetter.getUITools(context)
 
     // 点击元素
     handler.registerTool(
@@ -328,7 +314,7 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
     )
 
     // HTTP请求工具
-    val httpTools = StandardHttpTools(context)
+    val httpTools = ToolGetter.getHttpTools(context)
 
     // 发送HTTP请求
     handler.registerTool(
@@ -532,7 +518,7 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
     )
 
     // 系统操作工具
-    val systemOperationTools = StandardSystemOperationTools(context)
+    val systemOperationTools = ToolGetter.getSystemOperationTools(context)
 
     // 修改系统设置
     handler.registerTool(
@@ -747,7 +733,7 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
                 "执行FFmpeg命令: $command"
             },
             executor = { tool ->
-                val ffmpegTool = StandardFFmpegToolExecutor(context)
+                val ffmpegTool = ToolGetter.getFFmpegToolExecutor(context)
                 ffmpegTool.invoke(tool)
             }
     )
@@ -758,7 +744,7 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             category = ToolCategory.FILE_READ,
             descriptionGenerator = { _ -> "获取FFmpeg信息" },
             executor = { tool ->
-                val ffmpegInfoTool = StandardFFmpegInfoToolExecutor()
+                val ffmpegInfoTool = ToolGetter.getFFmpegInfoToolExecutor()
                 ffmpegInfoTool.invoke(tool)
             }
     )
@@ -774,13 +760,13 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
                 "转换视频: $inputPath → $outputPath"
             },
             executor = { tool ->
-                val ffmpegConvertTool = StandardFFmpegConvertToolExecutor(context)
+                val ffmpegConvertTool = ToolGetter.getFFmpegConvertToolExecutor(context)
                 ffmpegConvertTool.invoke(tool)
             }
     )
 
     // 文件格式转换工具
-    val fileConverterTool = FileConverterToolExecutor(context)
+    val fileConverterTool = ToolGetter.getFileConverterToolExecutor(context)
 
     // 文件格式转换
     handler.registerTool(

@@ -54,7 +54,7 @@ class AndroidShellExecutor {
 
             // 尝试使用首选权限级别执行命令
             if (preferredExecutor.isAvailable() && permStatus.granted) {
-                Log.d(TAG, "Executing command with preferred permission level: $preferredLevel")
+                // Log.d(TAG, "Executing command with preferred permission level: $preferredLevel")
                 val result = preferredExecutor.executeCommand(command)
                 return CommandResult(result.success, result.stdout, result.stderr, result.exitCode)
             }

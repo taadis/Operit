@@ -9,7 +9,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
@@ -45,9 +44,11 @@ fun ShizukuDemoScreen(
 
     // Collect UI state from ViewModel
     val uiState by viewModel.uiState.collectAsState()
-    
+
     // 跟踪当前显示的权限级别
-    var currentDisplayedPermissionLevel by remember { mutableStateOf(AndroidPermissionLevel.STANDARD) }
+    var currentDisplayedPermissionLevel by remember {
+        mutableStateOf(AndroidPermissionLevel.STANDARD)
+    }
 
     // Location permission launcher
     val locationPermissionLauncher =
@@ -187,23 +188,25 @@ fun ShizukuDemoScreen(
                         viewModel.startTermux(context)
                     }
                 },
-                onPermissionLevelChange = { level ->
-                    currentDisplayedPermissionLevel = level
+                onPermissionLevelChange = { level -> currentDisplayedPermissionLevel = level },
+                onPermissionLevelSet = { level ->
+                    // 当设置了新的权限级别时，刷新工具
+                    viewModel.refreshTools(context)
                 }
         )
 
         // 组合向导卡片到一个专门的设置区域
-        val needTermuxSetupGuide = 
+        val needTermuxSetupGuide =
                 (!uiState.isTermuxInstalled.value ||
                         !uiState.isTermuxAuthorized.value ||
                         !viewModel.isTermuxFullyConfigured.value)
-        
+
         val needShizukuSetupGuide =
-                currentDisplayedPermissionLevel == AndroidPermissionLevel.DEBUGGER && 
+                currentDisplayedPermissionLevel == AndroidPermissionLevel.DEBUGGER &&
                         (!uiState.isShizukuInstalled.value ||
-                         !uiState.isShizukuRunning.value ||
-                         !uiState.hasShizukuPermission.value)
-        
+                                !uiState.isShizukuRunning.value ||
+                                !uiState.hasShizukuPermission.value)
+
         val needSetupGuide = needTermuxSetupGuide || needShizukuSetupGuide
 
         if (needSetupGuide) {
@@ -230,11 +233,11 @@ fun ShizukuDemoScreen(
                         color = MaterialTheme.colorScheme.primary
                 )
             }
-            
+
             // 添加分割线
             Divider(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
             )
 
             // Shizuku向导卡片 - 如果正在浏览DEBUGGER权限级别且Shizuku未完全设置则显示
@@ -257,8 +260,7 @@ fun ShizukuDemoScreen(
                         },
                         onInstallBundled = {
                             try {
-                                Toast.makeText(context, "安装内置版本功能暂未实现", Toast.LENGTH_SHORT)
-                                        .show()
+                                Toast.makeText(context, "安装内置版本功能暂未实现", Toast.LENGTH_SHORT).show()
                             } catch (e: Exception) {
                                 Toast.makeText(context, "安装失败", Toast.LENGTH_SHORT).show()
                             }
@@ -276,8 +278,7 @@ fun ShizukuDemoScreen(
                                             .show()
                                 }
                             } catch (e: Exception) {
-                                Toast.makeText(context, "无法启动Shizuku应用", Toast.LENGTH_SHORT)
-                                        .show()
+                                Toast.makeText(context, "无法启动Shizuku应用", Toast.LENGTH_SHORT).show()
                             }
                         },
                         onWatchTutorial = {
@@ -295,18 +296,14 @@ fun ShizukuDemoScreen(
                                     Toast.makeText(context, "Shizuku权限已授予", Toast.LENGTH_SHORT)
                                             .show()
                                 } else {
-                                    Toast.makeText(
-                                                    context,
-                                                    "Shizuku权限请求被拒绝",
-                                                    Toast.LENGTH_SHORT
-                                            )
+                                    Toast.makeText(context, "Shizuku权限请求被拒绝", Toast.LENGTH_SHORT)
                                             .show()
                                 }
                                 viewModel.refreshStatus(context)
                             }
                         }
                 )
-                
+
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
@@ -320,14 +317,12 @@ fun ShizukuDemoScreen(
                         onInstallBundled = {
                             try {
                                 val intent = Intent(Intent.ACTION_VIEW)
-                                intent.data =
-                                        Uri.parse("https://f-droid.org/packages/com.termux/")
+                                intent.data = Uri.parse("https://f-droid.org/packages/com.termux/")
                                 context.startActivity(intent)
                             } catch (e: Exception) {
                                 Toast.makeText(context, "无法打开下载链接", Toast.LENGTH_SHORT).show()
                                 try {
-                                    Toast.makeText(context, "正在尝试下载APK", Toast.LENGTH_SHORT)
-                                            .show()
+                                    Toast.makeText(context, "正在尝试下载APK", Toast.LENGTH_SHORT).show()
                                     val termuxDownloadUrl =
                                             "https://github.com/termux/termux-app/releases/download/v0.118.0/termux-app_v0.118.0+github-debug_universal.apk"
                                     val intent = Intent(Intent.ACTION_VIEW)

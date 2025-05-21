@@ -10,7 +10,6 @@ import com.ai.assistance.operit.core.tools.FileInfoData
 import com.ai.assistance.operit.core.tools.FileOperationData
 import com.ai.assistance.operit.core.tools.FindFilesResultData
 import com.ai.assistance.operit.core.tools.StringResultData
-import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolParameter
 import com.ai.assistance.operit.data.model.ToolResult
@@ -19,879 +18,779 @@ import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.io.IOException
+import java.net.HttpURLConnection
+import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 /**
- * Collection of file system operation tools for the AI assistant These tools leverage the
- * AdbCommandExecutor to perform operations safely
+ * Collection of file system operation tools for the AI assistant These tools use Java File APIs for
+ * file operations
  */
-open class StandardFileSystemTools(private val context: Context) {
-        companion object {
-                private const val TAG = "FileSystemTools"
+open class StandardFileSystemTools(protected val context: Context) {
+    companion object {
+        private const val TAG = "FileSystemTools"
 
-                // Maximum allowed file size for operations
-                protected const val MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024 // 10MB
+        // Maximum allowed file size for operations
+        protected const val MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024 // 10MB
+    }
+
+    /** List files in a directory */
+    open suspend fun listFiles(tool: AITool): ToolResult {
+        val path = tool.parameters.find { it.name == "path" }?.value ?: ""
+
+        if (path.isBlank()) {
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Path parameter is required"
+            )
         }
 
-        /** List files in a directory */
-        suspend fun listFiles(tool: AITool): ToolResult {
-                val path = tool.parameters.find { it.name == "path" }?.value ?: ""
+        return try {
+            val directory = File(path)
 
-                if (path.isBlank()) {
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result = StringResultData(""),
-                                error = "Path parameter is required"
-                        )
+            if (!directory.exists()) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "Directory does not exist: $path"
+                )
+            }
+
+            if (!directory.isDirectory) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "Path is not a directory: $path"
+                )
+            }
+
+            val entries = mutableListOf<DirectoryListingData.FileEntry>()
+            val files = directory.listFiles() ?: emptyArray()
+
+            val dateFormat = SimpleDateFormat("MMM dd HH:mm", Locale.US)
+
+            for (file in files) {
+                if (file.name != "." && file.name != "..") {
+                    entries.add(
+                            DirectoryListingData.FileEntry(
+                                    name = file.name,
+                                    isDirectory = file.isDirectory,
+                                    size = file.length(),
+                                    permissions = getFilePermissions(file),
+                                    lastModified = dateFormat.format(Date(file.lastModified()))
+                            )
+                    )
                 }
+            }
 
-                return try {
-                        // 首先尝试使用基本的ls命令
-                        Log.d(TAG, "Trying basic ls command for path: $path")
-                        val basicResult = AndroidShellExecutor.executeAdbCommand("ls \"$path\"")
+            Log.d(TAG, "Listed ${entries.size} entries in directory $path")
 
-                        if (basicResult.success) {
-                                Log.d(TAG, "Basic ls command output: ${basicResult.stdout}")
+            return ToolResult(
+                    toolName = tool.name,
+                    success = true,
+                    result = DirectoryListingData(path, entries),
+                    error = ""
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error listing directory", e)
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Error listing directory: ${e.message}"
+            )
+        }
+    }
 
-                                // 解析基本ls命令输出
-                                val entries = parseBasicDirectoryListing(basicResult.stdout, path)
+    /** Get file permissions as a string like "rwxr-xr-x" */
+    protected fun getFilePermissions(file: File): String {
+        // Java has limited capabilities for getting Unix-style file permissions
+        // This is a simplified version that checks basic permissions
+        val canRead = if (file.canRead()) 'r' else '-'
+        val canWrite = if (file.canWrite()) 'w' else '-'
+        val canExecute = if (file.canExecute()) 'x' else '-'
 
-                                Log.d(TAG, "Parsed ${entries.size} entries from basic ls output")
+        // For simplicity, we'll use the same permissions for user, group, and others
+        return "$canRead$canWrite$canExecute$canRead-$canExecute$canRead-$canExecute"
+    }
 
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = true,
-                                        result = DirectoryListingData(path, entries),
-                                        error = ""
-                                )
-                        } else {
-                                Log.w(TAG, "Basic ls command failed: ${basicResult.stderr}")
+    /** Read file content */
+    open suspend fun readFile(tool: AITool): ToolResult {
+        val path = tool.parameters.find { it.name == "path" }?.value ?: ""
 
-                                // 如果基本ls命令失败，尝试使用find命令
-                                Log.d(TAG, "Trying find command for path: $path")
-                                val findResult =
-                                        AndroidShellExecutor.executeAdbCommand(
-                                                "find \"$path\" -maxdepth 1 -mindepth 1 -printf \"%y|%s|%T@|%f\\n\""
-                                        )
-
-                                if (findResult.success) {
-                                        Log.d(TAG, "Find command output: ${findResult.stdout}")
-
-                                        // 解析find命令输出
-                                        val entries =
-                                                parseFindCommandOutput(findResult.stdout, path)
-
-                                        Log.d(
-                                                TAG,
-                                                "Parsed ${entries.size} entries from find output"
-                                        )
-
-                                        return ToolResult(
-                                                toolName = tool.name,
-                                                success = true,
-                                                result = DirectoryListingData(path, entries),
-                                                error = ""
-                                        )
-                                } else {
-                                        Log.e(TAG, "Find command failed: ${findResult.stderr}")
-
-                                        return ToolResult(
-                                                toolName = tool.name,
-                                                success = false,
-                                                result = StringResultData(""),
-                                                error =
-                                                        "Failed to list directory: ${findResult.stderr}"
-                                        )
-                                }
-                        }
-                } catch (e: Exception) {
-                        Log.e(TAG, "Error listing directory", e)
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result = StringResultData(""),
-                                error = "Error listing directory: ${e.message}"
-                        )
-                }
+        if (path.isBlank()) {
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Path parameter is required"
+            )
         }
 
-        /** Parse the output of the find command into structured data */
-        protected fun parseFindCommandOutput(
-                output: String,
-                path: String
-        ): List<DirectoryListingData.FileEntry> {
-                val lines = output.trim().split("\n")
-                val entries = mutableListOf<DirectoryListingData.FileEntry>()
+        return try {
+            val file = File(path)
 
-                for (line in lines) {
-                        try {
-                                if (line.isBlank()) continue
+            if (!file.exists()) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "File does not exist: $path"
+                )
+            }
 
-                                // find命令输出格式: f|1234|1621234567|filename
-                                // 其中f表示文件，d表示目录，1234是大小，1621234567是时间戳，filename是文件名
-                                val parts = line.split("|")
+            if (!file.isFile) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "Path is not a file: $path"
+                )
+            }
 
-                                if (parts.size >= 4) {
-                                        val isDirectory = parts[0] == "d"
-                                        val size = parts[1].toLongOrNull() ?: 0
-                                        val timestamp = parts[2].toLongOrNull() ?: 0
-                                        val name = parts[3]
+            if (file.length() > MAX_FILE_SIZE_BYTES) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error =
+                                "File is too large (${file.length() / 1024} KB). Maximum allowed size is ${MAX_FILE_SIZE_BYTES / 1024} KB."
+                )
+            }
 
-                                        // 跳过 . 和 .. 条目
-                                        if (name != "." && name != "..") {
-                                                // 将时间戳转换为可读格式
-                                                val date = java.util.Date(timestamp * 1000)
-                                                val dateFormat =
-                                                        java.text.SimpleDateFormat(
-                                                                "MMM dd HH:mm",
-                                                                java.util.Locale.US
-                                                        )
-                                                val lastModified = dateFormat.format(date)
+            // Check if it's a Word document
+            val fileExt = file.extension.lowercase()
+            if (fileExt == "doc" || fileExt == "docx") {
+                Log.d(TAG, "Detected Word document, attempting to convert to text before reading")
 
-                                                entries.add(
-                                                        DirectoryListingData.FileEntry(
-                                                                name = name,
-                                                                isDirectory = isDirectory,
-                                                                size = size,
-                                                                permissions = "rwxr-xr-x", // 默认权限
-                                                                lastModified = lastModified
-                                                        )
-                                                )
-                                        }
-                                }
-                        } catch (e: Exception) {
-                                Log.e(TAG, "Error parsing find command output: $line", e)
-                                // 跳过这一行但继续处理其他行
-                        }
-                }
+                // Create temporary file for converted text
+                val tempFilePath = "${path}_converted_${System.currentTimeMillis()}.txt"
 
-                return entries
-        }
-
-        /** Parse the output of the basic ls command into structured data */
-        protected suspend fun parseBasicDirectoryListing(
-                output: String,
-                path: String
-        ): List<DirectoryListingData.FileEntry> {
-                val lines = output.trim().split("\n")
-                val entries = mutableListOf<DirectoryListingData.FileEntry>()
-
-                Log.d(TAG, "Parsing ${lines.size} lines from basic ls output")
-
-                // 为了提高性能，一次性获取所有目录
-                val dirCheckCommand = StringBuilder("for f in ")
-                lines.filter { it.isNotBlank() }.forEach { dirCheckCommand.append("\"$it\" ") }
-                dirCheckCommand.append("; do if [ -d \"$path/\$f\" ]; then echo \"\$f\"; fi; done")
-
-                // 执行命令获取哪些是目录
-                val dirResult =
-                        try {
-                                AndroidShellExecutor.executeAdbCommand(dirCheckCommand.toString())
-                        } catch (e: Exception) {
-                                Log.e(TAG, "Error checking directories", e)
-                                null
-                        }
-
-                // 解析目录列表
-                val dirNames =
-                        if (dirResult?.success == true && dirResult.stdout.isNotBlank()) {
-                                dirResult.stdout.trim().split("\n").toSet()
-                        } else {
-                                emptySet()
-                        }
-
-                Log.d(TAG, "Found ${dirNames.size} directories")
-
-                for (line in lines) {
-                        try {
-                                if (line.isBlank()) continue
-
-                                // 基本ls命令只输出文件名
-                                val name = line.trim()
-
-                                // 跳过 . 和 .. 条目
-                                if (name != "." && name != "..") {
-                                        // 简化实现：使用之前批量获取的目录列表判断是否为目录
-                                        val isDirectory = dirNames.contains(name)
-
-                                        // 使用默认值替代实际查询
-                                        val size = 0L // 默认大小为0
-                                        val permissions = "rwxr-xr-x" // 默认权限
-                                        val lastModified = "Jan 01 00:00" // 默认时间
-
-                                        entries.add(
-                                                DirectoryListingData.FileEntry(
-                                                        name = name,
-                                                        isDirectory = isDirectory,
-                                                        size = size,
-                                                        permissions = permissions,
-                                                        lastModified = lastModified
-                                                )
-                                        )
-                                }
-                        } catch (e: Exception) {
-                                Log.e(TAG, "Error parsing directory entry: $line", e)
-                                // 跳过这一行但继续处理其他行
-                        }
-                }
-
-                return entries
-        }
-
-        /** 将八进制权限格式转换为字符串表示 (如 "rwxr-xr-x") */
-        protected fun convertOctalPermToString(octalPerm: String): String {
                 try {
-                        val permInt = octalPerm.toInt(8)
-                        val permChars = CharArray(9)
+                    // Try to use document conversion tool if available
+                    val fileConverterTool =
+                            AITool(
+                                    name = "convert_file",
+                                    parameters =
+                                            listOf(
+                                                    ToolParameter("source_path", path),
+                                                    ToolParameter("target_path", tempFilePath)
+                                            )
+                            )
 
-                        // 所有者权限
-                        permChars[0] = if (permInt and 0x100 != 0) 'r' else '-'
-                        permChars[1] = if (permInt and 0x80 != 0) 'w' else '-'
-                        permChars[2] = if (permInt and 0x40 != 0) 'x' else '-'
+                    val toolHandler = AIToolHandler.getInstance(context)
+                    val conversionResult = toolHandler.executeTool(fileConverterTool)
 
-                        // 组权限
-                        permChars[3] = if (permInt and 0x20 != 0) 'r' else '-'
-                        permChars[4] = if (permInt and 0x10 != 0) 'w' else '-'
-                        permChars[5] = if (permInt and 0x8 != 0) 'x' else '-'
+                    if (conversionResult.success) {
+                        Log.d(TAG, "Successfully converted Word document to text")
 
-                        // 其他用户权限
-                        permChars[6] = if (permInt and 0x4 != 0) 'r' else '-'
-                        permChars[7] = if (permInt and 0x2 != 0) 'w' else '-'
-                        permChars[8] = if (permInt and 0x1 != 0) 'x' else '-'
+                        // Read the converted text file
+                        val tempFile = File(tempFilePath)
+                        if (tempFile.exists()) {
+                            val content = tempFile.readText()
+                            tempFile.delete() // Clean up
 
-                        return String(permChars)
+                            return ToolResult(
+                                    toolName = tool.name,
+                                    success = true,
+                                    result =
+                                            FileContentData(
+                                                    path = path,
+                                                    content = content,
+                                                    size = content.length.toLong()
+                                            ),
+                                    error = ""
+                            )
+                        }
+                    } else {
+                        Log.w(
+                                TAG,
+                                "Word conversion failed: ${conversionResult.error}, falling back to raw content"
+                        )
+                    }
                 } catch (e: Exception) {
-                        Log.e(TAG, "Error converting octal permission: $octalPerm", e)
-                        return "???"
+                    Log.e(TAG, "Error during Word document conversion", e)
+                    // Conversion failed, fall back to reading raw file
                 }
+            }
+
+            // Read file content as string
+            val content = file.readText()
+
+            return ToolResult(
+                    toolName = tool.name,
+                    success = true,
+                    result = FileContentData(path = path, content = content, size = file.length()),
+                    error = ""
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error reading file", e)
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Error reading file: ${e.message}"
+            )
+        }
+    }
+
+    /** Write content to a file */
+    open suspend fun writeFile(tool: AITool): ToolResult {
+        val path = tool.parameters.find { it.name == "path" }?.value ?: ""
+        val content = tool.parameters.find { it.name == "content" }?.value ?: ""
+        val append = tool.parameters.find { it.name == "append" }?.value?.toBoolean() ?: false
+
+        if (path.isBlank()) {
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                            FileOperationData(
+                                    operation = "write",
+                                    path = "",
+                                    successful = false,
+                                    details = "Path parameter is required"
+                            ),
+                    error = "Path parameter is required"
+            )
         }
 
-        /** Read file content */
-        suspend fun readFile(tool: AITool): ToolResult {
-                val path = tool.parameters.find { it.name == "path" }?.value ?: ""
+        return try {
+            val file = File(path)
 
-                if (path.isBlank()) {
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result = StringResultData(""),
-                                error = "Path parameter is required"
-                        )
+            // Create parent directories if needed
+            val parentDir = file.parentFile
+            if (parentDir != null && !parentDir.exists()) {
+                if (!parentDir.mkdirs()) {
+                    Log.w(TAG, "Failed to create parent directory: ${parentDir.absolutePath}")
                 }
+            }
 
-                return try {
-                        // First check if the file exists
-                        val existsResult =
-                                AndroidShellExecutor.executeAdbCommand(
-                                        "test -f \"$path\" && echo 'exists' || echo 'not exists'"
-                                )
-                        if (existsResult.stdout.trim() != "exists") {
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = false,
-                                        result = StringResultData(""),
-                                        error = "File does not exist: $path"
-                                )
-                        }
+            // Write content to file
+            if (append && file.exists()) {
+                file.appendText(content)
+            } else {
+                file.writeText(content)
+            }
 
-                        // Check file size before reading
-                        val sizeResult =
-                                AndroidShellExecutor.executeAdbCommand("stat -c %s \"$path\"")
-                        if (sizeResult.success) {
-                                val size = sizeResult.stdout.trim().toLongOrNull() ?: 0
-                                if (size > MAX_FILE_SIZE_BYTES) {
-                                        return ToolResult(
-                                                toolName = tool.name,
-                                                success = false,
-                                                result = StringResultData(""),
-                                                error =
-                                                        "File is too large (${size / 1024} KB). Maximum allowed size is ${MAX_FILE_SIZE_BYTES / 1024} KB."
-                                        )
-                                }
-                        }
+            // Verify write was successful
+            if (!file.exists()) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result =
+                                FileOperationData(
+                                        operation = if (append) "append" else "write",
+                                        path = path,
+                                        successful = false,
+                                        details =
+                                                "Write completed but file does not exist. Possible permission issue."
+                                ),
+                        error =
+                                "Write completed but file does not exist. Possible permission issue."
+                )
+            }
 
-                        // 检查文件扩展名
-                        val fileExt = path.substringAfterLast('.', "").lowercase()
-
-                        // 如果是Word文档，先转换为文本
-                        if (fileExt == "doc" || fileExt == "docx") {
-                                Log.d(
-                                        TAG,
-                                        "Detected Word document, converting to text before reading"
-                                )
-
-                                // 创建临时文件路径用于存储转换后的文本
-                                val tempFilePath =
-                                        "${path}_converted_${System.currentTimeMillis()}.txt"
-
-                                try {
-                                        // 使用AIToolHandler获取并使用文件转换工具
-                                        val fileConverterTool =
-                                                AITool(
-                                                        name = "convert_file",
-                                                        parameters =
-                                                                listOf(
-                                                                        ToolParameter(
-                                                                                "source_path",
-                                                                                path
-                                                                        ),
-                                                                        ToolParameter(
-                                                                                "target_path",
-                                                                                tempFilePath
-                                                                        )
-                                                                )
-                                                )
-
-                                        // 获取AIToolHandler实例
-                                        val toolHandler = AIToolHandler.getInstance(context)
-
-                                        // 执行文件转换
-                                        val conversionResult =
-                                                toolHandler.executeTool(fileConverterTool)
-
-                                        if (conversionResult.success) {
-                                                Log.d(
-                                                        TAG,
-                                                        "Successfully converted Word document to text"
-                                                )
-
-                                                // 读取转换后的文本文件
-                                                val textContent =
-                                                        AndroidShellExecutor.executeAdbCommand(
-                                                                "cat \"$tempFilePath\""
-                                                        )
-
-                                                if (textContent.success) {
-                                                        // 创建结果
-                                                        val result =
-                                                                ToolResult(
-                                                                        toolName = tool.name,
-                                                                        success = true,
-                                                                        result =
-                                                                                FileContentData(
-                                                                                        path = path,
-                                                                                        content =
-                                                                                                textContent
-                                                                                                        .stdout,
-                                                                                        size =
-                                                                                                textContent
-                                                                                                        .stdout
-                                                                                                        .length
-                                                                                                        .toLong()
-                                                                                ),
-                                                                        error = ""
-                                                                )
-
-                                                        // 删除临时文件
-                                                        AndroidShellExecutor.executeAdbCommand(
-                                                                "rm -f \"$tempFilePath\""
-                                                        )
-
-                                                        return result
-                                                }
-                                        } else {
-                                                Log.w(
-                                                        TAG,
-                                                        "Word conversion failed: ${conversionResult.error}, falling back to raw content"
-                                                )
-                                        }
-                                } catch (e: Exception) {
-                                        Log.e(TAG, "Error during Word document conversion", e)
-                                        // 转换失败，继续尝试读取原始文件
-                                }
-                        }
-
-                        // 对于非Word文档或转换失败的情况，直接读取文件内容
-                        val result = AndroidShellExecutor.executeAdbCommand("cat \"$path\"")
-
-                        if (result.success) {
-                                val size =
-                                        sizeResult.stdout.trim().toLongOrNull()
-                                                ?: result.stdout.length.toLong()
-
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = true,
-                                        result =
-                                                FileContentData(
-                                                        path = path,
-                                                        content = result.stdout,
-                                                        size = size
-                                                ),
-                                        error = ""
-                                )
-                        } else {
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = false,
-                                        result = StringResultData(""),
-                                        error = "Failed to read file: ${result.stderr}"
-                                )
-                        }
-                } catch (e: Exception) {
-                        Log.e(TAG, "Error reading file", e)
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result = StringResultData(""),
-                                error = "Error reading file: ${e.message}"
-                        )
-                }
-        }
-
-        /** Write content to a file */
-        suspend fun writeFile(tool: AITool): ToolResult {
-                val path = tool.parameters.find { it.name == "path" }?.value ?: ""
-                val content = tool.parameters.find { it.name == "content" }?.value ?: ""
-                val append =
-                        tool.parameters.find { it.name == "append" }?.value?.toBoolean() ?: false
-
-                if (path.isBlank()) {
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result =
-                                        FileOperationData(
-                                                operation = "write",
-                                                path = "",
-                                                successful = false,
-                                                details = "Path parameter is required"
-                                        ),
-                                error = "Path parameter is required"
-                        )
-                }
-
-                return try {
-                        // 确保目标目录存在
-                        val directory = File(path).parent
-                        if (directory != null) {
-                                val mkdirResult =
-                                        AndroidShellExecutor.executeAdbCommand(
-                                                "mkdir -p '$directory'"
-                                        )
-                                if (!mkdirResult.success) {
-                                        Log.w(
-                                                TAG,
-                                                "Warning: Failed to create parent directory: ${mkdirResult.stderr}"
-                                        )
-                                }
-                        }
-
-                        // 直接使用echo命令写入内容
-                        // 对内容进行base64编码，避免特殊字符问题
-                        val contentBase64 =
-                                android.util.Base64.encodeToString(
-                                        content.toByteArray(),
-                                        android.util.Base64.NO_WRAP
-                                )
-
-                        // 使用两种写入方法中的一种:
-                        // 方法1: 使用base64命令解码并写入文件
-                        val redirectOperator = if (append) ">>" else ">"
-                        val writeResult =
-                                AndroidShellExecutor.executeAdbCommand(
-                                        "echo '$contentBase64' | base64 -d $redirectOperator '$path'"
-                                )
-
-                        if (!writeResult.success) {
-                                Log.e(
-                                        TAG,
-                                        "Failed to write with base64 method: ${writeResult.stderr}"
-                                )
-                                // 方法2: 尝试直接写入，无需base64
-                                val fallbackResult =
-                                        AndroidShellExecutor.executeAdbCommand(
-                                                "printf '%s' '$content' $redirectOperator '$path'"
-                                        )
-                                if (!fallbackResult.success) {
-                                        return ToolResult(
-                                                toolName = tool.name,
-                                                success = false,
-                                                result =
-                                                        FileOperationData(
-                                                                operation =
-                                                                        if (append) "append"
-                                                                        else "write",
-                                                                path = path,
-                                                                successful = false,
-                                                                details =
-                                                                        "Failed to write to file: ${fallbackResult.stderr}"
-                                                        ),
-                                                error =
-                                                        "Failed to write to file: ${fallbackResult.stderr}"
-                                        )
-                                }
-                        }
-
-                        // 验证写入是否成功
-                        val verifyResult =
-                                AndroidShellExecutor.executeAdbCommand(
-                                        "test -f '$path' && echo 'exists' || echo 'not exists'"
-                                )
-                        if (verifyResult.stdout.trim() != "exists") {
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = false,
-                                        result =
-                                                FileOperationData(
-                                                        operation =
-                                                                if (append) "append" else "write",
-                                                        path = path,
-                                                        successful = false,
-                                                        details =
-                                                                "Write command completed but file does not exist. Possible permission issue."
-                                                ),
-                                        error =
-                                                "Write command completed but file does not exist. Possible permission issue."
-                                )
-                        }
-
-                        // 检查文件大小确认内容被写入
-                        val sizeResult =
-                                AndroidShellExecutor.executeAdbCommand(
-                                        "stat -c %s '$path' 2>/dev/null || echo '0'"
-                                )
-                        val size = sizeResult.stdout.trim().toLongOrNull() ?: 0
-                        if (size == 0L && content.isNotEmpty()) {
-                                // 文件存在但是大小为0，可能写入失败
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = false,
-                                        result =
-                                                FileOperationData(
-                                                        operation =
-                                                                if (append) "append" else "write",
-                                                        path = path,
-                                                        successful = false,
-                                                        details =
-                                                                "File was created but appears to be empty. Possible write failure."
-                                                ),
-                                        error =
+            if (file.length() == 0L && content.isNotEmpty()) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result =
+                                FileOperationData(
+                                        operation = if (append) "append" else "write",
+                                        path = path,
+                                        successful = false,
+                                        details =
                                                 "File was created but appears to be empty. Possible write failure."
-                                )
-                        }
+                                ),
+                        error = "File was created but appears to be empty. Possible write failure."
+                )
+            }
 
-                        val operation = if (append) "append" else "write"
-                        val details =
-                                if (append) "Content appended to $path"
-                                else "Content written to $path"
+            val operation = if (append) "append" else "write"
+            val details = if (append) "Content appended to $path" else "Content written to $path"
 
+            return ToolResult(
+                    toolName = tool.name,
+                    success = true,
+                    result =
+                            FileOperationData(
+                                    operation = operation,
+                                    path = path,
+                                    successful = true,
+                                    details = details
+                            ),
+                    error = ""
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error writing to file", e)
+
+            val errorMessage =
+                    when {
+                        e is IOException ->
+                                "File I/O error: ${e.message}. Please check if the path has write permissions."
+                        e.message?.contains("permission", ignoreCase = true) == true ->
+                                "Permission denied, cannot write to file: ${e.message}. Please check if the app has proper permissions."
+                        else -> "Error writing to file: ${e.message}"
+                    }
+
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                            FileOperationData(
+                                    operation = if (append) "append" else "write",
+                                    path = path,
+                                    successful = false,
+                                    details = errorMessage
+                            ),
+                    error = errorMessage
+            )
+        }
+    }
+
+    /** Delete a file or directory */
+    open suspend fun deleteFile(tool: AITool): ToolResult {
+        val path = tool.parameters.find { it.name == "path" }?.value ?: ""
+        val recursive = tool.parameters.find { it.name == "recursive" }?.value?.toBoolean() ?: false
+
+        if (path.isBlank()) {
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                            FileOperationData(
+                                    operation = "delete",
+                                    path = "",
+                                    successful = false,
+                                    details = "Path parameter is required"
+                            ),
+                    error = "Path parameter is required"
+            )
+        }
+
+        // Don't allow deleting system directories
+        val restrictedPaths = listOf("/system", "/data", "/proc", "/dev")
+        if (restrictedPaths.any { path.startsWith(it) }) {
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                            FileOperationData(
+                                    operation = "delete",
+                                    path = path,
+                                    successful = false,
+                                    details = "Deleting system directories is not allowed"
+                            ),
+                    error = "Deleting system directories is not allowed"
+            )
+        }
+
+        return try {
+            val file = File(path)
+
+            if (!file.exists()) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result =
+                                FileOperationData(
+                                        operation = "delete",
+                                        path = path,
+                                        successful = false,
+                                        details = "File or directory does not exist: $path"
+                                ),
+                        error = "File or directory does not exist: $path"
+                )
+            }
+
+            var success = false
+
+            if (file.isDirectory) {
+                if (recursive) {
+                    success = file.deleteRecursively()
+                } else {
+                    // Only delete if directory is empty
+                    val files = file.listFiles() ?: emptyArray()
+                    if (files.isEmpty()) {
+                        success = file.delete()
+                    } else {
+                        return ToolResult(
+                                toolName = tool.name,
+                                success = false,
+                                result =
+                                        FileOperationData(
+                                                operation = "delete",
+                                                path = path,
+                                                successful = false,
+                                                details =
+                                                        "Directory is not empty and recursive flag is not set"
+                                        ),
+                                error = "Directory is not empty and recursive flag is not set"
+                        )
+                    }
+                }
+            } else {
+                success = file.delete()
+            }
+
+            if (success) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = true,
+                        result =
+                                FileOperationData(
+                                        operation = "delete",
+                                        path = path,
+                                        successful = true,
+                                        details = "Successfully deleted $path"
+                                ),
+                        error = ""
+                )
+            } else {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result =
+                                FileOperationData(
+                                        operation = "delete",
+                                        path = path,
+                                        successful = false,
+                                        details =
+                                                "Failed to delete: permission denied or file in use"
+                                ),
+                        error = "Failed to delete: permission denied or file in use"
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error deleting file/directory", e)
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                            FileOperationData(
+                                    operation = "delete",
+                                    path = path,
+                                    successful = false,
+                                    details = "Error deleting file/directory: ${e.message}"
+                            ),
+                    error = "Error deleting file/directory: ${e.message}"
+            )
+        }
+    }
+
+    /** Check if a file or directory exists */
+    open suspend fun fileExists(tool: AITool): ToolResult {
+        val path = tool.parameters.find { it.name == "path" }?.value ?: ""
+
+        if (path.isBlank()) {
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Path parameter is required"
+            )
+        }
+
+        return try {
+            val file = File(path)
+            val exists = file.exists()
+
+            if (!exists) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = true,
+                        result = FileExistsData(path = path, exists = false),
+                        error = ""
+                )
+            }
+
+            val isDirectory = file.isDirectory
+            val size = file.length()
+
+            return ToolResult(
+                    toolName = tool.name,
+                    success = true,
+                    result =
+                            FileExistsData(
+                                    path = path,
+                                    exists = true,
+                                    isDirectory = isDirectory,
+                                    size = size
+                            ),
+                    error = ""
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking file existence", e)
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                            FileExistsData(
+                                    path = path,
+                                    exists = false,
+                                    isDirectory = false,
+                                    size = 0
+                            ),
+                    error = "Error checking file existence: ${e.message}"
+            )
+        }
+    }
+
+    /** Move or rename a file or directory */
+    open suspend fun moveFile(tool: AITool): ToolResult {
+        val sourcePath = tool.parameters.find { it.name == "source" }?.value ?: ""
+        val destPath = tool.parameters.find { it.name == "destination" }?.value ?: ""
+
+        if (sourcePath.isBlank() || destPath.isBlank()) {
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                            FileOperationData(
+                                    operation = "move",
+                                    path = sourcePath,
+                                    successful = false,
+                                    details = "Source and destination parameters are required"
+                            ),
+                    error = "Source and destination parameters are required"
+            )
+        }
+
+        // Don't allow moving system directories
+        val restrictedPaths = listOf("/system", "/data", "/proc", "/dev")
+        if (restrictedPaths.any { sourcePath.startsWith(it) }) {
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                            FileOperationData(
+                                    operation = "move",
+                                    path = sourcePath,
+                                    successful = false,
+                                    details = "Moving system directories is not allowed"
+                            ),
+                    error = "Moving system directories is not allowed"
+            )
+        }
+
+        return try {
+            val sourceFile = File(sourcePath)
+            val destFile = File(destPath)
+
+            if (!sourceFile.exists()) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result =
+                                FileOperationData(
+                                        operation = "move",
+                                        path = sourcePath,
+                                        successful = false,
+                                        details = "Source file does not exist: $sourcePath"
+                                ),
+                        error = "Source file does not exist: $sourcePath"
+                )
+            }
+
+            // Create parent directory if needed
+            val destParent = destFile.parentFile
+            if (destParent != null && !destParent.exists()) {
+                destParent.mkdirs()
+            }
+
+            // Perform move operation
+            if (sourceFile.renameTo(destFile)) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = true,
+                        result =
+                                FileOperationData(
+                                        operation = "move",
+                                        path = sourcePath,
+                                        successful = true,
+                                        details = "Successfully moved $sourcePath to $destPath"
+                                ),
+                        error = ""
+                )
+            } else {
+                // If simple rename fails, try copy and delete (could be across
+                // filesystems)
+                if (sourceFile.isDirectory) {
+                    // For directories, use directory copy utility
+                    val copySuccess = copyDirectory(sourceFile, destFile)
+                    if (copySuccess && sourceFile.deleteRecursively()) {
                         return ToolResult(
                                 toolName = tool.name,
                                 success = true,
                                 result =
                                         FileOperationData(
-                                                operation = operation,
-                                                path = path,
+                                                operation = "move",
+                                                path = sourcePath,
                                                 successful = true,
-                                                details = details
+                                                details =
+                                                        "Successfully moved $sourcePath to $destPath (via copy and delete)"
                                         ),
                                 error = ""
                         )
-                } catch (e: Exception) {
-                        Log.e(TAG, "Error writing to file", e)
+                    }
+                } else {
+                    // For files, copy the content then delete original
+                    sourceFile.inputStream().use { input ->
+                        destFile.outputStream().use { output -> input.copyTo(output) }
+                    }
 
-                        // 提供更具体的错误信息
-                        val errorMessage =
-                                when {
-                                        e is InterruptedException ||
-                                                e.message?.contains(
-                                                        "interrupted",
-                                                        ignoreCase = true
-                                                ) == true ->
-                                                "ADB连接被中断，可能是网络不稳定导致。请检查ADB连接并重试。错误详情: ${e.message}"
-                                        e is java.net.SocketException ||
-                                                e.message?.contains("socket", ignoreCase = true) ==
-                                                        true ->
-                                                "ADB网络连接异常，请检查设备是否仍然连接并重试。错误详情: ${e.message}"
-                                        e is java.io.IOException ->
-                                                "文件IO错误: ${e.message}。请检查文件路径是否有写入权限。"
-                                        e.message?.contains("permission", ignoreCase = true) ==
-                                                true -> "权限拒绝，无法写入文件: ${e.message}。请检查应用是否有适当的权限。"
-                                        else -> "写入文件时出错: ${e.message}"
-                                }
-
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result =
-                                        FileOperationData(
-                                                operation = if (append) "append" else "write",
-                                                path = path,
-                                                successful = false,
-                                                details = errorMessage
-                                        ),
-                                error = errorMessage
-                        )
-                }
-        }
-
-        /** Delete a file or directory */
-        suspend fun deleteFile(tool: AITool): ToolResult {
-                val path = tool.parameters.find { it.name == "path" }?.value ?: ""
-                val recursive =
-                        tool.parameters.find { it.name == "recursive" }?.value?.toBoolean() ?: false
-
-                if (path.isBlank()) {
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result =
-                                        FileOperationData(
-                                                operation = "delete",
-                                                path = "",
-                                                successful = false,
-                                                details = "Path parameter is required"
-                                        ),
-                                error = "Path parameter is required"
-                        )
-                }
-
-                // Don't allow deleting system directories
-                val restrictedPaths = listOf("/system", "/data", "/proc", "/dev")
-                if (restrictedPaths.any { path.startsWith(it) }) {
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result =
-                                        FileOperationData(
-                                                operation = "delete",
-                                                path = path,
-                                                successful = false,
-                                                details =
-                                                        "Deleting system directories is not allowed"
-                                        ),
-                                error = "Deleting system directories is not allowed"
-                        )
-                }
-
-                return try {
-                        val deleteCommand = if (recursive) "rm -rf $path" else "rm -f $path"
-                        val result = AndroidShellExecutor.executeAdbCommand(deleteCommand)
-
-                        if (result.success) {
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = true,
-                                        result =
-                                                FileOperationData(
-                                                        operation = "delete",
-                                                        path = path,
-                                                        successful = true,
-                                                        details = "Successfully deleted $path"
-                                                ),
-                                        error = ""
-                                )
-                        } else {
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = false,
-                                        result =
-                                                FileOperationData(
-                                                        operation = "delete",
-                                                        path = path,
-                                                        successful = false,
-                                                        details =
-                                                                "Failed to delete: ${result.stderr}"
-                                                ),
-                                        error = "Failed to delete: ${result.stderr}"
-                                )
-                        }
-                } catch (e: Exception) {
-                        Log.e(TAG, "Error deleting file/directory", e)
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result =
-                                        FileOperationData(
-                                                operation = "delete",
-                                                path = path,
-                                                successful = false,
-                                                details =
-                                                        "Error deleting file/directory: ${e.message}"
-                                        ),
-                                error = "Error deleting file/directory: ${e.message}"
-                        )
-                }
-        }
-
-        /** Check if a file or directory exists */
-        suspend fun fileExists(tool: AITool): ToolResult {
-                val path = tool.parameters.find { it.name == "path" }?.value ?: ""
-
-                if (path.isBlank()) {
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result = StringResultData(""),
-                                error = "Path parameter is required"
-                        )
-                }
-
-                return try {
-                        // Check if the path exists
-                        val existsResult =
-                                AndroidShellExecutor.executeAdbCommand(
-                                        "test -e '$path' && echo 'exists' || echo 'not exists'"
-                                )
-                        val exists = existsResult.success && existsResult.stdout.trim() == "exists"
-
-                        if (!exists) {
-                                // If it doesn't exist, return a simple FileExistsData with
-                                // exists=false
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = true,
-                                        result = FileExistsData(path = path, exists = false),
-                                        error = ""
-                                )
-                        }
-
-                        // If it exists, check if it's a directory
-                        val isDirResult =
-                                AndroidShellExecutor.executeAdbCommand(
-                                        "test -d '$path' && echo 'true' || echo 'false'"
-                                )
-                        val isDirectory = isDirResult.success && isDirResult.stdout.trim() == "true"
-
-                        // Get the size
-                        val sizeResult =
-                                AndroidShellExecutor.executeAdbCommand(
-                                        "stat -c %s '$path' 2>/dev/null || echo '0'"
-                                )
-                        val size = sizeResult.stdout.trim().toLongOrNull() ?: 0
-
+                    if (destFile.exists() &&
+                                    destFile.length() == sourceFile.length() &&
+                                    sourceFile.delete()
+                    ) {
                         return ToolResult(
                                 toolName = tool.name,
                                 success = true,
                                 result =
-                                        FileExistsData(
-                                                path = path,
-                                                exists = true,
-                                                isDirectory = isDirectory,
-                                                size = size
+                                        FileOperationData(
+                                                operation = "move",
+                                                path = sourcePath,
+                                                successful = true,
+                                                details =
+                                                        "Successfully moved $sourcePath to $destPath (via copy and delete)"
                                         ),
                                 error = ""
                         )
-                } catch (e: Exception) {
-                        Log.e(TAG, "Error checking file existence", e)
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result =
-                                        FileExistsData(
-                                                path = path,
-                                                exists = false,
-                                                isDirectory = false,
-                                                size = 0
-                                        ),
-                                error = "Error checking file existence: ${e.message}"
-                        )
+                    }
                 }
+
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result =
+                                FileOperationData(
+                                        operation = "move",
+                                        path = sourcePath,
+                                        successful = false,
+                                        details =
+                                                "Failed to move file: possibly a permissions issue or destination already exists"
+                                ),
+                        error =
+                                "Failed to move file: possibly a permissions issue or destination already exists"
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error moving file", e)
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                            FileOperationData(
+                                    operation = "move",
+                                    path = sourcePath,
+                                    successful = false,
+                                    details = "Error moving file: ${e.message}"
+                            ),
+                    error = "Error moving file: ${e.message}"
+            )
+        }
+    }
+
+    /** Helper method to recursively copy a directory */
+    private fun copyDirectory(sourceDir: File, destDir: File): Boolean {
+        try {
+            if (!destDir.exists()) {
+                destDir.mkdirs()
+            }
+
+            sourceDir.listFiles()?.forEach { file ->
+                val destFile = File(destDir, file.name)
+                if (file.isDirectory) {
+                    copyDirectory(file, destFile)
+                } else {
+                    file.inputStream().use { input ->
+                        destFile.outputStream().use { output -> input.copyTo(output) }
+                    }
+                }
+            }
+
+            return true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error copying directory", e)
+            return false
+        }
+    }
+
+    /** Copy a file or directory */
+    open suspend fun copyFile(tool: AITool): ToolResult {
+        val sourcePath = tool.parameters.find { it.name == "source" }?.value ?: ""
+        val destPath = tool.parameters.find { it.name == "destination" }?.value ?: ""
+        val recursive = tool.parameters.find { it.name == "recursive" }?.value?.toBoolean() ?: true
+
+        if (sourcePath.isBlank() || destPath.isBlank()) {
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                            FileOperationData(
+                                    operation = "copy",
+                                    path = sourcePath,
+                                    successful = false,
+                                    details = "Source and destination parameters are required"
+                            ),
+                    error = "Source and destination parameters are required"
+            )
         }
 
-        /** Move or rename a file or directory */
-        suspend fun moveFile(tool: AITool): ToolResult {
-                val sourcePath = tool.parameters.find { it.name == "source" }?.value ?: ""
-                val destPath = tool.parameters.find { it.name == "destination" }?.value ?: ""
+        return try {
+            val sourceFile = File(sourcePath)
+            val destFile = File(destPath)
 
-                if (sourcePath.isBlank() || destPath.isBlank()) {
+            if (!sourceFile.exists()) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result =
+                                FileOperationData(
+                                        operation = "copy",
+                                        path = sourcePath,
+                                        successful = false,
+                                        details = "Source path does not exist: $sourcePath"
+                                ),
+                        error = "Source path does not exist: $sourcePath"
+                )
+            }
+
+            // Create parent directory if needed
+            val destParent = destFile.parentFile
+            if (destParent != null && !destParent.exists()) {
+                destParent.mkdirs()
+            }
+
+            if (sourceFile.isDirectory) {
+                if (recursive) {
+                    val success = copyDirectory(sourceFile, destFile)
+                    if (success) {
                         return ToolResult(
                                 toolName = tool.name,
-                                success = false,
+                                success = true,
                                 result =
                                         FileOperationData(
-                                                operation = "move",
+                                                operation = "copy",
                                                 path = sourcePath,
-                                                successful = false,
+                                                successful = true,
                                                 details =
-                                                        "Source and destination parameters are required"
+                                                        "Successfully copied directory $sourcePath to $destPath"
                                         ),
-                                error = "Source and destination parameters are required"
+                                error = ""
                         )
-                }
-
-                // Don't allow moving system directories
-                val restrictedPaths = listOf("/system", "/data", "/proc", "/dev")
-                if (restrictedPaths.any { sourcePath.startsWith(it) }) {
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result =
-                                        FileOperationData(
-                                                operation = "move",
-                                                path = sourcePath,
-                                                successful = false,
-                                                details = "Moving system directories is not allowed"
-                                        ),
-                                error = "Moving system directories is not allowed"
-                        )
-                }
-
-                return try {
-                        val result =
-                                AndroidShellExecutor.executeAdbCommand(
-                                        "mv '$sourcePath' '$destPath'"
-                                )
-
-                        if (result.success) {
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = true,
-                                        result =
-                                                FileOperationData(
-                                                        operation = "move",
-                                                        path = sourcePath,
-                                                        successful = true,
-                                                        details =
-                                                                "Successfully moved $sourcePath to $destPath"
-                                                ),
-                                        error = ""
-                                )
-                        } else {
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = false,
-                                        result =
-                                                FileOperationData(
-                                                        operation = "move",
-                                                        path = sourcePath,
-                                                        successful = false,
-                                                        details =
-                                                                "Failed to move file: ${result.stderr}"
-                                                ),
-                                        error = "Failed to move file: ${result.stderr}"
-                                )
-                        }
-                } catch (e: Exception) {
-                        Log.e(TAG, "Error moving file", e)
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result =
-                                        FileOperationData(
-                                                operation = "move",
-                                                path = sourcePath,
-                                                successful = false,
-                                                details = "Error moving file: ${e.message}"
-                                        ),
-                                error = "Error moving file: ${e.message}"
-                        )
-                }
-        }
-
-        /** Copy a file or directory */
-        suspend fun copyFile(tool: AITool): ToolResult {
-                val sourcePath = tool.parameters.find { it.name == "source" }?.value ?: ""
-                val destPath = tool.parameters.find { it.name == "destination" }?.value ?: ""
-                val recursive =
-                        tool.parameters.find { it.name == "recursive" }?.value?.toBoolean()
-                                ?: true // 默认为true以支持目录复制
-
-                if (sourcePath.isBlank() || destPath.isBlank()) {
+                    } else {
                         return ToolResult(
                                 toolName = tool.name,
                                 success = false,
@@ -901,1239 +800,894 @@ open class StandardFileSystemTools(private val context: Context) {
                                                 path = sourcePath,
                                                 successful = false,
                                                 details =
-                                                        "Source and destination parameters are required"
+                                                        "Failed to copy directory: possible permission issue"
                                         ),
-                                error = "Source and destination parameters are required"
+                                error = "Failed to copy directory: possible permission issue"
                         )
+                    }
+                } else {
+                    return ToolResult(
+                            toolName = tool.name,
+                            success = false,
+                            result =
+                                    FileOperationData(
+                                            operation = "copy",
+                                            path = sourcePath,
+                                            successful = false,
+                                            details = "Cannot copy directory without recursive flag"
+                                    ),
+                            error = "Cannot copy directory without recursive flag"
+                    )
+                }
+            } else {
+                // Copy file
+                sourceFile.inputStream().use { input ->
+                    destFile.outputStream().use { output -> input.copyTo(output) }
                 }
 
-                return try {
-                        // 首先检查源路径是否存在
-                        val existsResult =
-                                AndroidShellExecutor.executeAdbCommand(
-                                        "test -e '$sourcePath' && echo 'exists' || echo 'not exists'"
-                                )
-                        if (existsResult.stdout.trim() != "exists") {
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = false,
-                                        result =
-                                                FileOperationData(
-                                                        operation = "copy",
-                                                        path = sourcePath,
-                                                        successful = false,
-                                                        details =
-                                                                "Source path does not exist: $sourcePath"
-                                                ),
-                                        error = "Source path does not exist: $sourcePath"
-                                )
-                        }
-
-                        // 检查是否为目录
-                        val isDirResult =
-                                AndroidShellExecutor.executeAdbCommand(
-                                        "test -d '$sourcePath' && echo 'true' || echo 'false'"
-                                )
-                        val isDirectory = isDirResult.stdout.trim() == "true"
-
-                        // 确保目标父目录存在
-                        val destParentDir = destPath.substringBeforeLast('/')
-                        if (destParentDir.isNotEmpty()) {
-                                AndroidShellExecutor.executeAdbCommand("mkdir -p '$destParentDir'")
-                        }
-
-                        // 根据是否为目录选择不同的复制命令
-                        val copyCommand =
-                                if (isDirectory && recursive) {
-                                        "cp -r '$sourcePath' '$destPath'"
-                                } else if (!isDirectory) {
-                                        "cp '$sourcePath' '$destPath'"
-                                } else {
-                                        return ToolResult(
-                                                toolName = tool.name,
-                                                success = false,
-                                                result =
-                                                        FileOperationData(
-                                                                operation = "copy",
-                                                                path = sourcePath,
-                                                                successful = false,
-                                                                details =
-                                                                        "Cannot copy directory without recursive flag"
-                                                        ),
-                                                error =
-                                                        "Cannot copy directory without recursive flag"
-                                        )
-                                }
-
-                        val result = AndroidShellExecutor.executeAdbCommand(copyCommand)
-
-                        if (result.success) {
-                                // 验证复制是否成功
-                                val verifyResult =
-                                        AndroidShellExecutor.executeAdbCommand(
-                                                "test -e '$destPath' && echo 'exists' || echo 'not exists'"
-                                        )
-                                if (verifyResult.stdout.trim() != "exists") {
-                                        return ToolResult(
-                                                toolName = tool.name,
-                                                success = false,
-                                                result =
-                                                        FileOperationData(
-                                                                operation = "copy",
-                                                                path = sourcePath,
-                                                                successful = false,
-                                                                details =
-                                                                        "Copy command completed but destination does not exist"
-                                                        ),
-                                                error =
-                                                        "Copy command completed but destination does not exist"
-                                        )
-                                }
-
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = true,
-                                        result =
-                                                FileOperationData(
-                                                        operation = "copy",
-                                                        path = sourcePath,
-                                                        successful = true,
-                                                        details =
-                                                                "Successfully copied ${if (isDirectory) "directory" else "file"} $sourcePath to $destPath"
-                                                ),
-                                        error = ""
-                                )
-                        } else {
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = false,
-                                        result =
-                                                FileOperationData(
-                                                        operation = "copy",
-                                                        path = sourcePath,
-                                                        successful = false,
-                                                        details = "Failed to copy: ${result.stderr}"
-                                                ),
-                                        error = "Failed to copy: ${result.stderr}"
-                                )
-                        }
-                } catch (e: Exception) {
-                        Log.e(TAG, "Error copying file/directory", e)
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result =
-                                        FileOperationData(
-                                                operation = "copy",
-                                                path = sourcePath,
-                                                successful = false,
-                                                details =
-                                                        "Error copying file/directory: ${e.message}"
-                                        ),
-                                error = "Error copying file/directory: ${e.message}"
-                        )
+                // Verify copy was successful
+                if (destFile.exists() && destFile.length() == sourceFile.length()) {
+                    return ToolResult(
+                            toolName = tool.name,
+                            success = true,
+                            result =
+                                    FileOperationData(
+                                            operation = "copy",
+                                            path = sourcePath,
+                                            successful = true,
+                                            details =
+                                                    "Successfully copied file $sourcePath to $destPath"
+                                    ),
+                            error = ""
+                    )
+                } else {
+                    return ToolResult(
+                            toolName = tool.name,
+                            success = false,
+                            result =
+                                    FileOperationData(
+                                            operation = "copy",
+                                            path = sourcePath,
+                                            successful = false,
+                                            details =
+                                                    "Copy operation completed but verification failed"
+                                    ),
+                            error = "Copy operation completed but verification failed"
+                    )
                 }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error copying file/directory", e)
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                            FileOperationData(
+                                    operation = "copy",
+                                    path = sourcePath,
+                                    successful = false,
+                                    details = "Error copying file/directory: ${e.message}"
+                            ),
+                    error = "Error copying file/directory: ${e.message}"
+            )
+        }
+    }
+
+    /** Create a directory */
+    open suspend fun makeDirectory(tool: AITool): ToolResult {
+        val path = tool.parameters.find { it.name == "path" }?.value ?: ""
+        val createParents =
+                tool.parameters.find { it.name == "create_parents" }?.value?.toBoolean() ?: false
+
+        if (path.isBlank()) {
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                            FileOperationData(
+                                    operation = "mkdir",
+                                    path = "",
+                                    successful = false,
+                                    details = "Path parameter is required"
+                            ),
+                    error = "Path parameter is required"
+            )
         }
 
-        /** Create a directory */
-        suspend fun makeDirectory(tool: AITool): ToolResult {
-                val path = tool.parameters.find { it.name == "path" }?.value ?: ""
-                val createParents =
-                        tool.parameters.find { it.name == "create_parents" }?.value?.toBoolean()
-                                ?: false
+        return try {
+            val directory = File(path)
 
-                if (path.isBlank()) {
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result =
-                                        FileOperationData(
-                                                operation = "mkdir",
-                                                path = "",
-                                                successful = false,
-                                                details = "Path parameter is required"
-                                        ),
-                                error = "Path parameter is required"
-                        )
+            // Check if directory already exists
+            if (directory.exists()) {
+                if (directory.isDirectory) {
+                    return ToolResult(
+                            toolName = tool.name,
+                            success = true,
+                            result =
+                                    FileOperationData(
+                                            operation = "mkdir",
+                                            path = path,
+                                            successful = true,
+                                            details = "Directory already exists: $path"
+                                    ),
+                            error = ""
+                    )
+                } else {
+                    return ToolResult(
+                            toolName = tool.name,
+                            success = false,
+                            result =
+                                    FileOperationData(
+                                            operation = "mkdir",
+                                            path = path,
+                                            successful = false,
+                                            details = "Path exists but is not a directory: $path"
+                                    ),
+                            error = "Path exists but is not a directory: $path"
+                    )
                 }
+            }
 
-                return try {
-                        val mkdirCommand =
-                                if (createParents) "mkdir -p '$path'" else "mkdir '$path'"
-                        val result = AndroidShellExecutor.executeAdbCommand(mkdirCommand)
+            // Create directory
+            val success =
+                    if (createParents) {
+                        directory.mkdirs()
+                    } else {
+                        directory.mkdir()
+                    }
 
-                        if (result.success) {
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = true,
-                                        result =
-                                                FileOperationData(
-                                                        operation = "mkdir",
-                                                        path = path,
-                                                        successful = true,
-                                                        details =
-                                                                "Successfully created directory $path"
-                                                ),
-                                        error = ""
-                                )
-                        } else {
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = false,
-                                        result =
-                                                FileOperationData(
-                                                        operation = "mkdir",
-                                                        path = path,
-                                                        successful = false,
-                                                        details =
-                                                                "Failed to create directory: ${result.stderr}"
-                                                ),
-                                        error = "Failed to create directory: ${result.stderr}"
-                                )
-                        }
-                } catch (e: Exception) {
-                        Log.e(TAG, "Error creating directory", e)
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result =
-                                        FileOperationData(
-                                                operation = "mkdir",
-                                                path = path,
-                                                successful = false,
-                                                details = "Error creating directory: ${e.message}"
-                                        ),
-                                error = "Error creating directory: ${e.message}"
-                        )
-                }
+            if (success) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = true,
+                        result =
+                                FileOperationData(
+                                        operation = "mkdir",
+                                        path = path,
+                                        successful = true,
+                                        details = "Successfully created directory $path"
+                                ),
+                        error = ""
+                )
+            } else {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result =
+                                FileOperationData(
+                                        operation = "mkdir",
+                                        path = path,
+                                        successful = false,
+                                        details =
+                                                "Failed to create directory: parent directory may not exist or permission denied"
+                                ),
+                        error =
+                                "Failed to create directory: parent directory may not exist or permission denied"
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating directory", e)
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                            FileOperationData(
+                                    operation = "mkdir",
+                                    path = path,
+                                    successful = false,
+                                    details = "Error creating directory: ${e.message}"
+                            ),
+                    error = "Error creating directory: ${e.message}"
+            )
+        }
+    }
+
+    /** Search for files matching a pattern */
+    open suspend fun findFiles(tool: AITool): ToolResult {
+        val path = tool.parameters.find { it.name == "path" }?.value ?: ""
+        val pattern = tool.parameters.find { it.name == "pattern" }?.value ?: ""
+
+        if (path.isBlank() || pattern.isBlank()) {
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                            FindFilesResultData(
+                                    path = path,
+                                    pattern = pattern,
+                                    files = emptyList()
+                            ),
+                    error = "Path and pattern parameters are required"
+            )
         }
 
-        /** Search for files matching a pattern */
-        suspend fun findFiles(tool: AITool): ToolResult {
-                val path = tool.parameters.find { it.name == "path" }?.value ?: ""
-                val pattern = tool.parameters.find { it.name == "pattern" }?.value ?: ""
+        return try {
+            val rootDir = File(path)
 
-                if (path.isBlank() || pattern.isBlank()) {
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result =
-                                        FindFilesResultData(
-                                                path = path,
-                                                pattern = pattern,
-                                                files = emptyList()
-                                        ),
-                                error = "Path and pattern parameters are required"
-                        )
-                }
+            if (!rootDir.exists() || !rootDir.isDirectory) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result =
+                                FindFilesResultData(
+                                        path = path,
+                                        pattern = pattern,
+                                        files = emptyList()
+                                ),
+                        error = "Path does not exist or is not a directory: $path"
+                )
+            }
 
-                return try {
-                        // Add options for different search modes
-                        val usePathPattern =
-                                tool.parameters
-                                        .find { it.name == "use_path_pattern" }
-                                        ?.value
-                                        ?.toBoolean()
-                                        ?: false
-                        val caseInsensitive =
-                                tool.parameters
-                                        .find { it.name == "case_insensitive" }
-                                        ?.value
-                                        ?.toBoolean()
-                                        ?: false
+            // Get search options
+            val usePathPattern =
+                    tool.parameters.find { it.name == "use_path_pattern" }?.value?.toBoolean()
+                            ?: false
+            val caseInsensitive =
+                    tool.parameters.find { it.name == "case_insensitive" }?.value?.toBoolean()
+                            ?: false
+            val maxDepth =
+                    tool.parameters.find { it.name == "max_depth" }?.value?.toIntOrNull() ?: -1
 
-                        // Add depth control parameter (default to -1 for unlimited depth/fully
-                        // recursive)
-                        val maxDepth =
-                                tool.parameters
-                                        .find { it.name == "max_depth" }
-                                        ?.value
-                                        ?.toIntOrNull()
-                                        ?: -1
+            // Convert glob pattern to regex
+            val regex = globToRegex(pattern, caseInsensitive)
 
-                        // Determine which search option to use
-                        val searchOption =
-                                if (usePathPattern) {
-                                        if (caseInsensitive) "-ipath" else "-path"
-                                } else {
-                                        if (caseInsensitive) "-iname" else "-name"
-                                }
+            // Recursively find matching files
+            val matchingFiles = mutableListOf<String>()
+            findMatchingFiles(
+                    rootDir,
+                    regex,
+                    matchingFiles,
+                    usePathPattern,
+                    maxDepth,
+                    0,
+                    rootDir.absolutePath
+            )
 
-                        // Properly escape the pattern if quotes are required
-                        val escapedPattern = pattern.replace("'", "'\\''")
-                        val patternForCommand = "'$escapedPattern'"
+            return ToolResult(
+                    toolName = tool.name,
+                    success = true,
+                    result =
+                            FindFilesResultData(
+                                    path = path,
+                                    pattern = pattern,
+                                    files = matchingFiles
+                            ),
+                    error = ""
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error searching for files", e)
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                            FindFilesResultData(
+                                    path = path,
+                                    pattern = pattern,
+                                    files = emptyList()
+                            ),
+                    error = "Error searching for files: ${e.message}"
+            )
+        }
+    }
 
-                        // Build the command with depth control if specified
-                        val depthOption = if (maxDepth >= 0) "-maxdepth $maxDepth" else ""
-                        val command =
-                                "find ${if(path.endsWith("/")) path else "$path/"} $depthOption $searchOption $patternForCommand"
+    /** Helper method to convert glob pattern to regex */
+    private fun globToRegex(glob: String, caseInsensitive: Boolean): Regex {
+        val regex = StringBuilder("^")
 
-                        val result = AndroidShellExecutor.executeAdbCommand(command)
-
-                        // Always consider the command successful, and check the output
-                        val fileList = result.stdout.trim()
-
-                        // 将结果转换为字符串列表
-                        val files =
-                                if (fileList.isBlank()) {
-                                        emptyList()
-                                } else {
-                                        fileList.split("\n").map { it.trim() }.filter {
-                                                it.isNotEmpty()
-                                        }
-                                }
-
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = true,
-                                result =
-                                        FindFilesResultData(
-                                                path = path,
-                                                pattern = pattern,
-                                                files = files
-                                        ),
-                                error = ""
-                        )
-                } catch (e: Exception) {
-                        Log.e(TAG, "Error searching for files", e)
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result =
-                                        FindFilesResultData(
-                                                path = path,
-                                                pattern = pattern,
-                                                files = emptyList()
-                                        ),
-                                error = "Error searching for files: ${e.message}"
-                        )
-                }
+        for (i in glob.indices) {
+            val c = glob[i]
+            when (c) {
+                '*' -> regex.append(".*")
+                '?' -> regex.append(".")
+                '.' -> regex.append("\\.")
+                '\\' -> regex.append("\\\\")
+                '[' -> regex.append("[")
+                ']' -> regex.append("]")
+                '(' -> regex.append("\\(")
+                ')' -> regex.append("\\)")
+                '{' -> regex.append("(")
+                '}' -> regex.append(")")
+                ',' -> regex.append("|")
+                else -> regex.append(c)
+            }
         }
 
-        /** Get file information */
-        suspend fun fileInfo(tool: AITool): ToolResult {
-                val path = tool.parameters.find { it.name == "path" }?.value ?: ""
+        regex.append("$")
 
-                if (path.isBlank()) {
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result =
-                                        FileInfoData(
-                                                path = "",
-                                                exists = false,
-                                                fileType = "",
-                                                size = 0,
-                                                permissions = "",
-                                                owner = "",
-                                                group = "",
-                                                lastModified = "",
-                                                rawStatOutput = ""
-                                        ),
-                                error = "Path parameter is required"
-                        )
-                }
+        return if (caseInsensitive) {
+            Regex(regex.toString(), RegexOption.IGNORE_CASE)
+        } else {
+            Regex(regex.toString())
+        }
+    }
 
-                return try {
-                        // Check if file exists
-                        val existsResult =
-                                AndroidShellExecutor.executeAdbCommand(
-                                        "test -e '$path' && echo 'exists' || echo 'not exists'"
-                                )
-                        if (existsResult.stdout.trim() != "exists") {
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = false,
-                                        result =
-                                                FileInfoData(
-                                                        path = path,
-                                                        exists = false,
-                                                        fileType = "",
-                                                        size = 0,
-                                                        permissions = "",
-                                                        owner = "",
-                                                        group = "",
-                                                        lastModified = "",
-                                                        rawStatOutput = ""
-                                                ),
-                                        error = "File or directory does not exist: $path"
-                                )
-                        }
-
-                        // Get file details using stat
-                        val statResult = AndroidShellExecutor.executeAdbCommand("stat '$path'")
-
-                        if (statResult.success) {
-                                // Get file type
-                                val fileTypeResult =
-                                        AndroidShellExecutor.executeAdbCommand(
-                                                "test -d '$path' && echo 'directory' || (test -f '$path' && echo 'file' || echo 'other')"
-                                        )
-                                val fileType = fileTypeResult.stdout.trim()
-
-                                // Get file size
-                                val sizeResult =
-                                        AndroidShellExecutor.executeAdbCommand(
-                                                "stat -c %s '$path' 2>/dev/null || echo '0'"
-                                        )
-                                val size = sizeResult.stdout.trim().toLongOrNull() ?: 0
-
-                                // Get file permissions
-                                val permissionsResult =
-                                        AndroidShellExecutor.executeAdbCommand(
-                                                "stat -c %A '$path' 2>/dev/null || echo ''"
-                                        )
-                                val permissions = permissionsResult.stdout.trim()
-
-                                // Get owner and group
-                                val ownerResult =
-                                        AndroidShellExecutor.executeAdbCommand(
-                                                "stat -c %U '$path' 2>/dev/null || echo ''"
-                                        )
-                                val owner = ownerResult.stdout.trim()
-
-                                val groupResult =
-                                        AndroidShellExecutor.executeAdbCommand(
-                                                "stat -c %G '$path' 2>/dev/null || echo ''"
-                                        )
-                                val group = groupResult.stdout.trim()
-
-                                // Get last modified time
-                                val modifiedResult =
-                                        AndroidShellExecutor.executeAdbCommand(
-                                                "stat -c %y '$path' 2>/dev/null || echo ''"
-                                        )
-                                val lastModified = modifiedResult.stdout.trim()
-
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = true,
-                                        result =
-                                                FileInfoData(
-                                                        path = path,
-                                                        exists = true,
-                                                        fileType = fileType,
-                                                        size = size,
-                                                        permissions = permissions,
-                                                        owner = owner,
-                                                        group = group,
-                                                        lastModified = lastModified,
-                                                        rawStatOutput = statResult.stdout
-                                                ),
-                                        error = ""
-                                )
-                        } else {
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = false,
-                                        result =
-                                                FileInfoData(
-                                                        path = path,
-                                                        exists = true,
-                                                        fileType = "",
-                                                        size = 0,
-                                                        permissions = "",
-                                                        owner = "",
-                                                        group = "",
-                                                        lastModified = "",
-                                                        rawStatOutput = ""
-                                                ),
-                                        error =
-                                                "Failed to get file information: ${statResult.stderr}"
-                                )
-                        }
-                } catch (e: Exception) {
-                        Log.e(TAG, "Error getting file information", e)
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result =
-                                        FileInfoData(
-                                                path = path,
-                                                exists = false,
-                                                fileType = "",
-                                                size = 0,
-                                                permissions = "",
-                                                owner = "",
-                                                group = "",
-                                                lastModified = "",
-                                                rawStatOutput = ""
-                                        ),
-                                error = "Error getting file information: ${e.message}"
-                        )
-                }
+    /** Helper method to recursively find files matching a pattern */
+    private fun findMatchingFiles(
+            dir: File,
+            regex: Regex,
+            results: MutableList<String>,
+            usePathPattern: Boolean,
+            maxDepth: Int,
+            currentDepth: Int,
+            rootPath: String
+    ) {
+        if (maxDepth >= 0 && currentDepth > maxDepth) {
+            return
         }
 
-        /** Zip files or directories */
-        suspend fun zipFiles(tool: AITool): ToolResult {
-                val sourcePath = tool.parameters.find { it.name == "source" }?.value ?: ""
-                val zipPath = tool.parameters.find { it.name == "destination" }?.value ?: ""
+        val files = dir.listFiles() ?: return
 
-                if (sourcePath.isBlank() || zipPath.isBlank()) {
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result = StringResultData(""),
-                                error = "Source and destination parameters are required"
-                        )
-                }
+        for (file in files) {
+            val relativePath = file.absolutePath.substring(rootPath.length + 1)
 
-                return try {
-                        // First, check if the source path exists
-                        val existsResult =
-                                AndroidShellExecutor.executeAdbCommand(
-                                        "test -e '$sourcePath' && echo 'exists' || echo 'not exists'"
-                                )
-                        if (existsResult.stdout.trim() != "exists") {
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = false,
-                                        result = StringResultData(""),
-                                        error =
-                                                "Source file or directory does not exist: $sourcePath"
-                                )
-                        }
+            val testString = if (usePathPattern) relativePath else file.name
 
-                        // Check if source is a directory
-                        val isDirResult =
-                                AndroidShellExecutor.executeAdbCommand(
-                                        "test -d '$sourcePath' && echo 'true' || echo 'false'"
-                                )
-                        val isDirectory = isDirResult.stdout.trim() == "true"
+            if (regex.matches(testString)) {
+                results.add(file.absolutePath)
+            }
 
-                        // Create parent directory for zip file if needed
-                        val zipDir = File(zipPath).parent
-                        if (zipDir != null) {
-                                AndroidShellExecutor.executeAdbCommand("mkdir -p '$zipDir'")
-                        }
+            if (file.isDirectory) {
+                findMatchingFiles(
+                        file,
+                        regex,
+                        results,
+                        usePathPattern,
+                        maxDepth,
+                        currentDepth + 1,
+                        rootPath
+                )
+            }
+        }
+    }
 
-                        // Use Java's ZipOutputStream to create the zip file
-                        // We'll use ADB to copy files to/from the device and process locally
-                        val sourceFile = File(sourcePath)
-                        val destZipFile = File(zipPath)
+    /** Get file information */
+    open suspend fun fileInfo(tool: AITool): ToolResult {
+        val path = tool.parameters.find { it.name == "path" }?.value ?: ""
 
-                        // Initialize buffer for file copy
-                        val buffer = ByteArray(1024)
-
-                        // Create temporary file for processing - using external files directory for
-                        // better
-                        // permissions
-                        val tempDir = context.getExternalFilesDir(null) ?: context.cacheDir
-                        val tempSourceFile =
-                                File(tempDir, "temp_source_${System.currentTimeMillis()}")
-                        val tempZipFile =
-                                File(tempDir, "temp_zip_${System.currentTimeMillis()}.zip")
-
-                        try {
-                                // Make sure the temp directory exists
-                                tempDir.mkdirs()
-
-                                if (isDirectory) {
-                                        // For directories, we need to list all files and add them
-                                        // to the zip
-                                        val listResult =
-                                                AndroidShellExecutor.executeAdbCommand(
-                                                        "find '$sourcePath' -type f"
-                                                )
-                                        val fileList =
-                                                listResult.stdout.trim().split("\n").filter {
-                                                        it.isNotEmpty()
-                                                }
-
-                                        // Create ZIP output stream
-                                        val fos = FileOutputStream(tempZipFile)
-                                        val zos = ZipOutputStream(BufferedOutputStream(fos))
-
-                                        try {
-                                                for (filePath in fileList) {
-                                                        // Get the file path relative to the source
-                                                        // directory
-                                                        val relativePath =
-                                                                filePath.substring(
-                                                                        sourcePath.length + 1
-                                                                )
-
-                                                        // Copy the file from device to temp file
-                                                        val pullResult =
-                                                                AndroidShellExecutor
-                                                                        .executeAdbCommand(
-                                                                                "cat '$filePath' > '${tempSourceFile.absolutePath}'"
-                                                                        )
-                                                        if (!pullResult.success) {
-                                                                continue // Skip this file if we
-                                                                // can't pull it
-                                                        }
-
-                                                        // Add the file to the ZIP
-                                                        val fis = FileInputStream(tempSourceFile)
-                                                        val bis = BufferedInputStream(fis)
-
-                                                        try {
-                                                                // Add ZIP entry
-                                                                val entry = ZipEntry(relativePath)
-                                                                zos.putNextEntry(entry)
-
-                                                                // Write file content to ZIP
-                                                                var len: Int
-                                                                while (bis.read(buffer).also {
-                                                                        len = it
-                                                                } > 0) {
-                                                                        zos.write(buffer, 0, len)
-                                                                }
-
-                                                                zos.closeEntry()
-                                                        } finally {
-                                                                bis.close()
-                                                                fis.close()
-                                                                tempSourceFile.delete()
-                                                        }
-                                                }
-                                        } finally {
-                                                zos.close()
-                                                fos.close()
-                                        }
-                                } else {
-                                        // For a single file, simpler process
-                                        // Copy the file from device to temp file
-                                        val pullResult =
-                                                AndroidShellExecutor.executeAdbCommand(
-                                                        "cat '$sourcePath' > '${tempSourceFile.absolutePath}'"
-                                                )
-                                        if (!pullResult.success) {
-                                                return ToolResult(
-                                                        toolName = tool.name,
-                                                        success = false,
-                                                        result = StringResultData(""),
-                                                        error =
-                                                                "Failed to read source file: ${pullResult.stderr}"
-                                                )
-                                        }
-
-                                        // Create zip file with single entry
-                                        val fos = FileOutputStream(tempZipFile)
-                                        val zos = ZipOutputStream(BufferedOutputStream(fos))
-
-                                        try {
-                                                val fis = FileInputStream(tempSourceFile)
-                                                val bis = BufferedInputStream(fis)
-
-                                                try {
-                                                        // Add ZIP entry
-                                                        val entry = ZipEntry(sourceFile.name)
-                                                        zos.putNextEntry(entry)
-
-                                                        // Write file content to ZIP
-                                                        var len: Int
-                                                        while (bis.read(buffer).also { len = it } >
-                                                                0) {
-                                                                zos.write(buffer, 0, len)
-                                                        }
-
-                                                        zos.closeEntry()
-                                                } finally {
-                                                        bis.close()
-                                                        fis.close()
-                                                }
-                                        } finally {
-                                                zos.close()
-                                                fos.close()
-                                        }
-                                }
-
-                                // Log information about the temp ZIP file
-                                Log.d(
-                                        TAG,
-                                        "Temp ZIP file created at: ${tempZipFile.absolutePath}, size: ${tempZipFile.length()} bytes"
-                                )
-
-                                // Push the ZIP file to the destination
-                                val pushResult =
-                                        AndroidShellExecutor.executeAdbCommand(
-                                                "cat '${tempZipFile.absolutePath}' > '$zipPath'"
-                                        )
-                                if (!pushResult.success) {
-                                        return ToolResult(
-                                                toolName = tool.name,
-                                                success = false,
-                                                result = StringResultData(""),
-                                                error =
-                                                        "Failed to write ZIP file: ${pushResult.stderr}"
-                                        )
-                                }
-
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = true,
-                                        result =
-                                                FileOperationData(
-                                                        operation = "zip",
-                                                        path = sourcePath,
-                                                        successful = true,
-                                                        details =
-                                                                "Successfully compressed $sourcePath to $zipPath"
-                                                ),
-                                        error = ""
-                                )
-                        } finally {
-                                // Clean up temporary files
-                                tempSourceFile.delete()
-                                tempZipFile.delete()
-                        }
-                } catch (e: Exception) {
-                        Log.e(TAG, "Error compressing files", e)
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result = StringResultData(""),
-                                error = "Error compressing files: ${e.message}"
-                        )
-                }
+        if (path.isBlank()) {
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                            FileInfoData(
+                                    path = "",
+                                    exists = false,
+                                    fileType = "",
+                                    size = 0,
+                                    permissions = "",
+                                    owner = "",
+                                    group = "",
+                                    lastModified = "",
+                                    rawStatOutput = ""
+                            ),
+                    error = "Path parameter is required"
+            )
         }
 
-        /** Unzip a zip file */
-        suspend fun unzipFiles(tool: AITool): ToolResult {
-                val zipPath = tool.parameters.find { it.name == "source" }?.value ?: ""
-                val destPath = tool.parameters.find { it.name == "destination" }?.value ?: ""
+        return try {
+            val file = File(path)
 
-                if (zipPath.isBlank() || destPath.isBlank()) {
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result = StringResultData(""),
-                                error = "Source and destination parameters are required"
-                        )
-                }
+            if (!file.exists()) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result =
+                                FileInfoData(
+                                        path = path,
+                                        exists = false,
+                                        fileType = "",
+                                        size = 0,
+                                        permissions = "",
+                                        owner = "",
+                                        group = "",
+                                        lastModified = "",
+                                        rawStatOutput = ""
+                                ),
+                        error = "File or directory does not exist: $path"
+                )
+            }
 
-                return try {
-                        // Check if the zip file exists
-                        val existsResult =
-                                AndroidShellExecutor.executeAdbCommand(
-                                        "test -f '$zipPath' && echo 'exists' || echo 'not exists'"
-                                )
-                        if (existsResult.stdout.trim() != "exists") {
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = false,
-                                        result = StringResultData(""),
-                                        error = "Zip file does not exist: $zipPath"
-                                )
-                        }
+            // Get file type
+            val fileType =
+                    when {
+                        file.isDirectory -> "directory"
+                        file.isFile -> "file"
+                        else -> "other"
+                    }
 
-                        // Create destination directory if it doesn't exist
-                        AndroidShellExecutor.executeAdbCommand("mkdir -p '$destPath'")
+            // Get permissions
+            val permissions = getFilePermissions(file)
 
-                        // Create temporary files for processing - using external files directory
-                        // for better
-                        // permissions
-                        val tempDir = context.getExternalFilesDir(null) ?: context.cacheDir
-                        val tempZipFile =
-                                File(tempDir, "temp_zip_${System.currentTimeMillis()}.zip")
+            // Owner and group info are not easily available in Java
+            val owner = System.getProperty("user.name") ?: ""
+            val group = ""
 
-                        try {
-                                // Make sure the temp directory exists
-                                tempDir.mkdirs()
+            // Last modified time
+            val lastModified =
+                    SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
+                            .format(Date(file.lastModified()))
 
-                                // Copy the zip file from device to temp file
-                                val pullResult =
-                                        AndroidShellExecutor.executeAdbCommand(
-                                                "cat '$zipPath' > '${tempZipFile.absolutePath}'"
-                                        )
-                                if (!pullResult.success) {
-                                        return ToolResult(
-                                                toolName = tool.name,
-                                                success = false,
-                                                result = StringResultData(""),
-                                                error =
-                                                        "Failed to read zip file: ${pullResult.stderr}"
-                                        )
-                                }
+            // Size
+            val size = if (file.isFile) file.length() else 0
 
-                                // Log information about the temp ZIP file
-                                Log.d(
-                                        TAG,
-                                        "Temp ZIP file loaded at: ${tempZipFile.absolutePath}, size: ${tempZipFile.length()} bytes"
-                                )
+            // Collect all file info into a raw string
+            val rawInfo = StringBuilder()
+            rawInfo.append("File: $path\n")
+            rawInfo.append("Size: $size bytes\n")
+            rawInfo.append("Type: $fileType\n")
+            rawInfo.append("Permissions: $permissions\n")
+            rawInfo.append("Last Modified: $lastModified\n")
+            rawInfo.append("Owner: $owner\n")
+            if (file.canRead()) rawInfo.append("Access: Readable\n")
+            if (file.canWrite()) rawInfo.append("Access: Writable\n")
+            if (file.canExecute()) rawInfo.append("Access: Executable\n")
+            if (file.isHidden()) rawInfo.append("Hidden: Yes\n")
 
-                                // Extract files using ZipInputStream
-                                val buffer = ByteArray(1024)
-                                val zipInputStream =
-                                        ZipInputStream(
-                                                BufferedInputStream(FileInputStream(tempZipFile))
-                                        )
+            return ToolResult(
+                    toolName = tool.name,
+                    success = true,
+                    result =
+                            FileInfoData(
+                                    path = path,
+                                    exists = true,
+                                    fileType = fileType,
+                                    size = size,
+                                    permissions = permissions,
+                                    owner = owner,
+                                    group = group,
+                                    lastModified = lastModified,
+                                    rawStatOutput = rawInfo.toString()
+                            ),
+                    error = ""
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting file information", e)
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                            FileInfoData(
+                                    path = path,
+                                    exists = false,
+                                    fileType = "",
+                                    size = 0,
+                                    permissions = "",
+                                    owner = "",
+                                    group = "",
+                                    lastModified = "",
+                                    rawStatOutput = ""
+                            ),
+                    error = "Error getting file information: ${e.message}"
+            )
+        }
+    }
 
-                                try {
-                                        var zipEntry: ZipEntry? = zipInputStream.nextEntry
-                                        while (zipEntry != null) {
-                                                val fileName = zipEntry.name
-                                                val newFile =
-                                                        File(
-                                                                tempDir,
-                                                                "unzip_temp_${System.currentTimeMillis()}"
-                                                        )
+    /** Zip files or directories */
+    open suspend fun zipFiles(tool: AITool): ToolResult {
+        val sourcePath = tool.parameters.find { it.name == "source" }?.value ?: ""
+        val zipPath = tool.parameters.find { it.name == "destination" }?.value ?: ""
 
-                                                // Skip directories, but make sure they exist
-                                                if (zipEntry.isDirectory) {
-                                                        val dirPath = "$destPath/$fileName"
-                                                        AndroidShellExecutor.executeAdbCommand(
-                                                                "mkdir -p '$dirPath'"
-                                                        )
-                                                        zipInputStream.closeEntry()
-                                                        zipEntry = zipInputStream.nextEntry
-                                                        continue
-                                                }
-
-                                                // Create parent directories if needed
-                                                val filePath = "$destPath/$fileName"
-                                                val parentDirPath = File(filePath).parent
-                                                if (parentDirPath != null) {
-                                                        AndroidShellExecutor.executeAdbCommand(
-                                                                "mkdir -p '$parentDirPath'"
-                                                        )
-                                                }
-
-                                                // Extract file
-                                                val fileOutputStream = FileOutputStream(newFile)
-
-                                                try {
-                                                        var len: Int
-                                                        while (zipInputStream.read(buffer).also {
-                                                                len = it
-                                                        } > 0) {
-                                                                fileOutputStream.write(
-                                                                        buffer,
-                                                                        0,
-                                                                        len
-                                                                )
-                                                        }
-                                                } finally {
-                                                        fileOutputStream.close()
-                                                }
-
-                                                // Copy the extracted file to device
-                                                val pushResult =
-                                                        AndroidShellExecutor.executeAdbCommand(
-                                                                "cat '${newFile.absolutePath}' > '$filePath'"
-                                                        )
-                                                if (!pushResult.success) {
-                                                        Log.w(
-                                                                TAG,
-                                                                "Failed to copy extracted file: $fileName to $filePath"
-                                                        )
-                                                        // Continue with next file
-                                                }
-
-                                                // Clean up temp file
-                                                newFile.delete()
-
-                                                zipInputStream.closeEntry()
-                                                zipEntry = zipInputStream.nextEntry
-                                        }
-                                } finally {
-                                        zipInputStream.close()
-                                }
-
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = true,
-                                        result =
-                                                FileOperationData(
-                                                        operation = "unzip",
-                                                        path = zipPath,
-                                                        successful = true,
-                                                        details =
-                                                                "Successfully extracted $zipPath to $destPath"
-                                                ),
-                                        error = ""
-                                )
-                        } finally {
-                                tempZipFile.delete()
-                        }
-                } catch (e: Exception) {
-                        Log.e(TAG, "Error extracting zip file", e)
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result = StringResultData(""),
-                                error = "Error extracting zip file: ${e.message}"
-                        )
-                }
+        if (sourcePath.isBlank() || zipPath.isBlank()) {
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Source and destination parameters are required"
+            )
         }
 
-        /** 打开文件 使用系统默认应用打开文件 */
-        suspend fun openFile(tool: AITool): ToolResult {
-                val path = tool.parameters.find { it.name == "path" }?.value ?: ""
+        return try {
+            val sourceFile = File(sourcePath)
+            val destZipFile = File(zipPath)
 
-                if (path.isBlank()) {
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result =
-                                        FileOperationData(
-                                                operation = "open",
-                                                path = "",
-                                                successful = false,
-                                                details = "必须提供path参数"
-                                        ),
-                                error = "必须提供path参数"
-                        )
-                }
+            if (!sourceFile.exists()) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "Source file or directory does not exist: $sourcePath"
+                )
+            }
 
-                return try {
-                        // 首先检查文件是否存在
-                        val existsResult =
-                                AndroidShellExecutor.executeAdbCommand(
-                                        "test -f '$path' && echo 'exists' || echo 'not exists'"
-                                )
-                        if (existsResult.stdout.trim() != "exists") {
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = false,
-                                        result =
-                                                FileOperationData(
-                                                        operation = "open",
-                                                        path = path,
-                                                        successful = false,
-                                                        details = "文件不存在: $path"
-                                                ),
-                                        error = "文件不存在: $path"
-                                )
+            // Create parent directory for zip file if needed
+            val zipDir = destZipFile.parentFile
+            if (zipDir != null && !zipDir.exists()) {
+                zipDir.mkdirs()
+            }
+
+            // Initialize buffer for file operations
+            val buffer = ByteArray(1024)
+
+            ZipOutputStream(BufferedOutputStream(FileOutputStream(destZipFile))).use { zos ->
+                if (sourceFile.isDirectory) {
+                    // For directories, add all files recursively
+                    addDirectoryToZip(sourceFile, sourceFile.name, zos)
+                } else {
+                    // For a single file, add it directly
+                    val entryName = sourceFile.name
+                    zos.putNextEntry(ZipEntry(entryName))
+
+                    FileInputStream(sourceFile).use { fis ->
+                        BufferedInputStream(fis).use { bis ->
+                            var len: Int
+                            while (bis.read(buffer).also { len = it } > 0) {
+                                zos.write(buffer, 0, len)
+                            }
                         }
+                    }
 
-                        // 获取文件MIME类型
-                        val mimeTypeResult =
-                                AndroidShellExecutor.executeAdbCommand(
-                                        "file --mime-type -b '$path'"
-                                )
-                        val mimeType =
-                                if (mimeTypeResult.success) mimeTypeResult.stdout.trim()
-                                else "application/octet-stream"
-
-                        // 使用Android intent打开文件
-                        val command =
-                                "am start -a android.intent.action.VIEW -d 'file://$path' -t '$mimeType'"
-                        val result = AndroidShellExecutor.executeAdbCommand(command)
-
-                        if (result.success) {
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = true,
-                                        result =
-                                                FileOperationData(
-                                                        operation = "open",
-                                                        path = path,
-                                                        successful = true,
-                                                        details = "已使用系统应用打开文件: $path"
-                                                ),
-                                        error = ""
-                                )
-                        } else {
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = false,
-                                        result =
-                                                FileOperationData(
-                                                        operation = "open",
-                                                        path = path,
-                                                        successful = false,
-                                                        details = "打开文件失败: ${result.stderr}"
-                                                ),
-                                        error = "打开文件失败: ${result.stderr}"
-                                )
-                        }
-                } catch (e: Exception) {
-                        Log.e(TAG, "打开文件时出错", e)
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result =
-                                        FileOperationData(
-                                                operation = "open",
-                                                path = path,
-                                                successful = false,
-                                                details = "打开文件时出错: ${e.message}"
-                                        ),
-                                error = "打开文件时出错: ${e.message}"
-                        )
+                    zos.closeEntry()
                 }
+            }
+
+            if (destZipFile.exists()) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = true,
+                        result =
+                                FileOperationData(
+                                        operation = "zip",
+                                        path = sourcePath,
+                                        successful = true,
+                                        details = "Successfully compressed $sourcePath to $zipPath"
+                                ),
+                        error = ""
+                )
+            } else {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "Failed to create zip file"
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error compressing files", e)
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Error compressing files: ${e.message}"
+            )
+        }
+    }
+
+    /** Helper method to add directory contents to zip */
+    private fun addDirectoryToZip(dir: File, baseName: String, zos: ZipOutputStream) {
+        val buffer = ByteArray(1024)
+        val files = dir.listFiles() ?: return
+
+        for (file in files) {
+            if (file.isDirectory) {
+                addDirectoryToZip(file, "$baseName/${file.name}", zos)
+                continue
+            }
+
+            val entryName = "$baseName/${file.name}"
+            zos.putNextEntry(ZipEntry(entryName))
+
+            FileInputStream(file).use { fis ->
+                BufferedInputStream(fis).use { bis ->
+                    var len: Int
+                    while (bis.read(buffer).also { len = it } > 0) {
+                        zos.write(buffer, 0, len)
+                    }
+                }
+            }
+
+            zos.closeEntry()
+        }
+    }
+
+    /** Unzip a zip file */
+    open suspend fun unzipFiles(tool: AITool): ToolResult {
+        val zipPath = tool.parameters.find { it.name == "source" }?.value ?: ""
+        val destPath = tool.parameters.find { it.name == "destination" }?.value ?: ""
+
+        if (zipPath.isBlank() || destPath.isBlank()) {
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Source and destination parameters are required"
+            )
         }
 
-        /** 分享文件 调用系统分享功能 */
-        suspend fun shareFile(tool: AITool): ToolResult {
-                val path = tool.parameters.find { it.name == "path" }?.value ?: ""
-                val title = tool.parameters.find { it.name == "title" }?.value ?: "分享文件"
+        return try {
+            val zipFile = File(zipPath)
+            val destDir = File(destPath)
 
-                if (path.isBlank()) {
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result =
-                                        FileOperationData(
-                                                operation = "share",
-                                                path = "",
-                                                successful = false,
-                                                details = "必须提供path参数"
-                                        ),
-                                error = "必须提供path参数"
-                        )
-                }
+            if (!zipFile.exists()) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "Zip file does not exist: $zipPath"
+                )
+            }
 
-                return try {
-                        // 首先检查文件是否存在
-                        val existsResult =
-                                AndroidShellExecutor.executeAdbCommand(
-                                        "test -f '$path' && echo 'exists' || echo 'not exists'"
-                                )
-                        if (existsResult.stdout.trim() != "exists") {
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = false,
-                                        result =
-                                                FileOperationData(
-                                                        operation = "share",
-                                                        path = path,
-                                                        successful = false,
-                                                        details = "文件不存在: $path"
-                                                ),
-                                        error = "文件不存在: $path"
-                                )
+            if (!zipFile.isFile) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "Source path is not a file: $zipPath"
+                )
+            }
+
+            // Create destination directory if needed
+            if (!destDir.exists()) {
+                destDir.mkdirs()
+            }
+
+            val buffer = ByteArray(1024)
+
+            ZipInputStream(BufferedInputStream(FileInputStream(zipFile))).use { zis ->
+                var zipEntry: ZipEntry? = zis.nextEntry
+
+                while (zipEntry != null) {
+                    val fileName = zipEntry.name
+                    val newFile = File(destDir, fileName)
+
+                    // Create parent directories if needed
+                    val parentDir = newFile.parentFile
+                    if (parentDir != null && !parentDir.exists()) {
+                        parentDir.mkdirs()
+                    }
+
+                    if (zipEntry.isDirectory) {
+                        // Create directory if it doesn't exist
+                        if (!newFile.exists()) {
+                            newFile.mkdirs()
                         }
-
-                        // 获取文件MIME类型
-                        val mimeTypeResult =
-                                AndroidShellExecutor.executeAdbCommand(
-                                        "file --mime-type -b '$path'"
-                                )
-                        val mimeType =
-                                if (mimeTypeResult.success) mimeTypeResult.stdout.trim()
-                                else "application/octet-stream"
-
-                        // 使用Android intent分享文件
-                        val command =
-                                "am start -a android.intent.action.SEND -t '$mimeType' --es android.intent.extra.SUBJECT '$title' --es android.intent.extra.STREAM 'file://$path' --ez android.intent.extra.STREAM_REFERENCE true"
-                        val result = AndroidShellExecutor.executeAdbCommand(command)
-
-                        if (result.success) {
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = true,
-                                        result =
-                                                FileOperationData(
-                                                        operation = "share",
-                                                        path = path,
-                                                        successful = true,
-                                                        details = "已打开分享界面，分享文件: $path"
-                                                ),
-                                        error = ""
-                                )
-                        } else {
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = false,
-                                        result =
-                                                FileOperationData(
-                                                        operation = "share",
-                                                        path = path,
-                                                        successful = false,
-                                                        details = "分享文件失败: ${result.stderr}"
-                                                ),
-                                        error = "分享文件失败: ${result.stderr}"
-                                )
+                    } else {
+                        // Extract file
+                        FileOutputStream(newFile).use { fos ->
+                            BufferedOutputStream(fos).use { bos ->
+                                var len: Int
+                                while (zis.read(buffer).also { len = it } > 0) {
+                                    bos.write(buffer, 0, len)
+                                }
+                            }
                         }
-                } catch (e: Exception) {
-                        Log.e(TAG, "分享文件时出错", e)
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result =
-                                        FileOperationData(
-                                                operation = "share",
-                                                path = path,
-                                                successful = false,
-                                                details = "分享文件时出错: ${e.message}"
-                                        ),
-                                error = "分享文件时出错: ${e.message}"
-                        )
+                    }
+
+                    zis.closeEntry()
+                    zipEntry = zis.nextEntry
                 }
+            }
+
+            return ToolResult(
+                    toolName = tool.name,
+                    success = true,
+                    result =
+                            FileOperationData(
+                                    operation = "unzip",
+                                    path = zipPath,
+                                    successful = true,
+                                    details = "Successfully extracted $zipPath to $destPath"
+                            ),
+                    error = ""
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error extracting zip file", e)
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Error extracting zip file: ${e.message}"
+            )
+        }
+    }
+
+    /** Download file from URL */
+    open suspend fun downloadFile(tool: AITool): ToolResult {
+        val url = tool.parameters.find { it.name == "url" }?.value ?: ""
+        val destPath = tool.parameters.find { it.name == "destination" }?.value ?: ""
+
+        if (url.isBlank() || destPath.isBlank()) {
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                            FileOperationData(
+                                    operation = "download",
+                                    path = destPath,
+                                    successful = false,
+                                    details = "URL and destination parameters are required"
+                            ),
+                    error = "URL and destination parameters are required"
+            )
         }
 
-        /** 下载文件 从网络URL下载文件到指定路径 */
-        suspend fun downloadFile(tool: AITool): ToolResult {
-                val url = tool.parameters.find { it.name == "url" }?.value ?: ""
-                val destPath = tool.parameters.find { it.name == "destination" }?.value ?: ""
-
-                if (url.isBlank() || destPath.isBlank()) {
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result =
-                                        FileOperationData(
-                                                operation = "download",
-                                                path = destPath,
-                                                successful = false,
-                                                details = "必须提供url和destination参数"
-                                        ),
-                                error = "必须提供url和destination参数"
-                        )
-                }
-
-                // 验证URL格式
-                if (!url.startsWith("http://") && !url.startsWith("https://")) {
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result =
-                                        FileOperationData(
-                                                operation = "download",
-                                                path = destPath,
-                                                successful = false,
-                                                details = "URL必须以http://或https://开头"
-                                        ),
-                                error = "URL必须以http://或https://开头"
-                        )
-                }
-
-                return try {
-                        // 确保目标目录存在
-                        val directory = File(destPath).parent
-                        if (directory != null) {
-                                val mkdirResult =
-                                        AndroidShellExecutor.executeAdbCommand(
-                                                "mkdir -p '$directory'"
-                                        )
-                                if (!mkdirResult.success) {
-                                        return ToolResult(
-                                                toolName = tool.name,
-                                                success = false,
-                                                result =
-                                                        FileOperationData(
-                                                                operation = "download",
-                                                                path = destPath,
-                                                                successful = false,
-                                                                details =
-                                                                        "无法创建目标目录: ${mkdirResult.stderr}"
-                                                        ),
-                                                error = "无法创建目标目录: ${mkdirResult.stderr}"
-                                        )
-                                }
-                        }
-
-                        // 使用wget或curl下载文件
-                        // 首先检查是否有wget
-                        val wgetCheckResult = AndroidShellExecutor.executeAdbCommand("which wget")
-
-                        val downloadCommand =
-                                if (wgetCheckResult.success) {
-                                        "wget '$url' -O '$destPath' --no-check-certificate -q"
-                                } else {
-                                        // 如果没有wget，尝试使用curl
-                                        val curlCheckResult =
-                                                AndroidShellExecutor.executeAdbCommand("which curl")
-                                        if (!curlCheckResult.success) {
-                                                return ToolResult(
-                                                        toolName = tool.name,
-                                                        success = false,
-                                                        result =
-                                                                FileOperationData(
-                                                                        operation = "download",
-                                                                        path = destPath,
-                                                                        successful = false,
-                                                                        details =
-                                                                                "系统中没有wget或curl工具，无法下载文件"
-                                                                ),
-                                                        error = "系统中没有wget或curl工具，无法下载文件"
-                                                )
-                                        }
-                                        "curl -L '$url' -o '$destPath' -s"
-                                }
-
-                        val result = AndroidShellExecutor.executeAdbCommand(downloadCommand)
-
-                        if (result.success) {
-                                // 验证文件是否已下载
-                                val checkFileResult =
-                                        AndroidShellExecutor.executeAdbCommand(
-                                                "test -f '$destPath' && echo 'exists' || echo 'not exists'"
-                                        )
-                                if (checkFileResult.stdout.trim() != "exists") {
-                                        return ToolResult(
-                                                toolName = tool.name,
-                                                success = false,
-                                                result =
-                                                        FileOperationData(
-                                                                operation = "download",
-                                                                path = destPath,
-                                                                successful = false,
-                                                                details = "下载似乎已完成，但文件未被创建"
-                                                        ),
-                                                error = "下载似乎已完成，但文件未被创建"
-                                        )
-                                }
-
-                                // 获取文件大小
-                                val fileSizeResult =
-                                        AndroidShellExecutor.executeAdbCommand(
-                                                "stat -c %s '$destPath'"
-                                        )
-                                val fileSize =
-                                        if (fileSizeResult.success) {
-                                                val size =
-                                                        fileSizeResult.stdout.trim().toLongOrNull()
-                                                                ?: 0
-                                                if (size > 1024 * 1024) {
-                                                        String.format(
-                                                                "%.2f MB",
-                                                                size / (1024.0 * 1024.0)
-                                                        )
-                                                } else if (size > 1024) {
-                                                        String.format("%.2f KB", size / 1024.0)
-                                                } else {
-                                                        "$size bytes"
-                                                }
-                                        } else {
-                                                "未知大小"
-                                        }
-
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = true,
-                                        result =
-                                                FileOperationData(
-                                                        operation = "download",
-                                                        path = destPath,
-                                                        successful = true,
-                                                        details =
-                                                                "文件下载成功: $url -> $destPath (文件大小: $fileSize)"
-                                                ),
-                                        error = ""
-                                )
-                        } else {
-                                return ToolResult(
-                                        toolName = tool.name,
-                                        success = false,
-                                        result =
-                                                FileOperationData(
-                                                        operation = "download",
-                                                        path = destPath,
-                                                        successful = false,
-                                                        details = "下载失败: ${result.stderr}"
-                                                ),
-                                        error = "下载失败: ${result.stderr}"
-                                )
-                        }
-                } catch (e: Exception) {
-                        Log.e(TAG, "下载文件时出错", e)
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = false,
-                                result =
-                                        FileOperationData(
-                                                operation = "download",
-                                                path = destPath,
-                                                successful = false,
-                                                details = "下载文件时出错: ${e.message}"
-                                        ),
-                                error = "下载文件时出错: ${e.message}"
-                        )
-                }
+        // Validate URL format
+        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                            FileOperationData(
+                                    operation = "download",
+                                    path = destPath,
+                                    successful = false,
+                                    details = "URL must start with http:// or https://"
+                            ),
+                    error = "URL must start with http:// or https://"
+            )
         }
+
+        return try {
+            val destFile = File(destPath)
+
+            // Create parent directory if needed
+            val destParent = destFile.parentFile
+            if (destParent != null && !destParent.exists()) {
+                destParent.mkdirs()
+            }
+
+            // Open connection to URL
+            val connection = URL(url).openConnection() as HttpURLConnection
+            connection.connectTimeout = 15000
+            connection.readTimeout = 30000
+            connection.instanceFollowRedirects = true
+
+            val responseCode = connection.responseCode
+            if (responseCode != HttpURLConnection.HTTP_OK) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result =
+                                FileOperationData(
+                                        operation = "download",
+                                        path = destPath,
+                                        successful = false,
+                                        details =
+                                                "Failed to download: HTTP error code $responseCode"
+                                ),
+                        error = "Failed to download: HTTP error code $responseCode"
+                )
+            }
+
+            // Get file size for progress tracking
+            val fileSize = connection.contentLength
+
+            // Download the file
+            connection.inputStream.use { input ->
+                FileOutputStream(destFile).use { output ->
+                    val buffer = ByteArray(4096)
+                    var bytesRead: Int
+                    var totalBytesRead = 0L
+
+                    while (input.read(buffer).also { bytesRead = it } != -1) {
+                        output.write(buffer, 0, bytesRead)
+                        totalBytesRead += bytesRead
+                    }
+                }
+            }
+
+            // Verify download was successful
+            if (destFile.exists()) {
+                val fileSize = destFile.length()
+                val formattedSize =
+                        when {
+                            fileSize > 1024 * 1024 ->
+                                    String.format("%.2f MB", fileSize / (1024.0 * 1024.0))
+                            fileSize > 1024 -> String.format("%.2f KB", fileSize / 1024.0)
+                            else -> "$fileSize bytes"
+                        }
+
+                return ToolResult(
+                        toolName = tool.name,
+                        success = true,
+                        result =
+                                FileOperationData(
+                                        operation = "download",
+                                        path = destPath,
+                                        successful = true,
+                                        details =
+                                                "File downloaded successfully: $url -> $destPath (file size: $formattedSize)"
+                                ),
+                        error = ""
+                )
+            } else {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result =
+                                FileOperationData(
+                                        operation = "download",
+                                        path = destPath,
+                                        successful = false,
+                                        details = "Download completed but file was not created"
+                                ),
+                        error = "Download completed but file was not created"
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error downloading file", e)
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                            FileOperationData(
+                                    operation = "download",
+                                    path = destPath,
+                                    successful = false,
+                                    details = "Error downloading file: ${e.message}"
+                            ),
+                    error = "Error downloading file: ${e.message}"
+            )
+        }
+    }
+
+    /** Open file with system default app */
+    open suspend fun openFile(tool: AITool): ToolResult {
+        val path = tool.parameters.find { it.name == "path" }?.value ?: ""
+
+        if (path.isBlank()) {
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                            FileOperationData(
+                                    operation = "open",
+                                    path = "",
+                                    successful = false,
+                                    details = "Path parameter is required"
+                            ),
+                    error = "Path parameter is required"
+            )
+        }
+
+        return ToolResult(
+                toolName = tool.name,
+                success = false,
+                result =
+                        FileOperationData(
+                                operation = "open",
+                                path = path,
+                                successful = false,
+                                details =
+                                        "Opening files with system apps requires Android Intent functionality and is not supported in standard file operations"
+                        ),
+                error =
+                        "Opening files with system apps requires Android Intent functionality and is not supported in standard file operations"
+        )
+    }
+
+    /** Share file via system share dialog */
+    open suspend fun shareFile(tool: AITool): ToolResult {
+        val path = tool.parameters.find { it.name == "path" }?.value ?: ""
+        val title = tool.parameters.find { it.name == "title" }?.value ?: "Share File"
+
+        if (path.isBlank()) {
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                            FileOperationData(
+                                    operation = "share",
+                                    path = "",
+                                    successful = false,
+                                    details = "Path parameter is required"
+                            ),
+                    error = "Path parameter is required"
+            )
+        }
+
+        return ToolResult(
+                toolName = tool.name,
+                success = false,
+                result =
+                        FileOperationData(
+                                operation = "share",
+                                path = path,
+                                successful = false,
+                                details =
+                                        "Sharing files requires Android Intent functionality and is not supported in standard file operations"
+                        ),
+                error =
+                        "Sharing files requires Android Intent functionality and is not supported in standard file operations"
+        )
+    }
 }

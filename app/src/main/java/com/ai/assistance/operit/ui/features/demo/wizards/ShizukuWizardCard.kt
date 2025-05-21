@@ -149,18 +149,9 @@ fun ShizukuWizardCard(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                OutlinedButton(
-                                    onClick = onInstallFromStore,
-                                    modifier = Modifier.weight(1f),
-                                    contentPadding = PaddingValues(vertical = 12.dp),
-                                    shape = RoundedCornerShape(8.dp)
-                                ) { 
-                                    Text("从应用商店安装", fontSize = 14.sp) 
-                                }
-                                
                                 ElevatedButton(
                                     onClick = onInstallBundled,
-                                    modifier = Modifier.weight(1f),
+                                    modifier = Modifier.fillMaxWidth(),
                                     contentPadding = PaddingValues(vertical = 12.dp),
                                     shape = RoundedCornerShape(8.dp)
                                 ) { 

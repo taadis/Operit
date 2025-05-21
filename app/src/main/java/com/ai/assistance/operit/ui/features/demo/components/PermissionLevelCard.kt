@@ -29,7 +29,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -64,346 +63,441 @@ fun PermissionLevelCard(
         onTermuxClick: () -> Unit,
         isRefreshing: Boolean = false,
         onRefresh: () -> Unit,
-        onPermissionLevelChange: (AndroidPermissionLevel) -> Unit = {}
+        onPermissionLevelChange: (AndroidPermissionLevel) -> Unit = {},
+        onPermissionLevelSet: (AndroidPermissionLevel) -> Unit = {}
 ) {
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
+        val context = LocalContext.current
+        val coroutineScope = rememberCoroutineScope()
 
-    // 获取当前权限级别
-    val preferredPermissionLevel =
-            androidPermissionPreferences.preferredPermissionLevelFlow.collectAsState(
-                    initial = AndroidPermissionLevel.STANDARD
-            )
+        // 获取当前权限级别
+        val preferredPermissionLevel =
+                androidPermissionPreferences.preferredPermissionLevelFlow.collectAsState(
+                        initial = AndroidPermissionLevel.STANDARD
+                )
 
-    // 当前显示的权限级别（可能与实际使用的不同）
-    var displayedPermissionLevel by remember { mutableStateOf(preferredPermissionLevel.value) }
+        // 当前显示的权限级别（可能与实际使用的不同）
+        var displayedPermissionLevel by remember { mutableStateOf(preferredPermissionLevel.value) }
 
-    // 当显示的权限级别变化时，通知父组件
-    LaunchedEffect(displayedPermissionLevel) {
-        onPermissionLevelChange(displayedPermissionLevel)
-    }
-
-    // 动画状态
-    val elevation by
-            animateDpAsState(
-                    targetValue =
-                            if (displayedPermissionLevel == preferredPermissionLevel.value) 6.dp
-                            else 2.dp,
-                    label = "Card Elevation"
-            )
-
-    // 当组件首次加载时，同步显示级别和实际级别
-    LaunchedEffect(Unit) { 
-        displayedPermissionLevel = preferredPermissionLevel.value
-        onPermissionLevelChange(preferredPermissionLevel.value)
-    }
-
-    // 添加一个简单的刷新动画
-    var refreshRotation by remember { mutableStateOf(0f) }
-    val rotationAngle by
-            animateFloatAsState(
-                    targetValue = refreshRotation,
-                    animationSpec = tween(500),
-                    label = "Refresh Rotation"
-            )
-
-    // 刷新时触发旋转动画
-    LaunchedEffect(isRefreshing) {
-        if (isRefreshing) {
-            refreshRotation += 360f
+        // 当显示的权限级别变化时，通知父组件
+        LaunchedEffect(displayedPermissionLevel) {
+                onPermissionLevelChange(displayedPermissionLevel)
         }
-    }
 
-    Card(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-            shape = RoundedCornerShape(12.dp),
-            colors =
-                    CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surface,
-                    )
-    ) {
-        Column(
-                modifier = Modifier.padding(12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+        // 动画状态
+        val elevation by
+                animateDpAsState(
+                        targetValue =
+                                if (displayedPermissionLevel == preferredPermissionLevel.value) 6.dp
+                                else 2.dp,
+                        label = "Card Elevation"
+                )
+
+        // 当组件首次加载时，同步显示级别和实际级别
+        LaunchedEffect(Unit) {
+                displayedPermissionLevel = preferredPermissionLevel.value
+                onPermissionLevelChange(preferredPermissionLevel.value)
+        }
+
+        // 添加一个简单的刷新动画
+        var refreshRotation by remember { mutableStateOf(0f) }
+        val rotationAngle by
+                animateFloatAsState(
+                        targetValue = refreshRotation,
+                        animationSpec = tween(500),
+                        label = "Refresh Rotation"
+                )
+
+        // 刷新时触发旋转动画
+        LaunchedEffect(isRefreshing) {
+                if (isRefreshing) {
+                        refreshRotation += 360f
+                }
+        }
+
+        Card(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors =
+                        CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface,
+                        )
         ) {
-            // Row with icon and title - modify to left-aligned
-            Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Start,
-                    verticalAlignment = Alignment.CenterVertically
-            ) {
-                val icon =
-                        when (displayedPermissionLevel) {
-                            AndroidPermissionLevel.STANDARD -> Icons.Default.Shield
-                            AndroidPermissionLevel.ACCESSIBILITY -> Icons.Default.Shield
-                            AndroidPermissionLevel.ADMIN -> Icons.Default.Shield
-                            AndroidPermissionLevel.DEBUGGER -> Icons.Default.Shield
-                            AndroidPermissionLevel.ROOT -> Icons.Default.Lock
+                Column(
+                        modifier = Modifier.padding(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                        // Row with icon and title - modify to left-aligned
+                        Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Start,
+                                verticalAlignment = Alignment.CenterVertically
+                        ) {
+                                val icon =
+                                        when (displayedPermissionLevel) {
+                                                AndroidPermissionLevel.STANDARD ->
+                                                        Icons.Default.Shield
+                                                AndroidPermissionLevel.ACCESSIBILITY ->
+                                                        Icons.Default.Shield
+                                                AndroidPermissionLevel.ADMIN -> Icons.Default.Shield
+                                                AndroidPermissionLevel.DEBUGGER ->
+                                                        Icons.Default.Shield
+                                                AndroidPermissionLevel.ROOT -> Icons.Default.Lock
+                                        }
+
+                                Icon(
+                                        imageVector = icon,
+                                        contentDescription = "权限级别图标",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                )
+
+                                Spacer(modifier = Modifier.width(6.dp))
+
+                                Text(
+                                        text = "权限级别",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.primary
+                                )
                         }
 
-                Icon(
-                        imageVector = icon,
-                        contentDescription = "权限级别图标",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                )
+                        // 添加分割线
+                        Divider(
+                                modifier = Modifier.padding(vertical = 8.dp),
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+                        )
 
-                Spacer(modifier = Modifier.width(6.dp))
+                        // 权限级别选择器 - 更紧凑的选项卡
+                        PermissionLevelSelector(
+                                currentLevel = displayedPermissionLevel,
+                                activeLevel = preferredPermissionLevel.value,
+                                onLevelSelected = { level -> displayedPermissionLevel = level }
+                        )
 
-                Text(
-                        text = "权限级别",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary
-                )
-            }
+                        Spacer(modifier = Modifier.height(8.dp))
 
-            // 添加分割线
-            Divider(
-                modifier = Modifier.padding(vertical = 8.dp),
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-            )
+                        // 权限级别描述 - 更紧凑的描述区域
+                        AnimatedContent(
+                                targetState = displayedPermissionLevel,
+                                transitionSpec = {
+                                        (slideInHorizontally { width -> width } +
+                                                fadeIn()) togetherWith
+                                                (slideOutHorizontally { width -> -width } +
+                                                        fadeOut())
+                                },
+                                label = "Permission Description Animation"
+                        ) { level ->
+                                Text(
+                                        text = getPermissionLevelDescription(level),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        textAlign = TextAlign.Center,
+                                        modifier =
+                                                Modifier.padding(
+                                                        horizontal = 12.dp,
+                                                        vertical = 4.dp
+                                                )
+                                )
+                        }
 
-            // 权限级别选择器 - 更紧凑的选项卡
-            PermissionLevelSelector(
-                    currentLevel = displayedPermissionLevel,
-                    activeLevel = preferredPermissionLevel.value,
-                    onLevelSelected = { level -> displayedPermissionLevel = level }
-            )
+                        // 显示状态指示条 - 更紧凑的状态条
+                        Box(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                                // 当显示的权限级别与当前活动级别不同时显示设置按钮
+                                if (displayedPermissionLevel != preferredPermissionLevel.value) {
+                                        Button(
+                                                onClick = {
+                                                        // 将当前选择的权限级别设置为激活状态
+                                                        coroutineScope.launch {
+                                                                androidPermissionPreferences
+                                                                        .savePreferredPermissionLevel(
+                                                                                displayedPermissionLevel
+                                                                        )
+                                                                Toast.makeText(
+                                                                                context,
+                                                                                "已将${displayedPermissionLevel.name}设为当前活动权限级别",
+                                                                                Toast.LENGTH_SHORT
+                                                                        )
+                                                                        .show()
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // 权限级别描述 - 更紧凑的描述区域
-            AnimatedContent(
-                    targetState = displayedPermissionLevel,
-                    transitionSpec = {
-                        (slideInHorizontally { width -> width } + fadeIn()) togetherWith
-                                (slideOutHorizontally { width -> -width } + fadeOut())
-                    },
-                    label = "Permission Description Animation"
-            ) { level ->
-                Text(
-                        text = getPermissionLevelDescription(level),
-                        style = MaterialTheme.typography.bodySmall,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                )
-            }
-
-            // 显示状态指示条 - 更紧凑的状态条
-            Box(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-                // 当显示的权限级别与当前活动级别不同时显示设置按钮
-                if (displayedPermissionLevel != preferredPermissionLevel.value) {
-                    Button(
-                            onClick = {
-                                // 将当前选择的权限级别设置为激活状态
-                                coroutineScope.launch {
-                                    androidPermissionPreferences.savePreferredPermissionLevel(
-                                            displayedPermissionLevel
-                                    )
-                                    Toast.makeText(
-                                                    context,
-                                                    "已将${displayedPermissionLevel.name}设为当前活动权限级别",
-                                                    Toast.LENGTH_SHORT
-                                            )
-                                            .show()
+                                                                // 调用权限级别设置回调，传递刚刚设置的权限级别
+                                                                onPermissionLevelSet(
+                                                                        displayedPermissionLevel
+                                                                )
+                                                        }
+                                                },
+                                                modifier =
+                                                        Modifier.align(Alignment.Center)
+                                                                .widthIn(max = 120.dp)
+                                                                .heightIn(max = 32.dp),
+                                                contentPadding =
+                                                        PaddingValues(
+                                                                horizontal = 8.dp,
+                                                                vertical = 4.dp
+                                                        ),
+                                                shape = RoundedCornerShape(4.dp),
+                                                colors =
+                                                        ButtonDefaults.buttonColors(
+                                                                containerColor =
+                                                                        MaterialTheme.colorScheme
+                                                                                .primary
+                                                        )
+                                        ) { Text("设为当前级别", fontSize = 12.sp) }
+                                } else {
+                                        Row(
+                                                modifier = Modifier.align(Alignment.Center),
+                                                verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                                Icon(
+                                                        Icons.Default.CheckCircle,
+                                                        contentDescription = "当前使用中",
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(16.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                        "当前使用中",
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        color = MaterialTheme.colorScheme.primary,
+                                                        fontWeight = FontWeight.Medium
+                                                )
+                                        }
                                 }
-                            },
-                            modifier = Modifier.align(Alignment.Center).widthIn(max = 120.dp).heightIn(max = 32.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                            shape = RoundedCornerShape(4.dp),
-                            colors =
-                                    ButtonDefaults.buttonColors(
-                                            containerColor = MaterialTheme.colorScheme.primary
-                                    )
-                    ) { Text("设为当前级别", fontSize = 12.sp) }
-                } else {
-                    Row(
-                            modifier = Modifier.align(Alignment.Center),
-                            verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                                Icons.Default.CheckCircle,
-                                contentDescription = "当前使用中",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                                "当前使用中",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Medium
-                        )
-                    }
+
+                                // 刷新按钮 - 更紧凑
+                                IconButton(
+                                        onClick = {
+                                                refreshRotation += 360f
+                                                onRefresh()
+                                        },
+                                        enabled = !isRefreshing,
+                                        modifier = Modifier.align(Alignment.CenterEnd).size(32.dp)
+                                ) {
+                                        Icon(
+                                                imageVector = Icons.Default.Refresh,
+                                                contentDescription =
+                                                        if (isRefreshing) "正在刷新" else "刷新权限状态",
+                                                modifier =
+                                                        Modifier.graphicsLayer(
+                                                                        rotationZ = rotationAngle
+                                                                )
+                                                                .size(18.dp),
+                                                tint = MaterialTheme.colorScheme.primary
+                                        )
+                                }
+                        }
+
+                        Divider(modifier = Modifier.padding(vertical = 4.dp))
+
+                        // 权限内容区域 - 使用动画过渡
+                        AnimatedContent(
+                                targetState = displayedPermissionLevel,
+                                transitionSpec = {
+                                        (slideInHorizontally { width -> width } +
+                                                fadeIn()) togetherWith
+                                                (slideOutHorizontally { width -> -width } +
+                                                        fadeOut())
+                                },
+                                label = "Permission Content Animation"
+                        ) { level ->
+                                when (level) {
+                                        AndroidPermissionLevel.STANDARD -> {
+                                                PermissionSectionContainer(
+                                                        isActive =
+                                                                preferredPermissionLevel.value ==
+                                                                        AndroidPermissionLevel
+                                                                                .STANDARD,
+                                                        isCurrentlyDisplayed = true,
+                                                        content = {
+                                                                StandardPermissionSection(
+                                                                        hasStoragePermission =
+                                                                                hasStoragePermission,
+                                                                        hasOverlayPermission =
+                                                                                hasOverlayPermission,
+                                                                        hasBatteryOptimizationExemption =
+                                                                                hasBatteryOptimizationExemption,
+                                                                        hasLocationPermission =
+                                                                                hasLocationPermission,
+                                                                        isTermuxInstalled =
+                                                                                isTermuxInstalled,
+                                                                        isTermuxAuthorized =
+                                                                                isTermuxAuthorized,
+                                                                        isTermuxFullyConfigured =
+                                                                                isTermuxFullyConfigured,
+                                                                        onStoragePermissionClick =
+                                                                                onStoragePermissionClick,
+                                                                        onOverlayPermissionClick =
+                                                                                onOverlayPermissionClick,
+                                                                        onBatteryOptimizationClick =
+                                                                                onBatteryOptimizationClick,
+                                                                        onLocationPermissionClick =
+                                                                                onLocationPermissionClick,
+                                                                        onTermuxClick =
+                                                                                onTermuxClick
+                                                                )
+                                                        }
+                                                )
+                                        }
+                                        AndroidPermissionLevel.ACCESSIBILITY -> {
+                                                PermissionSectionContainer(
+                                                        isActive =
+                                                                preferredPermissionLevel.value ==
+                                                                        AndroidPermissionLevel
+                                                                                .ACCESSIBILITY,
+                                                        isCurrentlyDisplayed = true,
+                                                        content = {
+                                                                AccessibilityPermissionSection(
+                                                                        hasStoragePermission =
+                                                                                hasStoragePermission,
+                                                                        hasOverlayPermission =
+                                                                                hasOverlayPermission,
+                                                                        hasBatteryOptimizationExemption =
+                                                                                hasBatteryOptimizationExemption,
+                                                                        hasLocationPermission =
+                                                                                hasLocationPermission,
+                                                                        isTermuxInstalled =
+                                                                                isTermuxInstalled,
+                                                                        isTermuxAuthorized =
+                                                                                isTermuxAuthorized,
+                                                                        isTermuxFullyConfigured =
+                                                                                isTermuxFullyConfigured,
+                                                                        hasAccessibilityServiceEnabled =
+                                                                                hasAccessibilityServiceEnabled,
+                                                                        onStoragePermissionClick =
+                                                                                onStoragePermissionClick,
+                                                                        onOverlayPermissionClick =
+                                                                                onOverlayPermissionClick,
+                                                                        onBatteryOptimizationClick =
+                                                                                onBatteryOptimizationClick,
+                                                                        onLocationPermissionClick =
+                                                                                onLocationPermissionClick,
+                                                                        onTermuxClick =
+                                                                                onTermuxClick,
+                                                                        onAccessibilityClick =
+                                                                                onAccessibilityClick
+                                                                )
+                                                        }
+                                                )
+                                        }
+                                        AndroidPermissionLevel.ADMIN -> {
+                                                PermissionSectionContainer(
+                                                        isActive =
+                                                                preferredPermissionLevel.value ==
+                                                                        AndroidPermissionLevel
+                                                                                .ADMIN,
+                                                        isCurrentlyDisplayed = true,
+                                                        content = {
+                                                                AdminPermissionSection(
+                                                                        hasStoragePermission =
+                                                                                hasStoragePermission,
+                                                                        hasOverlayPermission =
+                                                                                hasOverlayPermission,
+                                                                        hasBatteryOptimizationExemption =
+                                                                                hasBatteryOptimizationExemption,
+                                                                        hasLocationPermission =
+                                                                                hasLocationPermission,
+                                                                        isTermuxInstalled =
+                                                                                isTermuxInstalled,
+                                                                        isTermuxAuthorized =
+                                                                                isTermuxAuthorized,
+                                                                        isTermuxFullyConfigured =
+                                                                                isTermuxFullyConfigured,
+                                                                        onStoragePermissionClick =
+                                                                                onStoragePermissionClick,
+                                                                        onOverlayPermissionClick =
+                                                                                onOverlayPermissionClick,
+                                                                        onBatteryOptimizationClick =
+                                                                                onBatteryOptimizationClick,
+                                                                        onLocationPermissionClick =
+                                                                                onLocationPermissionClick,
+                                                                        onTermuxClick =
+                                                                                onTermuxClick
+                                                                )
+                                                        }
+                                                )
+                                        }
+                                        AndroidPermissionLevel.DEBUGGER -> {
+                                                PermissionSectionContainer(
+                                                        isActive =
+                                                                preferredPermissionLevel.value ==
+                                                                        AndroidPermissionLevel
+                                                                                .DEBUGGER,
+                                                        isCurrentlyDisplayed = true,
+                                                        content = {
+                                                                DebuggerPermissionSection(
+                                                                        hasStoragePermission =
+                                                                                hasStoragePermission,
+                                                                        hasOverlayPermission =
+                                                                                hasOverlayPermission,
+                                                                        hasBatteryOptimizationExemption =
+                                                                                hasBatteryOptimizationExemption,
+                                                                        hasLocationPermission =
+                                                                                hasLocationPermission,
+                                                                        isTermuxInstalled =
+                                                                                isTermuxInstalled,
+                                                                        isTermuxAuthorized =
+                                                                                isTermuxAuthorized,
+                                                                        isTermuxFullyConfigured =
+                                                                                isTermuxFullyConfigured,
+                                                                        isShizukuInstalled =
+                                                                                isShizukuInstalled,
+                                                                        isShizukuRunning =
+                                                                                isShizukuRunning,
+                                                                        hasShizukuPermission =
+                                                                                hasShizukuPermission,
+                                                                        onStoragePermissionClick =
+                                                                                onStoragePermissionClick,
+                                                                        onOverlayPermissionClick =
+                                                                                onOverlayPermissionClick,
+                                                                        onBatteryOptimizationClick =
+                                                                                onBatteryOptimizationClick,
+                                                                        onLocationPermissionClick =
+                                                                                onLocationPermissionClick,
+                                                                        onTermuxClick =
+                                                                                onTermuxClick,
+                                                                        onShizukuClick =
+                                                                                onShizukuClick
+                                                                )
+                                                        }
+                                                )
+                                        }
+                                        AndroidPermissionLevel.ROOT -> {
+                                                PermissionSectionContainer(
+                                                        isActive =
+                                                                preferredPermissionLevel.value ==
+                                                                        AndroidPermissionLevel.ROOT,
+                                                        isCurrentlyDisplayed = true,
+                                                        content = {
+                                                                RootPermissionSection(
+                                                                        hasStoragePermission =
+                                                                                hasStoragePermission,
+                                                                        hasOverlayPermission =
+                                                                                hasOverlayPermission,
+                                                                        hasBatteryOptimizationExemption =
+                                                                                hasBatteryOptimizationExemption,
+                                                                        hasLocationPermission =
+                                                                                hasLocationPermission,
+                                                                        isTermuxInstalled =
+                                                                                isTermuxInstalled,
+                                                                        isTermuxAuthorized =
+                                                                                isTermuxAuthorized,
+                                                                        isTermuxFullyConfigured =
+                                                                                isTermuxFullyConfigured,
+                                                                        onStoragePermissionClick =
+                                                                                onStoragePermissionClick,
+                                                                        onOverlayPermissionClick =
+                                                                                onOverlayPermissionClick,
+                                                                        onBatteryOptimizationClick =
+                                                                                onBatteryOptimizationClick,
+                                                                        onLocationPermissionClick =
+                                                                                onLocationPermissionClick,
+                                                                        onTermuxClick =
+                                                                                onTermuxClick
+                                                                )
+                                                        }
+                                                )
+                                        }
+                                }
+                        }
                 }
-
-                // 刷新按钮 - 更紧凑
-                IconButton(
-                        onClick = {
-                            refreshRotation += 360f
-                            onRefresh()
-                        },
-                        enabled = !isRefreshing,
-                        modifier = Modifier.align(Alignment.CenterEnd).size(32.dp)
-                ) {
-                    Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = if (isRefreshing) "正在刷新" else "刷新权限状态",
-                            modifier =
-                                    Modifier.graphicsLayer(rotationZ = rotationAngle).size(18.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-
-            Divider(modifier = Modifier.padding(vertical = 4.dp))
-
-            // 权限内容区域 - 使用动画过渡
-            AnimatedContent(
-                    targetState = displayedPermissionLevel,
-                    transitionSpec = {
-                        (slideInHorizontally { width -> width } + fadeIn()) togetherWith
-                                (slideOutHorizontally { width -> -width } + fadeOut())
-                    },
-                    label = "Permission Content Animation"
-            ) { level ->
-                when (level) {
-                    AndroidPermissionLevel.STANDARD -> {
-                        PermissionSectionContainer(
-                                isActive =
-                                        preferredPermissionLevel.value ==
-                                                AndroidPermissionLevel.STANDARD,
-                                isCurrentlyDisplayed = true,
-                                content = {
-                                    StandardPermissionSection(
-                                            hasStoragePermission = hasStoragePermission,
-                                            hasOverlayPermission = hasOverlayPermission,
-                                            hasBatteryOptimizationExemption =
-                                                    hasBatteryOptimizationExemption,
-                                            hasLocationPermission = hasLocationPermission,
-                                            isTermuxInstalled = isTermuxInstalled,
-                                            isTermuxAuthorized = isTermuxAuthorized,
-                                            isTermuxFullyConfigured = isTermuxFullyConfigured,
-                                            onStoragePermissionClick = onStoragePermissionClick,
-                                            onOverlayPermissionClick = onOverlayPermissionClick,
-                                            onBatteryOptimizationClick = onBatteryOptimizationClick,
-                                            onLocationPermissionClick = onLocationPermissionClick,
-                                            onTermuxClick = onTermuxClick
-                                    )
-                                }
-                        )
-                    }
-                    AndroidPermissionLevel.ACCESSIBILITY -> {
-                        PermissionSectionContainer(
-                                isActive =
-                                        preferredPermissionLevel.value ==
-                                                AndroidPermissionLevel.ACCESSIBILITY,
-                                isCurrentlyDisplayed = true,
-                                content = {
-                                    AccessibilityPermissionSection(
-                                            hasStoragePermission = hasStoragePermission,
-                                            hasOverlayPermission = hasOverlayPermission,
-                                            hasBatteryOptimizationExemption =
-                                                    hasBatteryOptimizationExemption,
-                                            hasLocationPermission = hasLocationPermission,
-                                            isTermuxInstalled = isTermuxInstalled,
-                                            isTermuxAuthorized = isTermuxAuthorized,
-                                            isTermuxFullyConfigured = isTermuxFullyConfigured,
-                                            hasAccessibilityServiceEnabled =
-                                                    hasAccessibilityServiceEnabled,
-                                            onStoragePermissionClick = onStoragePermissionClick,
-                                            onOverlayPermissionClick = onOverlayPermissionClick,
-                                            onBatteryOptimizationClick = onBatteryOptimizationClick,
-                                            onLocationPermissionClick = onLocationPermissionClick,
-                                            onTermuxClick = onTermuxClick,
-                                            onAccessibilityClick = onAccessibilityClick
-                                    )
-                                }
-                        )
-                    }
-                    AndroidPermissionLevel.ADMIN -> {
-                        PermissionSectionContainer(
-                                isActive =
-                                        preferredPermissionLevel.value ==
-                                                AndroidPermissionLevel.ADMIN,
-                                isCurrentlyDisplayed = true,
-                                content = {
-                                    AdminPermissionSection(
-                                            hasStoragePermission = hasStoragePermission,
-                                            hasOverlayPermission = hasOverlayPermission,
-                                            hasBatteryOptimizationExemption =
-                                                    hasBatteryOptimizationExemption,
-                                            hasLocationPermission = hasLocationPermission,
-                                            isTermuxInstalled = isTermuxInstalled,
-                                            isTermuxAuthorized = isTermuxAuthorized,
-                                            isTermuxFullyConfigured = isTermuxFullyConfigured,
-                                            onStoragePermissionClick = onStoragePermissionClick,
-                                            onOverlayPermissionClick = onOverlayPermissionClick,
-                                            onBatteryOptimizationClick = onBatteryOptimizationClick,
-                                            onLocationPermissionClick = onLocationPermissionClick,
-                                            onTermuxClick = onTermuxClick
-                                    )
-                                }
-                        )
-                    }
-                    AndroidPermissionLevel.DEBUGGER -> {
-                        PermissionSectionContainer(
-                                isActive =
-                                        preferredPermissionLevel.value ==
-                                                AndroidPermissionLevel.DEBUGGER,
-                                isCurrentlyDisplayed = true,
-                                content = {
-                                    DebuggerPermissionSection(
-                                            hasStoragePermission = hasStoragePermission,
-                                            hasOverlayPermission = hasOverlayPermission,
-                                            hasBatteryOptimizationExemption =
-                                                    hasBatteryOptimizationExemption,
-                                            hasLocationPermission = hasLocationPermission,
-                                            isTermuxInstalled = isTermuxInstalled,
-                                            isTermuxAuthorized = isTermuxAuthorized,
-                                            isTermuxFullyConfigured = isTermuxFullyConfigured,
-                                            isShizukuInstalled = isShizukuInstalled,
-                                            isShizukuRunning = isShizukuRunning,
-                                            hasShizukuPermission = hasShizukuPermission,
-                                            onStoragePermissionClick = onStoragePermissionClick,
-                                            onOverlayPermissionClick = onOverlayPermissionClick,
-                                            onBatteryOptimizationClick = onBatteryOptimizationClick,
-                                            onLocationPermissionClick = onLocationPermissionClick,
-                                            onTermuxClick = onTermuxClick,
-                                            onShizukuClick = onShizukuClick
-                                    )
-                                }
-                        )
-                    }
-                    AndroidPermissionLevel.ROOT -> {
-                        PermissionSectionContainer(
-                                isActive =
-                                        preferredPermissionLevel.value ==
-                                                AndroidPermissionLevel.ROOT,
-                                isCurrentlyDisplayed = true,
-                                content = {
-                                    RootPermissionSection(
-                                            hasStoragePermission = hasStoragePermission,
-                                            hasOverlayPermission = hasOverlayPermission,
-                                            hasBatteryOptimizationExemption =
-                                                    hasBatteryOptimizationExemption,
-                                            hasLocationPermission = hasLocationPermission,
-                                            isTermuxInstalled = isTermuxInstalled,
-                                            isTermuxAuthorized = isTermuxAuthorized,
-                                            isTermuxFullyConfigured = isTermuxFullyConfigured,
-                                            onStoragePermissionClick = onStoragePermissionClick,
-                                            onOverlayPermissionClick = onOverlayPermissionClick,
-                                            onBatteryOptimizationClick = onBatteryOptimizationClick,
-                                            onLocationPermissionClick = onLocationPermissionClick,
-                                            onTermuxClick = onTermuxClick
-                                    )
-                                }
-                        )
-                    }
-                }
-            }
         }
-    }
 }
 
 @Composable
@@ -412,64 +506,74 @@ private fun PermissionLevelSelector(
         activeLevel: AndroidPermissionLevel,
         onLevelSelected: (AndroidPermissionLevel) -> Unit
 ) {
-    val levels = AndroidPermissionLevel.values()
+        val levels = AndroidPermissionLevel.values()
 
-    ScrollableTabRow(
-            selectedTabIndex = currentLevel.ordinal,
-            edgePadding = 0.dp,
-            divider = {},
-            contentColor = MaterialTheme.colorScheme.primary,
-            containerColor = Color.Transparent,
-            indicator = { tabPositions ->
-                // Draw indicator under the selected tab
-                if (tabPositions.isNotEmpty() && currentLevel.ordinal < tabPositions.size) {
-                    Box(
-                            modifier =
-                                    Modifier.tabIndicatorOffset(tabPositions[currentLevel.ordinal])
-                                            .height(2.dp)
-                                            .background(MaterialTheme.colorScheme.primary)
-                                            .clip(
-                                                    RoundedCornerShape(
-                                                            topStart = 1.dp,
-                                                            topEnd = 1.dp
-                                                    )
-                                            )
-                    )
+        ScrollableTabRow(
+                selectedTabIndex = currentLevel.ordinal,
+                edgePadding = 0.dp,
+                divider = {},
+                contentColor = MaterialTheme.colorScheme.primary,
+                containerColor = Color.Transparent,
+                indicator = { tabPositions ->
+                        // Draw indicator under the selected tab
+                        if (tabPositions.isNotEmpty() && currentLevel.ordinal < tabPositions.size) {
+                                Box(
+                                        modifier =
+                                                Modifier.tabIndicatorOffset(
+                                                                tabPositions[currentLevel.ordinal]
+                                                        )
+                                                        .height(2.dp)
+                                                        .background(
+                                                                MaterialTheme.colorScheme.primary
+                                                        )
+                                                        .clip(
+                                                                RoundedCornerShape(
+                                                                        topStart = 1.dp,
+                                                                        topEnd = 1.dp
+                                                                )
+                                                        )
+                                )
+                        }
                 }
-            }
-    ) {
-        levels.forEach { level ->
-            val isSelected = level == currentLevel
-            val isActive = level == activeLevel
+        ) {
+                levels.forEach { level ->
+                        val isSelected = level == currentLevel
+                        val isActive = level == activeLevel
 
-            Tab(
-                    selected = isSelected,
-                    onClick = { onLevelSelected(level) },
-                    text = {
-                        Text(
-                                text = level.name,
-                                fontSize = 12.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                color =
-                                        when {
-                                            isSelected -> MaterialTheme.colorScheme.primary
-                                            isActive ->
-                                                    MaterialTheme.colorScheme.primary.copy(
-                                                            alpha = 0.7f
-                                                    )
-                                            else ->
-                                                    MaterialTheme.colorScheme.onSurface.copy(
-                                                            alpha = 0.7f
-                                                    )
-                                        }
+                        Tab(
+                                selected = isSelected,
+                                onClick = { onLevelSelected(level) },
+                                text = {
+                                        Text(
+                                                text = level.name,
+                                                fontSize = 12.sp,
+                                                fontWeight =
+                                                        if (isSelected) FontWeight.Bold
+                                                        else FontWeight.Normal,
+                                                color =
+                                                        when {
+                                                                isSelected ->
+                                                                        MaterialTheme.colorScheme
+                                                                                .primary
+                                                                isActive ->
+                                                                        MaterialTheme.colorScheme
+                                                                                .primary.copy(
+                                                                                alpha = 0.7f
+                                                                        )
+                                                                else ->
+                                                                        MaterialTheme.colorScheme
+                                                                                .onSurface.copy(
+                                                                                alpha = 0.7f
+                                                                        )
+                                                        }
+                                        )
+                                },
+                                modifier = Modifier.padding(vertical = 4.dp, horizontal = 2.dp),
+                                selectedContentColor = MaterialTheme.colorScheme.primary,
+                                unselectedContentColor = MaterialTheme.colorScheme.onSurface
                         )
-                    },
-                    modifier = Modifier.padding(vertical = 4.dp, horizontal = 2.dp),
-                    selectedContentColor = MaterialTheme.colorScheme.primary,
-                    unselectedContentColor = MaterialTheme.colorScheme.onSurface
-            )
+                }
         }
-    }
 }
 
 @Composable
@@ -478,64 +582,73 @@ private fun PermissionSectionContainer(
         isCurrentlyDisplayed: Boolean,
         content: @Composable () -> Unit
 ) {
-    Box(
-            modifier =
-                    Modifier.fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .let {
-                                when {
-                                    // 当前活动权限级别用实线边框
-                                    isActive ->
-                                            it.border(
-                                                    1.dp,
-                                                    MaterialTheme.colorScheme.primary,
-                                                    RoundedCornerShape(8.dp)
-                                            )
-                                    // 仅查看的权限级别没有特殊边框
-                                    else -> it
+        Box(
+                modifier =
+                        Modifier.fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .let {
+                                        when {
+                                                // 当前活动权限级别用实线边框
+                                                isActive ->
+                                                        it.border(
+                                                                1.dp,
+                                                                MaterialTheme.colorScheme.primary,
+                                                                RoundedCornerShape(8.dp)
+                                                        )
+                                                // 仅查看的权限级别没有特殊边框
+                                                else -> it
+                                        }
                                 }
-                            }
-                            .padding(8.dp)
-    ) { content() }
+                                .padding(8.dp)
+        ) { content() }
 }
 
 // 重新设计权限项，使其更现代和直观
 @Composable
 fun PermissionStatusItem(title: String, isGranted: Boolean, onClick: () -> Unit) {
-    val contentColor =
-            if (isGranted) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.error
-            }
+        val contentColor =
+                if (isGranted) {
+                        MaterialTheme.colorScheme.primary
+                } else {
+                        MaterialTheme.colorScheme.error
+                }
 
-    val statusText = if (isGranted) "已授权" else "未授权"
+        val statusText = if (isGranted) "已授权" else "未授权"
 
-    Row(
-            modifier =
-                    Modifier.fillMaxWidth()
-                            .clickable(onClick = onClick)
-                            .padding(vertical = 6.dp, horizontal = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            // 状态指示点
-            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(contentColor))
+        Row(
+                modifier =
+                        Modifier.fillMaxWidth()
+                                .clickable(onClick = onClick)
+                                .padding(vertical = 6.dp, horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                        // 状态指示点
+                        Box(
+                                modifier =
+                                        Modifier.size(6.dp)
+                                                .clip(CircleShape)
+                                                .background(contentColor)
+                        )
 
-            Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
 
-            // 权限名称
-            Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-            )
+                        // 权限名称
+                        Text(
+                                text = title,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                        )
+                }
+
+                // 状态文本
+                Text(
+                        text = statusText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = contentColor
+                )
         }
-
-        // 状态文本
-        Text(text = statusText, style = MaterialTheme.typography.bodySmall, color = contentColor)
-    }
 }
 
 @Composable
@@ -553,74 +666,89 @@ private fun StandardPermissionSection(
         onLocationPermissionClick: () -> Unit,
         onTermuxClick: () -> Unit
 ) {
-    Column {
-        Text(
-                text = "基础权限",
-                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                modifier = Modifier.padding(bottom = 4.dp)
-        )
-
-        // 使用Surface提供一个轻微的背景色，而不是独立的卡片
-        Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
-                shape = RoundedCornerShape(8.dp)
-        ) {
-            Column(
-                    modifier = Modifier.padding(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                PermissionStatusItem(
-                        title = "存储权限",
-                        isGranted = hasStoragePermission,
-                        onClick = onStoragePermissionClick
+        Column {
+                Text(
+                        text = "基础权限",
+                        style =
+                                MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.Bold
+                                ),
+                        modifier = Modifier.padding(bottom = 4.dp)
                 )
 
-                Divider(
-                        thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                )
+                // 使用Surface提供一个轻微的背景色，而不是独立的卡片
+                Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                        shape = RoundedCornerShape(8.dp)
+                ) {
+                        Column(
+                                modifier = Modifier.padding(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                                PermissionStatusItem(
+                                        title = "存储权限",
+                                        isGranted = hasStoragePermission,
+                                        onClick = onStoragePermissionClick
+                                )
 
-                PermissionStatusItem(
-                        title = "悬浮窗权限",
-                        isGranted = hasOverlayPermission,
-                        onClick = onOverlayPermissionClick
-                )
+                                Divider(
+                                        thickness = 0.5.dp,
+                                        color =
+                                                MaterialTheme.colorScheme.onSurface.copy(
+                                                        alpha = 0.1f
+                                                )
+                                )
 
-                Divider(
-                        thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                )
+                                PermissionStatusItem(
+                                        title = "悬浮窗权限",
+                                        isGranted = hasOverlayPermission,
+                                        onClick = onOverlayPermissionClick
+                                )
 
-                PermissionStatusItem(
-                        title = "电池优化豁免",
-                        isGranted = hasBatteryOptimizationExemption,
-                        onClick = onBatteryOptimizationClick
-                )
+                                Divider(
+                                        thickness = 0.5.dp,
+                                        color =
+                                                MaterialTheme.colorScheme.onSurface.copy(
+                                                        alpha = 0.1f
+                                                )
+                                )
 
-                Divider(
-                        thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                )
+                                PermissionStatusItem(
+                                        title = "电池优化豁免",
+                                        isGranted = hasBatteryOptimizationExemption,
+                                        onClick = onBatteryOptimizationClick
+                                )
 
-                PermissionStatusItem(
-                        title = "位置权限",
-                        isGranted = hasLocationPermission,
-                        onClick = onLocationPermissionClick
-                )
+                                Divider(
+                                        thickness = 0.5.dp,
+                                        color =
+                                                MaterialTheme.colorScheme.onSurface.copy(
+                                                        alpha = 0.1f
+                                                )
+                                )
 
-                Divider(
-                        thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                )
+                                PermissionStatusItem(
+                                        title = "位置权限",
+                                        isGranted = hasLocationPermission,
+                                        onClick = onLocationPermissionClick
+                                )
 
-                PermissionStatusItem(
-                        title = "Termux终端",
-                        isGranted = isTermuxFullyConfigured,
-                        onClick = onTermuxClick
-                )
-            }
+                                Divider(
+                                        thickness = 0.5.dp,
+                                        color =
+                                                MaterialTheme.colorScheme.onSurface.copy(
+                                                        alpha = 0.1f
+                                                )
+                                )
+
+                                PermissionStatusItem(
+                                        title = "Termux终端",
+                                        isGranted = isTermuxFullyConfigured,
+                                        onClick = onTermuxClick
+                                )
+                        }
+                }
         }
-    }
 }
 
 @Composable
@@ -640,97 +768,115 @@ private fun AccessibilityPermissionSection(
         onTermuxClick: () -> Unit,
         onAccessibilityClick: () -> Unit
 ) {
-    Column {
-        Text(
-                text = "基础权限",
-                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                modifier = Modifier.padding(bottom = 4.dp)
-        )
-
-        Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
-                shape = RoundedCornerShape(8.dp)
-        ) {
-            Column(
-                    modifier = Modifier.padding(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                PermissionStatusItem(
-                        title = "存储权限",
-                        isGranted = hasStoragePermission,
-                        onClick = onStoragePermissionClick
+        Column {
+                Text(
+                        text = "基础权限",
+                        style =
+                                MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.Bold
+                                ),
+                        modifier = Modifier.padding(bottom = 4.dp)
                 )
 
-                Divider(
-                        thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+                Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                        shape = RoundedCornerShape(8.dp)
+                ) {
+                        Column(
+                                modifier = Modifier.padding(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                                PermissionStatusItem(
+                                        title = "存储权限",
+                                        isGranted = hasStoragePermission,
+                                        onClick = onStoragePermissionClick
+                                )
+
+                                Divider(
+                                        thickness = 0.5.dp,
+                                        color =
+                                                MaterialTheme.colorScheme.onSurface.copy(
+                                                        alpha = 0.1f
+                                                )
+                                )
+
+                                PermissionStatusItem(
+                                        title = "悬浮窗权限",
+                                        isGranted = hasOverlayPermission,
+                                        onClick = onOverlayPermissionClick
+                                )
+
+                                Divider(
+                                        thickness = 0.5.dp,
+                                        color =
+                                                MaterialTheme.colorScheme.onSurface.copy(
+                                                        alpha = 0.1f
+                                                )
+                                )
+
+                                PermissionStatusItem(
+                                        title = "电池优化豁免",
+                                        isGranted = hasBatteryOptimizationExemption,
+                                        onClick = onBatteryOptimizationClick
+                                )
+
+                                Divider(
+                                        thickness = 0.5.dp,
+                                        color =
+                                                MaterialTheme.colorScheme.onSurface.copy(
+                                                        alpha = 0.1f
+                                                )
+                                )
+
+                                PermissionStatusItem(
+                                        title = "位置权限",
+                                        isGranted = hasLocationPermission,
+                                        onClick = onLocationPermissionClick
+                                )
+
+                                Divider(
+                                        thickness = 0.5.dp,
+                                        color =
+                                                MaterialTheme.colorScheme.onSurface.copy(
+                                                        alpha = 0.1f
+                                                )
+                                )
+
+                                PermissionStatusItem(
+                                        title = "Termux终端",
+                                        isGranted = isTermuxFullyConfigured,
+                                        onClick = onTermuxClick
+                                )
+                        }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                        text = "无障碍权限",
+                        style =
+                                MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.Bold
+                                ),
+                        modifier = Modifier.padding(bottom = 4.dp)
                 )
 
-                PermissionStatusItem(
-                        title = "悬浮窗权限",
-                        isGranted = hasOverlayPermission,
-                        onClick = onOverlayPermissionClick
-                )
-
-                Divider(
-                        thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                )
-
-                PermissionStatusItem(
-                        title = "电池优化豁免",
-                        isGranted = hasBatteryOptimizationExemption,
-                        onClick = onBatteryOptimizationClick
-                )
-
-                Divider(
-                        thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                )
-
-                PermissionStatusItem(
-                        title = "位置权限",
-                        isGranted = hasLocationPermission,
-                        onClick = onLocationPermissionClick
-                )
-
-                Divider(
-                        thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                )
-
-                PermissionStatusItem(
-                        title = "Termux终端",
-                        isGranted = isTermuxFullyConfigured,
-                        onClick = onTermuxClick
-                )
-            }
+                Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                        shape = RoundedCornerShape(8.dp)
+                ) {
+                        Column(
+                                modifier = Modifier.padding(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                                PermissionStatusItem(
+                                        title = "无障碍服务",
+                                        isGranted = hasAccessibilityServiceEnabled,
+                                        onClick = onAccessibilityClick
+                                )
+                        }
+                }
         }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-                text = "无障碍权限",
-                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                modifier = Modifier.padding(bottom = 4.dp)
-        )
-
-        Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
-                shape = RoundedCornerShape(8.dp)
-        ) {
-            Column(
-                    modifier = Modifier.padding(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                PermissionStatusItem(
-                        title = "无障碍服务",
-                        isGranted = hasAccessibilityServiceEnabled,
-                        onClick = onAccessibilityClick
-                )
-            }
-        }
-    }
 }
 
 @Composable
@@ -748,107 +894,125 @@ private fun AdminPermissionSection(
         onLocationPermissionClick: () -> Unit,
         onTermuxClick: () -> Unit
 ) {
-    Column {
-        Text(
-                text = "基础权限",
-                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                modifier = Modifier.padding(bottom = 4.dp)
-        )
-
-        Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
-                shape = RoundedCornerShape(8.dp)
-        ) {
-            Column(
-                    modifier = Modifier.padding(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                PermissionStatusItem(
-                        title = "存储权限",
-                        isGranted = hasStoragePermission,
-                        onClick = onStoragePermissionClick
+        Column {
+                Text(
+                        text = "基础权限",
+                        style =
+                                MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.Bold
+                                ),
+                        modifier = Modifier.padding(bottom = 4.dp)
                 )
 
-                Divider(
-                        thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                )
+                Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                        shape = RoundedCornerShape(8.dp)
+                ) {
+                        Column(
+                                modifier = Modifier.padding(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                                PermissionStatusItem(
+                                        title = "存储权限",
+                                        isGranted = hasStoragePermission,
+                                        onClick = onStoragePermissionClick
+                                )
 
-                PermissionStatusItem(
-                        title = "悬浮窗权限",
-                        isGranted = hasOverlayPermission,
-                        onClick = onOverlayPermissionClick
-                )
+                                Divider(
+                                        thickness = 0.5.dp,
+                                        color =
+                                                MaterialTheme.colorScheme.onSurface.copy(
+                                                        alpha = 0.1f
+                                                )
+                                )
 
-                Divider(
-                        thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                )
+                                PermissionStatusItem(
+                                        title = "悬浮窗权限",
+                                        isGranted = hasOverlayPermission,
+                                        onClick = onOverlayPermissionClick
+                                )
 
-                PermissionStatusItem(
-                        title = "电池优化豁免",
-                        isGranted = hasBatteryOptimizationExemption,
-                        onClick = onBatteryOptimizationClick
-                )
+                                Divider(
+                                        thickness = 0.5.dp,
+                                        color =
+                                                MaterialTheme.colorScheme.onSurface.copy(
+                                                        alpha = 0.1f
+                                                )
+                                )
 
-                Divider(
-                        thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                )
+                                PermissionStatusItem(
+                                        title = "电池优化豁免",
+                                        isGranted = hasBatteryOptimizationExemption,
+                                        onClick = onBatteryOptimizationClick
+                                )
 
-                PermissionStatusItem(
-                        title = "位置权限",
-                        isGranted = hasLocationPermission,
-                        onClick = onLocationPermissionClick
-                )
+                                Divider(
+                                        thickness = 0.5.dp,
+                                        color =
+                                                MaterialTheme.colorScheme.onSurface.copy(
+                                                        alpha = 0.1f
+                                                )
+                                )
 
-                Divider(
-                        thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                )
+                                PermissionStatusItem(
+                                        title = "位置权限",
+                                        isGranted = hasLocationPermission,
+                                        onClick = onLocationPermissionClick
+                                )
 
-                PermissionStatusItem(
-                        title = "Termux终端",
-                        isGranted = isTermuxFullyConfigured,
-                        onClick = onTermuxClick
-                )
-            }
-        }
+                                Divider(
+                                        thickness = 0.5.dp,
+                                        color =
+                                                MaterialTheme.colorScheme.onSurface.copy(
+                                                        alpha = 0.1f
+                                                )
+                                )
 
-        Spacer(modifier = Modifier.height(8.dp))
+                                PermissionStatusItem(
+                                        title = "Termux终端",
+                                        isGranted = isTermuxFullyConfigured,
+                                        onClick = onTermuxClick
+                                )
+                        }
+                }
 
-        Text(
-                text = "管理员权限",
-                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                modifier = Modifier.padding(bottom = 4.dp)
-        )
-
-        // 管理员权限额外信息
-        Surface(
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
-                shape = RoundedCornerShape(8.dp)
-        ) {
-            Row(
-                    modifier = Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                        imageVector = Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(16.dp)
-                )
-
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                        text = "已具备所有必要的管理员权限",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
+                        text = "管理员权限",
+                        style =
+                                MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.Bold
+                                ),
+                        modifier = Modifier.padding(bottom = 4.dp)
                 )
-            }
+
+                // 管理员权限额外信息
+                Surface(
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                        shape = RoundedCornerShape(8.dp)
+                ) {
+                        Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                        ) {
+                                Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                )
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                Text(
+                                        text = "已具备所有必要的管理员权限",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                )
+                        }
+                }
         }
-    }
 }
 
 @Composable
@@ -870,97 +1034,118 @@ private fun DebuggerPermissionSection(
         onTermuxClick: () -> Unit,
         onShizukuClick: () -> Unit
 ) {
-    Column {
-        Text(
-                text = "基础权限",
-                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                modifier = Modifier.padding(bottom = 4.dp)
-        )
-
-        Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
-                shape = RoundedCornerShape(8.dp)
-        ) {
-            Column(
-                    modifier = Modifier.padding(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                PermissionStatusItem(
-                        title = "存储权限",
-                        isGranted = hasStoragePermission,
-                        onClick = onStoragePermissionClick
+        Column {
+                Text(
+                        text = "基础权限",
+                        style =
+                                MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.Bold
+                                ),
+                        modifier = Modifier.padding(bottom = 4.dp)
                 )
 
-                Divider(
-                        thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+                Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                        shape = RoundedCornerShape(8.dp)
+                ) {
+                        Column(
+                                modifier = Modifier.padding(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                                PermissionStatusItem(
+                                        title = "存储权限",
+                                        isGranted = hasStoragePermission,
+                                        onClick = onStoragePermissionClick
+                                )
+
+                                Divider(
+                                        thickness = 0.5.dp,
+                                        color =
+                                                MaterialTheme.colorScheme.onSurface.copy(
+                                                        alpha = 0.1f
+                                                )
+                                )
+
+                                PermissionStatusItem(
+                                        title = "悬浮窗权限",
+                                        isGranted = hasOverlayPermission,
+                                        onClick = onOverlayPermissionClick
+                                )
+
+                                Divider(
+                                        thickness = 0.5.dp,
+                                        color =
+                                                MaterialTheme.colorScheme.onSurface.copy(
+                                                        alpha = 0.1f
+                                                )
+                                )
+
+                                PermissionStatusItem(
+                                        title = "电池优化豁免",
+                                        isGranted = hasBatteryOptimizationExemption,
+                                        onClick = onBatteryOptimizationClick
+                                )
+
+                                Divider(
+                                        thickness = 0.5.dp,
+                                        color =
+                                                MaterialTheme.colorScheme.onSurface.copy(
+                                                        alpha = 0.1f
+                                                )
+                                )
+
+                                PermissionStatusItem(
+                                        title = "位置权限",
+                                        isGranted = hasLocationPermission,
+                                        onClick = onLocationPermissionClick
+                                )
+
+                                Divider(
+                                        thickness = 0.5.dp,
+                                        color =
+                                                MaterialTheme.colorScheme.onSurface.copy(
+                                                        alpha = 0.1f
+                                                )
+                                )
+
+                                PermissionStatusItem(
+                                        title = "Termux终端",
+                                        isGranted = isTermuxFullyConfigured,
+                                        onClick = onTermuxClick
+                                )
+                        }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                        text = "调试权限",
+                        style =
+                                MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.Bold
+                                ),
+                        modifier = Modifier.padding(bottom = 4.dp)
                 )
 
-                PermissionStatusItem(
-                        title = "悬浮窗权限",
-                        isGranted = hasOverlayPermission,
-                        onClick = onOverlayPermissionClick
-                )
-
-                Divider(
-                        thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                )
-
-                PermissionStatusItem(
-                        title = "电池优化豁免",
-                        isGranted = hasBatteryOptimizationExemption,
-                        onClick = onBatteryOptimizationClick
-                )
-
-                Divider(
-                        thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                )
-
-                PermissionStatusItem(
-                        title = "位置权限",
-                        isGranted = hasLocationPermission,
-                        onClick = onLocationPermissionClick
-                )
-
-                Divider(
-                        thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                )
-
-                PermissionStatusItem(
-                        title = "Termux终端",
-                        isGranted = isTermuxFullyConfigured,
-                        onClick = onTermuxClick
-                )
-            }
+                Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                        shape = RoundedCornerShape(8.dp)
+                ) {
+                        Column(
+                                modifier = Modifier.padding(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                                PermissionStatusItem(
+                                        title = "Shizuku服务",
+                                        isGranted =
+                                                isShizukuInstalled &&
+                                                        isShizukuRunning &&
+                                                        hasShizukuPermission,
+                                        onClick = onShizukuClick
+                                )
+                        }
+                }
         }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-                text = "调试权限",
-                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                modifier = Modifier.padding(bottom = 4.dp)
-        )
-
-        Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
-                shape = RoundedCornerShape(8.dp)
-        ) {
-            Column(
-                    modifier = Modifier.padding(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                PermissionStatusItem(
-                        title = "Shizuku服务",
-                        isGranted = isShizukuInstalled && isShizukuRunning && hasShizukuPermission,
-                        onClick = onShizukuClick
-                )
-            }
-        }
-    }
 }
 
 @Composable
@@ -978,117 +1163,135 @@ private fun RootPermissionSection(
         onLocationPermissionClick: () -> Unit,
         onTermuxClick: () -> Unit
 ) {
-    Column {
-        Text(
-                text = "基础权限",
-                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                modifier = Modifier.padding(bottom = 4.dp)
-        )
-
-        Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
-                shape = RoundedCornerShape(8.dp)
-        ) {
-            Column(
-                    modifier = Modifier.padding(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                PermissionStatusItem(
-                        title = "存储权限",
-                        isGranted = hasStoragePermission,
-                        onClick = onStoragePermissionClick
+        Column {
+                Text(
+                        text = "基础权限",
+                        style =
+                                MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.Bold
+                                ),
+                        modifier = Modifier.padding(bottom = 4.dp)
                 )
 
-                Divider(
-                        thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                )
+                Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                        shape = RoundedCornerShape(8.dp)
+                ) {
+                        Column(
+                                modifier = Modifier.padding(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                                PermissionStatusItem(
+                                        title = "存储权限",
+                                        isGranted = hasStoragePermission,
+                                        onClick = onStoragePermissionClick
+                                )
 
-                PermissionStatusItem(
-                        title = "悬浮窗权限",
-                        isGranted = hasOverlayPermission,
-                        onClick = onOverlayPermissionClick
-                )
+                                Divider(
+                                        thickness = 0.5.dp,
+                                        color =
+                                                MaterialTheme.colorScheme.onSurface.copy(
+                                                        alpha = 0.1f
+                                                )
+                                )
 
-                Divider(
-                        thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                )
+                                PermissionStatusItem(
+                                        title = "悬浮窗权限",
+                                        isGranted = hasOverlayPermission,
+                                        onClick = onOverlayPermissionClick
+                                )
 
-                PermissionStatusItem(
-                        title = "电池优化豁免",
-                        isGranted = hasBatteryOptimizationExemption,
-                        onClick = onBatteryOptimizationClick
-                )
+                                Divider(
+                                        thickness = 0.5.dp,
+                                        color =
+                                                MaterialTheme.colorScheme.onSurface.copy(
+                                                        alpha = 0.1f
+                                                )
+                                )
 
-                Divider(
-                        thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                )
+                                PermissionStatusItem(
+                                        title = "电池优化豁免",
+                                        isGranted = hasBatteryOptimizationExemption,
+                                        onClick = onBatteryOptimizationClick
+                                )
 
-                PermissionStatusItem(
-                        title = "位置权限",
-                        isGranted = hasLocationPermission,
-                        onClick = onLocationPermissionClick
-                )
+                                Divider(
+                                        thickness = 0.5.dp,
+                                        color =
+                                                MaterialTheme.colorScheme.onSurface.copy(
+                                                        alpha = 0.1f
+                                                )
+                                )
 
-                Divider(
-                        thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                )
+                                PermissionStatusItem(
+                                        title = "位置权限",
+                                        isGranted = hasLocationPermission,
+                                        onClick = onLocationPermissionClick
+                                )
 
-                PermissionStatusItem(
-                        title = "Termux终端",
-                        isGranted = isTermuxFullyConfigured,
-                        onClick = onTermuxClick
-                )
-            }
-        }
+                                Divider(
+                                        thickness = 0.5.dp,
+                                        color =
+                                                MaterialTheme.colorScheme.onSurface.copy(
+                                                        alpha = 0.1f
+                                                )
+                                )
 
-        // Root权限额外说明
-        Spacer(modifier = Modifier.height(8.dp))
+                                PermissionStatusItem(
+                                        title = "Termux终端",
+                                        isGranted = isTermuxFullyConfigured,
+                                        onClick = onTermuxClick
+                                )
+                        }
+                }
 
-        Text(
-                text = "Root权限",
-                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                modifier = Modifier.padding(bottom = 4.dp)
-        )
-
-        // Root权限额外信息
-        Surface(
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
-                shape = RoundedCornerShape(8.dp)
-        ) {
-            Row(
-                    modifier = Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                        imageVector = Icons.Default.Lock,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(16.dp)
-                )
-
-                Spacer(modifier = Modifier.width(8.dp))
+                // Root权限额外说明
+                Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                        text = "使用Termux终端执行特权命令",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
+                        text = "Root权限",
+                        style =
+                                MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.Bold
+                                ),
+                        modifier = Modifier.padding(bottom = 4.dp)
                 )
-            }
+
+                // Root权限额外信息
+                Surface(
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                        shape = RoundedCornerShape(8.dp)
+                ) {
+                        Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                        ) {
+                                Icon(
+                                        imageVector = Icons.Default.Lock,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                )
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                Text(
+                                        text = "使用Termux终端执行特权命令",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                )
+                        }
+                }
         }
-    }
 }
 
 // 获取权限级别的描述
 private fun getPermissionLevelDescription(level: AndroidPermissionLevel): String {
-    return when (level) {
-        AndroidPermissionLevel.STANDARD -> "标准权限：基本的应用运行权限，无需特殊权限"
-        AndroidPermissionLevel.ACCESSIBILITY -> "无障碍权限：允许应用模拟用户操作，需要开启无障碍服务"
-        AndroidPermissionLevel.ADMIN -> "管理员权限：允许应用访问更多系统功能，如位置服务等"
-        AndroidPermissionLevel.DEBUGGER -> "调试权限：允许通过ADB调试功能进行高级操作，需要Shizuku服务"
-        AndroidPermissionLevel.ROOT -> "Root权限：允许应用以超级用户身份运行，需要Termux终端支持"
-    }
+        return when (level) {
+                AndroidPermissionLevel.STANDARD -> "标准权限：基本的应用运行权限，无需特殊权限"
+                AndroidPermissionLevel.ACCESSIBILITY -> "无障碍权限：允许应用模拟用户操作，需要开启无障碍服务"
+                AndroidPermissionLevel.ADMIN -> "管理员权限：允许应用访问更多系统功能，如位置服务等"
+                AndroidPermissionLevel.DEBUGGER -> "调试权限：允许通过ADB调试功能进行高级操作，需要Shizuku服务"
+                AndroidPermissionLevel.ROOT -> "Root权限：允许应用以超级用户身份运行，需要Termux终端支持"
+        }
 }

@@ -20,11 +20,11 @@ class ShellExecutorFactory {
          * @return 对应的Shell执行器
          */
         fun getExecutor(context: Context, permissionLevel: AndroidPermissionLevel): ShellExecutor {
-            Log.d(TAG, "Requested shell executor for permission level: $permissionLevel")
+            // Log.d(TAG, "Requested shell executor for permission level: $permissionLevel")
 
             // 检查缓存中是否已有该级别的执行器
             executors[permissionLevel]?.let {
-                Log.d(TAG, "Returning cached executor for level: $permissionLevel")
+                // Log.d(TAG, "Returning cached executor for level: $permissionLevel")
                 return it
             }
 

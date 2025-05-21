@@ -5,11 +5,13 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import android.util.Log
 import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
 import com.ai.assistance.operit.ui.features.demo.state.DemoStateManager
 import kotlinx.coroutines.flow.StateFlow
@@ -19,21 +21,35 @@ import kotlinx.coroutines.launch
 class ShizukuDemoViewModel(application: Application) : AndroidViewModel(application) {
     // 初始化时直接创建stateManager
     private val stateManager: DemoStateManager = DemoStateManager(application, viewModelScope)
-    
+
+    // AIToolHandler instance
+    private val toolHandler: AIToolHandler = AIToolHandler.getInstance(application)
+
     // Expose state from the manager
-    val uiState: StateFlow<com.ai.assistance.operit.ui.features.demo.state.DemoScreenState> = stateManager.uiState
+    val uiState: StateFlow<com.ai.assistance.operit.ui.features.demo.state.DemoScreenState> =
+            stateManager.uiState
 
     // Expose properties for Termux configuration
-    val isTunaSourceEnabled get() = stateManager.isTunaSourceEnabled
-    val isPythonInstalled get() = stateManager.isPythonInstalled
-    val isUvInstalled get() = stateManager.isUvInstalled
-    val isNodeInstalled get() = stateManager.isNodeInstalled
-    val isTermuxConfiguring get() = stateManager.isTermuxConfiguring
-    val isTermuxRunning get() = stateManager.isTermuxRunning
-    val isTermuxBatteryOptimizationExempted get() = stateManager.isTermuxBatteryOptimizationExempted
-    val isTermuxFullyConfigured get() = stateManager.isTermuxFullyConfigured
-    val outputText get() = stateManager.outputText
-    val currentTask get() = stateManager.currentTask
+    val isTunaSourceEnabled
+        get() = stateManager.isTunaSourceEnabled
+    val isPythonInstalled
+        get() = stateManager.isPythonInstalled
+    val isUvInstalled
+        get() = stateManager.isUvInstalled
+    val isNodeInstalled
+        get() = stateManager.isNodeInstalled
+    val isTermuxConfiguring
+        get() = stateManager.isTermuxConfiguring
+    val isTermuxRunning
+        get() = stateManager.isTermuxRunning
+    val isTermuxBatteryOptimizationExempted
+        get() = stateManager.isTermuxBatteryOptimizationExempted
+    val isTermuxFullyConfigured
+        get() = stateManager.isTermuxFullyConfigured
+    val outputText
+        get() = stateManager.outputText
+    val currentTask
+        get() = stateManager.currentTask
 
     /** Initialize the ViewModel with context data */
     fun initialize(context: Context) {
@@ -241,7 +257,9 @@ class ShizukuDemoViewModel(application: Application) : AndroidViewModel(applicat
 
                 // Implementation of requestTermuxBatteryOptimization
                 updateOutputText("${outputText.value}\n开始设置Termux电池优化豁免...")
-                updateOutputText("${outputText.value}\n已打开Termux电池优化设置页面。请在系统设置中点击「允许」以豁免Termux的电池优化。")
+                updateOutputText(
+                        "${outputText.value}\n已打开Termux电池优化设置页面。请在系统设置中点击「允许」以豁免Termux的电池优化。"
+                )
                 updateOutputText("${outputText.value}\n完成设置后，请返回本应用并点击刷新按钮检查状态。")
 
                 // Open battery optimization settings for Termux
@@ -307,17 +325,30 @@ class ShizukuDemoViewModel(application: Application) : AndroidViewModel(applicat
 
                 // Update with the result
                 stateManager.updateResultText(
-                    if (result.success) {
-                        "命令执行成功:\n${result.stdout}"
-                    } else {
-                        "命令执行失败 (退出码: ${result.exitCode}):\n${result.stderr}"
-                    }
+                        if (result.success) {
+                            "命令执行成功:\n${result.stdout}"
+                        } else {
+                            "命令执行失败 (退出码: ${result.exitCode}):\n${result.stderr}"
+                        }
                 )
             } catch (e: Exception) {
                 // Handle execution errors
                 stateManager.updateResultText("命令执行出错: ${e.message}")
             }
         }
+    }
+
+    /** Refresh all registered tools */
+    fun refreshTools(context: Context) {
+        Log.d("ShizukuDemoViewModel", "Refreshing all registered tools")
+        // First clear the current tool execution state
+        toolHandler.reset()
+
+        // Re-register all default tools
+        toolHandler.registerDefaultTools()
+
+        // Show a toast notification for feedback
+        Toast.makeText(context, "已重新注册所有工具", Toast.LENGTH_SHORT).show()
     }
 
     /** Cleanup when ViewModel is cleared */
