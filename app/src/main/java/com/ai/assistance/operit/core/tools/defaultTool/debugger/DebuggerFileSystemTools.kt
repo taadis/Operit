@@ -50,7 +50,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
         return try {
             // 首先尝试使用基本的ls命令
             Log.d(TAG, "Trying basic ls command for path: $path")
-            val basicResult = AndroidShellExecutor.executeAdbCommand("ls \"$path\"")
+            val basicResult = AndroidShellExecutor.executeShellCommand("ls \"$path\"")
 
             if (basicResult.success) {
                 Log.d(TAG, "Basic ls command output: ${basicResult.stdout}")
@@ -72,7 +72,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                 // 如果基本ls命令失败，尝试使用find命令
                 Log.d(TAG, "Trying find command for path: $path")
                 val findResult =
-                        AndroidShellExecutor.executeAdbCommand(
+                        AndroidShellExecutor.executeShellCommand(
                                 "find \"$path\" -maxdepth 1 -mindepth 1 -printf \"%y|%s|%T@|%f\\n\""
                         )
 
@@ -180,7 +180,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
         // 执行命令获取哪些是目录
         val dirResult =
                 try {
-                    AndroidShellExecutor.executeAdbCommand(dirCheckCommand.toString())
+                    AndroidShellExecutor.executeShellCommand(dirCheckCommand.toString())
                 } catch (e: Exception) {
                     Log.e(TAG, "Error checking directories", e)
                     null
@@ -276,7 +276,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
         return try {
             // First check if the file exists
             val existsResult =
-                    AndroidShellExecutor.executeAdbCommand(
+                    AndroidShellExecutor.executeShellCommand(
                             "test -f \"$path\" && echo 'exists' || echo 'not exists'"
                     )
             if (existsResult.stdout.trim() != "exists") {
@@ -289,7 +289,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
             }
 
             // Check file size before reading
-            val sizeResult = AndroidShellExecutor.executeAdbCommand("stat -c %s \"$path\"")
+            val sizeResult = AndroidShellExecutor.executeShellCommand("stat -c %s \"$path\"")
             if (sizeResult.success) {
                 val size = sizeResult.stdout.trim().toLongOrNull() ?: 0
                 if (size > MAX_FILE_SIZE_BYTES) {
@@ -336,7 +336,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
 
                         // 读取转换后的文本文件
                         val textContent =
-                                AndroidShellExecutor.executeAdbCommand("cat \"$tempFilePath\"")
+                                AndroidShellExecutor.executeShellCommand("cat \"$tempFilePath\"")
 
                         if (textContent.success) {
                             // 创建结果
@@ -356,7 +356,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                                     )
 
                             // 删除临时文件
-                            AndroidShellExecutor.executeAdbCommand("rm -f \"$tempFilePath\"")
+                            AndroidShellExecutor.executeShellCommand("rm -f \"$tempFilePath\"")
 
                             return result
                         }
@@ -373,7 +373,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
             }
 
             // 对于非Word文档或转换失败的情况，直接读取文件内容
-            val result = AndroidShellExecutor.executeAdbCommand("cat \"$path\"")
+            val result = AndroidShellExecutor.executeShellCommand("cat \"$path\"")
 
             if (result.success) {
                 val size = sizeResult.stdout.trim().toLongOrNull() ?: result.stdout.length.toLong()
@@ -428,7 +428,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
             // 确保目标目录存在
             val directory = File(path).parent
             if (directory != null) {
-                val mkdirResult = AndroidShellExecutor.executeAdbCommand("mkdir -p '$directory'")
+                val mkdirResult = AndroidShellExecutor.executeShellCommand("mkdir -p '$directory'")
                 if (!mkdirResult.success) {
                     Log.w(TAG, "Warning: Failed to create parent directory: ${mkdirResult.stderr}")
                 }
@@ -446,7 +446,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
             // 方法1: 使用base64命令解码并写入文件
             val redirectOperator = if (append) ">>" else ">"
             val writeResult =
-                    AndroidShellExecutor.executeAdbCommand(
+                    AndroidShellExecutor.executeShellCommand(
                             "echo '$contentBase64' | base64 -d $redirectOperator '$path'"
                     )
 
@@ -454,7 +454,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                 Log.e(TAG, "Failed to write with base64 method: ${writeResult.stderr}")
                 // 方法2: 尝试直接写入，无需base64
                 val fallbackResult =
-                        AndroidShellExecutor.executeAdbCommand(
+                        AndroidShellExecutor.executeShellCommand(
                                 "printf '%s' '$content' $redirectOperator '$path'"
                         )
                 if (!fallbackResult.success) {
@@ -476,7 +476,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
 
             // 验证写入是否成功
             val verifyResult =
-                    AndroidShellExecutor.executeAdbCommand(
+                    AndroidShellExecutor.executeShellCommand(
                             "test -f '$path' && echo 'exists' || echo 'not exists'"
                     )
             if (verifyResult.stdout.trim() != "exists") {
@@ -498,7 +498,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
 
             // 检查文件大小确认内容被写入
             val sizeResult =
-                    AndroidShellExecutor.executeAdbCommand(
+                    AndroidShellExecutor.executeShellCommand(
                             "stat -c %s '$path' 2>/dev/null || echo '0'"
                     )
             val size = sizeResult.stdout.trim().toLongOrNull() ?: 0
@@ -606,7 +606,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
 
         return try {
             val deleteCommand = if (recursive) "rm -rf $path" else "rm -f $path"
-            val result = AndroidShellExecutor.executeAdbCommand(deleteCommand)
+            val result = AndroidShellExecutor.executeShellCommand(deleteCommand)
 
             if (result.success) {
                 return ToolResult(
@@ -668,7 +668,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
         return try {
             // Check if the path exists
             val existsResult =
-                    AndroidShellExecutor.executeAdbCommand(
+                    AndroidShellExecutor.executeShellCommand(
                             "test -e '$path' && echo 'exists' || echo 'not exists'"
                     )
             val exists = existsResult.success && existsResult.stdout.trim() == "exists"
@@ -686,14 +686,14 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
 
             // If it exists, check if it's a directory
             val isDirResult =
-                    AndroidShellExecutor.executeAdbCommand(
+                    AndroidShellExecutor.executeShellCommand(
                             "test -d '$path' && echo 'true' || echo 'false'"
                     )
             val isDirectory = isDirResult.success && isDirResult.stdout.trim() == "true"
 
             // Get the size
             val sizeResult =
-                    AndroidShellExecutor.executeAdbCommand(
+                    AndroidShellExecutor.executeShellCommand(
                             "stat -c %s '$path' 2>/dev/null || echo '0'"
                     )
             val size = sizeResult.stdout.trim().toLongOrNull() ?: 0
@@ -765,7 +765,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
         }
 
         return try {
-            val result = AndroidShellExecutor.executeAdbCommand("mv '$sourcePath' '$destPath'")
+            val result = AndroidShellExecutor.executeShellCommand("mv '$sourcePath' '$destPath'")
 
             if (result.success) {
                 return ToolResult(
@@ -837,7 +837,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
         return try {
             // 首先检查源路径是否存在
             val existsResult =
-                    AndroidShellExecutor.executeAdbCommand(
+                    AndroidShellExecutor.executeShellCommand(
                             "test -e '$sourcePath' && echo 'exists' || echo 'not exists'"
                     )
             if (existsResult.stdout.trim() != "exists") {
@@ -857,7 +857,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
 
             // 检查是否为目录
             val isDirResult =
-                    AndroidShellExecutor.executeAdbCommand(
+                    AndroidShellExecutor.executeShellCommand(
                             "test -d '$sourcePath' && echo 'true' || echo 'false'"
                     )
             val isDirectory = isDirResult.stdout.trim() == "true"
@@ -865,7 +865,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
             // 确保目标父目录存在
             val destParentDir = destPath.substringBeforeLast('/')
             if (destParentDir.isNotEmpty()) {
-                AndroidShellExecutor.executeAdbCommand("mkdir -p '$destParentDir'")
+                AndroidShellExecutor.executeShellCommand("mkdir -p '$destParentDir'")
             }
 
             // 根据是否为目录选择不同的复制命令
@@ -890,12 +890,12 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                         )
                     }
 
-            val result = AndroidShellExecutor.executeAdbCommand(copyCommand)
+            val result = AndroidShellExecutor.executeShellCommand(copyCommand)
 
             if (result.success) {
                 // 验证复制是否成功
                 val verifyResult =
-                        AndroidShellExecutor.executeAdbCommand(
+                        AndroidShellExecutor.executeShellCommand(
                                 "test -e '$destPath' && echo 'exists' || echo 'not exists'"
                         )
                 if (verifyResult.stdout.trim() != "exists") {
@@ -981,7 +981,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
 
         return try {
             val mkdirCommand = if (createParents) "mkdir -p '$path'" else "mkdir '$path'"
-            val result = AndroidShellExecutor.executeAdbCommand(mkdirCommand)
+            val result = AndroidShellExecutor.executeShellCommand(mkdirCommand)
 
             if (result.success) {
                 return ToolResult(
@@ -1077,7 +1077,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
             val command =
                     "find ${if(path.endsWith("/")) path else "$path/"} $depthOption $searchOption $patternForCommand"
 
-            val result = AndroidShellExecutor.executeAdbCommand(command)
+            val result = AndroidShellExecutor.executeShellCommand(command)
 
             // Always consider the command successful, and check the output
             val fileList = result.stdout.trim()
@@ -1139,7 +1139,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
         return try {
             // Check if file exists
             val existsResult =
-                    AndroidShellExecutor.executeAdbCommand(
+                    AndroidShellExecutor.executeShellCommand(
                             "test -e '$path' && echo 'exists' || echo 'not exists'"
                     )
             if (existsResult.stdout.trim() != "exists") {
@@ -1163,46 +1163,46 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
             }
 
             // Get file details using stat
-            val statResult = AndroidShellExecutor.executeAdbCommand("stat '$path'")
+            val statResult = AndroidShellExecutor.executeShellCommand("stat '$path'")
 
             if (statResult.success) {
                 // Get file type
                 val fileTypeResult =
-                        AndroidShellExecutor.executeAdbCommand(
+                        AndroidShellExecutor.executeShellCommand(
                                 "test -d '$path' && echo 'directory' || (test -f '$path' && echo 'file' || echo 'other')"
                         )
                 val fileType = fileTypeResult.stdout.trim()
 
                 // Get file size
                 val sizeResult =
-                        AndroidShellExecutor.executeAdbCommand(
+                        AndroidShellExecutor.executeShellCommand(
                                 "stat -c %s '$path' 2>/dev/null || echo '0'"
                         )
                 val size = sizeResult.stdout.trim().toLongOrNull() ?: 0
 
                 // Get file permissions
                 val permissionsResult =
-                        AndroidShellExecutor.executeAdbCommand(
+                        AndroidShellExecutor.executeShellCommand(
                                 "stat -c %A '$path' 2>/dev/null || echo ''"
                         )
                 val permissions = permissionsResult.stdout.trim()
 
                 // Get owner and group
                 val ownerResult =
-                        AndroidShellExecutor.executeAdbCommand(
+                        AndroidShellExecutor.executeShellCommand(
                                 "stat -c %U '$path' 2>/dev/null || echo ''"
                         )
                 val owner = ownerResult.stdout.trim()
 
                 val groupResult =
-                        AndroidShellExecutor.executeAdbCommand(
+                        AndroidShellExecutor.executeShellCommand(
                                 "stat -c %G '$path' 2>/dev/null || echo ''"
                         )
                 val group = groupResult.stdout.trim()
 
                 // Get last modified time
                 val modifiedResult =
-                        AndroidShellExecutor.executeAdbCommand(
+                        AndroidShellExecutor.executeShellCommand(
                                 "stat -c %y '$path' 2>/dev/null || echo ''"
                         )
                 val lastModified = modifiedResult.stdout.trim()
@@ -1282,7 +1282,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
         return try {
             // First, check if the source path exists
             val existsResult =
-                    AndroidShellExecutor.executeAdbCommand(
+                    AndroidShellExecutor.executeShellCommand(
                             "test -e '$sourcePath' && echo 'exists' || echo 'not exists'"
                     )
             if (existsResult.stdout.trim() != "exists") {
@@ -1296,7 +1296,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
 
             // Check if source is a directory
             val isDirResult =
-                    AndroidShellExecutor.executeAdbCommand(
+                    AndroidShellExecutor.executeShellCommand(
                             "test -d '$sourcePath' && echo 'true' || echo 'false'"
                     )
             val isDirectory = isDirResult.stdout.trim() == "true"
@@ -1304,7 +1304,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
             // Create parent directory for zip file if needed
             val zipDir = File(zipPath).parent
             if (zipDir != null) {
-                AndroidShellExecutor.executeAdbCommand("mkdir -p '$zipDir'")
+                AndroidShellExecutor.executeShellCommand("mkdir -p '$zipDir'")
             }
 
             // Use Java's ZipOutputStream to create the zip file
@@ -1330,7 +1330,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                     // For directories, we need to list all files and add them
                     // to the zip
                     val listResult =
-                            AndroidShellExecutor.executeAdbCommand("find '$sourcePath' -type f")
+                            AndroidShellExecutor.executeShellCommand("find '$sourcePath' -type f")
                     val fileList = listResult.stdout.trim().split("\n").filter { it.isNotEmpty() }
 
                     // Create ZIP output stream
@@ -1345,7 +1345,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
 
                             // Copy the file from device to temp file
                             val pullResult =
-                                    AndroidShellExecutor.executeAdbCommand(
+                                    AndroidShellExecutor.executeShellCommand(
                                             "cat '$filePath' > '${tempSourceFile.absolutePath}'"
                                     )
                             if (!pullResult.success) {
@@ -1383,7 +1383,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                     // For a single file, simpler process
                     // Copy the file from device to temp file
                     val pullResult =
-                            AndroidShellExecutor.executeAdbCommand(
+                            AndroidShellExecutor.executeShellCommand(
                                     "cat '$sourcePath' > '${tempSourceFile.absolutePath}'"
                             )
                     if (!pullResult.success) {
@@ -1433,7 +1433,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
 
                 // Push the ZIP file to the destination
                 val pushResult =
-                        AndroidShellExecutor.executeAdbCommand(
+                        AndroidShellExecutor.executeShellCommand(
                                 "cat '${tempZipFile.absolutePath}' > '$zipPath'"
                         )
                 if (!pushResult.success) {
@@ -1490,7 +1490,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
         return try {
             // Check if the zip file exists
             val existsResult =
-                    AndroidShellExecutor.executeAdbCommand(
+                    AndroidShellExecutor.executeShellCommand(
                             "test -f '$zipPath' && echo 'exists' || echo 'not exists'"
                     )
             if (existsResult.stdout.trim() != "exists") {
@@ -1503,7 +1503,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
             }
 
             // Create destination directory if it doesn't exist
-            AndroidShellExecutor.executeAdbCommand("mkdir -p '$destPath'")
+            AndroidShellExecutor.executeShellCommand("mkdir -p '$destPath'")
 
             // Create temporary files for processing - using external files directory
             // for better
@@ -1517,7 +1517,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
 
                 // Copy the zip file from device to temp file
                 val pullResult =
-                        AndroidShellExecutor.executeAdbCommand(
+                        AndroidShellExecutor.executeShellCommand(
                                 "cat '$zipPath' > '${tempZipFile.absolutePath}'"
                         )
                 if (!pullResult.success) {
@@ -1549,7 +1549,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                         // Skip directories, but make sure they exist
                         if (zipEntry.isDirectory) {
                             val dirPath = "$destPath/$fileName"
-                            AndroidShellExecutor.executeAdbCommand("mkdir -p '$dirPath'")
+                            AndroidShellExecutor.executeShellCommand("mkdir -p '$dirPath'")
                             zipInputStream.closeEntry()
                             zipEntry = zipInputStream.nextEntry
                             continue
@@ -1559,7 +1559,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                         val filePath = "$destPath/$fileName"
                         val parentDirPath = File(filePath).parent
                         if (parentDirPath != null) {
-                            AndroidShellExecutor.executeAdbCommand("mkdir -p '$parentDirPath'")
+                            AndroidShellExecutor.executeShellCommand("mkdir -p '$parentDirPath'")
                         }
 
                         // Extract file
@@ -1576,7 +1576,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
 
                         // Copy the extracted file to device
                         val pushResult =
-                                AndroidShellExecutor.executeAdbCommand(
+                                AndroidShellExecutor.executeShellCommand(
                                         "cat '${newFile.absolutePath}' > '$filePath'"
                                 )
                         if (!pushResult.success) {
@@ -1642,7 +1642,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
         return try {
             // 首先检查文件是否存在
             val existsResult =
-                    AndroidShellExecutor.executeAdbCommand(
+                    AndroidShellExecutor.executeShellCommand(
                             "test -f '$path' && echo 'exists' || echo 'not exists'"
                     )
             if (existsResult.stdout.trim() != "exists") {
@@ -1662,14 +1662,14 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
 
             // 获取文件MIME类型
             val mimeTypeResult =
-                    AndroidShellExecutor.executeAdbCommand("file --mime-type -b '$path'")
+                    AndroidShellExecutor.executeShellCommand("file --mime-type -b '$path'")
             val mimeType =
                     if (mimeTypeResult.success) mimeTypeResult.stdout.trim()
                     else "application/octet-stream"
 
             // 使用Android intent打开文件
             val command = "am start -a android.intent.action.VIEW -d 'file://$path' -t '$mimeType'"
-            val result = AndroidShellExecutor.executeAdbCommand(command)
+            val result = AndroidShellExecutor.executeShellCommand(command)
 
             if (result.success) {
                 return ToolResult(
@@ -1738,7 +1738,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
         return try {
             // 首先检查文件是否存在
             val existsResult =
-                    AndroidShellExecutor.executeAdbCommand(
+                    AndroidShellExecutor.executeShellCommand(
                             "test -f '$path' && echo 'exists' || echo 'not exists'"
                     )
             if (existsResult.stdout.trim() != "exists") {
@@ -1758,7 +1758,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
 
             // 获取文件MIME类型
             val mimeTypeResult =
-                    AndroidShellExecutor.executeAdbCommand("file --mime-type -b '$path'")
+                    AndroidShellExecutor.executeShellCommand("file --mime-type -b '$path'")
             val mimeType =
                     if (mimeTypeResult.success) mimeTypeResult.stdout.trim()
                     else "application/octet-stream"
@@ -1766,7 +1766,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
             // 使用Android intent分享文件
             val command =
                     "am start -a android.intent.action.SEND -t '$mimeType' --es android.intent.extra.SUBJECT '$title' --es android.intent.extra.STREAM 'file://$path' --ez android.intent.extra.STREAM_REFERENCE true"
-            val result = AndroidShellExecutor.executeAdbCommand(command)
+            val result = AndroidShellExecutor.executeShellCommand(command)
 
             if (result.success) {
                 return ToolResult(
@@ -1852,7 +1852,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
             // 确保目标目录存在
             val directory = File(destPath).parent
             if (directory != null) {
-                val mkdirResult = AndroidShellExecutor.executeAdbCommand("mkdir -p '$directory'")
+                val mkdirResult = AndroidShellExecutor.executeShellCommand("mkdir -p '$directory'")
                 if (!mkdirResult.success) {
                     return ToolResult(
                             toolName = tool.name,
@@ -1871,14 +1871,14 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
 
             // 使用wget或curl下载文件
             // 首先检查是否有wget
-            val wgetCheckResult = AndroidShellExecutor.executeAdbCommand("which wget")
+            val wgetCheckResult = AndroidShellExecutor.executeShellCommand("which wget")
 
             val downloadCommand =
                     if (wgetCheckResult.success) {
                         "wget '$url' -O '$destPath' --no-check-certificate -q"
                     } else {
                         // 如果没有wget，尝试使用curl
-                        val curlCheckResult = AndroidShellExecutor.executeAdbCommand("which curl")
+                        val curlCheckResult = AndroidShellExecutor.executeShellCommand("which curl")
                         if (!curlCheckResult.success) {
                             return ToolResult(
                                     toolName = tool.name,
@@ -1896,12 +1896,12 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                         "curl -L '$url' -o '$destPath' -s"
                     }
 
-            val result = AndroidShellExecutor.executeAdbCommand(downloadCommand)
+            val result = AndroidShellExecutor.executeShellCommand(downloadCommand)
 
             if (result.success) {
                 // 验证文件是否已下载
                 val checkFileResult =
-                        AndroidShellExecutor.executeAdbCommand(
+                        AndroidShellExecutor.executeShellCommand(
                                 "test -f '$destPath' && echo 'exists' || echo 'not exists'"
                         )
                 if (checkFileResult.stdout.trim() != "exists") {
@@ -1921,7 +1921,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
 
                 // 获取文件大小
                 val fileSizeResult =
-                        AndroidShellExecutor.executeAdbCommand("stat -c %s '$destPath'")
+                        AndroidShellExecutor.executeShellCommand("stat -c %s '$destPath'")
                 val fileSize =
                         if (fileSizeResult.success) {
                             val size = fileSizeResult.stdout.trim().toLongOrNull() ?: 0

@@ -171,7 +171,7 @@ object UIHierarchyManager {
      */
     private suspend fun executeAdbCommand(command: String): Boolean {
         return try {
-            val result = AndroidShellExecutor.executeAdbCommand(command)
+            val result = AndroidShellExecutor.executeShellCommand(command)
             Log.d(TAG, "执行命令结果: ${result.stdout}")
             !result.stdout.contains("error", ignoreCase = true) &&
             !result.stdout.contains("Exception", ignoreCase = true) &&

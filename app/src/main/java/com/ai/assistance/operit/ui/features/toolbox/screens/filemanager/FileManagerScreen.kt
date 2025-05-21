@@ -141,6 +141,12 @@ fun FileManagerScreen(navController: NavController) {
                     onAddTab = { viewModel.addTab() }
             )
 
+            // 路径导航栏 - 添加点击事件处理
+            PathNavigationBar(
+                    currentPath = viewModel.currentPath,
+                    onNavigateToPath = { path -> viewModel.navigateToPath(path) }
+            )
+
             // 主内容区域
             Surface(
                     modifier = Modifier.weight(1f).fillMaxWidth(),

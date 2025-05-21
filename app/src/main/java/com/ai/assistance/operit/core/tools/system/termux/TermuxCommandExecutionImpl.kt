@@ -311,7 +311,7 @@ object TermuxCommandExecutionImpl {
 
                                 // 使用AdbCommandExecutor删除临时文件，避免再次调用Termux
                                 try {
-                                    AndroidShellExecutor.executeAdbCommand(
+                                    AndroidShellExecutor.executeShellCommand(
                                             "run-as com.termux sh -c 'rm -f \"$tempOutputFile\"'"
                                     )
                                     Log.d(
@@ -325,7 +325,7 @@ object TermuxCommandExecutionImpl {
                                     // 尝试清理FIFO管道
                                     val fifoFile =
                                             "/data/data/com.termux/files/home/.termux_input_$executionId.fifo"
-                                    AndroidShellExecutor.executeAdbCommand(
+                                    AndroidShellExecutor.executeShellCommand(
                                             "run-as com.termux sh -c 'rm -f \"$fifoFile\" 2>/dev/null'"
                                     )
 

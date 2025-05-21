@@ -23,6 +23,7 @@ import com.ai.assistance.operit.core.tools.system.AndroidPermissionLevel
 import com.ai.assistance.operit.core.tools.system.ShizukuAuthorizer
 import com.ai.assistance.operit.ui.features.demo.components.*
 import com.ai.assistance.operit.ui.features.demo.viewmodel.ShizukuDemoViewModel
+import com.ai.assistance.operit.ui.features.demo.wizards.RootWizardCard
 import com.ai.assistance.operit.ui.features.demo.wizards.ShizukuWizardCard
 import com.ai.assistance.operit.ui.features.demo.wizards.TermuxWizardCard
 
@@ -95,6 +96,8 @@ fun ShizukuDemoScreen(
                 isTermuxInstalled = uiState.isTermuxInstalled.value,
                 isTermuxAuthorized = uiState.isTermuxAuthorized.value,
                 isTermuxFullyConfigured = viewModel.isTermuxFullyConfigured.value,
+                isDeviceRooted = uiState.isDeviceRooted.value,
+                hasRootAccess = uiState.hasRootAccess.value,
                 isRefreshing = uiState.isRefreshing.value,
                 onRefresh = { viewModel.refreshStatus(context) },
                 onStoragePermissionClick = {
@@ -188,6 +191,13 @@ fun ShizukuDemoScreen(
                         viewModel.startTermux(context)
                     }
                 },
+                onRootClick = {
+                    // 处理Root权限
+                    if (currentDisplayedPermissionLevel == AndroidPermissionLevel.ROOT) {
+                        // 如果当前正在浏览ROOT权限级别，则显示或隐藏Root向导
+                        viewModel.toggleRootWizard()
+                    }
+                },
                 onPermissionLevelChange = { level -> currentDisplayedPermissionLevel = level },
                 onPermissionLevelSet = { level ->
                     // 当设置了新的权限级别时，刷新工具
@@ -207,7 +217,11 @@ fun ShizukuDemoScreen(
                                 !uiState.isShizukuRunning.value ||
                                 !uiState.hasShizukuPermission.value)
 
-        val needSetupGuide = needTermuxSetupGuide || needShizukuSetupGuide
+        val needRootSetupGuide =
+                currentDisplayedPermissionLevel == AndroidPermissionLevel.ROOT &&
+                        (!uiState.hasRootAccess.value)
+
+        val needSetupGuide = needTermuxSetupGuide || needShizukuSetupGuide || needRootSetupGuide
 
         if (needSetupGuide) {
             Spacer(modifier = Modifier.height(16.dp))
@@ -239,6 +253,28 @@ fun ShizukuDemoScreen(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
             )
+
+            // Root向导卡片 - 如果当前浏览的是ROOT权限级别且Root未获取
+            if (needRootSetupGuide) {
+                RootWizardCard(
+                        isDeviceRooted = uiState.isDeviceRooted.value,
+                        hasRootAccess = uiState.hasRootAccess.value,
+                        showWizard = uiState.showRootWizard.value,
+                        onToggleWizard = { viewModel.toggleRootWizard() },
+                        onRequestRoot = { viewModel.requestRootPermission(context) },
+                        onWatchTutorial = {
+                            try {
+                                val videoUrl = "https://magiskmanager.com/"
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(videoUrl))
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "无法打开Root教程链接", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+            }
 
             // Shizuku向导卡片 - 如果正在浏览DEBUGGER权限级别且Shizuku未完全设置则显示
             if (needShizukuSetupGuide) {

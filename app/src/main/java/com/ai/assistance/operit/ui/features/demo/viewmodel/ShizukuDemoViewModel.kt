@@ -13,6 +13,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
+import com.ai.assistance.operit.core.tools.system.RootAuthorizer
 import com.ai.assistance.operit.ui.features.demo.state.DemoStateManager
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -53,18 +54,83 @@ class ShizukuDemoViewModel(application: Application) : AndroidViewModel(applicat
 
     /** Initialize the ViewModel with context data */
     fun initialize(context: Context) {
+        // 初始化Root授权器
+        RootAuthorizer.initialize(context)
+
         // 只需要调用stateManager的initialize方法
         stateManager.initialize()
     }
 
     /** Refresh app status */
     fun refreshStatus(context: Context) {
+        // 检查Root状态
+        checkRootStatus(context)
+
         stateManager.refreshStatus()
     }
 
     /** Check Termux authorization state */
     fun checkTermuxAuthState(context: Context) {
         stateManager.checkTermuxAuthState()
+    }
+
+    /** Check root status */
+    fun checkRootStatus(context: Context) {
+        viewModelScope.launch {
+            val isDeviceRooted = RootAuthorizer.isDeviceRooted()
+            val hasRootAccess = RootAuthorizer.checkRootStatus(context)
+
+            stateManager.updateRootStatus(isDeviceRooted, hasRootAccess)
+
+            Log.d(
+                    "ShizukuDemoViewModel",
+                    "Root状态更新: 设备已Root=$isDeviceRooted, 应用有Root权限=$hasRootAccess"
+            )
+        }
+    }
+
+    /** Request root permission */
+    fun requestRootPermission(context: Context) {
+        viewModelScope.launch {
+            // 如果已有Root权限，则直接执行测试命令
+            if (RootAuthorizer.hasRootAccess.value) {
+                executeRootCommand("id", context)
+                return@launch
+            }
+            
+            // 如果没有Root权限，则先请求权限
+            Toast.makeText(context, "正在请求Root权限...", Toast.LENGTH_SHORT).show()
+            
+            RootAuthorizer.requestRootPermission { granted ->
+                viewModelScope.launch {
+                    if (granted) {
+                        Toast.makeText(context, "Root权限已授予", Toast.LENGTH_SHORT).show()
+                        // 权限授予后执行一个简单的测试命令
+                        executeRootCommand("id", context)
+                    } else {
+                        Toast.makeText(context, "Root权限请求被拒绝", Toast.LENGTH_SHORT).show()
+                    }
+                    
+                    // 刷新状态
+                    checkRootStatus(context)
+                }
+            }
+        }
+    }
+
+    /** Execute root command */
+    fun executeRootCommand(command: String, context: Context) {
+        viewModelScope.launch {
+            val result = RootAuthorizer.executeRootCommand(command)
+
+            if (result.first) {
+                Toast.makeText(context, "命令执行成功", Toast.LENGTH_SHORT).show()
+                stateManager.updateResultText("命令执行成功:\n${result.second}")
+            } else {
+                Toast.makeText(context, "命令执行失败", Toast.LENGTH_SHORT).show()
+                stateManager.updateResultText("命令执行失败:\n${result.second}")
+            }
+        }
     }
 
     /** Check installed components in Termux */
@@ -127,6 +193,10 @@ class ShizukuDemoViewModel(application: Application) : AndroidViewModel(applicat
 
     fun toggleTermuxWizard() {
         stateManager.toggleTermuxWizard()
+    }
+
+    fun toggleRootWizard() {
+        stateManager.toggleRootWizard()
     }
 
     fun toggleAdbCommandExecutor() {
@@ -321,7 +391,7 @@ class ShizukuDemoViewModel(application: Application) : AndroidViewModel(applicat
             try {
                 // Execute the command
                 val commandText = uiState.value.commandText.value
-                val result = AndroidShellExecutor.executeAdbCommand(commandText)
+                val result = AndroidShellExecutor.executeShellCommand(commandText)
 
                 // Update with the result
                 stateManager.updateResultText(

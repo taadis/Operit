@@ -53,7 +53,7 @@ open class StandardSystemOperationTools(private val context: Context) {
 
         return try {
             val command = "settings put $namespace $setting $value"
-            val result = AndroidShellExecutor.executeAdbCommand(command)
+            val result = AndroidShellExecutor.executeShellCommand(command)
 
             if (result.success) {
                 val resultData =
@@ -111,7 +111,7 @@ open class StandardSystemOperationTools(private val context: Context) {
 
         return try {
             val command = "settings get $namespace $setting"
-            val result = AndroidShellExecutor.executeAdbCommand(command)
+            val result = AndroidShellExecutor.executeShellCommand(command)
 
             if (result.success) {
                 val resultData =
@@ -161,7 +161,7 @@ open class StandardSystemOperationTools(private val context: Context) {
 
         // 检查文件是否存在
         val existsResult =
-                AndroidShellExecutor.executeAdbCommand(
+                AndroidShellExecutor.executeShellCommand(
                         "test -f $apkPath && echo 'exists' || echo 'not exists'"
                 )
         if (existsResult.stdout.trim() != "exists") {
@@ -176,7 +176,7 @@ open class StandardSystemOperationTools(private val context: Context) {
         return try {
             // 使用pm安装应用
             val command = "pm install -r $apkPath"
-            val result = AndroidShellExecutor.executeAdbCommand(command)
+            val result = AndroidShellExecutor.executeShellCommand(command)
 
             if (result.success && result.stdout.contains("Success")) {
                 val resultData =
@@ -227,7 +227,7 @@ open class StandardSystemOperationTools(private val context: Context) {
 
         // 检查应用是否已安装
         val checkCommand = "pm list packages | grep -c \"$packageName\""
-        val checkResult = AndroidShellExecutor.executeAdbCommand(checkCommand)
+        val checkResult = AndroidShellExecutor.executeShellCommand(checkCommand)
 
         if (checkResult.stdout.trim() == "0") {
             return ToolResult(
@@ -247,7 +247,7 @@ open class StandardSystemOperationTools(private val context: Context) {
                         "pm uninstall $packageName"
                     }
 
-            val result = AndroidShellExecutor.executeAdbCommand(command)
+            val result = AndroidShellExecutor.executeShellCommand(command)
 
             if (result.success && result.stdout.contains("Success")) {
                 val details = if (keepData) "(保留数据)" else ""
@@ -298,7 +298,7 @@ open class StandardSystemOperationTools(private val context: Context) {
                         "pm list packages -3" // 只显示第三方应用
                     }
 
-            val result = AndroidShellExecutor.executeAdbCommand(command)
+            val result = AndroidShellExecutor.executeShellCommand(command)
 
             if (result.success) {
                 // 格式化输出，使其更易读
@@ -359,7 +359,7 @@ open class StandardSystemOperationTools(private val context: Context) {
                         "am start -n $packageName/$activity"
                     }
 
-            val result = AndroidShellExecutor.executeAdbCommand(command)
+            val result = AndroidShellExecutor.executeShellCommand(command)
 
             if (result.success) {
                 val details = if (activity.isNotBlank()) "活动: $activity" else ""
@@ -411,7 +411,7 @@ open class StandardSystemOperationTools(private val context: Context) {
 
         return try {
             val command = "am force-stop $packageName"
-            val result = AndroidShellExecutor.executeAdbCommand(command)
+            val result = AndroidShellExecutor.executeShellCommand(command)
 
             if (result.success) {
                 val resultData =
@@ -461,7 +461,7 @@ open class StandardSystemOperationTools(private val context: Context) {
                         "dumpsys notification --noredact | grep -v 'ongoing' | grep -E 'pkg=|text=' | head -${limit * 2}"
                     }
 
-            val result = AndroidShellExecutor.executeAdbCommand(command)
+            val result = AndroidShellExecutor.executeShellCommand(command)
 
             if (result.success) {
                 // 解析通知内容

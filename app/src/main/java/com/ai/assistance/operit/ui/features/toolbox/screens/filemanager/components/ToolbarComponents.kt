@@ -1,19 +1,27 @@
 package com.ai.assistance.operit.ui.features.toolbox.screens.filemanager.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.CheckBoxOutlineBlank
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
@@ -248,9 +256,6 @@ fun FileManagerToolbar(
                     }
                 }
             }
-
-            // 路径导航栏
-            PathNavigationBar(currentPath = currentPath)
         }
     }
 }
@@ -259,7 +264,13 @@ fun FileManagerToolbar(
  * 路径导航栏
  */
 @Composable
-fun PathNavigationBar(currentPath: String) {
+fun PathNavigationBar(
+    currentPath: String,
+    onNavigateToPath: (String) -> Unit = {}
+) {
+    var isEditing by remember { mutableStateOf(false) }
+    var editablePath by remember(currentPath) { mutableStateOf(currentPath) }
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -283,14 +294,67 @@ fun PathNavigationBar(currentPath: String) {
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            Text(
-                text = currentPath,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
+            if (isEditing) {
+                // 编辑模式下显示TextField
+                TextField(
+                    value = editablePath,
+                    onValueChange = { editablePath = it },
+                    modifier = Modifier.weight(1f),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                        focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                        unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
+                    ),
+                    keyboardOptions = KeyboardOptions(
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            isEditing = false
+                            if (editablePath.isNotEmpty()) {
+                                onNavigateToPath(editablePath)
+                            }
+                        }
+                    ),
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyMedium
+                )
+            } else {
+                // 非编辑模式下显示可点击的Text
+                Text(
+                    text = currentPath,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable {
+                            isEditing = true
+                            editablePath = currentPath
+                        }
+                )
+            }
+
+            // 添加确认按钮，仅在编辑模式下显示
+            if (isEditing) {
+                IconButton(
+                    onClick = {
+                        isEditing = false
+                        if (editablePath.isNotEmpty()) {
+                            onNavigateToPath(editablePath)
+                        }
+                    },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Done,
+                        contentDescription = "确认",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
         }
     }
 }

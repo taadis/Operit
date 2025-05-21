@@ -39,7 +39,7 @@ open class StandardShellToolExecutor(private val context: Context) {
 
         return try {
             // Use AdbCommandExecutor to execute the command
-            val result = runBlocking { AndroidShellExecutor.executeAdbCommand(command) }
+            val result = runBlocking { AndroidShellExecutor.executeShellCommand(command) }
 
             if (result.success) {
                 ToolResult(

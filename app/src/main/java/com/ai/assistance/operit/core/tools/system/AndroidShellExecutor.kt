@@ -18,31 +18,12 @@ class AndroidShellExecutor {
         fun setContext(appContext: Context) {
             context = appContext.applicationContext
         }
-
         /**
-         * 设置首选的权限级别
-         * @param level 要设置的权限级别
-         */
-        suspend fun setPreferredPermissionLevel(level: AndroidPermissionLevel) {
-            androidPermissionPreferences.savePreferredPermissionLevel(level)
-            // 清除执行器缓存，确保下次使用新的权限级别
-            ShellExecutorFactory.clearCache()
-        }
-
-        /**
-         * 获取当前首选的权限级别
-         * @return 当前配置的首选权限级别
-         */
-        fun getPreferredPermissionLevel(): AndroidPermissionLevel {
-            return androidPermissionPreferences.getPreferredPermissionLevel()
-        }
-
-        /**
-         * 封装执行ADB命令的函数
-         * @param command 要执行的ADB命令
+         * 封装执行命令的函数
+         * @param command 要执行的命令
          * @return 命令执行结果
          */
-        suspend fun executeAdbCommand(command: String): CommandResult {
+        suspend fun executeShellCommand(command: String): CommandResult {
             val ctx = context ?: return CommandResult(false, "", "Context not initialized")
 
             // 首先尝试使用用户首选的权限级别执行命令
@@ -80,20 +61,6 @@ class AndroidShellExecutor {
 
             val result = executor.executeCommand(command)
             return CommandResult(result.success, result.stdout, result.stderr, result.exitCode)
-        }
-
-        /**
-         * 获取所有可用的执行器及其权限状态 这对于调试和显示给用户选择可用的执行方式很有用
-         * @return 权限级别到执行器可用状态的映射
-         */
-        fun getAvailableShellMethods(): Map<AndroidPermissionLevel, Pair<Boolean, String>> {
-            val ctx = context ?: return emptyMap()
-
-            val availableExecutors = ShellExecutorFactory.getAvailableExecutors(ctx)
-            return availableExecutors.mapValues { (_, pair) ->
-                val (_, status) = pair
-                Pair(status.granted, status.reason)
-            }
         }
     }
 

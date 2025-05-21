@@ -54,6 +54,8 @@ fun PermissionLevelCard(
         isTermuxInstalled: Boolean,
         isTermuxAuthorized: Boolean,
         isTermuxFullyConfigured: Boolean,
+        isDeviceRooted: Boolean,
+        hasRootAccess: Boolean,
         onStoragePermissionClick: () -> Unit,
         onOverlayPermissionClick: () -> Unit,
         onBatteryOptimizationClick: () -> Unit,
@@ -61,6 +63,7 @@ fun PermissionLevelCard(
         onLocationPermissionClick: () -> Unit,
         onShizukuClick: () -> Unit,
         onTermuxClick: () -> Unit,
+        onRootClick: () -> Unit,
         isRefreshing: Boolean = false,
         onRefresh: () -> Unit,
         onPermissionLevelChange: (AndroidPermissionLevel) -> Unit = {},
@@ -480,6 +483,10 @@ fun PermissionLevelCard(
                                                                                 isTermuxAuthorized,
                                                                         isTermuxFullyConfigured =
                                                                                 isTermuxFullyConfigured,
+                                                                        isDeviceRooted =
+                                                                                isDeviceRooted,
+                                                                        hasRootAccess =
+                                                                                hasRootAccess,
                                                                         onStoragePermissionClick =
                                                                                 onStoragePermissionClick,
                                                                         onOverlayPermissionClick =
@@ -489,7 +496,8 @@ fun PermissionLevelCard(
                                                                         onLocationPermissionClick =
                                                                                 onLocationPermissionClick,
                                                                         onTermuxClick =
-                                                                                onTermuxClick
+                                                                                onTermuxClick,
+                                                                        onRootClick = onRootClick
                                                                 )
                                                         }
                                                 )
@@ -1157,11 +1165,14 @@ private fun RootPermissionSection(
         isTermuxInstalled: Boolean,
         isTermuxAuthorized: Boolean,
         isTermuxFullyConfigured: Boolean,
+        isDeviceRooted: Boolean,
+        hasRootAccess: Boolean,
         onStoragePermissionClick: () -> Unit,
         onOverlayPermissionClick: () -> Unit,
         onBatteryOptimizationClick: () -> Unit,
         onLocationPermissionClick: () -> Unit,
-        onTermuxClick: () -> Unit
+        onTermuxClick: () -> Unit,
+        onRootClick: () -> Unit
 ) {
         Column {
                 Text(
@@ -1257,7 +1268,26 @@ private fun RootPermissionSection(
                         modifier = Modifier.padding(bottom = 4.dp)
                 )
 
+                // Root权限状态
+                Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                        shape = RoundedCornerShape(8.dp)
+                ) {
+                        Column(
+                                modifier = Modifier.padding(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                                PermissionStatusItem(
+                                        title = "Root访问权限",
+                                        isGranted = hasRootAccess,
+                                        onClick = onRootClick
+                                )
+                        }
+                }
+
                 // Root权限额外信息
+                Spacer(modifier = Modifier.height(8.dp))
+
                 Surface(
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
                         shape = RoundedCornerShape(8.dp)
@@ -1276,7 +1306,10 @@ private fun RootPermissionSection(
                                 Spacer(modifier = Modifier.width(8.dp))
 
                                 Text(
-                                        text = "使用Termux终端执行特权命令",
+                                        text =
+                                                if (hasRootAccess) "应用已获取Root权限，可执行特权命令"
+                                                else if (isDeviceRooted) "设备已Root，点击申请应用权限"
+                                                else "设备未Root，无法获取Root权限",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.primary
                                 )
@@ -1292,6 +1325,6 @@ private fun getPermissionLevelDescription(level: AndroidPermissionLevel): String
                 AndroidPermissionLevel.ACCESSIBILITY -> "无障碍权限：允许应用模拟用户操作，需要开启无障碍服务"
                 AndroidPermissionLevel.ADMIN -> "管理员权限：允许应用访问更多系统功能，如位置服务等"
                 AndroidPermissionLevel.DEBUGGER -> "调试权限：允许通过ADB调试功能进行高级操作，需要Shizuku服务"
-                AndroidPermissionLevel.ROOT -> "Root权限：允许应用以超级用户身份运行，需要Termux终端支持"
+                AndroidPermissionLevel.ROOT -> "Root权限：允许应用以超级用户身份运行，需要设备已Root"
         }
 }

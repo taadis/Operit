@@ -34,7 +34,6 @@ import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import androidx.navigation.NavController
 import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
-import com.ai.assistance.operit.core.tools.system.ShizukuAuthorizer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -69,7 +68,6 @@ fun AppPermissionsScreen(navController: NavController) {
     var selectedAppPermissions by remember { mutableStateOf<List<PermissionInfo>>(emptyList()) }
     var isPermissionLoading by remember { mutableStateOf(false) }
     var showSystemApps by remember { mutableStateOf(false) }
-    var shizukuAvailable by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showError by remember { mutableStateOf(false) }
 
@@ -116,15 +114,6 @@ fun AppPermissionsScreen(navController: NavController) {
         )
     }
 
-    // 检查Shizuku是否可用
-    LaunchedEffect(Unit) {
-        shizukuAvailable = ShizukuAuthorizer.hasShizukuPermission()
-        if (!shizukuAvailable) {
-            errorMessage = "需要Shizuku权限才能管理应用权限"
-            showError = true
-        }
-    }
-
     // 加载应用列表
     LaunchedEffect(Unit) {
         isLoading = true
@@ -150,12 +139,6 @@ fun AppPermissionsScreen(navController: NavController) {
 
     // 查询应用权限函数
     fun loadAppPermissions(packageName: String) {
-        if (!shizukuAvailable) {
-            errorMessage = "需要Shizuku权限才能获取权限信息"
-            showError = true
-            return
-        }
-
         isPermissionLoading = true
         coroutineScope.launch {
             try {
@@ -172,12 +155,6 @@ fun AppPermissionsScreen(navController: NavController) {
 
     // 修改应用权限函数
     fun togglePermission(permission: PermissionInfo) {
-        if (!shizukuAvailable) {
-            errorMessage = "需要Shizuku权限才能修改权限"
-            showError = true
-            return
-        }
-
         val packageName = selectedApp?.packageName ?: return
         val action = if (permission.granted) "revoke" else "grant"
 
@@ -185,7 +162,7 @@ fun AppPermissionsScreen(navController: NavController) {
             try {
                 val result =
                         withContext(Dispatchers.IO) {
-                            AndroidShellExecutor.executeAdbCommand(
+                            AndroidShellExecutor.executeShellCommand(
                                     "pm $action $packageName ${permission.rawName}"
                             )
                         }
@@ -212,7 +189,7 @@ fun AppPermissionsScreen(navController: NavController) {
             try {
                 val result =
                         withContext(Dispatchers.IO) {
-                            AndroidShellExecutor.executeAdbCommand(
+                            AndroidShellExecutor.executeShellCommand(
                                     "pm reset-permissions $packageName"
                             )
                         }
@@ -740,7 +717,7 @@ fun AppPermissionsScreen(navController: NavController) {
                                                             val result =
                                                                     withContext(Dispatchers.IO) {
                                                                         AndroidShellExecutor
-                                                                                .executeAdbCommand(
+                                                                                .executeShellCommand(
                                                                                         "pm $action $packageName ${permission.rawName}"
                                                                                 )
                                                                     }
@@ -1154,11 +1131,11 @@ private suspend fun getAppPermissions(packageName: String): List<PermissionInfo>
             try {
                 // 获取应用请求的权限 - 无需预过滤，直接获取完整输出
                 val packageInfoResult =
-                        AndroidShellExecutor.executeAdbCommand("dumpsys package $packageName")
+                        AndroidShellExecutor.executeShellCommand("dumpsys package $packageName")
 
                 // 获取所有已授予的权限 - 单独提取
                 val grantedPermsResult =
-                        AndroidShellExecutor.executeAdbCommand(
+                        AndroidShellExecutor.executeShellCommand(
                                 "dumpsys package $packageName | grep -E \"granted=true|:granted=true\""
                         )
 

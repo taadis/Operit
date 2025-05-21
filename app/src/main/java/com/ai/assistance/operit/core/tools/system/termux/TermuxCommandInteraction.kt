@@ -40,7 +40,7 @@ object TermuxCommandInteraction {
                     // 检查FIFO是否存在
                     val checkFifoCmd =
                             "run-as com.termux sh -c 'if [ -p \"$fifoPath\" ]; then echo \"EXISTS\"; else echo \"NOT_EXISTS\"; fi'"
-                    val checkFifoResult = AndroidShellExecutor.executeAdbCommand(checkFifoCmd)
+                    val checkFifoResult = AndroidShellExecutor.executeShellCommand(checkFifoCmd)
 
                     if (checkFifoResult.stdout.trim() == "EXISTS") {
                         Log.d(TAG, "FIFO存在，写入数据: '$inputWithNewline'")
@@ -50,18 +50,18 @@ object TermuxCommandInteraction {
                         // 方法1: 使用echo直接写入
                         val echoCmd =
                                 "run-as com.termux sh -c 'echo \"$inputWithNewline\" > \"$fifoPath\"'"
-                        AndroidShellExecutor.executeAdbCommand(echoCmd)
+                        AndroidShellExecutor.executeShellCommand(echoCmd)
 
                         // 方法2: 使用printf写入原始数据(避免echo对特殊字符的处理)
                         val printfCmd =
                                 "run-as com.termux sh -c 'printf \"$inputWithNewline\" > \"$fifoPath\"'"
-                        AndroidShellExecutor.executeAdbCommand(printfCmd)
+                        AndroidShellExecutor.executeShellCommand(printfCmd)
 
                         // 方法3: 字符一个一个地写入
                         val chars = inputWithNewline.toCharArray()
                         for (c in chars) {
                             val charCmd = "run-as com.termux sh -c 'printf \"$c\" > \"$fifoPath\"'"
-                            AndroidShellExecutor.executeAdbCommand(charCmd)
+                            AndroidShellExecutor.executeShellCommand(charCmd)
                             delay(5) // 短暂延迟，避免写入太快
                         }
 

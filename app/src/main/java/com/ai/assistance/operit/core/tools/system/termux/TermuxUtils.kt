@@ -47,7 +47,7 @@ object TermuxUtils {
                 // 使用更精确的dumpsys命令检查Termux是否真正运行中（非后台或已停止）
                 val dumpsysResult = kotlinx.coroutines.runBlocking {
                     // 检查Termux是否在Recent任务中且状态为RESUMED或PAUSED
-                    AndroidShellExecutor.executeAdbCommand(
+                    AndroidShellExecutor.executeShellCommand(
                         "dumpsys activity recents | grep -E 'Recent #[0-9]+.*com.termux'"
                     )
                 }
@@ -55,7 +55,7 @@ object TermuxUtils {
                 if (dumpsysResult.success && dumpsysResult.stdout.isNotEmpty()) {
                     // 找到了Recent任务中的Termux，再检查是否是RESUMED或PAUSED状态
                     val activityStateResult = kotlinx.coroutines.runBlocking {
-                        AndroidShellExecutor.executeAdbCommand(
+                        AndroidShellExecutor.executeShellCommand(
                             "dumpsys activity activities | grep -A3 'com.termux/.app.TermuxActivity' | grep -E 'RESUMED|PAUSED'"
                         )
                     }
@@ -68,7 +68,7 @@ object TermuxUtils {
                 
                 // 作为备选方法，检查Termux是否有可见窗口
                 val windowCheckResult = kotlinx.coroutines.runBlocking {
-                    AndroidShellExecutor.executeAdbCommand(
+                    AndroidShellExecutor.executeShellCommand(
                         "dumpsys window windows | grep -E 'Window #[0-9]+ Window\\{.*com.termux/com.termux.app.TermuxActivity'"
                     )
                 }

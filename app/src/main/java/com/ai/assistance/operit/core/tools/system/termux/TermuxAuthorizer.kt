@@ -91,7 +91,7 @@ class TermuxAuthorizer {
                     val termuxDirExistsCommand =
                             "run-as com.termux sh -c 'ls -d \"/data/data/com.termux/files/home/.termux\" 2>/dev/null && echo \"exists\"'"
                     val termuxDirExistsResult =
-                            AndroidShellExecutor.executeAdbCommand(termuxDirExistsCommand)
+                            AndroidShellExecutor.executeShellCommand(termuxDirExistsCommand)
 
                     if (!termuxDirExistsResult.success ||
                                     !termuxDirExistsResult.stdout.contains("exists")
@@ -104,7 +104,7 @@ class TermuxAuthorizer {
                     val configExistsCommand =
                             "run-as com.termux sh -c 'ls \"$TERMUX_CONFIG_PATH\" 2>/dev/null && echo \"exists\"'"
                     val configExistsResult =
-                            AndroidShellExecutor.executeAdbCommand(configExistsCommand)
+                            AndroidShellExecutor.executeShellCommand(configExistsCommand)
 
                     if (!configExistsResult.success || !configExistsResult.stdout.contains("exists")
                     ) {
@@ -114,7 +114,7 @@ class TermuxAuthorizer {
 
                     // 读取配置文件
                     val readConfigCommand = "run-as com.termux sh -c 'cat \"$TERMUX_CONFIG_PATH\"'"
-                    val readConfigResult = AndroidShellExecutor.executeAdbCommand(readConfigCommand)
+                    val readConfigResult = AndroidShellExecutor.executeShellCommand(readConfigCommand)
 
                     val configured =
                             readConfigResult.success &&
@@ -233,7 +233,7 @@ class TermuxAuthorizer {
                         // 确保目录存在
                         val mkdirCmd =
                                 "run-as com.termux sh -c 'mkdir -p /data/data/com.termux/files/home/.termux'"
-                        val mkdirResult = AndroidShellExecutor.executeAdbCommand(mkdirCmd)
+                        val mkdirResult = AndroidShellExecutor.executeShellCommand(mkdirCmd)
 
                         if (!mkdirResult.success) {
                             Log.e(TAG, "创建.termux目录失败: ${mkdirResult.stderr}")
@@ -242,7 +242,7 @@ class TermuxAuthorizer {
 
                         // 写入配置
                         val success =
-                                AndroidShellExecutor.executeAdbCommand(
+                                AndroidShellExecutor.executeShellCommand(
                                                 "run-as com.termux sh -c \"echo 'allow-external-apps=true' > $TERMUX_CONFIG_PATH\""
                                         )
                                         .success
@@ -250,7 +250,7 @@ class TermuxAuthorizer {
                         if (!success) {
                             // 备用方式
                             val backupSuccess =
-                                    AndroidShellExecutor.executeAdbCommand(
+                                    AndroidShellExecutor.executeShellCommand(
                                                     "run-as com.termux sh -c \"printf 'allow-external-apps=true\\n' > $TERMUX_CONFIG_PATH\""
                                             )
                                             .success
@@ -262,7 +262,7 @@ class TermuxAuthorizer {
 
                         // 设置文件权限
                         val chmodCommand = "run-as com.termux sh -c 'chmod 600 $TERMUX_CONFIG_PATH'"
-                        val chmodResult = AndroidShellExecutor.executeAdbCommand(chmodCommand)
+                        val chmodResult = AndroidShellExecutor.executeShellCommand(chmodCommand)
 
                         if (!chmodResult.success) {
                             Log.e(TAG, "设置文件权限失败: ${chmodResult.stderr}")
@@ -270,7 +270,7 @@ class TermuxAuthorizer {
                         }
 
                         // 重启Termux
-                        AndroidShellExecutor.executeAdbCommand("am force-stop com.termux")
+                        AndroidShellExecutor.executeShellCommand("am force-stop com.termux")
 
                         // 重置缓存
                         resetCache()
@@ -333,19 +333,19 @@ class TermuxAuthorizer {
                 withContext(Dispatchers.IO) {
                     // 检查基本存储权限
                     val readPermission =
-                            AndroidShellExecutor.executeAdbCommand(
+                            AndroidShellExecutor.executeShellCommand(
                                     "dumpsys package $TERMUX_PACKAGE | grep permission.$PERMISSION_READ_EXTERNAL_STORAGE"
                             )
 
                     val writePermission =
-                            AndroidShellExecutor.executeAdbCommand(
+                            AndroidShellExecutor.executeShellCommand(
                                     "dumpsys package $TERMUX_PACKAGE | grep permission.$PERMISSION_WRITE_EXTERNAL_STORAGE"
                             )
 
                     // 对于Android 11+，还要检查MANAGE_EXTERNAL_STORAGE权限
                     val managePermission =
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                                AndroidShellExecutor.executeAdbCommand(
+                                AndroidShellExecutor.executeShellCommand(
                                         "dumpsys package $TERMUX_PACKAGE | grep permission.$PERMISSION_MANAGE_EXTERNAL_STORAGE"
                                 )
                             } else {
@@ -385,7 +385,7 @@ class TermuxAuthorizer {
 
                     // 尝试方法1: 使用pm grant
                     val grantResult =
-                            AndroidShellExecutor.executeAdbCommand(
+                            AndroidShellExecutor.executeShellCommand(
                                     "pm grant $packageName $PERMISSION_TERMUX_RUN_COMMAND"
                             )
 
@@ -397,7 +397,7 @@ class TermuxAuthorizer {
 
                     // 尝试方法2: 修改Termux的AndroidManifest.xml (需要root)
                     val rootResult =
-                            AndroidShellExecutor.executeAdbCommand(
+                            AndroidShellExecutor.executeShellCommand(
                                     "su -c 'mkdir -p /data/data/com.termux/shared_prefs && " +
                                             "echo \"<?xml version=\\'1.0\\' encoding=\\'utf-8\\'?><map>" +
                                             "<set name=\\\"allowed_apps\\\"><string>$packageName</string></set>" +
@@ -409,7 +409,7 @@ class TermuxAuthorizer {
                     if (rootResult.success) {
                         Log.d(TAG, "通过修改Termux首选项授予运行命令权限成功")
                         // 重启Termux使配置生效
-                        AndroidShellExecutor.executeAdbCommand("am force-stop com.termux")
+                        AndroidShellExecutor.executeShellCommand("am force-stop com.termux")
                         notifyStateChanged()
                         return@withContext true
                     }
@@ -475,12 +475,12 @@ class TermuxAuthorizer {
 
                     // 尝试方法1: 使用pm grant授予基本存储权限
                     val grantReadResult =
-                            AndroidShellExecutor.executeAdbCommand(
+                            AndroidShellExecutor.executeShellCommand(
                                     "pm grant $TERMUX_PACKAGE $PERMISSION_READ_EXTERNAL_STORAGE"
                             )
 
                     val grantWriteResult =
-                            AndroidShellExecutor.executeAdbCommand(
+                            AndroidShellExecutor.executeShellCommand(
                                     "pm grant $TERMUX_PACKAGE $PERMISSION_WRITE_EXTERNAL_STORAGE"
                             )
 
@@ -496,7 +496,7 @@ class TermuxAuthorizer {
                     // 对于Android 11+，尝试授予MANAGE_EXTERNAL_STORAGE权限(需要root)
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                         val grantManageResult =
-                                AndroidShellExecutor.executeAdbCommand(
+                                AndroidShellExecutor.executeShellCommand(
                                         "su -c 'pm grant $TERMUX_PACKAGE $PERMISSION_MANAGE_EXTERNAL_STORAGE'"
                                 )
 
@@ -570,7 +570,7 @@ class TermuxAuthorizer {
                     val notificationEnabled =
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                                 val result =
-                                        AndroidShellExecutor.executeAdbCommand(
+                                        AndroidShellExecutor.executeShellCommand(
                                                 "dumpsys package $TERMUX_PACKAGE | grep permission.$PERMISSION_POST_NOTIFICATIONS"
                                         )
                                 result.success && result.stdout.contains("granted=true")
@@ -580,7 +580,7 @@ class TermuxAuthorizer {
 
                     // 检查悬浮窗权限
                     val floatingWindowEnabled =
-                            AndroidShellExecutor.executeAdbCommand(
+                            AndroidShellExecutor.executeShellCommand(
                                             "dumpsys package $TERMUX_PACKAGE | grep permission.$PERMISSION_SYSTEM_ALERT_WINDOW"
                                     )
                                     .let { result ->
@@ -589,7 +589,7 @@ class TermuxAuthorizer {
 
                     // 检查关联启动权限
                     val associationEnabled =
-                            AndroidShellExecutor.executeAdbCommand(
+                            AndroidShellExecutor.executeShellCommand(
                                             "dumpsys package $TERMUX_PACKAGE | grep QUERY_ALL_PACKAGES"
                                     )
                                     .let { result ->
@@ -680,7 +680,7 @@ class TermuxAuthorizer {
                         val amAllowExistsCommand =
                                 "run-as com.termux sh -c 'ls \"$amAllowPath\" 2>/dev/null && echo \"exists\"'"
                         val amAllowExistsResult =
-                                AndroidShellExecutor.executeAdbCommand(amAllowExistsCommand)
+                                AndroidShellExecutor.executeShellCommand(amAllowExistsCommand)
 
                         if (amAllowExistsResult.success &&
                                         amAllowExistsResult.stdout.contains("exists")
@@ -689,7 +689,7 @@ class TermuxAuthorizer {
                             val readAmAllowCommand =
                                     "run-as com.termux sh -c 'cat \"$amAllowPath\"'"
                             val readAmAllowResult =
-                                    AndroidShellExecutor.executeAdbCommand(readAmAllowCommand)
+                                    AndroidShellExecutor.executeShellCommand(readAmAllowCommand)
 
                             if (readAmAllowResult.success &&
                                             readAmAllowResult.stdout.contains(packageName)
@@ -700,7 +700,7 @@ class TermuxAuthorizer {
 
                             // 追加包名
                             val appendResult =
-                                    AndroidShellExecutor.executeAdbCommand(
+                                    AndroidShellExecutor.executeShellCommand(
                                             "run-as com.termux sh -c \"echo '$packageName' >> $amAllowPath\""
                                     )
 
@@ -713,7 +713,7 @@ class TermuxAuthorizer {
                             val mkdirCmd =
                                     "run-as com.termux sh -c 'mkdir -p /data/data/com.termux/files/home/.termux'"
                             try {
-                                val mkdirResult = AndroidShellExecutor.executeAdbCommand(mkdirCmd)
+                                val mkdirResult = AndroidShellExecutor.executeShellCommand(mkdirCmd)
                                 if (mkdirResult.success) {
                                     Log.d(TAG, "成功创建.termux目录")
                                 } else {
@@ -725,7 +725,7 @@ class TermuxAuthorizer {
 
                             // 创建文件并添加包名
                             val createResult =
-                                    AndroidShellExecutor.executeAdbCommand(
+                                    AndroidShellExecutor.executeShellCommand(
                                             "run-as com.termux sh -c \"echo '$packageName' > $amAllowPath\""
                                     )
 
@@ -737,7 +737,7 @@ class TermuxAuthorizer {
 
                         // 设置文件权限
                         val chmodCommand = "run-as com.termux sh -c 'chmod 600 $amAllowPath'"
-                        val chmodResult = AndroidShellExecutor.executeAdbCommand(chmodCommand)
+                        val chmodResult = AndroidShellExecutor.executeShellCommand(chmodCommand)
 
                         if (!chmodResult.success) {
                             Log.e(TAG, "设置文件权限失败: ${chmodResult.stderr}")
@@ -745,7 +745,7 @@ class TermuxAuthorizer {
                         }
 
                         // 重启Termux使配置生效
-                        AndroidShellExecutor.executeAdbCommand("am force-stop com.termux")
+                        AndroidShellExecutor.executeShellCommand("am force-stop com.termux")
 
                         withContext(Dispatchers.Main) {
                             Toast.makeText(context, "已授权应用与Termux关联", Toast.LENGTH_SHORT).show()

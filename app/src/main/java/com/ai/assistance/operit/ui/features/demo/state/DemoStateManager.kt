@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
+import com.ai.assistance.operit.core.tools.system.RootAuthorizer
 import com.ai.assistance.operit.core.tools.system.ShizukuAuthorizer
 import com.ai.assistance.operit.core.tools.system.termux.TermuxAuthorizer
 import com.ai.assistance.operit.core.tools.system.termux.TermuxInstaller
@@ -52,10 +53,14 @@ class DemoStateManager(private val context: Context, private val coroutineScope:
         checkTermuxAuthState()
     }
 
+    // Root state change listener
+    private val rootListener: () -> Unit = { refreshStatus() }
+
     init {
         // Register listeners for Shizuku and Termux state changes
         ShizukuAuthorizer.addStateChangeListener(shizukuListener)
         TermuxInstaller.addStateChangeListener(termuxListener)
+        RootAuthorizer.addStateChangeListener(rootListener)
     }
 
     /** Initialize state */
@@ -125,15 +130,31 @@ class DemoStateManager(private val context: Context, private val coroutineScope:
                 // Check Termux authorization status
                 checkTermuxAuthState()
 
-                // Give UI time to update
+                // Check if we're still refreshing to add a small delay for visibility
                 delay(300)
             } catch (e: Exception) {
-                Log.e(TAG, "刷新状态时出错: ${e.message}", e)
+                Log.e(TAG, "刷新权限状态时出错: ${e.message}", e)
             } finally {
-                // Refresh complete
                 _uiState.update { currentState ->
                     currentState.copy(isRefreshing = mutableStateOf(false))
                 }
+            }
+        }
+    }
+
+    /** Update root status */
+    fun updateRootStatus(isDeviceRooted: Boolean, hasRootAccess: Boolean) {
+        _uiState.update { currentState ->
+            currentState.copy(
+                    isDeviceRooted = mutableStateOf(isDeviceRooted),
+                    hasRootAccess = mutableStateOf(hasRootAccess)
+            )
+        }
+
+        // 如果设备已Root但未获取权限，则显示Root向导
+        if (isDeviceRooted && !hasRootAccess) {
+            _uiState.update { currentState ->
+                currentState.copy(showRootWizard = mutableStateOf(true))
             }
         }
     }
@@ -147,8 +168,8 @@ class DemoStateManager(private val context: Context, private val coroutineScope:
                 isTermuxRunning.value = isRunning
 
                 // Update Termux authorization status
-                _uiState.value.isTermuxAuthorized.value =
-                        TermuxAuthorizer.isTermuxAuthorized(context)
+                val hasTermuxPermission = TermuxAuthorizer.isTermuxAuthorized(context)
+                _uiState.value.isTermuxAuthorized.value = hasTermuxPermission
 
                 // If Termux is not authorized, ensure the wizard card is shown
                 if (!_uiState.value.isTermuxAuthorized.value) {
@@ -159,6 +180,8 @@ class DemoStateManager(private val context: Context, private val coroutineScope:
                 if (_uiState.value.isTermuxAuthorized.value) {
                     checkInstalledComponents()
                 }
+
+                Log.d(TAG, "Termux授权状态: $hasTermuxPermission")
             } catch (e: Exception) {
                 Log.e(TAG, "检查Termux授权状态时出错: ${e.message}", e)
             }
@@ -258,6 +281,12 @@ class DemoStateManager(private val context: Context, private val coroutineScope:
         }
     }
 
+    fun toggleRootWizard() {
+        _uiState.update { currentState ->
+            currentState.copy(showRootWizard = mutableStateOf(!currentState.showRootWizard.value))
+        }
+    }
+
     fun toggleAdbCommandExecutor() {
         _uiState.update { currentState ->
             currentState.copy(
@@ -298,6 +327,7 @@ class DemoStateManager(private val context: Context, private val coroutineScope:
         // Remove listeners
         ShizukuAuthorizer.removeStateChangeListener(shizukuListener)
         TermuxInstaller.removeStateChangeListener(termuxListener)
+        RootAuthorizer.removeStateChangeListener(rootListener)
     }
 
     private fun registerStateChangeListeners() {
@@ -318,6 +348,8 @@ data class DemoScreenState(
         val hasBatteryOptimizationExemption: MutableState<Boolean> = mutableStateOf(false),
         val hasAccessibilityServiceEnabled: MutableState<Boolean> = mutableStateOf(false),
         val hasLocationPermission: MutableState<Boolean> = mutableStateOf(false),
+        val isDeviceRooted: MutableState<Boolean> = mutableStateOf(false),
+        val hasRootAccess: MutableState<Boolean> = mutableStateOf(false),
 
         // UI states
         val isRefreshing: MutableState<Boolean> = mutableStateOf(false),
@@ -328,6 +360,7 @@ data class DemoScreenState(
         val showTermuxCommandExecutor: MutableState<Boolean> = mutableStateOf(false),
         val showShizukuWizard: MutableState<Boolean> = mutableStateOf(false),
         val showTermuxWizard: MutableState<Boolean> = mutableStateOf(false),
+        val showRootWizard: MutableState<Boolean> = mutableStateOf(false),
         val showResultDialogState: MutableState<Boolean> = mutableStateOf(false),
 
         // Command execution
@@ -361,4 +394,17 @@ val termuxSampleCommands =
                 "termux-info" to "显示Termux信息",
                 "termux-notification -t '测试通知' -c '这是一条测试通知'" to "发送通知",
                 "termux-clipboard-get" to "获取剪贴板内容"
+        )
+
+// Root命令示例
+val rootSampleCommands =
+        listOf(
+                "mount -o rw,remount /system" to "重新挂载系统分区为可写",
+                "cat /proc/version" to "查看内核版本信息",
+                "ls -la /data" to "查看/data目录内容",
+                "getenforce" to "查看SELinux状态",
+                "ps -A" to "列出所有进程",
+                "cat /proc/meminfo" to "查看内存信息",
+                "pm list features" to "列出系统功能",
+                "dumpsys power" to "查看电源管理状态"
         )

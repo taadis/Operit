@@ -129,7 +129,7 @@ class FileManagerViewModel(private val context: Context) : ViewModel() {
                         navigateUp()
                         return
                     } else {
-                        "$currentPath/${dir.name}"
+                        buildPath(currentPath, dir.name)
                     }
 
             // 设置需要恢复的滚动位置
@@ -149,8 +149,13 @@ class FileManagerViewModel(private val context: Context) : ViewModel() {
 
     // 导航到父目录
     fun navigateUp(): Boolean {
-        if (currentPath != "/sdcard") {
-            val parentPath = currentPath.substringBeforeLast("/")
+        if (currentPath != "/") {
+            val parentPath =
+                    if (currentPath.count { it == '/' } <= 1) {
+                        "/"
+                    } else {
+                        currentPath.substringBeforeLast("/")
+                    }
 
             // 设置需要恢复的滚动位置
             pendingScrollPosition = parentPath to (scrollPositions[parentPath] ?: 0)
@@ -167,6 +172,32 @@ class FileManagerViewModel(private val context: Context) : ViewModel() {
             return true
         }
         return false
+    }
+
+    // 直接导航到指定路径
+    fun navigateToPath(path: String) {
+        if (path.isNotEmpty()) {
+            val normalizedPath =
+                    when {
+                        path == "/" -> "/"
+                        path.endsWith("/") -> path.substring(0, path.length - 1)
+                        else -> path
+                    }
+
+            // 设置需要恢复的滚动位置
+            pendingScrollPosition = normalizedPath to (scrollPositions[normalizedPath] ?: 0)
+
+            currentPath = normalizedPath
+            if (activeTabIndex < tabs.size) {
+                val updatedTabs = tabs.toMutableList()
+                updatedTabs[activeTabIndex] =
+                        updatedTabs[activeTabIndex].copy(path = normalizedPath)
+                tabs.clear()
+                tabs.addAll(updatedTabs)
+            }
+
+            loadCurrentDirectory(normalizedPath)
+        }
     }
 
     // 添加新标签
@@ -202,7 +233,8 @@ class FileManagerViewModel(private val context: Context) : ViewModel() {
     fun createNewFolder(folderName: String) {
         viewModelScope.launch {
             try {
-                val fullPath = "$currentPath/$folderName"
+                // 处理路径，使用统一的buildPath方法
+                val fullPath = buildPath(currentPath, folderName)
 
                 val createFolderTool =
                         AITool(
@@ -362,8 +394,9 @@ class FileManagerViewModel(private val context: Context) : ViewModel() {
 
                 withContext(Dispatchers.IO) {
                     clipboardFiles.forEach { file ->
-                        val fullSourcePath = "$clipboardSourcePath/${file.name}"
-                        val fullTargetPath = "$currentPath/${file.name}"
+                        // 处理源路径和目标路径，使用统一的buildPath方法
+                        val fullSourcePath = buildPath(clipboardSourcePath!!, file.name)
+                        val fullTargetPath = buildPath(currentPath, file.name)
 
                         val copyTool =
                                 AITool(
@@ -414,5 +447,14 @@ class FileManagerViewModel(private val context: Context) : ViewModel() {
     // 初始化
     init {
         loadCurrentDirectory()
+    }
+
+    // 辅助方法：构建正确的文件路径，避免出现//的情况
+    private fun buildPath(parentPath: String, childName: String): String {
+        return if (parentPath == "/") {
+            "/$childName"
+        } else {
+            "$parentPath/$childName"
+        }
     }
 }
