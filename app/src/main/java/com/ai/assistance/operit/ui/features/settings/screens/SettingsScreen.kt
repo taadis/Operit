@@ -9,7 +9,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -131,7 +130,7 @@ fun SettingsScreen(
                         buttonText = "配置用户偏好",
                         icon = Icons.Default.Face
                 )
-                
+
                 // 模型提示词设置
                 SettingsCard(
                         title = "模型提示词设置",
@@ -140,7 +139,7 @@ fun SettingsScreen(
                         buttonText = "配置提示词",
                         icon = Icons.Default.Message
                 )
-                
+
                 // 主题设置
                 SettingsCard(
                         title = "主题和外观",
@@ -149,10 +148,10 @@ fun SettingsScreen(
                         buttonText = "自定义主题",
                         icon = Icons.Default.Palette
                 )
-                
+
                 // ======= SECTION 2: AI MODEL CONFIGURATION =======
                 SettingsSectionTitle(title = "AI模型配置", icon = Icons.Default.Settings)
-                
+
                 // API设置卡片
                 Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
                         Column(modifier = Modifier.padding(16.dp)) {
@@ -208,16 +207,17 @@ fun SettingsScreen(
 
                                 OutlinedTextField(
                                         value = apiKeyInput,
-                                        onValueChange = { 
-                                            apiKeyInput = it 
-                                            
-                                            // 当API密钥改变时立即检查是否需要限制模型名称
-                                            if (it == ApiPreferences.DEFAULT_API_KEY) {
-                                                modelNameInput = ApiPreferences.DEFAULT_MODEL_NAME
-                                                showModelRestrictionInfo = true
-                                            } else {
-                                                showModelRestrictionInfo = false
-                                            }
+                                        onValueChange = {
+                                                apiKeyInput = it
+
+                                                // 当API密钥改变时立即检查是否需要限制模型名称
+                                                if (it == ApiPreferences.DEFAULT_API_KEY) {
+                                                        modelNameInput =
+                                                                ApiPreferences.DEFAULT_MODEL_NAME
+                                                        showModelRestrictionInfo = true
+                                                } else {
+                                                        showModelRestrictionInfo = false
+                                                }
                                         },
                                         label = { Text(stringResource(id = R.string.api_key)) },
                                         visualTransformation = PasswordVisualTransformation(),
@@ -311,17 +311,21 @@ fun SettingsScreen(
                                                                         modelNameInput
                                                                 }
 
-                                                        // Save settings with the user's input as-is
-                                                        apiPreferences.saveAllSettings(
+                                                        // 修改：使用单独的方法保存API和模型设置，不影响模型参数
+                                                        apiPreferences.saveApiSettings(
                                                                 apiKeyInput,
                                                                 apiEndpointInput,
-                                                                modelToSave,
+                                                                modelToSave
+                                                        )
+
+                                                        // 单独保存显示和行为设置
+                                                        apiPreferences.saveDisplaySettings(
                                                                 showThinkingInput,
                                                                 memoryOptimizationInput,
                                                                 showFpsCounterInput,
-                                                                false, // enableAiPlanning
                                                                 autoGrantAccessibilityInput
                                                         )
+
                                                         showSaveSuccessMessage = true
                                                 }
                                         },
@@ -370,7 +374,10 @@ fun SettingsScreen(
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(
-                                                text = stringResource(id = R.string.display_settings),
+                                                text =
+                                                        stringResource(
+                                                                id = R.string.display_settings
+                                                        ),
                                                 style = MaterialTheme.typography.titleMedium
                                         )
                                 }
@@ -397,8 +404,7 @@ fun SettingsScreen(
                                         onCheckedChange = {
                                                 memoryOptimizationInput = it
                                                 scope.launch {
-                                                        apiPreferences
-                                                                .saveMemoryOptimization(it)
+                                                        apiPreferences.saveMemoryOptimization(it)
                                                         showSaveSuccessMessage = true
                                                 }
                                         }
@@ -412,9 +418,7 @@ fun SettingsScreen(
                                         onCheckedChange = {
                                                 showFpsCounterInput = it
                                                 scope.launch {
-                                                        apiPreferences.saveShowFpsCounter(
-                                                                it
-                                                        )
+                                                        apiPreferences.saveShowFpsCounter(it)
                                                         showSaveSuccessMessage = true
                                                 }
                                         }
@@ -428,10 +432,9 @@ fun SettingsScreen(
                                         onCheckedChange = {
                                                 autoGrantAccessibilityInput = it
                                                 scope.launch {
-                                                        apiPreferences
-                                                                .saveAutoGrantAccessibility(
-                                                                        it
-                                                                )
+                                                        apiPreferences.saveAutoGrantAccessibility(
+                                                                it
+                                                        )
                                                         showSaveSuccessMessage = true
                                                 }
                                         }
@@ -492,24 +495,36 @@ fun SettingsScreen(
                                 }
 
                                 LaunchedEffect(Unit) {
-                                        apiPreferences.preferenceAnalysisInputTokensFlow.collect { tokens ->
+                                        apiPreferences.preferenceAnalysisInputTokensFlow.collect {
+                                                tokens ->
                                                 preferenceAnalysisInputTokens = tokens
                                         }
                                 }
 
                                 LaunchedEffect(Unit) {
-                                        apiPreferences.preferenceAnalysisOutputTokensFlow.collect { tokens ->
+                                        apiPreferences.preferenceAnalysisOutputTokensFlow.collect {
+                                                tokens ->
                                                 preferenceAnalysisOutputTokens = tokens
                                         }
                                 }
 
                                 // 计算费用
                                 val usdToRmbRate = 7.2
-                                val chatInputCost = totalInputTokens * 0.27 / 1_000_000 * usdToRmbRate
-                                val chatOutputCost = totalOutputTokens * 1.10 / 1_000_000 * usdToRmbRate
-                                val preferenceAnalysisInputCost = preferenceAnalysisInputTokens * 0.27 / 1_000_000 * usdToRmbRate
-                                val preferenceAnalysisOutputCost = preferenceAnalysisOutputTokens * 1.10 / 1_000_000 * usdToRmbRate
-                                val totalCost = chatInputCost + chatOutputCost + preferenceAnalysisInputCost + preferenceAnalysisOutputCost
+                                val chatInputCost =
+                                        totalInputTokens * 0.27 / 1_000_000 * usdToRmbRate
+                                val chatOutputCost =
+                                        totalOutputTokens * 1.10 / 1_000_000 * usdToRmbRate
+                                val preferenceAnalysisInputCost =
+                                        preferenceAnalysisInputTokens * 0.27 / 1_000_000 *
+                                                usdToRmbRate
+                                val preferenceAnalysisOutputCost =
+                                        preferenceAnalysisOutputTokens * 1.10 / 1_000_000 *
+                                                usdToRmbRate
+                                val totalCost =
+                                        chatInputCost +
+                                                chatOutputCost +
+                                                preferenceAnalysisInputCost +
+                                                preferenceAnalysisOutputCost
 
                                 // 统计信息表格
                                 Column(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
@@ -528,20 +543,27 @@ fun SettingsScreen(
                                         TokenStatRow(
                                                 label = "偏好分析输入Token",
                                                 value = preferenceAnalysisInputTokens.toString(),
-                                                cost = "¥${String.format("%.2f", preferenceAnalysisInputCost)}"
+                                                cost =
+                                                        "¥${String.format("%.2f", preferenceAnalysisInputCost)}"
                                         )
 
                                         TokenStatRow(
                                                 label = "偏好分析输出Token",
                                                 value = preferenceAnalysisOutputTokens.toString(),
-                                                cost = "¥${String.format("%.2f", preferenceAnalysisOutputCost)}"
+                                                cost =
+                                                        "¥${String.format("%.2f", preferenceAnalysisOutputCost)}"
                                         )
 
                                         Divider(modifier = Modifier.padding(vertical = 8.dp))
 
                                         TokenStatRow(
                                                 label = "总计",
-                                                value = (totalInputTokens + totalOutputTokens + preferenceAnalysisInputTokens + preferenceAnalysisOutputTokens).toString(),
+                                                value =
+                                                        (totalInputTokens +
+                                                                        totalOutputTokens +
+                                                                        preferenceAnalysisInputTokens +
+                                                                        preferenceAnalysisOutputTokens)
+                                                                .toString(),
                                                 cost = "¥${String.format("%.2f", totalCost)}",
                                                 isHighlighted = true
                                         )
@@ -566,21 +588,35 @@ fun SettingsScreen(
                                 // 幽默解释
                                 Card(
                                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                                        colors = CardDefaults.cardColors(
-                                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                                        )
+                                        colors =
+                                                CardDefaults.cardColors(
+                                                        containerColor =
+                                                                MaterialTheme.colorScheme
+                                                                        .surfaceVariant.copy(
+                                                                        alpha = 0.5f
+                                                                )
+                                                )
                                 ) {
                                         Column(modifier = Modifier.padding(8.dp)) {
                                                 Text(
                                                         text = "为什么我要关心Token统计？",
-                                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                                        style =
+                                                                MaterialTheme.typography.bodyMedium
+                                                                        .copy(
+                                                                                fontWeight =
+                                                                                        FontWeight
+                                                                                                .Bold
+                                                                        ),
                                                         modifier = Modifier.padding(bottom = 4.dp)
                                                 )
 
                                                 Text(
-                                                        text = "因为它就像一个饭店账单，只不过这里的'饭'是AI的思考，而'钱'是以人民币计算的！偏好分析是AI暗中观察你的口味，为你定制下次的\"菜单\"。别担心，即使你聊到手指抽筋，这些费用可能还不够买一杯奶茶～",
+                                                        text =
+                                                                "因为它就像一个饭店账单，只不过这里的'饭'是AI的思考，而'钱'是以人民币计算的！偏好分析是AI暗中观察你的口味，为你定制下次的\"菜单\"。别担心，即使你聊到手指抽筋，这些费用可能还不够买一杯奶茶～",
                                                         style = MaterialTheme.typography.bodySmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        color =
+                                                                MaterialTheme.colorScheme
+                                                                        .onSurfaceVariant
                                                 )
                                         }
                                 }
@@ -609,10 +645,7 @@ private fun SettingsCard(
                                         tint = MaterialTheme.colorScheme.primary
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                        text = title,
-                                        style = MaterialTheme.typography.titleMedium
-                                )
+                                Text(text = title, style = MaterialTheme.typography.titleMedium)
                         }
 
                         Text(
@@ -621,10 +654,9 @@ private fun SettingsCard(
                                 modifier = Modifier.padding(bottom = 16.dp)
                         )
 
-                        Button(
-                                onClick = onClick,
-                                modifier = Modifier.align(Alignment.End)
-                        ) { Text(buttonText) }
+                        Button(onClick = onClick, modifier = Modifier.align(Alignment.End)) {
+                                Text(buttonText)
+                        }
                 }
         }
 }
@@ -642,10 +674,7 @@ private fun SettingsToggle(
                 horizontalArrangement = Arrangement.SpaceBetween
         ) {
                 Column {
-                        Text(
-                                text = title,
-                                style = MaterialTheme.typography.bodyMedium
-                        )
+                        Text(text = title, style = MaterialTheme.typography.bodyMedium)
                         Text(
                                 text = description,
                                 style = MaterialTheme.typography.bodySmall,
@@ -653,10 +682,7 @@ private fun SettingsToggle(
                         )
                 }
 
-                Switch(
-                        checked = checked,
-                        onCheckedChange = onCheckedChange
-                )
+                Switch(checked = checked, onCheckedChange = onCheckedChange)
         }
 }
 

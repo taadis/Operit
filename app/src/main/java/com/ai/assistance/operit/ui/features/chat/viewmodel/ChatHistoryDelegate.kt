@@ -168,7 +168,7 @@ class ChatHistoryDelegate(
                 // 保存当前聊天
                 // 问题所在：原来固定传0,0，导致切换聊天后统计数据丢失
                 // saveCurrentChat(0, 0)
-                
+
                 // 修复：获取当前token计数并保存，避免丢失统计数据
                 // 通过回调获取当前token统计数据
                 val currentTokenCounts = getCurrentTokenCounts()
@@ -240,7 +240,7 @@ class ChatHistoryDelegate(
                 // 先保存当前聊天（这一步可能是多余的，但为安全起见）
                 val currentTokenCounts = getCurrentTokenCounts()
                 saveCurrentChat(currentTokenCounts.first, currentTokenCounts.second)
-                
+
                 // 清空聊天历史
                 _chatHistory.value = emptyList()
 
@@ -377,6 +377,14 @@ class ChatHistoryDelegate(
                 Log.e(TAG, "添加消息到聊天失败", e)
             }
         }
+    }
+
+    /** 更新整个聊天历史 用于编辑或回档等操作 */
+    fun updateChatHistory(newHistory: List<ChatMessage>) {
+        _chatHistory.value = newHistory.toList()
+
+        // 通知ViewModel聊天历史已更新
+        onChatHistoryLoaded(_chatHistory.value)
     }
 
     /** 检查是否应该生成总结 */
@@ -635,12 +643,7 @@ class ChatHistoryDelegate(
         }
     }
 
-    /** 更新聊天历史 */
-    fun updateChatHistory(messages: List<ChatMessage>) {
-        _chatHistory.value = messages
-    }
-
-    /** 切换聊天历史选择器的显示状态 */
+    /** 切换是否显示聊天历史选择器 */
     fun toggleChatHistorySelector() {
         _showChatHistorySelector.value = !_showChatHistorySelector.value
     }
@@ -667,7 +670,8 @@ class ChatHistoryDelegate(
             var firstUserMessage = ""
             // for (summaryMessage in allSummaryMessage) {
             val summaryMessage = allMessages[lastSummaryIndex]
-            val summaryContent = summaryMessage.content.replace(Regex("^#+\\s*对话摘要[：:]*\\s*"), "").trim()
+            val summaryContent =
+                    summaryMessage.content.replace(Regex("^#+\\s*对话摘要[：:]*\\s*"), "").trim()
 
             firstUserMessage += "【历史对话摘要】\n$summaryContent\n"
             Log.d(TAG, "添加最新总结消息到内存记录: ${summaryMessage.content.take(50)}...")

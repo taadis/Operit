@@ -19,7 +19,8 @@ fun CursorStyleChatMessage(
         systemTextColor: Color,
         thinkingBackgroundColor: Color,
         thinkingTextColor: Color,
-        supportToolMarkup: Boolean = true
+        supportToolMarkup: Boolean = true,
+        initialThinkingExpanded: Boolean = false
 ) {
     when (message.sender) {
         "user" -> {
@@ -41,7 +42,8 @@ fun CursorStyleChatMessage(
             ThinkingMessageComposable(
                     message = message,
                     backgroundColor = thinkingBackgroundColor,
-                    textColor = thinkingTextColor
+                    textColor = thinkingTextColor,
+                    initialExpanded = initialThinkingExpanded
             )
         }
         "system" -> {

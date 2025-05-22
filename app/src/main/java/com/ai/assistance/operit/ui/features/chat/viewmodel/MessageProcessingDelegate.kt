@@ -204,6 +204,8 @@ class MessageProcessingDelegate(
             }
         } catch (e: Exception) {
             Log.e(TAG, "处理AI响应时发生未处理错误", e)
+            // 修改：将内部处理错误也通过错误回调通知上层
+            showErrorMessage("处理AI响应时发生错误: ${e.message}")
             // 确保错误不会中断UI更新
         }
     }
@@ -234,6 +236,8 @@ class MessageProcessingDelegate(
                     Log.d(TAG, "成功取消AI对话")
                 } catch (e: Exception) {
                     Log.e(TAG, "取消对话时发生错误", e)
+                    // 修改：将取消对话的错误也通过错误回调通知上层
+                    showErrorMessage("取消对话时发生错误: ${e.message}")
                     // 即使出错也继续后续处理
                 }
 
@@ -275,6 +279,9 @@ class MessageProcessingDelegate(
                     is InputProcessingState.Error -> {
                         _isProcessingInput.value = false
                         _inputProcessingMessage.value = "错误: ${state.message}"
+
+                        // 关键修复: 将服务层错误传递到错误弹窗
+                        showErrorMessage(state.message)
                     }
                 }
             }

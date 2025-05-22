@@ -243,6 +243,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "工具进度收集出错: ${e.message}", e)
+                // 修改：使用错误弹窗显示工具进度收集错误
+                uiStateDelegate.showErrorMessage("工具进度收集失败: ${e.message}")
             }
         }
 
@@ -258,7 +260,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                         retryCount < maxRetries) {
 
                     // 先设置输入处理状态收集
-                    if (::messageProcessingDelegate.isInitialized && !inputProcessingSetupComplete) {
+                    if (::messageProcessingDelegate.isInitialized && !inputProcessingSetupComplete
+                    ) {
                         try {
                             Log.d(TAG, "设置输入处理状态收集，尝试 ${retryCount + 1}/${maxRetries}")
                             messageProcessingDelegate.setupInputProcessingStateCollection()
@@ -266,6 +269,10 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                             Log.d(TAG, "输入处理状态收集设置成功")
                         } catch (e: Exception) {
                             Log.e(TAG, "设置输入处理状态收集时出错: ${e.message}", e)
+                            // 修改：对于重要的初始化错误，使用错误弹窗而不是仅记录日志
+                            if (retryCount == maxRetries - 1) {
+                                uiStateDelegate.showErrorMessage("无法初始化消息处理: ${e.message}")
+                            }
                         }
                     }
 
@@ -278,6 +285,10 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                             Log.d(TAG, "计划项收集设置成功")
                         } catch (e: Exception) {
                             Log.e(TAG, "设置计划项收集时出错: ${e.message}", e)
+                            // 修改：对于重要的初始化错误，使用错误弹窗而不是仅记录日志
+                            if (retryCount == maxRetries - 1) {
+                                uiStateDelegate.showErrorMessage("无法初始化计划项: ${e.message}")
+                            }
                         }
                     }
 
@@ -321,6 +332,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         if (apiConfigDelegate.useDefaultConfig()) {
             uiStateDelegate.showToast("使用默认配置继续")
         } else {
+            // 修改：使用错误弹窗而不是Toast显示配置错误
             uiStateDelegate.showErrorMessage("默认配置不完整，请填写必要信息")
         }
     }
@@ -352,6 +364,101 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     fun saveCurrentChat() {
         val (inputTokens, outputTokens) = tokenStatsDelegate.getCurrentTokenCounts()
         chatHistoryDelegate.saveCurrentChat(inputTokens, outputTokens)
+    }
+
+    // 添加消息编辑方法
+    fun updateMessage(index: Int, editedMessage: ChatMessage) {
+        viewModelScope.launch {
+            try {
+                // 获取当前聊天历史
+                val currentHistory = chatHistoryDelegate.chatHistory.value.toMutableList()
+
+                // 确保索引有效
+                if (index < 0 || index >= currentHistory.size) {
+                    uiStateDelegate.showErrorMessage("无效的消息索引")
+                    return@launch
+                }
+
+                // 更新消息
+                currentHistory[index] = editedMessage
+
+                // 将更新后的历史记录保存到ChatHistoryDelegate
+                chatHistoryDelegate.updateChatHistory(currentHistory)
+
+                // 更新统计信息并保存
+                val (inputTokens, outputTokens) = tokenStatsDelegate.updateChatStatistics()
+                chatHistoryDelegate.saveCurrentChat(inputTokens, outputTokens)
+
+                // 显示成功提示
+                uiStateDelegate.showToast("消息已更新")
+            } catch (e: Exception) {
+                Log.e(TAG, "更新消息失败", e)
+                uiStateDelegate.showErrorMessage("更新消息失败: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * 回档到指定消息并重新发送
+     * @param index 要回档到的消息索引
+     * @param editedContent 编辑后的消息内容（如果有）
+     */
+    fun rewindAndResendMessage(index: Int, editedContent: String) {
+        viewModelScope.launch {
+            try {
+                // 获取当前聊天历史
+                val currentHistory = chatHistoryDelegate.chatHistory.value.toMutableList()
+
+                // 确保索引有效
+                if (index < 0 || index >= currentHistory.size) {
+                    uiStateDelegate.showErrorMessage("无效的消息索引")
+                    return@launch
+                }
+
+                // 获取目标消息
+                val targetMessage = currentHistory[index]
+
+                // 检查目标消息是否是用户消息，如果不是，选择前一条用户消息
+                val finalIndex: Int
+                val finalMessage: ChatMessage
+
+                if (targetMessage.sender == "user") {
+                    finalIndex = index
+                    finalMessage = targetMessage.copy(content = editedContent)
+                } else {
+                    // 查找该消息前最近的用户消息
+                    var userMessageIndex = index - 1
+                    while (userMessageIndex >= 0 &&
+                            currentHistory[userMessageIndex].sender != "user") {
+                        userMessageIndex--
+                    }
+
+                    if (userMessageIndex < 0) {
+                        uiStateDelegate.showErrorMessage("找不到有效的用户消息进行回档")
+                        return@launch
+                    }
+
+                    finalIndex = userMessageIndex
+                    finalMessage = currentHistory[userMessageIndex].copy(content = editedContent)
+                }
+
+                // 截取到指定消息的历史记录（包含该消息）
+                val rewindHistory = currentHistory.subList(0, finalIndex)
+
+                // 更新ChatHistoryDelegate中的历史记录
+                chatHistoryDelegate.updateChatHistory(rewindHistory)
+
+                // 显示重新发送的消息准备状态
+                uiStateDelegate.showToast("正在准备重新发送消息")
+
+                // 使用修改后的消息内容来发送
+                messageProcessingDelegate.updateUserMessage(finalMessage.content)
+                messageProcessingDelegate.sendUserMessage(emptyList())
+            } catch (e: Exception) {
+                Log.e(TAG, "回档并重新发送消息失败", e)
+                uiStateDelegate.showErrorMessage("回档失败: ${e.message}")
+            }
+        }
     }
 
     // 消息处理相关方法
@@ -446,6 +553,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                             val result = attachmentManager.queryProblemMemory(userQuery)
                             attachProblemMemory(result.first, result.second)
                         } else {
+                            // 修改：轻微错误使用 Toast，保持原样
                             uiStateDelegate.showToast("请先输入搜索问题的内容")
                             messageProcessingDelegate.setInputProcessingState(false, "")
                         }
@@ -459,7 +567,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 // 在各子方法中都已经有设置进度条状态的代码，不需要在这里重复清除
             } catch (e: Exception) {
                 Log.e(TAG, "Error processing attachment request", e)
-                uiStateDelegate.showToast("处理附件失败: ${e.message}")
+                // 修改: 使用错误弹窗而不是 Toast 显示附件处理错误
+                uiStateDelegate.showErrorMessage("处理附件失败: ${e.message}")
                 // 确保出错时清除进度显示
                 messageProcessingDelegate.setInputProcessingState(false, "")
             }
@@ -482,7 +591,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 messageProcessingDelegate.setInputProcessingState(false, "")
             } catch (e: Exception) {
                 Log.e(TAG, "处理附件失败", e)
-                uiStateDelegate.showToast("处理附件失败: ${e.message}")
+                // 修改: 使用错误弹窗而不是 Toast 显示附件处理错误
+                uiStateDelegate.showErrorMessage("处理附件失败: ${e.message}")
                 // 发生错误时也需要清除进度显示
                 messageProcessingDelegate.setInputProcessingState(false, "")
             }
@@ -526,7 +636,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 messageProcessingDelegate.setInputProcessingState(false, "")
             } catch (e: Exception) {
                 Log.e(TAG, "截取屏幕内容失败", e)
-                uiStateDelegate.showToast("截取屏幕内容失败: ${e.message}")
+                // 修改: 使用错误弹窗而不是 Toast 显示屏幕内容获取错误
+                uiStateDelegate.showErrorMessage("截取屏幕内容失败: ${e.message}")
                 // 发生错误时也需要清除进度显示
                 messageProcessingDelegate.setInputProcessingState(false, "")
             }
@@ -551,7 +662,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 messageProcessingDelegate.setInputProcessingState(false, "")
             } catch (e: Exception) {
                 Log.e(TAG, "获取通知数据失败", e)
-                uiStateDelegate.showToast("获取通知数据失败: ${e.message}")
+                // 修改: 使用错误弹窗而不是 Toast 显示通知获取错误
+                uiStateDelegate.showErrorMessage("获取通知数据失败: ${e.message}")
                 // 发生错误时也需要清除进度显示
                 messageProcessingDelegate.setInputProcessingState(false, "")
             }
@@ -576,7 +688,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 messageProcessingDelegate.setInputProcessingState(false, "")
             } catch (e: Exception) {
                 Log.e(TAG, "获取位置数据失败", e)
-                uiStateDelegate.showToast("获取位置数据失败: ${e.message}")
+                // 修改: 使用错误弹窗而不是 Toast 显示位置获取错误
+                uiStateDelegate.showErrorMessage("获取位置数据失败: ${e.message}")
                 // 发生错误时也需要清除进度显示
                 messageProcessingDelegate.setInputProcessingState(false, "")
             }
@@ -602,7 +715,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 messageProcessingDelegate.setInputProcessingState(false, "")
             } catch (e: Exception) {
                 Log.e(TAG, "添加问题记忆失败", e)
-                uiStateDelegate.showToast("添加问题记忆失败: ${e.message}")
+                // 修改: 使用错误弹窗而不是 Toast 显示问题记忆添加错误
+                uiStateDelegate.showErrorMessage("添加问题记忆失败: ${e.message}")
                 // 发生错误时也需要清除进度显示
                 messageProcessingDelegate.setInputProcessingState(false, "")
             }
@@ -634,13 +748,15 @@ class ChatViewModel(private val context: Context) : ViewModel() {
 
                     if (enhancedAiService == null) {
                         Log.e(TAG, "无法创建EnhancedAIService实例")
-                        uiStateDelegate.showToast("无法初始化AI服务，请检查网络和API设置")
+                        // 修改: 使用错误弹窗而不是 Toast 显示服务初始化错误
+                        uiStateDelegate.showErrorMessage("无法初始化AI服务，请检查网络和API设置")
                     } else {
                         Log.d(TAG, "成功创建EnhancedAIService实例")
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "创建EnhancedAIService实例时出错", e)
-                    uiStateDelegate.showToast("初始化AI服务失败: ${e.message}")
+                    // 修改: 使用错误弹窗而不是 Toast 显示服务初始化错误
+                    uiStateDelegate.showErrorMessage("初始化AI服务失败: ${e.message}")
                 }
             }
         }

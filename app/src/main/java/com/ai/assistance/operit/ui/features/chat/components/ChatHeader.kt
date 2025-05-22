@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PictureInPicture
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -27,21 +28,29 @@ fun ChatHeader(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = modifier
         ) {
-                Button(
-                        onClick = onToggleChatHistorySelector,
-                        colors =
-                                ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.primary,
-                                        contentColor = MaterialTheme.colorScheme.onPrimary
-                                ),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                        shape = RoundedCornerShape(4.dp),
-                        modifier = Modifier.height(28.dp)
+                Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .background(
+                                color = if (showChatHistorySelector)
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                else Color.Transparent,
+                                shape = CircleShape
+                            )
                 ) {
-                        Text(
-                                text = if (showChatHistorySelector) "隐藏历史" else "显示历史",
-                                style = MaterialTheme.typography.labelMedium
-                        )
+                        IconButton(
+                                onClick = onToggleChatHistorySelector,
+                                modifier = Modifier.matchParentSize()
+                        ) {
+                                Icon(
+                                        imageVector = Icons.Default.History,
+                                        contentDescription = if (showChatHistorySelector) "隐藏历史" else "显示历史",
+                                        tint = if (showChatHistorySelector)
+                                            MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                                        modifier = Modifier.size(20.dp)
+                                )
+                        }
                 }
 
                 Box(

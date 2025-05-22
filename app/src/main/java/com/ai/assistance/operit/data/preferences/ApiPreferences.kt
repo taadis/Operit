@@ -258,6 +258,21 @@ class ApiPreferences(private val context: Context) {
         }
     }
 
+    // 添加保存显示和行为设置的方法，不会影响模型参数
+    suspend fun saveDisplaySettings(
+            showThinking: Boolean,
+            memoryOptimization: Boolean,
+            showFpsCounter: Boolean,
+            autoGrantAccessibility: Boolean
+    ) {
+        context.apiDataStore.edit { preferences ->
+            preferences[SHOW_THINKING] = showThinking
+            preferences[MEMORY_OPTIMIZATION] = memoryOptimization
+            preferences[SHOW_FPS_COUNTER] = showFpsCounter
+            preferences[AUTO_GRANT_ACCESSIBILITY] = autoGrantAccessibility
+        }
+    }
+
     // Update the saveAllSettings method to include all model parameters
     suspend fun saveAllSettings(
             apiKey: String,

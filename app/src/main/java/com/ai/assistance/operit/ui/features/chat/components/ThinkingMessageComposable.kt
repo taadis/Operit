@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -25,9 +26,10 @@ import com.ai.assistance.operit.ui.common.displays.EnhancedMarkdownText
 fun ThinkingMessageComposable(
         message: ChatMessage,
         backgroundColor: Color,
-        textColor: Color
+        textColor: Color,
+        initialExpanded: Boolean = false // 添加初始展开状态参数
 ) {
-        var expanded by remember { mutableStateOf(false) } // Default collapsed
+        var expanded by rememberSaveable { mutableStateOf(initialExpanded) }
         val haptic = LocalHapticFeedback.current
 
         // Extract plain text thinking content
