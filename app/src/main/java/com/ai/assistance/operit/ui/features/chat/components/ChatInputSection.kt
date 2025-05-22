@@ -42,6 +42,7 @@ fun ChatInputSection(
         isLoading: Boolean,
         isProcessingInput: Boolean = false,
         inputProcessingMessage: String = "",
+        allowTextInputWhileProcessing: Boolean = false,
         onAttachmentRequest: (String) -> Unit = {},
         attachments: List<AttachmentInfo> = emptyList(),
         onRemoveAttachment: (String) -> Unit = {},
@@ -62,10 +63,10 @@ fun ChatInputSection(
                 androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
 
         Surface(
-                color = if (hasBackgroundImage) 
-                          MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
-                       else 
-                          MaterialTheme.colorScheme.surface,
+                color =
+                        if (hasBackgroundImage)
+                                MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
+                        else MaterialTheme.colorScheme.surface,
                 tonalElevation = 3.dp,
                 modifier = modifier.shadow(4.dp)
         ) {
@@ -177,7 +178,7 @@ fun ChatInputSection(
                                                                 MaterialTheme.colorScheme.outline
                                                 ),
                                         shape = RoundedCornerShape(16.dp),
-                                        enabled = !isProcessing
+                                        enabled = !isProcessing || allowTextInputWhileProcessing
                                 )
 
                                 Spacer(modifier = Modifier.width(12.dp))

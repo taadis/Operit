@@ -282,55 +282,62 @@ fun SettingsScreen(
                                         )
                                 }
 
-                                Button(
-                                        onClick = {
-                                                scope.launch {
-                                                        // Check if the endpoint might be missing
-                                                        // completions path
-                                                        if (apiEndpointInput.isNotBlank() &&
-                                                                        !ModelEndPointFix
-                                                                                .containsCompletionsPath(
-                                                                                        apiEndpointInput
-                                                                                )
-                                                        ) {
-                                                                endpointWarningMessage =
-                                                                        "警告：您的API地址不包含补全路径（如v1/chat/completions）。请确保这是您想要的配置。"
-                                                                showEndpointWarning = true
-                                                        }
-
-                                                        // Force deepseek-chat model when using
-                                                        // default API key
-                                                        val modelToSave =
-                                                                if (apiKeyInput ==
-                                                                                ApiPreferences
-                                                                                        .DEFAULT_API_KEY
+                                // 使用Row替代直接的align(End)
+                                Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.End
+                                ) {
+                                        Button(
+                                                onClick = {
+                                                        scope.launch {
+                                                                // Check if the endpoint might be missing
+                                                                // completions path
+                                                                if (apiEndpointInput.isNotBlank() &&
+                                                                                !ModelEndPointFix
+                                                                                        .containsCompletionsPath(
+                                                                                                apiEndpointInput
+                                                                                        )
                                                                 ) {
-                                                                        ApiPreferences
-                                                                                .DEFAULT_MODEL_NAME
-                                                                } else {
-                                                                        modelNameInput
+                                                                        endpointWarningMessage =
+                                                                                "警告：您的API地址不包含补全路径（如v1/chat/completions）。请确保这是您想要的配置。"
+                                                                        showEndpointWarning = true
                                                                 }
 
-                                                        // 修改：使用单独的方法保存API和模型设置，不影响模型参数
-                                                        apiPreferences.saveApiSettings(
-                                                                apiKeyInput,
-                                                                apiEndpointInput,
-                                                                modelToSave
-                                                        )
+                                                                // Force deepseek-chat model when using
+                                                                // default API key
+                                                                val modelToSave =
+                                                                        if (apiKeyInput ==
+                                                                                        ApiPreferences
+                                                                                                .DEFAULT_API_KEY
+                                                                        ) {
+                                                                                ApiPreferences
+                                                                                        .DEFAULT_MODEL_NAME
+                                                                        } else {
+                                                                                modelNameInput
+                                                                        }
 
-                                                        // 单独保存显示和行为设置
-                                                        apiPreferences.saveDisplaySettings(
-                                                                showThinkingInput,
-                                                                memoryOptimizationInput,
-                                                                showFpsCounterInput,
-                                                                autoGrantAccessibilityInput
-                                                        )
+                                                                // 修改：使用单独的方法保存API和模型设置，不影响模型参数
+                                                                apiPreferences.saveApiSettings(
+                                                                        apiKeyInput,
+                                                                        apiEndpointInput,
+                                                                        modelToSave
+                                                                )
 
-                                                        showSaveSuccessMessage = true
+                                                                // 单独保存显示和行为设置
+                                                                apiPreferences.saveDisplaySettings(
+                                                                        showThinkingInput,
+                                                                        memoryOptimizationInput,
+                                                                        showFpsCounterInput,
+                                                                        autoGrantAccessibilityInput
+                                                                )
+
+                                                                showSaveSuccessMessage = true
+                                                        }
                                                 }
-                                        },
-                                        modifier = Modifier.align(Alignment.End)
-                                ) { Text(stringResource(id = R.string.save_settings)) }
+                                        ) { 
+                                                Text(stringResource(id = R.string.save_settings))
+                                        }
+                                }
 
                                 if (showSaveSuccessMessage) {
                                         LaunchedEffect(Unit) {
@@ -634,7 +641,11 @@ private fun SettingsCard(
         icon: androidx.compose.ui.graphics.vector.ImageVector
 ) {
         Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(
+                        modifier = Modifier
+                                .fillMaxWidth()  // 确保Column填满Card的宽度
+                                .padding(16.dp)
+                ) {
                         Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.padding(bottom = 8.dp)
@@ -654,8 +665,14 @@ private fun SettingsCard(
                                 modifier = Modifier.padding(bottom = 16.dp)
                         )
 
-                        Button(onClick = onClick, modifier = Modifier.align(Alignment.End)) {
-                                Text(buttonText)
+                        // 使用Row替代Button的align(End)
+                        Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End
+                        ) {
+                                Button(onClick = onClick) {
+                                        Text(buttonText)
+                                }
                         }
                 }
         }

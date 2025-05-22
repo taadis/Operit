@@ -1,6 +1,7 @@
 package com.ai.assistance.operit.api
 
 import android.util.Log
+import com.ai.assistance.operit.data.model.ModelParameter
 import com.ai.assistance.operit.util.ChatUtils
 import java.io.IOException
 import java.net.SocketTimeoutException
@@ -117,26 +118,28 @@ class AIService(
     private fun createRequestBody(
             message: String,
             chatHistory: List<Pair<String, String>>,
-            maxTokens: Int? = null,
-            temperature: Float? = null,
-            topP: Float? = null,
-            topK: Int? = null,
-            frequencyPenalty: Float? = null,
-            presencePenalty: Float? = null,
-            repetitionPenalty: Float? = null
+            modelParameters: List<ModelParameter<*>> = emptyList()
     ): RequestBody {
         val jsonObject = JSONObject()
         jsonObject.put("model", modelName)
         jsonObject.put("stream", true) // 启用流式响应
-        
-        // 添加模型参数（如果提供）
-        maxTokens?.let { jsonObject.put("max_tokens", it) }
-        temperature?.let { jsonObject.put("temperature", it) }
-        topP?.let { jsonObject.put("top_p", it) }
-        topK?.let { jsonObject.put("top_k", it) }
-        frequencyPenalty?.let { jsonObject.put("frequency_penalty", it) }
-        presencePenalty?.let { jsonObject.put("presence_penalty", it) }
-        repetitionPenalty?.let { jsonObject.put("repetition_penalty", it) }
+
+        // 添加已启用的模型参数
+        for (param in modelParameters) {
+            if (param.isEnabled) {
+                when (param.valueType) {
+                    com.ai.assistance.operit.data.model.ParameterValueType.INT ->
+                            jsonObject.put(param.apiName, param.currentValue as Int)
+                    com.ai.assistance.operit.data.model.ParameterValueType.FLOAT ->
+                            jsonObject.put(param.apiName, param.currentValue as Float)
+                    com.ai.assistance.operit.data.model.ParameterValueType.STRING ->
+                            jsonObject.put(param.apiName, param.currentValue as String)
+                    com.ai.assistance.operit.data.model.ParameterValueType.BOOLEAN ->
+                            jsonObject.put(param.apiName, param.currentValue as Boolean)
+                }
+                Log.d("AIService", "添加参数 ${param.apiName} = ${param.currentValue}")
+            }
+        }
 
         // 创建消息数组，包含聊天历史
         val messagesArray = JSONArray()
@@ -374,13 +377,7 @@ class AIService(
             chatHistory: List<Pair<String, String>> = emptyList(),
             onComplete: () -> Unit = {},
             onConnectionStatus: ((status: String) -> Unit)? = null,
-            maxTokens: Int? = null,
-            temperature: Float? = null,
-            topP: Float? = null,
-            topK: Int? = null,
-            frequencyPenalty: Float? = null,
-            presencePenalty: Float? = null,
-            repetitionPenalty: Float? = null
+            modelParameters: List<ModelParameter<*>> = emptyList()
     ) =
             withContext(Dispatchers.IO) {
                 // 重置token计数
@@ -392,17 +389,7 @@ class AIService(
                 var lastException: Exception? = null
 
                 val standardizedHistory = ChatUtils.mapChatHistoryToStandardRoles(chatHistory)
-                val requestBody = createRequestBody(
-                    message, 
-                    standardizedHistory, 
-                    maxTokens, 
-                    temperature,
-                    topP,
-                    topK,
-                    frequencyPenalty,
-                    presencePenalty,
-                    repetitionPenalty
-                )
+                val requestBody = createRequestBody(message, standardizedHistory, modelParameters)
                 val request = createRequest(requestBody)
 
                 onConnectionStatus?.invoke("准备连接到AI服务...")

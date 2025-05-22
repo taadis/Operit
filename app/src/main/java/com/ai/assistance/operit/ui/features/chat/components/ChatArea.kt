@@ -289,7 +289,7 @@ fun ChatArea(
                             Box(
                                     modifier =
                                             Modifier.align(Alignment.TopEnd)
-                                                    .padding(end = 20.dp, top = 6.dp)
+                                                    .padding(end = 20.dp, top = 0.dp)
                                                     .size(32.dp)
                                                     .clickable(
                                                             interactionSource =

@@ -241,14 +241,12 @@ class EnhancedAIService(
 
             Log.d(TAG, "Sending message to AI service with ${preparedHistory.size} history items")
 
-            // Get model parameters from preferences
-            val maxTokens = runBlocking { apiPreferences.maxTokensFlow.first() }
-            val temperature = runBlocking { apiPreferences.temperatureFlow.first() }
-            val topP = runBlocking { apiPreferences.topPFlow.first() }
-            val topK = runBlocking { apiPreferences.topKFlow.first() }
-            val frequencyPenalty = runBlocking { apiPreferences.frequencyPenaltyFlow.first() }
-            val presencePenalty = runBlocking { apiPreferences.presencePenaltyFlow.first() }
-            val repetitionPenalty = runBlocking { apiPreferences.repetitionPenaltyFlow.first() }
+            // Get all model parameters from preferences (with enabled state)
+            val modelParameters = runBlocking { apiPreferences.getAllModelParameters() }
+            Log.d(
+                    TAG,
+                    "Retrieved ${modelParameters.size} model parameters, enabled: ${modelParameters.count { it.isEnabled }}"
+            )
 
             withContext(Dispatchers.IO) {
                 aiService.sendMessage(
@@ -284,13 +282,7 @@ class EnhancedAIService(
                                                 InputProcessingState.Processing(status)
                             }
                         },
-                        maxTokens = maxTokens,
-                        temperature = temperature,
-                        topP = topP,
-                        topK = topK,
-                        frequencyPenalty = frequencyPenalty,
-                        presencePenalty = presencePenalty,
-                        repetitionPenalty = repetitionPenalty
+                        modelParameters = modelParameters
                 )
             }
         } catch (e: Exception) {
@@ -975,21 +967,17 @@ class EnhancedAIService(
         // Tool result processing and subsequent AI request
         val toolResultMessage = ConversationMarkupManager.formatToolResultForMessage(result)
 
-        
         // Add tool result to conversation history
         conversationMutex.withLock { conversationHistory.add(Pair("tool", toolResultMessage)) }
-        
+
         // Get current conversation history
         val currentChatHistory = conversationMutex.withLock { conversationHistory }
-        
+
         // Save callback to local variable
         val responseCallback = currentResponseCallback
 
         if (responseCallback != null) {
-            responseCallback(
-                roundManager.appendContent(toolResultMessage),
-                null
-            )
+            responseCallback(roundManager.appendContent(toolResultMessage), null)
         }
         // Start new round - ensure tool execution response will be shown in a new message
         roundManager.startNewRound()
@@ -1002,6 +990,13 @@ class EnhancedAIService(
 
         // Add short delay to make state change more visible
         delay(300)
+
+        // Get all model parameters from preferences (with enabled state)
+        val modelParameters = runBlocking { apiPreferences.getAllModelParameters() }
+        Log.d(
+                TAG,
+                "Retrieved ${modelParameters.size} model parameters for tool response, enabled: ${modelParameters.count { it.isEnabled }}"
+        )
 
         // Direct request AI response in current flow, keeping in complete main loop
         withContext(Dispatchers.IO) {
@@ -1047,7 +1042,8 @@ class EnhancedAIService(
                                                     status + " (after tool execution)"
                                             )
                         }
-                    }
+                    },
+                    modelParameters = modelParameters
             )
         }
     }
@@ -1178,6 +1174,9 @@ class EnhancedAIService(
 
             val finalMessages = listOf(Pair("system", systemPrompt)) + messages
 
+            // Get all model parameters from preferences (with enabled state)
+            val modelParameters = runBlocking { apiPreferences.getAllModelParameters() }
+
             // 使用aiService发送直接请求
             var summaryContent = ""
 
@@ -1186,7 +1185,8 @@ class EnhancedAIService(
                     onPartialResponse = { content, _ -> summaryContent = content },
                     chatHistory = finalMessages,
                     onComplete = {},
-                    onConnectionStatus = {}
+                    onConnectionStatus = {},
+                    modelParameters = modelParameters
             )
 
             // 如果没有内容，等待短暂时间让内容填充

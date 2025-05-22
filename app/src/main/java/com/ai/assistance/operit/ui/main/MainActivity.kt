@@ -14,13 +14,9 @@ import androidx.compose.ui.zIndex
 import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
 import com.ai.assistance.operit.core.tools.AIToolHandler
-import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
-import com.ai.assistance.operit.core.tools.system.ShizukuInstaller
-import com.ai.assistance.operit.core.tools.system.termux.TermuxUtils
 import com.ai.assistance.operit.data.preferences.AgreementPreferences
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
-import com.ai.assistance.operit.data.repository.UIHierarchyManager
 import com.ai.assistance.operit.data.updates.UpdateManager
 import com.ai.assistance.operit.data.updates.UpdateStatus
 import com.ai.assistance.operit.ui.common.NavItem
@@ -31,32 +27,18 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import androidx.activity.OnBackPressedCallback
-import com.ai.assistance.operit.core.tools.system.ShizukuAuthorizer
 
 class MainActivity : ComponentActivity() {
     private val TAG = "MainActivity"
-
-    // ======== 状态追踪 ========
-    private data class PermissionState(
-            var basicPermissionsRequested: Boolean = false,
-            var storagePermissionRequested: Boolean = false,
-            var overlayPermissionRequested: Boolean = false,
-            var batteryOptimizationRequested: Boolean = false,
-            var accessibilityServiceRequested: Boolean = false
-    )
-
-    private val permissionState = PermissionState()
-
-    // ======== 导航状态 ========
-    private var navigateToShizukuScreen = false
-    private var showPreferencesGuide = false
 
     // ======== 工具和管理器 ========
     private lateinit var toolHandler: AIToolHandler
     private lateinit var preferencesManager: UserPreferencesManager
     private lateinit var agreementPreferences: AgreementPreferences
-    private lateinit var shizukuStateListener: () -> Unit
     private var updateCheckPerformed = false
+
+    // ======== 导航状态 ========
+    private var showPreferencesGuide = false
 
     // ======== MCP插件状态 ========
     private val pluginLoadingState = PluginLoadingState()
@@ -65,9 +47,9 @@ class MainActivity : ComponentActivity() {
     private var backPressedTime: Long = 0
     private val backPressedInterval: Long = 2000 // 两次点击的时间间隔，单位为毫秒
 
-    // ======== 权限定义 ========
     // UpdateManager实例
     private lateinit var updateManager: UpdateManager
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate: Android SDK version: ${Build.VERSION.SDK_INT}")
@@ -76,7 +58,6 @@ class MainActivity : ComponentActivity() {
         window.setBackgroundDrawableResource(android.R.color.black)
 
         initializeComponents()
-        setupShizukuListener()
         setupPreferencesListener()
         configureDisplaySettings()
 
@@ -86,13 +67,7 @@ class MainActivity : ComponentActivity() {
         // 设置跳过加载的回调
         pluginLoadingState.setOnSkipCallback {
             Log.d(TAG, "用户跳过了插件加载过程")
-
-            // 检查Termux是否在运行，给予用户不同的提示
-            if (!TermuxUtils.isTermuxRunning(applicationContext)) {
-                Toast.makeText(this, "已跳过。Termux未运行，插件不可用", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(this, "已跳过插件加载", Toast.LENGTH_SHORT).show()
-            }
+            Toast.makeText(this, "已跳过插件加载", Toast.LENGTH_SHORT).show()
         }
 
         // 只在首次创建时显示插件加载界面（非配置变更）
@@ -103,15 +78,12 @@ class MainActivity : ComponentActivity() {
             // 启动超时检测（30秒）
             pluginLoadingState.startTimeoutCheck(30000L, lifecycleScope)
 
-            // 初始化MCP服务器并启动插件（改用PluginLoadingState中的方法）
+            // 初始化MCP服务器并启动插件
             pluginLoadingState.initializeMCPServer(applicationContext, lifecycleScope)
         }
 
         // 初始化并设置更新管理器
         setupUpdateManager()
-
-        // 启动权限流程
-        initializeShizuku()
 
         // 设置初始界面
         setAppContent()
@@ -149,15 +121,6 @@ class MainActivity : ComponentActivity() {
 
         // 确保隐藏加载界面
         pluginLoadingState.hide()
-
-        // 移除Shizuku状态变化监听器
-        try {
-            if (::shizukuStateListener.isInitialized) {
-                ShizukuAuthorizer.removeStateChangeListener(shizukuStateListener)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error removing Shizuku state change listener", e)
-        }
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -186,40 +149,6 @@ class MainActivity : ComponentActivity() {
         agreementPreferences = AgreementPreferences(this)
     }
 
-    // ======== Shizuku监听器设置 ========
-    private fun setupShizukuListener() {
-        // 创建Shizuku状态变化监听器
-        val listener = {
-            Log.d(TAG, "Shizuku状态变化，检查是否可以启用无障碍服务")
-            if (isShizukuFullyAvailable() &&
-                            !permissionState.accessibilityServiceRequested &&
-                            !UIHierarchyManager.isAccessibilityServiceEnabled(this)
-            ) {
-
-                // 检查设置并在适当时启用无障碍服务
-                lifecycleScope.launch {
-                    val apiPreferences = ApiPreferences(this@MainActivity)
-                    val autoGrantAccessibility = apiPreferences.autoGrantAccessibilityFlow.first()
-
-                    if (autoGrantAccessibility) {
-                        Log.d(TAG, "Shizuku已授权，自动授权设置已开启，尝试启用无障碍服务")
-                        tryEnableAccessibilityViaAdb()
-                    } else {
-                        Log.d(TAG, "Shizuku已授权，但自动授权设置已关闭，不尝试自动启用无障碍服务")
-                        permissionState.accessibilityServiceRequested = true
-                    }
-                }
-            }
-        }
-
-        // 注册Shizuku状态变化监听器
-        ShizukuAuthorizer.addStateChangeListener(listener)
-        this.shizukuStateListener = listener
-
-        // 检查无障碍服务状态
-        checkAccessibilityServiceEnabled()
-    }
-
     // ======== 偏好监听器设置 ========
     private fun setupPreferencesListener() {
         // 监听偏好变化
@@ -234,9 +163,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-
-        // 启动权限状态检查任务
-        startPermissionRefreshTask()
     }
 
     // ======== 显示设置配置 ========
@@ -268,7 +194,6 @@ class MainActivity : ComponentActivity() {
                             initialNavItem =
                                     when {
                                         showPreferencesGuide -> NavItem.UserPreferencesGuide
-                                        navigateToShizukuScreen -> NavItem.ShizukuCommands
                                         else -> NavItem.AiChat
                                     },
                             toolHandler = toolHandler
@@ -280,174 +205,6 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.zIndex(10f) // 确保加载界面在最上层
                     )
                 }
-            }
-        }
-    }
-
-    // ======== 统一权限流程管理 ========
-
-    // ======== Shizuku相关功能 ========
-    private fun initializeShizuku() {
-        Log.d(TAG, "Initializing Shizuku")
-
-        // 初始化Shizuku绑定
-        ShizukuAuthorizer.initialize()
-
-        // 预先提取Shizuku APK以加速安装
-        extractShizukuApkIfNeeded()
-
-        // 检查Shizuku状态并决定下一步操作
-        updateShizukuStatus()
-    }
-
-    private fun extractShizukuApkIfNeeded() {
-        try {
-            if (!ShizukuInstaller.isApkExtracted(this)) {
-                lifecycleScope.launch {
-                    Log.d(TAG, "Extracting bundled Shizuku APK...")
-                    ShizukuInstaller.extractApkFromAssets(this@MainActivity)
-                    Log.d(TAG, "Bundled Shizuku APK extracted")
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error preparing bundled Shizuku APK", e)
-        }
-    }
-
-    private fun updateShizukuStatus() {
-        if (!ShizukuAuthorizer.isShizukuInstalled(this)) {
-            Log.d(TAG, "Shizuku not installed")
-            Toast.makeText(this, "请先安装Shizuku应用", Toast.LENGTH_LONG).show()
-            navigateToShizukuScreen = true
-            setAppContent()
-            return
-        }
-
-        val isRunning = ShizukuAuthorizer.isShizukuServiceRunning()
-        val hasPermission = ShizukuAuthorizer.hasShizukuPermission()
-        Log.d(TAG, "Shizuku status: running=$isRunning, permission=$hasPermission")
-
-        if (isRunning && hasPermission) {
-            // Shizuku正常运行，尝试启用无障碍服务
-            if (!UIHierarchyManager.isAccessibilityServiceEnabled(this) &&
-                            !permissionState.accessibilityServiceRequested
-            ) {
-                checkAndEnableAccessibilityService()
-            }
-        } else if (!isRunning || !hasPermission) {
-            // Shizuku未运行或无权限，跳转到Shizuku页面
-            navigateToShizukuScreen = true
-
-            if (!isRunning) {
-                Toast.makeText(this, "Shizuku服务未运行，请启动服务", Toast.LENGTH_LONG).show()
-            } else if (!hasPermission) {
-                Toast.makeText(this, "请授予Shizuku权限", Toast.LENGTH_LONG).show()
-            }
-
-            setAppContent()
-        }
-    }
-
-    private fun isShizukuFullyAvailable(): Boolean {
-        return ShizukuAuthorizer.isShizukuServiceRunning() &&
-            ShizukuAuthorizer.hasShizukuPermission()
-    }
-
-    private fun checkShizukuStatus() {
-        if (ShizukuAuthorizer.isShizukuInstalled(this)) {
-            val isRunning = ShizukuAuthorizer.isShizukuServiceRunning()
-            val hasPermission = ShizukuAuthorizer.hasShizukuPermission()
-
-            // 仅当状态变化时才更新UI
-            if (!isRunning || !hasPermission) {
-                navigateToShizukuScreen = true
-                setAppContent()
-            }
-        }
-    }
-
-    // ======== 无障碍服务相关功能 ========
-    private fun checkAccessibilityServiceEnabled() {
-        // 如果服务已启用，直接返回
-        if (UIHierarchyManager.isAccessibilityServiceEnabled(this)) {
-            Log.d(TAG, "无障碍服务已启用")
-            return
-        }
-
-        // 检查设置并在适当时尝试启用
-        lifecycleScope.launch {
-            val apiPreferences = ApiPreferences(this@MainActivity)
-            val autoGrantAccessibility = apiPreferences.autoGrantAccessibilityFlow.first()
-
-            if (autoGrantAccessibility &&
-                            !permissionState.accessibilityServiceRequested &&
-                            isShizukuFullyAvailable()
-            ) {
-                Log.d(TAG, "自动授权设置已开启，尝试通过ADB启用无障碍服务")
-                tryEnableAccessibilityViaAdb()
-            } else if (!autoGrantAccessibility) {
-                Log.d(TAG, "自动授权设置已关闭，不尝试自动启用无障碍服务")
-            }
-
-            permissionState.accessibilityServiceRequested = true
-        }
-    }
-
-    private fun checkAndEnableAccessibilityService() {
-        lifecycleScope.launch {
-            val apiPreferences = ApiPreferences(this@MainActivity)
-            val autoGrantAccessibility = apiPreferences.autoGrantAccessibilityFlow.first()
-
-            if (autoGrantAccessibility) {
-                Log.d(TAG, "Shizuku已可用，自动授权设置已开启，尝试启用无障碍服务")
-                tryEnableAccessibilityViaAdb()
-            } else {
-                Log.d(TAG, "Shizuku已可用，但自动授权设置已关闭，不尝试自动启用无障碍服务")
-                permissionState.accessibilityServiceRequested = true
-            }
-        }
-    }
-
-    private fun tryEnableAccessibilityViaAdb() {
-        // 如果已启用，避免重复请求
-        if (UIHierarchyManager.isAccessibilityServiceEnabled(this)) {
-            Log.d(TAG, "无障碍服务已启用，无需再次启用")
-            return
-        }
-
-        // 如果Shizuku可用，尝试通过ADB启用
-        if (isShizukuFullyAvailable()) {
-            Log.d(TAG, "通过ADB尝试启用无障碍服务")
-            permissionState.accessibilityServiceRequested = true
-
-            // lifecycleScope.launch(Dispatchers.IO) {
-            //     val success =
-            // UIHierarchyManager.enableAccessibilityServiceViaAdb(this@MainActivity)
-
-            //     withContext(Dispatchers.Main) {
-            //         if (success) {
-            //             Log.d(TAG, "通过ADB成功启用无障碍服务")
-            //             Toast.makeText(this@MainActivity, "已自动启用无障碍服务",
-            // Toast.LENGTH_SHORT).show()
-            //         } else {
-            //             Log.d(TAG, "通过ADB启用无障碍服务失败")
-            //             permissionState.accessibilityServiceRequested = false
-            //         }
-            //     }
-            // }
-        }
-    }
-
-    // ======== 工具方法 ========
-    private fun startPermissionRefreshTask() {
-        lifecycleScope.launch {
-            try {
-                val hasRequest =
-                        toolHandler?.getToolPermissionSystem()?.hasActivePermissionRequest()
-                                ?: false
-                Log.d(TAG, "Permission check: hasRequest=$hasRequest")
-            } catch (e: Exception) {
-                Log.e(TAG, "Error in permission check", e)
             }
         }
     }
@@ -467,7 +224,7 @@ class MainActivity : ComponentActivity() {
                 }
         )
 
-        // 自动检查更新（在权限流程完成后执行）
+        // 自动检查更新
         lifecycleScope.launch {
             // 延迟几秒，等待应用完全启动
             delay(3000)
@@ -511,6 +268,7 @@ class MainActivity : ComponentActivity() {
         val updateMessage = "发现新版本 ${updateInfo.newVersion}，请前往「关于」页面查看详情"
         Toast.makeText(this, updateMessage, Toast.LENGTH_LONG).show()
     }
+
     private fun getHighestRefreshRate(): Int {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val displayModes = display?.supportedModes ?: return 0
