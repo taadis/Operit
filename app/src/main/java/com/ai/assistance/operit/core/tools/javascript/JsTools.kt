@@ -138,8 +138,6 @@ fun getJsToolsDefinition(): String {
                 setText: (text) => toolCall("set_input_text", { text }),
                 swipe: (startX, startY, endX, endY) => toolCall("swipe", { start_x: startX, start_y: startY, end_x: endX, end_y: endY }),
                 pressKey: (keyCode) => toolCall("press_key", { key_code: keyCode }),
-                // 组合操作
-                combinedOperation: (operation, delayMs) => toolCall("combined_operation", { operation, delay_ms: delayMs || 1000 })
             },
             // 计算功能
             calc: (expression) => toolCall("calculate", { expression }),

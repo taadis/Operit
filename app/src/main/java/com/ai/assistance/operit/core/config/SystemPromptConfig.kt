@@ -117,7 +117,6 @@ object SystemPromptConfig {
       - set_input_text: Set text in an input field. Parameters: text (text to input)
       - press_key: Simulate a key press. Parameters: key_code (key code, e.g., "KEYCODE_BACK", "KEYCODE_HOME", etc.)
       - swipe: Simulate a swipe gesture. Parameters: start_x (start X coordinate), start_y (start Y coordinate), end_x (end X coordinate), end_y (end Y coordinate), duration (duration in milliseconds, default 300)
-      - combined_operation: Execute a UI operation, wait for a specified time, then return the new UI state. Parameters: operation (operation to execute, e.g., "tap 500 800", "click_element resourceId buttonID [index] [partialMatch]", "click_element bounds [100,200][300,400]", "swipe 500 1000 500 200"), delay_ms (wait time in milliseconds, default 1000)
       - find_element: Find UI elements matching specific criteria without clicking them. Parameters: resourceId (element resource ID, optional), className (element class name, optional), text (element text content, optional), partialMatch (whether to enable partial matching, default false), limit (maximum number of elements to return, default 10)
 
       FFmpeg Tools:
@@ -132,7 +131,6 @@ object SystemPromptConfig {
         • bitrate (optional, video bitrate, e.g. "1000k")
 
       UI AUTOMATION ADVICE:
-      - Try to use combined_operation for all UI actions because it's more efficient - syntax: combined_operation with "operation=click_element resourceId buttonID" or like "operation=set_input_text hello"
       - Element targeting options:
         • Lists: use index parameter (e.g., "resourceId item 2")
         • Precise: use bounds "[left,top][right,bottom]" or find_element first
@@ -279,7 +277,6 @@ object SystemPromptConfig {
         - set_input_text: 在输入字段中设置文本。参数：text（要输入的文本）
         - press_key: 模拟按键。参数：key_code（键码，例如"KEYCODE_BACK"、"KEYCODE_HOME"等）
         - swipe: 模拟滑动手势。参数：start_x（起始X坐标），start_y（起始Y坐标），end_x（结束X坐标），end_y（结束Y坐标），duration（持续时间，毫秒，默认300）
-        - combined_operation: 执行UI操作，等待指定时间，然后返回新的UI状态。参数：operation（要执行的操作，例如"tap 500 800"、"click_element resourceId buttonID [index] [partialMatch]"、"click_element bounds [100,200][300,400]"、"swipe 500 1000 500 200"），delay_ms（等待时间，毫秒，默认1000）
         - find_element: 查找符合特定条件的UI元素而不点击它们。参数：resourceId（元素资源ID，可选），className（元素类名，可选），text（元素文本内容，可选），partialMatch（是否启用部分匹配，默认false），limit（返回的最大元素数量，默认10）
         
         FFmpeg工具：
@@ -294,7 +291,6 @@ object SystemPromptConfig {
           • bitrate（可选，视频比特率，例如"1000k"）
         
         UI自动化建议：
-        - 尽量使用combined_operation进行所有UI操作，因为它更高效 - 语法：combined_operation with "operation=click_element resourceId buttonID"或类似"operation=set_input_text hello"
         - 元素定位选项：
           • 列表：使用index参数（例如，"resourceId item 2"）
           • 精确：使用bounds "[left,top][right,bottom]"或先使用find_element

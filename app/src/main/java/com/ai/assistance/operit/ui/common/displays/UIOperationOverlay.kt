@@ -113,7 +113,13 @@ class UIOperationOverlay(private val context: Context) {
         if (Looper.myLooper() == Looper.getMainLooper()) {
             action()
         } else {
-            Handler(Looper.getMainLooper()).post(action)
+            Handler(Looper.getMainLooper()).post {
+                try {
+                    action()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error executing action on main thread", e)
+                }
+            }
         }
     }
     
@@ -130,67 +136,70 @@ class UIOperationOverlay(private val context: Context) {
         }
         
         // 确保在主线程上初始化UI组件
-        runOnMainThread {
-            try {
-                windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-                
-                val params = WindowManager.LayoutParams().apply {
-                    width = WindowManager.LayoutParams.MATCH_PARENT
-                    height = WindowManager.LayoutParams.MATCH_PARENT
-                    type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                    } else {
-                        WindowManager.LayoutParams.TYPE_PHONE
-                    }
-                    // 关键flags：不接受焦点，不阻挡触摸事件传递到下层应用
-                    flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-                    format = PixelFormat.TRANSLUCENT
-                    gravity = Gravity.TOP or Gravity.START
-                    // 设置足够高的层级确保可见性
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        windowAnimations = android.R.style.Animation_Toast
-                    }
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            runOnMainThread { initOverlay() }
+            return
+        }
+        
+        try {
+            windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            
+            val params = WindowManager.LayoutParams().apply {
+                width = WindowManager.LayoutParams.MATCH_PARENT
+                height = WindowManager.LayoutParams.MATCH_PARENT
+                type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                } else {
+                    WindowManager.LayoutParams.TYPE_PHONE
                 }
-                
-                lifecycleOwner = ServiceLifecycleOwner().apply {
-                    handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
-                    handleLifecycleEvent(Lifecycle.Event.ON_START)
-                    handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
+                // 关键flags：不接受焦点，不阻挡触摸事件传递到下层应用
+                flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                format = PixelFormat.TRANSLUCENT
+                gravity = Gravity.TOP or Gravity.START
+                // 设置足够高的层级确保可见性
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    windowAnimations = android.R.style.Animation_Toast
                 }
-                
-                overlayView = ComposeView(context).apply {
-                    setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
-                    
-                    // 设置生命周期所有者
-                    setViewTreeLifecycleOwner(lifecycleOwner)
-                    setViewTreeViewModelStoreOwner(lifecycleOwner)
-                    setViewTreeSavedStateRegistryOwner(lifecycleOwner)
-                    
-                    setContent {
-                        MaterialTheme {
-                            OperationFeedbackContent(
-                                operationType = operationType.value,
-                                tapPosition = tapPosition.value,
-                                swipeStart = swipeStart.value,
-                                swipeEnd = swipeEnd.value,
-                                textInputPosition = textInputPosition.value,
-                                textValue = textValue.value
-                            )
-                        }
-                    }
-                }
-                
-                windowManager?.addView(overlayView, params)
-                Log.d(TAG, "Overlay view added successfully")
-            } catch (e: Exception) {
-                Log.e(TAG, "Error adding overlay view", e)
-                // 清理资源
-                lifecycleOwner = null
-                overlayView = null
-                windowManager = null
             }
+            
+            lifecycleOwner = ServiceLifecycleOwner().apply {
+                handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+                handleLifecycleEvent(Lifecycle.Event.ON_START)
+                handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
+            }
+            
+            overlayView = ComposeView(context).apply {
+                setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+                
+                // 设置生命周期所有者
+                setViewTreeLifecycleOwner(lifecycleOwner)
+                setViewTreeViewModelStoreOwner(lifecycleOwner)
+                setViewTreeSavedStateRegistryOwner(lifecycleOwner)
+                
+                setContent {
+                    MaterialTheme {
+                        OperationFeedbackContent(
+                            operationType = operationType.value,
+                            tapPosition = tapPosition.value,
+                            swipeStart = swipeStart.value,
+                            swipeEnd = swipeEnd.value,
+                            textInputPosition = textInputPosition.value,
+                            textValue = textValue.value
+                        )
+                    }
+                }
+            }
+            
+            windowManager?.addView(overlayView, params)
+            Log.d(TAG, "Overlay view added successfully")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error adding overlay view", e)
+            // 清理资源
+            lifecycleOwner = null
+            overlayView = null
+            windowManager = null
         }
     }
     
@@ -263,6 +272,11 @@ class UIOperationOverlay(private val context: Context) {
      * 安排自动隐藏
      */
     private fun scheduleHide(delayMs: Long) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            runOnMainThread { scheduleHide(delayMs) }
+            return
+        }
+        
         handler.removeCallbacks(hideRunnable)
         handler.postDelayed(hideRunnable, delayMs)
     }

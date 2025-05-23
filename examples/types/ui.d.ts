@@ -117,13 +117,6 @@ export namespace UI {
      * @param endY - End Y coordinate
      */
     function swipe(startX: number, startY: number, endX: number, endY: number): Promise<UIActionResultData>;
-
-    /**
-     * Execute a UI operation, wait, then return the new UI state
-     * @param operation - Operation to execute
-     * @param delayMs - Delay in milliseconds before getting new UI state
-     */
-    function combinedOperation(operation: string, delayMs?: number): Promise<CombinedOperationResultData>;
 }
 
 /**

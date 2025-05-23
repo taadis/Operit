@@ -30,4 +30,5 @@ sealed class Screen {
     data object Terminal : Screen()
     data object TerminalAutoConfig : Screen()
     data object AppPermissions : Screen()
+    data object UIDebugger : Screen() // 添加新的UI调试工具屏幕
 }

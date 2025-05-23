@@ -58,6 +58,7 @@ import com.ai.assistance.operit.ui.features.toolbox.screens.FormatConverterToolS
 import com.ai.assistance.operit.ui.features.toolbox.screens.TerminalAutoConfigToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.TerminalToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.ToolboxScreen
+import com.ai.assistance.operit.ui.features.toolbox.screens.UIDebuggerToolScreen
 import com.ai.assistance.operit.ui.main.screens.Screen
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -128,6 +129,7 @@ fun AppContent(
                                     is Screen.Terminal -> "命令终端"
                                     is Screen.TerminalAutoConfig -> "终端自动配置"
                                     is Screen.AppPermissions -> "应用权限管理"
+                                    is Screen.UIDebugger -> "UI调试工具"
                                     else -> stringResource(id = selectedItem.titleResId)
                                 },
                                 fontWeight = FontWeight.SemiBold,
@@ -166,7 +168,8 @@ fun AppContent(
                                     is Screen.FileManager,
                                     is Screen.Terminal,
                                     is Screen.TerminalAutoConfig,
-                                    is Screen.AppPermissions -> {
+                                    is Screen.AppPermissions,
+                                    is Screen.UIDebugger -> {
                                         // 如果在工具箱二级页面，返回到工具箱页面
                                         onScreenChange(Screen.Toolbox)
                                     }
@@ -193,7 +196,8 @@ fun AppContent(
                                                 currentScreen is Screen.FileManager ||
                                                 currentScreen is Screen.Terminal ||
                                                 currentScreen is Screen.TerminalAutoConfig ||
-                                                currentScreen is Screen.AppPermissions
+                                                currentScreen is Screen.AppPermissions ||
+                                                currentScreen is Screen.UIDebugger
                                 )
                                         Icons.Default.ArrowBack
                                 else if (useTabletLayout)
@@ -214,7 +218,8 @@ fun AppContent(
                                             is Screen.FileManager,
                                             is Screen.Terminal,
                                             is Screen.TerminalAutoConfig,
-                                            is Screen.AppPermissions -> "返回工具箱"
+                                            is Screen.AppPermissions,
+                                            is Screen.UIDebugger -> "返回工具箱"
                                             else ->
                                                     if (useTabletLayout)
                                                             if (isTabletSidebarExpanded) "收起侧边栏"
@@ -331,6 +336,10 @@ fun AppContent(
                             // 应用权限管理屏幕
                             AppPermissionsToolScreen(navController = navController)
                         }
+                        is Screen.UIDebugger -> {
+                            // UI调试工具屏幕
+                            UIDebuggerToolScreen(navController = navController)
+                        }
                         is Screen.AiChat ->
                                 AIChatScreen(onNavigateToTokenConfig = navigateToTokenConfig)
                         is Screen.ShizukuCommands -> ShizukuDemoScreen()
@@ -348,6 +357,9 @@ fun AppContent(
                                     },
                                     onAppPermissionsSelected = {
                                         onScreenChange(Screen.AppPermissions)
+                                    },
+                                    onUIDebuggerSelected = {
+                                        onScreenChange(Screen.UIDebugger)
                                     }
                             )
                         }

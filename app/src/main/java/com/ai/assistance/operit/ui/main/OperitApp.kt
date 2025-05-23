@@ -66,8 +66,12 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
         }
 
         // 检查是否为二级界面，并返回上级界面信息
-        data class ParentScreenInfo(val isSecondaryScreen: Boolean, val parentScreen: Screen? = null, val parentNavItem: NavItem? = null)
-        
+        data class ParentScreenInfo(
+                val isSecondaryScreen: Boolean,
+                val parentScreen: Screen? = null,
+                val parentNavItem: NavItem? = null
+        )
+
         fun getParentScreenInfo(): ParentScreenInfo {
                 return when (currentScreen) {
                         // 设置相关的二级界面
@@ -99,26 +103,15 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                 }
         }
 
-        // 处理返回导航的函数
-        fun handleBackNavigation(): Boolean {
-                val parentInfo = getParentScreenInfo()
-                if (parentInfo.isSecondaryScreen && parentInfo.parentScreen != null) {
-                        currentScreen = parentInfo.parentScreen
-                        parentInfo.parentNavItem?.let { selectedItem = it }
-                        return true
-                }
-                return false
-        }
-
         // 判断当前是否在二级界面
         val isInSecondaryScreen = getParentScreenInfo().isSecondaryScreen
 
         // 注册系统返回键处理器，只在二级界面时启用
         BackHandler(
-                enabled = isInSecondaryScreen,  // 只在二级界面时拦截返回事件
+                enabled = isInSecondaryScreen, // 只在二级界面时拦截返回事件
                 onBack = {
                         // 处理二级界面的返回导航
-                        handleBackNavigation()
+                        handleBackNavigation(currentScreen, { screen -> currentScreen = screen })
                 }
         )
 
@@ -250,5 +243,32 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                 navigateToTokenConfig = ::navigateToTokenConfig
                         )
                 }
+        }
+}
+
+fun handleBackNavigation(currentScreen: Screen, navigateTo: (Screen) -> Unit): Boolean {
+        return when (currentScreen) {
+                is Screen.ToolPermission,
+                is Screen.UserPreferencesGuide,
+                is Screen.UserPreferencesSettings,
+                is Screen.ModelParametersSettings,
+                is Screen.ModelPromptsSettings -> {
+                        navigateTo(Screen.Settings)
+                        true
+                }
+                is Screen.ThemeSettings -> {
+                        navigateTo(Screen.UserPreferencesSettings)
+                        true
+                }
+                is Screen.FormatConverter,
+                is Screen.FileManager,
+                is Screen.Terminal,
+                is Screen.TerminalAutoConfig,
+                is Screen.AppPermissions,
+                is Screen.UIDebugger -> {
+                        navigateTo(Screen.Toolbox)
+                        true
+                }
+                else -> false
         }
 }

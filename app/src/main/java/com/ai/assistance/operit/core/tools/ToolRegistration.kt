@@ -688,19 +688,6 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             executor = { tool -> kotlinx.coroutines.runBlocking { uiTools.swipe(tool) } }
     )
 
-    // 执行组合操作并返回新的UI状态
-    handler.registerTool(
-            name = "combined_operation",
-            category = ToolCategory.UI_AUTOMATION,
-            descriptionGenerator = { tool ->
-                val operations = tool.parameters.find { it.name == "operations" }?.value ?: ""
-                "执行组合操作: $operations"
-            },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking { uiTools.combinedOperation(tool) }
-            }
-    )
-
     // 查找UI元素
     handler.registerTool(
             name = "find_element",

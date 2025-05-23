@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -21,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ai.assistance.operit.core.tools.system.AndroidPermissionLevel
 import com.ai.assistance.operit.core.tools.system.ShizukuAuthorizer
+import com.ai.assistance.operit.core.tools.system.ShizukuInstaller
 import com.ai.assistance.operit.ui.features.demo.components.*
 import com.ai.assistance.operit.ui.features.demo.viewmodel.ShizukuDemoViewModel
 import com.ai.assistance.operit.ui.features.demo.wizards.RootWizardCard
@@ -296,9 +298,16 @@ fun ShizukuDemoScreen(
                         },
                         onInstallBundled = {
                             try {
-                                Toast.makeText(context, "安装内置版本功能暂未实现", Toast.LENGTH_SHORT).show()
+                                val success = ShizukuInstaller.installBundledShizuku(context)
+                                if (success) {
+                                    Toast.makeText(context, "已启动Shizuku安装，请按照系统提示完成安装", Toast.LENGTH_LONG).show()
+                                } else {
+                                    // 如果返回false，可能是Shizuku已安装或提取APK失败
+                                    Toast.makeText(context, "安装启动失败，Shizuku可能已安装或APK提取失败", Toast.LENGTH_SHORT).show()
+                                }
                             } catch (e: Exception) {
-                                Toast.makeText(context, "安装失败", Toast.LENGTH_SHORT).show()
+                                Log.e("ShizukuDemo", "安装内置Shizuku时出错", e)
+                                Toast.makeText(context, "安装失败: ${e.message}", Toast.LENGTH_SHORT).show()
                             }
                         },
                         onOpenShizuku = {
