@@ -50,8 +50,7 @@ fun UIDebuggerScreen(navController: NavController) {
         ) {
             Row(
                     modifier =
-                            Modifier.fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -91,18 +90,14 @@ fun UIDebuggerScreen(navController: NavController) {
 
                 // 右侧操作按钮
                 Row {
-                    IconButton(
-                            onClick = { coroutineScope.launch { viewModel.refreshUI() } }
-                    ) {
+                    IconButton(onClick = { coroutineScope.launch { viewModel.refreshUI() } }) {
                         Icon(
                                 Icons.Default.Refresh,
                                 contentDescription = "刷新",
                                 tint = MaterialTheme.colorScheme.primary
                         )
                     }
-                    IconButton(
-                            onClick = { showHighlightControls = !showHighlightControls }
-                    ) {
+                    IconButton(onClick = { showHighlightControls = !showHighlightControls }) {
                         Icon(
                                 Icons.Default.Visibility,
                                 contentDescription = "高亮控制",
