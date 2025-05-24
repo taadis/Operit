@@ -4,6 +4,7 @@ import android.text.Spannable
 import android.text.SpannableStringBuilder
 import android.util.Log
 import android.widget.TextView
+import java.util.concurrent.Executors
 import org.scilab.forge.jlatexmath.ParseException
 import ru.noties.jlatexmath.JLatexMathDrawable
 
@@ -12,6 +13,17 @@ import ru.noties.jlatexmath.JLatexMathDrawable
  * of LaTeX formulas.
  */
 object LatexRenderer {
+    // 使用线程池进行异步渲染
+    private val renderExecutor = Executors.newFixedThreadPool(2)
+
+    // 是否使用位图缓存渲染（可配置）
+    private var useBitmapRendering = true
+
+    /** 设置是否使用位图渲染 */
+    fun setUseBitmapRendering(enabled: Boolean) {
+        useBitmapRendering = enabled
+        Log.d("LatexRenderer", "Bitmap rendering ${if(enabled) "enabled" else "disabled"}")
+    }
 
     /**
      * Renders LaTeX expressions within rendered Markdown content. Uses single character traversal
@@ -189,7 +201,7 @@ object LatexRenderer {
                 // Extra safety check: ensure formula content is valid
                 val cleanedFormula = LatexCleaner.balanceLeftRightCommands(formulaContent.trim())
 
-                // Create LaTeX renderer
+                // Create LaTeX renderer builder
                 val builder =
                         JLatexMathDrawable.builder(cleanedFormula)
                                 .textSize(textSize)
@@ -204,18 +216,33 @@ object LatexRenderer {
                     builder.padding(4) // Inline formulas use smaller padding
                 }
 
-                val drawable = builder.build()
+                if (useBitmapRendering) {
+                    // 使用位图缓存取代drawable
+                    val bitmap = LatexCache.getLatexBitmap(cleanedFormula, builder)
 
-                // Set drawing bounds
-                drawable.setBounds(0, 0, drawable.intrinsicWidth, drawable.intrinsicHeight)
+                    // Replace text with LaTeX bitmap Span
+                    spannableContent.setSpan(
+                            LatexBitmapSpan(bitmap, block.isBlockFormula),
+                            start,
+                            end,
+                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                } else {
+                    // 传统的drawable渲染方式
+                    // Get drawable from cache or create new one
+                    val drawable = LatexCache.getDrawable(cleanedFormula, builder)
 
-                // Replace text with LaTeX drawn Span
-                spannableContent.setSpan(
-                        LatexDrawableSpan(drawable, block.isBlockFormula),
-                        start,
-                        end,
-                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                )
+                    // Set drawing bounds
+                    drawable.setBounds(0, 0, drawable.intrinsicWidth, drawable.intrinsicHeight)
+
+                    // Replace text with LaTeX drawn Span
+                    spannableContent.setSpan(
+                            LatexDrawableSpan(drawable, block.isBlockFormula),
+                            start,
+                            end,
+                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                }
 
                 // Mark range as processed
                 processedRanges.add(range)
@@ -223,7 +250,8 @@ object LatexRenderer {
                 // Log
                 Log.d(
                         "MarkdownLatex",
-                        "Rendered LaTeX formula: '${cleanedFormula.take(20)}${if (cleanedFormula.length > 20) "..." else ""}'"
+                        "Rendered LaTeX formula with ${if(useBitmapRendering) "bitmap" else "drawable"}: " +
+                                "'${cleanedFormula.take(20)}${if (cleanedFormula.length > 20) "..." else ""}'"
                 )
             } catch (e: ParseException) {
                 // Special handling for ParseException - try to fix formula and re-render
@@ -244,7 +272,7 @@ object LatexRenderer {
                     val fixedContent =
                             LatexCleaner.repairLatexExpression(originalContent, e.message ?: "")
 
-                    // Create fixed LaTeX renderer
+                    // Create fixed LaTeX renderer builder
                     val builder =
                             JLatexMathDrawable.builder(fixedContent)
                                     .textSize(textSize)
@@ -258,16 +286,30 @@ object LatexRenderer {
                         builder.padding(4)
                     }
 
-                    val drawable = builder.build()
-                    drawable.setBounds(0, 0, drawable.intrinsicWidth, drawable.intrinsicHeight)
+                    if (useBitmapRendering) {
+                        // 使用位图缓存取代drawable
+                        val bitmap = LatexCache.getLatexBitmap(fixedContent, builder)
 
-                    // Replace text with fixed LaTeX Span
-                    spannableContent.setSpan(
-                            LatexDrawableSpan(drawable, block.isBlockFormula),
-                            start,
-                            end,
-                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                    )
+                        // Replace text with LaTeX bitmap Span
+                        spannableContent.setSpan(
+                                LatexBitmapSpan(bitmap, block.isBlockFormula),
+                                start,
+                                end,
+                                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                        )
+                    } else {
+                        // 传统的drawable渲染方式
+                        val drawable = LatexCache.getDrawable(fixedContent, builder)
+                        drawable.setBounds(0, 0, drawable.intrinsicWidth, drawable.intrinsicHeight)
+
+                        // Replace text with fixed LaTeX Span
+                        spannableContent.setSpan(
+                                LatexDrawableSpan(drawable, block.isBlockFormula),
+                                start,
+                                end,
+                                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                        )
+                    }
 
                     // Mark range as processed
                     processedRanges.add(range)

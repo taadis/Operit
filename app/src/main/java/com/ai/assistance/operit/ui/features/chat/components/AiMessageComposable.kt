@@ -16,7 +16,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.data.model.ChatMessage
-import com.ai.assistance.operit.ui.common.displays.EnhancedMarkdownText
+import com.ai.assistance.operit.ui.common.displays.MarkdownTextComposable
 import com.ai.assistance.operit.ui.common.displays.MessageContentParser
 import com.ai.assistance.operit.ui.common.displays.MessageContentParser.Companion.ContentSegment
 
@@ -69,52 +69,44 @@ fun AiMessageComposable(
         fun RenderContentSegment(segment: MessageContentParser.Companion.ContentSegment) {
             when (segment) {
                 is MessageContentParser.Companion.ContentSegment.Text -> {
-                        if (segment.content.isNotBlank()) {
-                            Box(
-                                    modifier =
-                                            Modifier.fillMaxWidth()
-                                                    .padding(horizontal = 16.dp)
-                                                    .combinedClickable(
-                                                            interactionSource =
-                                                                    remember {
-                                                                        MutableInteractionSource()
-                                                                    },
-                                                            indication = null,
-                                                            onClick = { /* Do nothing on normal click */
-                                                            },
-                                                            onLongClick = {
-                                                                clipboardManager.setText(
+                    if (segment.content.isNotBlank()) {
+                        Box(
+                                modifier =
+                                        Modifier.fillMaxWidth()
+                                                .padding(horizontal = 16.dp)
+                                                .combinedClickable(
+                                                        interactionSource =
+                                                                remember {
+                                                                    MutableInteractionSource()
+                                                                },
+                                                        indication = null,
+                                                        onClick = { /* Do nothing on normal click */
+                                                        },
+                                                        onLongClick = {
+                                                            clipboardManager.setText(
                                                                     AnnotatedString(segment.content)
-                                                                )
-                                                                haptic.performHapticFeedback(
-                                                                        HapticFeedbackType.LongPress
-                                                                )
-                                                            }
-                                                    )
-                            ) {
-                                EnhancedMarkdownText(
-                                        text = segment.content,
-                                        textColor = textColor,
-                                        onCodeCopied = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    }
-                            )
-                        }
+                                                            )
+                                                            haptic.performHapticFeedback(
+                                                                    HapticFeedbackType.LongPress
+                                                            )
+                                                        }
+                                                )
+                        ) { MarkdownTextComposable(text = segment.content, textColor = textColor) }
                     }
                 }
                 is MessageContentParser.Companion.ContentSegment.PlanItem -> {
                     com.ai.assistance.operit.ui.features.chat.components.UnifiedPlanDisplay(
-                                id = segment.id,
-                                status = segment.status,
-                                content = segment.description,
-                                isUpdate = false
-                        )
-                    }
+                            id = segment.id,
+                            status = segment.status,
+                            content = segment.description,
+                            isUpdate = false
+                    )
+                }
                 is MessageContentParser.Companion.ContentSegment.PlanUpdate -> {
                     com.ai.assistance.operit.ui.features.chat.components.UnifiedPlanDisplay(
-                                id = segment.id,
-                                status = segment.status,
-                                content = segment.message ?: "",
+                            id = segment.id,
+                            status = segment.status,
+                            content = segment.message ?: "",
                             isUpdate = true
                     )
                 }
@@ -127,13 +119,13 @@ fun AiMessageComposable(
                 else -> {
                     // Tool segments are handled in ToolStateManager
                 }
-                }
-
-                // Add spacing between segments
-                if (segment != contentSegments.last()) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                }
             }
+
+            // Add spacing between segments
+            if (segment != contentSegments.last()) {
+                Spacer(modifier = Modifier.height(2.dp))
+            }
+        }
 
         // Create tool state manager instance
         val toolStateManager = remember {
@@ -164,7 +156,7 @@ fun AiMessageComposable(
                     ) {
                         // Render tool segment using the tool state manager
                         toolStateManager.RenderToolSegment(segment)
-                                } else {
+                    } else {
                         // For non-tool segments, use the regular renderer
                         RenderContentSegment(segment)
                     }

@@ -87,6 +87,7 @@ android {
 }
 dependencies {
     implementation(libs.androidx.ui.graphics.android)
+    implementation(files("libs\\ffmpegkit.jar"))
     // Desugaring support for modern Java APIs on older Android
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
     
@@ -189,10 +190,10 @@ dependencies {
     kapt("androidx.room:room-compiler:2.6.1") // 使用kapt代替ksp
 
     // FFmpeg dependency with specific architectures
-    implementation("com.arthenica:ffmpeg-kit-full:6.0-2") {
+    // implementation("com.arthenica:ffmpeg-kit-full:6.0-2") {
         // exclude(group = "com.arthenica", module = "ffmpeg-kit-android-lib-armeabi-v7a")
         // exclude(group = "com.arthenica", module = "ffmpeg-kit-android-lib-x86")
-    }
+    // }
 
     // Archive/compression libraries
     implementation("org.apache.commons:commons-compress:1.24.0")

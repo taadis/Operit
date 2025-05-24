@@ -13,13 +13,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.ChatMessage
-import com.ai.assistance.operit.ui.common.displays.EnhancedMarkdownText
+import com.ai.assistance.operit.ui.common.displays.MarkdownTextComposable
 
 /** A composable function for rendering thinking/processing messages in a Cursor IDE style. */
 @Composable
@@ -74,18 +73,13 @@ fun ThinkingMessageComposable(
                                 ) {
                                         // Display thinking text content
                                         if (thinkingContent.isNotBlank()) {
-                                                EnhancedMarkdownText(
+                                                MarkdownTextComposable(
                                                         text = thinkingContent,
                                                         textColor = textColor,
                                                         fontSize =
                                                                 MaterialTheme.typography
                                                                         .bodySmall
                                                                         .fontSize,
-                                                        onCodeCopied = {
-                                                                haptic.performHapticFeedback(
-                                                                        HapticFeedbackType.LongPress
-                                                                )
-                                                        },
                                                         modifier = Modifier.padding(bottom = 8.dp)
                                                 )
                                         }

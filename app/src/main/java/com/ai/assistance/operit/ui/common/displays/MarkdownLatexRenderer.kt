@@ -34,10 +34,14 @@ import io.noties.markwon.image.ImagesPlugin
 import io.noties.markwon.image.coil.CoilImagesPlugin
 import io.noties.markwon.linkify.LinkifyPlugin
 
+// Track rendering times
+private var renderCount = 0
+private val startTimes = mutableMapOf<String, Long>()
+
 /**
  * A composable that renders both Markdown and LaTeX content in the same TextView. This handles all
  * markdown content, with or without LaTeX equations. Uses efficient single-pass algorithms for
- * processing.
+ * processing with caching support.
  */
 @Composable
 internal fun IntegratedMarkdownLatexRenderer(
@@ -61,19 +65,18 @@ internal fun IntegratedMarkdownLatexRenderer(
                 }
             }
     val colorInt = textColor.toArgb()
-    
+
     // 创建一个Handler用于延迟刷新
     val handler = remember { Handler(Looper.getMainLooper()) }
 
     // 在组件销毁时清理Handler
-    DisposableEffect(Unit) { 
-        onDispose { 
-            handler.removeCallbacksAndMessages(null) 
-        }
-    }
+    DisposableEffect(Unit) { onDispose { handler.removeCallbacksAndMessages(null) } }
 
     // 使用全局ImageLoader代替创建新实例
     val globalImageLoader = OperitApplication.globalImageLoader
+
+    // Generate a unique ID for this render operation (for timing)
+    val renderId = "render_${++renderCount}"
 
     // Create Markwon instance with all needed plugins
     val markwon = remember {
@@ -108,14 +111,14 @@ internal fun IntegratedMarkdownLatexRenderer(
                     setTextColor(colorInt)
                     setLinkTextColor(colorInt)
                     setLineSpacing(0f, 1.2f) // Set line spacing multiplier to 1.2x
-                    
+
                     // 防止布局闪烁
                     setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NONE)
-                    
+
                     // 关闭动画过渡
                     isHorizontalFadingEdgeEnabled = false
                     isVerticalFadingEdgeEnabled = false
-                    
+
                     if (textAlign != null) {
                         textAlignment =
                                 when (textAlign) {
@@ -142,9 +145,23 @@ internal fun IntegratedMarkdownLatexRenderer(
             },
             update = { textView ->
                 try {
+                    // Start timing this render
+                    startTimes[renderId] = System.currentTimeMillis()
+
+                    // Periodically log cache statistics (every 10 renders)
+                    if (renderCount % 10 == 0) {
+                        Log.d("LatexCache", "Cache statistics: ${LatexCache.getStats()}")
+                    }
+
                     // 取消所有进行中的图片加载
                     AsyncDrawableScheduler.unschedule(textView)
                     handler.removeCallbacksAndMessages(null)
+
+                    // Use the contentHashCode as a simple cache key
+                    val contentKey = content.hashCode().toString()
+
+                    // 生成内容哈希，用于简单缓存检查
+                    Log.d("MarkdownLatex", "Rendering content with key: $contentKey")
 
                     // 处理LaTeX
                     val preprocessed = LatexPreprocessor.preprocessLatexInMarkdown(content)
@@ -163,10 +180,13 @@ internal fun IntegratedMarkdownLatexRenderer(
 
                     // 设置文本
                     textView.text = finalSpannable
-                    
+
                     // 安排加载图片，但只做一次
                     AsyncDrawableScheduler.schedule(textView)
-                    
+
+                    // Log the render time
+                    val duration = System.currentTimeMillis() - startTimes.getOrDefault(renderId, 0)
+                    Log.d("MarkdownLatex", "Rendered in $duration ms")
                 } catch (e: Exception) {
                     Log.e("MarkdownLatex", "Error rendering content: ${e.message}", e)
                     // 如果发生错误，至少显示原始文本
