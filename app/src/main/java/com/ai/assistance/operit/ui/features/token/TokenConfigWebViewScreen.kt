@@ -108,7 +108,24 @@ fun TokenConfigWebViewScreen(onNavigateBack: () -> Unit) {
                     view: WebView?,
                     request: WebResourceRequest?
             ): Boolean {
-                // 允许所有WebView内的导航
+                request?.url?.let { uri ->
+                    val url = uri.toString()
+                    
+                    // 检查是否是需要外部应用处理的URL scheme
+                    if (url.startsWith("alipay:") || url.startsWith("weixin:") || 
+                        url.startsWith("alipays:") || !url.startsWith("http")) {
+                        try {
+                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
+                            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(intent)
+                            return true
+                        } catch (e: Exception) {
+                            Log.e("TokenConfigWebView", "无法打开外部应用: ${e.message}")
+                            return false
+                        }
+                    }
+                }
+                // 允许WebView内的导航
                 return false
             }
 

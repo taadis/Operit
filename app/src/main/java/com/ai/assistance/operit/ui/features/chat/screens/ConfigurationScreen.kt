@@ -43,7 +43,8 @@ fun ConfigurationScreen(
         onUseDefault: () -> Unit = {},
         isUsingDefault: Boolean = false,
         onNavigateToChat: () -> Unit = {},
-        onNavigateToTokenConfig: () -> Unit = {}
+        onNavigateToTokenConfig: () -> Unit = {},
+        onNavigateToSettings: () -> Unit = {}
 ) {
     // 获取Context
     val context = LocalContext.current
@@ -55,11 +56,6 @@ fun ConfigurationScreen(
 
     // 状态管理
     var apiKeyInput by remember { mutableStateOf(if (isUsingDefault) "" else apiKey) }
-    var apiEndpointInput by remember { mutableStateOf(apiEndpoint) }
-    var modelNameInput by remember { mutableStateOf(modelName) }
-    var showCustomFields by remember { mutableStateOf(false) }
-    var showEndpointWarning by remember { mutableStateOf(false) }
-    var endpointWarningMessage by remember { mutableStateOf<String?>(null) }
     var showTokenInfoDialog by remember { mutableStateOf(false) }
     var showFreeUsageDialog by remember { mutableStateOf(false) }
 
@@ -74,14 +70,6 @@ fun ConfigurationScreen(
 
     // 检测用户是否输入了自己的token
     val hasEnteredToken = apiKeyInput.isNotBlank() && apiKeyInput != ApiPreferences.DEFAULT_API_KEY
-
-    // 默认API密钥效果
-    LaunchedEffect(isUsingDefaultApiKey) {
-        if (isUsingDefaultApiKey) {
-            modelNameInput = ApiPreferences.DEFAULT_MODEL_NAME
-            onModelNameChange(ApiPreferences.DEFAULT_MODEL_NAME)
-        }
-    }
 
     // 导航处理
     LaunchedEffect(isUsingDefault) {
@@ -114,15 +102,12 @@ fun ConfigurationScreen(
 
                         // Apply free API settings
                         apiKeyInput = ""
-                        apiEndpointInput = ApiPreferences.DEFAULT_API_ENDPOINT
-                        modelNameInput = ApiPreferences.DEFAULT_MODEL_NAME
 
                         onApiKeyChange(ApiPreferences.DEFAULT_API_KEY)
                         onApiEndpointChange(ApiPreferences.DEFAULT_API_ENDPOINT)
                         onModelNameChange(ApiPreferences.DEFAULT_MODEL_NAME)
 
                         onUseDefault()
-                        showCustomFields = false
                     } else {
                         onError("今日免费次数已用完")
                     }
@@ -201,11 +186,8 @@ fun ConfigurationScreen(
                         if (hasEnteredToken) {
                             // 如果用户已输入token，直接保存配置
                             onApiKeyChange(apiKeyInput)
-                            if (!showCustomFields) {
-                                // 如果没有显示自定义字段，使用默认端点和模型
-                                onApiEndpointChange(ApiPreferences.DEFAULT_API_ENDPOINT)
-                                onModelNameChange(ApiPreferences.DEFAULT_MODEL_NAME)
-                            }
+                            onApiEndpointChange(ApiPreferences.DEFAULT_API_ENDPOINT)
+                            onModelNameChange(ApiPreferences.DEFAULT_MODEL_NAME)
                             onSaveConfig()
                         } else {
                             // 否则显示获取token的对话框
@@ -280,7 +262,7 @@ fun ConfigurationScreen(
 
                 // 右侧 - 自定义
                 TextButton(
-                        onClick = { showCustomFields = !showCustomFields },
+                        onClick = { onNavigateToSettings() },
                         modifier = Modifier.weight(1f)
                 ) {
                     Text(
@@ -292,162 +274,17 @@ fun ConfigurationScreen(
                 }
             }
 
-            // 自定义配置区域 - 保持简洁
-            AnimatedVisibility(visible = showCustomFields) {
-                Column(
-                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Divider(
-                            modifier = Modifier.padding(bottom = 16.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                    )
-
-                    // API接口地址
-                    OutlinedTextField(
-                            value = apiEndpointInput,
-                            onValueChange = {
-                                apiEndpointInput = it
-                                onApiEndpointChange(it)
-
-                                if (it.isNotBlank() && !ModelEndPointFix.containsCompletionsPath(it)
-                                ) {
-                                    endpointWarningMessage = "提示：应包含补全路径，如v1/chat/completions"
-                                    showEndpointWarning = true
-
-                                    coroutineScope.launch {
-                                        delay(5000)
-                                        showEndpointWarning = false
-                                    }
-                                } else {
-                                    showEndpointWarning = false
-                                }
-                            },
-                            label = { Text("API接口地址", fontSize = 12.sp) },
-                            placeholder = { Text("API地址应包含补全路径", fontSize = 12.sp) },
-                            leadingIcon = {
-                                Icon(
-                                        imageVector = Icons.Default.Public,
-                                        contentDescription = "API接口地址",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(16.dp)
-                                )
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(6.dp),
-                            colors =
-                                    OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                            unfocusedBorderColor =
-                                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)
-                                    ),
-                            textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
-                            singleLine = true
-                    )
-
-                    if (showEndpointWarning && endpointWarningMessage != null) {
-                        Text(
-                                text = endpointWarningMessage!!,
-                                style = MaterialTheme.typography.bodySmall,
-                                color =
-                                        if (endpointWarningMessage?.startsWith("警告") == true)
-                                                MaterialTheme.colorScheme.error
-                                        else MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(bottom = 6.dp).fillMaxWidth(),
-                                fontSize = 10.sp
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // 模型名称
-                    OutlinedTextField(
-                            value = modelNameInput,
-                            onValueChange = {
-                                if (!isUsingDefaultApiKey) {
-                                    modelNameInput = it
-                                    onModelNameChange(it)
-                                }
-                            },
-                            label = { Text("模型名称", fontSize = 12.sp) },
-                            placeholder = { Text("例如：deepseek-chat", fontSize = 12.sp) },
-                            leadingIcon = {
-                                Icon(
-                                        imageVector = Icons.Default.SmartToy,
-                                        contentDescription = "模型名称",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(16.dp)
-                                )
-                            },
-                            enabled = !isUsingDefaultApiKey,
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(6.dp),
-                            colors =
-                                    OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                            unfocusedBorderColor =
-                                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)
-                                    ),
-                            textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
-                            singleLine = true
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // 保存按钮
-                    Button(
-                            onClick = {
-                                if (apiEndpointInput.isNotBlank() &&
-                                                (apiKeyInput.isNotBlank() || isUsingDefault) &&
-                                                modelNameInput.isNotBlank()
-                                ) {
-                                    // 检查端点格式
-                                    if (!ModelEndPointFix.containsCompletionsPath(apiEndpointInput)
-                                    ) {
-                                        endpointWarningMessage = "警告：API地址不包含补全路径"
-                                        showEndpointWarning = true
-                                        coroutineScope.launch {
-                                            delay(5000)
-                                            showEndpointWarning = false
-                                        }
-                                    }
-
-                                    // 保存API密钥
-                                    if (apiKeyInput.isNotBlank() || !isUsingDefault) {
-                                        onApiKeyChange(apiKeyInput)
-                                    }
-
-                                    // 保存配置
-                                    onSaveConfig()
-                                } else {
-                                    onError("请完成所有配置项")
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth().height(40.dp),
-                            shape = RoundedCornerShape(6.dp)
-                    ) { 
-                        Text(
-                            "保存并开始使用", 
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 14.sp
-                        ) 
-                    }
-                }
-            }
-
             Spacer(modifier = Modifier.height(4.dp))
 
             // 极简底部提示
-            if (!showCustomFields) {
-                Text(
-                        text = "自己的token更加稳定，薅作者的用多了作者会破产，软件就没有更新了",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(top = 4.dp),
-                        fontSize = 10.sp
-                )
-            }
+            Text(
+                    text = "自己的token更加稳定，薅作者的用多了作者会破产，软件就没有更新了",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 4.dp),
+                    fontSize = 10.sp
+            )
         }
     }
 }

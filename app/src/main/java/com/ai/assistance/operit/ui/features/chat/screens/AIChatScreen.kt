@@ -49,13 +49,20 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AIChatScreen(
-        onNavigateToTokenConfig: () -> Unit = {} // 添加导航到Token配置页面的回调
+        padding: PaddingValues,
+        viewModel: ChatViewModel? = null,
+        isFloatingMode: Boolean = false,
+        onLoading: (Boolean) -> Unit = {},
+        onError: (String) -> Unit = {},
+        hasBackgroundImage: Boolean = false,
+        onNavigateToTokenConfig: () -> Unit = {}, // 添加导航到Token配置页面的回调
+        onNavigateToSettings: () -> Unit = {} // 添加导航到Settings页面的回调
 ) {
         val context = LocalContext.current
 
         // Initialize ViewModel without using viewModel() function
         val factory = ChatViewModelFactory(context)
-        val viewModel = remember { factory.create(ChatViewModel::class.java) }
+        val actualViewModel = viewModel ?: remember { factory.create(ChatViewModel::class.java) }
 
         // Get background image state
         val preferencesManager = remember { UserPreferencesManager(context) }
@@ -71,27 +78,27 @@ fun AIChatScreen(
         val editingMessageContent = remember { mutableStateOf("") }
 
         // Collect state from ViewModel
-        val apiKey by viewModel.apiKey.collectAsState()
-        val apiEndpoint by viewModel.apiEndpoint.collectAsState()
-        val modelName by viewModel.modelName.collectAsState()
-        val isConfigured by viewModel.isConfigured.collectAsState()
-        val chatHistory by viewModel.chatHistory.collectAsState()
-        val userMessage by viewModel.userMessage.collectAsState()
-        val isLoading by viewModel.isLoading.collectAsState()
-        val errorMessage by viewModel.errorMessage.collectAsState()
-        val toolProgress by viewModel.toolProgress.collectAsState()
-        val isProcessingInput by viewModel.isProcessingInput.collectAsState()
-        val inputProcessingMessage by viewModel.inputProcessingMessage.collectAsState()
-        val planItems by viewModel.planItems.collectAsState()
-        val enableAiPlanning by viewModel.enableAiPlanning.collectAsState()
-        val showChatHistorySelector by viewModel.showChatHistorySelector.collectAsState()
-        val chatHistories by viewModel.chatHistories.collectAsState()
-        val currentChatId by viewModel.currentChatId.collectAsState()
-        val popupMessage by viewModel.popupMessage.collectAsState()
-        val attachments by viewModel.attachments.collectAsState()
+        val apiKey by actualViewModel.apiKey.collectAsState()
+        val apiEndpoint by actualViewModel.apiEndpoint.collectAsState()
+        val modelName by actualViewModel.modelName.collectAsState()
+        val isConfigured by actualViewModel.isConfigured.collectAsState()
+        val chatHistory by actualViewModel.chatHistory.collectAsState()
+        val userMessage by actualViewModel.userMessage.collectAsState()
+        val isLoading by actualViewModel.isLoading.collectAsState()
+        val errorMessage by actualViewModel.errorMessage.collectAsState()
+        val toolProgress by actualViewModel.toolProgress.collectAsState()
+        val isProcessingInput by actualViewModel.isProcessingInput.collectAsState()
+        val inputProcessingMessage by actualViewModel.inputProcessingMessage.collectAsState()
+        val planItems by actualViewModel.planItems.collectAsState()
+        val enableAiPlanning by actualViewModel.enableAiPlanning.collectAsState()
+        val showChatHistorySelector by actualViewModel.showChatHistorySelector.collectAsState()
+        val chatHistories by actualViewModel.chatHistories.collectAsState()
+        val currentChatId by actualViewModel.currentChatId.collectAsState()
+        val popupMessage by actualViewModel.popupMessage.collectAsState()
+        val attachments by actualViewModel.attachments.collectAsState()
 
         // Floating window mode state
-        val isFloatingMode by viewModel.isFloatingMode.collectAsState()
+        val isFloatingMode by actualViewModel.isFloatingMode.collectAsState()
         val canDrawOverlays = remember { mutableStateOf(Settings.canDrawOverlays(context)) }
 
         // UI state
@@ -230,10 +237,10 @@ fun AIChatScreen(
                                 )
 
                                 // Update the messages in the service when chatHistory changes
-                                viewModel.updateFloatingWindowMessages(filteredMessages)
+                                actualViewModel.updateFloatingWindowMessages(filteredMessages)
                         } catch (e: Exception) {
                                 Log.e("AIChatScreen", "Error starting floating service", e)
-                                viewModel.toggleFloatingMode() // Turn off floating mode if it fails
+                                actualViewModel.toggleFloatingMode() // Turn off floating mode if it fails
                                 android.widget.Toast.makeText(
                                                 context,
                                                 "启动悬浮窗失败，请确保已授予悬浮窗权限",
@@ -252,11 +259,11 @@ fun AIChatScreen(
 
         // 用新的错误弹窗替换原有的错误显示逻辑
         errorMessage?.let { message ->
-                ErrorDialog(errorMessage = message, onDismiss = { viewModel.clearError() })
+                ErrorDialog(errorMessage = message, onDismiss = { actualViewModel.clearError() })
         }
 
         // 处理toast事件 (保留)
-        val toastEvent by viewModel.toastEvent.collectAsState()
+        val toastEvent by actualViewModel.toastEvent.collectAsState()
 
         toastEvent?.let { message ->
                 LaunchedEffect(message) {
@@ -266,7 +273,7 @@ fun AIChatScreen(
                                         android.widget.Toast.LENGTH_SHORT
                                 )
                                 .show()
-                        viewModel.clearToastEvent()
+                        actualViewModel.clearToastEvent()
                 }
         }
 
@@ -280,14 +287,14 @@ fun AIChatScreen(
         // Add overflow menu items
         val overflowMenuItems =
                 listOf(
-                        Triple("切换思考显示", "toggle_thinking") { viewModel.toggleShowThinking() },
+                        Triple("切换思考显示", "toggle_thinking") { actualViewModel.toggleShowThinking() },
                         Triple("切换记忆优化", "toggle_memory_optimization") {
-                                viewModel.toggleMemoryOptimization()
+                                actualViewModel.toggleMemoryOptimization()
                         },
-                        Triple("切换AI计划模式", "toggle_ai_planning") { viewModel.toggleAiPlanning() },
-                        Triple("清空聊天记录", "clear_chat") { viewModel.clearCurrentChat() },
+                        Triple("切换AI计划模式", "toggle_ai_planning") { actualViewModel.toggleAiPlanning() },
+                        Triple("清空聊天记录", "clear_chat") { actualViewModel.clearCurrentChat() },
                         Triple("管理历史记录", "manage_history") {
-                                viewModel.showChatHistorySelector(true)
+                                actualViewModel.showChatHistorySelector(true)
                         }
                 )
 
@@ -331,10 +338,10 @@ fun AIChatScreen(
                                                 verticalAlignment = Alignment.CenterVertically
                                         ) {
                                                 val memoryOptimization by
-                                                        viewModel.memoryOptimization
+                                                        actualViewModel.memoryOptimization
                                                                 .collectAsState()
                                                 val masterPermissionLevel by
-                                                        viewModel.masterPermissionLevel
+                                                        actualViewModel.masterPermissionLevel
                                                                 .collectAsState()
 
                                                 // 自动批准开关 - 左侧第一个开关
@@ -367,7 +374,7 @@ fun AIChatScreen(
                                                                                 vertical = 2.dp
                                                                         )
                                                                         .clickable {
-                                                                                viewModel
+                                                                                actualViewModel
                                                                                         .toggleMasterPermission()
                                                                         },
                                                         verticalAlignment =
@@ -450,7 +457,7 @@ fun AIChatScreen(
                                                                                 vertical = 2.dp
                                                                         )
                                                                         .clickable {
-                                                                                viewModel
+                                                                                actualViewModel
                                                                                         .toggleAiPlanning()
                                                                         },
                                                         verticalAlignment =
@@ -501,11 +508,11 @@ fun AIChatScreen(
                                         ChatInputSection(
                                                 userMessage = userMessage,
                                                 onUserMessageChange = {
-                                                        viewModel.updateUserMessage(it)
+                                                        actualViewModel.updateUserMessage(it)
                                                 },
-                                                onSendMessage = { viewModel.sendUserMessage() },
+                                                onSendMessage = { actualViewModel.sendUserMessage() },
                                                 onCancelMessage = {
-                                                        viewModel.cancelCurrentMessage()
+                                                        actualViewModel.cancelCurrentMessage()
                                                 },
                                                 isLoading = isLoading,
                                                 isProcessingInput = isProcessingInput,
@@ -513,34 +520,34 @@ fun AIChatScreen(
                                                 allowTextInputWhileProcessing = true,
                                                 onAttachmentRequest = { filePath ->
                                                         // 处理附件 - 现在使用文件路径而不是Uri
-                                                        viewModel.handleAttachment(filePath)
+                                                        actualViewModel.handleAttachment(filePath)
                                                 },
                                                 attachments = attachments,
                                                 onRemoveAttachment = { filePath ->
                                                         // 删除附件 - 现在使用文件路径而不是Uri
-                                                        viewModel.removeAttachment(filePath)
+                                                        actualViewModel.removeAttachment(filePath)
                                                 },
                                                 onInsertAttachment = { attachment: AttachmentInfo ->
                                                         // 在光标位置插入附件引用
-                                                        viewModel.insertAttachmentReference(
+                                                        actualViewModel.insertAttachmentReference(
                                                                 attachment
                                                         )
                                                 },
                                                 onAttachScreenContent = {
                                                         // 添加屏幕内容附件
-                                                        viewModel.captureScreenContent()
+                                                        actualViewModel.captureScreenContent()
                                                 },
                                                 onAttachNotifications = {
                                                         // 添加当前通知附件
-                                                        viewModel.captureNotifications()
+                                                        actualViewModel.captureNotifications()
                                                 },
                                                 onAttachLocation = {
                                                         // 添加当前位置附件
-                                                        viewModel.captureLocation()
+                                                        actualViewModel.captureLocation()
                                                 },
                                                 onAttachProblemMemory = { content, filename ->
                                                         // 添加问题记忆附件
-                                                        viewModel.attachProblemMemory(
+                                                        actualViewModel.attachProblemMemory(
                                                                 content,
                                                                 filename
                                                         )
@@ -567,19 +574,19 @@ fun AIChatScreen(
                                 apiEndpoint = apiEndpoint,
                                 apiKey = apiKey,
                                 modelName = modelName,
-                                onApiEndpointChange = { viewModel.updateApiEndpoint(it) },
-                                onApiKeyChange = { viewModel.updateApiKey(it) },
-                                onModelNameChange = { viewModel.updateModelName(it) },
+                                onApiEndpointChange = { actualViewModel.updateApiEndpoint(it) },
+                                onApiKeyChange = { actualViewModel.updateApiKey(it) },
+                                onModelNameChange = { actualViewModel.updateModelName(it) },
                                 onSaveConfig = {
-                                        viewModel.saveApiSettings()
+                                        actualViewModel.saveApiSettings()
                                         // 保存配置后导航到聊天界面
                                         ConfigurationStateHolder.hasConfirmedDefaultInSession = true
                                 },
-                                onError = { error -> viewModel.showErrorMessage(error) },
+                                onError = { error -> actualViewModel.showErrorMessage(error) },
                                 coroutineScope = coroutineScope,
                                 // 新增：使用默认配置的回调
                                 onUseDefault = {
-                                        viewModel.useDefaultConfig()
+                                        actualViewModel.useDefaultConfig()
                                         // 确认使用默认配置后导航到聊天界面
                                         ConfigurationStateHolder.hasConfirmedDefaultInSession = true
                                 },
@@ -588,12 +595,14 @@ fun AIChatScreen(
                                 // 添加导航到聊天界面的回调
                                 onNavigateToChat = {
                                         // 当用户设置了自己的配置后保存
-                                        viewModel.saveApiSettings()
+                                        actualViewModel.saveApiSettings()
                                         // 确认后导航到聊天界面
                                         ConfigurationStateHolder.hasConfirmedDefaultInSession = true
                                 },
                                 // 添加导航到Token配置页面的回调
-                                onNavigateToTokenConfig = onNavigateToTokenConfig
+                                onNavigateToTokenConfig = onNavigateToTokenConfig,
+                                // 添加导航到Settings页面的回调
+                                onNavigateToSettings = onNavigateToSettings
                         )
                 } else {
                         // Chat screen
@@ -640,7 +649,7 @@ fun AIChatScreen(
                                                                         showChatHistorySelector =
                                                                                 showChatHistorySelector,
                                                                         onToggleChatHistorySelector = {
-                                                                                viewModel
+                                                                                actualViewModel
                                                                                         .toggleChatHistorySelector()
                                                                         },
                                                                         currentChatTitle =
@@ -689,12 +698,12 @@ fun AIChatScreen(
                                                                                         // Toggle
                                                                                         // floating
                                                                                         // mode
-                                                                                        viewModel
+                                                                                        actualViewModel
                                                                                                 .toggleFloatingMode()
 
                                                                                         // 根据当前悬浮窗状态显示不同的提示
                                                                                         val isFloating =
-                                                                                                viewModel
+                                                                                                actualViewModel
                                                                                                         .isFloatingMode
                                                                                                         .value
                                                                                         val message =
@@ -797,13 +806,13 @@ fun AIChatScreen(
 
                                                         // 右侧：统计信息
                                                         val contextWindowSize by
-                                                                viewModel.contextWindowSize
+                                                                actualViewModel.contextWindowSize
                                                                         .collectAsState()
                                                         val inputTokenCount by
-                                                                viewModel.inputTokenCount
+                                                                actualViewModel.inputTokenCount
                                                                         .collectAsState()
                                                         val outputTokenCount by
-                                                                viewModel.outputTokenCount
+                                                                actualViewModel.outputTokenCount
                                                                         .collectAsState()
 
                                                         Row(
@@ -1143,7 +1152,7 @@ fun AIChatScreen(
                                                                                                                                                 editingMessageContent
                                                                                                                                                         .value
                                                                                                                                 )
-                                                                                                                viewModel
+                                                                                                                actualViewModel
                                                                                                                         .updateMessage(
                                                                                                                                 index,
                                                                                                                                 editedMessage
@@ -1202,7 +1211,7 @@ fun AIChatScreen(
                                                                                                                                 chatHistory
                                                                                                                                         .size
                                                                                                         ) {
-                                                                                                                viewModel
+                                                                                                                actualViewModel
                                                                                                                         .rewindAndResendMessage(
                                                                                                                                 index,
                                                                                                                                 editingMessageContent
@@ -1344,7 +1353,7 @@ fun AIChatScreen(
                                                         modifier =
                                                                 Modifier.fillMaxSize()
                                                                         .clickable {
-                                                                                viewModel
+                                                                                actualViewModel
                                                                                         .toggleChatHistorySelector()
                                                                         }
                                                                         .background(
@@ -1385,23 +1394,23 @@ fun AIChatScreen(
                                                                                         top = 8.dp
                                                                                 ),
                                                                 onNewChat = {
-                                                                        viewModel.createNewChat()
+                                                                        actualViewModel.createNewChat()
                                                                         // 创建新对话后自动收起侧边框
-                                                                        viewModel
+                                                                        actualViewModel
                                                                                 .showChatHistorySelector(
                                                                                         false
                                                                                 )
                                                                 },
                                                                 onSelectChat = { chatId ->
-                                                                        viewModel.switchChat(chatId)
+                                                                        actualViewModel.switchChat(chatId)
                                                                         // 切换聊天后也自动收起侧边框
-                                                                        viewModel
+                                                                        actualViewModel
                                                                                 .showChatHistorySelector(
                                                                                         false
                                                                                 )
                                                                 },
                                                                 onDeleteChat = { chatId ->
-                                                                        viewModel.deleteChatHistory(
+                                                                        actualViewModel.deleteChatHistory(
                                                                                 chatId
                                                                         )
                                                                 },
@@ -1416,7 +1425,7 @@ fun AIChatScreen(
                                                         // 在右侧添加浮动返回按钮
                                                         OutlinedButton(
                                                                 onClick = {
-                                                                        viewModel
+                                                                        actualViewModel
                                                                                 .toggleChatHistorySelector()
                                                                 },
                                                                 modifier =
@@ -1492,11 +1501,11 @@ fun AIChatScreen(
         // Show popup message dialog when needed
         popupMessage?.let { message ->
                 AlertDialog(
-                        onDismissRequest = { viewModel.clearPopupMessage() },
+                        onDismissRequest = { actualViewModel.clearPopupMessage() },
                         title = { Text("提示") },
                         text = { Text(message) },
                         confirmButton = {
-                                TextButton(onClick = { viewModel.clearPopupMessage() }) {
+                                TextButton(onClick = { actualViewModel.clearPopupMessage() }) {
                                         Text("确定")
                                 }
                         }
@@ -1509,7 +1518,7 @@ fun AIChatScreen(
 
                 // If floating mode is on but no permission, turn it off
                 if (isFloatingMode && !canDrawOverlays.value) {
-                        viewModel.toggleFloatingMode()
+                        actualViewModel.toggleFloatingMode()
                         android.widget.Toast.makeText(
                                         context,
                                         "未获得悬浮窗权限，已关闭悬浮窗模式",

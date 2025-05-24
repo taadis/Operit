@@ -62,6 +62,7 @@ import com.ai.assistance.operit.ui.features.toolbox.screens.UIDebuggerToolScreen
 import com.ai.assistance.operit.ui.main.screens.Screen
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.layout.PaddingValues
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,7 +79,9 @@ fun AppContent(
         onScreenChange: (Screen) -> Unit,
         onNavItemChange: (NavItem) -> Unit,
         onToggleSidebar: () -> Unit,
-        navigateToTokenConfig: () -> Unit
+        navigateToTokenConfig: () -> Unit,
+        onLoading: (Boolean) -> Unit = {},
+        onError: (String) -> Unit = {}
 ) {
     // Get background image state
     val context = LocalContext.current
@@ -341,7 +344,19 @@ fun AppContent(
                             UIDebuggerToolScreen(navController = navController)
                         }
                         is Screen.AiChat ->
-                                AIChatScreen(onNavigateToTokenConfig = navigateToTokenConfig)
+                                AIChatScreen(
+                                    padding = PaddingValues(0.dp),
+                                    viewModel = null,
+                                    isFloatingMode = false,
+                                    hasBackgroundImage = hasBackgroundImage,
+                                    onNavigateToTokenConfig = navigateToTokenConfig,
+                                    onNavigateToSettings = { 
+                                        onScreenChange(Screen.Settings)
+                                        onNavItemChange(NavItem.Settings)
+                                    },
+                                    onLoading = onLoading,
+                                    onError = onError
+                                )
                         is Screen.ShizukuCommands -> ShizukuDemoScreen()
                         is Screen.Toolbox -> {
                             // 工具箱页面
