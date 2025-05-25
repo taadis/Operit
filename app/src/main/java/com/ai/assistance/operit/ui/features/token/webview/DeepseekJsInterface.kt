@@ -3,14 +3,12 @@ package com.ai.assistance.operit.ui.features.token.webview
 import android.util.Log
 import android.webkit.JavascriptInterface
 
-/**
- * JavaScript接口，用于从WebView中接收回调
- */
+/** JavaScript接口，用于从WebView中接收回调 */
 class DeepseekJsInterface(
-    private val onKeysReceived: (String) -> Unit,
-    private val onKeyCreated: (String) -> Unit,
-    private val onKeyDeleted: (Boolean) -> Unit,
-    private val onError: (String) -> Unit
+        private val onKeysReceived: (String) -> Unit,
+        private val onKeyCreated: (String) -> Unit,
+        private val onKeyDeleted: (Boolean) -> Unit,
+        private val onError: (String) -> Unit
 ) {
     private val TAG = "DeepseekJsInterface"
 

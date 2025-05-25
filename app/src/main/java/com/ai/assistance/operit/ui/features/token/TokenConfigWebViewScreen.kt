@@ -51,9 +51,7 @@ import com.ai.assistance.operit.ui.features.token.network.DeepseekApiConstants
 import com.ai.assistance.operit.ui.features.token.webview.WebViewConfig
 import kotlinx.coroutines.launch
 
-/**
- * Deepseek Token配置屏幕
- */
+/** Deepseek Token配置屏幕 */
 @Composable
 fun TokenConfigWebViewScreen(onNavigateBack: () -> Unit) {
     val context = LocalContext.current
@@ -68,31 +66,54 @@ fun TokenConfigWebViewScreen(onNavigateBack: () -> Unit) {
     // 创建WebView实例
     val webView = remember { WebViewConfig.createWebView(context) }
 
+    // 添加JavaScript接口以允许WebView直接调用原生功能
+    DisposableEffect(webView) {
+        // 添加JavaScript接口来辅助处理外部应用链接
+        webView.addJavascriptInterface(object {
+            @android.webkit.JavascriptInterface
+            fun openExternalApp(url: String) {
+                scope.launch {
+                    try {
+                        val uri = android.net.Uri.parse(url)
+                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
+                        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        Log.e("TokenConfigWebView", "无法通过JS接口打开外部应用: ${e.message}")
+                    }
+                }
+            }
+        }, "Android")
+        
+        onDispose {}
+    }
+
     // 导航链接
     data class NavDestination(val title: String, val url: String, val icon: ImageVector)
 
-    val navDestinations = listOf(
-        NavDestination(
-            "API 密钥",
-            DeepseekApiConstants.DEEPSEEK_API_KEYS_URL,
-            Icons.Default.Key
-        ),
-        NavDestination(
-            "用量",
-            DeepseekApiConstants.DEEPSEEK_USAGE_URL,
-            Icons.Default.Dashboard
-        ),
-        NavDestination(
-            "充值",
-            "https://platform.deepseek.com/top_up",
-            Icons.Default.CreditCard
-        ),
-        NavDestination(
-            "个人资料",
-            "https://platform.deepseek.com/profile",
-            Icons.Default.Person
-        )
-    )
+    val navDestinations =
+            listOf(
+                    NavDestination(
+                            "API 密钥",
+                            DeepseekApiConstants.DEEPSEEK_API_KEYS_URL,
+                            Icons.Default.Key
+                    ),
+                    NavDestination(
+                            "用量",
+                            DeepseekApiConstants.DEEPSEEK_USAGE_URL,
+                            Icons.Default.Dashboard
+                    ),
+                    NavDestination(
+                            "充值",
+                            "https://platform.deepseek.com/top_up",
+                            Icons.Default.CreditCard
+                    ),
+                    NavDestination(
+                            "个人资料",
+                            "https://platform.deepseek.com/profile",
+                            Icons.Default.Person
+                    )
+            )
 
     // 导航到指定URL
     fun navigateTo(url: String, index: Int) {
@@ -104,6 +125,7 @@ fun TokenConfigWebViewScreen(onNavigateBack: () -> Unit) {
     // 创建WebViewClient
     val webViewClient = remember {
         object : WebViewClient() {
+            // 处理URL加载
             override fun shouldOverrideUrlLoading(
                     view: WebView?,
                     request: WebResourceRequest?
@@ -112,8 +134,13 @@ fun TokenConfigWebViewScreen(onNavigateBack: () -> Unit) {
                     val url = uri.toString()
                     
                     // 检查是否是需要外部应用处理的URL scheme
-                    if (url.startsWith("alipay:") || url.startsWith("weixin:") || 
-                        url.startsWith("alipays:") || !url.startsWith("http")) {
+                    if (url.startsWith("alipays:") || 
+                        url.startsWith("alipay:") || 
+                        url.startsWith("weixin:") ||
+                        url.startsWith("weixins:") ||
+                        url.contains("platformapi") ||
+                        !url.startsWith("http")) {
+                        
                         try {
                             val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
                             intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -121,11 +148,61 @@ fun TokenConfigWebViewScreen(onNavigateBack: () -> Unit) {
                             return true
                         } catch (e: Exception) {
                             Log.e("TokenConfigWebView", "无法打开外部应用: ${e.message}")
-                            return false
+                        }
+                    }
+                    
+                    // 如果是标准http/https链接，可能是需要在外部浏览器打开的链接
+                    if ((url.startsWith("http://") || url.startsWith("https://")) &&
+                        (url.contains("pay") || url.contains("bank") || url.contains("login"))) {
+                        // 可能是支付或登录页面，尝试在外部浏览器打开
+                        try {
+                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
+                            context.startActivity(intent)
+                            return true
+                        } catch (e: Exception) {
+                            Log.e("TokenConfigWebView", "无法在浏览器中打开: ${e.message}")
                         }
                     }
                 }
-                // 允许WebView内的导航
+                // 其他情况由WebView自行处理
+                return false
+            }
+
+            // 处理旧版本Android
+            @Suppress("DEPRECATION")
+            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                url?.let {
+                    val uri = android.net.Uri.parse(it)
+                    if (it.startsWith("alipays:") || 
+                        it.startsWith("alipay:") || 
+                        it.startsWith("weixin:") ||
+                        it.startsWith("weixins:") ||
+                        it.contains("platformapi") ||
+                        !it.startsWith("http")) {
+                        
+                        try {
+                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
+                            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(intent)
+                            return true
+                        } catch (e: Exception) {
+                            Log.e("TokenConfigWebView", "无法打开外部应用: ${e.message}")
+                        }
+                    }
+                    
+                    // 如果是标准http/https链接，可能是需要在外部浏览器打开的链接
+                    if ((it.startsWith("http://") || it.startsWith("https://")) &&
+                        (it.contains("pay") || it.contains("bank") || it.contains("login"))) {
+                        // 可能是支付或登录页面，尝试在外部浏览器打开
+                        try {
+                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
+                            context.startActivity(intent)
+                            return true
+                        } catch (e: Exception) {
+                            Log.e("TokenConfigWebView", "无法在浏览器中打开: ${e.message}")
+                        }
+                    }
+                }
                 return false
             }
 
@@ -204,6 +281,83 @@ fun TokenConfigWebViewScreen(onNavigateBack: () -> Unit) {
     // 将WebViewClient应用到WebView
     DisposableEffect(webView) {
         webView.webViewClient = webViewClient
+        
+        // 添加WebChromeClient以处理新窗口请求
+        webView.webChromeClient = object : android.webkit.WebChromeClient() {
+            // 处理window.open
+            override fun onCreateWindow(view: WebView?, isDialog: Boolean, isUserGesture: Boolean, resultMsg: android.os.Message?): Boolean {
+                if (isUserGesture) {
+                    // 获取新窗口的WebView
+                    val transport = resultMsg?.obj as? android.webkit.WebView.WebViewTransport
+                    val newWebView = WebView(context)
+                    
+                    // 为新窗口设置WebViewClient
+                    newWebView.webViewClient = object : WebViewClient() {
+                        override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                            request?.url?.let { uri ->
+                                val url = uri.toString()
+                                // 尝试在外部打开所有链接
+                                try {
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
+                                    intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    context.startActivity(intent)
+                                    return true
+                                } catch (e: Exception) {
+                                    Log.e("TokenConfigWebView", "无法打开链接: ${e.message}")
+                                }
+                            }
+                            return false
+                        }
+                    }
+                    
+                    transport?.webView = newWebView
+                    resultMsg?.sendToTarget()
+                    return true
+                }
+                return false
+            }
+        }
+        
+        // 添加JavaScript代码来捕获链接
+        webView.evaluateJavascript("""
+            (function() {
+                // 监听所有点击事件
+                document.addEventListener('click', function(e) {
+                    var target = e.target;
+                    // 向上查找链接元素
+                    while(target && target.tagName !== 'A') {
+                        target = target.parentNode;
+                    }
+                    
+                    if(target && target.tagName === 'A') {
+                        var href = target.href;
+                        // 检测支付链接
+                        if(href && (
+                            href.startsWith('alipay:') || 
+                            href.startsWith('alipays:') || 
+                            href.indexOf('platformapi') > -1 ||
+                            href.indexOf('pay') > -1 ||
+                            href.indexOf('bank') > -1 ||
+                            target.getAttribute('target') === '_blank'
+                        )) {
+                            e.preventDefault();
+                            Android.openExternalApp(href);
+                            return false;
+                        }
+                    }
+                }, true);
+                
+                // 拦截window.open
+                var originalOpen = window.open;
+                window.open = function(url) {
+                    if(url) {
+                        Android.openExternalApp(url);
+                        return null;
+                    }
+                    return originalOpen.apply(this, arguments);
+                };
+            })();
+        """, null)
 
         // 加载初始URL
         webView.loadUrl(DeepseekApiConstants.DEEPSEEK_SIGNIN_URL)
@@ -285,10 +439,10 @@ fun TokenConfigWebViewScreen(onNavigateBack: () -> Unit) {
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             // 确保WebView始终占满整个屏幕宽度，使用更简洁的指针拦截方法
             AndroidView(
-                factory = { webView }, 
-                modifier = Modifier.fillMaxSize()
-                // 移除指针拦截，因为我们已经在WebView自身设置了更可靠的触摸事件处理
-            )            // 加载指示器
+                    factory = { webView },
+                    modifier = Modifier.fillMaxSize()
+                    // 移除指针拦截，因为我们已经在WebView自身设置了更可靠的触摸事件处理
+                    ) // 加载指示器
             if (isLoading) {
                 LinearProgressIndicator(
                         modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth(),
