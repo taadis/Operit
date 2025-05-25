@@ -21,18 +21,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
-/**
- * 合并所有Termux相关操作的工具类，包含权限管理、配置和授权功能
- */
+/** 合并所有Termux相关操作的工具类，包含权限管理、配置和授权功能 */
 object TermuxDemoUtil {
 
     private const val TAG = "TermuxDemoUtil"
     private const val TERMUX_CONFIG_PREFS = "termux_config_preferences"
     private const val KEY_TERMUX_FULLY_CONFIGURED = "termux_fully_configured"
 
-    //=========================================================================================
+    // =========================================================================================
     // Termux配置持久化相关 (原TermuxConfigUtils.kt)
-    //=========================================================================================
+    // =========================================================================================
 
     /**
      * 保存Termux配置状态到持久化存储
@@ -60,72 +58,70 @@ object TermuxDemoUtil {
         return status
     }
 
-    //=========================================================================================
+    // =========================================================================================
     // 权限和状态管理相关 (原PermissionHelper.kt)
-    //=========================================================================================
+    // =========================================================================================
 
-    /**
-     * 刷新应用权限和组件状态
-     */
+    /** 刷新应用权限和组件状态 */
     fun refreshPermissionsAndStatus(
-        context: Context,
-        updateShizukuInstalled: (Boolean) -> Unit,
-        updateShizukuRunning: (Boolean) -> Unit,
-        updateShizukuPermission: (Boolean) -> Unit,
-        updateTermuxInstalled: (Boolean) -> Unit,
-        updateTermuxRunning: (Boolean) -> Unit,
-        updateStoragePermission: (Boolean) -> Unit,
-        updateLocationPermission: (Boolean) -> Unit,
-        updateOverlayPermission: (Boolean) -> Unit,
-        updateBatteryOptimizationExemption: (Boolean) -> Unit,
-        updateAccessibilityServiceEnabled: (Boolean) -> Unit
+            context: Context,
+            updateShizukuInstalled: (Boolean) -> Unit,
+            updateShizukuRunning: (Boolean) -> Unit,
+            updateShizukuPermission: (Boolean) -> Unit,
+            updateTermuxInstalled: (Boolean) -> Unit,
+            updateTermuxRunning: (Boolean) -> Unit,
+            updateStoragePermission: (Boolean) -> Unit,
+            updateLocationPermission: (Boolean) -> Unit,
+            updateOverlayPermission: (Boolean) -> Unit,
+            updateBatteryOptimizationExemption: (Boolean) -> Unit,
+            updateAccessibilityServiceEnabled: (Boolean) -> Unit
     ) {
         Log.d(TAG, "刷新应用权限状态...")
 
-        // 检查Shizuku安装、运行和权限状态
+        // 检查Shizuku安装、运行和权限状态 - 保留这部分，但Termux操作不再依赖它们
         val isShizukuInstalled = ShizukuAuthorizer.isShizukuInstalled(context)
         val isShizukuRunning = ShizukuAuthorizer.isShizukuServiceRunning()
         updateShizukuInstalled(isShizukuInstalled)
         updateShizukuRunning(isShizukuRunning)
 
-        // 更明确地检查 moe.shizuku.manager.permission.API_V23 权限
+        // Shizuku权限检查，但不再影响Termux功能
         val hasShizukuPermission =
-            if (isShizukuInstalled && isShizukuRunning) {
-                ShizukuAuthorizer.hasShizukuPermission()
-            } else {
-                false
-            }
+                if (isShizukuInstalled && isShizukuRunning) {
+                    ShizukuAuthorizer.hasShizukuPermission()
+                } else {
+                    false
+                }
         updateShizukuPermission(hasShizukuPermission)
 
-        // 检查Termux是否安装
+        // 检查Termux是否安装 - 独立于Shizuku
         val isTermuxInstalled = TermuxInstaller.isTermuxInstalled(context)
         updateTermuxInstalled(isTermuxInstalled)
 
-        // 检查Termux是否在运行
+        // 检查Termux是否在运行 - 独立于Shizuku
         val isTermuxRunning = checkTermuxRunning(context)
         updateTermuxRunning(isTermuxRunning)
 
         // 检查存储权限
         val hasStoragePermission =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                Environment.isExternalStorageManager()
-            } else {
-                context.checkSelfPermission(
-                    android.Manifest.permission.READ_EXTERNAL_STORAGE
-                ) == android.content.pm.PackageManager.PERMISSION_GRANTED &&
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    Environment.isExternalStorageManager()
+                } else {
                     context.checkSelfPermission(
-                        android.Manifest.permission.WRITE_EXTERNAL_STORAGE
-                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-            }
+                            android.Manifest.permission.READ_EXTERNAL_STORAGE
+                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED &&
+                            context.checkSelfPermission(
+                                    android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+                            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                }
         updateStoragePermission(hasStoragePermission)
 
         // 检查位置权限
         val hasLocationPermission =
-            context.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) ==
-                android.content.pm.PackageManager.PERMISSION_GRANTED ||
-                context.checkSelfPermission(
-                    android.Manifest.permission.ACCESS_COARSE_LOCATION
-                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                context.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) ==
+                        android.content.pm.PackageManager.PERMISSION_GRANTED ||
+                        context.checkSelfPermission(
+                                android.Manifest.permission.ACCESS_COARSE_LOCATION
+                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
         updateLocationPermission(hasLocationPermission)
 
         // 检查悬浮窗权限
@@ -133,22 +129,23 @@ object TermuxDemoUtil {
         updateOverlayPermission(hasOverlayPermission)
 
         // 检查电池优化豁免
-        val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
-        val hasBatteryOptimizationExemption = powerManager.isIgnoringBatteryOptimizations(context.packageName)
+        val powerManager =
+                context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+        val hasBatteryOptimizationExemption =
+                powerManager.isIgnoringBatteryOptimizations(context.packageName)
         updateBatteryOptimizationExemption(hasBatteryOptimizationExemption)
 
         // 检查无障碍服务状态
-        val hasAccessibilityServiceEnabled = UIHierarchyManager.isAccessibilityServiceEnabled(context)
+        val hasAccessibilityServiceEnabled =
+                UIHierarchyManager.isAccessibilityServiceEnabled(context)
         updateAccessibilityServiceEnabled(hasAccessibilityServiceEnabled)
     }
 
-    //=========================================================================================
+    // =========================================================================================
     // Termux授权相关 (原TermuxAuthHelper.kt)
-    //=========================================================================================
+    // =========================================================================================
 
-    /**
-     * 启动Termux应用
-     */
+    /** 启动Termux应用 */
     suspend fun startTermux(context: Context, updateTermuxRunning: (Boolean) -> Unit) {
         // 先检查Termux是否运行
         val isRunning = checkTermuxRunning(context)
@@ -172,15 +169,13 @@ object TermuxDemoUtil {
         }
     }
 
-    /**
-     * 授权Termux
-     */
+    /** 授权Termux */
     suspend fun authorizeTermux(
-        context: Context,
-        updateOutputText: (String) -> Unit,
-        updateTermuxAuthorized: (Boolean) -> Unit,
-        updateTermuxRunning: (Boolean) -> Unit,
-        currentOutputText: String
+            context: Context,
+            updateOutputText: (String) -> Unit,
+            updateTermuxAuthorized: (Boolean) -> Unit,
+            updateTermuxRunning: (Boolean) -> Unit,
+            currentOutputText: String
     ): String {
         var outputText = currentOutputText
         outputText = "欢迎使用Termux配置工具\n开始授权Termux..."
@@ -189,11 +184,11 @@ object TermuxDemoUtil {
         // 先检查Termux是否在运行
         val isRunning = checkTermuxRunning(context)
         updateTermuxRunning(isRunning)
-        
+
         if (!isRunning) {
             outputText += "\nTermux未运行，将尝试启动Termux..."
             updateOutputText(outputText)
-            
+
             if (TermuxInstaller.openTermux(context)) {
                 outputText += "\n已启动Termux，请稍等..."
                 updateOutputText(outputText)
@@ -202,7 +197,7 @@ object TermuxDemoUtil {
                 // 再次检查状态
                 val newRunningState = checkTermuxRunning(context)
                 updateTermuxRunning(newRunningState)
-                
+
                 if (!newRunningState) {
                     outputText += "\nTermux似乎未成功启动，请手动启动Termux后再尝试"
                     updateOutputText(outputText)
@@ -220,22 +215,15 @@ object TermuxDemoUtil {
         }
 
         try {
-            // 先检查Shizuku权限
-            if (!ShizukuAuthorizer.hasShizukuPermission()) {
-                outputText += "\n缺少Shizuku API_V23权限，无法执行授权操作"
-                outputText += "\n请先点击Shizuku卡片，完成Shizuku设置和授权"
-                updateOutputText(outputText)
-                delay(3000) // 给用户时间阅读错误信息
-                return outputText
-            }
-
-            // 再检查应用清单中是否声明了RUN_COMMAND权限
-            val packageInfo = context.packageManager.getPackageInfo(
-                context.packageName,
-                PackageManager.GET_PERMISSIONS
-            )
+            // 先检查应用清单中是否声明了RUN_COMMAND权限
+            val packageInfo =
+                    context.packageManager.getPackageInfo(
+                            context.packageName,
+                            PackageManager.GET_PERMISSIONS
+                    )
             val declaredPermissions = packageInfo.requestedPermissions ?: emptyArray()
-            val hasPermissionDeclared = declaredPermissions.any { it == "com.termux.permission.RUN_COMMAND" }
+            val hasPermissionDeclared =
+                    declaredPermissions.any { it == "com.termux.permission.RUN_COMMAND" }
 
             if (!hasPermissionDeclared) {
                 outputText += "\n应用清单中未声明Termux RUN_COMMAND权限"
@@ -248,6 +236,7 @@ object TermuxDemoUtil {
             outputText += "\n开始授予Termux权限..."
             updateOutputText(outputText)
 
+            // 直接授权Termux，无需检查Shizuku权限
             val success = TermuxAuthorizer.grantAllTermuxPermissions(context)
 
             if (success) {
@@ -273,9 +262,8 @@ object TermuxDemoUtil {
                 }
             } else {
                 outputText += "\nTermux授权失败，请确认以下事项:"
-                outputText += "\n1. Shizuku服务是否正常运行"
-                outputText += "\n2. 应用是否在AndroidManifest中声明了com.termux.permission.RUN_COMMAND权限"
-                outputText += "\n3. Termux应用是否已正确安装"
+                outputText += "\n1. 应用是否在AndroidManifest中声明了com.termux.permission.RUN_COMMAND权限"
+                outputText += "\n2. Termux应用是否已正确安装"
                 updateOutputText(outputText)
                 Toast.makeText(context, "授权Termux失败，请检查Termux设置", Toast.LENGTH_SHORT).show()
             }
@@ -284,23 +272,25 @@ object TermuxDemoUtil {
             outputText += "\n授权Termux出错: ${e.message}"
             updateOutputText(outputText)
         }
-        
+
         return outputText
     }
 
-    //=========================================================================================
+    // =========================================================================================
     // Termux配置相关 (原TermuxConfigHelper.kt)
-    //=========================================================================================
+    // =========================================================================================
 
-    /**
-     * 执行Termux命令的辅助函数
-     */
-    suspend fun executeTermuxCommand(context: Context, command: String): AndroidShellExecutor.CommandResult {
-        val result = TermuxCommandExecutor.executeCommand(
-                context = context,
-                command = command,
-                autoAuthorize = true
-        )
+    /** 执行Termux命令的辅助函数 */
+    suspend fun executeTermuxCommand(
+            context: Context,
+            command: String
+    ): AndroidShellExecutor.CommandResult {
+        val result =
+                TermuxCommandExecutor.executeCommand(
+                        context = context,
+                        command = command,
+                        autoAuthorize = true
+                )
 
         // 给命令一些执行时间
         delay(500)
@@ -308,16 +298,12 @@ object TermuxDemoUtil {
         return result
     }
 
-    /**
-     * 检查Termux是否在运行
-     */
+    /** 检查Termux是否在运行 */
     fun checkTermuxRunning(context: Context): Boolean {
         return TermuxUtils.isTermuxRunning(context)
     }
 
-    /**
-     * 检查Termux是否获得电池优化豁免
-     */
+    /** 检查Termux是否获得电池优化豁免 */
     suspend fun checkTermuxBatteryOptimization(context: Context): Boolean {
         return try {
             val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -330,18 +316,17 @@ object TermuxDemoUtil {
         }
     }
 
-    /**
-     * 检查清华源是否已启用
-     */
+    /** 检查清华源是否已启用 */
     suspend fun checkTunaSourceEnabled(context: Context): Boolean {
         return try {
             // 更可靠的检测方式: 直接查看文件内容
             val result = executeTermuxCommand(context, "cat ${'$'}PREFIX/etc/apt/sources.list")
 
             // 检查文件内容中是否包含清华源URL
-            val containsTuna = result.success && 
-                    (result.stdout.contains("mirrors.tuna.tsinghua.edu.cn") || 
-                    result.stdout.contains("tsinghua.edu.cn"))
+            val containsTuna =
+                    result.success &&
+                            (result.stdout.contains("mirrors.tuna.tsinghua.edu.cn") ||
+                                    result.stdout.contains("tsinghua.edu.cn"))
 
             Log.d(TAG, "源文件内容: ${result.stdout}")
             Log.d(TAG, "检查清华源: $containsTuna")
@@ -353,9 +338,7 @@ object TermuxDemoUtil {
         }
     }
 
-    /**
-     * 检查Python是否安装
-     */
+    /** 检查Python是否安装 */
     suspend fun checkPythonInstalled(context: Context): Boolean {
         return try {
             val result = executeTermuxCommand(context, "command -v python3")
@@ -368,9 +351,7 @@ object TermuxDemoUtil {
         }
     }
 
-    /**
-     * 检查Node.js是否安装
-     */
+    /** 检查Node.js是否安装 */
     suspend fun checkNodeInstalled(context: Context): Boolean {
         return try {
             val result = executeTermuxCommand(context, "command -v node")
@@ -383,9 +364,7 @@ object TermuxDemoUtil {
         }
     }
 
-    /**
-     * 检查UV是否安装
-     */
+    /** 检查UV是否安装 */
     suspend fun checkUvInstalled(context: Context): Boolean {
         return try {
             val result = executeTermuxCommand(context, "command -v uv")
@@ -398,24 +377,22 @@ object TermuxDemoUtil {
         }
     }
 
-    /**
-     * 检查已安装的所有组件并更新配置状态
-     */
+    /** 检查已安装的所有组件并更新配置状态 */
     suspend fun checkInstalledComponents(
-        context: Context,
-        isTermuxRunning: Boolean,
-        isTermuxAuthorized: Boolean,
-        isTunaSourceEnabled: Boolean,
-        isPythonInstalled: Boolean,
-        isUvInstalled: Boolean,
-        isNodeInstalled: Boolean,
-        isTermuxBatteryOptimizationExempted: Boolean,
-        updateConfigStatus: (Boolean) -> Unit,
-        updateSourceStatus: (Boolean) -> Unit,
-        updatePythonStatus: (Boolean) -> Unit,
-        updateUvStatus: (Boolean) -> Unit,
-        updateNodeStatus: (Boolean) -> Unit,
-        updateBatteryStatus: (Boolean) -> Unit
+            context: Context,
+            isTermuxRunning: Boolean,
+            isTermuxAuthorized: Boolean,
+            isTunaSourceEnabled: Boolean,
+            isPythonInstalled: Boolean,
+            isUvInstalled: Boolean,
+            isNodeInstalled: Boolean,
+            isTermuxBatteryOptimizationExempted: Boolean,
+            updateConfigStatus: (Boolean) -> Unit,
+            updateSourceStatus: (Boolean) -> Unit,
+            updatePythonStatus: (Boolean) -> Unit,
+            updateUvStatus: (Boolean) -> Unit,
+            updateNodeStatus: (Boolean) -> Unit,
+            updateBatteryStatus: (Boolean) -> Unit
     ) {
         withContext(Dispatchers.IO) {
             // 只在Termux已安装且已授权时才检查
@@ -435,10 +412,15 @@ object TermuxDemoUtil {
                 updateBatteryStatus(batteryExemption)
 
                 // 检查完成后，更新持久化状态
-                val allConfigured = batteryExemption && tunaEnabled && pythonInstalled && uvInstalled && nodeInstalled
+                val allConfigured =
+                        batteryExemption &&
+                                tunaEnabled &&
+                                pythonInstalled &&
+                                uvInstalled &&
+                                nodeInstalled
 
                 val currentSavedStatus = getTermuxConfigStatus(context)
-                
+
                 if (allConfigured && !currentSavedStatus) {
                     // 如果所有组件都已配置好但持久化状态未更新，保存持久化状态
                     saveTermuxConfigStatus(context, true)
@@ -449,47 +431,47 @@ object TermuxDemoUtil {
                     saveTermuxConfigStatus(context, false)
                     updateConfigStatus(false)
                     Log.d(
-                        TAG,
-                        "检测到Termux组件配置不完整（电池优化: $batteryExemption, 清华源: $tunaEnabled, " +
-                                "Python: $pythonInstalled, UV: $uvInstalled, Node: $nodeInstalled），重置持久化状态"
+                            TAG,
+                            "检测到Termux组件配置不完整（电池优化: $batteryExemption, 清华源: $tunaEnabled, " +
+                                    "Python: $pythonInstalled, UV: $uvInstalled, Node: $nodeInstalled），重置持久化状态"
                     )
                 }
             }
         }
     }
 
-    /**
-     * 配置清华源
-     */
+    /** 配置清华源 */
     suspend fun configureTunaSource(
-        context: Context,
-        updateOutputText: (String) -> Unit,
-        updateSourceStatus: (Boolean) -> Unit,
-        updateConfigStatus: (Boolean) -> Unit,
-        isTunaSourceEnabled: Boolean,
-        isPythonInstalled: Boolean,
-        isUvInstalled: Boolean,
-        isNodeInstalled: Boolean,
-        currentOutputText: String
+            context: Context,
+            updateOutputText: (String) -> Unit,
+            updateSourceStatus: (Boolean) -> Unit,
+            updateConfigStatus: (Boolean) -> Unit,
+            isTunaSourceEnabled: Boolean,
+            isPythonInstalled: Boolean,
+            isUvInstalled: Boolean,
+            isNodeInstalled: Boolean,
+            currentOutputText: String
     ): String {
         var outputText = currentOutputText
         try {
             // 备份原有sources.list
-            val backupResult = executeTermuxCommand(
-                context,
-                "cp ${'$'}PREFIX/etc/apt/sources.list ${'$'}PREFIX/etc/apt/sources.list.bak"
-            )
+            val backupResult =
+                    executeTermuxCommand(
+                            context,
+                            "cp ${'$'}PREFIX/etc/apt/sources.list ${'$'}PREFIX/etc/apt/sources.list.bak"
+                    )
             outputText += "\n备份原始软件源配置${if (backupResult.success) "成功" else "失败"}"
             updateOutputText(outputText)
 
             // 设置清华源 - 使用更明确的方式
-            val setTunaSourceResult = executeTermuxCommand(
-                context,
-                """
+            val setTunaSourceResult =
+                    executeTermuxCommand(
+                            context,
+                            """
                 echo "# 清华大学开源软件镜像站 Termux 镜像源
     deb https://mirrors.tuna.tsinghua.edu.cn/termux/termux-packages-24 stable main" > ${'$'}PREFIX/etc/apt/sources.list
                 """
-            )
+                    )
             outputText += "\n设置清华源${if (setTunaSourceResult.success) "成功" else "失败"}"
             updateOutputText(outputText)
 
@@ -504,7 +486,7 @@ object TermuxDemoUtil {
                 updateSourceStatus(true)
                 outputText += "\n清华源配置成功！"
                 updateOutputText(outputText)
-                
+
                 // 重新检查，确保状态正确
                 val tunaEnabled = checkTunaSourceEnabled(context)
                 updateSourceStatus(tunaEnabled)
@@ -523,8 +505,8 @@ object TermuxDemoUtil {
                 updateOutputText(outputText)
                 // 恢复备份
                 executeTermuxCommand(
-                    context,
-                    "cp ${'$'}PREFIX/etc/apt/sources.list.bak ${'$'}PREFIX/etc/apt/sources.list"
+                        context,
+                        "cp ${'$'}PREFIX/etc/apt/sources.list.bak ${'$'}PREFIX/etc/apt/sources.list"
                 )
                 executeTermuxCommand(context, "apt update -y")
                 Toast.makeText(context, "清华源设置失败", Toast.LENGTH_SHORT).show()
@@ -535,23 +517,21 @@ object TermuxDemoUtil {
             updateOutputText(outputText)
             Toast.makeText(context, "配置清华源出错", Toast.LENGTH_SHORT).show()
         }
-        
+
         return outputText
     }
 
-    /**
-     * 安装Python环境
-     */
+    /** 安装Python环境 */
     suspend fun installPython(
-        context: Context,
-        updateOutputText: (String) -> Unit,
-        updatePythonStatus: (Boolean) -> Unit,
-        updateConfigStatus: (Boolean) -> Unit,
-        isTunaSourceEnabled: Boolean,
-        isPythonInstalled: Boolean,
-        isUvInstalled: Boolean,
-        isNodeInstalled: Boolean,
-        currentOutputText: String
+            context: Context,
+            updateOutputText: (String) -> Unit,
+            updatePythonStatus: (Boolean) -> Unit,
+            updateConfigStatus: (Boolean) -> Unit,
+            isTunaSourceEnabled: Boolean,
+            isPythonInstalled: Boolean,
+            isUvInstalled: Boolean,
+            isNodeInstalled: Boolean,
+            currentOutputText: String
     ): String {
         var outputText = currentOutputText
         try {
@@ -587,23 +567,21 @@ object TermuxDemoUtil {
             updateOutputText(outputText)
             Toast.makeText(context, "安装Python环境出错", Toast.LENGTH_SHORT).show()
         }
-        
+
         return outputText
     }
 
-    /**
-     * 安装UV包管理器
-     */
+    /** 安装UV包管理器 */
     suspend fun installUv(
-        context: Context,
-        updateOutputText: (String) -> Unit,
-        updateUvStatus: (Boolean) -> Unit,
-        updateConfigStatus: (Boolean) -> Unit,
-        isTunaSourceEnabled: Boolean,
-        isPythonInstalled: Boolean,
-        isUvInstalled: Boolean,
-        isNodeInstalled: Boolean,
-        currentOutputText: String
+            context: Context,
+            updateOutputText: (String) -> Unit,
+            updateUvStatus: (Boolean) -> Unit,
+            updateConfigStatus: (Boolean) -> Unit,
+            isTunaSourceEnabled: Boolean,
+            isPythonInstalled: Boolean,
+            isUvInstalled: Boolean,
+            isNodeInstalled: Boolean,
+            currentOutputText: String
     ): String {
         var outputText = currentOutputText
         try {
@@ -639,23 +617,21 @@ object TermuxDemoUtil {
             updateOutputText(outputText)
             Toast.makeText(context, "安装UV包管理器出错", Toast.LENGTH_SHORT).show()
         }
-        
+
         return outputText
     }
 
-    /**
-     * 安装Node.js环境
-     */
+    /** 安装Node.js环境 */
     suspend fun installNode(
-        context: Context,
-        updateOutputText: (String) -> Unit,
-        updateNodeStatus: (Boolean) -> Unit,
-        updateConfigStatus: (Boolean) -> Unit,
-        isTunaSourceEnabled: Boolean,
-        isPythonInstalled: Boolean,
-        isUvInstalled: Boolean,
-        isNodeInstalled: Boolean,
-        currentOutputText: String
+            context: Context,
+            updateOutputText: (String) -> Unit,
+            updateNodeStatus: (Boolean) -> Unit,
+            updateConfigStatus: (Boolean) -> Unit,
+            isTunaSourceEnabled: Boolean,
+            isPythonInstalled: Boolean,
+            isUvInstalled: Boolean,
+            isNodeInstalled: Boolean,
+            currentOutputText: String
     ): String {
         var outputText = currentOutputText
         try {
@@ -691,19 +667,18 @@ object TermuxDemoUtil {
             updateOutputText(outputText)
             Toast.makeText(context, "安装Node.js环境出错", Toast.LENGTH_SHORT).show()
         }
-        
+
         return outputText
     }
 
-    /**
-     * 请求Termux电池优化豁免
-     */
+    /** 请求Termux电池优化豁免 */
     fun requestTermuxBatteryOptimization(context: Context) {
         try {
             // 使用Intent打开Termux的电池优化设置
-            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                data = Uri.parse("package:com.termux")
-            }
+            val intent =
+                    Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                        data = Uri.parse("package:com.termux")
+                    }
             context.startActivity(intent)
             Toast.makeText(context, "请在系统设置中允许Termux的电池优化豁免", Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
@@ -711,4 +686,4 @@ object TermuxDemoUtil {
             Toast.makeText(context, "无法打开Termux电池优化设置", Toast.LENGTH_SHORT).show()
         }
     }
-} 
+}

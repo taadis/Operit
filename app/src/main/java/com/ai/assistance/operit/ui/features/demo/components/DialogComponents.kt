@@ -29,27 +29,49 @@ fun CommandResultDialog(
     if (showDialog) {
         AlertDialog(
                 onDismissRequest = onDismiss,
-                title = { Text(title) },
+                title = { 
+                    Column {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.headlineSmall
+                        )
+                        if (isExecuting) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            LinearProgressIndicator(
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                },
                 text = {
-                    Column(
-                            modifier =
-                                    Modifier.verticalScroll(rememberScrollState())
-                                            .heightIn(max = 300.dp)
+                    Box(
+                        modifier = Modifier
+                            .heightIn(min = 150.dp, max = 350.dp)
+                            .fillMaxWidth()
                     ) {
-                        if (allowCopy) {
-                            SelectionContainer {
-                                Text(
+                        // 使用lazyColumn替代简单的垂直滚动更流畅
+                        androidx.compose.foundation.lazy.LazyColumn(
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            item {
+                                if (allowCopy) {
+                                    SelectionContainer {
+                                        Text(
+                                            text = content,
+                                            fontFamily = FontFamily.Monospace,
+                                            fontSize = 13.sp,
+                                            lineHeight = 18.sp
+                                        )
+                                    }
+                                } else {
+                                    Text(
                                         text = content,
                                         fontFamily = FontFamily.Monospace,
-                                        fontSize = 12.sp
-                                )
+                                        fontSize = 13.sp,
+                                        lineHeight = 18.sp
+                                    )
+                                }
                             }
-                        } else {
-                            Text(
-                                    text = content,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 12.sp
-                            )
                         }
                     }
                 },
@@ -84,7 +106,6 @@ fun CommandResultDialog(
                                                 )
                                                 .show()
                                     }
-                                    onDismiss()
                                 }
                         ) { Text("复制") }
                     }
@@ -92,8 +113,12 @@ fun CommandResultDialog(
                 properties =
                         DialogProperties(
                                 dismissOnBackPress = showButtons && !isExecuting,
-                                dismissOnClickOutside = showButtons && !isExecuting
-                        )
+                                dismissOnClickOutside = showButtons && !isExecuting,
+                                usePlatformDefaultWidth = false
+                        ),
+                modifier = Modifier
+                    .padding(horizontal = 16.dp)
+                    .fillMaxWidth(0.95f)
         )
     }
 }

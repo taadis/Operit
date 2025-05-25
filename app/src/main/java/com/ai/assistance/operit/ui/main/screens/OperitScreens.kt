@@ -31,4 +31,16 @@ sealed class Screen {
     data object TerminalAutoConfig : Screen()
     data object AppPermissions : Screen()
     data object UIDebugger : Screen() // 添加新的UI调试工具屏幕
+    data object ShellExecutor : Screen() // 添加命令执行器屏幕
+
+    // FFmpeg Toolbox screens
+    data object FFmpegToolbox : Screen()
+    data object FFmpegVideoConverter : Screen()
+    data object FFmpegVideoCompression : Screen()
+    data object FFmpegVideoTrimmer : Screen()
+    data object FFmpegAudioExtractor : Screen()
+    data object FFmpegVideoMerger : Screen()
+    data object FFmpegWatermark : Screen()
+    data object FFmpegGifMaker : Screen()
+    data object FFmpegCustomCommand : Screen()
 }

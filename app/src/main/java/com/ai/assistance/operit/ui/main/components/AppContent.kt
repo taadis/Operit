@@ -3,6 +3,7 @@ package com.ai.assistance.operit.ui.main.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -55,14 +56,15 @@ import com.ai.assistance.operit.ui.features.token.TokenConfigWebViewScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.AppPermissionsToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.FileManagerToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.FormatConverterToolScreen
+import com.ai.assistance.operit.ui.features.toolbox.screens.ShellExecutorToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.TerminalAutoConfigToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.TerminalToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.ToolboxScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.UIDebuggerToolScreen
+import com.ai.assistance.operit.ui.features.toolbox.screens.ffmpegtoolbox.FFmpegToolboxScreen
 import com.ai.assistance.operit.ui.main.screens.Screen
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import androidx.compose.foundation.layout.PaddingValues
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -133,6 +135,16 @@ fun AppContent(
                                     is Screen.TerminalAutoConfig -> "终端自动配置"
                                     is Screen.AppPermissions -> "应用权限管理"
                                     is Screen.UIDebugger -> "UI调试工具"
+                                    is Screen.FFmpegToolbox -> "FFmpeg工具箱"
+                                    is Screen.FFmpegVideoConverter -> "FFmpeg视频转换"
+                                    is Screen.FFmpegCustomCommand -> "FFmpeg自定义命令"
+                                    is Screen.FFmpegVideoCompression -> "FFmpeg视频压缩"
+                                    is Screen.FFmpegVideoTrimmer -> "FFmpeg视频裁剪"
+                                    is Screen.FFmpegAudioExtractor -> "FFmpeg音频提取"
+                                    is Screen.FFmpegVideoMerger -> "FFmpeg视频合并"
+                                    is Screen.FFmpegWatermark -> "FFmpeg水印添加"
+                                    is Screen.FFmpegGifMaker -> "FFmpeg GIF制作"
+                                    is Screen.ShellExecutor -> "命令执行器"
                                     else -> stringResource(id = selectedItem.titleResId)
                                 },
                                 fontWeight = FontWeight.SemiBold,
@@ -172,7 +184,17 @@ fun AppContent(
                                     is Screen.Terminal,
                                     is Screen.TerminalAutoConfig,
                                     is Screen.AppPermissions,
-                                    is Screen.UIDebugger -> {
+                                    is Screen.UIDebugger,
+                                    is Screen.ShellExecutor,
+                                    is Screen.FFmpegToolbox,
+                                    is Screen.FFmpegVideoConverter,
+                                    is Screen.FFmpegVideoCompression,
+                                    is Screen.FFmpegVideoTrimmer,
+                                    is Screen.FFmpegAudioExtractor,
+                                    is Screen.FFmpegVideoMerger,
+                                    is Screen.FFmpegWatermark,
+                                    is Screen.FFmpegGifMaker,
+                                    is Screen.FFmpegCustomCommand -> {
                                         // 如果在工具箱二级页面，返回到工具箱页面
                                         onScreenChange(Screen.Toolbox)
                                     }
@@ -200,7 +222,17 @@ fun AppContent(
                                                 currentScreen is Screen.Terminal ||
                                                 currentScreen is Screen.TerminalAutoConfig ||
                                                 currentScreen is Screen.AppPermissions ||
-                                                currentScreen is Screen.UIDebugger
+                                                currentScreen is Screen.UIDebugger ||
+                                                currentScreen is Screen.FFmpegToolbox ||
+                                                currentScreen is Screen.FFmpegVideoConverter ||
+                                                currentScreen is Screen.FFmpegVideoCompression ||
+                                                currentScreen is Screen.FFmpegVideoTrimmer ||
+                                                currentScreen is Screen.FFmpegAudioExtractor ||
+                                                currentScreen is Screen.FFmpegVideoMerger ||
+                                                currentScreen is Screen.FFmpegWatermark ||
+                                                currentScreen is Screen.FFmpegGifMaker ||
+                                                currentScreen is Screen.FFmpegCustomCommand ||
+                                                currentScreen is Screen.ShellExecutor
                                 )
                                         Icons.Default.ArrowBack
                                 else if (useTabletLayout)
@@ -222,7 +254,17 @@ fun AppContent(
                                             is Screen.Terminal,
                                             is Screen.TerminalAutoConfig,
                                             is Screen.AppPermissions,
-                                            is Screen.UIDebugger -> "返回工具箱"
+                                            is Screen.UIDebugger,
+                                            is Screen.FFmpegToolbox,
+                                            is Screen.FFmpegVideoConverter,
+                                            is Screen.FFmpegVideoCompression,
+                                            is Screen.FFmpegVideoTrimmer,
+                                            is Screen.FFmpegAudioExtractor,
+                                            is Screen.FFmpegVideoMerger,
+                                            is Screen.FFmpegWatermark,
+                                            is Screen.FFmpegGifMaker,
+                                            is Screen.FFmpegCustomCommand,
+                                            is Screen.ShellExecutor -> "返回工具箱"
                                             else ->
                                                     if (useTabletLayout)
                                                             if (isTabletSidebarExpanded) "收起侧边栏"
@@ -343,19 +385,75 @@ fun AppContent(
                             // UI调试工具屏幕
                             UIDebuggerToolScreen(navController = navController)
                         }
+                        is Screen.FFmpegToolbox -> {
+                            // FFmpeg工具箱屏幕
+                            FFmpegToolboxScreen(navController = navController)
+                        }
+                        is Screen.FFmpegVideoConverter -> {
+                            // 已移除FFmpegVideoConverterScreen，但保留导航case避免编译错误
+                            // 直接重定向到FFmpegToolbox页面
+                            onScreenChange(Screen.FFmpegToolbox)
+                            FFmpegToolboxScreen(navController = navController)
+                        }
+                        is Screen.FFmpegCustomCommand -> {
+                            // 已移除FFmpegCustomCommandScreen，但保留导航case避免编译错误
+                            // 直接重定向到FFmpegToolbox页面
+                            onScreenChange(Screen.FFmpegToolbox)
+                            FFmpegToolboxScreen(navController = navController)
+                        }
+                        is Screen.FFmpegVideoCompression -> {
+                            // FFmpeg视频压缩屏幕
+                            // 实现FFmpeg视频压缩屏幕的逻辑
+                            onScreenChange(Screen.FFmpegToolbox)
+                            FFmpegToolboxScreen(navController = navController)
+                        }
+                        is Screen.FFmpegVideoTrimmer -> {
+                            // FFmpeg视频裁剪屏幕
+                            // 实现FFmpeg视频裁剪的逻辑
+                            onScreenChange(Screen.FFmpegToolbox)
+                            FFmpegToolboxScreen(navController = navController)
+                        }
+                        is Screen.FFmpegAudioExtractor -> {
+                            // FFmpeg音频提取屏幕
+                            // 实现FFmpeg音频提取的逻辑
+                            onScreenChange(Screen.FFmpegToolbox)
+                            FFmpegToolboxScreen(navController = navController)
+                        }
+                        is Screen.FFmpegVideoMerger -> {
+                            // FFmpeg视频合并屏幕
+                            // 实现FFmpeg视频合并的逻辑
+                            onScreenChange(Screen.FFmpegToolbox)
+                            FFmpegToolboxScreen(navController = navController)
+                        }
+                        is Screen.FFmpegWatermark -> {
+                            // FFmpeg水印添加屏幕
+                            // 实现FFmpeg水印添加的逻辑
+                            onScreenChange(Screen.FFmpegToolbox)
+                            FFmpegToolboxScreen(navController = navController)
+                        }
+                        is Screen.FFmpegGifMaker -> {
+                            // FFmpeg GIF制作屏幕
+                            // 实现FFmpeg GIF制作的逻辑
+                            onScreenChange(Screen.FFmpegToolbox)
+                            FFmpegToolboxScreen(navController = navController)
+                        }
+                        is Screen.ShellExecutor -> {
+                            // 命令执行器屏幕
+                            ShellExecutorToolScreen(navController = navController)
+                        }
                         is Screen.AiChat ->
                                 AIChatScreen(
-                                    padding = PaddingValues(0.dp),
-                                    viewModel = null,
-                                    isFloatingMode = false,
-                                    hasBackgroundImage = hasBackgroundImage,
-                                    onNavigateToTokenConfig = navigateToTokenConfig,
-                                    onNavigateToSettings = { 
-                                        onScreenChange(Screen.Settings)
-                                        onNavItemChange(NavItem.Settings)
-                                    },
-                                    onLoading = onLoading,
-                                    onError = onError
+                                        padding = PaddingValues(0.dp),
+                                        viewModel = null,
+                                        isFloatingMode = false,
+                                        hasBackgroundImage = hasBackgroundImage,
+                                        onNavigateToTokenConfig = navigateToTokenConfig,
+                                        onNavigateToSettings = {
+                                            onScreenChange(Screen.Settings)
+                                            onNavItemChange(NavItem.Settings)
+                                        },
+                                        onLoading = onLoading,
+                                        onError = onError
                                 )
                         is Screen.ShizukuCommands -> ShizukuDemoScreen()
                         is Screen.Toolbox -> {
@@ -373,8 +471,12 @@ fun AppContent(
                                     onAppPermissionsSelected = {
                                         onScreenChange(Screen.AppPermissions)
                                     },
-                                    onUIDebuggerSelected = {
-                                        onScreenChange(Screen.UIDebugger)
+                                    onUIDebuggerSelected = { onScreenChange(Screen.UIDebugger) },
+                                    onFFmpegToolboxSelected = {
+                                        onScreenChange(Screen.FFmpegToolbox)
+                                    },
+                                    onShellExecutorSelected = { 
+                                        onScreenChange(Screen.ShellExecutor)
                                     }
                             )
                         }
@@ -397,12 +499,13 @@ fun AppContent(
                                         }
                                 )
                         is Screen.ModelParametersSettings -> ModelParametersSettingsScreen()
-                        is Screen.ModelPromptsSettings -> ModelPromptsSettingsScreen(
-                            onBackPressed = {
-                                onScreenChange(Screen.Settings)
-                                onNavItemChange(NavItem.Settings)
-                            }
-                        )
+                        is Screen.ModelPromptsSettings ->
+                                ModelPromptsSettingsScreen(
+                                        onBackPressed = {
+                                            onScreenChange(Screen.Settings)
+                                            onNavItemChange(NavItem.Settings)
+                                        }
+                                )
                         is Screen.ThemeSettings -> ThemeSettingsScreen()
                         is Screen.Packages -> PackageManagerScreen()
                         is Screen.ProblemLibrary -> {

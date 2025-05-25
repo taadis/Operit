@@ -30,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.data.model.AttachmentInfo
@@ -59,6 +60,7 @@ fun AIChatScreen(
         onNavigateToSettings: () -> Unit = {} // 添加导航到Settings页面的回调
 ) {
         val context = LocalContext.current
+        val density = LocalDensity.current
 
         // Initialize ViewModel without using viewModel() function
         val factory = ChatViewModelFactory(context)
@@ -96,6 +98,8 @@ fun AIChatScreen(
         val currentChatId by actualViewModel.currentChatId.collectAsState()
         val popupMessage by actualViewModel.popupMessage.collectAsState()
         val attachments by actualViewModel.attachments.collectAsState()
+        // 收集附件面板状态
+        val attachmentPanelState by actualViewModel.attachmentPanelState.collectAsState()
 
         // Floating window mode state
         val isFloatingMode by actualViewModel.isFloatingMode.collectAsState()
@@ -240,7 +244,8 @@ fun AIChatScreen(
                                 actualViewModel.updateFloatingWindowMessages(filteredMessages)
                         } catch (e: Exception) {
                                 Log.e("AIChatScreen", "Error starting floating service", e)
-                                actualViewModel.toggleFloatingMode() // Turn off floating mode if it fails
+                                actualViewModel
+                                        .toggleFloatingMode() // Turn off floating mode if it fails
                                 android.widget.Toast.makeText(
                                                 context,
                                                 "启动悬浮窗失败，请确保已授予悬浮窗权限",
@@ -287,11 +292,15 @@ fun AIChatScreen(
         // Add overflow menu items
         val overflowMenuItems =
                 listOf(
-                        Triple("切换思考显示", "toggle_thinking") { actualViewModel.toggleShowThinking() },
+                        Triple("切换思考显示", "toggle_thinking") {
+                                actualViewModel.toggleShowThinking()
+                        },
                         Triple("切换记忆优化", "toggle_memory_optimization") {
                                 actualViewModel.toggleMemoryOptimization()
                         },
-                        Triple("切换AI计划模式", "toggle_ai_planning") { actualViewModel.toggleAiPlanning() },
+                        Triple("切换AI计划模式", "toggle_ai_planning") {
+                                actualViewModel.toggleAiPlanning()
+                        },
                         Triple("清空聊天记录", "clear_chat") { actualViewModel.clearCurrentChat() },
                         Triple("管理历史记录", "manage_history") {
                                 actualViewModel.showChatHistorySelector(true)
@@ -312,6 +321,8 @@ fun AIChatScreen(
         Scaffold(
                 containerColor = Color.Transparent,
                 snackbarHost = { SnackbarHost(snackbarHostState) },
+                // Add WindowInsets to modify the entire screen when keyboard appears
+                contentWindowInsets = WindowInsets.ime,
                 bottomBar = {
                         // 只在不显示配置界面时显示底部输入框
                         if (!shouldShowConfig) {
@@ -510,7 +521,11 @@ fun AIChatScreen(
                                                 onUserMessageChange = {
                                                         actualViewModel.updateUserMessage(it)
                                                 },
-                                                onSendMessage = { actualViewModel.sendUserMessage() },
+                                                onSendMessage = {
+                                                        actualViewModel.sendUserMessage()
+                                                        // 在发送消息后重置附件面板状态
+                                                        actualViewModel.resetAttachmentPanelState()
+                                                },
                                                 onCancelMessage = {
                                                         actualViewModel.cancelCurrentMessage()
                                                 },
@@ -552,7 +567,14 @@ fun AIChatScreen(
                                                                 filename
                                                         )
                                                 },
-                                                hasBackgroundImage = hasBackgroundImage
+                                                hasBackgroundImage = hasBackgroundImage,
+                                                // 传递附件面板状态
+                                                externalAttachmentPanelState = attachmentPanelState,
+                                                onAttachmentPanelStateChange = { newState ->
+                                                        actualViewModel.updateAttachmentPanelState(
+                                                                newState
+                                                        )
+                                                }
                                         )
                                 }
                         }
@@ -1394,7 +1416,8 @@ fun AIChatScreen(
                                                                                         top = 8.dp
                                                                                 ),
                                                                 onNewChat = {
-                                                                        actualViewModel.createNewChat()
+                                                                        actualViewModel
+                                                                                .createNewChat()
                                                                         // 创建新对话后自动收起侧边框
                                                                         actualViewModel
                                                                                 .showChatHistorySelector(
@@ -1402,7 +1425,9 @@ fun AIChatScreen(
                                                                                 )
                                                                 },
                                                                 onSelectChat = { chatId ->
-                                                                        actualViewModel.switchChat(chatId)
+                                                                        actualViewModel.switchChat(
+                                                                                chatId
+                                                                        )
                                                                         // 切换聊天后也自动收起侧边框
                                                                         actualViewModel
                                                                                 .showChatHistorySelector(
@@ -1410,9 +1435,10 @@ fun AIChatScreen(
                                                                                 )
                                                                 },
                                                                 onDeleteChat = { chatId ->
-                                                                        actualViewModel.deleteChatHistory(
-                                                                                chatId
-                                                                        )
+                                                                        actualViewModel
+                                                                                .deleteChatHistory(
+                                                                                        chatId
+                                                                                )
                                                                 },
                                                                 chatHistories =
                                                                         chatHistories

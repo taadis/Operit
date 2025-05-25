@@ -38,69 +38,46 @@ object TermuxUtils {
      * @return 是否在运行
      */
     fun isTermuxRunning(context: Context): Boolean {
-        // 首先尝试使用Shizuku/ADB的更高权限检测Termux进程
         try {
-            // 检查Shizuku服务是否可用
-            if (ShizukuAuthorizer.isShizukuServiceRunning() &&
-                ShizukuAuthorizer.hasShizukuPermission()) {
-
-                // 使用更精确的dumpsys命令检查Termux是否真正运行中（非后台或已停止）
-                val dumpsysResult = kotlinx.coroutines.runBlocking {
-                    // 检查Termux是否在Recent任务中且状态为RESUMED或PAUSED
-                    AndroidShellExecutor.executeShellCommand(
-                        "dumpsys activity recents | grep -E 'Recent #[0-9]+.*com.termux'"
-                    )
-                }
-
-                if (dumpsysResult.success && dumpsysResult.stdout.isNotEmpty()) {
-                    // 找到了Recent任务中的Termux，再检查是否是RESUMED或PAUSED状态
-                    val activityStateResult = kotlinx.coroutines.runBlocking {
-                        AndroidShellExecutor.executeShellCommand(
-                            "dumpsys activity activities | grep -A3 'com.termux/.app.TermuxActivity' | grep -E 'RESUMED|PAUSED'"
-                        )
-                    }
-                    
-                    if (activityStateResult.success && activityStateResult.stdout.isNotEmpty()) {
-                        Log.d("TermuxUtils", "通过activity状态检测到Termux正在运行: ${activityStateResult.stdout.trim()}")
-                        return true
-                    }
+            // 使用ps命令是最可靠的检测方式，只有当进程真正运行时才会显示
+            if (ShizukuAuthorizer.isShizukuServiceRunning() && ShizukuAuthorizer.hasShizukuPermission()) {
+                val psResult = kotlinx.coroutines.runBlocking {
+                    AndroidShellExecutor.executeShellCommand("ps -ef | grep com.termux | grep -v grep")
                 }
                 
-                // 作为备选方法，检查Termux是否有可见窗口
-                val windowCheckResult = kotlinx.coroutines.runBlocking {
+                if (psResult.success && psResult.stdout.isNotEmpty() && psResult.stdout.contains("com.termux")) {
+                    Log.d(TAG, "通过ps命令检测到Termux进程运行中")
+                    return true
+                }
+                
+                // 如果ps命令没有找到，再尝试检查Termux服务
+                val serviceCheckResult = kotlinx.coroutines.runBlocking {
                     AndroidShellExecutor.executeShellCommand(
-                        "dumpsys window windows | grep -E 'Window #[0-9]+ Window\\{.*com.termux/com.termux.app.TermuxActivity'"
+                        "dumpsys activity services | grep -A2 'app.TermuxService'"
                     )
                 }
                 
-                if (windowCheckResult.success && windowCheckResult.stdout.isNotEmpty()) {
-                    Log.d("TermuxUtils", "通过window检测到Termux有活动窗口")
+                if (serviceCheckResult.success && serviceCheckResult.stdout.contains("app.TermuxService")) {
+                    Log.d(TAG, "通过dumpsys检测到TermuxService正在运行")
                     return true
                 }
             }
-        } catch (e: Exception) {
-            Log.e("TermuxUtils", "使用ADB检测Termux运行状态失败: ${e.message}")
-            // 如果使用Shizuku/ADB方式失败，回退到使用ActivityManager
-        }
-
-        // 回退到ActivityManager检测，但更精确地检查是否在前台或可见
-        Log.d("TermuxUtils", "回退到ActivityManager检测Termux运行状态")
-        val activityManager =
-                context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
-        val processes = activityManager.runningAppProcesses ?: return false
-
-        // 仅检查前台或可见的Termux进程
-        for (process in processes) {
-            if (process.processName == TERMUX_PACKAGE_NAME && 
-                (process.importance == android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND ||
-                 process.importance == android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE)) {
-                
-                Log.d("TermuxUtils", "通过ActivityManager检测到Termux正在前台或可见状态")
-                return true
+            
+            // 作为备选方案，检查ActivityManager中的进程
+            val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+            val runningProcesses = activityManager.runningAppProcesses ?: return false
+            
+            // 只有当进程重要性是前台或可见时才认为它在运行
+            val termuxProcess = runningProcesses.find { 
+                it.processName == TERMUX_PACKAGE_NAME && 
+                it.importance <= android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND_SERVICE 
             }
+            
+            return termuxProcess != null
+        } catch (e: Exception) {
+            Log.e(TAG, "检测Termux运行状态时出错: ${e.message}")
+            return false
         }
-        
-        return false
     }
 
     /**

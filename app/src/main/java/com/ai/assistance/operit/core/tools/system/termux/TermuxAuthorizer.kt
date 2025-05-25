@@ -10,7 +10,6 @@ import android.os.Looper
 import android.util.Log
 import android.widget.Toast
 import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
-import com.ai.assistance.operit.core.tools.system.ShizukuAuthorizer
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -174,10 +173,8 @@ class TermuxAuthorizer {
         /** 检查Termux是否已授权 */
         suspend fun isTermuxAuthorized(context: Context): Boolean =
                 withContext(Dispatchers.IO) {
-                    if (!TermuxInstaller.isTermuxInstalled(context) ||
-                                    !ShizukuAuthorizer.isShizukuServiceRunning() ||
-                                    !ShizukuAuthorizer.hasShizukuPermission()
-                    ) {
+                    // 基础条件检查
+                    if (!TermuxInstaller.isTermuxInstalled(context)) {
                         return@withContext false
                     }
 
@@ -187,8 +184,11 @@ class TermuxAuthorizer {
                     // 检查是否有Run Command权限
                     val hasRunCommandPermission = checkRunCommandPermission(context)
 
-                    // 两者都满足才算完全授权
-                    return@withContext configEnabled && hasRunCommandPermission
+                    // 三者都满足才算完全授权：Termux运行中、配置允许外部应用访问、有Run Command权限
+                    val authorized = configEnabled && hasRunCommandPermission
+                    Log.d(TAG, "Termux授权状态: 配置=$configEnabled, 权限=$hasRunCommandPermission")
+                    
+                    return@withContext authorized
                 }
 
         /** 授权Termux */
@@ -198,15 +198,6 @@ class TermuxAuthorizer {
                     if (!TermuxInstaller.isTermuxInstalled(context)) {
                         withContext(Dispatchers.Main) {
                             Toast.makeText(context, "请先安装Termux应用", Toast.LENGTH_SHORT).show()
-                        }
-                        return@withContext false
-                    }
-
-                    if (!ShizukuAuthorizer.isShizukuServiceRunning() ||
-                                    !ShizukuAuthorizer.hasShizukuPermission()
-                    ) {
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(context, "请确保Shizuku已运行并授权", Toast.LENGTH_SHORT).show()
                         }
                         return@withContext false
                     }
@@ -458,16 +449,6 @@ class TermuxAuthorizer {
                         return@withContext false
                     }
 
-                    // 检查Shizuku服务是否运行
-                    if (!ShizukuAuthorizer.isShizukuServiceRunning() ||
-                                    !ShizukuAuthorizer.hasShizukuPermission()
-                    ) {
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(context, "请确保Shizuku已运行并授权", Toast.LENGTH_SHORT).show()
-                        }
-                        return@withContext false
-                    }
-
                     // 检查存储权限
                     if (checkStoragePermissions()) {
                         return@withContext true
@@ -654,15 +635,6 @@ class TermuxAuthorizer {
                     if (!TermuxInstaller.isTermuxInstalled(context)) {
                         withContext(Dispatchers.Main) {
                             Toast.makeText(context, "请先安装Termux应用", Toast.LENGTH_SHORT).show()
-                        }
-                        return@withContext false
-                    }
-
-                    if (!ShizukuAuthorizer.isShizukuServiceRunning() ||
-                                    !ShizukuAuthorizer.hasShizukuPermission()
-                    ) {
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(context, "请确保Shizuku已运行并授权", Toast.LENGTH_SHORT).show()
                         }
                         return@withContext false
                     }

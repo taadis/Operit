@@ -14,6 +14,7 @@ import com.ai.assistance.operit.data.model.ToolExecutionProgress
 import com.ai.assistance.operit.ui.features.chat.attachments.AttachmentManager
 import com.ai.assistance.operit.ui.permissions.PermissionLevel
 import com.ai.assistance.operit.ui.permissions.ToolPermissionSystem
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
@@ -123,6 +124,10 @@ class ChatViewModel(private val context: Context) : ViewModel() {
 
     // 附件相关
     val attachments: StateFlow<List<AttachmentInfo>> by lazy { attachmentManager.attachments }
+
+    // 添加一个用于跟踪附件面板状态的变量
+    private val _attachmentPanelState = MutableStateFlow(false)
+    val attachmentPanelState: StateFlow<Boolean> = _attachmentPanelState
 
     init {
         // Initialize delegates in correct order to avoid circular references
@@ -477,6 +482,9 @@ class ChatViewModel(private val context: Context) : ViewModel() {
             // 更新悬浮窗附件列表
             updateFloatingWindowAttachments()
         }
+
+        // 重置附件面板状态 - 在发送消息后关闭附件面板
+        resetAttachmentPanelState()
     }
 
     fun cancelCurrentMessage() {
@@ -760,6 +768,16 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 }
             }
         }
+    }
+
+    /** 重置附件面板状态 - 在发送消息后关闭附件面板 */
+    fun resetAttachmentPanelState() {
+        _attachmentPanelState.value = false
+    }
+
+    /** 更新附件面板状态 */
+    fun updateAttachmentPanelState(isOpen: Boolean) {
+        _attachmentPanelState.value = isOpen
     }
 
     override fun onCleared() {

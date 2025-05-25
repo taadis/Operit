@@ -78,6 +78,27 @@ class RootShellExecutor(private val context: Context) : ShellExecutor {
         }
     }
 
+    /**
+     * 检查并提取run-as包装中的实际命令
+     * @param command 可能包含run-as的命令
+     * @return 提取后的实际命令
+     */
+    private fun extractActualCommand(command: String): String {
+        // 检查命令是否是run-as格式
+        val runAsPattern = """run-as\s+(\S+)\s+sh\s+-c\s+['"](.+)['"]""".toRegex()
+        val match = runAsPattern.find(command)
+        
+        return if (match != null) {
+            // 提取内部命令
+            val innerCommand = match.groupValues[2]
+            Log.d(TAG, "Extracted inner command from run-as: $innerCommand")
+            innerCommand
+        } else {
+            // 没有匹配到run-as格式，直接返回原命令
+            command
+        }
+    }
+
     override suspend fun executeCommand(command: String): ShellExecutor.CommandResult =
             withContext(Dispatchers.IO) {
                 val permStatus = hasPermission()
@@ -85,7 +106,9 @@ class RootShellExecutor(private val context: Context) : ShellExecutor {
                     return@withContext ShellExecutor.CommandResult(false, "", permStatus.reason)
                 }
 
-                Log.d(TAG, "Executing root command: $command")
+                // 提取实际要执行的命令（如果是run-as包装的）
+                val actualCommand = extractActualCommand(command)
+                Log.d(TAG, "Executing root command: $actualCommand (original: $command)")
 
                 try {
                     // 创建su进程
@@ -97,7 +120,7 @@ class RootShellExecutor(private val context: Context) : ShellExecutor {
                     val stderr = BufferedReader(InputStreamReader(process.errorStream))
 
                     // 写入命令并关闭输入流
-                    stdin.write("$command\n")
+                    stdin.write("$actualCommand\n")
                     stdin.write("echo 'EXITCODE:'\$?\n") // 获取退出码
                     stdin.write("exit\n")
                     stdin.flush()

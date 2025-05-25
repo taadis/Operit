@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -52,15 +53,31 @@ fun ChatInputSection(
         onAttachLocation: () -> Unit = {},
         onAttachProblemMemory: (String, String) -> Unit = { _, _ -> },
         hasBackgroundImage: Boolean = false,
-        modifier: Modifier = Modifier
+        modifier: Modifier = Modifier,
+        externalAttachmentPanelState: Boolean? = null,
+        onAttachmentPanelStateChange: ((Boolean) -> Unit)? = null
 ) {
         val modernTextStyle = TextStyle(fontSize = 13.sp, lineHeight = 16.sp)
 
         val isProcessing = isLoading || isProcessingInput
 
-        // 控制附件面板的展开状态
+        // 控制附件面板的展开状态 - 使用外部状态或本地状态
         val (showAttachmentPanel, setShowAttachmentPanel) =
-                androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+                androidx.compose.runtime.remember {
+                        androidx.compose.runtime.mutableStateOf(
+                                externalAttachmentPanelState ?: false
+                        )
+                }
+
+        // 当外部状态变化时更新本地状态
+        androidx.compose.runtime.LaunchedEffect(externalAttachmentPanelState) {
+                externalAttachmentPanelState?.let { setShowAttachmentPanel(it) }
+        }
+
+        // 当本地状态改变时通知外部
+        androidx.compose.runtime.LaunchedEffect(showAttachmentPanel) {
+                onAttachmentPanelStateChange?.invoke(showAttachmentPanel)
+        }
 
         Surface(
                 color =
@@ -261,6 +278,10 @@ fun ChatInputSection(
                                                                                 onCancelMessage()
                                                                         } else {
                                                                                 onSendMessage()
+                                                                                // 发送消息后关闭附件面板
+                                                                                setShowAttachmentPanel(
+                                                                                        false
+                                                                                )
                                                                         }
                                                                 }
                                                         ),
