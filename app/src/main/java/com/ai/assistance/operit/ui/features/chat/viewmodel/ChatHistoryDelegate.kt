@@ -35,7 +35,7 @@ class ChatHistoryDelegate(
     }
 
     // 聊天历史管理器
-    private val chatHistoryManager = ChatHistoryManager(context)
+    private val chatHistoryManager = ChatHistoryManager.getInstance(context)
 
     // API设置，用于获取内存优化设置
     private val apiPreferences = ApiPreferences(context)
@@ -417,6 +417,15 @@ class ChatHistoryDelegate(
                             tokenCounts.first,
                             tokenCounts.second
                     )
+
+                    // 修复：如果是用户消息且是第一条，自动将其设为对话标题
+                    if (message.sender == "user" && currentMessages.none { it.sender == "user" }) {
+                        // 生成标题
+                        val title = generateChatTitle()
+                        // 更新聊天标题
+                        chatHistoryManager.updateChatTitle(chatId, title)
+                        Log.d(TAG, "自动更新对话标题: $title")
+                    }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "添加消息到聊天失败", e)

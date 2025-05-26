@@ -56,6 +56,7 @@ import com.ai.assistance.operit.ui.features.token.TokenConfigWebViewScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.AppPermissionsToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.FileManagerToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.FormatConverterToolScreen
+import com.ai.assistance.operit.ui.features.toolbox.screens.LogcatToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.ShellExecutorToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.TerminalAutoConfigToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.TerminalToolScreen
@@ -95,7 +96,7 @@ fun AppContent(
     val hasBackgroundImage = useBackgroundImage && backgroundImageUri != null
 
     // 获取聊天历史管理器
-    val chatHistoryManager = ChatHistoryManager(context)
+    val chatHistoryManager = ChatHistoryManager.getInstance(context)
     val chatHistories =
             chatHistoryManager.chatHistoriesFlow.collectAsState(initial = emptyList()).value
     val currentChatId = chatHistoryManager.currentChatIdFlow.collectAsState(initial = null).value
@@ -145,6 +146,7 @@ fun AppContent(
                                     is Screen.FFmpegWatermark -> "FFmpeg水印添加"
                                     is Screen.FFmpegGifMaker -> "FFmpeg GIF制作"
                                     is Screen.ShellExecutor -> "命令执行器"
+                                    is Screen.Logcat -> "日志查看器"
                                     else -> stringResource(id = selectedItem.titleResId)
                                 },
                                 fontWeight = FontWeight.SemiBold,
@@ -186,6 +188,7 @@ fun AppContent(
                                     is Screen.AppPermissions,
                                     is Screen.UIDebugger,
                                     is Screen.ShellExecutor,
+                                    is Screen.Logcat,
                                     is Screen.FFmpegToolbox,
                                     is Screen.FFmpegVideoConverter,
                                     is Screen.FFmpegVideoCompression,
@@ -232,7 +235,8 @@ fun AppContent(
                                                 currentScreen is Screen.FFmpegWatermark ||
                                                 currentScreen is Screen.FFmpegGifMaker ||
                                                 currentScreen is Screen.FFmpegCustomCommand ||
-                                                currentScreen is Screen.ShellExecutor
+                                                currentScreen is Screen.ShellExecutor ||
+                                                currentScreen is Screen.Logcat
                                 )
                                         Icons.Default.ArrowBack
                                 else if (useTabletLayout)
@@ -264,7 +268,8 @@ fun AppContent(
                                             is Screen.FFmpegWatermark,
                                             is Screen.FFmpegGifMaker,
                                             is Screen.FFmpegCustomCommand,
-                                            is Screen.ShellExecutor -> "返回工具箱"
+                                            is Screen.ShellExecutor,
+                                            is Screen.Logcat -> "返回工具箱"
                                             else ->
                                                     if (useTabletLayout)
                                                             if (isTabletSidebarExpanded) "收起侧边栏"
@@ -441,6 +446,10 @@ fun AppContent(
                             // 命令执行器屏幕
                             ShellExecutorToolScreen(navController = navController)
                         }
+                        is Screen.Logcat -> {
+                            // 日志查看器屏幕
+                            LogcatToolScreen(navController = navController)
+                        }
                         is Screen.AiChat ->
                                 AIChatScreen(
                                         padding = PaddingValues(0.dp),
@@ -475,9 +484,10 @@ fun AppContent(
                                     onFFmpegToolboxSelected = {
                                         onScreenChange(Screen.FFmpegToolbox)
                                     },
-                                    onShellExecutorSelected = { 
+                                    onShellExecutorSelected = {
                                         onScreenChange(Screen.ShellExecutor)
-                                    }
+                                    },
+                                    onLogcatSelected = { onScreenChange(Screen.Logcat) }
                             )
                         }
                         is Screen.Settings ->

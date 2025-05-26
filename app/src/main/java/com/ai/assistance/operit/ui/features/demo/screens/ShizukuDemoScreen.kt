@@ -67,25 +67,19 @@ fun ShizukuDemoScreen(
                 val coarseLocationGranted =
                         permissions[android.Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
                 if (fineLocationGranted || coarseLocationGranted) {
-                    scope.launch(Dispatchers.IO) {
-                        viewModel.refreshStatus(context)
-                    }
+                    scope.launch(Dispatchers.IO) { viewModel.refreshStatus(context) }
                 }
             }
 
     // Register state change listeners
     DisposableEffect(Unit) {
-        val shizukuListener: () -> Unit = { 
-            scope.launch(Dispatchers.IO) {
-                viewModel.refreshStatus(context)
-            }
+        val shizukuListener: () -> Unit = {
+            scope.launch(Dispatchers.IO) { viewModel.refreshStatus(context) }
         }
 
         // 添加单独的Termux状态监听
-        val termuxListener: () -> Unit = { 
-            scope.launch(Dispatchers.IO) {
-                viewModel.checkTermuxAuthState(context)
-            }
+        val termuxListener: () -> Unit = {
+            scope.launch(Dispatchers.IO) { viewModel.checkTermuxAuthState(context) }
         }
 
         ShizukuAuthorizer.addStateChangeListener(shizukuListener)
@@ -106,7 +100,7 @@ fun ShizukuDemoScreen(
             // 将初始化任务拆分成多个小任务，避免长时间阻塞
             viewModel.initializeAsync(context)
         }
-        
+
         // 标记初始化完成
         isInitialized = true
     }
@@ -145,11 +139,7 @@ fun ShizukuDemoScreen(
                 isDeviceRooted = uiState.isDeviceRooted.value,
                 hasRootAccess = uiState.hasRootAccess.value,
                 isRefreshing = uiState.isRefreshing.value,
-                onRefresh = { 
-                    scope.launch(Dispatchers.IO) {
-                        viewModel.refreshStatus(context)
-                    }
-                },
+                onRefresh = { scope.launch(Dispatchers.IO) { viewModel.refreshStatus(context) } },
                 onStoragePermissionClick = {
                     try {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -238,17 +228,13 @@ fun ShizukuDemoScreen(
                         viewModel.toggleTermuxWizard()
                     } else if (!viewModel.isTermuxRunning.value) {
                         // 如果已授权但未运行，直接尝试启动
-                        scope.launch(Dispatchers.IO) {
-                            viewModel.startTermux(context)
-                        }
+                        scope.launch(Dispatchers.IO) { viewModel.startTermux(context) }
                     } else if (!viewModel.isTermuxFullyConfigured.value) {
                         // 如果已授权且运行但未完全配置，显示向导
                         viewModel.toggleTermuxWizard()
                     } else {
                         // 如果已完全配置，尝试打开Termux
-                        scope.launch(Dispatchers.IO) {
-                            viewModel.startTermux(context)
-                        }
+                        scope.launch(Dispatchers.IO) { viewModel.startTermux(context) }
                     }
                 },
                 onRootClick = {
@@ -261,18 +247,16 @@ fun ShizukuDemoScreen(
                 onPermissionLevelChange = { level -> currentDisplayedPermissionLevel = level },
                 onPermissionLevelSet = { level ->
                     // 当设置了新的权限级别时，刷新工具
-                    scope.launch(Dispatchers.IO) {
-                        viewModel.refreshTools(context)
-                    }
+                    scope.launch { viewModel.refreshTools(context) }
                 }
         )
 
         // 组合向导卡片到一个专门的设置区域
         val needTermuxSetupGuide =
                 !uiState.isTermuxInstalled.value ||
-                !uiState.isTermuxAuthorized.value ||
-                !viewModel.isTermuxRunning.value ||
-                !viewModel.isTermuxFullyConfigured.value
+                        !uiState.isTermuxAuthorized.value ||
+                        !viewModel.isTermuxRunning.value ||
+                        !viewModel.isTermuxFullyConfigured.value
 
         val needShizukuSetupGuide =
                 currentDisplayedPermissionLevel == AndroidPermissionLevel.DEBUGGER &&
@@ -324,7 +308,7 @@ fun ShizukuDemoScreen(
                         hasRootAccess = uiState.hasRootAccess.value,
                         showWizard = uiState.showRootWizard.value,
                         onToggleWizard = { viewModel.toggleRootWizard() },
-                        onRequestRoot = { 
+                        onRequestRoot = {
                             scope.launch(Dispatchers.IO) {
                                 viewModel.requestRootPermission(context)
                             }
@@ -364,29 +348,36 @@ fun ShizukuDemoScreen(
                         onInstallBundled = {
                             scope.launch(Dispatchers.IO) {
                                 try {
-                                    val success = withContext(Dispatchers.IO) {
-                                        ShizukuInstaller.installBundledShizuku(context)
-                                    }
+                                    val success =
+                                            withContext(Dispatchers.IO) {
+                                                ShizukuInstaller.installBundledShizuku(context)
+                                            }
                                     withContext(Dispatchers.Main) {
                                         if (success) {
                                             Toast.makeText(
-                                                    context,
-                                                    "已启动Shizuku安装，请按照系统提示完成安装",
-                                                    Toast.LENGTH_LONG
-                                            ).show()
+                                                            context,
+                                                            "已启动Shizuku安装，请按照系统提示完成安装",
+                                                            Toast.LENGTH_LONG
+                                                    )
+                                                    .show()
                                         } else {
                                             // 如果返回false，可能是Shizuku已安装或提取APK失败
                                             Toast.makeText(
-                                                    context,
-                                                    "安装启动失败，Shizuku可能已安装或APK提取失败",
-                                                    Toast.LENGTH_SHORT
-                                            ).show()
+                                                            context,
+                                                            "安装启动失败，Shizuku可能已安装或APK提取失败",
+                                                            Toast.LENGTH_SHORT
+                                                    )
+                                                    .show()
                                         }
                                     }
                                 } catch (e: Exception) {
                                     Log.e("ShizukuDemo", "安装内置Shizuku时出错", e)
                                     withContext(Dispatchers.Main) {
-                                        Toast.makeText(context, "安装失败: ${e.message}", Toast.LENGTH_SHORT)
+                                        Toast.makeText(
+                                                        context,
+                                                        "安装失败: ${e.message}",
+                                                        Toast.LENGTH_SHORT
+                                                )
                                                 .show()
                                     }
                                 }
@@ -422,14 +413,22 @@ fun ShizukuDemoScreen(
                                 ShizukuAuthorizer.requestShizukuPermission { granted ->
                                     scope.launch(Dispatchers.Main) {
                                         if (granted) {
-                                            Toast.makeText(context, "Shizuku权限已授予", Toast.LENGTH_SHORT)
+                                            Toast.makeText(
+                                                            context,
+                                                            "Shizuku权限已授予",
+                                                            Toast.LENGTH_SHORT
+                                                    )
                                                     .show()
                                         } else {
-                                            Toast.makeText(context, "Shizuku权限请求被拒绝", Toast.LENGTH_SHORT)
+                                            Toast.makeText(
+                                                            context,
+                                                            "Shizuku权限请求被拒绝",
+                                                            Toast.LENGTH_SHORT
+                                                    )
                                                     .show()
                                         }
                                     }
-                                    
+
                                     scope.launch(Dispatchers.IO) {
                                         viewModel.refreshStatus(context)
                                     }
@@ -451,23 +450,26 @@ fun ShizukuDemoScreen(
                         onInstallBundled = {
                             scope.launch(Dispatchers.IO) {
                                 try {
-                                    val success = withContext(Dispatchers.IO) {
-                                        TermuxInstaller.installBundledTermux(context)
-                                    }
+                                    val success =
+                                            withContext(Dispatchers.IO) {
+                                                TermuxInstaller.installBundledTermux(context)
+                                            }
                                     withContext(Dispatchers.Main) {
                                         if (success) {
                                             Toast.makeText(
-                                                    context,
-                                                    "已启动Termux安装，请按照系统提示完成安装",
-                                                    Toast.LENGTH_LONG
-                                            ).show()
+                                                            context,
+                                                            "已启动Termux安装，请按照系统提示完成安装",
+                                                            Toast.LENGTH_LONG
+                                                    )
+                                                    .show()
                                         } else {
                                             // 如果无法通过内置安装，尝试跳转到下载页面
                                             Toast.makeText(
-                                                    context,
-                                                    "内置APK安装失败，正在打开下载页面",
-                                                    Toast.LENGTH_SHORT
-                                            ).show()
+                                                            context,
+                                                            "内置APK安装失败，正在打开下载页面",
+                                                            Toast.LENGTH_SHORT
+                                                    )
+                                                    .show()
                                             try {
                                                 val intent = Intent(Intent.ACTION_VIEW)
                                                 intent.data =
@@ -477,31 +479,32 @@ fun ShizukuDemoScreen(
                                                 context.startActivity(intent)
                                             } catch (e: Exception) {
                                                 Toast.makeText(
-                                                        context,
-                                                        "无法打开下载链接，请手动下载安装Termux",
-                                                        Toast.LENGTH_SHORT
-                                                ).show()
+                                                                context,
+                                                                "无法打开下载链接，请手动下载安装Termux",
+                                                                Toast.LENGTH_SHORT
+                                                        )
+                                                        .show()
                                             }
                                         }
                                     }
                                 } catch (e: Exception) {
                                     Log.e("ShizukuDemo", "安装内置Termux时出错", e)
                                     withContext(Dispatchers.Main) {
-                                        Toast.makeText(context, "安装失败: ${e.message}", Toast.LENGTH_SHORT)
+                                        Toast.makeText(
+                                                        context,
+                                                        "安装失败: ${e.message}",
+                                                        Toast.LENGTH_SHORT
+                                                )
                                                 .show()
                                     }
                                 }
                             }
                         },
-                        onOpenTermux = { 
-                            scope.launch(Dispatchers.IO) {
-                                viewModel.startTermux(context)
-                            }
+                        onOpenTermux = {
+                            scope.launch(Dispatchers.IO) { viewModel.startTermux(context) }
                         },
-                        onAuthorizeTermux = { 
-                            scope.launch(Dispatchers.IO) {
-                                viewModel.authorizeTermux(context)
-                            }
+                        onAuthorizeTermux = {
+                            scope.launch(Dispatchers.IO) { viewModel.authorizeTermux(context) }
                         },
                         isTunaSourceEnabled = viewModel.isTunaSourceEnabled.value,
                         isPythonInstalled = viewModel.isPythonInstalled.value,
@@ -510,35 +513,25 @@ fun ShizukuDemoScreen(
                         isTermuxRunning = viewModel.isTermuxRunning.value,
                         isTermuxBatteryOptimizationExempted =
                                 viewModel.isTermuxBatteryOptimizationExempted.value,
-                        onStartTermux = { 
-                            scope.launch(Dispatchers.IO) {
-                                viewModel.startTermux(context)
-                            }
+                        onStartTermux = {
+                            scope.launch(Dispatchers.IO) { viewModel.startTermux(context) }
                         },
                         onRequestTermuxBatteryOptimization = {
                             scope.launch(Dispatchers.IO) {
                                 viewModel.requestTermuxBatteryOptimization(context)
                             }
                         },
-                        onConfigureTunaSource = { 
-                            scope.launch(Dispatchers.IO) {
-                                viewModel.configureTunaSource(context)
-                            }
+                        onConfigureTunaSource = {
+                            scope.launch(Dispatchers.IO) { viewModel.configureTunaSource(context) }
                         },
-                        onInstallPythonEnv = { 
-                            scope.launch(Dispatchers.IO) {
-                                viewModel.installPython(context)
-                            }
+                        onInstallPythonEnv = {
+                            scope.launch(Dispatchers.IO) { viewModel.installPython(context) }
                         },
-                        onInstallUvEnv = { 
-                            scope.launch(Dispatchers.IO) {
-                                viewModel.installUv(context)
-                            }
+                        onInstallUvEnv = {
+                            scope.launch(Dispatchers.IO) { viewModel.installUv(context) }
                         },
-                        onInstallNodeEnv = { 
-                            scope.launch(Dispatchers.IO) {
-                                viewModel.installNode(context)
-                            }
+                        onInstallNodeEnv = {
+                            scope.launch(Dispatchers.IO) { viewModel.installNode(context) }
                         }
                 )
             }

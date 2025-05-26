@@ -265,7 +265,9 @@ fun handleBackNavigation(currentScreen: Screen, navigateTo: (Screen) -> Unit): B
                 is Screen.Terminal,
                 is Screen.TerminalAutoConfig,
                 is Screen.AppPermissions,
-                is Screen.UIDebugger -> {
+                is Screen.UIDebugger,
+                is Screen.ShellExecutor,
+                is Screen.Logcat -> {
                         navigateTo(Screen.Toolbox)
                         true
                 }

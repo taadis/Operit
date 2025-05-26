@@ -34,6 +34,7 @@ import androidx.navigation.NavController
 import com.ai.assistance.operit.ui.features.toolbox.screens.apppermissions.AppPermissionsScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.ffmpegtoolbox.FFmpegToolboxScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.filemanager.FileManagerScreen
+import com.ai.assistance.operit.ui.features.toolbox.screens.logcat.LogcatScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.shellexecutor.ShellExecutorScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.terminal.screens.TerminalScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.terminalconfig.TerminalAutoConfigScreen
@@ -69,7 +70,8 @@ fun ToolboxScreen(
         onAppPermissionsSelected: () -> Unit,
         onUIDebuggerSelected: () -> Unit,
         onFFmpegToolboxSelected: () -> Unit,
-        onShellExecutorSelected: () -> Unit
+        onShellExecutorSelected: () -> Unit,
+        onLogcatSelected: () -> Unit
 ) {
         // 屏幕配置信息，用于响应式布局
         val configuration = LocalConfiguration.current
@@ -143,6 +145,13 @@ fun ToolboxScreen(
                                 description = "执行Shell命令并查看输出结果，支持常用命令预设",
                                 category = ToolCategory.DEVELOPMENT,
                                 onClick = onShellExecutorSelected
+                        ),
+                        Tool(
+                                name = "日志查看器",
+                                icon = Icons.Default.DataObject,
+                                description = "实时捕获并查看系统和应用日志，支持过滤和搜索",
+                                category = ToolCategory.DEVELOPMENT,
+                                onClick = onLogcatSelected
                         )
                 )
 
@@ -467,6 +476,17 @@ fun ShellExecutorToolScreen(navController: NavController) {
         Scaffold() { paddingValues ->
                 Box(modifier = Modifier.padding(paddingValues)) {
                         ShellExecutorScreen(navController = navController)
+                }
+        }
+}
+
+/** 显示日志查看器屏幕 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LogcatToolScreen(navController: NavController) {
+        Scaffold() { paddingValues ->
+                Box(modifier = Modifier.padding(paddingValues)) {
+                        LogcatScreen(navController = navController)
                 }
         }
 }

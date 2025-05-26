@@ -17,10 +17,13 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -29,9 +32,20 @@ import kotlinx.coroutines.withContext
 // 仅保留这个DataStore用于存储当前聊天ID
 private val Context.currentChatIdDataStore by preferencesDataStore(name = "current_chat_id")
 
-class ChatHistoryManager(private val context: Context) {
+class ChatHistoryManager private constructor(private val context: Context) {
     companion object {
         private const val TAG = "ChatHistoryManager"
+
+        @Volatile private var INSTANCE: ChatHistoryManager? = null
+
+        fun getInstance(context: Context): ChatHistoryManager {
+            return INSTANCE
+                    ?: synchronized(this) {
+                        val instance = ChatHistoryManager(context.applicationContext)
+                        INSTANCE = instance
+                        instance
+                    }
+        }
     }
 
     // 使用Room数据库
@@ -63,7 +77,7 @@ class ChatHistoryManager(private val context: Context) {
     }
 
     // 获取所有聊天历史（转换为UI层需要的ChatHistory对象）
-    val chatHistoriesFlow: Flow<List<ChatHistory>> =
+    private val _chatHistoriesFlow: Flow<List<ChatHistory>> =
     // 使用原始的Flow方式，这样可以确保数据库变化时会自动刷新
     chatDao.getAllChats().map { chatEntities ->
                 Log.d(TAG, "加载聊天列表，共 ${chatEntities.size} 个聊天")
@@ -97,8 +111,16 @@ class ChatHistoryManager(private val context: Context) {
                 }
             }
 
+    // 转换为StateFlow以便共享
+    val chatHistoriesFlow =
+            _chatHistoriesFlow.stateIn(
+                    CoroutineScope(Dispatchers.IO + SupervisorJob()),
+                    SharingStarted.Lazily,
+                    emptyList()
+            )
+
     // 获取当前聊天ID
-    val currentChatIdFlow: Flow<String?> =
+    private val _currentChatIdFlow: Flow<String?> =
             context.currentChatIdDataStore.data
                     .catch { exception ->
                         if (exception is IOException) {
@@ -108,6 +130,14 @@ class ChatHistoryManager(private val context: Context) {
                         }
                     }
                     .map { preferences -> preferences[PreferencesKeys.CURRENT_CHAT_ID] }
+
+    // 转换为StateFlow以便共享
+    val currentChatIdFlow =
+            _currentChatIdFlow.stateIn(
+                    CoroutineScope(Dispatchers.IO + SupervisorJob()),
+                    SharingStarted.Lazily,
+                    null
+            )
 
     // 保存聊天历史
     suspend fun saveChatHistory(history: ChatHistory) {
@@ -283,6 +313,29 @@ class ChatHistoryManager(private val context: Context) {
             } catch (e: Exception) {
                 Log.e(TAG, "加载聊天消息失败", e)
                 emptyList()
+            }
+        }
+    }
+
+    // 更新聊天标题
+    suspend fun updateChatTitle(chatId: String, title: String) {
+        mutex.withLock {
+            try {
+                val chat = chatDao.getChatById(chatId)
+                if (chat != null) {
+                    Log.d(TAG, "更新聊天[$chatId]的标题为: $title")
+                    chatDao.updateChatMetadata(
+                            chatId = chatId,
+                            title = title,
+                            timestamp = System.currentTimeMillis(),
+                            inputTokens = chat.inputTokens,
+                            outputTokens = chat.outputTokens
+                    )
+                } else {
+                    Log.e(TAG, "更新标题失败: 未找到聊天[$chatId]")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "更新聊天标题失败", e)
             }
         }
     }

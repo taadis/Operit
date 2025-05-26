@@ -447,7 +447,7 @@ fun SettingsScreen(
                 }
 
                 // 从数据源读取token统计数据
-                val chatHistories = remember { ChatHistoryManager(context) }
+                val chatHistories = remember { ChatHistoryManager.getInstance(context) }
                 var totalInputTokens by remember { mutableStateOf(0) }
                 var totalOutputTokens by remember { mutableStateOf(0) }
                 var preferenceAnalysisInputTokens by remember { mutableStateOf(0) }
