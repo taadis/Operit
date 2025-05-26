@@ -60,9 +60,7 @@ class ProblemLibraryTool private constructor(private val context: Context) {
     private var vectorIndexReady = false
 
     // 转换方法：从标准ProblemRecord转为本地ProblemRecord
-    private fun convertToProblemRecord(
-            standardRecord: ProblemRecord
-    ): ProblemRecord {
+    private fun convertToProblemRecord(standardRecord: ProblemRecord): ProblemRecord {
         return ProblemRecord(
                 uuid = standardRecord.uuid,
                 query = standardRecord.query,
@@ -116,14 +114,15 @@ class ProblemLibraryTool private constructor(private val context: Context) {
         // 保存到Room数据库，同时会更新向量索引
         kotlinx.coroutines.runBlocking {
             // 转换为标准ProblemRecord
-            val standardRecord = ProblemRecord(
-                    uuid = record.uuid,
-                    query = record.query,
-                    solution = record.solution,
-                    tools = record.tools,
-                    summary = record.summary,
-                    timestamp = record.timestamp
-            )
+            val standardRecord =
+                    ProblemRecord(
+                            uuid = record.uuid,
+                            query = record.query,
+                            solution = record.solution,
+                            tools = record.tools,
+                            summary = record.summary,
+                            timestamp = record.timestamp
+                    )
             vectorDB.addRecord(standardRecord)
             Log.d(TAG, "问题记录已保存到数据库: ${record.uuid}")
         }

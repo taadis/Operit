@@ -1,113 +1,229 @@
 package com.ai.assistance.operit.data.repository
 
 import android.content.Context
+import android.util.Log
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.ai.assistance.operit.data.db.AppDatabase
+import com.ai.assistance.operit.data.model.ChatEntity
 import com.ai.assistance.operit.data.model.ChatHistory
 import com.ai.assistance.operit.data.model.ChatMessage
+import com.ai.assistance.operit.data.model.MessageEntity
+import java.io.IOException
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
-import java.io.IOException
-import java.time.LocalDateTime
+import kotlinx.coroutines.withContext
 
-private val Context.chatHistoryDataStore by preferencesDataStore(name = "chat_histories")
+// 仅保留这个DataStore用于存储当前聊天ID
+private val Context.currentChatIdDataStore by preferencesDataStore(name = "current_chat_id")
 
 class ChatHistoryManager(private val context: Context) {
-    private val json = Json {
-        ignoreUnknownKeys = true
-        prettyPrint = false // Change to false for better performance
+    companion object {
+        private const val TAG = "ChatHistoryManager"
     }
 
-    // Use a mutex to prevent concurrent modifications
+    // 使用Room数据库
+    private val database = AppDatabase.getDatabase(context)
+    private val chatDao = database.chatDao()
+    private val messageDao = database.messageDao()
+
+    init {
+        // 确保数据库被初始化
+        Log.d(TAG, "ChatHistoryManager初始化，预加载数据库")
+        // 使用独立的协程作用域触发数据库初始化
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                // 预先尝试执行一个简单查询
+                val chats = chatDao.getAllChats().first()
+                Log.d(TAG, "数据库预加载完成，现有聊天数：${chats.size}")
+            } catch (e: Exception) {
+                Log.e(TAG, "数据库预加载失败", e)
+            }
+        }
+    }
+
+    // 互斥锁用于同步操作
     private val mutex = Mutex()
 
-    // Add in-memory cache to reduce reads from DataStore
-    private var cachedHistories: List<ChatHistory>? = null
-
+    // DataStore键
     private object PreferencesKeys {
-        val CHAT_HISTORIES = stringPreferencesKey("chat_histories")
         val CURRENT_CHAT_ID = stringPreferencesKey("current_chat_id")
     }
 
-    // 获取所有聊天历史
-    val chatHistoriesFlow: Flow<List<ChatHistory>> = context.chatHistoryDataStore.data
-        .catch { exception ->
-            if (exception is IOException) {
-                emit(emptyPreferences())
-            } else {
-                throw exception
+    // 获取所有聊天历史（转换为UI层需要的ChatHistory对象）
+    val chatHistoriesFlow: Flow<List<ChatHistory>> =
+    // 使用原始的Flow方式，这样可以确保数据库变化时会自动刷新
+    chatDao.getAllChats().map { chatEntities ->
+                Log.d(TAG, "加载聊天列表，共 ${chatEntities.size} 个聊天")
+
+                // 使用withContext将处理移至IO线程
+                kotlinx.coroutines.withContext(Dispatchers.IO) {
+                    chatEntities.map { chatEntity ->
+                        // 不再加载消息，只转换元数据
+                        // 将时间戳转换为LocalDateTime
+                        val createdAt =
+                                Instant.ofEpochMilli(chatEntity.createdAt)
+                                        .atZone(ZoneId.systemDefault())
+                                        .toLocalDateTime()
+
+                        val updatedAt =
+                                Instant.ofEpochMilli(chatEntity.updatedAt)
+                                        .atZone(ZoneId.systemDefault())
+                                        .toLocalDateTime()
+
+                        // 创建ChatHistory对象（消息为空列表）
+                        ChatHistory(
+                                id = chatEntity.id,
+                                title = chatEntity.title,
+                                messages = emptyList(), // 不加载消息，提高性能
+                                createdAt = createdAt,
+                                updatedAt = updatedAt,
+                                inputTokens = chatEntity.inputTokens,
+                                outputTokens = chatEntity.outputTokens
+                        )
+                    }
+                }
             }
-        }
-        .map { preferences ->
-            val historiesJson = preferences[PreferencesKeys.CHAT_HISTORIES] ?: "[]"
-            try {
-                val histories = json.decodeFromString<List<ChatHistory>>(historiesJson)
-                cachedHistories = histories // Update cache with latest data
-                histories
-            } catch (e: Exception) {
-                emptyList<ChatHistory>().also { cachedHistories = it }
-            }
-        }
 
     // 获取当前聊天ID
-    val currentChatIdFlow: Flow<String?> = context.chatHistoryDataStore.data
-        .map { preferences ->
-            preferences[PreferencesKeys.CURRENT_CHAT_ID]
-        }
+    val currentChatIdFlow: Flow<String?> =
+            context.currentChatIdDataStore.data
+                    .catch { exception ->
+                        if (exception is IOException) {
+                            emit(emptyPreferences())
+                        } else {
+                            throw exception
+                        }
+                    }
+                    .map { preferences -> preferences[PreferencesKeys.CURRENT_CHAT_ID] }
 
     // 保存聊天历史
     suspend fun saveChatHistory(history: ChatHistory) {
-        // Use mutex to ensure thread safety
         mutex.withLock {
-            context.chatHistoryDataStore.edit { preferences ->
-                // First try to use cached data to avoid reading from preferences
-                val existingHistories = cachedHistories?.toMutableList() ?: run {
-                    val existingHistoriesJson = preferences[PreferencesKeys.CHAT_HISTORIES] ?: "[]"
-                    try {
-                        json.decodeFromString<List<ChatHistory>>(existingHistoriesJson).toMutableList()
-                    } catch (e: Exception) {
-                        mutableListOf()
-                    }
-                }
+            try {
+                // 创建聊天实体
+                val chatEntity = ChatEntity.fromChatHistory(history)
 
-                // 查找是否已存在该ID的历史记录
-                val existingIndex = existingHistories.indexOfFirst { it.id == history.id }
+                // 保存聊天实体
+                chatDao.insertChat(chatEntity)
 
-                // Log.d("ChatHistoryManager", "existingIndex: $existingIndex")0
+                // 先删除该聊天的所有现有消息
+                messageDao.deleteAllMessagesForChat(chatEntity.id)
 
-                // 如果存在则更新，不存在则添加
-                if (existingIndex != -1) {
-                    existingHistories[existingIndex] = history
-                } else {
-                    existingHistories.add(history) // 添加到列表末尾，而不是列表开头
-                }
-
-                // Update the cache
-                cachedHistories = existingHistories
-
-                // Save to preferences
-                preferences[PreferencesKeys.CHAT_HISTORIES] = json.encodeToString(existingHistories)
+                // 批量插入所有消息
+                val messageEntities =
+                        history.messages.mapIndexed { index, message ->
+                            MessageEntity.fromChatMessage(chatEntity.id, message, index)
+                        }
+                messageDao.insertMessages(messageEntities)
+            } catch (e: Exception) {
+                throw e
             }
         }
     }
 
-    // 判断一个聊天历史是否为空对话（只有系统消息，没有用户交互）
-    private fun isEmptyChat(history: ChatHistory): Boolean {
-        // 如果有任何用户或AI消息，则不是空对话
-        val hasUserOrAIMessage = history.messages.any { it.sender == "user" || it.sender == "ai" }
-        return !hasUserOrAIMessage
+    // 添加单条消息
+    suspend fun addMessage(chatId: String, message: ChatMessage) {
+        mutex.withLock {
+            try {
+                // 获取当前最大序号
+                val maxOrderIndex = messageDao.getMaxOrderIndex(chatId) ?: -1
+
+                // 创建消息实体
+                val messageEntity =
+                        MessageEntity.fromChatMessage(
+                                chatId = chatId,
+                                message = message,
+                                orderIndex = maxOrderIndex + 1
+                        )
+
+                // 保存消息
+                messageDao.insertMessage(messageEntity)
+
+                // 更新聊天元数据
+                val chat = chatDao.getChatById(chatId)
+                if (chat != null) {
+                    chatDao.updateChatMetadata(
+                            chatId = chatId,
+                            title = chat.title,
+                            timestamp = System.currentTimeMillis(),
+                            inputTokens = chat.inputTokens,
+                            outputTokens = chat.outputTokens
+                    )
+                }
+            } catch (e: Exception) {
+                throw e
+            }
+        }
+    }
+
+    // 更新现有消息
+    suspend fun updateMessage(chatId: String, message: ChatMessage) {
+        mutex.withLock {
+            try {
+                // 找到相应的消息实体
+                val existingMessage = messageDao.getMessageByTimestamp(chatId, message.timestamp)
+
+                if (existingMessage != null) {
+                    // 更新现有消息
+                    messageDao.updateMessageContent(existingMessage.messageId, message.content)
+
+                    // 更新聊天元数据时间戳
+                    val chat = chatDao.getChatById(chatId)
+                    if (chat != null) {
+                        chatDao.updateChatMetadata(
+                                chatId = chatId,
+                                title = chat.title,
+                                timestamp = System.currentTimeMillis(),
+                                inputTokens = chat.inputTokens,
+                                outputTokens = chat.outputTokens
+                        )
+                    }
+                } else {
+                    // 如果找不到现有消息，则添加新消息
+                    addMessage(chatId, message)
+                }
+            } catch (e: Exception) {
+                throw e
+            }
+        }
+    }
+
+    // 更新聊天的token计数
+    suspend fun updateChatTokenCounts(chatId: String, inputTokens: Int, outputTokens: Int) {
+        mutex.withLock {
+            try {
+                val chat = chatDao.getChatById(chatId)
+                if (chat != null) {
+                    chatDao.updateChatMetadata(
+                            chatId = chatId,
+                            title = chat.title,
+                            timestamp = System.currentTimeMillis(),
+                            inputTokens = inputTokens,
+                            outputTokens = outputTokens
+                    )
+                }
+            } catch (e: Exception) {
+                throw e
+            }
+        }
     }
 
     // 设置当前聊天ID
     suspend fun setCurrentChatId(chatId: String) {
-        context.chatHistoryDataStore.edit { preferences ->
+        context.currentChatIdDataStore.edit { preferences ->
             preferences[PreferencesKeys.CURRENT_CHAT_ID] = chatId
         }
     }
@@ -115,30 +231,19 @@ class ChatHistoryManager(private val context: Context) {
     // 删除聊天历史
     suspend fun deleteChatHistory(chatId: String) {
         mutex.withLock {
-            context.chatHistoryDataStore.edit { preferences ->
-                // 使用缓存或从preferences中获取现有历史记录
-                val existingHistories = cachedHistories?.toMutableList() ?: run {
-                    val existingHistoriesJson = preferences[PreferencesKeys.CHAT_HISTORIES] ?: "[]"
-                    try {
-                        json.decodeFromString<List<ChatHistory>>(existingHistoriesJson).toMutableList()
-                    } catch (e: Exception) {
-                        mutableListOf()
+            try {
+                // 删除聊天实体（级联删除所有消息）
+                chatDao.deleteChat(chatId)
+
+                // 如果删除的是当前聊天，清除当前聊天ID
+                val currentChatId = currentChatIdFlow.first()
+                if (currentChatId == chatId) {
+                    context.currentChatIdDataStore.edit { preferences ->
+                        preferences.remove(PreferencesKeys.CURRENT_CHAT_ID)
                     }
                 }
-
-                // 移除指定ID的聊天历史
-                val updatedHistories = existingHistories.filter { it.id != chatId }
-
-                // 更新缓存
-                cachedHistories = updatedHistories
-
-                // 保存到preferences
-                preferences[PreferencesKeys.CHAT_HISTORIES] = json.encodeToString(updatedHistories)
-
-                // 如果删除的是当前聊天，则清除当前聊天ID
-                if (preferences[PreferencesKeys.CURRENT_CHAT_ID] == chatId) {
-                    preferences.remove(PreferencesKeys.CURRENT_CHAT_ID)
-                }
+            } catch (e: Exception) {
+                throw e
             }
         }
     }
@@ -146,17 +251,39 @@ class ChatHistoryManager(private val context: Context) {
     // 创建新对话
     suspend fun createNewChat(): ChatHistory {
         val dateTime = LocalDateTime.now()
-        val formattedTime = "${dateTime.hour}:${dateTime.minute.toString().padStart(2, '0')}:${dateTime.second.toString().padStart(2, '0')}"
+        val formattedTime =
+                "${dateTime.hour}:${dateTime.minute.toString().padStart(2, '0')}:${dateTime.second.toString().padStart(2, '0')}"
 
-        val newHistory = ChatHistory(
-            title = "新对话 $formattedTime",
-            messages = listOf<ChatMessage>(),
-            inputTokens = 0,
-            outputTokens = 0
-        )
-        saveChatHistory(newHistory)
+        val newHistory =
+                ChatHistory(
+                        title = "新对话 $formattedTime",
+                        messages = listOf<ChatMessage>(),
+                        inputTokens = 0,
+                        outputTokens = 0
+                )
+
+        // 保存新聊天
+        val chatEntity = ChatEntity.fromChatHistory(newHistory)
+        chatDao.insertChat(chatEntity)
+
+        // 设置为当前聊天
         setCurrentChatId(newHistory.id)
+
         return newHistory
     }
 
+    // 直接加载聊天消息
+    suspend fun loadChatMessages(chatId: String): List<ChatMessage> {
+        return kotlinx.coroutines.withContext(Dispatchers.IO) {
+            try {
+                Log.d(TAG, "直接从数据库加载聊天 $chatId 的消息")
+                val messages = messageDao.getMessagesForChat(chatId)
+                Log.d(TAG, "聊天 $chatId 共加载 ${messages.size} 条消息")
+                messages.map { it.toChatMessage() }
+            } catch (e: Exception) {
+                Log.e(TAG, "加载聊天消息失败", e)
+                emptyList()
+            }
+        }
+    }
 }

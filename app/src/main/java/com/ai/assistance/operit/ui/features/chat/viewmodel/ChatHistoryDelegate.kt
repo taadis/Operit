@@ -8,7 +8,6 @@ import com.ai.assistance.operit.data.model.ChatHistory
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.repository.ChatHistoryManager
-import java.time.LocalDateTime
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -73,8 +72,37 @@ class ChatHistoryDelegate(
         // 收集聊天历史列表
         viewModelScope.launch {
             chatHistoryManager.chatHistoriesFlow.collect { histories ->
+                Log.d(TAG, "收到聊天历史列表更新：${histories.size} 个聊天")
                 _chatHistories.value = histories
                 historiesLoaded = true
+
+                // 尝试根据当前ID加载对应的聊天
+                val currentId = _currentChatId.value
+                if (currentId != null) {
+                    Log.d(TAG, "尝试加载当前聊天：$currentId")
+
+                    // 直接从数据库加载当前聊天的消息
+                    try {
+                        val messages = chatHistoryManager.loadChatMessages(currentId)
+                        Log.d(TAG, "从数据库加载当前聊天消息：${messages.size} 条")
+
+                        // 无论消息是否为空，都更新聊天历史
+                        _chatHistory.value = messages
+                        onChatHistoryLoaded(messages)
+
+                        // 查找对应的聊天元数据，加载token统计
+                        val selectedChat = histories.find { it.id == currentId }
+                        if (selectedChat != null) {
+                            onTokenStatisticsLoaded(
+                                    selectedChat.inputTokens,
+                                    selectedChat.outputTokens
+                            )
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "加载当前聊天消息失败", e)
+                    }
+                }
+
                 checkIfShouldCreateNewChat()
             }
         }
@@ -82,9 +110,15 @@ class ChatHistoryDelegate(
         // 收集当前聊天ID
         viewModelScope.launch {
             chatHistoryManager.currentChatIdFlow.collect { chatId ->
+                Log.d(TAG, "收到当前聊天ID更新：$chatId")
+                val oldId = _currentChatId.value
                 _currentChatId.value = chatId
 
                 if (currentChatIdLoaded) {
+                    // 如果ID变更，直接从数据库加载消息
+                    if (chatId != null && chatId != oldId) {
+                        loadChatMessages(chatId)
+                    }
                     return@collect
                 }
 
@@ -92,21 +126,34 @@ class ChatHistoryDelegate(
                 checkIfShouldCreateNewChat()
 
                 if (chatId != null) {
-                    val selectedChat = _chatHistories.value.find { it.id == chatId }
-                    if (selectedChat != null) {
-                        // 更新聊天历史
-                        _chatHistory.value = selectedChat.messages
-                        // 通知ViewModel聊天历史已加载
-                        onChatHistoryLoaded(selectedChat.messages)
-
-                        // 通知ViewModel恢复token统计
-                        onTokenStatisticsLoaded(selectedChat.inputTokens, selectedChat.outputTokens)
-
-                        // 清空并重新提取计划项
-                        resetPlanItems()
-                    }
+                    // 初始化时从数据库加载消息
+                    loadChatMessages(chatId)
                 }
             }
+        }
+    }
+
+    /** 加载聊天消息的辅助方法 */
+    private suspend fun loadChatMessages(chatId: String) {
+        try {
+            // 直接从数据库加载消息
+            val messages = chatHistoryManager.loadChatMessages(chatId)
+            Log.d(TAG, "加载聊天 $chatId 的消息：${messages.size} 条")
+
+            // 无论消息是否为空，都更新聊天历史
+            _chatHistory.value = messages
+            onChatHistoryLoaded(messages)
+
+            // 查找聊天元数据，更新token统计
+            val selectedChat = _chatHistories.value.find { it.id == chatId }
+            if (selectedChat != null) {
+                onTokenStatisticsLoaded(selectedChat.inputTokens, selectedChat.outputTokens)
+
+                // 清空并重新提取计划项
+                resetPlanItems()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "加载聊天消息失败", e)
         }
     }
 
@@ -165,12 +212,9 @@ class ChatHistoryDelegate(
     fun switchChat(chatId: String) {
         viewModelScope.launch {
             try {
-                // 保存当前聊天
-                // 问题所在：原来固定传0,0，导致切换聊天后统计数据丢失
-                // saveCurrentChat(0, 0)
+                Log.d(TAG, "开始切换聊天：$chatId")
 
-                // 修复：获取当前token计数并保存，避免丢失统计数据
-                // 通过回调获取当前token统计数据
+                // 保存当前聊天
                 val currentTokenCounts = getCurrentTokenCounts()
                 saveCurrentChat(currentTokenCounts.first, currentTokenCounts.second)
 
@@ -179,25 +223,9 @@ class ChatHistoryDelegate(
 
                 // 切换到选定的聊天
                 chatHistoryManager.setCurrentChatId(chatId)
-                val selectedChat = _chatHistories.value.find { it.id == chatId }
-                if (selectedChat != null) {
-                    _chatHistory.value = selectedChat.messages
 
-                    // 通知ViewModel聊天历史已加载
-                    onChatHistoryLoaded(selectedChat.messages)
-
-                    // 通知ViewModel恢复token统计
-                    onTokenStatisticsLoaded(selectedChat.inputTokens, selectedChat.outputTokens)
-
-                    // 从聊天历史中重新提取计划项
-                    Log.d(TAG, "从聊天历史中重新提取计划项")
-
-                    // 检查是否存在总结消息
-                    val hasSummary = selectedChat.messages.any { it.sender == "summary" }
-                    if (hasSummary) {
-                        Log.d(TAG, "检测到聊天历史中已有总结消息")
-                    }
-                }
+                // 加载消息
+                loadChatMessages(chatId)
             } catch (e: Exception) {
                 Log.e(TAG, "切换聊天失败", e)
             }
@@ -275,31 +303,8 @@ class ChatHistoryDelegate(
 
                 // 仅在有消息时保存
                 if (_chatHistory.value.isNotEmpty()) {
-                    // 查找是否已有该ID的聊天历史，以保留原始createdAt
-                    val existingChat = _chatHistories.value.find { it.id == currentId }
-
-                    val history =
-                            if (existingChat != null) {
-                                // 如果是更新现有聊天，则保留原始的createdAt，只更新updatedAt
-                                existingChat.copy(
-                                        title = generateChatTitle(),
-                                        messages = _chatHistory.value,
-                                        updatedAt = LocalDateTime.now(),
-                                        inputTokens = inputTokens,
-                                        outputTokens = outputTokens
-                                )
-                            } else {
-                                // 如果是新聊天，则创建新的ChatHistory对象
-                                ChatHistory(
-                                        id = currentId,
-                                        title = generateChatTitle(),
-                                        messages = _chatHistory.value,
-                                        inputTokens = inputTokens,
-                                        outputTokens = outputTokens
-                                )
-                            }
-
-                    chatHistoryManager.saveChatHistory(history)
+                    // 更新token计数
+                    chatHistoryManager.updateChatTokenCounts(currentId, inputTokens, outputTokens)
 
                     // 设置当前聊天ID（如果尚未设置）
                     if (_currentChatId.value == null) {
@@ -336,43 +341,83 @@ class ChatHistoryDelegate(
                 val currentMessages = _chatHistory.value
                 val currentTypeIndex = currentMessages.indexOfLast { it.sender == message.sender }
                 val lastUserIndex = currentMessages.indexOfLast { it.sender == "user" }
+                val chatId = _currentChatId.value
 
-                // 检查是否需要进行记忆优化
-                val memoryOptimizationEnabled = apiPreferences.memoryOptimizationFlow.first()
-
-                if (memoryOptimizationEnabled && message.sender == "user") {
-                    // 先正常添加消息到历史记录中
-                    val updatedMessages =
-                            addMessageNormally(
-                                    message,
-                                    currentMessages,
-                                    currentTypeIndex,
-                                    lastUserIndex
-                            )
-
-                    // 检查是否需要生成总结
-                    val shouldSummarize = shouldGenerateSummary(updatedMessages)
-
-                    // 仅当应该总结时触发总结
-                    if (shouldSummarize) {
-                        Log.d(TAG, "触发记忆总结")
-                        // 将总结任务放在单独的协程中执行，不阻塞消息添加流程
-                        viewModelScope.launch { summarizeMemory(updatedMessages) }
-                    }
-
-                    // 无论是否触发总结，都立即通知ViewModel消息已更新，不等待总结完成
-                    onChatHistoryLoaded(_chatHistory.value)
-                } else {
-                    // 不需要优化，正常添加消息
-                    addMessageNormally(message, currentMessages, currentTypeIndex, lastUserIndex)
-
-                    // 通知ViewModel聊天历史已更新
-                    onChatHistoryLoaded(_chatHistory.value)
+                // 如果没有当前聊天ID，无法添加消息
+                if (chatId == null) {
+                    Log.e(TAG, "尝试添加消息但没有当前聊天ID")
+                    return@launch
                 }
 
-                // 自动保存聊天历史
-                val currentTokenCounts = getCurrentTokenCounts()
-                saveCurrentChat(currentTokenCounts.first, currentTokenCounts.second)
+                // 处理AI消息更新
+                if (message.sender == "ai" && currentTypeIndex >= 0) {
+                    // 获取当前AI消息
+                    val currentAiMessage = currentMessages[currentTypeIndex]
+
+                    // 如果内容相同，不需要更新
+                    if (currentAiMessage.content == message.content) {
+                        return@launch
+                    }
+
+                    // 检查是否为同一条消息的更新（使用时间戳）
+                    val isSameMessage = currentAiMessage.timestamp == message.timestamp
+
+                    // 更新UI中的消息
+                    val updatedMessages = currentMessages.toMutableList()
+
+                    if (isSameMessage || currentTypeIndex > lastUserIndex) {
+                        // 如果是同一条消息或者是最后一个用户消息之后的AI消息，则替换
+                        Log.d(TAG, "替换现有AI消息: ID=${chatId}, 时间戳=${message.timestamp}")
+                        updatedMessages[currentTypeIndex] = message
+
+                        // 更新内存中的聊天历史
+                        _chatHistory.value = updatedMessages
+
+                        // 通知ViewModel聊天历史已更新
+                        onChatHistoryLoaded(_chatHistory.value)
+
+                        // 使用Room更新消息，避免重复创建
+                        chatHistoryManager.updateMessage(chatId, message)
+                        return@launch
+                    }
+                }
+
+                // 处理思考消息（替换现有的思考消息或添加新的）
+                if (message.sender == "think") {
+                    val thinkIndex = currentMessages.indexOfLast { it.sender == "think" }
+                    if (thinkIndex >= 0 && thinkIndex > lastUserIndex) {
+                        // 已有思考消息且在最后一个用户消息之后，更新它
+                        val updatedMessages = currentMessages.toMutableList()
+                        updatedMessages[thinkIndex] = message
+                        _chatHistory.value = updatedMessages
+
+                        // 通知ViewModel聊天历史已更新
+                        onChatHistoryLoaded(_chatHistory.value)
+
+                        // 因为思考消息不需要持久化，所以这里不需要保存到数据库
+                        return@launch
+                    }
+                }
+
+                // 如果执行到这里，说明消息是新消息（不是对现有消息的更新），直接添加
+                val newMessages = currentMessages + message
+                _chatHistory.value = newMessages
+
+                // 通知ViewModel聊天历史已更新
+                onChatHistoryLoaded(_chatHistory.value)
+
+                // 保存到数据库（思考消息除外）
+                if (message.sender != "think") {
+                    chatHistoryManager.addMessage(chatId, message)
+
+                    // 更新token计数
+                    val tokenCounts = getCurrentTokenCounts()
+                    chatHistoryManager.updateChatTokenCounts(
+                            chatId,
+                            tokenCounts.first,
+                            tokenCounts.second
+                    )
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "添加消息到聊天失败", e)
             }
