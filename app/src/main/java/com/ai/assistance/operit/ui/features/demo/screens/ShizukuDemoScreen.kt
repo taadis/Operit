@@ -262,12 +262,14 @@ fun ShizukuDemoScreen(
                                 !viewModel.isTermuxRunning.value ||
                                 !viewModel.isTermuxFullyConfigured.value)
 
-        // 检查Shizuku版本状态
-        val installedVersion = ShizukuInstaller.getInstalledShizukuVersion(context)
-        val bundledVersion = ShizukuInstaller.getBundledShizukuVersion(context)
-        val isUpdateNeeded = ShizukuInstaller.isShizukuUpdateNeeded(context)
-        
-        Log.d("ShizukuDemo", "Shizuku版本状态 - 已安装: $installedVersion, 内置: $bundledVersion, 需要更新: $isUpdateNeeded")
+        // 检查Shizuku版本状态 - 使用remember缓存结果，避免每次重组时重复调用
+        val (installedVersion, bundledVersion, isUpdateNeeded) = remember {
+            val installed = ShizukuInstaller.getInstalledShizukuVersion(context)
+            val bundled = ShizukuInstaller.getBundledShizukuVersion(context)
+            val needsUpdate = ShizukuInstaller.isShizukuUpdateNeeded(context)
+            Log.d("ShizukuDemo", "缓存Shizuku版本状态 - 已安装: $installed, 内置: $bundled, 需要更新: $needsUpdate")
+            Triple(installed, bundled, needsUpdate)
+        }
 
         val needShizukuSetupGuide =
                 currentDisplayedPermissionLevel == AndroidPermissionLevel.DEBUGGER &&
@@ -550,6 +552,7 @@ fun ShizukuDemoScreen(
                                 }
                             }
                         },
+                        // 传递已缓存的版本信息，避免重复调用API
                         installedVersion = installedVersion,
                         bundledVersion = bundledVersion
                 )

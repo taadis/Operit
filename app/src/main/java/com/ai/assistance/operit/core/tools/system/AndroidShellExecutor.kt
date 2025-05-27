@@ -30,7 +30,10 @@ class AndroidShellExecutor {
             val preferredLevel = androidPermissionPreferences.getPreferredPermissionLevel()
             Log.d(TAG, "Using preferred permission level: $preferredLevel")
 
-            val preferredExecutor = ShellExecutorFactory.getExecutor(ctx, preferredLevel)
+            // 如果preferredLevel为null，使用标准权限级别
+            val actualLevel = preferredLevel ?: AndroidPermissionLevel.STANDARD
+            
+            val preferredExecutor = ShellExecutorFactory.getExecutor(ctx, actualLevel)
             val permStatus = preferredExecutor.hasPermission()
 
             // 尝试使用首选权限级别执行命令

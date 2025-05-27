@@ -90,7 +90,9 @@ class ShellExecutorFactory {
         fun getUserPreferredExecutor(context: Context): ShellExecutor {
             try {
                 val preferredLevel = androidPermissionPreferences.getPreferredPermissionLevel()
-                return getExecutor(context, preferredLevel)
+                // 如果preferredLevel为null，使用标准权限级别
+                val actualLevel = preferredLevel ?: AndroidPermissionLevel.STANDARD
+                return getExecutor(context, actualLevel)
             } catch (e: Exception) {
                 Log.e(TAG, "Error getting preferred permission level, falling back to STANDARD", e)
                 return getExecutor(context, AndroidPermissionLevel.STANDARD)

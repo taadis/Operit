@@ -21,6 +21,13 @@ class ShizukuInstaller {
         private const val SHIZUKU_APK_FILENAME = "shizuku.apk"
         private const val SHIZUKU_PACKAGE_NAME = "moe.shizuku.privileged.api"
         
+        // 缓存版本信息，避免重复计算
+        private var cachedInstalledVersion: String? = null
+        private var cachedBundledVersion: String? = null
+        private var cachedUpdateNeeded: Boolean? = null
+        private var lastCheckTime: Long = 0
+        private const val CACHE_EXPIRE_TIME = 60 * 1000 // 缓存有效期1分钟
+        
         /**
          * 从assets目录复制Shizuku APK到应用私有目录
          * @param context Android上下文
@@ -105,6 +112,10 @@ class ShizukuInstaller {
                 
                 // 启动安装界面
                 context.startActivity(installIntent)
+                
+                // 清除缓存，强制下次检测重新计算
+                clearCache()
+                
                 return true
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to install bundled Shizuku", e)
@@ -118,15 +129,23 @@ class ShizukuInstaller {
          * @return 内置APK的版本名称，如果无法获取则返回"未知"
          */
         fun getBundledShizukuVersion(context: Context): String {
+            // 优先使用缓存
+            if (cachedBundledVersion != null && !isCacheExpired()) {
+                Log.i(TAG, "从缓存获取内置Shizuku版本: $cachedBundledVersion")
+                return cachedBundledVersion!!
+            }
+            
             try {
                 // 从assets读取版本信息文件
                 val versionInfo = context.assets.open("shizuku_version.txt").use { inputStream ->
                     inputStream.bufferedReader().readText().trim()
                 }
                 Log.i(TAG, "获取内置Shizuku版本: $versionInfo")
+                cachedBundledVersion = versionInfo
                 return versionInfo
             } catch (e: Exception) {
                 Log.e(TAG, "获取内置Shizuku版本失败", e)
+                cachedBundledVersion = "未知"
                 return "未知"
             }
         }
@@ -137,6 +156,12 @@ class ShizukuInstaller {
          * @return 已安装的Shizuku版本名称，如果未安装则返回null
          */
         fun getInstalledShizukuVersion(context: Context): String? {
+            // 优先使用缓存
+            if (cachedInstalledVersion != null && !isCacheExpired()) {
+                Log.i(TAG, "从缓存获取已安装Shizuku版本: $cachedInstalledVersion")
+                return cachedInstalledVersion
+            }
+            
             try {
                 val packageManager = context.packageManager
                 val packageInfo: PackageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -146,13 +171,16 @@ class ShizukuInstaller {
                     packageManager.getPackageInfo(SHIZUKU_PACKAGE_NAME, 0)
                 }
                 Log.i(TAG, "获取已安装Shizuku版本: ${packageInfo.versionName}")
+                cachedInstalledVersion = packageInfo.versionName
                 return packageInfo.versionName
             } catch (e: PackageManager.NameNotFoundException) {
                 // 未安装Shizuku
                 Log.i(TAG, "未检测到已安装的Shizuku")
+                cachedInstalledVersion = null
                 return null
             } catch (e: Exception) {
                 Log.e(TAG, "获取已安装Shizuku版本出错", e)
+                cachedInstalledVersion = null
                 return null
             }
         }
@@ -163,54 +191,63 @@ class ShizukuInstaller {
          * @return 如果需要更新返回true，否则返回false
          */
         fun isShizukuUpdateNeeded(context: Context): Boolean {
+            // 优先使用缓存
+            if (cachedUpdateNeeded != null && !isCacheExpired()) {
+                Log.d(TAG, "从缓存获取Shizuku更新状态: $cachedUpdateNeeded")
+                return cachedUpdateNeeded!!
+            }
+            
             Log.d(TAG, "开始检查Shizuku是否需要更新...")
             
             val installedVersion = getInstalledShizukuVersion(context)
             if (installedVersion == null) {
                 Log.d(TAG, "未安装Shizuku，不需要更新")
+                cachedUpdateNeeded = false
+                updateCacheTimestamp()
                 return false
             }
             
             val bundledVersion = getBundledShizukuVersion(context)
             if (bundledVersion == "未知") {
                 Log.d(TAG, "无法获取内置版本信息，不建议更新")
+                cachedUpdateNeeded = false
+                updateCacheTimestamp()
                 return false
             }
             
             try {
-                Log.d(TAG, "正在比较版本 - 已安装: $installedVersion, 内置: $bundledVersion")
-                
                 // 提取主版本号部分 (例如 "13.5.0.r1234" -> "13.5.0")
                 val installedMainVersion = extractMainVersion(installedVersion)
                 val bundledMainVersion = extractMainVersion(bundledVersion)
-                
-                Log.d(TAG, "提取主版本号 - 已安装: $installedMainVersion, 内置: $bundledMainVersion")
-                
                 // 将版本号分割为数字数组
                 val installed = installedMainVersion.split(".").map { it.toIntOrNull() ?: 0 }
                 val bundled = bundledMainVersion.split(".").map { it.toIntOrNull() ?: 0 }
-                
-                Log.d(TAG, "版本数组 - 已安装: $installed, 内置: $bundled")
                 
                 // 比较主要版本号
                 for (i in 0 until minOf(installed.size, bundled.size)) {
                     if (bundled[i] > installed[i]) {
                         Log.d(TAG, "需要更新: 内置版本 ${bundled[i]} > 已安装版本 ${installed[i]} (位置: $i)")
+                        cachedUpdateNeeded = true
+                        updateCacheTimestamp()
                         return true
                     }
                     if (bundled[i] < installed[i]) {
                         Log.d(TAG, "不需要更新: 内置版本 ${bundled[i]} < 已安装版本 ${installed[i]} (位置: $i)")
+                        cachedUpdateNeeded = false
+                        updateCacheTimestamp()
                         return false
                     }
                 }
                 
                 // 如果前面的版本号都相同，但bundled有更多的版本号段，则认为需要更新
                 val updateNeeded = bundled.size > installed.size
-                Log.d(TAG, "版本比较结果: 需要更新 = $updateNeeded" + 
-                        (if (updateNeeded) " (内置版本有更多版本号段)" else ""))
+                cachedUpdateNeeded = updateNeeded
+                updateCacheTimestamp()
                 return updateNeeded
             } catch (e: Exception) {
                 Log.e(TAG, "比较Shizuku版本时出错", e)
+                cachedUpdateNeeded = false
+                updateCacheTimestamp()
                 return false
             }
         }
@@ -225,8 +262,32 @@ class ShizukuInstaller {
             val matchResult = mainVersionRegex.find(version)
             
             val result = matchResult?.value ?: version.split("-", ".", "+", " ").take(3).joinToString(".")
-            Log.d(TAG, "从 '$version' 提取主版本号: '$result'")
             return result
+        }
+        
+        /**
+         * 更新缓存时间戳
+         */
+        private fun updateCacheTimestamp() {
+            lastCheckTime = System.currentTimeMillis()
+        }
+        
+        /**
+         * 检查缓存是否已过期
+         */
+        private fun isCacheExpired(): Boolean {
+            return System.currentTimeMillis() - lastCheckTime > CACHE_EXPIRE_TIME
+        }
+        
+        /**
+         * 清除所有缓存
+         */
+        fun clearCache() {
+            cachedInstalledVersion = null
+            cachedBundledVersion = null
+            cachedUpdateNeeded = null
+            lastCheckTime = 0
+            Log.d(TAG, "Shizuku版本缓存已清除")
         }
     }
 } 

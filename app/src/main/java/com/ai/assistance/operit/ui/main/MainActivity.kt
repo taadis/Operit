@@ -17,9 +17,12 @@ import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.data.preferences.AgreementPreferences
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
+import com.ai.assistance.operit.data.preferences.androidPermissionPreferences
 import com.ai.assistance.operit.data.updates.UpdateManager
 import com.ai.assistance.operit.data.updates.UpdateStatus
 import com.ai.assistance.operit.ui.common.NavItem
+import com.ai.assistance.operit.ui.features.agreement.screens.AgreementScreen
+import com.ai.assistance.operit.ui.features.permission.screens.PermissionGuideScreen
 import com.ai.assistance.operit.ui.features.startup.screens.PluginLoadingScreenWithState
 import com.ai.assistance.operit.ui.features.startup.screens.PluginLoadingState
 import com.ai.assistance.operit.ui.theme.OperitTheme
@@ -49,6 +52,9 @@ class MainActivity : ComponentActivity() {
 
     // UpdateManager实例
     private lateinit var updateManager: UpdateManager
+    
+    // 是否显示权限引导界面
+    private var showPermissionGuide = false
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -85,8 +91,14 @@ class MainActivity : ComponentActivity() {
         // 初始化并设置更新管理器
         setupUpdateManager()
 
-        // 设置初始界面
-        setAppContent()
+        // 强制检查权限级别是否已设置
+        lifecycleScope.launch {
+            // 确保androidPermissionPreferences已初始化
+            delay(500)
+            checkPermissionLevelSet()
+            // 设置初始界面
+            setAppContent()
+        }
         
         // 设置双击返回退出
         setupBackPressHandler()
@@ -148,6 +160,15 @@ class MainActivity : ComponentActivity() {
         // 初始化协议偏好管理器
         agreementPreferences = AgreementPreferences(this)
     }
+    
+    // ======== 检查权限级别设置 ========
+    private fun checkPermissionLevelSet() {
+        // 检查是否已设置权限级别
+        val permissionLevel = androidPermissionPreferences.getPreferredPermissionLevel()
+        Log.d(TAG, "当前权限级别: $permissionLevel")
+        showPermissionGuide = permissionLevel == null
+        Log.d(TAG, "权限级别检查: 已设置=${!showPermissionGuide}, 将${if(showPermissionGuide) "" else "不"}显示权限引导界面")
+    }
 
     // ======== 偏好监听器设置 ========
     private fun setupPreferencesListener() {
@@ -189,21 +210,50 @@ class MainActivity : ComponentActivity() {
         setContent {
             OperitTheme {
                 Box {
-                    // 主应用界面 (始终存在于底层)
-                    OperitApp(
-                            initialNavItem =
-                                    when {
-                                        showPreferencesGuide -> NavItem.UserPreferencesGuide
-                                        else -> NavItem.AiChat
-                                    },
-                            toolHandler = toolHandler
-                    )
+                    // 检查是否需要显示用户协议
+                    if (!agreementPreferences.isAgreementAccepted()) {
+                        AgreementScreen(
+                            onAgreementAccepted = {
+                                agreementPreferences.setAgreementAccepted(true)
+                                // 协议接受后，检查权限级别设置
+                                lifecycleScope.launch {
+                                    // 确保使用非阻塞方式更新UI
+                                    delay(300) // 短暂延迟确保UI状态更新
+                                    checkPermissionLevelSet()
+                                    // 重新设置应用内容
+                                    setAppContent()
+                                }
+                            }
+                        )
+                    } 
+                    // 检查是否需要显示权限引导界面
+                    else if (showPermissionGuide) {
+                        PermissionGuideScreen(
+                            onComplete = {
+                                showPermissionGuide = false
+                                // 权限设置完成后，重新设置应用内容
+                                setAppContent()
+                            }
+                        )
+                    }
+                    // 显示主应用界面
+                    else {
+                        // 主应用界面 (始终存在于底层)
+                        OperitApp(
+                                initialNavItem =
+                                        when {
+                                            showPreferencesGuide -> NavItem.UserPreferencesGuide
+                                            else -> NavItem.AiChat
+                                        },
+                                toolHandler = toolHandler
+                        )
 
-                    // 插件加载界面 (带有淡出效果)
-                    PluginLoadingScreenWithState(
-                            loadingState = pluginLoadingState,
-                            modifier = Modifier.zIndex(10f) // 确保加载界面在最上层
-                    )
+                        // 插件加载界面 (带有淡出效果)
+                        PluginLoadingScreenWithState(
+                                loadingState = pluginLoadingState,
+                                modifier = Modifier.zIndex(10f) // 确保加载界面在最上层
+                        )
+                    }
                 }
             }
         }

@@ -89,7 +89,9 @@ fun PermissionLevelCard(
                 )
 
         // 当前显示的权限级别（可能与实际使用的不同）
-        var displayedPermissionLevel by remember { mutableStateOf(preferredPermissionLevel.value) }
+        var displayedPermissionLevel by remember { 
+            mutableStateOf(preferredPermissionLevel.value ?: AndroidPermissionLevel.STANDARD) 
+        }
 
         // 当显示的权限级别变化时，通知父组件
         LaunchedEffect(displayedPermissionLevel) {
@@ -107,8 +109,8 @@ fun PermissionLevelCard(
 
         // 当组件首次加载时，同步显示级别和实际级别
         LaunchedEffect(Unit) {
-                displayedPermissionLevel = preferredPermissionLevel.value
-                onPermissionLevelChange(preferredPermissionLevel.value)
+                displayedPermissionLevel = preferredPermissionLevel.value ?: AndroidPermissionLevel.STANDARD
+                onPermissionLevelChange(displayedPermissionLevel)
         }
 
         // 添加一个简单的刷新动画
@@ -155,6 +157,7 @@ fun PermissionLevelCard(
                                                 AndroidPermissionLevel.DEBUGGER ->
                                                         Icons.Default.Shield
                                                 AndroidPermissionLevel.ROOT -> Icons.Default.Lock
+                                                null -> Icons.Default.Shield // 默认使用标准图标
                                         }
 
                                 Icon(
@@ -198,7 +201,7 @@ fun PermissionLevelCard(
                                                         fadeOut())
                                 },
                                 label = "Permission Description Animation"
-                        ) { level -> PermissionLevelVisualDescription(level) }
+                        ) { level -> PermissionLevelVisualDescription(level ?: AndroidPermissionLevel.STANDARD) }
 
                         // 显示状态指示条 - 更紧凑的状态条
                         Box(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
@@ -510,7 +513,7 @@ fun PermissionLevelCard(
 @Composable
 private fun PermissionLevelSelector(
         currentLevel: AndroidPermissionLevel,
-        activeLevel: AndroidPermissionLevel,
+        activeLevel: AndroidPermissionLevel?,
         onLevelSelected: (AndroidPermissionLevel) -> Unit
 ) {
         val levels = AndroidPermissionLevel.values()
@@ -1392,6 +1395,7 @@ private fun PermissionLevelVisualDescription(level: AndroidPermissionLevel) {
                                 AndroidPermissionLevel.ADMIN -> "管理员权限"
                                 AndroidPermissionLevel.DEBUGGER -> "调试权限"
                                 AndroidPermissionLevel.ROOT -> "Root权限"
+                                null -> "标准权限" // 默认标题
                         }
 
                 Text(
@@ -1409,6 +1413,7 @@ private fun PermissionLevelVisualDescription(level: AndroidPermissionLevel) {
                                 AndroidPermissionLevel.ADMIN -> "添加设备管理员权限，可访问更多系统功能"
                                 AndroidPermissionLevel.DEBUGGER -> "通过Shizuku提供ADB级别的系统访问"
                                 AndroidPermissionLevel.ROOT -> "超级用户权限，可执行任意系统操作"
+                                null -> "基本应用运行权限，无需系统特殊授权" // 默认描述
                         }
 
                 Text(
@@ -1482,7 +1487,7 @@ private fun FeatureGrid(level: AndroidPermissionLevel) {
  * @return 是否支持该功能
  */
 private fun isFeatureSupported(
-        level: AndroidPermissionLevel,
+        level: AndroidPermissionLevel?,
         inStandard: Boolean,
         inAccessibility: Boolean,
         inAdmin: Boolean,
@@ -1495,6 +1500,7 @@ private fun isFeatureSupported(
                 AndroidPermissionLevel.ADMIN -> inAdmin
                 AndroidPermissionLevel.DEBUGGER -> inDebugger
                 AndroidPermissionLevel.ROOT -> inRoot
+                null -> inStandard // 如果级别为null，使用标准权限级别的功能支持情况
         }
 }
 

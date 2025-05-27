@@ -21,9 +21,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.rememberNavController
 import com.ai.assistance.operit.core.tools.AIToolHandler
+import com.ai.assistance.operit.core.tools.system.AndroidPermissionLevel
 import com.ai.assistance.operit.data.mcp.MCPRepository
 import com.ai.assistance.operit.data.preferences.AgreementPreferences
 import com.ai.assistance.operit.data.preferences.ApiPreferences
+import com.ai.assistance.operit.data.preferences.androidPermissionPreferences
 import com.ai.assistance.operit.ui.common.NavItem
 import com.ai.assistance.operit.ui.features.agreement.screens.AgreementScreen
 import com.ai.assistance.operit.ui.main.layout.PhoneLayout
@@ -38,6 +40,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
         val navController = rememberNavController()
         val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
         val scope = rememberCoroutineScope()
+        val context = LocalContext.current
 
         // Navigation state
         var selectedItem by remember { mutableStateOf<NavItem>(initialNavItem) }
@@ -58,6 +61,11 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                         }
                 )
         }
+
+        // 获取当前权限级别
+        val preferredPermissionLevel = androidPermissionPreferences.preferredPermissionLevelFlow.collectAsState(
+                initial = AndroidPermissionLevel.STANDARD
+        )
 
         // 用于导航到TokenConfig屏幕的函数
         fun navigateToTokenConfig() {
@@ -145,19 +153,11 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                         NavItem.About
                 )
 
-        val context = LocalContext.current
-
         // Network state monitoring
         var isNetworkAvailable by remember {
                 mutableStateOf(NetworkUtils.isNetworkAvailable(context))
         }
         var networkType by remember { mutableStateOf(NetworkUtils.getNetworkType(context)) }
-
-        // Check user agreement status
-        val agreementPreferences = remember { AgreementPreferences(context) }
-        var showAgreementScreen by remember {
-                mutableStateOf(!agreementPreferences.isAgreementAccepted())
-        }
 
         // Periodically check network status
         LaunchedEffect(Unit) {
@@ -183,17 +183,6 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                         // Load server list from cache
                         mcpRepository.fetchMCPServers(forceRefresh = false)
                 }
-        }
-
-        // Display agreement screen if needed
-        if (showAgreementScreen) {
-                AgreementScreen(
-                        onAgreementAccepted = {
-                                agreementPreferences.setAgreementAccepted(true)
-                                showAgreementScreen = false
-                        }
-                )
-                return
         }
 
         // Calculate drawer width for phone mode

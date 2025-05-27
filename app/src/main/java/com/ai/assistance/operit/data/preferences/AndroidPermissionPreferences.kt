@@ -32,16 +32,13 @@ class AndroidPermissionPreferences(private val context: Context) {
 
         // 权限相关键
         private val PREFERRED_PERMISSION_LEVEL = stringPreferencesKey("preferred_permission_level")
-
-        // 默认权限级别
-        private val DEFAULT_PERMISSION_LEVEL = AndroidPermissionLevel.STANDARD
     }
 
-    /** 首选权限级别Flow 返回用户配置的首选Android权限级别 */
-    val preferredPermissionLevelFlow: Flow<AndroidPermissionLevel> =
+    /** 首选权限级别Flow 返回用户配置的首选Android权限级别，如果未设置则返回null */
+    val preferredPermissionLevelFlow: Flow<AndroidPermissionLevel?> =
             context.androidPermissionDataStore.data.map { preferences ->
                 val levelString = preferences[PREFERRED_PERMISSION_LEVEL]
-                AndroidPermissionLevel.fromString(levelString) ?: DEFAULT_PERMISSION_LEVEL
+                if (levelString != null) AndroidPermissionLevel.fromString(levelString) else null
             }
 
     /**
@@ -57,22 +54,39 @@ class AndroidPermissionPreferences(private val context: Context) {
 
     /**
      * 获取当前首选的权限级别 这是一个阻塞调用，应在非UI线程使用或谨慎使用
-     * @return 当前配置的首选权限级别
+     * @return 当前配置的首选权限级别，如果未设置则返回null
      */
-    fun getPreferredPermissionLevel(): AndroidPermissionLevel {
+    fun getPreferredPermissionLevel(): AndroidPermissionLevel? {
         return runBlocking {
             try {
                 preferredPermissionLevelFlow.first()
             } catch (e: Exception) {
                 Log.e(TAG, "Error getting preferred permission level", e)
-                DEFAULT_PERMISSION_LEVEL
+                null
             }
         }
     }
 
-    /** 重置为默认权限级别 */
-    suspend fun resetToDefaultPermissionLevel() {
-        Log.d(TAG, "Resetting to default permission level: $DEFAULT_PERMISSION_LEVEL")
-        savePreferredPermissionLevel(DEFAULT_PERMISSION_LEVEL)
+    /**
+     * 检查是否已设置权限级别
+     * @return 是否已设置权限级别
+     */
+    fun isPermissionLevelSet(): Boolean {
+        return runBlocking {
+            try {
+                preferredPermissionLevelFlow.first() != null
+            } catch (e: Exception) {
+                Log.e(TAG, "Error checking if permission level is set", e)
+                false
+            }
+        }
+    }
+
+    /** 重置权限级别（清除设置） */
+    suspend fun resetPermissionLevel() {
+        Log.d(TAG, "Resetting permission level")
+        context.androidPermissionDataStore.edit { preferences ->
+            preferences.remove(PREFERRED_PERMISSION_LEVEL)
+        }
     }
 }
