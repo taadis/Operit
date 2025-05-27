@@ -23,6 +23,7 @@ sealed class Screen {
     data object ModelParametersSettings : Screen()
     data object ModelPromptsSettings : Screen() // Add new ModelPromptsSettings screen
     data object ThemeSettings : Screen() // Add new ThemeSettings screen
+    data object ChatHistorySettings : Screen() // Add new ChatHistorySettings screen
 
     // Toolbox secondary screens
     data object FormatConverter : Screen()

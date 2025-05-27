@@ -73,15 +73,15 @@ object TermuxCommandExecutionImpl {
                 try {
                     // 检查应用是否在前台运行
                     if (!TermuxUtils.isTermuxRunning(context)) {
-                        Log.w(TAG, createLogMessage(command, "应用在后台运行，无法启动Termux服务"))
+                        Log.w(TAG, createLogMessage(command, "应用未启动，无法启动Termux服务"))
                         val errorResult =
                                 CommandResult(
                                         success = false,
                                         stdout = "",
-                                        stderr = "应用在后台运行，无法启动Termux服务。请确保应用在前台运行或使用ADB方式直接执行命令",
+                                        stderr = "应用未启动，无法启动Termux服务。请确保应用在前台运行或使用ADB方式直接执行命令",
                                         exitCode = -1
                                 )
-                        outputReceiver?.onError("应用在后台运行，无法启动Termux服务", -1)
+                        outputReceiver?.onError("应用未启动，无法启动Termux服务", -1)
                         return@withContext errorResult
                     }
 

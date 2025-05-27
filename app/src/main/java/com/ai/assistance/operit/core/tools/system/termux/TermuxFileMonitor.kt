@@ -100,6 +100,8 @@ object TermuxFileMonitor {
 
                 // 循环检查文件变化，直到命令完成
                 while (commandIsRunning.get()) {
+                    //延迟1000ms
+                    Thread.sleep(1000)
                     // 在每个监控周期开始时，设置数据正在读取状态为前一周期是否有输出
                     // 这样每当有新数据读取，isDataBeingRead就会保持为true至少一个完整周期
                     isDataBeingRead.set(hadOutputInLastCycle)

@@ -621,13 +621,7 @@ fun ShizukuDemoScreen(
                             }
                         },
                         onOpenTermux = {
-                            // 第二步授权阶段的"启动"按钮需要删除配置并启动
-                            if (!uiState.isTermuxAuthorized.value) {
-                                scope.launch(Dispatchers.IO) { viewModel.deleteTermuxConfigAndStart(context) }
-                            } else {
-                                // 其他情况下直接启动
                                 scope.launch(Dispatchers.IO) { viewModel.startTermux(context) }
-                            }
                         },
                         onAuthorizeTermux = {
                             scope.launch(Dispatchers.IO) { viewModel.ensureTermuxRunningAndAuthorize(context) }
@@ -639,9 +633,6 @@ fun ShizukuDemoScreen(
                         isTermuxRunning = viewModel.isTermuxRunning.value,
                         isTermuxBatteryOptimizationExempted =
                                 viewModel.isTermuxBatteryOptimizationExempted.value,
-                        onStartTermux = {
-                            scope.launch(Dispatchers.IO) { viewModel.startTermux(context) }
-                        },
                         onRequestTermuxBatteryOptimization = {
                             scope.launch(Dispatchers.IO) {
                                 viewModel.requestTermuxBatteryOptimization(context)

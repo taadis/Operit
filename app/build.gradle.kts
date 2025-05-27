@@ -21,11 +21,6 @@ android {
             useSupportLibrary = true
         }
         
-        // Filter to only include x86_64 and arm64-v8a architectures
-        // ndk {
-        //     abiFilters.add("x86_64")
-        //     abiFilters.add("arm64-v8a")
-        // }
     }
 
     buildTypes {

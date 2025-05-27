@@ -234,11 +234,7 @@ object TermuxDemoUtil {
             context: Context,
             command: String
     ): AndroidShellExecutor.CommandResult {
-        val result =
-                TermuxCommandExecutor.executeCommand(
-                        context = context,
-                        command = command
-                )
+        val result = TermuxCommandExecutor.executeCommand(context = context, command = command)
 
         // 给命令一些执行时间
         delay(500)

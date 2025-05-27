@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.Modifier
@@ -14,14 +15,15 @@ import androidx.compose.ui.zIndex
 import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
 import com.ai.assistance.operit.core.tools.AIToolHandler
+import com.ai.assistance.operit.data.migration.ChatHistoryMigrationManager
 import com.ai.assistance.operit.data.preferences.AgreementPreferences
-import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.data.preferences.androidPermissionPreferences
 import com.ai.assistance.operit.data.updates.UpdateManager
 import com.ai.assistance.operit.data.updates.UpdateStatus
 import com.ai.assistance.operit.ui.common.NavItem
 import com.ai.assistance.operit.ui.features.agreement.screens.AgreementScreen
+import com.ai.assistance.operit.ui.features.migration.screens.MigrationScreen
 import com.ai.assistance.operit.ui.features.permission.screens.PermissionGuideScreen
 import com.ai.assistance.operit.ui.features.startup.screens.PluginLoadingScreenWithState
 import com.ai.assistance.operit.ui.features.startup.screens.PluginLoadingState
@@ -29,7 +31,6 @@ import com.ai.assistance.operit.ui.theme.OperitTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import androidx.activity.OnBackPressedCallback
 
 class MainActivity : ComponentActivity() {
     private val TAG = "MainActivity"
@@ -46,6 +47,10 @@ class MainActivity : ComponentActivity() {
     // ======== MCP插件状态 ========
     private val pluginLoadingState = PluginLoadingState()
 
+    // ======== 数据迁移状态 ========
+    private lateinit var migrationManager: ChatHistoryMigrationManager
+    private var showMigrationScreen = false
+
     // ======== 双击返回退出相关变量 ========
     private var backPressedTime: Long = 0
     private val backPressedInterval: Long = 2000 // 两次点击的时间间隔，单位为毫秒
@@ -55,6 +60,9 @@ class MainActivity : ComponentActivity() {
     
     // 是否显示权限引导界面
     private var showPermissionGuide = false
+    
+    // 是否已完成权限和迁移检查
+    private var initialChecksDone = false
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -76,37 +84,114 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, "已跳过插件加载", Toast.LENGTH_SHORT).show()
         }
 
-        // 只在首次创建时显示插件加载界面（非配置变更）
-        if (savedInstanceState == null) {
-            // 显示插件加载界面
-            pluginLoadingState.show()
-
-            // 启动超时检测（30秒）
-            pluginLoadingState.startTimeoutCheck(30000L, lifecycleScope)
-
-            // 初始化MCP服务器并启动插件
-            pluginLoadingState.initializeMCPServer(applicationContext, lifecycleScope)
-        }
+        // 设置初始界面 - 显示加载占位符
+        setInitialContent()
 
         // 初始化并设置更新管理器
         setupUpdateManager()
 
-        // 强制检查权限级别是否已设置
-        lifecycleScope.launch {
-            // 确保androidPermissionPreferences已初始化
-            delay(500)
-            checkPermissionLevelSet()
-            // 设置初始界面
+        // 只在首次创建时执行检查（非配置变更）
+        if (savedInstanceState == null) {
+            // 进行必要的初始检查
+            performInitialChecks()
+        } else {
+            // 配置变更时不重新检查，直接显示主界面
+            initialChecksDone = true
             setAppContent()
         }
         
         // 设置双击返回退出
         setupBackPressHandler()
     }
+    
+    // ======== 设置初始占位内容 ========
+    private fun setInitialContent() {
+        setContent {
+            OperitTheme {
+                Box {
+                    // 初始阶段只显示一个加载界面
+                    PluginLoadingScreenWithState(
+                        loadingState = PluginLoadingState().apply { show() },
+                        modifier = Modifier.zIndex(10f)
+                    )
+                }
+            }
+        }
+    }
+
+    // ======== 执行初始化检查 ========
+    private fun performInitialChecks() {
+        lifecycleScope.launch {
+            // 1. 检查权限级别设置
+            checkPermissionLevelSet()
+            
+            // 2. 检查是否需要数据迁移
+            if (!showPermissionGuide && agreementPreferences.isAgreementAccepted()) {
+                try {
+                    val needsMigration = migrationManager.needsMigration()
+                    Log.d(TAG, "数据迁移检查: 需要迁移=$needsMigration")
+                    
+                    showMigrationScreen = needsMigration
+                    
+                    // 如果不需要迁移，直接启动插件加载
+                    if (!needsMigration) {
+                        startPluginLoading()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "数据迁移检查失败", e)
+                    // 检查失败，跳过迁移直接加载插件
+                    startPluginLoading()
+                }
+            }
+            
+            // 标记完成初始检查
+            initialChecksDone = true
+            
+            // 设置应用内容
+            setAppContent()
+        }
+    }
+
+    // ======== 检查数据迁移 ========
+    private fun checkMigrationNeeded() {
+        lifecycleScope.launch {
+            try {
+                // 检查是否需要迁移数据
+                val needsMigration = migrationManager.needsMigration()
+                Log.d(TAG, "数据迁移检查: 需要迁移=$needsMigration")
+
+                if (needsMigration) {
+                    showMigrationScreen = true
+                    setAppContent()
+                } else {
+                    // 不需要迁移，显示插件加载界面
+                    startPluginLoading()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "数据迁移检查失败", e)
+                // 检查失败，跳过迁移直接加载插件
+                startPluginLoading()
+            }
+        }
+    }
+
+    // ======== 启动插件加载 ========
+    private fun startPluginLoading() {
+        // 显示插件加载界面
+        pluginLoadingState.show()
+
+        // 启动超时检测（30秒）
+        pluginLoadingState.startTimeoutCheck(30000L, lifecycleScope)
+
+        // 初始化MCP服务器并启动插件
+        pluginLoadingState.initializeMCPServer(applicationContext, lifecycleScope)
+    }
 
     // 配置双击返回退出的处理器
     private fun setupBackPressHandler() {
-        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+        onBackPressedDispatcher.addCallback(
+                this,
+                object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 val currentTime = System.currentTimeMillis()
                 
@@ -119,7 +204,8 @@ class MainActivity : ComponentActivity() {
                     finish()
                 }
             }
-        })
+                }
+        )
     }
 
     override fun onResume() {
@@ -159,6 +245,9 @@ class MainActivity : ComponentActivity() {
 
         // 初始化协议偏好管理器
         agreementPreferences = AgreementPreferences(this)
+
+        // 初始化数据迁移管理器
+        migrationManager = ChatHistoryMigrationManager(this)
     }
     
     // ======== 检查权限级别设置 ========
@@ -167,7 +256,10 @@ class MainActivity : ComponentActivity() {
         val permissionLevel = androidPermissionPreferences.getPreferredPermissionLevel()
         Log.d(TAG, "当前权限级别: $permissionLevel")
         showPermissionGuide = permissionLevel == null
-        Log.d(TAG, "权限级别检查: 已设置=${!showPermissionGuide}, 将${if(showPermissionGuide) "" else "不"}显示权限引导界面")
+        Log.d(
+                TAG,
+                "权限级别检查: 已设置=${!showPermissionGuide}, 将${if(showPermissionGuide) "" else "不"}显示权限引导界面"
+        )
     }
 
     // ======== 偏好监听器设置 ========
@@ -207,6 +299,9 @@ class MainActivity : ComponentActivity() {
 
     // ======== 设置应用内容 ========
     private fun setAppContent() {
+        // 如果初始化检查未完成，不显示主界面
+        if (!initialChecksDone) return
+        
         setContent {
             OperitTheme {
                 Box {
@@ -226,6 +321,19 @@ class MainActivity : ComponentActivity() {
                             }
                         )
                     } 
+                    // 检查是否需要显示数据迁移界面
+                    else if (showMigrationScreen) {
+                        MigrationScreen(
+                                migrationManager = migrationManager,
+                                onComplete = {
+                                    showMigrationScreen = false
+                                    // 迁移完成后，启动插件加载
+                                    startPluginLoading()
+                                    // 重新设置应用内容
+                                    setAppContent()
+                                }
+                        )
+                    }
                     // 检查是否需要显示权限引导界面
                     else if (showPermissionGuide) {
                         PermissionGuideScreen(

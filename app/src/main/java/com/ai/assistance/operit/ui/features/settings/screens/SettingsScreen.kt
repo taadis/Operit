@@ -29,7 +29,8 @@ fun SettingsScreen(
         navigateToToolPermissions: () -> Unit,
         navigateToModelParameters: () -> Unit,
         navigateToThemeSettings: () -> Unit,
-        navigateToModelPrompts: () -> Unit
+        navigateToModelPrompts: () -> Unit,
+        navigateToChatHistorySettings: () -> Unit
 ) {
     val context = LocalContext.current
     val apiPreferences = remember { ApiPreferences(context) }
@@ -142,6 +143,15 @@ fun SettingsScreen(
                 onClick = navigateToThemeSettings,
                 buttonText = "自定义主题",
                 icon = Icons.Default.Palette
+        )
+        
+        // 聊天记录管理
+        SettingsCard(
+                title = "聊天记录管理",
+                description = "导入、导出或删除聊天记录，方便备份和恢复重要对话",
+                onClick = navigateToChatHistorySettings,
+                buttonText = "管理聊天记录",
+                icon = Icons.Default.History
         )
 
         // ======= SECTION 2: AI MODEL CONFIGURATION =======

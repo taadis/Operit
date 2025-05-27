@@ -241,7 +241,8 @@ fun handleBackNavigation(currentScreen: Screen, navigateTo: (Screen) -> Unit): B
                 is Screen.UserPreferencesGuide,
                 is Screen.UserPreferencesSettings,
                 is Screen.ModelParametersSettings,
-                is Screen.ModelPromptsSettings -> {
+                is Screen.ModelPromptsSettings,
+                is Screen.ChatHistorySettings -> {
                         navigateTo(Screen.Settings)
                         true
                 }

@@ -25,6 +25,23 @@
     <string name="toolbox">工具箱</string>
     <string name="mcp">MCP</string>
     <string name="token_config_title">DeepSeek Token配置</string>
+    <string name="chat_history_settings">聊天记录管理</string>
+    
+    <!-- 聊天记录管理界面 -->
+    <string name="chat_history_manager">聊天记录管理</string>
+    <string name="export_chat_history">导出聊天记录</string>
+    <string name="import_chat_history">导入聊天记录</string>
+    <string name="clear_chat_history">清除所有聊天记录</string>
+    <string name="confirm_delete">确认删除</string>
+    <string name="delete_warning">删除所有聊天记录将无法恢复。建议在执行此操作前先导出备份。</string>
+    <string name="export_success">导出成功</string>
+    <string name="import_success">导入成功</string>
+    <string name="operation_failed">操作失败</string>
+    <string name="danger_zone">危险区域</string>
+    <string name="chat_statistics">聊天记录统计</string>
+    <string name="current_chats">当前共有 %1$d 条聊天记录</string>
+    <string name="backup_location">备份文件保存在「下载/Operit」文件夹中</string>
+    <string name="faq_backup">常见问题</string>
     
     <!-- Terminal Screen -->
     <string name="termux_not_installed">Termux 未安装</string>

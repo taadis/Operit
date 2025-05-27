@@ -63,7 +63,6 @@ class TermuxAuthorizer {
 
         // 配置状态缓存
         private data class ConfigStatus(val isConfigured: Boolean, val lastCheckTime: Long)
-        private val configCache = AtomicReference<ConfigStatus?>(null)
 
         // 权限状态缓存
         private data class PermissionStatus(
@@ -83,13 +82,6 @@ class TermuxAuthorizer {
         /** 检查Termux配置 */
         private suspend fun checkTermuxConfig(): Boolean =
                 withContext(Dispatchers.IO) {
-                    // 检查缓存
-                    val currentTime = System.currentTimeMillis()
-                    val cached = configCache.get()
-                    if (cached != null && (currentTime - cached.lastCheckTime) < CACHE_EXPIRY_MS) {
-                        return@withContext cached.isConfigured
-                    }
-
                     // 直接读取配置文件内容并检查
                     val readConfigCommand = "run-as com.termux sh -c 'cat \"$TERMUX_CONFIG_PATH\" 2>/dev/null'"
                     val readConfigResult = AndroidShellExecutor.executeShellCommand(readConfigCommand)
@@ -97,18 +89,8 @@ class TermuxAuthorizer {
                     val configured = readConfigResult.success && 
                                      readConfigResult.stdout.contains("allow-external-apps=true")
                                      && !readConfigResult.stdout.contains("# allow-external-apps")
-                    updateCache(configured)
                     return@withContext configured
                 }
-
-        /** 更新缓存 */
-        private fun updateCache(isConfigured: Boolean) {
-            val oldStatus =
-                    configCache.getAndSet(ConfigStatus(isConfigured, System.currentTimeMillis()))
-            if (oldStatus?.isConfigured != isConfigured) {
-                notifyStateChanged()
-            }
-        }
 
         /** 更新权限缓存 */
         private fun updatePermissionCache(
@@ -143,7 +125,6 @@ class TermuxAuthorizer {
 
         /** 重置缓存 */
         private fun resetCache() {
-            configCache.set(null)
             permissionCache.set(null)
             notifyStateChanged()
             TermuxInstaller.resetInstallCache()

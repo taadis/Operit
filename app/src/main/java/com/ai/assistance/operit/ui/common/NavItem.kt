@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Help
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Security
@@ -38,6 +39,12 @@ sealed class NavItem(val route: String, val titleResId: Int, val icon: ImageVect
                         "user_preferences_settings",
                         R.string.user_preferences_settings,
                         Icons.Default.Face
+                )
+        object ChatHistorySettings :
+                NavItem(
+                        "chat_history_settings",
+                        R.string.chat_history_settings,
+                        Icons.Default.History
                 )
         object Packages : NavItem("packages", R.string.nav_packages, Icons.Default.Extension)
         object ProblemLibrary :

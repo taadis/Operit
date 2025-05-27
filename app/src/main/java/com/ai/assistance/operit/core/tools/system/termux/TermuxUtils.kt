@@ -39,8 +39,6 @@ object TermuxUtils {
      */
     fun isTermuxRunning(context: Context): Boolean {
         try {
-            // 使用ps命令是最可靠的检测方式，只有当进程真正运行时才会显示
-            if (ShizukuAuthorizer.isShizukuServiceRunning() && ShizukuAuthorizer.hasShizukuPermission()) {
                 val psResult = kotlinx.coroutines.runBlocking {
                     AndroidShellExecutor.executeShellCommand("ps -ef | grep com.termux | grep -v grep")
                 }
@@ -61,7 +59,7 @@ object TermuxUtils {
                     Log.d(TAG, "通过dumpsys检测到TermuxService正在运行")
                     return true
                 }
-            }
+            
             
             // 作为备选方案，检查ActivityManager中的进程
             val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager

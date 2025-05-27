@@ -66,6 +66,7 @@ import com.ai.assistance.operit.ui.features.toolbox.screens.ffmpegtoolbox.FFmpeg
 import com.ai.assistance.operit.ui.main.screens.Screen
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import com.ai.assistance.operit.ui.features.settings.screens.ChatHistorySettingsScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -130,6 +131,7 @@ fun AppContent(
                                     is Screen.ModelParametersSettings -> "模型参数设置"
                                     is Screen.ModelPromptsSettings -> "模型提示词设置"
                                     is Screen.ThemeSettings -> "主题设置"
+                                    is Screen.ChatHistorySettings -> "聊天记录管理"
                                     is Screen.FormatConverter -> "万能格式转换"
                                     is Screen.FileManager -> "文件管理器"
                                     is Screen.Terminal -> "命令终端"
@@ -176,7 +178,8 @@ fun AppContent(
                                     is Screen.UserPreferencesGuide,
                                     is Screen.UserPreferencesSettings,
                                     is Screen.ModelParametersSettings,
-                                    is Screen.ModelPromptsSettings -> {
+                                    is Screen.ModelPromptsSettings,
+                                    is Screen.ChatHistorySettings -> {
                                         // Return to settings screen
                                         onScreenChange(Screen.Settings)
                                         onNavItemChange(NavItem.Settings)
@@ -220,6 +223,7 @@ fun AppContent(
                                                 currentScreen is Screen.ModelParametersSettings ||
                                                 currentScreen is Screen.ThemeSettings ||
                                                 currentScreen is Screen.ModelPromptsSettings ||
+                                                currentScreen is Screen.ChatHistorySettings ||
                                                 currentScreen is Screen.FormatConverter ||
                                                 currentScreen is Screen.FileManager ||
                                                 currentScreen is Screen.Terminal ||
@@ -506,6 +510,9 @@ fun AppContent(
                                         },
                                         navigateToModelPrompts = {
                                             onScreenChange(Screen.ModelPromptsSettings)
+                                        },
+                                        navigateToChatHistorySettings = {
+                                            onScreenChange(Screen.ChatHistorySettings)
                                         }
                                 )
                         is Screen.ModelParametersSettings -> ModelParametersSettingsScreen()
@@ -517,6 +524,8 @@ fun AppContent(
                                         }
                                 )
                         is Screen.ThemeSettings -> ThemeSettingsScreen()
+                        is Screen.ChatHistorySettings -> 
+                                ChatHistorySettingsScreen()
                         is Screen.Packages -> PackageManagerScreen()
                         is Screen.ProblemLibrary -> {
                             // 问题库页面
