@@ -1,30 +1,24 @@
 package com.ai.assistance.operit.ui.features.toolbox.screens.logcat
 
 import android.content.Context
+import android.util.Log
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import kotlinx.coroutines.*
+import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
 import java.io.BufferedReader
 import java.io.InputStreamReader
-import java.util.concurrent.CopyOnWriteArrayList
+import kotlinx.coroutines.*
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.coroutines.cancelAndJoin
 
 /** 日志管理器 */
 class LogcatManager(private val context: Context) {
-    private var logcatProcess: Process? = null
-    private var reader: BufferedReader? = null
+    private val TAG = "LogcatManager"
     private var isRunning = false
     private var captureJob: Job? = null
     
-    // 标签统计
-    private val _tagStats = CopyOnWriteArrayList<TagStats>()
-    val tagStats: List<TagStats> get() = _tagStats.sortedByDescending { it.count }
-    
-    // 当前过滤配置
-    private var currentTagFilters = mutableMapOf<String, FilterAction>()
-
     // 日志解析正则表达式
     private val logPattern = Regex("^([VDIWEAF])/([^(]+)\\(\\s*(\\d+)\\):\\s+(.+)$")
 
@@ -35,157 +29,90 @@ class LogcatManager(private val context: Context) {
             stopLogcatSync()
         }
 
-        return try {
+        try {
             isRunning = true
-            _tagStats.clear()
             
             val command =
                     if (filter.isBlank()) {
-                        "logcat -v threadtime"  // 使用threadtime格式获取更完整的时间戳
+                        "logcat -v threadtime" // 使用threadtime格式获取更完整的时间戳
                     } else {
                         "logcat -v threadtime $filter"
                     }
 
-            try {
-                Runtime.getRuntime().exec("logcat -c")
-            } catch (e: Exception) {
-                // 忽略清理错误
+            // 清理日志缓冲区
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    AndroidShellExecutor.executeShellCommand("logcat -c")
+                } catch (e: Exception) {
+                    Log.e(TAG, "清理日志缓冲区失败", e)
+                }
             }
             
-            val process = Runtime.getRuntime().exec(command)
-            logcatProcess = process
-            reader = BufferedReader(InputStreamReader(process.inputStream))
-
-            captureJob = CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    reader?.use { reader ->
-                        var line: String? = null
-                        val buffer = mutableListOf<String>()
-                        
-                        while (isRunning && isActive && reader.readLine().also { line = it } != null) {
-                            if (!line.isNullOrBlank()) {
-                                buffer.add(line!!)
-                                
-                                // 每50条日志或者缓冲区大小超过10KB时批量处理
-                                if (buffer.size >= 50 || buffer.sumOf { it.length } > 10 * 1024) {
-                                    processBatchedLogs(buffer, onNewLog)
-                                    buffer.clear()
+            // 使用flow来持续收集logcat输出
+            captureJob =
+                    CoroutineScope(Dispatchers.IO).launch {
+                        try {
+                            // 创建进程读取器通道
+                            logcatProcessFlow(command)
+                                .buffer(capacity = 100) // 缓冲区
+                                .collect { line ->
+                                    if (line.isNotBlank() && isRunning) {
+                                        parseLogLine(line)?.let { record ->
+                                            // 直接发送日志记录
+                                            onNewLog(record)
+                                        }
+                                    }
                                 }
-                            }
-                        }
-                        
-                        // 处理剩余的日志
-                        if (buffer.isNotEmpty()) {
-                            processBatchedLogs(buffer, onNewLog)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "日志捕获过程中发生异常", e)
+                        } finally {
+                            Log.d(TAG, "日志捕获已结束")
                         }
                     }
-                } catch (e: Exception) {
-                    // 记录异常但不中断
-                } finally {
-                    closeResources()
-                }
-            }
             
-            captureJob
+            return captureJob
         } catch (e: Exception) {
+            Log.e(TAG, "启动日志捕获失败", e)
             isRunning = false
-            null
+            return null
         }
     }
 
-    /** 批量处理日志 */
-    private fun processBatchedLogs(logs: List<String>, onNewLog: (LogRecord) -> Unit) {
-        for (line in logs) {
-            parseLogLine(line)?.let { record ->
-                // 根据标签过滤
-                val shouldShow = shouldShowLog(record)
-                if (shouldShow) {
-                    onNewLog(record)
+    /** 创建一个流，持续输出logcat进程的每一行 */
+    private fun logcatProcessFlow(command: String): Flow<String> =
+            flow {
+                val bufferSize = 8192 // 缓冲区大小
+                var process: Process? = null
+
+                try {
+                    Log.d(TAG, "启动logcat命令: $command")
+                    
+                    // 对于需要持续输出的logcat命令，仍然使用Runtime.exec
+                    // AndroidShellExecutor不适合持续流式读取输出
+                    process = Runtime.getRuntime().exec(command)
+                    val reader =
+                            BufferedReader(
+                                    InputStreamReader(process.inputStream),
+                                    bufferSize
+                            )
+                    
+                    var line: String? = null
+                    while (isRunning && reader.readLine().also { line = it } != null) {
+                        line?.let { emit(it) }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "读取logcat流时发生错误", e)
+                    throw e
+                } finally {
+                    process?.destroy()
                 }
-                // 更新标签统计
-                record.tag?.let { tag ->
-                    updateTagStats(tag)
-                }
             }
-        }
-    }
-
-    /** 是否应该显示该日志（根据标签过滤） */
-    private fun shouldShowLog(record: LogRecord): Boolean {
-        if (currentTagFilters.isEmpty()) return true
-        
-        val tag = record.tag ?: return true
-        
-        // 如果有任何ONLY过滤器，则必须匹配其中一个
-        val onlyFilters = currentTagFilters.filter { it.value == FilterAction.ONLY }
-        if (onlyFilters.isNotEmpty()) {
-            return onlyFilters.keys.contains(tag)
-        }
-        
-        // 如果被排除，则不显示
-        if (currentTagFilters[tag] == FilterAction.EXCLUDE) {
-            return false
-        }
-        
-        return true
-    }
+            .flowOn(Dispatchers.IO)
     
-    /** 更新标签统计 */
-    private fun updateTagStats(tag: String) {
-        val existingTag = _tagStats.find { it.tag == tag }
-        if (existingTag != null) {
-            existingTag.count++
-        } else {
-            _tagStats.add(TagStats(tag = tag, count = 1, isFiltered = currentTagFilters.containsKey(tag)))
-        }
-    }
-    
-    /** 添加标签过滤器 */
-    fun addTagFilter(tag: String, action: FilterAction) {
-        currentTagFilters[tag] = action
-        // 更新标签过滤状态
-        _tagStats.find { it.tag == tag }?.let { stats ->
-            val index = _tagStats.indexOf(stats)
-            if (index >= 0) {
-                _tagStats.removeAt(index)
-                _tagStats.add(index, stats.copy(isFiltered = true))
-            }
-        }
-    }
-    
-    /** 移除标签过滤器 */
-    fun removeTagFilter(tag: String) {
-        currentTagFilters.remove(tag)
-        // 更新标签过滤状态
-        _tagStats.find { it.tag == tag }?.let { stats ->
-            val index = _tagStats.indexOf(stats)
-            if (index >= 0) {
-                _tagStats.removeAt(index)
-                _tagStats.add(index, stats.copy(isFiltered = false))
-            }
-        }
-    }
-    
-    /** 清除所有标签过滤器 */
-    fun clearTagFilters() {
-        currentTagFilters.clear()
-        // 重置所有标签过滤状态
-        val updatedStats = _tagStats.map { it.copy(isFiltered = false) }
-        _tagStats.clear()
-        _tagStats.addAll(updatedStats)
-    }
-    
-    /** 获取热门标签（出现频率最高的前N个） */
-    fun getTopTags(limit: Int = 10): List<TagStats> {
-        return tagStats.take(limit)
-    }
-
     /** 停止捕获日志（异步方式） */
     fun stopLogcat() {
         // 使用协程在IO线程中同步停止
-        CoroutineScope(Dispatchers.IO).launch {
-            stopLogcatSync()
-        }
+        CoroutineScope(Dispatchers.IO).launch { stopLogcatSync() }
     }
 
     /** 停止捕获日志（同步方式） */
@@ -205,30 +132,6 @@ class LogcatManager(private val context: Context) {
             // 忽略取消异常
         } finally {
             captureJob = null
-            closeResources()
-        }
-    }
-
-    /** 关闭资源 */
-    private fun closeResources() {
-        try {
-            reader?.close()
-            reader = null
-            
-            logcatProcess?.let { process ->
-                try {
-                    // 确保进程正确终止
-                    process.inputStream?.close()
-                    process.outputStream?.close()
-                    process.errorStream?.close()
-                    process.destroyForcibly()
-                } catch (e: Exception) {
-                    // 忽略关闭异常
-                }
-            }
-            logcatProcess = null
-        } catch (e: Exception) {
-            // 忽略异常
         }
     }
 
@@ -242,16 +145,17 @@ class LogcatManager(private val context: Context) {
                 val levelPosition = findLogLevelPosition(line)
                 if (levelPosition >= 0) {
                     val levelChar = line[levelPosition]
-                    val level = when (levelChar) {
-                        'V' -> LogLevel.VERBOSE
-                        'D' -> LogLevel.DEBUG
-                        'I' -> LogLevel.INFO
-                        'W' -> LogLevel.WARNING
-                        'E' -> LogLevel.ERROR
-                        'F' -> LogLevel.FATAL
-                        'S' -> LogLevel.SILENT
-                        else -> LogLevel.UNKNOWN
-                    }
+                    val level =
+                            when (levelChar) {
+                                'V' -> LogLevel.VERBOSE
+                                'D' -> LogLevel.DEBUG
+                                'I' -> LogLevel.INFO
+                                'W' -> LogLevel.WARNING
+                                'E' -> LogLevel.ERROR
+                                'F' -> LogLevel.FATAL
+                                'S' -> LogLevel.SILENT
+                                else -> LogLevel.UNKNOWN
+                            }
                     
                     // 尝试提取tag和消息
                     val colonPosition = line.indexOf(':', levelPosition + 2)
@@ -292,7 +196,7 @@ class LogcatManager(private val context: Context) {
     private fun findLogLevelPosition(line: String): Int {
         // 寻找常见的日志级别字符
         for (i in 20 until line.length) {
-            if (line[i] in "VDIEFWS" && i + 1 < line.length && line[i+1] == '/') {
+            if (line[i] in "VDIEFWS" && i + 1 < line.length && line[i + 1] == '/') {
                 return i
             }
         }
@@ -311,10 +215,12 @@ class LogcatManager(private val context: Context) {
 
     /** 清除日志缓冲区 */
     fun clearLogcat() {
-        try {
-            Runtime.getRuntime().exec("logcat -c")
-        } catch (e: Exception) {
-            // 处理异常
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                AndroidShellExecutor.executeShellCommand("logcat -c")
+            } catch (e: Exception) {
+                Log.e(TAG, "清除日志缓冲区失败", e)
+            }
         }
     }
 
@@ -379,4 +285,4 @@ class LogcatManager(private val context: Context) {
                 )
         )
     }
-} 
+}

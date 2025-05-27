@@ -181,58 +181,7 @@ object TermuxDemoUtil {
         outputText = "欢迎使用Termux配置工具\n开始授权Termux..."
         updateOutputText(outputText)
 
-        // 先检查Termux是否在运行
-        val isRunning = checkTermuxRunning(context)
-        updateTermuxRunning(isRunning)
-
-        if (!isRunning) {
-            outputText += "\nTermux未运行，将尝试启动Termux..."
-            updateOutputText(outputText)
-
-            if (TermuxInstaller.openTermux(context)) {
-                outputText += "\n已启动Termux，请稍等..."
-                updateOutputText(outputText)
-                // 简单等待1秒钟
-                delay(1000)
-                // 再次检查状态
-                val newRunningState = checkTermuxRunning(context)
-                updateTermuxRunning(newRunningState)
-
-                if (!newRunningState) {
-                    outputText += "\nTermux似乎未成功启动，请手动启动Termux后再尝试"
-                    updateOutputText(outputText)
-                    Toast.makeText(context, "请手动启动Termux", Toast.LENGTH_SHORT).show()
-                    return outputText
-                }
-                outputText += "\nTermux已启动"
-                updateOutputText(outputText)
-            } else {
-                outputText += "\nTermux启动失败，请确保Termux已正确安装"
-                updateOutputText(outputText)
-                Toast.makeText(context, "启动Termux失败", Toast.LENGTH_SHORT).show()
-                return outputText
-            }
-        }
-
         try {
-            // 先检查应用清单中是否声明了RUN_COMMAND权限
-            val packageInfo =
-                    context.packageManager.getPackageInfo(
-                            context.packageName,
-                            PackageManager.GET_PERMISSIONS
-                    )
-            val declaredPermissions = packageInfo.requestedPermissions ?: emptyArray()
-            val hasPermissionDeclared =
-                    declaredPermissions.any { it == "com.termux.permission.RUN_COMMAND" }
-
-            if (!hasPermissionDeclared) {
-                outputText += "\n应用清单中未声明Termux RUN_COMMAND权限"
-                outputText += "\n请联系开发者修复此问题"
-                updateOutputText(outputText)
-                delay(3000) // 给用户时间阅读错误信息
-                return outputText
-            }
-
             outputText += "\n开始授予Termux权限..."
             updateOutputText(outputText)
 
@@ -288,8 +237,7 @@ object TermuxDemoUtil {
         val result =
                 TermuxCommandExecutor.executeCommand(
                         context = context,
-                        command = command,
-                        autoAuthorize = true
+                        command = command
                 )
 
         // 给命令一些执行时间

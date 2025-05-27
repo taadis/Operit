@@ -32,8 +32,7 @@ enum class FilterCategory(val displayName: String) {
     LEVEL("日志级别"),
     SYSTEM("系统过滤"),
     APP("应用过滤"),
-    CUSTOM("自定义过滤"),
-    TAG("标签过滤")
+    CUSTOM("自定义过滤")
 }
 
 /** 预设过滤器 */
@@ -43,18 +42,4 @@ data class PresetFilter(
         val description: String,
         val category: FilterCategory,
         val icon: ImageVector
-)
-
-/** 标签统计信息 */
-data class TagStats(
-    val tag: String,
-    var count: Int = 0,
-    val isFiltered: Boolean = false
-)
-
-/** 过滤操作类型 */
-enum class FilterAction {
-    INCLUDE,   // 包含
-    EXCLUDE,   // 排除
-    ONLY      // 仅显示
-} 
+) 

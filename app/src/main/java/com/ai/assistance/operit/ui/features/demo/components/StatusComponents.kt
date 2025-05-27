@@ -5,8 +5,11 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 
 /** Device info card component */
@@ -167,6 +170,17 @@ fun ShizukuStatusItem(
         onClick: () -> Unit,
         onLongClick: () -> Unit
 ) {
+        val context = LocalContext.current
+        
+        // 检查Shizuku是否需要更新
+        val isShizukuUpdateNeeded = remember {
+            try {
+                com.ai.assistance.operit.core.tools.system.ShizukuInstaller.isShizukuUpdateNeeded(context)
+            } catch (e: Exception) {
+                false
+            }
+        }
+        
         Row(
                 modifier =
                         Modifier.fillMaxWidth()
@@ -185,6 +199,7 @@ fun ShizukuStatusItem(
                                 !isShizukuInstalled -> "未安装"
                                 !isShizukuRunning -> "未运行"
                                 !hasShizukuPermission -> "未授权"
+                                isShizukuUpdateNeeded -> "待更新"
                                 else -> "已启用"
                         }
 
@@ -192,6 +207,8 @@ fun ShizukuStatusItem(
                         when {
                                 !isShizukuInstalled || !isShizukuRunning || !hasShizukuPermission ->
                                         MaterialTheme.colorScheme.error
+                                isShizukuUpdateNeeded ->
+                                        Color(0xFFFF9800) // 琥珀色表示待更新
                                 else -> MaterialTheme.colorScheme.primary
                         }
 

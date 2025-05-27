@@ -25,6 +25,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -46,7 +47,6 @@ fun LogcatScreen(navController: NavController? = null) {
     // 从ViewModel获取状态
     val isCapturing by viewModel.isCapturing.collectAsState()
     val currentFilter by viewModel.currentFilter.collectAsState()
-    val topTags by viewModel.topTags.collectAsState()
     val logRecords = viewModel.logRecords
 
     // 本地UI状态
@@ -58,12 +58,8 @@ fun LogcatScreen(navController: NavController? = null) {
     var autoScroll by remember { mutableStateOf(true) }
     var showFilterOptions by remember { mutableStateOf(false) }
 
-    // 标签相关状态
-    var showTagSection by remember { mutableStateOf(true) }
-
     // 界面折叠状态
     var showLevelFilters by remember { mutableStateOf(true) }
-    var showTagFilters by remember { mutableStateOf(true) }
     var showPresetFilters by remember { mutableStateOf(false) }
 
     // 获取预设过滤器
@@ -314,60 +310,6 @@ fun LogcatScreen(navController: NavController? = null) {
                                         fontSize = 11.sp,
                                         modifier = Modifier.padding(end = 8.dp)
                                 )
-                            }
-                        }
-
-                        // 标签过滤区域
-                        CollapsibleSectionHeader(
-                                title = "标签过滤",
-                                expanded = showTagFilters,
-                                onToggle = { showTagFilters = !showTagFilters }
-                        )
-
-                        AnimatedVisibility(visible = showTagFilters && topTags.isNotEmpty()) {
-                            Row(
-                                    modifier =
-                                            Modifier.fillMaxWidth()
-                                                    .horizontalScroll(horizontalScrollState)
-                                                    .padding(vertical = 4.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                topTags.forEach { tagStat ->
-                                    val currentAction =
-                                            when {
-                                                !tagStat.isFiltered -> null
-                                                else -> {
-                                                    // 这里根据实际逻辑来确定当前过滤操作类型
-                                                    // 简化处理，这里假设只有ONLY操作
-                                                    FilterAction.ONLY
-                                                }
-                                            }
-
-                                    TagFilterChip(
-                                            tag = tagStat.tag,
-                                            count = tagStat.count,
-                                            isFiltered = tagStat.isFiltered,
-                                            filterAction = currentAction,
-                                            onClick = { viewModel.removeTagFilter(tagStat.tag) },
-                                            onActionSelect = { action ->
-                                                when (action) {
-                                                    FilterAction.INCLUDE -> {
-                                                        // 包含此标签，此处实现较简单
-                                                        viewModel.addTagFilter(tagStat.tag, action)
-                                                    }
-                                                    FilterAction.EXCLUDE -> {
-                                                        // 排除此标签
-                                                        viewModel.addTagFilter(tagStat.tag, action)
-                                                    }
-                                                    FilterAction.ONLY -> {
-                                                        // 只显示此标签
-                                                        viewModel.clearTagFilters()
-                                                        viewModel.addTagFilter(tagStat.tag, action)
-                                                    }
-                                                }
-                                            }
-                                    )
-                                }
                             }
                         }
 

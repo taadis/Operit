@@ -61,8 +61,7 @@ class MCPStarter(private val context: Context) {
             // Use TermuxCommandExecutor to run command directly in Termux
             val result = com.ai.assistance.operit.core.tools.system.TermuxCommandExecutor.executeCommand(
                 context = context,
-                command = "command -v node",
-                autoAuthorize = true
+                command = "command -v node"
             )
             return result.success && result.stdout.contains("node")
         } catch (e: Exception) {

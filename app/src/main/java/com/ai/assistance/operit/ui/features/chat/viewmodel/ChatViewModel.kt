@@ -17,6 +17,7 @@ import com.ai.assistance.operit.ui.permissions.ToolPermissionSystem
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 class ChatViewModel(private val context: Context) : ViewModel() {
 
@@ -196,6 +197,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                             // 更新用户消息
                             messageProcessingDelegate.updateUserMessage(message)
                             // 发送消息时也要传递附件
+                            // 直接调用sendUserMessage方法，它会检查并创建新对话
                             sendUserMessage()
                         },
                         onAttachmentRequested = { request -> processAttachmentRequest(request) },
@@ -470,6 +472,41 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     fun updateUserMessage(message: String) = messageProcessingDelegate.updateUserMessage(message)
 
     fun sendUserMessage() {
+        // 检查是否有当前对话，如果没有则创建一个新对话
+        if (currentChatId.value == null) {
+            Log.d(TAG, "当前没有活跃对话，自动创建新对话")
+            
+            // 使用viewModelScope启动协程
+            viewModelScope.launch {
+                // 使用现有的createNewChat方法创建新对话
+                chatHistoryDelegate.createNewChat()
+                
+                // 等待对话ID更新
+                var waitCount = 0
+                while (currentChatId.value == null && waitCount < 10) {
+                    delay(100) // 短暂延迟等待对话创建完成
+                    waitCount++
+                }
+                
+                if (currentChatId.value == null) {
+                    Log.e(TAG, "创建新对话超时，无法发送消息")
+                    uiStateDelegate.showErrorMessage("无法创建新对话，请重试")
+                    return@launch
+                }
+                
+                Log.d(TAG, "新对话创建完成，ID: ${currentChatId.value}，现在发送消息")
+                
+                // 对话创建完成后，发送消息
+                sendMessageInternal()
+            }
+        } else {
+            // 已有对话，直接发送消息
+            sendMessageInternal()
+        }
+    }
+
+    // 提取内部发送消息的逻辑为一个私有方法
+    private fun sendMessageInternal() {
         // 获取当前附件列表
         val currentAttachments = attachmentManager.attachments.value
 

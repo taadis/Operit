@@ -91,6 +91,9 @@ dependencies {
     // Desugaring support for modern Java APIs on older Android
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
     
+    // libsu - root access library
+    implementation("com.github.topjohnwu.libsu:core:6.0.0")
+    
     // Add missing SVG support
     implementation("com.caverock:androidsvg-aar:1.4")
     

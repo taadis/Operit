@@ -761,8 +761,7 @@ suspend fun checkInstalledComponents(
         val pythonResult =
                 TermuxCommandExecutor.executeCommand(
                         context = context,
-                        command = "command -v python3",
-                        autoAuthorize = true
+                        command = "command -v python3"
                 )
         pythonInstalled = pythonResult.success && pythonResult.stdout.contains("python3")
 
@@ -770,8 +769,7 @@ suspend fun checkInstalledComponents(
         val pipResult =
                 TermuxCommandExecutor.executeCommand(
                         context = context,
-                        command = "command -v pip",
-                        autoAuthorize = true
+                        command = "command -v pip"
                 )
         pipInstalled = pipResult.success && pipResult.stdout.contains("pip")
 
@@ -779,8 +777,7 @@ suspend fun checkInstalledComponents(
         val nodeResult =
                 TermuxCommandExecutor.executeCommand(
                         context = context,
-                        command = "command -v node",
-                        autoAuthorize = true
+                        command = "command -v node"
                 )
         nodeInstalled = nodeResult.success && nodeResult.stdout.contains("node")
 
@@ -788,8 +785,7 @@ suspend fun checkInstalledComponents(
         val gitResult =
                 TermuxCommandExecutor.executeCommand(
                         context = context,
-                        command = "command -v git",
-                        autoAuthorize = true
+                        command = "command -v git"
                 )
         gitInstalled = gitResult.success && gitResult.stdout.contains("git")
 
@@ -797,8 +793,7 @@ suspend fun checkInstalledComponents(
         val rubyResult =
                 TermuxCommandExecutor.executeCommand(
                         context = context,
-                        command = "command -v ruby",
-                        autoAuthorize = true
+                        command = "command -v ruby"
                 )
         rubyInstalled = rubyResult.success && rubyResult.stdout.contains("ruby")
 
@@ -806,8 +801,7 @@ suspend fun checkInstalledComponents(
         val goResult =
                 TermuxCommandExecutor.executeCommand(
                         context = context,
-                        command = "command -v go",
-                        autoAuthorize = true
+                        command = "command -v go"
                 )
         goInstalled = goResult.success && goResult.stdout.contains("go")
 
@@ -815,8 +809,7 @@ suspend fun checkInstalledComponents(
         val rustResult =
                 TermuxCommandExecutor.executeCommand(
                         context = context,
-                        command = "command -v rustc",
-                        autoAuthorize = true
+                        command = "command -v rustc"
                 )
         rustInstalled = rustResult.success && rustResult.stdout.contains("rustc")
 
@@ -841,8 +834,7 @@ suspend fun checkTunaSourceEnabled(context: Context, onResult: (Boolean) -> Unit
         val result =
                 TermuxCommandExecutor.executeCommand(
                         context = context,
-                        command = "cat \$PREFIX/etc/apt/sources.list",
-                        autoAuthorize = true
+                        command = "cat \$PREFIX/etc/apt/sources.list"
                 )
 
         // 检查文件内容中是否包含清华源URL
@@ -941,8 +933,7 @@ suspend fun switchToTunaMirror(
                     TermuxCommandExecutor.executeCommand(
                             context = context,
                             command =
-                                    "grep -q 'mirrors.tuna.tsinghua.edu.cn' \$PREFIX/etc/apt/sources.list && echo 'SUCCESS'",
-                            autoAuthorize = true
+                                    "grep -q 'mirrors.tuna.tsinghua.edu.cn' \$PREFIX/etc/apt/sources.list && echo 'SUCCESS'"
                     )
 
             withContext(Dispatchers.Main) {
@@ -969,7 +960,6 @@ suspend fun switchToTunaMirror(
                     TermuxCommandExecutor.executeCommand(
                             context = context,
                             command = fullCommand,
-                            autoAuthorize = true,
                             resultCallback = { result ->
                                 CoroutineScope(Dispatchers.Main).launch {
                                     // 检查执行结果
@@ -977,8 +967,7 @@ suspend fun switchToTunaMirror(
                                             TermuxCommandExecutor.executeCommand(
                                                     context = context,
                                                     command =
-                                                            "grep -q 'mirrors.tuna.tsinghua.edu.cn' \$PREFIX/etc/apt/sources.list && echo 'SUCCESS'",
-                                                    autoAuthorize = true
+                                                            "grep -q 'mirrors.tuna.tsinghua.edu.cn' \$PREFIX/etc/apt/sources.list && echo 'SUCCESS'"
                                             )
 
                                     val success =
@@ -1076,7 +1065,6 @@ suspend fun installPython(
                     TermuxCommandExecutor.executeCommand(
                             context = context,
                             command = "pkg update -y && pkg install python -y",
-                            autoAuthorize = true,
                             resultCallback = { result ->
                                 CoroutineScope(Dispatchers.Main).launch {
                                     onOutput("Python 安装" + if (result.success) "成功" else "失败")
@@ -1162,7 +1150,6 @@ suspend fun installNodejs(
                     TermuxCommandExecutor.executeCommand(
                             context = context,
                             command = "pkg update -y && pkg install nodejs -y",
-                            autoAuthorize = true,
                             resultCallback = { result ->
                                 CoroutineScope(Dispatchers.Main).launch {
                                     onOutput("Node.js 安装" + if (result.success) "成功" else "失败")
@@ -1214,7 +1201,6 @@ suspend fun installGit(
                     TermuxCommandExecutor.executeCommand(
                             context = context,
                             command = "pkg update -y && pkg install git -y",
-                            autoAuthorize = true,
                             resultCallback = { result ->
                                 CoroutineScope(Dispatchers.Main).launch {
                                     onOutput("Git 安装" + if (result.success) "成功" else "失败")
@@ -1266,7 +1252,6 @@ suspend fun updatePackages(
                     TermuxCommandExecutor.executeCommand(
                             context = context,
                             command = "pkg update -y && pkg upgrade -y",
-                            autoAuthorize = true,
                             resultCallback = { result ->
                                 CoroutineScope(Dispatchers.Main).launch {
                                     onOutput("软件包更新" + if (result.success) "成功" else "失败")
@@ -1429,7 +1414,6 @@ suspend fun installPipPackages(
                     TermuxCommandExecutor.executeCommand(
                             context = context,
                             command = fullCommand,
-                            autoAuthorize = true,
                             resultCallback = { result ->
                                 CoroutineScope(Dispatchers.Main).launch {
                                     onOutput("PIP包安装" + if (result.success) "成功" else "失败")
@@ -1515,7 +1499,6 @@ suspend fun installRuby(
                     TermuxCommandExecutor.executeCommand(
                             context = context,
                             command = "pkg update -y && pkg install ruby -y",
-                            autoAuthorize = true,
                             resultCallback = { result ->
                                 CoroutineScope(Dispatchers.Main).launch {
                                     onOutput("Ruby 安装" + if (result.success) "成功" else "失败")
@@ -1567,7 +1550,6 @@ suspend fun installGo(
                     TermuxCommandExecutor.executeCommand(
                             context = context,
                             command = "pkg update -y && pkg install golang -y",
-                            autoAuthorize = true,
                             resultCallback = { result ->
                                 CoroutineScope(Dispatchers.Main).launch {
                                     onOutput("Go 安装" + if (result.success) "成功" else "失败")
@@ -1619,7 +1601,6 @@ suspend fun installRust(
                     TermuxCommandExecutor.executeCommand(
                             context = context,
                             command = "pkg update -y && pkg install rust -y",
-                            autoAuthorize = true,
                             resultCallback = { result ->
                                 CoroutineScope(Dispatchers.Main).launch {
                                     onOutput("Rust 安装" + if (result.success) "成功" else "失败")

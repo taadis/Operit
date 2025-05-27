@@ -11,6 +11,7 @@ import androidx.lifecycle.viewModelScope
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
 import com.ai.assistance.operit.core.tools.system.RootAuthorizer
+import com.ai.assistance.operit.core.tools.system.termux.TermuxAuthorizer
 import com.ai.assistance.operit.ui.features.demo.state.DemoStateManager
 import com.ai.assistance.operit.ui.features.demo.utils.TermuxDemoUtil
 import kotlinx.coroutines.Dispatchers
@@ -74,9 +75,10 @@ class ShizukuDemoViewModel(application: Application) : AndroidViewModel(applicat
                 // 初始化Root授权器 - 在IO线程进行初始化
                 RootAuthorizer.initialize(context)
 
-                // 先检查一次Root状态
-                val isDeviceRooted = RootAuthorizer.isDeviceRooted()
-                val hasRootAccess = RootAuthorizer.checkRootStatus(context)
+                // 注意：initialize已经内部调用了checkRootStatus，这里不需要再次检查
+                // 直接从RootAuthorizer获取当前状态
+                val isDeviceRooted = RootAuthorizer.isRooted.value
+                val hasRootAccess = RootAuthorizer.hasRootAccess.value
 
                 // 更新状态
                 withContext(Dispatchers.Main) {
@@ -505,6 +507,83 @@ class ShizukuDemoViewModel(application: Application) : AndroidViewModel(applicat
                 }
             } catch (e: Exception) {
                 Toast.makeText(context, "无法启动Termux应用", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    fun deleteTermuxConfigAndStart(context: Context) {
+        viewModelScope.launch {
+            startConfiguration("删除Termux配置并启动")
+            
+            try {
+                // 首先删除Termux配置
+                updateOutputText("${outputText.value}\n正在删除Termux配置...")
+                val deleteResult = TermuxAuthorizer.deleteTermuxConfig(context)
+                
+                updateOutputText("${outputText.value}\n配置已删除，正在启动Termux...")
+                
+                // 然后启动Termux
+                val intent = context.packageManager.getLaunchIntentForPackage("com.termux")
+                if (intent != null) {
+                    context.startActivity(intent)
+                    // 设置Termux为运行状态以提高UI响应性
+                    stateManager.isTermuxRunning.value = true
+                    updateOutputText("${outputText.value}\nTermux已启动")
+                } else {
+                    updateOutputText("${outputText.value}\n无法找到Termux应用")
+                    Toast.makeText(context, "无法找到Termux应用", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Log.e("ShizukuDemoViewModel", "删除配置并启动Termux时出错: ${e.message}", e)
+                updateOutputText("${outputText.value}\n操作失败: ${e.message}")
+                Toast.makeText(context, "操作失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            } finally {
+                endConfiguration()
+            }
+        }
+    }
+    
+    fun ensureTermuxRunningAndAuthorize(context: Context) {
+        viewModelScope.launch {
+            startConfiguration("确保Termux运行并授权")
+            
+            try {
+                // 首先检查Termux是否运行
+                if (!isTermuxRunning.value) {
+                    updateOutputText("${outputText.value}\nTermux未运行，请先启动Termux")
+                    Toast.makeText(context, "请先启动Termux", Toast.LENGTH_SHORT).show()
+                    endConfiguration()
+                    return@launch
+                }
+                
+                // 然后进行授权
+                updateOutputText("${outputText.value}\nTermux已运行，开始授权...")
+                
+                // 调用实际的授权逻辑
+                val result =
+                        TermuxDemoUtil.authorizeTermux(
+                                context = context,
+                                updateOutputText = { text -> updateOutputText(text) },
+                                updateTermuxAuthorized = { authorized ->
+                                    stateManager.uiState.value.isTermuxAuthorized.value = authorized
+                                },
+                                updateTermuxRunning = { running ->
+                                    stateManager.isTermuxRunning.value = running
+                                },
+                                currentOutputText = outputText.value
+                        )
+
+                // 更新输出文本
+                updateOutputText(result)
+
+                // 授权尝试后检查已安装的组件
+                checkInstalledComponents(context)
+            } catch (e: Exception) {
+                Log.e("ShizukuDemoViewModel", "确保Termux运行并授权时出错: ${e.message}", e)
+                updateOutputText("${outputText.value}\n操作失败: ${e.message}")
+                Toast.makeText(context, "操作失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            } finally {
+                endConfiguration()
             }
         }
     }

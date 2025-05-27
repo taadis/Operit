@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
 
 /** 日志查看器ViewModel，用于管理日志状态，确保在界面间导航时保持日志捕获状态 */
 class LogcatViewModel(private val context: Context) : ViewModel() {
@@ -38,10 +39,6 @@ class LogcatViewModel(private val context: Context) : ViewModel() {
     private val _currentFilter = MutableStateFlow("")
     val currentFilter: StateFlow<String> = _currentFilter.asStateFlow()
 
-    // 标签统计
-    private val _topTags = MutableStateFlow<List<TagStats>>(emptyList())
-    val topTags: StateFlow<List<TagStats>> = _topTags.asStateFlow()
-
     // 保存日志状态
     private val _isSaving = MutableStateFlow(false)
     val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
@@ -49,21 +46,6 @@ class LogcatViewModel(private val context: Context) : ViewModel() {
     // 保存结果消息
     private val _saveResult = MutableStateFlow<String?>(null)
     val saveResult: StateFlow<String?> = _saveResult.asStateFlow()
-
-    // 标签更新任务
-    private var tagUpdateJob: kotlinx.coroutines.Job? = null
-
-    init {
-        // 启动标签统计更新任务
-        viewModelScope.launch {
-            while (isActive) {
-                if (_isCapturing.value) {
-                    _topTags.value = logcatManager.getTopTags(10)
-                }
-                delay(2000) // 每2秒更新一次
-            }
-        }
-    }
 
     /** 开始捕获日志 */
     fun startCapturing(filter: String = "") {
@@ -85,7 +67,7 @@ class LogcatViewModel(private val context: Context) : ViewModel() {
         _currentFilter.value = filter
 
         viewModelScope.launch {
-            logcatManager.startLogcat(
+            val job = logcatManager.startLogcat(
                     onNewLog = { logRecord ->
                         _logRecords.add(logRecord)
 
@@ -104,11 +86,21 @@ class LogcatViewModel(private val context: Context) : ViewModel() {
                     },
                     filter = filter
             )
-            _isCapturing.value = true
-
-            // 初始化标签统计
-            delay(500) // 等待一些日志记录出现
-            _topTags.value = logcatManager.getTopTags(10)
+            
+            // 只有在成功启动捕获时才设置为true
+            if (job != null) {
+                _isCapturing.value = true
+            } else {
+                // 如果启动失败，显示一个空的错误日志
+                _logRecords.add(
+                    LogRecord(
+                        message = "无法启动日志捕获，请检查应用权限或尝试使用更高权限级别",
+                        level = LogLevel.ERROR,
+                        timestamp = System.currentTimeMillis(),
+                        tag = "LogcatError"
+                    )
+                )
+            }
         }
     }
 
@@ -126,22 +118,6 @@ class LogcatViewModel(private val context: Context) : ViewModel() {
     fun clearLogs() {
         logcatManager.clearLogcat()
         _logRecords.clear()
-        _topTags.value = emptyList()
-    }
-
-    /** 添加标签过滤器 */
-    fun addTagFilter(tag: String, action: FilterAction) {
-        logcatManager.addTagFilter(tag, action)
-    }
-
-    /** 移除标签过滤器 */
-    fun removeTagFilter(tag: String) {
-        logcatManager.removeTagFilter(tag)
-    }
-
-    /** 清除所有标签过滤器 */
-    fun clearTagFilters() {
-        logcatManager.clearTagFilters()
     }
 
     /** 获取预设过滤器 */

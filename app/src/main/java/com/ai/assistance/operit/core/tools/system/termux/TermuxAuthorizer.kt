@@ -76,6 +76,10 @@ class TermuxAuthorizer {
         )
         private val permissionCache = AtomicReference<PermissionStatus?>(null)
 
+        public suspend fun deleteTermuxConfig(context: Context) {
+            AndroidShellExecutor.executeShellCommand("run-as com.termux sh -c 'rm -rf $TERMUX_CONFIG_PATH'")
+        }
+
         /** 检查Termux配置 */
         private suspend fun checkTermuxConfig(): Boolean =
                 withContext(Dispatchers.IO) {
@@ -86,38 +90,13 @@ class TermuxAuthorizer {
                         return@withContext cached.isConfigured
                     }
 
-                    // 检查.termux目录是否存在
-                    val termuxDirExistsCommand =
-                            "run-as com.termux sh -c 'ls -d \"/data/data/com.termux/files/home/.termux\" 2>/dev/null && echo \"exists\"'"
-                    val termuxDirExistsResult =
-                            AndroidShellExecutor.executeShellCommand(termuxDirExistsCommand)
-
-                    if (!termuxDirExistsResult.success ||
-                                    !termuxDirExistsResult.stdout.contains("exists")
-                    ) {
-                        updateCache(false)
-                        return@withContext false
-                    }
-
-                    // 检查配置文件是否存在
-                    val configExistsCommand =
-                            "run-as com.termux sh -c 'ls \"$TERMUX_CONFIG_PATH\" 2>/dev/null && echo \"exists\"'"
-                    val configExistsResult =
-                            AndroidShellExecutor.executeShellCommand(configExistsCommand)
-
-                    if (!configExistsResult.success || !configExistsResult.stdout.contains("exists")
-                    ) {
-                        updateCache(false)
-                        return@withContext false
-                    }
-
-                    // 读取配置文件
-                    val readConfigCommand = "run-as com.termux sh -c 'cat \"$TERMUX_CONFIG_PATH\"'"
+                    // 直接读取配置文件内容并检查
+                    val readConfigCommand = "run-as com.termux sh -c 'cat \"$TERMUX_CONFIG_PATH\" 2>/dev/null'"
                     val readConfigResult = AndroidShellExecutor.executeShellCommand(readConfigCommand)
 
-                    val configured =
-                            readConfigResult.success &&
-                                    readConfigResult.stdout.contains("allow-external-apps=true")
+                    val configured = readConfigResult.success && 
+                                     readConfigResult.stdout.contains("allow-external-apps=true")
+                                     && !readConfigResult.stdout.contains("# allow-external-apps")
                     updateCache(configured)
                     return@withContext configured
                 }
@@ -385,26 +364,6 @@ class TermuxAuthorizer {
                         notifyStateChanged()
                         return@withContext true
                     }
-
-                    // 尝试方法2: 修改Termux的AndroidManifest.xml (需要root)
-                    val rootResult =
-                            AndroidShellExecutor.executeShellCommand(
-                                    "su -c 'mkdir -p /data/data/com.termux/shared_prefs && " +
-                                            "echo \"<?xml version=\\'1.0\\' encoding=\\'utf-8\\'?><map>" +
-                                            "<set name=\\\"allowed_apps\\\"><string>$packageName</string></set>" +
-                                            "</map>\" > /data/data/com.termux/shared_prefs/com.termux.shared_preferences.xml && " +
-                                            "chmod 660 /data/data/com.termux/shared_prefs/com.termux.shared_preferences.xml && " +
-                                            "chown `stat -c %u:%g /data/data/com.termux/shared_prefs` /data/data/com.termux/shared_prefs/com.termux.shared_preferences.xml'"
-                            )
-
-                    if (rootResult.success) {
-                        Log.d(TAG, "通过修改Termux首选项授予运行命令权限成功")
-                        // 重启Termux使配置生效
-                        AndroidShellExecutor.executeShellCommand("am force-stop com.termux")
-                        notifyStateChanged()
-                        return@withContext true
-                    }
-
                     // 尝试方法3: 在应用列表中添加
                     val appTermuxSuccess = grantAppTermuxPermissions(context)
                     if (appTermuxSuccess) {
@@ -601,13 +560,16 @@ class TermuxAuthorizer {
         /** 一键授予Termux全部所需权限 */
         suspend fun grantAllTermuxPermissions(context: Context): Boolean =
                 withContext(Dispatchers.IO) {
+                    // 允许外部调用
+                    var allowExternalApps = authorizeTermux(context)
+
                     // 授予运行命令权限
                     val runCmdResult = requestRunCommandPermission(context)
 
                     // 授予存储权限
                     val storageResult = requestStoragePermissions(context)
 
-                    val success = runCmdResult && storageResult
+                    val success = runCmdResult && storageResult && allowExternalApps
 
                     if (success) {
                         withContext(Dispatchers.Main) {

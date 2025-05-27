@@ -5,6 +5,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Update
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -24,7 +25,11 @@ fun ShizukuWizardCard(
         onInstallBundled: () -> Unit,
         onOpenShizuku: () -> Unit,
         onWatchTutorial: () -> Unit,
-        onRequestPermission: () -> Unit
+        onRequestPermission: () -> Unit,
+        updateNeeded: Boolean = false,
+        onUpdateShizuku: () -> Unit = {},
+        installedVersion: String? = null,
+        bundledVersion: String? = null
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
@@ -41,15 +46,30 @@ fun ShizukuWizardCard(
                     verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    // 根据是否需要更新而显示不同的图标
+                    val titleIcon = if (isShizukuInstalled && isShizukuRunning && hasShizukuPermission && updateNeeded) {
+                        Icons.Default.Update
+                    } else {
+                        Icons.Default.Edit
+                    }
+                    
                     Icon(
-                        imageVector = Icons.Default.Edit,
+                        imageVector = titleIcon,
                         contentDescription = null,
                         modifier = Modifier.size(18.dp),
                         tint = MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.width(8.dp))
+                    
+                    // 根据是否需要更新而显示不同的标题
+                    val titleText = if (isShizukuInstalled && isShizukuRunning && hasShizukuPermission && updateNeeded) {
+                        "Shizuku 更新向导"
+                    } else {
+                        "Shizuku 设置向导"
+                    }
+                    
                     Text(
-                            "Shizuku 设置向导",
+                            titleText,
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.onBackground
                     )
@@ -297,28 +317,116 @@ fun ShizukuWizardCard(
 
                     // 全部完成
                     else -> {
-                        Surface(
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                        Column {
+                            Surface(
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                shape = RoundedCornerShape(8.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier.size(24.dp)
-                                )
+                                Row(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    
+                                    Text(
+                                        "恭喜！Shizuku已完全设置，您现在可以使用调试权限功能。",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
+                            }
+                            
+                            // 添加版本更新部分
+                            if (updateNeeded) {
+                                Spacer(modifier = Modifier.height(16.dp))
                                 
-                                Spacer(modifier = Modifier.width(12.dp))
-                                
-                                Text(
-                                    "恭喜！Shizuku已完全设置，您现在可以使用调试权限功能。",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
+                                Surface(
+                                    color = MaterialTheme.colorScheme.secondaryContainer,
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.Update,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            
+                                            Text(
+                                                "发现新版本",
+                                                style = MaterialTheme.typography.bodyMedium.copy(
+                                                    fontWeight = FontWeight.Bold
+                                                ),
+                                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                                            )
+                                        }
+                                        
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        
+                                        Text(
+                                            "应用内置了更新版本的Shizuku，建议更新以获得更好的兼容性和功能。",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                                        )
+                                        
+                                        // 显示版本信息
+                                        if (installedVersion != null && bundledVersion != null) {
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            
+                                            Surface(
+                                                color = MaterialTheme.colorScheme.background.copy(alpha = 0.5f),
+                                                shape = RoundedCornerShape(4.dp)
+                                            ) {
+                                                Column(modifier = Modifier.padding(8.dp)) {
+                                                    Text(
+                                                        text = "当前版本：$installedVersion",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                    
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    
+                                                    Text(
+                                                        text = "最新版本：$bundledVersion",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.primary
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        
+                                        FilledTonalButton(
+                                            onClick = onUpdateShizuku,
+                                            modifier = Modifier.fillMaxWidth(),
+                                            contentPadding = PaddingValues(vertical = 12.dp),
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Update,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                
+                                                Text("更新Shizuku", fontSize = 14.sp)
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

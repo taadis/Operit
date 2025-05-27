@@ -2,6 +2,8 @@ package com.ai.assistance.operit.core.tools.system
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.util.Log
@@ -56,20 +58,26 @@ class ShizukuInstaller {
         }
         
         /**
-         * 安装内置的Shizuku APK
+         * 安装或更新内置的Shizuku APK
          * @param context Android上下文
          * @return 是否成功启动安装界面
          */
         fun installBundledShizuku(context: Context): Boolean {
-            // 检查是否已经安装了Shizuku
-            if (ShizukuAuthorizer.isShizukuInstalled(context)) {
-                Log.d(TAG, "Shizuku is already installed")
-                return false
-            }
-            
             try {
+                // 记录是安装还是更新
+                val isUpdate = ShizukuAuthorizer.isShizukuInstalled(context)
+                val action = if (isUpdate) "更新" else "安装"
+                
+                Log.d(TAG, "开始${action}内置Shizuku")
+                
                 // 从assets目录提取APK
-                val apkFile = extractApkFromAssets(context) ?: return false
+                val apkFile = extractApkFromAssets(context)
+                if (apkFile == null) {
+                    Log.e(TAG, "提取APK失败")
+                    return false
+                }
+                
+                Log.d(TAG, "APK提取成功: ${apkFile.absolutePath}, 大小: ${apkFile.length()} 字节")
                 
                 // 生成APK的URI，考虑文件提供者权限
                 val apkUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -82,6 +90,8 @@ class ShizukuInstaller {
                     Uri.fromFile(apkFile)
                 }
                 
+                Log.d(TAG, "生成APK URI: $apkUri")
+                
                 // 创建安装意图
                 val installIntent = Intent(Intent.ACTION_VIEW).apply {
                     setDataAndType(apkUri, "application/vnd.android.package-archive")
@@ -90,6 +100,8 @@ class ShizukuInstaller {
                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }
                 }
+                
+                Log.d(TAG, "启动${action}界面")
                 
                 // 启动安装界面
                 context.startActivity(installIntent)
@@ -111,11 +123,110 @@ class ShizukuInstaller {
                 val versionInfo = context.assets.open("shizuku_version.txt").use { inputStream ->
                     inputStream.bufferedReader().readText().trim()
                 }
+                Log.i(TAG, "获取内置Shizuku版本: $versionInfo")
                 return versionInfo
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to get bundled Shizuku version", e)
+                Log.e(TAG, "获取内置Shizuku版本失败", e)
                 return "未知"
             }
+        }
+        
+        /**
+         * 获取已安装的Shizuku版本
+         * @param context Android上下文
+         * @return 已安装的Shizuku版本名称，如果未安装则返回null
+         */
+        fun getInstalledShizukuVersion(context: Context): String? {
+            try {
+                val packageManager = context.packageManager
+                val packageInfo: PackageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    packageManager.getPackageInfo(SHIZUKU_PACKAGE_NAME, PackageManager.PackageInfoFlags.of(0))
+                } else {
+                    @Suppress("DEPRECATION")
+                    packageManager.getPackageInfo(SHIZUKU_PACKAGE_NAME, 0)
+                }
+                Log.i(TAG, "获取已安装Shizuku版本: ${packageInfo.versionName}")
+                return packageInfo.versionName
+            } catch (e: PackageManager.NameNotFoundException) {
+                // 未安装Shizuku
+                Log.i(TAG, "未检测到已安装的Shizuku")
+                return null
+            } catch (e: Exception) {
+                Log.e(TAG, "获取已安装Shizuku版本出错", e)
+                return null
+            }
+        }
+        
+        /**
+         * 检查是否需要更新Shizuku
+         * @param context Android上下文
+         * @return 如果需要更新返回true，否则返回false
+         */
+        fun isShizukuUpdateNeeded(context: Context): Boolean {
+            Log.d(TAG, "开始检查Shizuku是否需要更新...")
+            
+            val installedVersion = getInstalledShizukuVersion(context)
+            if (installedVersion == null) {
+                Log.d(TAG, "未安装Shizuku，不需要更新")
+                return false
+            }
+            
+            val bundledVersion = getBundledShizukuVersion(context)
+            if (bundledVersion == "未知") {
+                Log.d(TAG, "无法获取内置版本信息，不建议更新")
+                return false
+            }
+            
+            try {
+                Log.d(TAG, "正在比较版本 - 已安装: $installedVersion, 内置: $bundledVersion")
+                
+                // 提取主版本号部分 (例如 "13.5.0.r1234" -> "13.5.0")
+                val installedMainVersion = extractMainVersion(installedVersion)
+                val bundledMainVersion = extractMainVersion(bundledVersion)
+                
+                Log.d(TAG, "提取主版本号 - 已安装: $installedMainVersion, 内置: $bundledMainVersion")
+                
+                // 将版本号分割为数字数组
+                val installed = installedMainVersion.split(".").map { it.toIntOrNull() ?: 0 }
+                val bundled = bundledMainVersion.split(".").map { it.toIntOrNull() ?: 0 }
+                
+                Log.d(TAG, "版本数组 - 已安装: $installed, 内置: $bundled")
+                
+                // 比较主要版本号
+                for (i in 0 until minOf(installed.size, bundled.size)) {
+                    if (bundled[i] > installed[i]) {
+                        Log.d(TAG, "需要更新: 内置版本 ${bundled[i]} > 已安装版本 ${installed[i]} (位置: $i)")
+                        return true
+                    }
+                    if (bundled[i] < installed[i]) {
+                        Log.d(TAG, "不需要更新: 内置版本 ${bundled[i]} < 已安装版本 ${installed[i]} (位置: $i)")
+                        return false
+                    }
+                }
+                
+                // 如果前面的版本号都相同，但bundled有更多的版本号段，则认为需要更新
+                val updateNeeded = bundled.size > installed.size
+                Log.d(TAG, "版本比较结果: 需要更新 = $updateNeeded" + 
+                        (if (updateNeeded) " (内置版本有更多版本号段)" else ""))
+                return updateNeeded
+            } catch (e: Exception) {
+                Log.e(TAG, "比较Shizuku版本时出错", e)
+                return false
+            }
+        }
+        
+        /**
+         * 从完整版本号中提取主版本号部分
+         * 例如: "13.5.0.r1234" -> "13.5.0"
+         */
+        private fun extractMainVersion(version: String): String {
+            // 正则表达式匹配主版本号部分 (x.y.z)
+            val mainVersionRegex = """^(\d+)\.(\d+)\.(\d+)""".toRegex()
+            val matchResult = mainVersionRegex.find(version)
+            
+            val result = matchResult?.value ?: version.split("-", ".", "+", " ").take(3).joinToString(".")
+            Log.d(TAG, "从 '$version' 提取主版本号: '$result'")
+            return result
         }
     }
 } 

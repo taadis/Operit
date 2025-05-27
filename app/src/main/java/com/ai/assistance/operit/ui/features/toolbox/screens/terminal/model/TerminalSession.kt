@@ -452,7 +452,6 @@ class TerminalSession(
                         TermuxCommandExecutor.executeCommandStreaming(
                                 context = context,
                                 command = effectiveCommand,
-                                autoAuthorize = true,
                                 background = true,
                                 outputReceiver = outputReceiver,
                                 options = options
@@ -620,7 +619,6 @@ class TerminalSession(
                     TermuxCommandExecutor.executeCommandStreaming(
                             context = context,
                             command = "pwd",
-                            autoAuthorize = true,
                             background = true,
                             resultCallback = null,
                             options = options
@@ -732,7 +730,6 @@ class TerminalSession(
         TermuxCommandExecutor.executeCommandStreaming(
                 context = context,
                 command = checkCmd,
-                autoAuthorize = true,
                 background = true,
                 outputReceiver = outputReceiver,
                 resultCallback = null,

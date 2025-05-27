@@ -33,8 +33,8 @@ fun generateColorFromString(input: String): Color {
 
     // 使用固定的饱和度和亮度，只变化色相，确保颜色适合阅读
     val hue = (hash % 360).toFloat()
-    val saturation = 0.6f // 中等饱和度
-    val brightness = 0.85f // 较高亮度，保证可读性
+    val saturation = 0.75f // 提高饱和度，使颜色更鲜明
+    val brightness = 0.65f // 降低亮度，提高对比度
 
     return Color.hsl(hue, saturation, brightness)
 }
@@ -92,7 +92,7 @@ fun LogRecordItem(record: LogRecord) {
                             modifier =
                                     Modifier.padding(start = 6.dp)
                                             .background(
-                                                    color = tagColor.copy(alpha = 0.15f),
+                                                    color = tagColor.copy(alpha = 0.25f), // 增加背景透明度，使标签更清晰
                                                     shape = RoundedCornerShape(4.dp)
                                             )
                                             .padding(horizontal = 6.dp, vertical = 2.dp)
@@ -101,9 +101,9 @@ fun LogRecordItem(record: LogRecord) {
                                 text = record.tag,
                                 style =
                                         MaterialTheme.typography.bodySmall.copy(
-                                                fontWeight = FontWeight.Medium
+                                                fontWeight = FontWeight.Bold // 加粗标签文字
                                         ),
-                                color = tagColor.copy(alpha = 0.9f),
+                                color = tagColor, // 不降低文字颜色透明度
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 fontSize = 11.sp
@@ -209,107 +209,6 @@ fun CompactSearchField(
             Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
                 trailingIcon()
             }
-        }
-    }
-}
-
-/** 标签过滤芯片 */
-@Composable
-fun TagFilterChip(
-        tag: String,
-        count: Int,
-        isFiltered: Boolean = false,
-        filterAction: FilterAction? = null,
-        onClick: () -> Unit,
-        onActionSelect: (FilterAction) -> Unit
-) {
-    var showMenu by remember { mutableStateOf(false) }
-
-    Box {
-        FilterChip(
-                selected = isFiltered,
-                onClick = {
-                    if (isFiltered) {
-                        showMenu = true
-                    } else {
-                        onClick()
-                    }
-                },
-                label = {
-                    Text(
-                            "$tag ($count)",
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            fontSize = 11.sp
-                    )
-                },
-                leadingIcon =
-                        if (filterAction != null) {
-                            {
-                                Icon(
-                                        imageVector =
-                                                when (filterAction) {
-                                                    FilterAction.INCLUDE -> Icons.Default.Add
-                                                    FilterAction.EXCLUDE -> Icons.Default.Remove
-                                                    FilterAction.ONLY -> Icons.Default.FilterAlt
-                                                },
-                                        contentDescription = null,
-                                        modifier = Modifier.size(14.dp)
-                                )
-                            }
-                        } else null,
-                colors =
-                        FilterChipDefaults.filterChipColors(
-                                selectedContainerColor =
-                                        MaterialTheme.colorScheme.primaryContainer.copy(
-                                                alpha = 0.6f
-                                        ),
-                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-        )
-
-        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-            DropdownMenuItem(
-                    text = { Text("仅显示此标签") },
-                    onClick = {
-                        onActionSelect(FilterAction.ONLY)
-                        showMenu = false
-                    },
-                    leadingIcon = {
-                        Icon(imageVector = Icons.Default.FilterAlt, contentDescription = null)
-                    }
-            )
-            DropdownMenuItem(
-                    text = { Text("包含此标签") },
-                    onClick = {
-                        onActionSelect(FilterAction.INCLUDE)
-                        showMenu = false
-                    },
-                    leadingIcon = {
-                        Icon(imageVector = Icons.Default.Add, contentDescription = null)
-                    }
-            )
-            DropdownMenuItem(
-                    text = { Text("排除此标签") },
-                    onClick = {
-                        onActionSelect(FilterAction.EXCLUDE)
-                        showMenu = false
-                    },
-                    leadingIcon = {
-                        Icon(imageVector = Icons.Default.Remove, contentDescription = null)
-                    }
-            )
-            Divider()
-            DropdownMenuItem(
-                    text = { Text("取消过滤") },
-                    onClick = {
-                        onClick()
-                        showMenu = false
-                    },
-                    leadingIcon = {
-                        Icon(imageVector = Icons.Default.Close, contentDescription = null)
-                    }
-            )
         }
     }
 }

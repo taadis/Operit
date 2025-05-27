@@ -1035,6 +1035,18 @@ private fun DebuggerPermissionSection(
         onTermuxClick: () -> Unit,
         onShizukuClick: () -> Unit
 ) {
+        // 获取当前上下文
+        val context = LocalContext.current
+        
+        // 检查Shizuku是否需要更新
+        val isShizukuUpdateNeeded = remember {
+            try {
+                com.ai.assistance.operit.core.tools.system.ShizukuInstaller.isShizukuUpdateNeeded(context)
+            } catch (e: Exception) {
+                false
+            }
+        }
+        
         Column {
                 Text(
                         text = "基础权限",
@@ -1136,14 +1148,61 @@ private fun DebuggerPermissionSection(
                                 modifier = Modifier.padding(8.dp),
                                 verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                                PermissionStatusItem(
-                                        title = "Shizuku服务",
-                                        isGranted =
-                                                isShizukuInstalled &&
-                                                        isShizukuRunning &&
-                                                        hasShizukuPermission,
-                                        onClick = onShizukuClick
-                                )
+                                // 自定义Shizuku状态项
+                                Row(
+                                        modifier =
+                                                Modifier.fillMaxWidth()
+                                                        .clickable(onClick = onShizukuClick)
+                                                        .padding(vertical = 6.dp, horizontal = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                                // 状态指示点
+                                                Box(
+                                                        modifier =
+                                                                Modifier.size(6.dp)
+                                                                        .clip(CircleShape)
+                                                                        .background(
+                                                                                if (isShizukuInstalled && isShizukuRunning && hasShizukuPermission) 
+                                                                                        MaterialTheme.colorScheme.primary
+                                                                                else 
+                                                                                        MaterialTheme.colorScheme.error
+                                                                        )
+                                                )
+
+                                                Spacer(modifier = Modifier.width(8.dp))
+
+                                                // 权限名称
+                                                Text(
+                                                        text = "Shizuku服务",
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                        }
+
+                                        // 状态文本
+                                        val statusText = when {
+                                            !isShizukuInstalled -> "未安装"
+                                            !isShizukuRunning -> "未运行"
+                                            !hasShizukuPermission -> "未授权"
+                                            isShizukuUpdateNeeded -> "待更新"
+                                            else -> "已授权"
+                                        }
+
+                                        Text(
+                                                text = statusText,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = when {
+                                                    !isShizukuInstalled || !isShizukuRunning || !hasShizukuPermission ->
+                                                        MaterialTheme.colorScheme.error
+                                                    isShizukuUpdateNeeded ->
+                                                        Color(0xFFFF9800) // 琥珀色表示待更新
+                                                    else ->
+                                                        MaterialTheme.colorScheme.primary
+                                                }
+                                        )
+                                }
                         }
                 }
         }

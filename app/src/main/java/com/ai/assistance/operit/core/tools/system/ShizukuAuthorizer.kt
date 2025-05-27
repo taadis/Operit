@@ -68,9 +68,15 @@ class ShizukuAuthorizer {
          */
         fun isShizukuInstalled(context: Context): Boolean {
             return try {
-                context.packageManager.getPackageInfo("moe.shizuku.privileged.api", 0)
+                val packageInfo = context.packageManager.getPackageInfo("moe.shizuku.privileged.api", 0)
+                val versionName = packageInfo.versionName
+                Log.i(TAG, "检测到已安装Shizuku，版本: $versionName")
                 true
             } catch (e: PackageManager.NameNotFoundException) {
+                Log.i(TAG, "未检测到已安装的Shizuku")
+                false
+            } catch (e: Exception) {
+                Log.e(TAG, "检查Shizuku是否安装时出错", e)
                 false
             }
         }
