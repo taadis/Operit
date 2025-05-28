@@ -23,13 +23,12 @@ import androidx.navigation.compose.rememberNavController
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.core.tools.system.AndroidPermissionLevel
 import com.ai.assistance.operit.data.mcp.MCPRepository
-import com.ai.assistance.operit.data.preferences.AgreementPreferences
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.androidPermissionPreferences
 import com.ai.assistance.operit.ui.common.NavItem
-import com.ai.assistance.operit.ui.features.agreement.screens.AgreementScreen
 import com.ai.assistance.operit.ui.main.layout.PhoneLayout
 import com.ai.assistance.operit.ui.main.layout.TabletLayout
+import com.ai.assistance.operit.ui.main.screens.OperitRouter
 import com.ai.assistance.operit.ui.main.screens.Screen
 import com.ai.assistance.operit.util.NetworkUtils
 import kotlinx.coroutines.delay
@@ -42,84 +41,34 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
         val scope = rememberCoroutineScope()
         val context = LocalContext.current
 
-        // Navigation state
-        var selectedItem by remember { mutableStateOf<NavItem>(initialNavItem) }
+        // Navigation state - 使用新的路由系统
+        var selectedItem by remember { mutableStateOf(initialNavItem) }
         var currentScreen by remember {
-                mutableStateOf<Screen>(
-                        when (initialNavItem) {
-                                NavItem.AiChat -> Screen.AiChat
-                                NavItem.ProblemLibrary -> Screen.ProblemLibrary
-                                NavItem.Packages -> Screen.Packages
-                                NavItem.Toolbox -> Screen.Toolbox
-                                NavItem.ShizukuCommands -> Screen.ShizukuCommands
-                                NavItem.Settings -> Screen.Settings
-                                NavItem.Help -> Screen.Help
-                                NavItem.About -> Screen.About
-                                NavItem.TokenConfig -> Screen.TokenConfig
-                                NavItem.UserPreferencesGuide -> Screen.UserPreferencesGuide
-                                else -> Screen.AiChat
-                        }
-                )
+                mutableStateOf(OperitRouter.getScreenForNavItem(initialNavItem))
         }
 
         // 获取当前权限级别
-        val preferredPermissionLevel = androidPermissionPreferences.preferredPermissionLevelFlow.collectAsState(
-                initial = AndroidPermissionLevel.STANDARD
-        )
+        val preferredPermissionLevel =
+                androidPermissionPreferences.preferredPermissionLevelFlow.collectAsState(
+                        initial = AndroidPermissionLevel.STANDARD
+                )
 
         // 用于导航到TokenConfig屏幕的函数
         fun navigateToTokenConfig() {
                 currentScreen = Screen.TokenConfig
-                selectedItem = NavItem.TokenConfig
         }
 
-        // 检查是否为二级界面，并返回上级界面信息
-        data class ParentScreenInfo(
-                val isSecondaryScreen: Boolean,
-                val parentScreen: Screen? = null,
-                val parentNavItem: NavItem? = null
-        )
-
-        fun getParentScreenInfo(): ParentScreenInfo {
-                return when (currentScreen) {
-                        // 设置相关的二级界面
-                        is Screen.ToolPermission,
-                        is Screen.UserPreferencesGuide,
-                        is Screen.UserPreferencesSettings,
-                        is Screen.ModelParametersSettings,
-                        is Screen.ModelPromptsSettings,
-                        is Screen.ThemeSettings -> {
-                                // 返回到设置主界面
-                                ParentScreenInfo(true, Screen.Settings, NavItem.Settings)
-                        }
-                        // 工具箱相关的二级界面
-                        is Screen.FormatConverter,
-                        is Screen.FileManager,
-                        is Screen.Terminal,
-                        is Screen.TerminalAutoConfig,
-                        is Screen.AppPermissions -> {
-                                // 返回到工具箱主界面
-                                ParentScreenInfo(true, Screen.Toolbox, NavItem.Toolbox)
-                        }
-                        // TokenConfig界面
-                        is Screen.TokenConfig -> {
-                                // 返回到AI聊天界面
-                                ParentScreenInfo(true, Screen.AiChat, NavItem.AiChat)
-                        }
-                        // 其他主界面不处理返回事件
-                        else -> ParentScreenInfo(false)
-                }
-        }
-
-        // 判断当前是否在二级界面
-        val isInSecondaryScreen = getParentScreenInfo().isSecondaryScreen
-
-        // 注册系统返回键处理器，只在二级界面时启用
+        // 注册系统返回键处理器
         BackHandler(
-                enabled = isInSecondaryScreen, // 只在二级界面时拦截返回事件
+                enabled = currentScreen.isSecondaryScreen, // 只在二级界面时拦截返回事件
                 onBack = {
-                        // 处理二级界面的返回导航
-                        handleBackNavigation(currentScreen, { screen -> currentScreen = screen })
+                        // 获取父屏幕
+                        val parentScreen = currentScreen.parentScreen
+                        if (parentScreen != null) {
+                                currentScreen = parentScreen
+                                // 更新导航项
+                                currentScreen.navItem?.let { navItem -> selectedItem = navItem }
+                        }
                 }
         )
 
@@ -206,8 +155,16 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                 showFpsCounter = showFpsCounter,
                                 tabletSidebarWidth = tabletSidebarWidth,
                                 collapsedTabletSidebarWidth = collapsedTabletSidebarWidth,
-                                onScreenChange = { screen -> currentScreen = screen },
-                                onNavItemChange = { item -> selectedItem = item },
+                                onScreenChange = { screen ->
+                                        currentScreen = screen
+                                        // 同时更新对应的导航项
+                                        screen.navItem?.let { navItem -> selectedItem = navItem }
+                                },
+                                onNavItemChange = { item ->
+                                        selectedItem = item
+                                        // 同步导航到对应的屏幕
+                                        currentScreen = OperitRouter.getScreenForNavItem(item)
+                                },
                                 onToggleSidebar = {
                                         isTabletSidebarExpanded = !isTabletSidebarExpanded
                                 },
@@ -227,40 +184,18 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                                 scope = scope,
                                 drawerState = drawerState,
                                 showFpsCounter = showFpsCounter,
-                                onScreenChange = { screen -> currentScreen = screen },
-                                onNavItemChange = { item -> selectedItem = item },
+                                onScreenChange = { screen ->
+                                        currentScreen = screen
+                                        // 同时更新对应的导航项
+                                        screen.navItem?.let { navItem -> selectedItem = navItem }
+                                },
+                                onNavItemChange = { item ->
+                                        selectedItem = item
+                                        // 同步导航到对应的屏幕
+                                        currentScreen = OperitRouter.getScreenForNavItem(item)
+                                },
                                 navigateToTokenConfig = ::navigateToTokenConfig
                         )
                 }
-        }
-}
-
-fun handleBackNavigation(currentScreen: Screen, navigateTo: (Screen) -> Unit): Boolean {
-        return when (currentScreen) {
-                is Screen.ToolPermission,
-                is Screen.UserPreferencesGuide,
-                is Screen.UserPreferencesSettings,
-                is Screen.ModelParametersSettings,
-                is Screen.ModelPromptsSettings,
-                is Screen.ChatHistorySettings -> {
-                        navigateTo(Screen.Settings)
-                        true
-                }
-                is Screen.ThemeSettings -> {
-                        navigateTo(Screen.UserPreferencesSettings)
-                        true
-                }
-                is Screen.FormatConverter,
-                is Screen.FileManager,
-                is Screen.Terminal,
-                is Screen.TerminalAutoConfig,
-                is Screen.AppPermissions,
-                is Screen.UIDebugger,
-                is Screen.ShellExecutor,
-                is Screen.Logcat -> {
-                        navigateTo(Screen.Toolbox)
-                        true
-                }
-                else -> false
         }
 }

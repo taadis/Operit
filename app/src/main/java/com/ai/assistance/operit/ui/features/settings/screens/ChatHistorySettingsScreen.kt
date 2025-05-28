@@ -226,7 +226,7 @@ fun ChatHistorySettingsScreen() {
                                     contentDescription = "导出",
                                     modifier = Modifier.padding(end = 4.dp)
                             )
-                            Text("导出聊天记录")
+                            Text("导出")
                         }
 
                         OutlinedButton(
@@ -245,7 +245,7 @@ fun ChatHistorySettingsScreen() {
                                     contentDescription = "导入",
                                     modifier = Modifier.padding(end = 4.dp)
                             )
-                            Text("导入聊天记录")
+                            Text("导入")
                         }
                     }
 

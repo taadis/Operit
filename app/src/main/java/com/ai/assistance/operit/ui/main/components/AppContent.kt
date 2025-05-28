@@ -3,7 +3,6 @@ package com.ai.assistance.operit.ui.main.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -39,34 +38,9 @@ import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.data.repository.ChatHistoryManager
 import com.ai.assistance.operit.ui.common.NavItem
 import com.ai.assistance.operit.ui.common.displays.FpsCounter
-import com.ai.assistance.operit.ui.features.about.screens.AboutScreen
-import com.ai.assistance.operit.ui.features.chat.screens.AIChatScreen
-import com.ai.assistance.operit.ui.features.demo.screens.ShizukuDemoScreen
-import com.ai.assistance.operit.ui.features.help.screens.HelpScreen
-import com.ai.assistance.operit.ui.features.packages.screens.PackageManagerScreen
-import com.ai.assistance.operit.ui.features.problems.screens.ProblemLibraryScreen
-import com.ai.assistance.operit.ui.features.settings.screens.ModelParametersSettingsScreen
-import com.ai.assistance.operit.ui.features.settings.screens.ModelPromptsSettingsScreen
-import com.ai.assistance.operit.ui.features.settings.screens.SettingsScreen
-import com.ai.assistance.operit.ui.features.settings.screens.ThemeSettingsScreen
-import com.ai.assistance.operit.ui.features.settings.screens.ToolPermissionSettingsScreen
-import com.ai.assistance.operit.ui.features.settings.screens.UserPreferencesGuideScreen
-import com.ai.assistance.operit.ui.features.settings.screens.UserPreferencesSettingsScreen
-import com.ai.assistance.operit.ui.features.token.TokenConfigWebViewScreen
-import com.ai.assistance.operit.ui.features.toolbox.screens.AppPermissionsToolScreen
-import com.ai.assistance.operit.ui.features.toolbox.screens.FileManagerToolScreen
-import com.ai.assistance.operit.ui.features.toolbox.screens.FormatConverterToolScreen
-import com.ai.assistance.operit.ui.features.toolbox.screens.LogcatToolScreen
-import com.ai.assistance.operit.ui.features.toolbox.screens.ShellExecutorToolScreen
-import com.ai.assistance.operit.ui.features.toolbox.screens.TerminalAutoConfigToolScreen
-import com.ai.assistance.operit.ui.features.toolbox.screens.TerminalToolScreen
-import com.ai.assistance.operit.ui.features.toolbox.screens.ToolboxScreen
-import com.ai.assistance.operit.ui.features.toolbox.screens.UIDebuggerToolScreen
-import com.ai.assistance.operit.ui.features.toolbox.screens.ffmpegtoolbox.FFmpegToolboxScreen
 import com.ai.assistance.operit.ui.main.screens.Screen
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import com.ai.assistance.operit.ui.features.settings.screens.ChatHistorySettingsScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -98,9 +72,9 @@ fun AppContent(
 
     // 获取聊天历史管理器
     val chatHistoryManager = ChatHistoryManager.getInstance(context)
+    val currentChatId = chatHistoryManager.currentChatIdFlow.collectAsState(initial = null).value
     val chatHistories =
             chatHistoryManager.chatHistoriesFlow.collectAsState(initial = emptyList()).value
-    val currentChatId = chatHistoryManager.currentChatIdFlow.collectAsState(initial = null).value
 
     // 当前聊天标题
     val currentChatTitle =
@@ -120,36 +94,15 @@ fun AppContent(
         SmallTopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        // 使用Screen的标题或导航项的标题
                         Text(
-                                when (currentScreen) {
-                                    is Screen.ToolPermission ->
-                                            stringResource(id = R.string.tool_permissions)
-                                    is Screen.UserPreferencesGuide ->
-                                            stringResource(id = R.string.user_preferences_guide)
-                                    is Screen.UserPreferencesSettings ->
-                                            stringResource(id = R.string.user_preferences_settings)
-                                    is Screen.ModelParametersSettings -> "模型参数设置"
-                                    is Screen.ModelPromptsSettings -> "模型提示词设置"
-                                    is Screen.ThemeSettings -> "主题设置"
-                                    is Screen.ChatHistorySettings -> "聊天记录管理"
-                                    is Screen.FormatConverter -> "万能格式转换"
-                                    is Screen.FileManager -> "文件管理器"
-                                    is Screen.Terminal -> "命令终端"
-                                    is Screen.TerminalAutoConfig -> "终端自动配置"
-                                    is Screen.AppPermissions -> "应用权限管理"
-                                    is Screen.UIDebugger -> "UI调试工具"
-                                    is Screen.FFmpegToolbox -> "FFmpeg工具箱"
-                                    is Screen.FFmpegVideoConverter -> "FFmpeg视频转换"
-                                    is Screen.FFmpegCustomCommand -> "FFmpeg自定义命令"
-                                    is Screen.FFmpegVideoCompression -> "FFmpeg视频压缩"
-                                    is Screen.FFmpegVideoTrimmer -> "FFmpeg视频裁剪"
-                                    is Screen.FFmpegAudioExtractor -> "FFmpeg音频提取"
-                                    is Screen.FFmpegVideoMerger -> "FFmpeg视频合并"
-                                    is Screen.FFmpegWatermark -> "FFmpeg水印添加"
-                                    is Screen.FFmpegGifMaker -> "FFmpeg GIF制作"
-                                    is Screen.ShellExecutor -> "命令执行器"
-                                    is Screen.Logcat -> "日志查看器"
-                                    else -> stringResource(id = selectedItem.titleResId)
+                                text = when {
+                                    // 优先使用Screen的标题
+                                    currentScreen.getTitle().isNotBlank() -> currentScreen.getTitle()
+                                    // 回退到导航项的标题资源
+                                    selectedItem.titleResId != 0 -> stringResource(id = selectedItem.titleResId)
+                                    // 最后的默认值
+                                    else -> ""
                                 },
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 14.sp,
@@ -169,117 +122,42 @@ fun AppContent(
                     }
                 },
                 navigationIcon = {
-                    // 所有情况下都显示导航按钮
+                    // 导航按钮逻辑
                     IconButton(
                             onClick = {
-                                when (currentScreen) {
-                                    is Screen.ThemeSettings,
-                                    is Screen.ToolPermission,
-                                    is Screen.UserPreferencesGuide,
-                                    is Screen.UserPreferencesSettings,
-                                    is Screen.ModelParametersSettings,
-                                    is Screen.ModelPromptsSettings,
-                                    is Screen.ChatHistorySettings -> {
-                                        // Return to settings screen
-                                        onScreenChange(Screen.Settings)
-                                        onNavItemChange(NavItem.Settings)
+                                if (currentScreen.isSecondaryScreen) {
+                                    // 有父屏幕时返回父屏幕
+                                    val parentScreen = currentScreen.parentScreen
+                                    if (parentScreen != null) {
+                                        onScreenChange(parentScreen)
+                                        parentScreen.navItem?.let { onNavItemChange(it) }
                                     }
-                                    is Screen.FormatConverter,
-                                    is Screen.FileManager,
-                                    is Screen.Terminal,
-                                    is Screen.TerminalAutoConfig,
-                                    is Screen.AppPermissions,
-                                    is Screen.UIDebugger,
-                                    is Screen.ShellExecutor,
-                                    is Screen.Logcat,
-                                    is Screen.FFmpegToolbox,
-                                    is Screen.FFmpegVideoConverter,
-                                    is Screen.FFmpegVideoCompression,
-                                    is Screen.FFmpegVideoTrimmer,
-                                    is Screen.FFmpegAudioExtractor,
-                                    is Screen.FFmpegVideoMerger,
-                                    is Screen.FFmpegWatermark,
-                                    is Screen.FFmpegGifMaker,
-                                    is Screen.FFmpegCustomCommand -> {
-                                        // 如果在工具箱二级页面，返回到工具箱页面
-                                        onScreenChange(Screen.Toolbox)
-                                    }
-                                    else -> {
-                                        // 平板模式下切换侧边栏展开/收起状态
-                                        if (useTabletLayout) {
-                                            onToggleSidebar()
-                                        } else {
-                                            // 手机模式下打开抽屉
-                                            scope.launch { drawerState.open() }
-                                        }
+                                } else {
+                                    // 平板模式下切换侧边栏展开/收起状态
+                                    if (useTabletLayout) {
+                                        onToggleSidebar()
+                                    } else {
+                                        // 手机模式下打开抽屉
+                                        scope.launch { drawerState.open() }
                                     }
                                 }
                             }
                     ) {
                         Icon(
-                                if (currentScreen is Screen.ToolPermission ||
-                                                currentScreen is Screen.UserPreferencesGuide ||
-                                                currentScreen is Screen.UserPreferencesSettings ||
-                                                currentScreen is Screen.ModelParametersSettings ||
-                                                currentScreen is Screen.ThemeSettings ||
-                                                currentScreen is Screen.ModelPromptsSettings ||
-                                                currentScreen is Screen.ChatHistorySettings ||
-                                                currentScreen is Screen.FormatConverter ||
-                                                currentScreen is Screen.FileManager ||
-                                                currentScreen is Screen.Terminal ||
-                                                currentScreen is Screen.TerminalAutoConfig ||
-                                                currentScreen is Screen.AppPermissions ||
-                                                currentScreen is Screen.UIDebugger ||
-                                                currentScreen is Screen.FFmpegToolbox ||
-                                                currentScreen is Screen.FFmpegVideoConverter ||
-                                                currentScreen is Screen.FFmpegVideoCompression ||
-                                                currentScreen is Screen.FFmpegVideoTrimmer ||
-                                                currentScreen is Screen.FFmpegAudioExtractor ||
-                                                currentScreen is Screen.FFmpegVideoMerger ||
-                                                currentScreen is Screen.FFmpegWatermark ||
-                                                currentScreen is Screen.FFmpegGifMaker ||
-                                                currentScreen is Screen.FFmpegCustomCommand ||
-                                                currentScreen is Screen.ShellExecutor ||
-                                                currentScreen is Screen.Logcat
-                                )
-                                        Icons.Default.ArrowBack
+                                if (currentScreen.isSecondaryScreen) 
+                                    Icons.Default.ArrowBack
                                 else if (useTabletLayout)
-                                // 平板模式下使用开关图标表示收起/展开
-                                if (isTabletSidebarExpanded) Icons.Filled.ChevronLeft
-                                        else Icons.Default.Menu
-                                else Icons.Default.Menu,
-                                contentDescription =
-                                        when (currentScreen) {
-                                            is Screen.ThemeSettings -> "返回设置"
-                                            is Screen.ToolPermission,
-                                            is Screen.UserPreferencesGuide,
-                                            is Screen.UserPreferencesSettings,
-                                            is Screen.ModelParametersSettings,
-                                            is Screen.ModelPromptsSettings ->
-                                                    stringResource(id = R.string.nav_settings)
-                                            is Screen.FormatConverter,
-                                            is Screen.FileManager,
-                                            is Screen.Terminal,
-                                            is Screen.TerminalAutoConfig,
-                                            is Screen.AppPermissions,
-                                            is Screen.UIDebugger,
-                                            is Screen.FFmpegToolbox,
-                                            is Screen.FFmpegVideoConverter,
-                                            is Screen.FFmpegVideoCompression,
-                                            is Screen.FFmpegVideoTrimmer,
-                                            is Screen.FFmpegAudioExtractor,
-                                            is Screen.FFmpegVideoMerger,
-                                            is Screen.FFmpegWatermark,
-                                            is Screen.FFmpegGifMaker,
-                                            is Screen.FFmpegCustomCommand,
-                                            is Screen.ShellExecutor,
-                                            is Screen.Logcat -> "返回工具箱"
-                                            else ->
-                                                    if (useTabletLayout)
-                                                            if (isTabletSidebarExpanded) "收起侧边栏"
-                                                            else "展开侧边栏"
-                                                    else stringResource(id = R.string.menu)
-                                        },
+                                    // 平板模式下使用开关图标表示收起/展开
+                                    if (isTabletSidebarExpanded) Icons.Filled.ChevronLeft
+                                    else Icons.Default.Menu
+                                else 
+                                    Icons.Default.Menu,
+                                contentDescription = when {
+                                    currentScreen.isSecondaryScreen -> "返回"
+                                    useTabletLayout -> 
+                                        if (isTabletSidebarExpanded) "收起侧边栏" else "展开侧边栏"
+                                    else -> stringResource(id = R.string.menu)
+                                },
                                 tint = MaterialTheme.colorScheme.onPrimary
                         )
                     }
@@ -330,225 +208,17 @@ fun AppContent(
                     }
                 }
             } else {
-                // 主要内容
+                // 主要内容 - 使用Screen的Content方法直接渲染
                 Box(modifier = Modifier.fillMaxSize()) {
-                    when (currentScreen) {
-                        is Screen.ToolPermission -> {
-                            // 工具权限设置页面
-                            ToolPermissionSettingsScreen(
-                                    navigateBack = {
-                                        onScreenChange(Screen.Settings)
-                                        onNavItemChange(NavItem.Settings)
-                                    }
-                            )
-                        }
-                        is Screen.UserPreferencesGuide -> {
-                            // 用户偏好引导页面
-                            val screen = currentScreen as Screen.UserPreferencesGuide
-                            UserPreferencesGuideScreen(
-                                    profileName = screen.profileName,
-                                    profileId = screen.profileId,
-                                    onComplete = {
-                                        onScreenChange(Screen.Settings)
-                                        onNavItemChange(NavItem.Settings)
-                                    },
-                                    navigateToPermissions = {
-                                        onScreenChange(Screen.ShizukuCommands)
-                                        onNavItemChange(NavItem.ShizukuCommands) // 直接跳转到权限授予界面
-                                    }
-                            )
-                        }
-                        is Screen.UserPreferencesSettings -> {
-                            UserPreferencesSettingsScreen(
-                                    onNavigateBack = { onScreenChange(Screen.Settings) },
-                                    onNavigateToGuide = { profileName, profileId ->
-                                        // 导航到引导页并传递配置信息
-                                        val guide = Screen.UserPreferencesGuide
-                                        guide.profileName = profileName
-                                        guide.profileId = profileId
-                                        onScreenChange(guide)
-                                    }
-                            )
-                        }
-                        is Screen.FormatConverter -> {
-                            // 格式转换工具屏幕
-                            FormatConverterToolScreen(navController = navController)
-                        }
-                        is Screen.FileManager -> {
-                            // 文件管理器屏幕
-                            FileManagerToolScreen(navController = navController)
-                        }
-                        is Screen.Terminal -> {
-                            // 终端工具屏幕
-                            TerminalToolScreen(navController = navController)
-                        }
-                        is Screen.TerminalAutoConfig -> {
-                            // 终端自动配置屏幕
-                            TerminalAutoConfigToolScreen(navController = navController)
-                        }
-                        is Screen.AppPermissions -> {
-                            // 应用权限管理屏幕
-                            AppPermissionsToolScreen(navController = navController)
-                        }
-                        is Screen.UIDebugger -> {
-                            // UI调试工具屏幕
-                            UIDebuggerToolScreen(navController = navController)
-                        }
-                        is Screen.FFmpegToolbox -> {
-                            // FFmpeg工具箱屏幕
-                            FFmpegToolboxScreen(navController = navController)
-                        }
-                        is Screen.FFmpegVideoConverter -> {
-                            // 已移除FFmpegVideoConverterScreen，但保留导航case避免编译错误
-                            // 直接重定向到FFmpegToolbox页面
-                            onScreenChange(Screen.FFmpegToolbox)
-                            FFmpegToolboxScreen(navController = navController)
-                        }
-                        is Screen.FFmpegCustomCommand -> {
-                            // 已移除FFmpegCustomCommandScreen，但保留导航case避免编译错误
-                            // 直接重定向到FFmpegToolbox页面
-                            onScreenChange(Screen.FFmpegToolbox)
-                            FFmpegToolboxScreen(navController = navController)
-                        }
-                        is Screen.FFmpegVideoCompression -> {
-                            // FFmpeg视频压缩屏幕
-                            // 实现FFmpeg视频压缩屏幕的逻辑
-                            onScreenChange(Screen.FFmpegToolbox)
-                            FFmpegToolboxScreen(navController = navController)
-                        }
-                        is Screen.FFmpegVideoTrimmer -> {
-                            // FFmpeg视频裁剪屏幕
-                            // 实现FFmpeg视频裁剪的逻辑
-                            onScreenChange(Screen.FFmpegToolbox)
-                            FFmpegToolboxScreen(navController = navController)
-                        }
-                        is Screen.FFmpegAudioExtractor -> {
-                            // FFmpeg音频提取屏幕
-                            // 实现FFmpeg音频提取的逻辑
-                            onScreenChange(Screen.FFmpegToolbox)
-                            FFmpegToolboxScreen(navController = navController)
-                        }
-                        is Screen.FFmpegVideoMerger -> {
-                            // FFmpeg视频合并屏幕
-                            // 实现FFmpeg视频合并的逻辑
-                            onScreenChange(Screen.FFmpegToolbox)
-                            FFmpegToolboxScreen(navController = navController)
-                        }
-                        is Screen.FFmpegWatermark -> {
-                            // FFmpeg水印添加屏幕
-                            // 实现FFmpeg水印添加的逻辑
-                            onScreenChange(Screen.FFmpegToolbox)
-                            FFmpegToolboxScreen(navController = navController)
-                        }
-                        is Screen.FFmpegGifMaker -> {
-                            // FFmpeg GIF制作屏幕
-                            // 实现FFmpeg GIF制作的逻辑
-                            onScreenChange(Screen.FFmpegToolbox)
-                            FFmpegToolboxScreen(navController = navController)
-                        }
-                        is Screen.ShellExecutor -> {
-                            // 命令执行器屏幕
-                            ShellExecutorToolScreen(navController = navController)
-                        }
-                        is Screen.Logcat -> {
-                            // 日志查看器屏幕
-                            LogcatToolScreen(navController = navController)
-                        }
-                        is Screen.AiChat ->
-                                AIChatScreen(
-                                        padding = PaddingValues(0.dp),
-                                        viewModel = null,
-                                        isFloatingMode = false,
-                                        hasBackgroundImage = hasBackgroundImage,
-                                        onNavigateToTokenConfig = navigateToTokenConfig,
-                                        onNavigateToSettings = {
-                                            onScreenChange(Screen.Settings)
-                                            onNavItemChange(NavItem.Settings)
-                                        },
-                                        onLoading = onLoading,
-                                        onError = onError
-                                )
-                        is Screen.ShizukuCommands -> ShizukuDemoScreen()
-                        is Screen.Toolbox -> {
-                            // 工具箱页面
-                            ToolboxScreen(
-                                    navController = navController,
-                                    onFormatConverterSelected = {
-                                        onScreenChange(Screen.FormatConverter)
-                                    },
-                                    onFileManagerSelected = { onScreenChange(Screen.FileManager) },
-                                    onTerminalSelected = { onScreenChange(Screen.Terminal) },
-                                    onTerminalAutoConfigSelected = {
-                                        onScreenChange(Screen.TerminalAutoConfig)
-                                    },
-                                    onAppPermissionsSelected = {
-                                        onScreenChange(Screen.AppPermissions)
-                                    },
-                                    onUIDebuggerSelected = { onScreenChange(Screen.UIDebugger) },
-                                    onFFmpegToolboxSelected = {
-                                        onScreenChange(Screen.FFmpegToolbox)
-                                    },
-                                    onShellExecutorSelected = {
-                                        onScreenChange(Screen.ShellExecutor)
-                                    },
-                                    onLogcatSelected = { onScreenChange(Screen.Logcat) }
-                            )
-                        }
-                        is Screen.Settings ->
-                                SettingsScreen(
-                                        navigateToToolPermissions = {
-                                            onScreenChange(Screen.ToolPermission)
-                                        },
-                                        onNavigateToUserPreferences = {
-                                            onScreenChange(Screen.UserPreferencesSettings)
-                                        },
-                                        navigateToModelParameters = {
-                                            onScreenChange(Screen.ModelParametersSettings)
-                                        },
-                                        navigateToThemeSettings = {
-                                            onScreenChange(Screen.ThemeSettings)
-                                        },
-                                        navigateToModelPrompts = {
-                                            onScreenChange(Screen.ModelPromptsSettings)
-                                        },
-                                        navigateToChatHistorySettings = {
-                                            onScreenChange(Screen.ChatHistorySettings)
-                                        }
-                                )
-                        is Screen.ModelParametersSettings -> ModelParametersSettingsScreen()
-                        is Screen.ModelPromptsSettings ->
-                                ModelPromptsSettingsScreen(
-                                        onBackPressed = {
-                                            onScreenChange(Screen.Settings)
-                                            onNavItemChange(NavItem.Settings)
-                                        }
-                                )
-                        is Screen.ThemeSettings -> ThemeSettingsScreen()
-                        is Screen.ChatHistorySettings -> 
-                                ChatHistorySettingsScreen()
-                        is Screen.Packages -> PackageManagerScreen()
-                        is Screen.ProblemLibrary -> {
-                            // 问题库页面
-                            ProblemLibraryScreen()
-                        }
-                        is Screen.About -> AboutScreen()
-                        is Screen.Help ->
-                                HelpScreen(
-                                        onBackPressed = {
-                                            onScreenChange(Screen.AiChat)
-                                            onNavItemChange(NavItem.AiChat)
-                                        }
-                                )
-                        is Screen.TokenConfig -> {
-                            // 显示TokenConfigWebViewScreen
-                            TokenConfigWebViewScreen(
-                                    onNavigateBack = {
-                                        onScreenChange(Screen.AiChat)
-                                        onNavItemChange(NavItem.AiChat)
-                                    }
-                            )
-                        }
-                    }
+                    // 统一调用当前屏幕的内容渲染方法
+                    currentScreen.Content(
+                        navController = navController,
+                        navigateTo = onScreenChange,
+                        updateNavItem = onNavItemChange,
+                        hasBackgroundImage = hasBackgroundImage,
+                        onLoading = onLoading,
+                        onError = onError
+                    )
 
                     // 帧率计数器 - 放在右上角
                     if (showFpsCounter) {
