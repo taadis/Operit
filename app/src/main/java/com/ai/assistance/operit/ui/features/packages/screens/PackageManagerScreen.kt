@@ -5,7 +5,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Settings
@@ -28,8 +27,7 @@ import com.ai.assistance.operit.ui.features.packages.components.EmptyState
 import com.ai.assistance.operit.ui.features.packages.components.PackageTab
 import com.ai.assistance.operit.ui.features.packages.dialogs.PackageDetailsDialog
 import com.ai.assistance.operit.ui.features.packages.dialogs.ScriptExecutionDialog
-import com.ai.assistance.operit.ui.features.packages.lists.AvailablePackagesList
-import com.ai.assistance.operit.ui.features.packages.lists.ImportedPackagesList
+import com.ai.assistance.operit.ui.features.packages.lists.PackagesList
 import java.io.File
 import kotlinx.coroutines.launch
 
@@ -46,6 +44,8 @@ fun PackageManagerScreen() {
     // State for available and imported packages
     val availablePackages = remember { mutableStateOf<Map<String, ToolPackage>>(emptyMap()) }
     val importedPackages = remember { mutableStateOf<List<String>>(emptyList()) }
+    // UI展示用的导入状态列表，与后端状态分离
+    val visibleImportedPackages = remember { mutableStateOf<List<String>>(emptyList()) }
 
     // State for selected package and showing details
     var selectedPackage by remember { mutableStateOf<String?>(null) }
@@ -60,7 +60,7 @@ fun PackageManagerScreen() {
     val snackbarHostState = remember { SnackbarHostState() }
 
     // Tab selection state
-    var selectedTab by remember { mutableStateOf(PackageTab.AVAILABLE) }
+    var selectedTab by remember { mutableStateOf(PackageTab.PACKAGES) }
 
     // File picker launcher for importing external packages
     val packageFilePicker =
@@ -117,6 +117,8 @@ fun PackageManagerScreen() {
         try {
             availablePackages.value = packageManager.getAvailablePackages()
             importedPackages.value = packageManager.getImportedPackages()
+            // 初始化UI显示状态
+            visibleImportedPackages.value = importedPackages.value.toList()
         } catch (e: Exception) {
             Log.e("PackageManagerScreen", "Failed to load packages", e)
         }
@@ -173,10 +175,10 @@ fun PackageManagerScreen() {
                         }
                     }
             ) {
-                // 可用包标签
+                // 包管理标签(合并后)
                 Tab(
-                        selected = selectedTab == PackageTab.AVAILABLE,
-                        onClick = { selectedTab = PackageTab.AVAILABLE },
+                        selected = selectedTab == PackageTab.PACKAGES,
+                        onClick = { selectedTab = PackageTab.PACKAGES },
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 0.dp),
                         text = {
                             Row(
@@ -191,34 +193,7 @@ fun PackageManagerScreen() {
                                 )
                                 Spacer(Modifier.width(2.dp))
                                 Text(
-                                        "可用包",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-                )
-
-                // 已导入包标签
-                Tab(
-                        selected = selectedTab == PackageTab.IMPORTED,
-                        onClick = { selectedTab = PackageTab.IMPORTED },
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 0.dp),
-                        text = {
-                            Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center,
-                                    modifier = Modifier.padding(vertical = 6.dp)
-                            ) {
-                                Icon(
-                                        imageVector = Icons.Default.CheckCircle,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(Modifier.width(2.dp))
-                                Text(
-                                        "已导入",
+                                        "包管理",
                                         style = MaterialTheme.typography.bodySmall,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
@@ -286,61 +261,52 @@ fun PackageManagerScreen() {
 
             // 内容区域
             when (selectedTab) {
-                PackageTab.AVAILABLE -> {
-                    // 可用包列表
+                PackageTab.PACKAGES -> {
+                    // 显示合并后的包列表
                     if (availablePackages.value.isEmpty()) {
                         EmptyState(message = "没有可用的包")
                     } else {
-                        AvailablePackagesList(
+                        PackagesList(
                                 packages = availablePackages.value,
+                                importedPackages = visibleImportedPackages.value,
                                 onPackageClick = { packageName ->
                                     selectedPackage = packageName
                                     showDetails = true
                                 },
-                                onImportClick = { packageName ->
-                                    scope.launch {
-                                        try {
-                                            val result = packageManager.importPackage(packageName)
-                                            importedPackages.value =
-                                                    packageManager.getImportedPackages()
-                                            snackbarHostState.showSnackbar(message = "包导入成功")
-                                        } catch (e: Exception) {
-                                            Log.e(
-                                                    "PackageManagerScreen",
-                                                    "Failed to import package",
-                                                    e
-                                            )
-                                            snackbarHostState.showSnackbar(message = "包导入错误")
+                                onToggleImport = { packageName, isChecked ->
+                                    // 立即更新UI显示的导入状态列表，使开关立即响应
+                                    val currentImported = visibleImportedPackages.value.toMutableList()
+                                    if (isChecked) {
+                                        if (!currentImported.contains(packageName)) {
+                                            currentImported.add(packageName)
                                         }
+                                    } else {
+                                        currentImported.remove(packageName)
                                     }
-                                }
-                        )
-                    }
-                }
-                PackageTab.IMPORTED -> {
-                    // 已导入包列表
-                    if (importedPackages.value.isEmpty()) {
-                        EmptyState(message = "尚未导入任何包")
-                    } else {
-                        ImportedPackagesList(
-                                packages = importedPackages.value,
-                                availablePackages = availablePackages.value,
-                                onPackageClick = { packageName ->
-                                    selectedPackage = packageName
-                                    showDetails = true
-                                },
-                                onRemoveClick = { packageName ->
+                                    visibleImportedPackages.value = currentImported
+
+                                    // 后台执行实际的导入/移除操作
                                     scope.launch {
                                         try {
-                                            packageManager.removePackage(packageName)
-                                            importedPackages.value =
-                                                    packageManager.getImportedPackages()
-                                            snackbarHostState.showSnackbar(message = "包已移除")
+                                            if (isChecked) {
+                                                packageManager.importPackage(packageName)
+                                            } else {
+                                                packageManager.removePackage(packageName)
+                                            }
+                                            // 操作成功后，更新真实的导入状态
+                                            importedPackages.value = packageManager.getImportedPackages()
                                         } catch (e: Exception) {
                                             Log.e(
-                                                    "PackageManagerScreen",
-                                                    "Failed to remove package",
-                                                    e
+                                                "PackageManagerScreen",
+                                                if (isChecked) "Failed to import package" else "Failed to remove package",
+                                                e
+                                            )
+                                            // 操作失败时恢复UI显示状态为实际状态
+                                            visibleImportedPackages.value = importedPackages.value
+                                            
+                                            // 只在失败时显示提示
+                                            snackbarHostState.showSnackbar(
+                                                message = if (isChecked) "包导入失败" else "包移除失败"
                                             )
                                         }
                                     }

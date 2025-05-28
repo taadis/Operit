@@ -1,8 +1,7 @@
 package com.ai.assistance.operit.ui.features.packages.components
 
 enum class PackageTab {
-    AVAILABLE,
-    IMPORTED,
+    PACKAGES,
     MCP_MARKETPLACE,
     MCP_CONFIG
 }

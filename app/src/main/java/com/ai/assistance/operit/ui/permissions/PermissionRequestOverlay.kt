@@ -5,7 +5,10 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
+import android.widget.Toast
 import android.util.Log
 import android.view.Gravity
 import android.view.WindowManager
@@ -177,21 +180,24 @@ class PermissionRequestOverlay(private val context: Context) {
     fun requestOverlayPermission() {
         if (!hasOverlayPermission()) {
             try {
-                AlertDialog.Builder(context)
-                    .setTitle("需要悬浮窗权限")
-                    .setMessage("为了显示权限请求窗口，应用需要悬浮窗权限。请在设置中允许此权限。")
-                    .setPositiveButton("去设置") { _, _ ->
-                        val intent = Intent(
-                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                            Uri.parse("package:${context.packageName}")
-                        )
-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        context.startActivity(intent)
-                    }
-                    .setNegativeButton("取消", null)
-                    .show()
+                // 不使用对话框，直接跳转到设置页面
+                val intent = Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:${context.packageName}")
+                )
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+                
+                // 可选：使用Toast提示用户
+                Handler(Looper.getMainLooper()).post {
+                    Toast.makeText(
+                        context, 
+                        "需要悬浮窗权限，请在设置中允许此权限", 
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
             } catch (e: Exception) {
-                Log.e(TAG, "Error showing overlay permission dialog", e)
+                Log.e(TAG, "Error requesting overlay permission", e)
             }
         }
     }
