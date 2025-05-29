@@ -117,12 +117,6 @@ fun ChatScreenContent(
                                 change.consume()
                             }
 
-                            // 如果是从左向右滑动，且历史选择器已显示，则消费事件防止触发全局侧边栏
-                            if (dragRight && showChatHistorySelector) {
-                                onChatScreenGestureConsumed(true)
-                                change.consume()
-                            }
-
                             // 如果是从右向左滑动，且历史选择器已显示，则关闭历史选择器
                             if (dragAmount < 0 &&
                                 showChatHistorySelector &&
@@ -323,15 +317,6 @@ fun ChatHistorySelectorPanel(
                     color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
                     shape = RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp)
                 )
-                // 添加手势检测，处理向左滑动关闭
-                .pointerInput(Unit) {
-                    detectHorizontalDragGestures { _, dragAmount ->
-                        // 只处理向左滑动的手势
-                        if (dragAmount < -30) {
-                            actualViewModel.showChatHistorySelector(false)
-                        }
-                    }
-                }
         ) {
             // 直接使用ChatHistorySelector
             ChatHistorySelector(
