@@ -54,7 +54,8 @@ sealed class Screen(
                 updateNavItem: NavItemChangeHandler,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
-                onError: (String) -> Unit
+                onError: (String) -> Unit,
+                onGestureConsumed: (Boolean) -> Unit
         ) {
                 // 子类实现具体内容
         }
@@ -68,7 +69,8 @@ sealed class Screen(
                         updateNavItem: NavItemChangeHandler,
                         hasBackgroundImage: Boolean,
                         onLoading: (Boolean) -> Unit,
-                        onError: (String) -> Unit
+                        onError: (String) -> Unit,
+                        onGestureConsumed: (Boolean) -> Unit
                 ) {
                         AIChatScreen(
                                 padding = PaddingValues(0.dp),
@@ -81,7 +83,8 @@ sealed class Screen(
                                         updateNavItem(NavItem.Settings)
                                 },
                                 onLoading = onLoading,
-                                onError = onError
+                                onError = onError,
+                                onGestureConsumed = onGestureConsumed
                         )
                 }
         }
@@ -94,7 +97,8 @@ sealed class Screen(
                         updateNavItem: NavItemChangeHandler,
                         hasBackgroundImage: Boolean,
                         onLoading: (Boolean) -> Unit,
-                        onError: (String) -> Unit
+                        onError: (String) -> Unit,
+                        onGestureConsumed: (Boolean) -> Unit
                 ) {
                         ProblemLibraryScreen()
                 }
@@ -108,7 +112,8 @@ sealed class Screen(
                         updateNavItem: NavItemChangeHandler,
                         hasBackgroundImage: Boolean,
                         onLoading: (Boolean) -> Unit,
-                        onError: (String) -> Unit
+                        onError: (String) -> Unit,
+                        onGestureConsumed: (Boolean) -> Unit
                 ) {
                         PackageManagerScreen()
                 }
@@ -122,7 +127,8 @@ sealed class Screen(
                         updateNavItem: NavItemChangeHandler,
                         hasBackgroundImage: Boolean,
                         onLoading: (Boolean) -> Unit,
-                        onError: (String) -> Unit
+                        onError: (String) -> Unit,
+                        onGestureConsumed: (Boolean) -> Unit
                 ) {
                         ToolboxScreen(
                                 navController = navController,
@@ -147,7 +153,8 @@ sealed class Screen(
                         updateNavItem: NavItemChangeHandler,
                         hasBackgroundImage: Boolean,
                         onLoading: (Boolean) -> Unit,
-                        onError: (String) -> Unit
+                        onError: (String) -> Unit,
+                        onGestureConsumed: (Boolean) -> Unit
                 ) {
                         ShizukuDemoScreen()
                 }
@@ -161,7 +168,8 @@ sealed class Screen(
                         updateNavItem: NavItemChangeHandler,
                         hasBackgroundImage: Boolean,
                         onLoading: (Boolean) -> Unit,
-                        onError: (String) -> Unit
+                        onError: (String) -> Unit,
+                        onGestureConsumed: (Boolean) -> Unit
                 ) {
                         SettingsScreen(
                                 navigateToToolPermissions = { navigateTo(ToolPermission) },
@@ -185,7 +193,8 @@ sealed class Screen(
                         updateNavItem: NavItemChangeHandler,
                         hasBackgroundImage: Boolean,
                         onLoading: (Boolean) -> Unit,
-                        onError: (String) -> Unit
+                        onError: (String) -> Unit,
+                        onGestureConsumed: (Boolean) -> Unit
                 ) {
                         HelpScreen(
                                 onBackPressed = {
@@ -204,7 +213,8 @@ sealed class Screen(
                         updateNavItem: NavItemChangeHandler,
                         hasBackgroundImage: Boolean,
                         onLoading: (Boolean) -> Unit,
-                        onError: (String) -> Unit
+                        onError: (String) -> Unit,
+                        onGestureConsumed: (Boolean) -> Unit
                 ) {
                         AboutScreen()
                 }
@@ -218,7 +228,8 @@ sealed class Screen(
                         updateNavItem: NavItemChangeHandler,
                         hasBackgroundImage: Boolean,
                         onLoading: (Boolean) -> Unit,
-                        onError: (String) -> Unit
+                        onError: (String) -> Unit,
+                        onGestureConsumed: (Boolean) -> Unit
                 ) {
                         TokenConfigWebViewScreen(
                                 onNavigateBack = {
@@ -243,7 +254,8 @@ sealed class Screen(
                         updateNavItem: NavItemChangeHandler,
                         hasBackgroundImage: Boolean,
                         onLoading: (Boolean) -> Unit,
-                        onError: (String) -> Unit
+                        onError: (String) -> Unit,
+                        onGestureConsumed: (Boolean) -> Unit
                 ) {
                         ToolPermissionSettingsScreen(
                                 navigateBack = {
@@ -267,7 +279,8 @@ sealed class Screen(
                         updateNavItem: NavItemChangeHandler,
                         hasBackgroundImage: Boolean,
                         onLoading: (Boolean) -> Unit,
-                        onError: (String) -> Unit
+                        onError: (String) -> Unit,
+                        onGestureConsumed: (Boolean) -> Unit
                 ) {
                         UserPreferencesGuideScreen(
                                 profileName = profileName,
@@ -297,7 +310,8 @@ sealed class Screen(
                         updateNavItem: NavItemChangeHandler,
                         hasBackgroundImage: Boolean,
                         onLoading: (Boolean) -> Unit,
-                        onError: (String) -> Unit
+                        onError: (String) -> Unit,
+                        onGestureConsumed: (Boolean) -> Unit
                 ) {
                         UserPreferencesSettingsScreen(
                                 onNavigateBack = { parentScreen?.let { navigateTo(it) } },
@@ -317,7 +331,8 @@ sealed class Screen(
                         updateNavItem: NavItemChangeHandler,
                         hasBackgroundImage: Boolean,
                         onLoading: (Boolean) -> Unit,
-                        onError: (String) -> Unit
+                        onError: (String) -> Unit,
+                        onGestureConsumed: (Boolean) -> Unit
                 ) {
                         ModelParametersSettingsScreen()
                 }
@@ -332,7 +347,8 @@ sealed class Screen(
                         updateNavItem: NavItemChangeHandler,
                         hasBackgroundImage: Boolean,
                         onLoading: (Boolean) -> Unit,
-                        onError: (String) -> Unit
+                        onError: (String) -> Unit,
+                        onGestureConsumed: (Boolean) -> Unit
                 ) {
                         ModelPromptsSettingsScreen(
                                 onBackPressed = {
@@ -356,7 +372,8 @@ sealed class Screen(
                         updateNavItem: NavItemChangeHandler,
                         hasBackgroundImage: Boolean,
                         onLoading: (Boolean) -> Unit,
-                        onError: (String) -> Unit
+                        onError: (String) -> Unit,
+                        onGestureConsumed: (Boolean) -> Unit
                 ) {
                         ThemeSettingsScreen()
                 }
@@ -371,7 +388,8 @@ sealed class Screen(
                         updateNavItem: NavItemChangeHandler,
                         hasBackgroundImage: Boolean,
                         onLoading: (Boolean) -> Unit,
-                        onError: (String) -> Unit
+                        onError: (String) -> Unit,
+                        onGestureConsumed: (Boolean) -> Unit
                 ) {
                         ChatHistorySettingsScreen()
                 }
@@ -386,7 +404,8 @@ sealed class Screen(
                         updateNavItem: NavItemChangeHandler,
                         hasBackgroundImage: Boolean,
                         onLoading: (Boolean) -> Unit,
-                        onError: (String) -> Unit
+                        onError: (String) -> Unit,
+                        onGestureConsumed: (Boolean) -> Unit
                 ) {
                         LanguageSettingsScreen(
                                 onBackPressed = {
@@ -409,7 +428,8 @@ sealed class Screen(
                         updateNavItem: NavItemChangeHandler,
                         hasBackgroundImage: Boolean,
                         onLoading: (Boolean) -> Unit,
-                        onError: (String) -> Unit
+                        onError: (String) -> Unit,
+                        onGestureConsumed: (Boolean) -> Unit
                 ) {
                         FormatConverterToolScreen(navController = navController)
                 }
@@ -424,7 +444,8 @@ sealed class Screen(
                         updateNavItem: NavItemChangeHandler,
                         hasBackgroundImage: Boolean,
                         onLoading: (Boolean) -> Unit,
-                        onError: (String) -> Unit
+                        onError: (String) -> Unit,
+                        onGestureConsumed: (Boolean) -> Unit
                 ) {
                         FileManagerToolScreen(navController = navController)
                 }
@@ -439,7 +460,8 @@ sealed class Screen(
                         updateNavItem: NavItemChangeHandler,
                         hasBackgroundImage: Boolean,
                         onLoading: (Boolean) -> Unit,
-                        onError: (String) -> Unit
+                        onError: (String) -> Unit,
+                        onGestureConsumed: (Boolean) -> Unit
                 ) {
                         TerminalToolScreen(navController = navController)
                 }
@@ -454,7 +476,8 @@ sealed class Screen(
                         updateNavItem: NavItemChangeHandler,
                         hasBackgroundImage: Boolean,
                         onLoading: (Boolean) -> Unit,
-                        onError: (String) -> Unit
+                        onError: (String) -> Unit,
+                        onGestureConsumed: (Boolean) -> Unit
                 ) {
                         TerminalAutoConfigToolScreen(navController = navController)
                 }
@@ -469,7 +492,8 @@ sealed class Screen(
                         updateNavItem: NavItemChangeHandler,
                         hasBackgroundImage: Boolean,
                         onLoading: (Boolean) -> Unit,
-                        onError: (String) -> Unit
+                        onError: (String) -> Unit,
+                        onGestureConsumed: (Boolean) -> Unit
                 ) {
                         AppPermissionsToolScreen(navController = navController)
                 }
@@ -484,7 +508,8 @@ sealed class Screen(
                         updateNavItem: NavItemChangeHandler,
                         hasBackgroundImage: Boolean,
                         onLoading: (Boolean) -> Unit,
-                        onError: (String) -> Unit
+                        onError: (String) -> Unit,
+                        onGestureConsumed: (Boolean) -> Unit
                 ) {
                         UIDebuggerToolScreen(navController = navController)
                 }
@@ -499,7 +524,8 @@ sealed class Screen(
                         updateNavItem: NavItemChangeHandler,
                         hasBackgroundImage: Boolean,
                         onLoading: (Boolean) -> Unit,
-                        onError: (String) -> Unit
+                        onError: (String) -> Unit,
+                        onGestureConsumed: (Boolean) -> Unit
                 ) {
                         ShellExecutorToolScreen(navController = navController)
                 }
@@ -514,7 +540,8 @@ sealed class Screen(
                         updateNavItem: NavItemChangeHandler,
                         hasBackgroundImage: Boolean,
                         onLoading: (Boolean) -> Unit,
-                        onError: (String) -> Unit
+                        onError: (String) -> Unit,
+                        onGestureConsumed: (Boolean) -> Unit
                 ) {
                         LogcatToolScreen(navController = navController)
                 }
@@ -530,7 +557,8 @@ sealed class Screen(
                         updateNavItem: NavItemChangeHandler,
                         hasBackgroundImage: Boolean,
                         onLoading: (Boolean) -> Unit,
-                        onError: (String) -> Unit
+                        onError: (String) -> Unit,
+                        onGestureConsumed: (Boolean) -> Unit
                 ) {
                         FFmpegToolboxScreen(navController = navController)
                 }
@@ -567,4 +595,10 @@ object OperitRouter {
                         else -> Screen.AiChat
                 }
         }
+}
+
+// 全局的手势状态持有者，用于在不同组件间共享手势状态
+object GestureStateHolder {
+    // 聊天界面手势是否被消费的状态
+    var isChatScreenGestureConsumed: Boolean = false
 }

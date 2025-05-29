@@ -38,6 +38,8 @@ import com.ai.assistance.operit.ui.main.components.DrawerContent
 import com.ai.assistance.operit.ui.main.screens.Screen
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.DisposableEffect
+import com.ai.assistance.operit.ui.main.screens.GestureStateHolder
 
 /** Layout for phone devices with a modal navigation drawer */
 @Composable
@@ -93,6 +95,9 @@ fun PhoneLayout(
         var currentDrag by remember { mutableStateOf(0f) }
         var verticalDrag by remember { mutableStateOf(0f) }
         val dragThreshold = 40f
+        
+        // 添加内部手势消费状态
+        var internalGestureConsumed by remember { mutableStateOf(false) }
 
         // 缓存抽屉内容以避免重组
         var cachedDrawerContent by remember { mutableStateOf<@Composable () -> Unit>({}) }
@@ -118,6 +123,8 @@ fun PhoneLayout(
 
         // 拖拽状态 - 用于控制抽屉拉出和关闭
         val draggableState = rememberDraggableState { delta ->
+                // 如果内部手势已被消费，则不处理全局拖拽
+                if (!GestureStateHolder.isChatScreenGestureConsumed) {
                 currentDrag += delta
 
                 if (!isDrawerOpen &&
@@ -136,6 +143,7 @@ fun PhoneLayout(
                                 drawerState.close()
                                 currentDrag = 0f
                                 verticalDrag = 0f
+                            }
                         }
                 }
         }

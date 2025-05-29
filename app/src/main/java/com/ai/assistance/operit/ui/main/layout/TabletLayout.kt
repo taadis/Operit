@@ -22,6 +22,7 @@ import com.ai.assistance.operit.ui.main.components.AppContent
 import com.ai.assistance.operit.ui.main.components.CollapsedDrawerContent
 import com.ai.assistance.operit.ui.main.components.DrawerContent
 import com.ai.assistance.operit.ui.main.screens.Screen
+import com.ai.assistance.operit.ui.main.screens.GestureStateHolder
 import kotlinx.coroutines.CoroutineScope
 
 /** Layout for tablet devices with a permanent side navigation drawer */
@@ -140,7 +141,11 @@ fun TabletLayout(
                                 onScreenChange = onScreenChange,
                                 onNavItemChange = onNavItemChange,
                                 onToggleSidebar = onToggleSidebar,
-                                navigateToTokenConfig = navigateToTokenConfig
+                                navigateToTokenConfig = navigateToTokenConfig,
+                                onGestureConsumed = { consumed -> 
+                                    // 当聊天页面的手势被消费时，这里不需要特别处理
+                                    // 因为平板模式不像手机模式那样有侧滑抽屉
+                                }
                         )
                 }
 

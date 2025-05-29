@@ -59,7 +59,8 @@ fun AppContent(
         onToggleSidebar: () -> Unit,
         navigateToTokenConfig: () -> Unit,
         onLoading: (Boolean) -> Unit = {},
-        onError: (String) -> Unit = {}
+        onError: (String) -> Unit = {},
+        onGestureConsumed: (Boolean) -> Unit = {}
 ) {
     // Get background image state
     val context = LocalContext.current
@@ -217,7 +218,8 @@ fun AppContent(
                         updateNavItem = onNavItemChange,
                         hasBackgroundImage = hasBackgroundImage,
                         onLoading = onLoading,
-                        onError = onError
+                        onError = onError,
+                        onGestureConsumed = if (currentScreen is Screen.AiChat) onGestureConsumed else { _ -> }
                     )
 
                     // 帧率计数器 - 放在右上角
