@@ -100,17 +100,15 @@ fun ChatArea(
                                 items = processedMessages,
                                 // 修改键生成逻辑，使其更稳定
                                 key = { (index, message) ->
-                                        if (message.sender == "think") {
-                                                // 对于思考消息，只使用"think"和索引作为键，不使用内容哈希
-                                                "$chatContentKey-think-$index"
-                                        } else {
-                                                // 使用时间戳和索引作为键，这样更稳定
-                                                "$chatContentKey-${message.timestamp}-$index"
-                                        }
+                                        if (message.sender == "think") "$chatContentKey-think-$index"  // 对思考消息使用稳定的key
+                                        else "${message.timestamp}-${message.content.hashCode()}"      // 对其他消息保持原有逻辑
                                 }
                         ) { (index, message) ->
                                 // 使用key包装每个消息项，以便在特定消息变化时只重组该项
-                                key(message.timestamp, message.content.hashCode()) {
+                                key(
+                                    if (message.sender == "think") "$chatContentKey-think-$index"  // 对思考消息使用稳定的key
+                                    else "${message.timestamp}-${message.content.hashCode()}"      // 对其他消息保持原有逻辑
+                                ) {
                                         MessageItem(
                                                 index = index,
                                                 message = message,

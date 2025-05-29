@@ -161,7 +161,7 @@ internal fun IntegratedMarkdownLatexRenderer(
                     val contentKey = content.hashCode().toString()
 
                     // 生成内容哈希，用于简单缓存检查
-                    Log.d("MarkdownLatex", "Rendering content with key: $contentKey")
+                    // Log.d("MarkdownLatex", "Rendering content with key: $contentKey")
 
                     // 处理LaTeX
                     val preprocessed = LatexPreprocessor.preprocessLatexInMarkdown(content)
@@ -186,7 +186,7 @@ internal fun IntegratedMarkdownLatexRenderer(
 
                     // Log the render time
                     val duration = System.currentTimeMillis() - startTimes.getOrDefault(renderId, 0)
-                    Log.d("MarkdownLatex", "Rendered in $duration ms")
+                    // Log.d("MarkdownLatex", "Rendered in $duration ms")
                 } catch (e: Exception) {
                     Log.e("MarkdownLatex", "Error rendering content: ${e.message}", e)
                     // 如果发生错误，至少显示原始文本

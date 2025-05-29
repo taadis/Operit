@@ -100,7 +100,7 @@ class TokenStatisticsDelegate(
         // 更新UI
         updateUiStatistics(_contextWindowSize.value, inputTokens, outputTokens)
 
-        Log.d(TAG, "Token统计已设置 - 输入: $inputTokens, 输出: $outputTokens")
+        // Log.d(TAG, "Token统计已设置 - 输入: $inputTokens, 输出: $outputTokens")
     }
 
     /** 获取当前累计token计数 */

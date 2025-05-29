@@ -80,7 +80,7 @@ class ChatHistoryManager private constructor(private val context: Context) {
     private val _chatHistoriesFlow: Flow<List<ChatHistory>> =
     // 使用原始的Flow方式，这样可以确保数据库变化时会自动刷新
     chatDao.getAllChats().map { chatEntities ->
-                Log.d(TAG, "加载聊天列表，共 ${chatEntities.size} 个聊天")
+                // Log.d(TAG, "加载聊天列表，共 ${chatEntities.size} 个聊天")
 
                 // 使用withContext将处理移至IO线程
                 kotlinx.coroutines.withContext(Dispatchers.IO) {
@@ -306,9 +306,9 @@ class ChatHistoryManager private constructor(private val context: Context) {
     suspend fun loadChatMessages(chatId: String): List<ChatMessage> {
         return kotlinx.coroutines.withContext(Dispatchers.IO) {
             try {
-                Log.d(TAG, "直接从数据库加载聊天 $chatId 的消息")
+                // Log.d(TAG, "直接从数据库加载聊天 $chatId 的消息")
                 val messages = messageDao.getMessagesForChat(chatId)
-                Log.d(TAG, "聊天 $chatId 共加载 ${messages.size} 条消息")
+                // Log.d(TAG, "聊天 $chatId 共加载 ${messages.size} 条消息")
                 messages.map { it.toChatMessage() }
             } catch (e: Exception) {
                 Log.e(TAG, "加载聊天消息失败", e)
