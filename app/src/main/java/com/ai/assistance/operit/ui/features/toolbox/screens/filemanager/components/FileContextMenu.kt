@@ -12,8 +12,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolParameter
@@ -365,7 +367,7 @@ fun FileContextMenu(
             Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                 if (isMultiSelectMode) {
                     Text(
-                            text = "已选择 ${selectedFiles.size} 个项目",
+                            text = stringResource(R.string.files_selected, selectedFiles.size),
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.primary
                     )
@@ -384,14 +386,14 @@ fun FileContextMenu(
                     // 打开选项 - 仅在单选模式下显示
                     FileActionButton(
                             icon = Icons.Default.OpenInNew,
-                            text = "打开",
+                            text = stringResource(R.string.open),
                             onClick = { openFile(contextMenuFile!!) }
                     )
                 }
 
                 FileActionButton(
                         icon = Icons.Default.ContentCopy,
-                        text = "复制",
+                        text = stringResource(R.string.copy),
                         onClick = {
                             if (isMultiSelectMode) {
                                 copyFile(selectedFiles)
@@ -403,7 +405,7 @@ fun FileContextMenu(
 
                 FileActionButton(
                         icon = Icons.Default.ContentCut,
-                        text = "剪切",
+                        text = stringResource(R.string.cut),
                         onClick = {
                             if (isMultiSelectMode) {
                                 cutFile(selectedFiles)
@@ -415,7 +417,7 @@ fun FileContextMenu(
 
                 FileActionButton(
                         icon = Icons.Default.ContentPaste,
-                        text = "粘贴",
+                        text = stringResource(R.string.paste),
                         onClick = { pasteFile() }
                 )
 
@@ -423,13 +425,13 @@ fun FileContextMenu(
                     // 分享选项 - 仅在单选模式下显示
                     FileActionButton(
                             icon = Icons.Default.Share,
-                            text = "分享",
+                            text = stringResource(R.string.share),
                             onClick = { shareFile(contextMenuFile!!) }
                     )
 
                     FileActionButton(
                             icon = Icons.Default.Edit,
-                            text = "重命名",
+                            text = stringResource(R.string.rename),
                             onClick = {
                                 newFileName = contextMenuFile!!.name
                                 showRenameDialog = true
@@ -440,7 +442,7 @@ fun FileContextMenu(
                     // 多选模式下添加批量重命名选项
                     FileActionButton(
                             icon = Icons.Default.Edit,
-                            text = "批量重命名",
+                            text = stringResource(R.string.rename),
                             onClick = {
                                 renamePrefix = ""
                                 renameSuffix = ""
@@ -466,7 +468,7 @@ fun FileContextMenu(
 
                 FileActionButton(
                         icon = Icons.Default.Delete,
-                        text = "删除",
+                        text = stringResource(R.string.delete),
                         onClick = {
                             showDeleteConfirmDialog = true
                             onDismissRequest()
@@ -483,7 +485,7 @@ fun FileContextMenu(
                                         containerColor = MaterialTheme.colorScheme.surfaceVariant,
                                         contentColor = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                ) { Text("取消") }
+                ) { Text(stringResource(R.string.cancel)) }
 
                 Spacer(modifier = Modifier.height(16.dp))
             }
@@ -494,7 +496,7 @@ fun FileContextMenu(
     if (showRenameDialog && contextMenuFile != null) {
         AlertDialog(
                 onDismissRequest = { showRenameDialog = false },
-                title = { Text("重命名") },
+                title = { Text(stringResource(R.string.rename)) },
                 text = {
                     OutlinedTextField(
                             value = newFileName,
@@ -514,10 +516,10 @@ fun FileContextMenu(
                                 }
                                 showRenameDialog = false
                             }
-                    ) { Text("重命名") }
+                    ) { Text(stringResource(R.string.rename)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showRenameDialog = false }) { Text("取消") }
+                    TextButton(onClick = { showRenameDialog = false }) { Text(stringResource(R.string.cancel)) }
                 }
         )
     }
@@ -526,14 +528,14 @@ fun FileContextMenu(
     if (showBatchRenameDialog) {
         AlertDialog(
                 onDismissRequest = { showBatchRenameDialog = false },
-                title = { Text("批量重命名") },
+                title = { Text(stringResource(R.string.rename)) },
                 text = {
                     Column(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                                "已选择 ${selectedFiles.size} 个文件",
+                                stringResource(R.string.files_selected, selectedFiles.size),
                                 style = MaterialTheme.typography.bodyMedium
                         )
 
@@ -608,10 +610,10 @@ fun FileContextMenu(
                                 showBatchRenameDialog = false
                             },
                             enabled = selectedFiles.isNotEmpty()
-                    ) { Text("重命名") }
+                    ) { Text(stringResource(R.string.rename)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showBatchRenameDialog = false }) { Text("取消") }
+                    TextButton(onClick = { showBatchRenameDialog = false }) { Text(stringResource(R.string.cancel)) }
                 }
         )
     }
@@ -627,7 +629,7 @@ fun FileContextMenu(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                                "已选择 ${selectedFiles.size} 个文件",
+                                stringResource(R.string.files_selected, selectedFiles.size),
                                 style = MaterialTheme.typography.bodyMedium
                         )
 
@@ -658,7 +660,7 @@ fun FileContextMenu(
                     ) { Text("压缩") }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showCompressDialog = false }) { Text("取消") }
+                    TextButton(onClick = { showCompressDialog = false }) { Text(stringResource(R.string.cancel)) }
                 }
         )
     }
@@ -667,7 +669,7 @@ fun FileContextMenu(
     if (showDeleteConfirmDialog) {
         AlertDialog(
                 onDismissRequest = { showDeleteConfirmDialog = false },
-                title = { Text("确认删除") },
+                title = { Text(stringResource(R.string.delete)) },
                 text = {
                     Text(
                             if (isMultiSelectMode) {
@@ -687,10 +689,10 @@ fun FileContextMenu(
                                 }
                                 showDeleteConfirmDialog = false
                             }
-                    ) { Text("删除") }
+                    ) { Text(stringResource(R.string.delete)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showDeleteConfirmDialog = false }) { Text("取消") }
+                    TextButton(onClick = { showDeleteConfirmDialog = false }) { Text(stringResource(R.string.cancel)) }
                 }
         )
     }
@@ -699,12 +701,12 @@ fun FileContextMenu(
     if (showNewFolderDialog) {
         AlertDialog(
                 onDismissRequest = { showNewFolderDialog = false },
-                title = { Text("新建文件夹") },
+                title = { Text(stringResource(R.string.new_folder)) },
                 text = {
                     OutlinedTextField(
                             value = newFolderName,
                             onValueChange = { newFolderName = it },
-                            label = { Text("文件夹名称") },
+                            label = { Text(stringResource(R.string.folder_name)) },
                             singleLine = true
                     )
                 },
@@ -717,10 +719,10 @@ fun FileContextMenu(
                                     newFolderName = ""
                                 }
                             }
-                    ) { Text("创建") }
+                    ) { Text(stringResource(R.string.create_folder)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showNewFolderDialog = false }) { Text("取消") }
+                    TextButton(onClick = { showNewFolderDialog = false }) { Text(stringResource(R.string.cancel)) }
                 }
         )
     }
@@ -739,7 +741,7 @@ fun FileContextMenu(
                             }
                     ) { Text("解压") }
                 },
-                dismissButton = { TextButton(onClick = { showUnzipDialog = false }) { Text("取消") } }
+                dismissButton = { TextButton(onClick = { showUnzipDialog = false }) { Text(stringResource(R.string.cancel)) } }
         )
     }
 
@@ -762,7 +764,7 @@ fun FileContextMenu(
                                     .padding(24.dp)
             ) {
                 Text(
-                        text = "正在处理...",
+                        text = stringResource(R.string.loading_files),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -776,7 +778,7 @@ fun FileContextMenu(
                 onDismissRequest = { error = null },
                 title = { Text("错误") },
                 text = { Text(error!!) },
-                confirmButton = { TextButton(onClick = { error = null }) { Text("确定") } }
+                confirmButton = { TextButton(onClick = { error = null }) { Text(stringResource(R.string.confirm_delete)) } }
         )
     }
 }

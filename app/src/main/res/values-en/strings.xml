@@ -1,0 +1,307 @@
+<resources>
+    <string name="app_name">Operit AI</string>
+    <string name="accessibility_service_description">For obtaining UI hierarchy, providing faster interface analysis for AI assistant, without collecting or storing any personal information.</string>
+    
+    <!-- Navigation -->
+    <string name="nav_ai_chat">AI Chat</string>
+    <string name="nav_adb_commands">Permissions</string>
+    <string name="nav_settings">Settings</string>
+    <string name="nav_tool_permissions">Tool Permissions</string>
+    <string name="nav_about">About</string>
+    <string name="nav_packages">Packages</string>
+    <string name="nav_problem_library">Problem Library</string>
+    <string name="nav_terminal">Terminal</string>
+    <string name="nav_toolbox">Toolbox</string>
+    <string name="nav_item_agreement">User Agreement</string>
+    <string name="nav_help">Help Center</string>
+    <string name="menu">Menu</string>
+    <string name="token_config">Get API Key</string>
+    
+    <!-- NavItem class identifiers -->
+    <string name="shizuku_commands">Permissions</string>
+    <string name="tool_permissions">Tool Permission Settings</string>
+    <string name="about">About</string>
+    <string name="terminal">Terminal</string>
+    <string name="toolbox">Toolbox</string>
+    <string name="mcp">MCP</string>
+    <string name="token_config_title">DeepSeek Token Configuration</string>
+    <string name="chat_history_settings">Chat History Management</string>
+    
+    <!-- Chat History Management Screen -->
+    <string name="chat_history_manager">Chat History Manager</string>
+    <string name="export_chat_history">Export Chat History</string>
+    <string name="import_chat_history">Import Chat History</string>
+    <string name="clear_chat_history">Clear All Chat History</string>
+    <string name="confirm_delete">Confirm Delete</string>
+    <string name="delete_warning">Deleting all chat history is irreversible. Consider exporting a backup before proceeding.</string>
+    <string name="export_success">Export Successful</string>
+    <string name="import_success">Import Successful</string>
+    <string name="operation_failed">Operation Failed</string>
+    <string name="danger_zone">Danger Zone</string>
+    <string name="chat_statistics">Chat Statistics</string>
+    <string name="current_chats">Currently %1$d chat records</string>
+    <string name="backup_location">Backup files are saved in the \"Downloads/Operit\" folder</string>
+    <string name="faq_backup">FAQ</string>
+    
+    <!-- Terminal Screen -->
+    <string name="termux_not_installed">Termux Not Installed</string>
+    <string name="termux_not_running">Termux Not Running</string>
+    <string name="termux_command">Termux Command</string>
+    <string name="execute_termux_command">Execute Command</string>
+    <string name="termux_result">Command Result</string>
+    
+    <!-- Termux Installation -->
+    <string name="install_termux_title">Install Termux</string>
+    <string name="install_termux_from_store">Install Termux from App Store</string>
+    <string name="install_bundled_termux">Install Bundled Version</string>
+    <string name="installing_bundled_termux">Installing bundled Termux, please grant installation permissions</string>
+    <string name="install_termux_failed">Termux Installation Failed</string>
+    <string name="open_termux">Open Termux</string>
+    <string name="termux_setup_guide">Termux Setup Guide</string>
+    <string name="termux_wizard_title">Termux Setup Wizard</string>
+    
+    <!-- About Screen -->
+    <string name="about_title">About Operit AI</string>
+    <string name="about_version">Version: %1$s</string>
+    <string name="about_description">Operit AI is an intelligent assistant application that helps users use their devices more efficiently, providing interface analysis, chat conversations, and more.</string>
+    <string name="about_developer">Developer: &lt;a href="https://github.com/AAswordman"&gt;AAswordman&lt;/a&gt;</string>
+    <string name="about_contact">Contact Us: support@operit.ai</string>
+    <string name="about_website">&lt;a href="https://github.com/AAswordman/Operit"&gt;GitHub: https://github.com/AAswordman/Operit&lt;/a&gt;</string>
+    <string name="about_copyright">© 2023-2024 Operit. All Rights Reserved.</string>
+    
+    <!-- AI Chat Screen -->
+    <string name="configure_ai">Configure AI API</string>
+    <string name="api_endpoint">API Endpoint</string>
+    <string name="api_key">API Key</string>
+    <string name="model_name">Model Name</string>
+    <string name="save_and_start">Save and Start Chat</string>
+    <string name="ai_chat">AI Chat</string>
+    <string name="start_chat_hint">Start a new conversation. Enter your question to get AI response.</string>
+    <string name="enter_question">Enter your question</string>
+    <string name="send">Send</string>
+    <string name="ai_response_placeholder">This is a simulated AI response. In the actual application, real AI API calls will be integrated here.</string>
+    <string name="network_unavailable">Network connection unavailable, please check your network settings</string>
+    <string name="network_status">Network Status: %1$s</string>
+    
+    <!-- Floating Window -->
+    <string name="floating_chat_window">Floating Chat Window</string>
+    <string name="enable_floating_mode">Enable Floating Window</string>
+    <string name="disable_floating_mode">Disable Floating Window</string>
+    <string name="overlay_permission_required">Overlay Permission Required</string>
+    <string name="overlay_permission_denied">Overlay permission denied, cannot display floating window</string>
+    <string name="close_floating_window">Close Floating Window</string>
+    
+    <!-- AI Tools -->
+    <string name="ai_tools_enabled">AI Tools Enabled</string>
+    <string name="tools_extracting">Detecting tool calls...</string>
+    <string name="tools_executing">Executing tool: %1$s</string>
+    <string name="tools_completed">Tool execution completed</string>
+    <string name="tools_failed">Tool execution failed: %1$s</string>
+    <string name="tool_result">Tool Execution Result</string>
+    <string name="processing_input">Processing input...</string>
+    <string name="references">References:</string>
+    <string name="tool_weather">Weather Query</string>
+    <string name="tool_calculator">Calculator</string>
+    <string name="tool_web_search">Web Search</string>
+    <string name="enhanced_service_not_initialized">Enhanced AI service not initialized, please check settings</string>
+    
+    <!-- Settings Screen -->
+    <string name="settings">Settings</string>
+    <string name="no_settings">No settings available</string>
+    <string name="api_settings">API Configuration</string>
+    <string name="save_settings">Save Settings</string>
+    <string name="settings_saved">Settings Saved</string>
+    <string name="display_settings">Display Settings</string>
+    <string name="show_thinking">Show Thinking Process</string>
+    <string name="show_fps_counter">Show FPS Counter</string>
+    <string name="fps_counter_description">Display real-time FPS in the upper right corner</string>
+    
+    <!-- Shizuku Command Screen -->
+    <string name="shizuku_command_executor">Shizuku ADB Command Executor</string>
+    <string name="device_info">Device Information</string>
+    <string name="android_version">Android Version: %1$s (API %2$d)</string>
+    <string name="device_model">Device Model: %1$s %2$s</string>
+    <string name="shizuku_status">Shizuku Status</string>
+    <string name="refresh">Refresh</string>
+    <string name="installed">Installed: %1$s</string>
+    <string name="service_running">Service Running: %1$s</string>
+    <string name="permission_status">Permission Status: %1$s</string>
+    <string name="yes">Yes</string>
+    <string name="no">No</string>
+    <string name="authorized">Authorized</string>
+    <string name="unauthorized">Unauthorized</string>
+    <string name="install_shizuku">Install Shizuku</string>
+    <string name="open_shizuku">Open Shizuku App</string>
+    <string name="show_help">Show Help</string>
+    <string name="hide_help">Hide Help</string>
+    <string name="request_permission">Request Shizuku Permission</string>
+    <string name="execute_shell">Execute Shell Command</string>
+    <string name="enter_command">Enter ADB Command</string>
+    <string name="show_samples">Show Example Commands</string>
+    <string name="hide_samples">Hide Example Commands</string>
+    <string name="select_example">Select an example command:</string>
+    <string name="execute_command">Execute Command</string>
+    <string name="result_placeholder">Results will be displayed here</string>
+    <string name="executing">Executing...</string>
+    <string name="command_success">Command executed successfully:\n%1$s</string>
+    <string name="command_failure">Command execution failed (exit code: %1$d):\n%2$s</string>
+    <string name="start_shizuku_first">Please start Shizuku service first</string>
+    <string name="grant_permission_first">Please grant Shizuku permission</string>
+    <string name="feature_unavailable">ADB command feature unavailable</string>
+    <string name="thinking_process">Thinking Process</string>
+    
+    <!-- Built-in Shizuku -->
+    <string name="install_from_store">Install Shizuku from App Store</string>
+    <string name="install_bundled">Install Bundled Version (v%1$s)</string>
+    <string name="installing_bundled">Installing bundled Shizuku, please grant installation permission</string>
+    <string name="install_failed">Built-in Shizuku installation failed, please try installing from the app store</string>
+    
+    <!-- User Preferences -->
+    <string name="user_preferences_guide">Personalization</string>
+    <string name="user_preferences">User Preferences</string>
+    <string name="user_preferences_settings">Detailed User Preferences</string>
+    <string name="custom_description">Custom Introduction</string>
+    <string name="preferences_hint">Enter your personal introduction (max 100 characters)</string>
+    <string name="enter_preferences">Enter your personal introduction here...</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="edit_preferences">Edit Preferences</string>
+    <string name="reset_preferences">Reset Preferences</string>
+    <string name="set_preferences">Set Preferences</string>
+    <string name="no_preferences">No preference information</string>
+    <string name="gender">Gender</string>
+    <string name="occupation">Occupation</string>
+    <string name="age">Birth Year</string>
+    <string name="birth_year">Birth Year</string>
+    <string name="birth_date">Birth Date</string>
+    <string name="enter_age">Please enter birth year</string>
+    <string name="select_birth_date">Please select birth date</string>
+    <string name="complete">Complete</string>
+    <string name="preferences_guide_title">To better serve you, please complete the following settings</string>
+    <string name="preference_lock">Lock User Preferences</string>
+    <string name="preference_lock_desc">Once locked, user preference information cannot be modified</string>
+    
+    <!-- Package Manager Screen -->
+    <string name="packages">Packages</string>
+    <string name="package_manager">Package Manager</string>
+    <string name="available_packages">Available Packages</string>
+    <string name="imported_packages">Imported Packages</string>
+    <string name="import_package">Import Package</string>
+    <string name="package_details">Package Details</string>
+    <string name="package_tools">Included Tools</string>
+    <string name="package_import_success">Package imported successfully</string>
+    <string name="package_import_error">Package import failed</string>
+    <string name="no_packages_available">No packages available</string>
+    <string name="no_packages_imported">No packages imported yet</string>
+    <string name="remove_package">Remove Package</string>
+    <string name="package_removed">Package removed</string>
+    <string name="import_external_package">Import External Package</string>
+    <string name="external_package_import_success">External package imported successfully</string>
+    <string name="external_package_import_error">External package import failed</string>
+    <string name="only_hjson_supported">Only HJSON format files supported</string>
+    <string name="select_package_file">Select Package File</string>
+    <string name="package_file_invalid">Invalid package file</string>
+    <string name="package_already_exists">Package with same name already exists</string>
+    <string name="external_packages_path">External Package Storage Path</string>
+    <string name="copy_path">Copy Path</string>
+    <string name="path_copied_to_clipboard">Path copied to clipboard</string>
+    <string name="open_file_manager">Open File Manager</string>
+    <string name="navigate_to_external_files">Please navigate to Android/data/com.ai.assistance.operit/files/packages directory</string>
+    
+    <!-- OperScript Execution -->
+    <string name="run_script">Run Script</string>
+    <string name="edit_script">Edit Script</string>
+    <string name="execute_script">Execute Script</string>
+    <string name="script_execution">Script Execution</string>
+    <string name="script_code">Script Code</string>
+    <string name="script_parameters">Script Parameters</string>
+    <string name="execution_result">Execution Result</string>
+    <string name="script_executing">Executing script...</string>
+    <string name="script_execution_success">Script execution successful</string>
+    <string name="script_execution_error">Script execution error: %1$s</string>
+    <string name="missing_parameters">Missing required parameters: %1$s</string>
+    
+    <!-- Problem Library Screen -->
+    <string name="problem_library">Problem Library</string>
+    <string name="search_problems">Search Problems</string>
+    <string name="problem_details">Problem Details</string>
+    <string name="edit_problem">Edit Problem</string>
+    <string name="delete_problem">Delete Problem</string>
+    <string name="empty_problem_library">Problem library is empty</string>
+    <string name="problem_summary">Problem Summary</string>
+    <string name="problem_solution">Solution</string>
+    <string name="problem_tools">Tools Used</string>
+    <string name="problem_time">Creation Time</string>
+    <string name="save_changes">Save Changes</string>
+    <string name="back_to_list">Back to List</string>
+    
+    <!-- Language Settings -->
+    <string name="language_settings">Language Settings</string>
+    <string name="language_settings_desc">Change the display language of the application</string>
+    <string name="change_language">Change Language</string>
+    <string name="select_language">Select Language</string>
+    <string name="language_info">The app will restart automatically to apply the new language setting</string>
+    <string name="language_changing">Changing language...</string>
+    <string name="language_changed">Language changed, restarting app</string>
+    
+    <!-- User Agreement Screen -->
+    <string name="agreement_title">User Agreement and Privacy Policy</string>
+    <string name="agreement_subtitle">Please read the following agreement carefully before using our app</string>
+    <string name="agreement_user_title">User Agreement</string>
+    <string name="agreement_privacy_title">Privacy Policy</string>
+    <string name="agreement_accept">I have read and agree to the agreement</string>
+    <string name="agreement_wait">Please read the agreement (%1$d)</string>
+    
+    <string name="agreement_user_content">Thank you for choosing our application! Before you start using it, please carefully read the following important statement:\n\n1. Disclaimer\n   This software has powerful features that may have potential destructive capabilities. The developer is not responsible for any operations performed by users or their consequences.\n\n2. Official Download Channel\n   For your safety, please download this software only from our official GitHub repository. We are not responsible for security risks from other download sources.\n\n3. Open Source License\n   This software is an open-source project under the GPL (GNU General Public License). Users can freely use, modify, and distribute this software, but must comply with the GPL license terms.\n\n4. Third-Party Use\n   We are not responsible for how third parties use, modify, or distribute this software. Any derivative works or related actions are not associated with the original developers.\n\n5. User Behavior\n   Users bear all risks and legal responsibilities for using this software. Please ensure your usage complies with local laws and regulations.\n\n6. Termination Clause\n   We reserve the right to terminate usage rights if users violate this agreement.\n\n7. No Warranty Statement\n   This software is provided \"as is\" without any form of warranty, including but not limited to suitability, reliability, or accuracy.\n\n8. Limitation of Liability\n   To the maximum extent permitted by law, we are not responsible for any direct or indirect losses caused by using this software.\n\n9. Agreement Modification\n   We may modify this agreement from time to time, and modified terms will take effect upon publication.\n\n10. Applicable Law\n    This agreement is governed by the laws of the People\'s Republic of China.</string>
+    
+    <string name="agreement_privacy_content">Regarding your privacy, please understand the following important information:\n\n1. No Data Collection\n   We do not actively collect any of your personal information or usage data. The design philosophy of this application is to respect user privacy and not engage in any form of data collection.\n\n2. Local Processing\n   All data processing is completed locally on your device and will not be uploaded to our servers or any third-party servers. Therefore, your private data security is entirely under your control.\n\n3. Third-Party Services\n   If this application integrates any third-party services or libraries, their data processing behavior is beyond our control. Please refer to the privacy policies of relevant third parties.\n\n4. Permission Statement\n   This application may require certain system permissions to function properly. These permissions are only used for implementing application features and not for collecting your personal information.\n\n5. Open Source Transparency\n   As an open source project, our code is publicly transparent to everyone. You can view the source code on GitHub to verify our privacy statement.\n\n6. No Liability Statement\n   Since we do not collect or store user data, we are not responsible for any user data leakage, loss, or misuse.\n\n7. Policy Updates\n   We may update this privacy policy, and updated policies will be published on GitHub and updated in the application.\n\n8. Contact Us\n   If you have any questions about the privacy policy, please contact us through the GitHub project page.</string>
+    
+    <!-- File Manager -->
+    <string name="file_manager">File Manager</string>
+    <string name="new_folder">New Folder</string>
+    <string name="file_list_error">Unable to load file list</string>
+    <string name="file_count">%1$d items</string>
+    <string name="multi_select_mode">Multi-select Mode</string>
+    <string name="files_selected">%1$d files selected</string>
+    <string name="exit_multi_select">Exit multi-select</string>
+    <string name="loading_files">Loading files...</string>
+    <string name="searching">Searching...</string>
+    <string name="search_files">Search Files</string>
+    <string name="case_sensitive">Case sensitive</string>
+    <string name="use_wildcard">Use wildcard</string>
+    <string name="search">Search</string>
+    <string name="folder_name">Folder name</string>
+    <string name="create_folder">Create folder</string>
+    <string name="folder_exists">Folder already exists</string>
+    <string name="folder_created">Folder created</string>
+    <string name="folder_create_failed">Failed to create folder</string>
+    
+    <!-- Context Menu -->
+    <string name="context_menu">Context Menu</string>
+    <string name="open">Open</string>
+    <string name="copy">Copy</string>
+    <string name="cut">Cut</string>
+    <string name="paste">Paste</string>
+    <string name="delete">Delete</string>
+    <string name="rename">Rename</string>
+    <string name="properties">Properties</string>
+    <string name="share">Share</string>
+    <string name="select_all">Select All</string>
+    <string name="deselect_all">Deselect All</string>
+
+    <!-- ErrorDialog -->
+    <string name="request_failed">Request Failed</string>
+    <string name="confirm">OK</string>
+    <string name="unknown_error">Unknown error</string>
+    <string name="server_connection_failed">Unable to connect to server, please check your network</string>
+    <string name="connection_timeout">Server connection timeout, please check your network or try again later</string>
+    <string name="connection_refused">Server refused connection, please try again later</string>
+    <string name="connection_check_network">Connection timeout, please check your network</string>
+    <string name="cannot_resolve_host">Cannot resolve server address, please check your network</string>
+    <string name="cannot_connect_to_server">Cannot connect to server</string>
+    <string name="secure_connection_failed">Secure connection failed</string>
+    <string name="request_timeout">Request timeout, please try again later</string>
+    <string name="network_transfer_failed">Network transfer failed, please check your connection</string>
+    <string name="error_occurred">Error occurred: %1$s</string>
+    <string name="try_again_later">Request failed, please try again later</string>
+</resources> 

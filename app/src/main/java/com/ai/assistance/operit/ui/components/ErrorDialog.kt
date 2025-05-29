@@ -9,9 +9,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
+import com.ai.assistance.operit.R
 
 /** 简洁的错误弹窗组件 只显示错误消息内容，不显示堆栈跟踪 */
 @Composable
@@ -26,7 +28,7 @@ fun ErrorDialog(
 
     AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text("请求失败") },
+            title = { Text(stringResource(R.string.request_failed)) },
             text = {
                 Box(modifier = Modifier.padding(vertical = 8.dp)) {
                     Text(
@@ -37,7 +39,7 @@ fun ErrorDialog(
                     )
                 }
             },
-            confirmButton = { TextButton(onClick = onDismiss) { Text("确定") } },
+            confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.confirm)) } },
             containerColor = MaterialTheme.colorScheme.surface,
             titleContentColor = MaterialTheme.colorScheme.onSurface,
             shape = RoundedCornerShape(16.dp),
@@ -46,24 +48,25 @@ fun ErrorDialog(
 }
 
 /** 扩展函数：清理错误消息，只保留主要错误信息 增强版本能够处理更多特殊错误格式和嵌套错误 */
+@Composable
 private fun String.cleanErrorMessage(): String {
-    if (this.isBlank()) return "未知错误"
+    if (this.isBlank()) return stringResource(R.string.unknown_error)
 
     // 处理常见网络错误格式
     if (this.contains("UnknownHostException") ||
                     this.contains("无法连接到服务器") ||
                     this.contains("无法解析主机名")
     )
-            return "无法连接到服务器，请检查网络连接"
+            return stringResource(R.string.server_connection_failed)
 
     if (this.contains("SocketTimeoutException") || this.contains("连接超时") || this.contains("请求超时"))
-            return "连接服务器超时，请检查网络或稍后再试"
+            return stringResource(R.string.connection_timeout)
 
     if (this.contains("ConnectException") ||
                     this.contains("Connection refused") ||
                     this.contains("拒绝连接")
     )
-            return "服务器拒绝连接，请稍后再试"
+            return stringResource(R.string.connection_refused)
 
     // 先尝试提取最有意义的错误部分
     val lines = this.split("\n")
@@ -132,12 +135,12 @@ private fun String.cleanErrorMessage(): String {
 
             // 特殊处理网络相关异常类型
             when {
-                simpleName.contains("SocketTimeout") -> return "连接超时，请检查网络"
-                simpleName.contains("UnknownHost") -> return "无法解析服务器地址，请检查网络连接"
-                simpleName.contains("Connect") -> return "无法连接到服务器"
-                simpleName.contains("SSL") || simpleName.contains("TLS") -> return "安全连接失败"
-                simpleName.contains("Timeout") -> return "请求超时，请稍后重试"
-                simpleName.contains("IO") -> return "网络传输失败，请检查网络连接"
+                simpleName.contains("SocketTimeout") -> return stringResource(R.string.connection_check_network)
+                simpleName.contains("UnknownHost") -> return stringResource(R.string.cannot_resolve_host)
+                simpleName.contains("Connect") -> return stringResource(R.string.cannot_connect_to_server)
+                simpleName.contains("SSL") || simpleName.contains("TLS") -> return stringResource(R.string.secure_connection_failed)
+                simpleName.contains("Timeout") -> return stringResource(R.string.request_timeout)
+                simpleName.contains("IO") -> return stringResource(R.string.network_transfer_failed)
             }
 
             // 尝试提取错误消息
@@ -145,7 +148,7 @@ private fun String.cleanErrorMessage(): String {
             return if (messageMatch != null) {
                 "${simpleName}: ${messageMatch.groupValues[1]}"
             } else {
-                "发生错误: $simpleName"
+                stringResource(R.string.error_occurred, simpleName)
             }
         }
 
@@ -155,7 +158,7 @@ private fun String.cleanErrorMessage(): String {
                     it.contains("Error") || it.contains("Exception") || it.contains("失败")
                 }
 
-        return firstErrorLine ?: "请求失败，请稍后再试"
+        return firstErrorLine ?: stringResource(R.string.try_again_later)
     }
 
     // 如果找到了有意义的行，限制显示数量

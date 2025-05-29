@@ -29,8 +29,11 @@ import com.ai.assistance.operit.ui.features.startup.screens.PluginLoadingScreenW
 import com.ai.assistance.operit.ui.features.startup.screens.PluginLoadingState
 import com.ai.assistance.operit.ui.theme.OperitTheme
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import android.content.Context
+import android.os.LocaleList
+import com.ai.assistance.operit.util.LocaleUtils
+import java.util.*
 
 class MainActivity : ComponentActivity() {
     private val TAG = "MainActivity"
@@ -57,19 +60,43 @@ class MainActivity : ComponentActivity() {
 
     // UpdateManager实例
     private lateinit var updateManager: UpdateManager
-    
+
     // 是否显示权限引导界面
     private var showPermissionGuide = false
-    
+
     // 是否已完成权限和迁移检查
     private var initialChecksDone = false
-    
+
+    override fun attachBaseContext(newBase: Context) {
+        // 获取当前设置的语言
+        val code = LocaleUtils.getCurrentLanguage(newBase)
+        val locale = Locale(code)
+        val config = Configuration(newBase.resources.configuration)
+        
+        // 设置语言配置
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            val localeList = LocaleList(locale)
+            LocaleList.setDefault(localeList)
+            config.setLocales(localeList)
+        } else {
+            config.locale = locale
+            Locale.setDefault(locale)
+        }
+        
+        // 使用createConfigurationContext创建新的本地化上下文
+        val context = newBase.createConfigurationContext(config)
+        super.attachBaseContext(context)
+        Log.d(TAG, "MainActivity应用语言设置: $code")
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate: Android SDK version: ${Build.VERSION.SDK_INT}")
 
         // Set window background to solid color to prevent system theme leaking through
         window.setBackgroundDrawableResource(android.R.color.black)
+
+        // 语言设置已在Application中初始化，这里无需重复
 
         initializeComponents()
         setupPreferencesListener()
@@ -99,11 +126,11 @@ class MainActivity : ComponentActivity() {
             initialChecksDone = true
             setAppContent()
         }
-        
+
         // 设置双击返回退出
         setupBackPressHandler()
     }
-    
+
     // ======== 设置初始占位内容 ========
     private fun setInitialContent() {
         setContent {
@@ -111,8 +138,8 @@ class MainActivity : ComponentActivity() {
                 Box {
                     // 初始阶段只显示一个加载界面
                     PluginLoadingScreenWithState(
-                        loadingState = PluginLoadingState().apply { show() },
-                        modifier = Modifier.zIndex(10f)
+                            loadingState = PluginLoadingState().apply { show() },
+                            modifier = Modifier.zIndex(10f)
                     )
                 }
             }
@@ -124,15 +151,15 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             // 1. 检查权限级别设置
             checkPermissionLevelSet()
-            
+
             // 2. 检查是否需要数据迁移
             if (!showPermissionGuide && agreementPreferences.isAgreementAccepted()) {
                 try {
                     val needsMigration = migrationManager.needsMigration()
                     Log.d(TAG, "数据迁移检查: 需要迁移=$needsMigration")
-                    
+
                     showMigrationScreen = needsMigration
-                    
+
                     // 如果不需要迁移，直接启动插件加载
                     if (!needsMigration) {
                         startPluginLoading()
@@ -143,10 +170,10 @@ class MainActivity : ComponentActivity() {
                     startPluginLoading()
                 }
             }
-            
+
             // 标记完成初始检查
             initialChecksDone = true
-            
+
             // 设置应用内容
             setAppContent()
         }
@@ -192,18 +219,18 @@ class MainActivity : ComponentActivity() {
         onBackPressedDispatcher.addCallback(
                 this,
                 object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                val currentTime = System.currentTimeMillis()
-                
-                if (currentTime - backPressedTime > backPressedInterval) {
-                    // 第一次点击，显示提示
-                    backPressedTime = currentTime
-                    Toast.makeText(this@MainActivity, "再按一次退出应用", Toast.LENGTH_SHORT).show()
-                } else {
-                    // 第二次点击，退出应用
-                    finish()
-                }
-            }
+                    override fun handleOnBackPressed() {
+                        val currentTime = System.currentTimeMillis()
+
+                        if (currentTime - backPressedTime > backPressedInterval) {
+                            // 第一次点击，显示提示
+                            backPressedTime = currentTime
+                            Toast.makeText(this@MainActivity, "再按一次退出应用", Toast.LENGTH_SHORT).show()
+                        } else {
+                            // 第二次点击，退出应用
+                            finish()
+                        }
+                    }
                 }
         )
     }
@@ -249,7 +276,7 @@ class MainActivity : ComponentActivity() {
         // 初始化数据迁移管理器
         migrationManager = ChatHistoryMigrationManager(this)
     }
-    
+
     // ======== 检查权限级别设置 ========
     private fun checkPermissionLevelSet() {
         // 检查是否已设置权限级别
@@ -292,7 +319,7 @@ class MainActivity : ComponentActivity() {
                 android.view.WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
                 android.view.WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
         )
-        
+
         // Ensure solid background color
         window.setBackgroundDrawableResource(android.R.color.black)
     }
@@ -301,26 +328,26 @@ class MainActivity : ComponentActivity() {
     private fun setAppContent() {
         // 如果初始化检查未完成，不显示主界面
         if (!initialChecksDone) return
-        
+
         setContent {
             OperitTheme {
                 Box {
                     // 检查是否需要显示用户协议
                     if (!agreementPreferences.isAgreementAccepted()) {
                         AgreementScreen(
-                            onAgreementAccepted = {
-                                agreementPreferences.setAgreementAccepted(true)
-                                // 协议接受后，检查权限级别设置
-                                lifecycleScope.launch {
-                                    // 确保使用非阻塞方式更新UI
-                                    delay(300) // 短暂延迟确保UI状态更新
-                                    checkPermissionLevelSet()
-                                    // 重新设置应用内容
-                                    setAppContent()
+                                onAgreementAccepted = {
+                                    agreementPreferences.setAgreementAccepted(true)
+                                    // 协议接受后，检查权限级别设置
+                                    lifecycleScope.launch {
+                                        // 确保使用非阻塞方式更新UI
+                                        delay(300) // 短暂延迟确保UI状态更新
+                                        checkPermissionLevelSet()
+                                        // 重新设置应用内容
+                                        setAppContent()
+                                    }
                                 }
-                            }
                         )
-                    } 
+                    }
                     // 检查是否需要显示数据迁移界面
                     else if (showMigrationScreen) {
                         MigrationScreen(
@@ -337,11 +364,11 @@ class MainActivity : ComponentActivity() {
                     // 检查是否需要显示权限引导界面
                     else if (showPermissionGuide) {
                         PermissionGuideScreen(
-                            onComplete = {
-                                showPermissionGuide = false
-                                // 权限设置完成后，重新设置应用内容
-                                setAppContent()
-                            }
+                                onComplete = {
+                                    showPermissionGuide = false
+                                    // 权限设置完成后，重新设置应用内容
+                                    setAppContent()
+                                }
                         )
                     }
                     // 显示主应用界面

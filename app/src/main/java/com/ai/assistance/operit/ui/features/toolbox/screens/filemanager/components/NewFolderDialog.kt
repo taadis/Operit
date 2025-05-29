@@ -9,7 +9,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.ai.assistance.operit.R
 
 /**
  * 新建文件夹对话框
@@ -26,13 +28,13 @@ fun NewFolderDialog(
     if (showDialog) {
         AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text("新建文件夹") },
+            title = { Text(stringResource(R.string.new_folder)) },
             text = {
                 Column(modifier = Modifier.padding(8.dp)) {
                     OutlinedTextField(
                         value = folderName,
                         onValueChange = onFolderNameChange,
-                        label = { Text("文件夹名称") },
+                        label = { Text(stringResource(R.string.folder_name)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -43,12 +45,12 @@ fun NewFolderDialog(
                     onClick = onCreateFolder,
                     enabled = folderName.isNotBlank()
                 ) {
-                    Text("创建")
+                    Text(stringResource(R.string.create_folder))
                 }
             },
             dismissButton = {
                 TextButton(onClick = onDismiss) {
-                    Text("取消")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )

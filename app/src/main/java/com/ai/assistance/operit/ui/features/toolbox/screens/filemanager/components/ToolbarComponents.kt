@@ -21,9 +21,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.ai.assistance.operit.R
 
 /**
  * 顶部工具栏
@@ -68,7 +70,7 @@ fun FileManagerToolbar(
                     ) {
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "返回上级目录",
+                            contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -77,7 +79,7 @@ fun FileManagerToolbar(
                     IconButton(onClick = { /* 前进功能 */ }, modifier = Modifier.size(36.dp)) {
                         Icon(
                             imageVector = Icons.Default.ArrowForward,
-                            contentDescription = "前进",
+                            contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -89,7 +91,7 @@ fun FileManagerToolbar(
                     ) {
                         Icon(
                             imageVector = Icons.Default.ArrowUpward,
-                            contentDescription = "向上",
+                            contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -101,7 +103,7 @@ fun FileManagerToolbar(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
-                            contentDescription = "刷新",
+                            contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -123,7 +125,7 @@ fun FileManagerToolbar(
                     ) {
                         Icon(
                             imageVector = Icons.Default.ZoomOut,
-                            contentDescription = "缩小",
+                            contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -135,7 +137,7 @@ fun FileManagerToolbar(
                     ) {
                         Icon(
                             imageVector = Icons.Default.ZoomIn,
-                            contentDescription = "放大",
+                            contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -157,7 +159,7 @@ fun FileManagerToolbar(
                     ) {
                         Icon(
                             imageVector = if (isMultiSelectMode) Icons.Default.CheckBox else Icons.Outlined.CheckBoxOutlineBlank,
-                            contentDescription = "切换多选模式",
+                            contentDescription = null,
                             tint = if (isMultiSelectMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -172,7 +174,7 @@ fun FileManagerToolbar(
                     ) {
                         Icon(
                             imageVector = Icons.Default.ContentPaste,
-                            contentDescription = "粘贴",
+                            contentDescription = null,
                             tint = if (!clipboardEmpty) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
                         )
                     }
@@ -198,7 +200,7 @@ fun FileManagerToolbar(
                                 DisplayMode.TWO_COLUMNS -> Icons.Default.ViewModule
                                 DisplayMode.THREE_COLUMNS -> Icons.Default.ViewComfy
                             },
-                            contentDescription = "切换显示模式",
+                            contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -220,7 +222,7 @@ fun FileManagerToolbar(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Search,
-                            contentDescription = "搜索文件",
+                            contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -235,7 +237,7 @@ fun FileManagerToolbar(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.ArrowBack,
-                                contentDescription = "返回文件夹视图",
+                                contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary
                             )
                         }
@@ -250,7 +252,7 @@ fun FileManagerToolbar(
                     ) {
                         Icon(
                             imageVector = Icons.Default.CreateNewFolder,
-                            contentDescription = "新建文件夹",
+                            contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -350,7 +352,7 @@ fun PathNavigationBar(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Done,
-                        contentDescription = "确认",
+                        contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
@@ -423,7 +425,7 @@ fun FileManagerTabRow(
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Close,
-                                            contentDescription = "关闭标签",
+                                            contentDescription = null,
                                             tint = if (index == activeTabIndex) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                             modifier = Modifier.size(16.dp)
                                         )
@@ -439,7 +441,7 @@ fun FileManagerTabRow(
             IconButton(onClick = onAddTab, modifier = Modifier.padding(end = 8.dp)) {
                 Icon(
                     imageVector = Icons.Default.Add,
-                    contentDescription = "添加新标签",
+                    contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary
                 )
             }
@@ -471,7 +473,7 @@ fun StatusBar(
         ) {
             if (isMultiSelectMode) {
                 Text(
-                    text = "已选择 ${selectedFiles.size} 个项目",
+                    text = stringResource(R.string.files_selected, selectedFiles.size),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -481,13 +483,13 @@ fun StatusBar(
                 IconButton(onClick = onExitMultiSelect) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = "取消选择",
+                        contentDescription = stringResource(R.string.exit_multi_select),
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
             } else {
                 Text(
-                    text = "${fileCount} 个项目",
+                    text = stringResource(R.string.file_count, fileCount),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

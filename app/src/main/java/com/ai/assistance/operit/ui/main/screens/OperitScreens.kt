@@ -12,6 +12,7 @@ import com.ai.assistance.operit.ui.features.help.screens.HelpScreen
 import com.ai.assistance.operit.ui.features.packages.screens.PackageManagerScreen
 import com.ai.assistance.operit.ui.features.problems.screens.ProblemLibraryScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ChatHistorySettingsScreen
+import com.ai.assistance.operit.ui.features.settings.screens.LanguageSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ModelParametersSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ModelPromptsSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.SettingsScreen
@@ -170,7 +171,8 @@ sealed class Screen(
                                 navigateToModelParameters = { navigateTo(ModelParametersSettings) },
                                 navigateToThemeSettings = { navigateTo(ThemeSettings) },
                                 navigateToModelPrompts = { navigateTo(ModelPromptsSettings) },
-                                navigateToChatHistorySettings = { navigateTo(ChatHistorySettings) }
+                                navigateToChatHistorySettings = { navigateTo(ChatHistorySettings) },
+                                navigateToLanguageSettings = { navigateTo(LanguageSettings) }
                         )
                 }
         }
@@ -372,6 +374,28 @@ sealed class Screen(
                         onError: (String) -> Unit
                 ) {
                         ChatHistorySettingsScreen()
+                }
+        }
+
+        data object LanguageSettings :
+                Screen(parentScreen = Settings, navItem = NavItem.Settings, titleRes = "语言设置") {
+                @Composable
+                override fun Content(
+                        navController: NavController,
+                        navigateTo: ScreenNavigationHandler,
+                        updateNavItem: NavItemChangeHandler,
+                        hasBackgroundImage: Boolean,
+                        onLoading: (Boolean) -> Unit,
+                        onError: (String) -> Unit
+                ) {
+                        LanguageSettingsScreen(
+                                onBackPressed = {
+                                        parentScreen?.let {
+                                                navigateTo(it)
+                                                it.navItem?.let { navItem -> updateNavItem(navItem) }
+                                        }
+                                }
+                        )
                 }
         }
 

@@ -45,6 +45,9 @@ class UserPreferencesManager(private val context: Context) {
         private val ACTIVE_PROFILE_ID = stringPreferencesKey("active_profile_id")
         private val PROFILE_LIST = stringPreferencesKey("profile_list")
 
+        // 应用语言设置
+        private val APP_LANGUAGE = stringPreferencesKey("app_language")
+
         // 分类锁定状态
         private val BIRTH_DATE_LOCKED = booleanPreferencesKey("birth_date_locked")
         private val PERSONALITY_LOCKED = booleanPreferencesKey("personality_locked")
@@ -77,6 +80,29 @@ class UserPreferencesManager(private val context: Context) {
         // 背景媒体类型常量
         const val MEDIA_TYPE_IMAGE = "image"
         const val MEDIA_TYPE_VIDEO = "video"
+        
+        // 默认语言
+        const val DEFAULT_LANGUAGE = "zh"
+    }
+
+    // 获取应用语言设置
+    val appLanguage: Flow<String> = 
+            context.userPreferencesDataStore.data.map { preferences ->
+                preferences[APP_LANGUAGE] ?: DEFAULT_LANGUAGE
+            }
+    
+    // 保存应用语言设置
+    suspend fun saveAppLanguage(languageCode: String) {
+        context.userPreferencesDataStore.edit { preferences ->
+            preferences[APP_LANGUAGE] = languageCode
+        }
+    }
+    
+    // 同步获取当前语言设置
+    fun getCurrentLanguage(): String {
+        return runBlocking {
+            appLanguage.first()
+        }
     }
 
     // 获取当前激活的用户偏好配置文件ID

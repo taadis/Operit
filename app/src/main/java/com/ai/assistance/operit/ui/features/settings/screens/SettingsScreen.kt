@@ -30,7 +30,8 @@ fun SettingsScreen(
         navigateToModelParameters: () -> Unit,
         navigateToThemeSettings: () -> Unit,
         navigateToModelPrompts: () -> Unit,
-        navigateToChatHistorySettings: () -> Unit
+        navigateToChatHistorySettings: () -> Unit,
+        navigateToLanguageSettings: () -> Unit
 ) {
     val context = LocalContext.current
     val apiPreferences = remember { ApiPreferences(context) }
@@ -143,6 +144,15 @@ fun SettingsScreen(
                 onClick = navigateToThemeSettings,
                 buttonText = "自定义主题",
                 icon = Icons.Default.Palette
+        )
+        
+        // 语言设置
+        SettingsCard(
+                title = stringResource(R.string.language_settings),
+                description = stringResource(R.string.language_settings_desc),
+                onClick = navigateToLanguageSettings,
+                buttonText = stringResource(R.string.change_language),
+                icon = Icons.Default.Language
         )
         
         // 聊天记录管理

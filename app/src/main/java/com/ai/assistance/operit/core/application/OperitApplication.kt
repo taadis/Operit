@@ -1,20 +1,33 @@
 package com.ai.assistance.operit.core.application
 
 import android.app.Application
+import android.content.Context
+import android.content.res.Configuration
+import android.os.Build
+import android.os.LocaleList
+import android.util.Log
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import coil.ImageLoader
 import coil.disk.DiskCache
 import coil.request.CachePolicy
 import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
 import com.ai.assistance.operit.data.db.AppDatabase
 import com.ai.assistance.operit.data.mcp.MCPImageCache
+import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.data.preferences.initAndroidPermissionPreferences
 import com.ai.assistance.operit.data.preferences.initUserPreferencesManager
+import com.ai.assistance.operit.data.preferences.preferencesManager
+import com.ai.assistance.operit.util.LocaleUtils
 import com.ai.assistance.operit.util.SerializationSetup
 import com.ai.assistance.operit.util.TextSegmenter
+import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 
 /** Application class for Operit */
@@ -32,6 +45,8 @@ class OperitApplication : Application() {
         // 全局ImageLoader实例，用于高效缓存图片
         lateinit var globalImageLoader: ImageLoader
             private set
+
+        private const val TAG = "OperitApplication"
     }
 
     // 应用级协程作用域
@@ -58,6 +73,9 @@ class OperitApplication : Application() {
 
         // 初始化Android权限偏好管理器
         initAndroidPermissionPreferences(applicationContext)
+
+        // 在最早时机初始化并应用语言设置
+        initializeAppLanguage()
 
         // 初始化AndroidShellExecutor上下文
         AndroidShellExecutor.setContext(applicationContext)
@@ -92,7 +110,82 @@ class OperitApplication : Application() {
                             coil.memory.MemoryCache.Builder(this).maxSizePercent(0.15).build()
                         }
                         .build()
+    }
 
-        // MCP插件启动逻辑已移至MainActivity中处理
+    /** 初始化应用语言设置 */
+    private fun initializeAppLanguage() {
+        try {
+            // 同步获取已保存的语言设置
+            val languageCode = runBlocking {
+                try {
+                    // 使用更安全的方式检查preferencesManager
+                    val manager = runCatching { preferencesManager }.getOrNull()
+                    if (manager != null) {
+                        manager.appLanguage.first()
+                    } else {
+                        UserPreferencesManager.DEFAULT_LANGUAGE
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "获取语言设置失败", e)
+                    UserPreferencesManager.DEFAULT_LANGUAGE
+                }
+            }
+
+            Log.d(TAG, "获取语言设置: $languageCode")
+
+            // 立即应用语言设置
+            val locale = Locale(languageCode)
+            // 设置默认语言
+            Locale.setDefault(locale)
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                // Android 13+ 使用AppCompatDelegate API
+                val localeList = LocaleListCompat.create(locale)
+                AppCompatDelegate.setApplicationLocales(localeList)
+                Log.d(TAG, "使用AppCompatDelegate设置语言: $languageCode")
+            } else {
+                // 较旧版本Android - 此处使用的部分更新将在attachBaseContext中完成更完整更新
+                val config = Configuration()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    val localeList = LocaleList(locale)
+                    LocaleList.setDefault(localeList)
+                    config.setLocales(localeList)
+                } else {
+                    config.locale = locale
+                }
+
+                resources.updateConfiguration(config, resources.displayMetrics)
+                Log.d(TAG, "使用Configuration设置语言: $languageCode")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "初始化语言设置失败", e)
+        }
+    }
+
+    override fun attachBaseContext(base: Context) {
+        // 在基础上下文附加前应用语言设置
+        try {
+            val code = LocaleUtils.getCurrentLanguage(base)
+            val locale = Locale(code)
+            val config = Configuration(base.resources.configuration)
+
+            // 设置语言配置
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                val localeList = LocaleList(locale)
+                LocaleList.setDefault(localeList)
+                config.setLocales(localeList)
+            } else {
+                config.locale = locale
+                Locale.setDefault(locale)
+            }
+
+            // 使用createConfigurationContext创建新的上下文
+            val context = base.createConfigurationContext(config)
+            super.attachBaseContext(context)
+            Log.d(TAG, "成功应用基础上下文语言: $code")
+        } catch (e: Exception) {
+            Log.e(TAG, "应用基础上下文语言失败", e)
+            super.attachBaseContext(base)
+        }
     }
 }

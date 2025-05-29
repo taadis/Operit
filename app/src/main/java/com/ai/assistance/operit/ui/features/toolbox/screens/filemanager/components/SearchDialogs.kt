@@ -12,7 +12,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.ui.features.toolbox.screens.filemanager.models.FileItem
 import com.ai.assistance.operit.ui.features.toolbox.screens.filemanager.utils.getFileIcon
 
@@ -35,7 +37,7 @@ fun SearchDialog(
     if (showDialog) {
         AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text("搜索文件") },
+            title = { Text(stringResource(R.string.search_files)) },
             text = {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
@@ -44,7 +46,7 @@ fun SearchDialog(
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = onQueryChange,
-                        placeholder = { Text("输入搜索关键词...") },
+                        placeholder = { Text(stringResource(R.string.searching)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -58,7 +60,7 @@ fun SearchDialog(
                             checked = isCaseSensitive,
                             onCheckedChange = onCaseSensitiveChange
                         )
-                        Text("区分大小写")
+                        Text(stringResource(R.string.case_sensitive))
                     }
                     
                     Row(
@@ -69,18 +71,18 @@ fun SearchDialog(
                             checked = useWildcard,
                             onCheckedChange = onWildcardChange
                         )
-                        Text("使用通配符 (*关键词*)")
+                        Text(stringResource(R.string.use_wildcard))
                     }
                 }
             },
             confirmButton = {
                 Button(onClick = onSearch) {
-                    Text("搜索")
+                    Text(stringResource(R.string.search))
                 }
             },
             dismissButton = {
                 TextButton(onClick = onDismiss) {
-                    Text("取消")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -106,11 +108,11 @@ fun SearchResultsDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("搜索结果: ${searchResults.size} 个文件")
+                    Text(stringResource(R.string.file_count, searchResults.size))
                     IconButton(onClick = onDismiss) {
                         Icon(
                             imageVector = Icons.Default.Close,
-                            contentDescription = "关闭"
+                            contentDescription = stringResource(R.string.cancel)
                         )
                     }
                 }
@@ -121,7 +123,7 @@ fun SearchResultsDialog(
                         modifier = Modifier.fillMaxWidth().height(200.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("未找到匹配的文件")
+                        Text(stringResource(R.string.no_packages_available))
                     }
                 } else {
                     LazyColumn(
@@ -170,7 +172,7 @@ fun SearchResultsDialog(
             },
             confirmButton = {
                 TextButton(onClick = onDismiss) {
-                    Text("关闭")
+                    Text(stringResource(R.string.close_floating_window))
                 }
             }
         )
