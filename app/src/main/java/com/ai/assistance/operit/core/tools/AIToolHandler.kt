@@ -453,7 +453,23 @@ class AIToolHandler private constructor(private val context: Context) {
      * @return Unescaped string
      */
     private fun unescapeXml(input: String): String {
-        return input.replace("&lt;", "<")
+        var result = input
+        
+        // 处理 CDATA 标记
+        if (result.startsWith("<![CDATA[") && result.endsWith("]]>")) {
+            result = result.substring(9, result.length - 3)
+        }
+        
+        // 即使没有完整的 CDATA 标记，也尝试清理末尾的 ]]> 和开头的 <![CDATA[
+        if (result.endsWith("]]>")) {
+            result = result.substring(0, result.length - 3)
+        }
+        
+        if (result.startsWith("<![CDATA[")) {
+            result = result.substring(9)
+        }
+        
+        return result.replace("&lt;", "<")
                 .replace("&gt;", ">")
                 .replace("&amp;", "&")
                 .replace("&quot;", "\"")
