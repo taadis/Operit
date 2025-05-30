@@ -16,8 +16,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 
 /** 委托类，负责管理聊天历史相关功能 */
 class ChatHistoryDelegate(
@@ -33,11 +31,8 @@ class ChatHistoryDelegate(
     companion object {
         private const val TAG = "ChatHistoryDelegate"
         // 聊天总结的消息数量阈值和间隔
-        private const val SUMMARY_CHUNK_SIZE = 3
+        private const val SUMMARY_CHUNK_SIZE = 5
     }
-
-    // 添加互斥锁防止并发访问
-    private val addMessageMutex = Mutex()
 
     // 聊天历史管理器
     private val chatHistoryManager = ChatHistoryManager.getInstance(context)
@@ -77,19 +72,19 @@ class ChatHistoryDelegate(
         // 收集聊天历史列表
         viewModelScope.launch {
             chatHistoryManager.chatHistoriesFlow.collect { histories ->
-                // Log.d(TAG, "收到聊天历史列表更新：${histories.size} 个聊天")
+                Log.d(TAG, "收到聊天历史列表更新：${histories.size} 个聊天")
                 _chatHistories.value = histories
                 historiesLoaded = true
 
                 // 尝试根据当前ID加载对应的聊天
                 val currentId = _currentChatId.value
                 if (currentId != null) {
-                    // Log.d(TAG, "尝试加载当前聊天：$currentId")
+                    Log.d(TAG, "尝试加载当前聊天：$currentId")
 
                     // 直接从数据库加载当前聊天的消息
                     try {
                         val messages = chatHistoryManager.loadChatMessages(currentId)
-                        // Log.d(TAG, "从数据库加载当前聊天消息：${messages.size} 条")
+                        Log.d(TAG, "从数据库加载当前聊天消息：${messages.size} 条")
 
                         // 无论消息是否为空，都更新聊天历史
                         _chatHistory.value = messages
@@ -341,110 +336,78 @@ class ChatHistoryDelegate(
     /** 添加消息到当前聊天 */
     fun addMessageToChat(message: ChatMessage) {
         viewModelScope.launch {
-            // 使用互斥锁确保同步执行，防止并发问题
-            addMessageMutex.withLock {
-                try {
-                    // 获取当前消息列表和ID
-                    val currentMessages = _chatHistory.value
-                    val chatId = _currentChatId.value
+            try {
+                // 获取当前消息列表
+                val currentMessages = _chatHistory.value
+                val currentTypeIndex = currentMessages.indexOfLast { it.sender == message.sender }
+                val lastUserIndex = currentMessages.indexOfLast { it.sender == "user" }
+                val chatId = _currentChatId.value
 
-                    // 如果没有当前聊天ID，无法添加消息
-                    if (chatId == null) {
-                        Log.e(TAG, "尝试添加消息但没有当前聊天ID")
-                        return@withLock
+                // 如果没有当前聊天ID，无法添加消息
+                if (chatId == null) {
+                    Log.e(TAG, "尝试添加消息但没有当前聊天ID")
+                    return@launch
+                }
+
+                // 处理AI消息更新
+                if (message.sender == "ai" && currentTypeIndex >= 0) {
+                    // 获取当前AI消息
+                    val currentAiMessage = currentMessages[currentTypeIndex]
+
+                    // 如果内容相同，不需要更新
+                    if (currentAiMessage.content == message.content) {
+                        return@launch
                     }
 
-                    val lastUserIndex = currentMessages.indexOfLast { it.sender == "user" }
-                    val currentTypeIndex =
-                            currentMessages.indexOfLast { it.sender == message.sender }
+                    // 检查是否为同一条消息的更新（使用时间戳）
+                    val isSameMessage = currentAiMessage.timestamp == message.timestamp
+
+                    // 更新UI中的消息
                     val updatedMessages = currentMessages.toMutableList()
 
-                    // 处理消息更新逻辑
-                    when (message.sender) {
-                        "ai" -> {
-                            if (currentTypeIndex >= 0) {
-                                val currentAiMessage = currentMessages[currentTypeIndex]
+                    if (isSameMessage || currentTypeIndex > lastUserIndex) {
+                        // 如果是同一条消息或者是最后一个用户消息之后的AI消息，则替换
+                        Log.d(TAG, "替换现有AI消息: ID=${chatId}, 时间戳=${message.timestamp}")
+                        updatedMessages[currentTypeIndex] = message
 
-                                // 如果内容相同，不需要更新
-                                if (currentAiMessage.content == message.content) {
-                                    return@withLock
-                                }
+                        // 更新内存中的聊天历史
+                        _chatHistory.value = updatedMessages
 
-                                // 找到最后一条思考消息的位置
-                                val lastThinkIndex =
-                                        currentMessages.indexOfLast { it.sender == "think" }
+                        // 通知ViewModel聊天历史已更新
+                        onChatHistoryLoaded(_chatHistory.value)
 
-                                // 取用户消息和思考消息中较后的位置作为参考点
-                                val referenceIndex = maxOf(lastUserIndex, lastThinkIndex)
-
-                                // 判断是否应该更新现有消息
-                                val shouldUpdate =
-                                        currentAiMessage.timestamp == message.timestamp ||
-                                                currentTypeIndex > referenceIndex
-
-                                if (shouldUpdate) {
-                                    updatedMessages[currentTypeIndex] = message
-
-                                    // 添加消息顺序和时间戳日志
-                                    val senderTimestampSequence =
-                                            updatedMessages.joinToString(" -> ") {
-                                                "${it.sender}:${it.timestamp}"
-                                            }
-                                    Log.d(TAG, "消息顺序(更新后): $senderTimestampSequence")
-
-                                    _chatHistory.value = updatedMessages
-                                    onChatHistoryLoaded(updatedMessages)
-
-                                    // 更新数据库中的消息
-                                    chatHistoryManager.updateMessage(chatId, message)
-                                    return@withLock
-                                }
-                            }
-                        }
-                        "think" -> {
-                            if (currentTypeIndex >= 0 && currentTypeIndex > lastUserIndex) {
-                                if (currentMessages[currentTypeIndex].content == message.content) {
-                                    return@withLock
-                                }
-                                // 更新思考消息
-                                val updatedMessage =
-                                        currentMessages[currentTypeIndex].copy(
-                                                content = message.content,
-                                                timestamp =
-                                                        currentMessages[currentTypeIndex].timestamp
-                                        )
-                                updatedMessages[currentTypeIndex] = updatedMessage
-
-                                // 添加消息顺序和时间戳日志
-                                val senderTimestampSequence =
-                                        updatedMessages.joinToString(" -> ") {
-                                            "${it.sender}:${it.timestamp}"
-                                        }
-                                Log.d(TAG, "消息顺序(思考更新后): $senderTimestampSequence")
-
-                                _chatHistory.value = updatedMessages
-                                onChatHistoryLoaded(updatedMessages)
-
-                                chatHistoryManager.updateMessage(chatId, message)
-
-                                return@withLock
-                            }
-                        }
+                        // 使用Room更新消息，避免重复创建
+                        chatHistoryManager.updateMessage(chatId, message)
+                        return@launch
                     }
+                }
 
-                    // 如果执行到这里，添加新消息到列表末尾
-                    val newMessages = currentMessages + message
-                    Log.d(TAG, "addMessageToChat: $newMessages")
+                // 处理思考消息（替换现有的思考消息或添加新的）
+                if (message.sender == "think") {
+                    val thinkIndex = currentMessages.indexOfLast { it.sender == "think" }
+                    if (thinkIndex >= 0 && thinkIndex > lastUserIndex) {
+                        // 已有思考消息且在最后一个用户消息之后，更新它
+                        val updatedMessages = currentMessages.toMutableList()
+                        updatedMessages[thinkIndex] = message
+                        _chatHistory.value = updatedMessages
 
-                    // 添加新的日志输出，显示消息顺序和时间戳
-                    val senderTimestampSequence =
-                            newMessages.joinToString(" -> ") { "${it.sender}:${it.timestamp}" }
-                    Log.d(TAG, "消息顺序: $senderTimestampSequence")
+                        // 通知ViewModel聊天历史已更新
+                        onChatHistoryLoaded(_chatHistory.value)
 
-                    _chatHistory.value = newMessages
-                    onChatHistoryLoaded(newMessages)
+                        // 因为思考消息不需要持久化，所以这里不需要保存到数据库
+                        return@launch
+                    }
+                }
 
-                    // 保存到数据库(所有消息都保存，包括思考消息)
+                // 如果执行到这里，说明消息是新消息（不是对现有消息的更新），直接添加
+                val newMessages = currentMessages + message
+                _chatHistory.value = newMessages
+
+                // 通知ViewModel聊天历史已更新
+                onChatHistoryLoaded(_chatHistory.value)
+
+                // 保存到数据库（思考消息除外）
+                if (message.sender != "think") {
                     chatHistoryManager.addMessage(chatId, message)
 
                     // 更新token计数
@@ -455,15 +418,17 @@ class ChatHistoryDelegate(
                             tokenCounts.second
                     )
 
-                    // 如果是用户消息且是第一条，自动将其设为对话标题
+                    // 修复：如果是用户消息且是第一条，自动将其设为对话标题
                     if (message.sender == "user" && currentMessages.none { it.sender == "user" }) {
+                        // 生成标题
                         val title = generateChatTitle()
+                        // 更新聊天标题
                         chatHistoryManager.updateChatTitle(chatId, title)
                         Log.d(TAG, "自动更新对话标题: $title")
                     }
-                } catch (e: Exception) {
-                    Log.e(TAG, "添加消息到聊天失败", e)
                 }
+            } catch (e: Exception) {
+                Log.e(TAG, "添加消息到聊天失败", e)
             }
         }
     }
