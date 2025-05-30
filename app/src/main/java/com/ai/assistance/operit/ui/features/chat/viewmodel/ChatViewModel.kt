@@ -129,6 +129,10 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     // 添加一个用于跟踪附件面板状态的变量
     private val _attachmentPanelState = MutableStateFlow(false)
     val attachmentPanelState: StateFlow<Boolean> = _attachmentPanelState
+    
+    // 添加WebView显示状态的状态流
+    private val _showWebView = MutableStateFlow(false)
+    val showWebView: StateFlow<Boolean> = _showWebView
 
     init {
         // Initialize delegates in correct order to avoid circular references
@@ -813,8 +817,13 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     }
 
     /** 更新附件面板状态 */
-    fun updateAttachmentPanelState(isOpen: Boolean) {
-        _attachmentPanelState.value = isOpen
+    fun updateAttachmentPanelState(newState: Boolean) {
+        _attachmentPanelState.value = newState
+    }
+
+    // WebView控制方法
+    fun toggleWebView() {
+        _showWebView.value = !_showWebView.value
     }
 
     override fun onCleared() {

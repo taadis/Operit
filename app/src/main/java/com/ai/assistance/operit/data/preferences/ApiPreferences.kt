@@ -540,7 +540,6 @@ class ApiPreferences(private val context: Context) {
                         valueType = ParameterValueType.INT,
                         minValue = 1,
                         maxValue = 16000,
-                        icon = "text_format",
                         category = ParameterCategory.GENERATION
                 )
         )
@@ -558,7 +557,6 @@ class ApiPreferences(private val context: Context) {
                         valueType = ParameterValueType.FLOAT,
                         minValue = 0.0f,
                         maxValue = 2.0f,
-                        icon = "thermostat",
                         category = ParameterCategory.CREATIVITY
                 )
         )
@@ -576,7 +574,6 @@ class ApiPreferences(private val context: Context) {
                         valueType = ParameterValueType.FLOAT,
                         minValue = 0.0f,
                         maxValue = 1.0f,
-                        icon = "filter_alt",
                         category = ParameterCategory.CREATIVITY
                 )
         )
@@ -594,7 +591,6 @@ class ApiPreferences(private val context: Context) {
                         valueType = ParameterValueType.INT,
                         minValue = 0,
                         maxValue = 100,
-                        icon = "filter_list",
                         category = ParameterCategory.CREATIVITY
                 )
         )
@@ -612,7 +608,6 @@ class ApiPreferences(private val context: Context) {
                         valueType = ParameterValueType.FLOAT,
                         minValue = -2.0f,
                         maxValue = 2.0f,
-                        icon = "repeat",
                         category = ParameterCategory.REPETITION
                 )
         )
@@ -630,7 +625,6 @@ class ApiPreferences(private val context: Context) {
                         valueType = ParameterValueType.FLOAT,
                         minValue = -2.0f,
                         maxValue = 2.0f,
-                        icon = "stacked_bar_chart",
                         category = ParameterCategory.REPETITION
                 )
         )
@@ -650,7 +644,6 @@ class ApiPreferences(private val context: Context) {
                         valueType = ParameterValueType.FLOAT,
                         minValue = 0.0f,
                         maxValue = 2.0f,
-                        icon = "filter_none",
                         category = ParameterCategory.REPETITION
                 )
         )

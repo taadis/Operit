@@ -28,7 +28,9 @@ fun ChatScreenHeader(
     showChatHistorySelector: Boolean,
     chatHistories: List<ChatHistory>,
     currentChatId: String,
-    isEditMode: MutableState<Boolean>
+    isEditMode: MutableState<Boolean>,
+    showWebView: Boolean = false,
+    onWebDevClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val currentChatTitle = chatHistories.find { it.id == currentChatId }?.title
@@ -82,7 +84,9 @@ fun ChatScreenHeader(
                             android.widget.Toast.LENGTH_SHORT
                         ).show()
                     }
-                }
+                },
+                showWebView = showWebView,
+                onWebDevClick = onWebDevClick
             )
 
             // 添加编辑按钮 - 使用与悬浮窗按钮相同的样式

@@ -5,6 +5,8 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import android.util.Log
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -27,6 +29,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ToolExecutionProgress
 import com.ai.assistance.operit.data.preferences.ApiPreferences
@@ -38,6 +41,7 @@ import com.ai.assistance.operit.ui.features.chat.screens.ConfigurationScreen
 import com.ai.assistance.operit.ui.features.chat.util.ConfigurationStateHolder
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModelFactory
+import com.ai.assistance.operit.ui.features.token.webview.WebViewConfig
 import com.ai.assistance.operit.ui.main.screens.GestureStateHolder
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch

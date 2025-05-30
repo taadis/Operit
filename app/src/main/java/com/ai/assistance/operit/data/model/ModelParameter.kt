@@ -1,38 +1,22 @@
 package com.ai.assistance.operit.data.model
 
-/**
- * Represents a configurable parameter for AI model requests
- * @param id Unique identifier for the parameter
- * @param name Human-readable name of the parameter
- * @param apiName The name of the parameter in the API request
- * @param description Description of what the parameter does
- * @param defaultValue Default value for the parameter
- * @param currentValue Current value of the parameter
- * @param isEnabled Whether the parameter will be included in API requests
- * @param valueType The type of value (INT, FLOAT, STRING)
- * @param minValue Minimum allowed value (for numeric parameters)
- * @param maxValue Maximum allowed value (for numeric parameters)
- * @param icon Icon representing this parameter type (optional)
- * @param category The category this parameter belongs to (for UI grouping)
- * @param isCustom Whether this parameter is user-defined custom parameter
- */
+/** 模型参数类，支持泛型以表示不同类型的参数 */
 data class ModelParameter<T>(
-        val id: String,
-        val name: String,
-        val apiName: String,
-        val description: String,
-        val defaultValue: T,
-        var currentValue: T,
-        var isEnabled: Boolean = false,
-        val valueType: ParameterValueType,
-        val minValue: T? = null,
-        val maxValue: T? = null,
-        val icon: String? = null,
-        val category: ParameterCategory = ParameterCategory.GENERATION,
-        val isCustom: Boolean = false
+        val id: String, // 参数唯一ID
+        val name: String, // 参数显示名称
+        val apiName: String, // API调用中的参数名
+        val description: String = "", // 参数描述
+        val defaultValue: T, // 参数默认值
+        val currentValue: T, // 参数当前值
+        val isEnabled: Boolean, // 参数是否启用
+        val valueType: ParameterValueType, // 参数值类型
+        val minValue: Any? = null, // 最小值(适用于数值类型)
+        val maxValue: Any? = null, // 最大值(适用于数值类型)
+        val category: ParameterCategory = ParameterCategory.OTHER, // 参数分类
+        val isCustom: Boolean = false // 是否为自定义参数
 )
 
-/** The type of value for a parameter */
+/** 参数值类型枚举 */
 enum class ParameterValueType {
     INT,
     FLOAT,
@@ -40,10 +24,25 @@ enum class ParameterValueType {
     BOOLEAN
 }
 
-/** Categories for model parameters to group them in the UI */
+/** 参数分类枚举 */
 enum class ParameterCategory {
-    GENERATION, // Parameters related to text generation amount (tokens, length)
-    CREATIVITY, // Parameters affecting randomness/creativity (temperature, top_p)
-    REPETITION, // Parameters controlling repetition behavior
-    ADVANCED // Other advanced parameters
+    GENERATION, // 生成参数
+    CREATIVITY, // 创造性参数
+    REPETITION, // 重复控制参数
+    OTHER // 其他参数
 }
+
+/** 自定义参数数据，用于JSON序列化 */
+data class CustomParameterData(
+        val id: String,
+        val name: String,
+        val apiName: String,
+        val description: String = "",
+        val defaultValue: String,
+        val currentValue: String,
+        val isEnabled: Boolean,
+        val valueType: String,
+        val minValue: String? = null,
+        val maxValue: String? = null,
+        val category: String = "OTHER"
+)

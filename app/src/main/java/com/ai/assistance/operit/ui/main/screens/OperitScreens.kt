@@ -13,7 +13,7 @@ import com.ai.assistance.operit.ui.features.packages.screens.PackageManagerScree
 import com.ai.assistance.operit.ui.features.problems.screens.ProblemLibraryScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ChatHistorySettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.LanguageSettingsScreen
-import com.ai.assistance.operit.ui.features.settings.screens.ModelParametersSettingsScreen
+import com.ai.assistance.operit.ui.features.settings.screens.ModelConfigScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ModelPromptsSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.SettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ThemeSettingsScreen
@@ -176,7 +176,7 @@ sealed class Screen(
                                 onNavigateToUserPreferences = {
                                         navigateTo(UserPreferencesSettings)
                                 },
-                                navigateToModelParameters = { navigateTo(ModelParametersSettings) },
+                                navigateToModelConfig = { navigateTo(ModelConfig) },
                                 navigateToThemeSettings = { navigateTo(ThemeSettings) },
                                 navigateToModelPrompts = { navigateTo(ModelPromptsSettings) },
                                 navigateToChatHistorySettings = { navigateTo(ChatHistorySettings) },
@@ -322,8 +322,8 @@ sealed class Screen(
                 }
         }
 
-        data object ModelParametersSettings :
-                Screen(parentScreen = Settings, navItem = NavItem.Settings, titleRes = "模型参数设置") {
+        data object ModelConfig :
+                Screen(parentScreen = Settings, navItem = NavItem.Settings, titleRes = "模型与参数配置") {
                 @Composable
                 override fun Content(
                         navController: NavController,
@@ -334,7 +334,7 @@ sealed class Screen(
                         onError: (String) -> Unit,
                         onGestureConsumed: (Boolean) -> Unit
                 ) {
-                        ModelParametersSettingsScreen()
+                        ModelConfigScreen()
                 }
         }
 
@@ -411,7 +411,9 @@ sealed class Screen(
                                 onBackPressed = {
                                         parentScreen?.let {
                                                 navigateTo(it)
-                                                it.navItem?.let { navItem -> updateNavItem(navItem) }
+                                                it.navItem?.let { navItem ->
+                                                        updateNavItem(navItem)
+                                                }
                                         }
                                 }
                         )
@@ -599,6 +601,6 @@ object OperitRouter {
 
 // 全局的手势状态持有者，用于在不同组件间共享手势状态
 object GestureStateHolder {
-    // 聊天界面手势是否被消费的状态
-    var isChatScreenGestureConsumed: Boolean = false
+        // 聊天界面手势是否被消费的状态
+        var isChatScreenGestureConsumed: Boolean = false
 }
