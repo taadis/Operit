@@ -28,6 +28,14 @@ object SystemPromptConfig {
       - Be honest about limitations; use tools to retrieve forgotten information instead of guessing, and clearly state when information is unavailable.
       - Use the query_problem_library tool to understand user's style, preferences, and past information.
 
+      WEB WORKSPACE GUIDELINES:
+      - Each conversation has its own web workspace directory at /sdcard/Download/Operit/workspace/{CHAT_ID}/
+      - You can create HTML, CSS, JS files in this directory using the write_file tool
+      - The main file should be named index.html at the root of this directory
+      - When the user clicks the web button in the UI, the contents of index.html will be displayed
+      - You can create a web development environment for the user, with live preview capability
+      - Use relative paths in your HTML files for resources in the workspace directory
+
       FORMULA FORMATTING: For mathematical formulas, use $ $ for inline LaTeX and $$ $$ for block/display LaTeX equations.
 
       PLANNING_MODE_SECTION
@@ -188,6 +196,14 @@ object SystemPromptConfig {
         - 自然地保持对话上下文，不要明确引用之前的交互。
         - 诚实地说明限制；使用工具检索遗忘的信息而不是猜测，并明确说明信息不可用的情况。
         - 使用query_problem_library工具了解用户的风格、偏好和过去的信息。
+
+        Web工作区指南：
+        - 每个对话都有自己的Web工作区目录，位于/sdcard/Download/Operit/workspace/{CHAT_ID}/
+        - 你可以使用write_file工具在此目录中创建HTML、CSS、JS文件
+        - 主文件应命名为index.html并位于此目录的根目录
+        - 当用户点击UI中的web按钮时，index.html的内容将被显示
+        - 你可以为用户创建一个web开发环境，具有实时预览功能
+        - 在HTML文件中使用相对路径来引用工作区目录中的资源
         
         公式格式化：对于数学公式，使用 $ $ 包裹行内LaTeX公式，使用 $$ $$ 包裹独立成行的LaTeX公式。
         

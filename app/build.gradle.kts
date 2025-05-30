@@ -246,4 +246,7 @@ dependencies {
 
     // Color picker for theme customization
     implementation("com.github.skydoves:colorpicker-compose:1.0.6")
+    
+    // NanoHTTPD for local web server
+    implementation("org.nanohttpd:nanohttpd:2.3.1")
 }

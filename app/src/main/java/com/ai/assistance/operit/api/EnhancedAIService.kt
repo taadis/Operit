@@ -92,6 +92,9 @@ class EnhancedAIService(
     // Package manager for handling tool packages
     private val packageManager = PackageManager.getInstance(context, toolHandler)
 
+    // Current chat ID for web workspace
+    private var currentChatId: String? = null
+
     init {
         toolHandler.registerDefaultTools()
     }
@@ -216,9 +219,13 @@ class EnhancedAIService(
             message: String,
             onPartialResponse: (content: String, thinking: String?) -> Unit,
             chatHistory: List<Pair<String, String>> = emptyList(),
-            onComplete: () -> Unit = {}
+            onComplete: () -> Unit = {},
+            chatId: String? = null
     ) {
         try {
+            // Store the chat ID for web workspace
+            currentChatId = chatId
+
             // Mark conversation as active
             isConversationActive.set(true)
 
@@ -314,7 +321,8 @@ class EnhancedAIService(
                 val customIntroPrompt = apiPreferences.customIntroPromptFlow.first()
                 val customTonePrompt = apiPreferences.customTonePromptFlow.first()
 
-                val systemPrompt =
+                // 获取系统提示词，并替换{CHAT_ID}为当前聊天ID
+                var systemPrompt =
                         if (customIntroPrompt.isNotEmpty() || customTonePrompt.isNotEmpty()) {
                             // Use custom prompts if they are set
                             SystemPromptConfig.getSystemPromptWithCustomPrompts(
@@ -327,6 +335,14 @@ class EnhancedAIService(
                             // Use default system prompt
                             SystemPromptConfig.getSystemPrompt(packageManager, planningEnabled)
                         }
+
+                // 替换{CHAT_ID}为当前聊天ID
+                if (currentChatId != null) {
+                    systemPrompt = systemPrompt.replace("{CHAT_ID}", currentChatId!!)
+                } else {
+                    // 如果没有聊天ID，使用一个默认值
+                    systemPrompt = systemPrompt.replace("{CHAT_ID}", "default")
+                }
 
                 if (preferencesText.isNotEmpty()) {
                     conversationHistory.add(

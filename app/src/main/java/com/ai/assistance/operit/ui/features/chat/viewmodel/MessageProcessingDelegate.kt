@@ -63,15 +63,16 @@ class MessageProcessingDelegate(
     }
 
     /** 向AI发送用户消息(无附件版本) 为了保持向后兼容性 */
-    fun sendUserMessage() {
-        sendUserMessage(emptyList())
+    fun sendUserMessage(chatId: String? = null) {
+        sendUserMessage(emptyList(), chatId)
     }
 
     /**
      * 向AI发送用户消息(带附件版本)
      * @param attachments 要发送的附件列表
+     * @param chatId 当前聊天ID，用于Web工作区
      */
-    fun sendUserMessage(attachments: List<AttachmentInfo> = emptyList()) {
+    fun sendUserMessage(attachments: List<AttachmentInfo> = emptyList(), chatId: String? = null) {
         if (_userMessage.value.isBlank() && attachments.isEmpty()) {
             return
         }
@@ -159,7 +160,8 @@ class MessageProcessingDelegate(
                             handlePartialResponse(content, thinking)
                         },
                         chatHistory = history,
-                        onComplete = { handleResponseComplete() }
+                        onComplete = { handleResponseComplete() },
+                        chatId = chatId  // 传递chatId参数
                 )
             } catch (e: Exception) {
                 Log.e(TAG, "发送消息时出错", e)
