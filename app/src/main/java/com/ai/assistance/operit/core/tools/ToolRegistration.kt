@@ -114,15 +114,15 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
 
     // Web搜索工具
     handler.registerTool(
-            name = "web_search",
+            name = "visit_web",
             category = ToolCategory.NETWORK,
             descriptionGenerator = { tool ->
-                val query = tool.parameters.find { it.name == "query" }?.value ?: ""
-                "网络搜索: $query"
+                val url = tool.parameters.find { it.name == "url" }?.value ?: ""
+                "访问网页: $url"
             },
             executor = { tool ->
-                val webSearchTool = ToolGetter.getWebSearchTool(context)
-                webSearchTool.invoke(tool)
+                val webVisitTool = ToolGetter.getWebVisitTool(context)
+                webVisitTool.invoke(tool)
             }
     )
 
@@ -504,17 +504,6 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             executor = { tool ->
                 kotlinx.coroutines.runBlocking { fileSystemTools.downloadFile(tool) }
             }
-    )
-
-    // 获取网页内容
-    handler.registerTool(
-            name = "fetch_web_page",
-            category = ToolCategory.NETWORK,
-            descriptionGenerator = { tool ->
-                val url = tool.parameters.find { it.name == "url" }?.value ?: ""
-                "获取网页内容: $url"
-            },
-            executor = { tool -> kotlinx.coroutines.runBlocking { httpTools.fetchWebPage(tool) } }
     )
 
     // 系统操作工具

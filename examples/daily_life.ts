@@ -232,27 +232,29 @@ const dailyLife = (function () {
             // Default to "当前天气" if no location is provided
             const location = params.location || "current";
 
-            // Construct the weather search query
-            const query = location === "current" ?
-                "当前天气" :
-                `${location} 天气`;
+            // 构造搜索URL
+            const searchUrl = location === "current" ?
+                "https://www.baidu.com/s?wd=当前天气" :
+                `https://www.baidu.com/s?wd=${encodeURIComponent(location + " 天气")}`;
 
-            console.log(`搜索天气信息: ${query}`);
+            console.log(`搜索天气信息: ${searchUrl}`);
 
-            // Use the search tool to find weather information
-            const result = await Tools.Net.search(query);
+            // 使用visit_web工具直接访问搜索页面
+            const result = await Tools.Net.visit(searchUrl);
+
+            // 从网页内容中提取有用的信息
+            // 由于结果现在是页面内容而非结构化搜索结果，我们需要提取有用信息
+            const extractedInfo = extractWeatherInfo(result.content);
 
             return {
                 success: true,
-                query: query,
+                query: location === "current" ? "当前天气" : `${location} 天气`,
                 location: location,
                 timestamp: new Date().toISOString(),
-                weather_results: result.results.map(item => ({
-                    title: item.title,
-                    url: item.url,
-                    snippet: item.snippet
-                })),
-                note: "天气数据来自网络搜索结果，仅供参考。"
+                url: result.url,
+                title: result.title,
+                weather_info: extractedInfo,
+                note: "天气数据来自网页内容提取，仅供参考。"
             };
         } catch (error) {
             console.error(`[search_weather] 错误: ${error.message}`);
@@ -260,6 +262,27 @@ const dailyLife = (function () {
 
             throw new Error(`获取天气信息失败: ${error.message}`);
         }
+    }
+
+    /**
+     * 从网页内容中提取天气信息
+     * @param content - 网页内容
+     * @returns 提取的天气信息
+     */
+    function extractWeatherInfo(content: string): string {
+        // 直接返回页面内容的一部分，保留更多原始信息
+        // 移除一些可能的HTML标签，但不做过度处理
+        const cleanContent = content
+            .replace(/<\/?[^>]+(>|$)/g, " ") // 简单移除HTML标签
+            .replace(/\s+/g, " ")            // 压缩多余空白
+            .trim();
+
+        // 返回更大篇幅的内容
+        const maxLength = 1500; // 返回更多内容
+
+        return cleanContent.length > maxLength ?
+            cleanContent.substring(0, maxLength) + "..." :
+            cleanContent;
     }
 
     /**

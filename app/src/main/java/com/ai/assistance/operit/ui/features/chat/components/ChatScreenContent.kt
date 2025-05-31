@@ -70,6 +70,8 @@ fun ChatScreenContent(
         coroutineScope: CoroutineScope,
         chatHistories: List<ChatHistory>,
         currentChatId: String,
+        webViewNeedsRefresh: Boolean = false,
+        onWebViewRefreshed: () -> Unit = {}
 ) {
     // 获取WebView状态
     val showWebView = actualViewModel.showWebView.collectAsState().value
@@ -82,23 +84,35 @@ fun ChatScreenContent(
                                 .pointerInput(Unit) {
                                     detectHorizontalDragGestures(
                                             onDragStart = {
-                                                onChatScreenGestureConsumed(false)
-                                                onCurrentDragChange(0f)
-                                                onVerticalDragChange(0f)
+                                                // 当WebView显示时，不处理水平拖动手势
+                                                if (!showWebView) {
+                                                    onChatScreenGestureConsumed(false)
+                                                    onCurrentDragChange(0f)
+                                                    onVerticalDragChange(0f)
+                                                }
                                             },
                                             onDragEnd = {
                                                 // 手势结束后重置累计值
-                                                onCurrentDragChange(0f)
-                                                onVerticalDragChange(0f)
-                                                // 延迟重置消费状态，确保事件不会传递到全局侧边栏
-                                                onChatScreenGestureConsumed(false)
+                                                if (!showWebView) {
+                                                    onCurrentDragChange(0f)
+                                                    onVerticalDragChange(0f)
+                                                    // 延迟重置消费状态，确保事件不会传递到全局侧边栏
+                                                    onChatScreenGestureConsumed(false)
+                                                }
                                             },
                                             onDragCancel = {
-                                                onCurrentDragChange(0f)
-                                                onVerticalDragChange(0f)
-                                                onChatScreenGestureConsumed(false)
+                                                if (!showWebView) {
+                                                    onCurrentDragChange(0f)
+                                                    onVerticalDragChange(0f)
+                                                    onChatScreenGestureConsumed(false)
+                                                }
                                             },
                                             onHorizontalDrag = { change, dragAmount ->
+                                                // 当WebView显示时，不处理水平拖动手势
+                                                if (showWebView) {
+                                                    return@detectHorizontalDragGestures
+                                                }
+                                                
                                                 // 累加水平拖动距离
                                                 val newDrag = currentDrag + dragAmount
                                                 onCurrentDragChange(newDrag)
@@ -148,7 +162,10 @@ fun ChatScreenContent(
                                 .pointerInput(Unit) {
                                     // 添加垂直方向手势检测，用于记录垂直拖动距离
                                     detectVerticalDragGestures { _, dragAmount ->
-                                        onVerticalDragChange(verticalDrag + dragAmount)
+                                        // 当WebView显示时，不处理垂直拖动手势（记录）
+                                        if (!showWebView) {
+                                            onVerticalDragChange(verticalDrag + dragAmount)
+                                        }
                                     }
                                 }
         ) {
@@ -168,8 +185,7 @@ fun ChatScreenContent(
                 // 聊天对话区域
                 Box(
                         modifier =
-                                Modifier.fillMaxWidth()
-                                        .weight(1f)
+                                Modifier.fillMaxSize()
                                         .background(
                                                 if (hasBackgroundImage) Color.Transparent
                                                 else MaterialTheme.colorScheme.background
@@ -245,29 +261,80 @@ fun ChatScreenContent(
                         AndroidView(
                                 factory = { context ->
                                     android.webkit.WebView(context).apply {
+                                        // 创建更强大的WebViewClient
+                                        webViewClient =
+                                                object : android.webkit.WebViewClient() {
+                                                    override fun onPageFinished(
+                                                            view: android.webkit.WebView?,
+                                                            url: String?
+                                                    ) {
+                                                        super.onPageFinished(view, url)
+                                                        // 页面加载完成后执行的操作
+                                                    }
+                                                }
+
+                                        // 添加WebChromeClient以支持更现代的Web功能
+                                        webChromeClient = android.webkit.WebChromeClient()
+                                        
+                                        // 设置WebView的各种配置
                                         settings.apply {
                                             // 启用JavaScript
                                             javaScriptEnabled = true
-                                            // 启用DOM存储
-                                            domStorageEnabled = true
-                                            // 允许文件访问
-                                            allowFileAccess = true
-                                            // 允许内容URL访问
-                                            allowContentAccess = true
-                                            // 启用混合内容
-                                            mixedContentMode =
-                                                    android.webkit.WebSettings
-                                                            .MIXED_CONTENT_ALWAYS_ALLOW
-                                            // 设置缓存模式
+
+                                            // 设置适用于现代网页的关键配置
+                                            // 视口设置
+                                            useWideViewPort = true // 启用宽视口
+                                            loadWithOverviewMode = true // 使页面适应屏幕大小
+
+                                            // 缩放控制
+                                            setSupportZoom(true) // 支持缩放
+                                            builtInZoomControls = true // 启用内置缩放控件
+                                            displayZoomControls = false // 隐藏默认缩放控件
+
+                                            // 文本设置
+                                            defaultTextEncodingName = "UTF-8" // 设置默认字符集
+
+                                            // 缓存设置
                                             cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
+
+                                            // 使页面适应当前尺寸
+                                            layoutAlgorithm =
+                                                    android.webkit.WebSettings.LayoutAlgorithm
+                                                            .NORMAL
+
+                                            // 设置用户代理，添加自定义标识符以便更好地适配
+                                            val defaultUserAgent = userAgentString
+                                            userAgentString = "$defaultUserAgent OperitWebView/1.0"
+
+                                            // 启用DOM存储API
+                                            domStorageEnabled = true
+
+                                            // 启用应用缓存
+                                            databaseEnabled = true
                                         }
-                                        webViewClient = android.webkit.WebViewClient()
-                                        // 加载本地服务器URL
+
+                                        // 设置初始比例 - 匹配显示宽度
+                                        setInitialScale(0)
+                                        
+                                        // 添加触摸事件监听器优化滑动体验
+                                        setOnTouchListener { v, event ->
+                                            // 允许WebView处理所有触摸事件
+                                            v.parent.requestDisallowInterceptTouchEvent(true)
+                                            false // 返回false表示不消费事件，让WebView默认行为继续处理
+                                        }
+
+                                        // 加载URL
                                         loadUrl("http://localhost:8080")
                                     }
                                 },
-                                modifier =
-                                        Modifier.fillMaxSize().padding(top = 4.dp) // 避免WebView紧贴顶部
+                                update = { webView ->
+                                    // 当需要刷新WebView内容时更新
+                                    if (webViewNeedsRefresh) {
+                                        webView.reload()
+                                        onWebViewRefreshed()
+                                    }
+                                },
+                                modifier = Modifier.fillMaxSize()
                         )
                     }
 
@@ -299,26 +366,6 @@ fun ChatScreenContent(
                         }
                     }
                 }
-            }
-        }
-
-        // WebView作为独立层，避免与顶部Header冲突
-        if (showWebView) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                // 添加一个空白区域，与ChatScreenHeader相同高度
-                Spacer(modifier = Modifier.height(56.dp)) // 使用大致的ChatScreenHeader高度
-
-                // WebView区域 - 只占用内容区域，不包括顶部工具栏
-                AndroidView(
-                        factory = { context ->
-                            android.webkit.WebView(context).apply {
-                                webViewClient = android.webkit.WebViewClient()
-                                settings.javaScriptEnabled = true
-                                loadUrl("http://localhost:8080")
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth().weight(1f)
-                )
             }
         }
 

@@ -8,9 +8,14 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileNotFoundException
 import java.io.IOException
+import java.net.ServerSocket
+import java.net.Socket
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 
 /** LocalWebServer - 基于NanoHTTPD的本地Web服务器 用于显示工作空间目录中的文件 */
-class LocalWebServer(
+class LocalWebServer
+private constructor(
         private val port: Int,
         private val context: Context,
         private var chatId: String = "default"
@@ -21,6 +26,20 @@ class LocalWebServer(
 
         // 公共常量
         const val DEFAULT_PORT = 8080
+
+        // 单例实例
+        @Volatile private var INSTANCE: LocalWebServer? = null
+
+        // 获取单例实例的方法
+        fun getInstance(context: Context, port: Int = DEFAULT_PORT): LocalWebServer {
+            return INSTANCE
+                    ?: synchronized(this) {
+                        INSTANCE
+                                ?: LocalWebServer(port, context.applicationContext).also {
+                                    INSTANCE = it
+                                }
+                    }
+        }
 
         // 工作空间的基础路径
         fun getWorkspacePath(chatId: String): String {
@@ -43,19 +62,38 @@ class LocalWebServer(
     private val workspacePath: String
         get() = getWorkspacePath(chatId)
 
+    private val isServerRunning = AtomicBoolean(false)
+    private var serverSocket: ServerSocket? = null
+    private val executor = Executors.newCachedThreadPool()
+    private var currentChatId: String? = null
+
     // 在启动前确保工作区目录存在
     @Throws(IOException::class)
     override fun start() {
         ensureWorkspaceDirExists(chatId)
         super.start()
+        isServerRunning.set(true)
         Log.d(TAG, "本地服务器已启动，端口: $port，工作空间: $workspacePath")
     }
 
-    // 当聊天ID改变时更新工作区目录
+    override fun stop() {
+        super.stop()
+        isServerRunning.set(false)
+        Log.d(TAG, "本地服务器已停止")
+    }
+
     fun updateChatId(newChatId: String) {
         chatId = newChatId
         ensureWorkspaceDirExists(chatId)
         Log.d(TAG, "工作空间已更新: $workspacePath")
+    }
+
+    fun isRunning(): Boolean {
+        return isServerRunning.get()
+    }
+
+    private fun handleRequest(socket: Socket) {
+        // 请求处理逻辑...
     }
 
     override fun serve(session: IHTTPSession): Response {

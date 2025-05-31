@@ -1,37 +1,18 @@
 package com.ai.assistance.operit.ui.features.chat.screens
 
-import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.provider.Settings
 import android.util.Log
-import android.webkit.WebView
-import android.webkit.WebViewClient
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import com.ai.assistance.operit.data.model.AttachmentInfo
-import com.ai.assistance.operit.data.model.ToolExecutionProgress
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.services.FloatingChatService
@@ -40,10 +21,8 @@ import com.ai.assistance.operit.ui.features.chat.components.*
 import com.ai.assistance.operit.ui.features.chat.util.ConfigurationStateHolder
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModelFactory
-import com.ai.assistance.operit.ui.features.token.webview.WebViewConfig
 import com.ai.assistance.operit.ui.main.screens.GestureStateHolder
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,8 +46,10 @@ fun AIChatScreen(
 
         // Get background image state
         val preferencesManager = remember { UserPreferencesManager(context) }
-    val useBackgroundImage by preferencesManager.useBackgroundImage.collectAsState(initial = false)
-    val backgroundImageUri by preferencesManager.backgroundImageUri.collectAsState(initial = null)
+        val useBackgroundImage by
+                preferencesManager.useBackgroundImage.collectAsState(initial = false)
+        val backgroundImageUri by
+                preferencesManager.backgroundImageUri.collectAsState(initial = null)
         val hasBackgroundImage = useBackgroundImage && backgroundImageUri != null
 
         // 添加编辑按钮和编辑状态
@@ -97,6 +78,9 @@ fun AIChatScreen(
         val attachments by actualViewModel.attachments.collectAsState()
         // 收集附件面板状态
         val attachmentPanelState by actualViewModel.attachmentPanelState.collectAsState()
+        
+        // 添加WebView刷新相关状态
+        val webViewNeedsRefresh by actualViewModel.webViewNeedsRefresh.collectAsState()
 
         // Floating window mode state
         val isFloatingMode by actualViewModel.isFloatingMode.collectAsState()
@@ -148,7 +132,9 @@ fun AIChatScreen(
 
         // 更简单直接的滚动状态监听 - 只监听用户主动向上滚动
         LaunchedEffect(Unit) {
-        snapshotFlow { Pair(listState.firstVisibleItemScrollOffset, listState.isScrollInProgress) }
+                snapshotFlow {
+                        Pair(listState.firstVisibleItemScrollOffset, listState.isScrollInProgress)
+                }
                         .collect { (currentOffset, isScrolling) ->
                                 // 只在用户主动滚动时判断
                                 if (isScrolling && !isScrollStateChanging) {
@@ -215,7 +201,8 @@ fun AIChatScreen(
                                 // Start floating chat service
                                 val intent = Intent(context, FloatingChatService::class.java)
 
-                                // Filter out "think" messages which are not needed in the floating window
+                                // Filter out "think" messages which are not needed in the floating
+                                // window
                                 val filteredMessages = chatHistory.filter { it.sender != "think" }
 
                                 // Convert to array of parcelables if needed
@@ -232,7 +219,8 @@ fun AIChatScreen(
                                 actualViewModel.updateFloatingWindowMessages(filteredMessages)
                         } catch (e: Exception) {
                                 Log.e("AIChatScreen", "Error starting floating service", e)
-                actualViewModel.toggleFloatingMode() // Turn off floating mode if it fails
+                                actualViewModel
+                                        .toggleFloatingMode() // Turn off floating mode if it fails
                                 android.widget.Toast.makeText(
                                                 context,
                                                 "启动悬浮窗失败，请确保已授予悬浮窗权限",
@@ -259,7 +247,11 @@ fun AIChatScreen(
 
         toastEvent?.let { message ->
                 LaunchedEffect(message) {
-            android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT)
+                        android.widget.Toast.makeText(
+                                        context,
+                                        message,
+                                        android.widget.Toast.LENGTH_SHORT
+                                )
                                 .show()
                         actualViewModel.clearToastEvent()
                 }
@@ -275,11 +267,15 @@ fun AIChatScreen(
         // Add overflow menu items
         val overflowMenuItems =
                 listOf(
-                    Triple("切换思考显示", "toggle_thinking") { actualViewModel.toggleShowThinking() },
+                        Triple("切换思考显示", "toggle_thinking") {
+                                actualViewModel.toggleShowThinking()
+                        },
                         Triple("切换记忆优化", "toggle_memory_optimization") {
                                 actualViewModel.toggleMemoryOptimization()
                         },
-                    Triple("切换AI计划模式", "toggle_ai_planning") { actualViewModel.toggleAiPlanning() },
+                        Triple("切换AI计划模式", "toggle_ai_planning") {
+                                actualViewModel.toggleAiPlanning()
+                        },
                         Triple("清空聊天记录", "clear_chat") { actualViewModel.clearCurrentChat() },
                         Triple("管理历史记录", "manage_history") {
                                 actualViewModel.showChatHistorySelector(true)
@@ -287,7 +283,8 @@ fun AIChatScreen(
                 )
 
         // 判断是否有默认配置可用
-    val hasDefaultConfig = apiEndpoint.isNotBlank() && apiKey.isNotBlank() && modelName.isNotBlank()
+        val hasDefaultConfig =
+                apiEndpoint.isNotBlank() && apiKey.isNotBlank() && modelName.isNotBlank()
 
         // 判断是否正在使用默认配置
         val isUsingDefaultConfig = apiKey == ApiPreferences.DEFAULT_API_KEY
@@ -296,20 +293,25 @@ fun AIChatScreen(
         val shouldShowConfig =
                 isUsingDefaultConfig && !ConfigurationStateHolder.hasConfirmedDefaultInSession
 
-    // 添加手势状态
-    var chatScreenGestureConsumed by remember { mutableStateOf(false) }
+        // 添加手势状态
+        var chatScreenGestureConsumed by remember { mutableStateOf(false) }
 
-    // 添加累计滑动距离变量
-    var currentDrag by remember { mutableStateOf(0f) }
-    var verticalDrag by remember { mutableStateOf(0f) }
-    val dragThreshold = 40f // 与PhoneLayout保持一致
+        // 添加累计滑动距离变量
+        var currentDrag by remember { mutableStateOf(0f) }
+        var verticalDrag by remember { mutableStateOf(0f) }
+        val dragThreshold = 40f // 与PhoneLayout保持一致
 
-    // 当手势状态改变时，通知父组件
-    LaunchedEffect(chatScreenGestureConsumed) {
-        // 同时更新全局状态持有者，确保PhoneLayout能够访问到状态
-        GestureStateHolder.isChatScreenGestureConsumed = chatScreenGestureConsumed
-        onGestureConsumed(chatScreenGestureConsumed)
-    }
+        // 收集WebView显示状态
+        val showWebView by actualViewModel.showWebView.collectAsState()
+
+        // 当手势状态改变时，通知父组件
+        LaunchedEffect(chatScreenGestureConsumed, showWebView) {
+                // 当WebView显示时，设置手势已消费状态为true，防止侧边栏滑出
+                val finalGestureState = chatScreenGestureConsumed || showWebView
+                // 同时更新全局状态持有者，确保PhoneLayout能够访问到状态
+                GestureStateHolder.isChatScreenGestureConsumed = finalGestureState
+                onGestureConsumed(finalGestureState)
+        }
 
         Scaffold(
                 containerColor = Color.Transparent,
@@ -322,22 +324,32 @@ fun AIChatScreen(
                                 Column {
                                         // 添加优化和计划模式开关到输入框上方
                                         ChatSettingsBar(
-                                            actualViewModel = actualViewModel,
-                                            memoryOptimization = actualViewModel.memoryOptimization.collectAsState().value,
-                                            masterPermissionLevel = actualViewModel.masterPermissionLevel.collectAsState().value,
-                                            enableAiPlanning = enableAiPlanning
+                                                actualViewModel = actualViewModel,
+                                                memoryOptimization =
+                                                        actualViewModel.memoryOptimization
+                                                                .collectAsState()
+                                                                .value,
+                                                masterPermissionLevel =
+                                                        actualViewModel.masterPermissionLevel
+                                                                .collectAsState()
+                                                                .value,
+                                                enableAiPlanning = enableAiPlanning
                                         )
 
                                         // 原有输入框区域
                                         ChatInputSection(
                                                 userMessage = userMessage,
-                                onUserMessageChange = { actualViewModel.updateUserMessage(it) },
+                                                onUserMessageChange = {
+                                                        actualViewModel.updateUserMessage(it)
+                                                },
                                                 onSendMessage = {
                                                         actualViewModel.sendUserMessage()
                                                         // 在发送消息后重置附件面板状态
                                                         actualViewModel.resetAttachmentPanelState()
                                                 },
-                                onCancelMessage = { actualViewModel.cancelCurrentMessage() },
+                                                onCancelMessage = {
+                                                        actualViewModel.cancelCurrentMessage()
+                                                },
                                                 isLoading = isLoading,
                                                 isProcessingInput = isProcessingInput,
                                                 inputProcessingMessage = inputProcessingMessage,
@@ -353,7 +365,9 @@ fun AIChatScreen(
                                                 },
                                                 onInsertAttachment = { attachment: AttachmentInfo ->
                                                         // 在光标位置插入附件引用
-                                    actualViewModel.insertAttachmentReference(attachment)
+                                                        actualViewModel.insertAttachmentReference(
+                                                                attachment
+                                                        )
                                                 },
                                                 onAttachScreenContent = {
                                                         // 添加屏幕内容附件
@@ -369,13 +383,18 @@ fun AIChatScreen(
                                                 },
                                                 onAttachProblemMemory = { content, filename ->
                                                         // 添加问题记忆附件
-                                    actualViewModel.attachProblemMemory(content, filename)
+                                                        actualViewModel.attachProblemMemory(
+                                                                content,
+                                                                filename
+                                                        )
                                                 },
                                                 hasBackgroundImage = hasBackgroundImage,
                                                 // 传递附件面板状态
                                                 externalAttachmentPanelState = attachmentPanelState,
                                                 onAttachmentPanelStateChange = { newState ->
-                                    actualViewModel.updateAttachmentPanelState(newState)
+                                                        actualViewModel.updateAttachmentPanelState(
+                                                                newState
+                                                        )
                                                 }
                                         )
                                 }
@@ -424,41 +443,44 @@ fun AIChatScreen(
                 } else {
                         // 使用提取出来的聊天内容组件
                         ChatScreenContent(
-                            paddingValues = paddingValues,
-                            actualViewModel = actualViewModel,
-                                        showChatHistorySelector = showChatHistorySelector,
-                                                                chatHistory = chatHistory,
-                                                                listState = listState,
-                                                                planItems = planItems,
-                            enableAiPlanning = enableAiPlanning,
-                                                                toolProgress = toolProgress,
-                                                                isLoading = isLoading,
-                                                                userMessageColor = userMessageColor,
-                                                                aiMessageColor = aiMessageColor,
-                                                                userTextColor = userTextColor,
-                                                                aiTextColor = aiTextColor,
-                                    systemMessageColor = systemMessageColor,
-                                                                systemTextColor = systemTextColor,
-                                    thinkingBackgroundColor = thinkingBackgroundColor,
-                                    thinkingTextColor = thinkingTextColor,
-                                    hasBackgroundImage = hasBackgroundImage,
-                            isEditMode = isEditMode,
-                            editingMessageIndex = editingMessageIndex,
-                            editingMessageContent = editingMessageContent,
-                            chatScreenGestureConsumed = chatScreenGestureConsumed,
-                            onChatScreenGestureConsumed = { chatScreenGestureConsumed = it },
-                            currentDrag = currentDrag,
-                            onCurrentDragChange = { currentDrag = it },
-                            verticalDrag = verticalDrag,
-                            onVerticalDragChange = { verticalDrag = it },
-                            dragThreshold = dragThreshold,
-                            showScrollButton = showScrollButton,
-                            onShowScrollButtonChange = { showScrollButton = it },
-                            autoScrollToBottom = autoScrollToBottom,
-                            onAutoScrollToBottomChange = { autoScrollToBottom = it },
-                            coroutineScope = coroutineScope,
-                            chatHistories = chatHistories,
-                            currentChatId = currentChatId ?: "",
+                                paddingValues = paddingValues,
+                                actualViewModel = actualViewModel,
+                                showChatHistorySelector = showChatHistorySelector,
+                                chatHistory = chatHistory,
+                                listState = listState,
+                                planItems = planItems,
+                                enableAiPlanning = enableAiPlanning,
+                                toolProgress = toolProgress,
+                                isLoading = isLoading,
+                                userMessageColor = userMessageColor,
+                                aiMessageColor = aiMessageColor,
+                                userTextColor = userTextColor,
+                                aiTextColor = aiTextColor,
+                                systemMessageColor = systemMessageColor,
+                                systemTextColor = systemTextColor,
+                                thinkingBackgroundColor = thinkingBackgroundColor,
+                                thinkingTextColor = thinkingTextColor,
+                                hasBackgroundImage = hasBackgroundImage,
+                                isEditMode = isEditMode,
+                                editingMessageIndex = editingMessageIndex,
+                                editingMessageContent = editingMessageContent,
+                                chatScreenGestureConsumed = chatScreenGestureConsumed,
+                                onChatScreenGestureConsumed = { chatScreenGestureConsumed = it },
+                                currentDrag = currentDrag,
+                                onCurrentDragChange = { currentDrag = it },
+                                verticalDrag = verticalDrag,
+                                onVerticalDragChange = { verticalDrag = it },
+                                dragThreshold = dragThreshold,
+                                showScrollButton = showScrollButton,
+                                onShowScrollButtonChange = { showScrollButton = it },
+                                autoScrollToBottom = autoScrollToBottom,
+                                onAutoScrollToBottomChange = { autoScrollToBottom = it },
+                                coroutineScope = coroutineScope,
+                                chatHistories = chatHistories,
+                                currentChatId = currentChatId ?: "",
+                                // 添加WebView刷新相关参数
+                                webViewNeedsRefresh = webViewNeedsRefresh,
+                                onWebViewRefreshed = { actualViewModel.resetWebViewRefreshState() }
                         )
                 }
         }
@@ -470,7 +492,9 @@ fun AIChatScreen(
                         title = { Text("提示") },
                         text = { Text(message ?: "") },
                         confirmButton = {
-                    TextButton(onClick = { actualViewModel.clearPopupMessage() }) { Text("确定") }
+                                TextButton(onClick = { actualViewModel.clearPopupMessage() }) {
+                                        Text("确定")
+                                }
                         }
                 )
         }

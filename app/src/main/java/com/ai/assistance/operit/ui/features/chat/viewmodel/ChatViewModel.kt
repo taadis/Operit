@@ -15,20 +15,17 @@ import com.ai.assistance.operit.ui.features.chat.attachments.AttachmentManager
 import com.ai.assistance.operit.ui.features.chat.webview.LocalWebServer
 import com.ai.assistance.operit.ui.permissions.PermissionLevel
 import com.ai.assistance.operit.ui.permissions.ToolPermissionSystem
+import java.io.IOException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
-import java.io.IOException
 
 class ChatViewModel(private val context: Context) : ViewModel() {
 
     companion object {
         private const val TAG = "ChatViewModel"
     }
-
-    // 本地Web服务器
-    private var localWebServer: LocalWebServer? = null
 
     // 服务收集器设置状态跟踪
     private var serviceCollectorSetupComplete = false
@@ -134,11 +131,11 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     // 添加一个用于跟踪附件面板状态的变量
     private val _attachmentPanelState = MutableStateFlow(false)
     val attachmentPanelState: StateFlow<Boolean> = _attachmentPanelState
-    
+
     // 添加WebView显示状态的状态流
     private val _showWebView = MutableStateFlow(false)
     val showWebView: StateFlow<Boolean> = _showWebView
-    
+
     // 添加WebView刷新控制流
     private val _webViewNeedsRefresh = MutableStateFlow(false)
     val webViewNeedsRefresh: StateFlow<Boolean> = _webViewNeedsRefresh
@@ -373,10 +370,10 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     fun createNewChat() {
         chatHistoryDelegate.createNewChat()
     }
-    
+
     fun switchChat(chatId: String) {
         chatHistoryDelegate.switchChat(chatId)
-        
+
         // 如果当前WebView正在显示，则更新工作区并触发刷新
         if (_showWebView.value) {
             updateWebServerForCurrentChat(chatId)
@@ -387,7 +384,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
             }
         }
     }
-    
+
     fun deleteChatHistory(chatId: String) = chatHistoryDelegate.deleteChatHistory(chatId)
     fun clearCurrentChat() {
         chatHistoryDelegate.clearCurrentChat()
@@ -502,27 +499,27 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         // 检查是否有当前对话，如果没有则创建一个新对话
         if (currentChatId.value == null) {
             Log.d(TAG, "当前没有活跃对话，自动创建新对话")
-            
+
             // 使用viewModelScope启动协程
             viewModelScope.launch {
                 // 使用现有的createNewChat方法创建新对话
                 chatHistoryDelegate.createNewChat()
-                
+
                 // 等待对话ID更新
                 var waitCount = 0
                 while (currentChatId.value == null && waitCount < 10) {
                     delay(100) // 短暂延迟等待对话创建完成
                     waitCount++
                 }
-                
+
                 if (currentChatId.value == null) {
                     Log.e(TAG, "创建新对话超时，无法发送消息")
                     uiStateDelegate.showErrorMessage("无法创建新对话，请重试")
                     return@launch
                 }
-                
+
                 Log.d(TAG, "新对话创建完成，ID: ${currentChatId.value}，现在发送消息")
-                
+
                 // 对话创建完成后，发送消息
                 sendMessageInternal()
             }
@@ -536,10 +533,10 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     private fun sendMessageInternal() {
         // 获取当前聊天ID
         val chatId = currentChatId.value
-        
+
         // 更新本地Web服务器的聊天ID
         chatId?.let { updateWebServerForCurrentChat(it) }
-        
+
         // 获取当前附件列表
         val currentAttachments = attachmentManager.attachments.value
 
@@ -863,14 +860,14 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 // 如果没有聊天ID，先创建一个新对话
                 viewModelScope.launch {
                     createNewChat()
-                    
+
                     // 等待聊天ID创建完成
                     var waitCount = 0
                     while (currentChatId.value == null && waitCount < 10) {
                         delay(100)
                         waitCount++
                     }
-                    
+
                     // 使用新创建的聊天ID更新Web服务器
                     currentChatId.value?.let { newChatId ->
                         updateWebServerForCurrentChat(newChatId)
@@ -878,7 +875,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 }
             }
         }
-        
+
         // 切换WebView显示状态
         _showWebView.value = !_showWebView.value
     }
@@ -886,24 +883,31 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     // 初始化本地Web服务器
     private fun initLocalWebServer() {
         try {
-            if (localWebServer == null) {
-                localWebServer = LocalWebServer(LocalWebServer.DEFAULT_PORT, context)
-                localWebServer?.start()
+            // 使用单例模式获取LocalWebServer实例
+            val webServer = LocalWebServer.getInstance(context)
+            // 只有当服务器未运行时才启动
+            if (!webServer.isRunning()) {
+                webServer.start()
                 Log.d(TAG, "本地Web服务器已启动")
+            } else {
+                Log.d(TAG, "本地Web服务器已经在运行中")
             }
         } catch (e: IOException) {
             Log.e(TAG, "初始化本地Web服务器失败", e)
             uiStateDelegate.showErrorMessage("无法启动Web服务器: ${e.message}")
         }
     }
-    
+
     // 更新当前聊天ID的Web服务器工作空间
     fun updateWebServerForCurrentChat(chatId: String) {
         try {
-            if (localWebServer == null) {
-                initLocalWebServer()
+            // 使用单例模式获取LocalWebServer实例
+            val webServer = LocalWebServer.getInstance(context)
+            // 确保服务器已启动
+            if (!webServer.isRunning()) {
+                webServer.start()
             }
-            localWebServer?.updateChatId(chatId)
+            webServer.updateChatId(chatId)
             Log.d(TAG, "Web服务器工作空间已更新为: $chatId")
         } catch (e: Exception) {
             Log.e(TAG, "更新Web服务器工作空间失败", e)
@@ -925,14 +929,9 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         super.onCleared()
         // 清理悬浮窗资源
         floatingWindowDelegate.cleanup()
-        
-        // 停止本地Web服务器
-        try {
-            localWebServer?.stop()
-            localWebServer = null
-            Log.d(TAG, "本地Web服务器已停止")
-        } catch (e: Exception) {
-            Log.e(TAG, "停止本地Web服务器时出错", e)
-        }
+
+        // 不再在这里停止Web服务器，因为使用的是单例模式
+        // 服务器应在应用退出时由Application类或专门的服务管理类关闭
+        // 这样可以在界面切换时保持服务器的连续运行
     }
 }

@@ -40,8 +40,7 @@ fun getJsToolsDefinition(): String {
             Net: {
                 httpGet: (url) => toolCall("http_request", { url, method: "GET" }),
                 httpPost: (url, data) => toolCall("http_request", { url, method: "POST", data }),
-                search: (query) => toolCall("web_search", { query }),
-                fetchPage: (url) => toolCall("fetch_web_page", { url }),
+                visit: (url) => toolCall("visit_web", { url }),
                 // 新增增强版HTTP请求
                 http: (options) => toolCall("http_request", options),
                 // 新增文件上传

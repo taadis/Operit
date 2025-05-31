@@ -248,33 +248,6 @@ data class HttpResponseData(
     }
 }
 
-/** 网页内容结构化数据 */
-@Serializable
-data class WebPageData(
-        val url: String,
-        val title: String,
-        val contentType: String,
-        val content: String,
-        val textContent: String,
-        val size: Int,
-        val links: List<Link>
-) : ToolResultData() {
-    @Serializable data class Link(val text: String, val url: String)
-
-    override fun toString(): String {
-        val sb = StringBuilder()
-        sb.appendLine("网页内容:")
-        if (title.isNotBlank()) {
-            sb.appendLine("标题: $title")
-        }
-        sb.appendLine("类型: $contentType")
-        sb.appendLine("大小: $size bytes")
-        sb.appendLine()
-        sb.append(textContent)
-        return sb.toString()
-    }
-}
-
 /** 系统设置数据 */
 @Serializable
 data class SystemSettingData(val namespace: String, val setting: String, val value: String) :
@@ -456,43 +429,38 @@ data class DeviceInfoResultData(
     }
 }
 
-/** Web search result data */
+/** Web page visit result data */
 @Serializable
-data class WebSearchResultData(val query: String, val results: List<SearchResult>) :
-        ToolResultData() {
-    @Serializable
-    data class SearchResult(
-            val title: String,
-            val url: String,
-            val snippet: String,
-            val extraInfo: String? = null
-    )
-
+data class VisitWebResultData(
+        val url: String,
+        val title: String,
+        val content: String,
+        val metadata: Map<String, String> = emptyMap()
+) : ToolResultData() {
     override fun toString(): String {
         val sb = StringBuilder()
-        sb.appendLine("Search results for: $query")
-        sb.appendLine("")
+        sb.appendLine("网页内容提取结果:")
+        sb.appendLine("URL: $url")
+        sb.appendLine("标题: $title")
 
-        results.forEachIndexed { index, result ->
-            sb.appendLine("${index + 1}. ${result.title}")
-            // sb.appendLine("   URL: ${result.url}")
-            // it's a link, so we don't need to show it
-            sb.appendLine("   ${result.snippet}")
-
-            // 如果有extraInfo，则显示它
-            result.extraInfo?.let { extraInfo ->
-                if (extraInfo.isNotEmpty()) {
-                    sb.appendLine("")
-                    sb.appendLine("   详细信息:")
-                    sb.appendLine("   $extraInfo")
-                }
+        if (metadata.isNotEmpty()) {
+            sb.appendLine("\n元数据:")
+            metadata.entries.take(5).forEach { (key, value) -> sb.appendLine("$key: $value") }
+            if (metadata.size > 5) {
+                sb.appendLine("... 以及 ${metadata.size - 5} 个其他元数据项")
             }
-
-            sb.appendLine("")
+            sb.appendLine()
         }
 
-        if (results.isEmpty()) {
-            sb.appendLine("No results found.")
+        sb.appendLine("\n页面内容:")
+
+        // 如果内容太长，只显示部分
+        val maxContentLength = 1000
+        if (content.length > maxContentLength) {
+            sb.append(content.substring(0, maxContentLength))
+            sb.appendLine("\n...(内容已截断，共 ${content.length} 字符)")
+        } else {
+            sb.append(content)
         }
 
         return sb.toString()

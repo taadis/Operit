@@ -95,12 +95,12 @@ object ToolGetter {
     }
 
     /**
-     * 获取Web搜索工具
+     * 获取Web访问工具
      * @param context 应用上下文
-     * @return Web搜索工具实现（只有标准版本）
+     * @return Web访问工具实现（只有标准版本）
      */
-    fun getWebSearchTool(context: Context): StandardWebSearchTool {
-        return StandardWebSearchTool(context)
+    fun getWebVisitTool(context: Context): StandardWebVisitTool {
+        return StandardWebVisitTool(context)
     }
 
     /**

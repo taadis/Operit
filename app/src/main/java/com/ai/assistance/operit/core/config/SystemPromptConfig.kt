@@ -98,11 +98,10 @@ object SystemPromptConfig {
       - get_supported_conversions: List all supported file format conversions. Parameters: format_type (optional, filter by type: "document"/"image"/"audio"/"video"/"archive")
 
       HTTP Tools:
-      - fetch_web_page: Retrieve web page content. Parameters: url (web page URL), format (text/html)
       - http_request: Send HTTP request. Parameters: url, method (GET/POST/PUT/DELETE), headers, body, body_type (json/form/text/xml)
       - multipart_request: Upload files. Parameters: url, method (POST/PUT), headers, form_data, files (file array)
       - manage_cookies: Manage cookies. Parameters: action (get/set/clear), domain, cookies
-      - web_search: Returns search results. Parameters: query (search term)
+      - visit_web: Visit webpage and extract its content. Parameters: url (webpage URL to visit)
 
       System Operation Tools:
       These tools require user authorization:
@@ -267,11 +266,10 @@ object SystemPromptConfig {
         - get_supported_conversions: 列出所有支持的文件格式转换。参数：format_type（可选，按类型过滤："document"/"image"/"audio"/"video"/"archive"）
         
         HTTP工具：
-        - fetch_web_page: 获取网页内容。参数：url (网页URL), format (text/html)
         - http_request: 发送HTTP请求。参数：url, method (GET/POST/PUT/DELETE), headers, body, body_type (json/form/text/xml)
         - multipart_request: 上传文件。参数：url, method (POST/PUT), headers, form_data, files (文件数组)
         - manage_cookies: 管理cookies。参数：action (get/set/clear), domain, cookies
-        - web_search: 返回搜索结果。参数：query (搜索词)
+        - visit_web: 访问网页并提取内容。参数：url (要访问的网页URL)
         
         系统操作工具：
         这些工具需要用户授权：

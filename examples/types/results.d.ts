@@ -179,36 +179,15 @@ export interface Link {
     toString(): string;
 }
 
+
 /**
- * Web page data
+ * Web page visit result data
  */
-export interface WebPageData {
+export interface VisitWebResultData {
     url: string;
     title: string;
-    contentType: string;
     content: string;
-    textContent: string;
-    size: number;
-    links: Link[];
-    toString(): string;
-}
-
-/**
- * Web search result
- */
-export interface SearchResult {
-    title: string;
-    url: string;
-    snippet: string;
-    toString(): string;
-}
-
-/**
- * Web search result data
- */
-export interface WebSearchResultData {
-    query: string;
-    results: SearchResult[];
+    metadata?: Record<string, string>;
     toString(): string;
 }
 
@@ -524,12 +503,8 @@ export interface HttpResponseResult extends BaseResult {
     data: HttpResponseData;
 }
 
-export interface WebPageResult extends BaseResult {
-    data: WebPageData;
-}
-
-export interface WebSearchResult extends BaseResult {
-    data: WebSearchResultData;
+export interface VisitWebResult extends BaseResult {
+    data: VisitWebResultData;
 }
 
 export interface SystemSettingResult extends BaseResult {

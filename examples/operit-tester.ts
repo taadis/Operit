@@ -185,7 +185,6 @@ async function runTests(params: { testType?: string } = {}): Promise<void> {
             await testWebSearch(results);
             await testHttpRequest(results);
             await testDownloadFile(results);
-            await testFetchWebPage(results);
         }
 
         // Test system operation tools
@@ -946,41 +945,43 @@ async function testDeleteFile(results: TestResults): Promise<void> {
 }
 
 /**
- * Tests the web_search tool
+ * Tests the visit_web tool
  */
 async function testWebSearch(results: TestResults): Promise<void> {
     try {
-        console.log("\nTesting web_search...");
+        console.log("\nTesting visit_web...");
 
-        const searchQuery = "OperIT AI automation tools";
-        const searchResult = await toolCall("web_search", {
-            query: searchQuery
+        const url = "https://www.baidu.com/s?wd=OperIT+AI+automation+tools";
+        const searchResult = await toolCall("visit_web", {
+            url: url
         });
 
         // Validate the result
-        const searchData = searchResult as WebSearchResultData;
-        console.log(`Search query: ${searchData.query}`);
-        console.log(`Results found: ${searchData.results.length}`);
+        const visitData = searchResult as VisitWebResultData;
+        console.log(`Visited URL: ${visitData.url}`);
+        console.log(`Page Title: ${visitData.title}`);
+        console.log(`Content length: ${visitData.content.length} characters`);
 
-        if (searchData.results.length > 0) {
-            console.log("\nTop search results:");
-            const topResults = searchData.results.slice(0, 3);
-
-            topResults.forEach((result, index) => {
-                console.log(`\n[Result ${index + 1}]`);
-                console.log(`Title: ${result.title}`);
-                console.log(`URL: ${result.url}`);
-                console.log(`Snippet: ${result.snippet.substring(0, 100)}...`);
+        if (visitData.metadata && Object.keys(visitData.metadata).length > 0) {
+            console.log("\nPage metadata:");
+            Object.entries(visitData.metadata).slice(0, 3).forEach(([key, value]) => {
+                console.log(`${key}: ${value}`);
             });
         }
 
-        results["web_search"] = {
-            success: searchData.query === searchQuery && searchData.results.length > 0,
-            data: searchData
+        // Show content preview
+        const contentPreview = visitData.content.length > 200 ?
+            visitData.content.substring(0, 200) + "..." :
+            visitData.content;
+        console.log(`\nContent preview: ${contentPreview}`);
+
+        results["visit_web"] = {
+            success: visitData.url === url && visitData.content.length > 0,
+            data: visitData
         };
     } catch (err) {
-        console.error("Error testing web_search:", err);
-        results["web_search"] = { success: false, error: String(err) };
+        console.error("Error testing visit_web:", err);
+        results["visit_web"] = { success: false, error: String(err) };
     }
 }
 
@@ -1086,62 +1087,6 @@ async function testDownloadFile(results: TestResults): Promise<void> {
     } catch (err) {
         console.error("Error testing download_file:", err);
         results["download_file"] = { success: false, error: String(err) };
-    }
-}
-
-/**
- * Tests the fetch_web_page tool
- */
-async function testFetchWebPage(results: TestResults): Promise<void> {
-    try {
-        console.log("\nTesting fetch_web_page...");
-
-        // Use a simple, stable webpage for testing
-        const pageUrl = "https://example.com";
-
-        // Test text format
-        console.log("Testing with text format...");
-        const textResult = await toolCall("fetch_web_page", {
-            url: pageUrl,
-            format: "text"
-        });
-
-        // Validate the text result
-        const textData = textResult as WebPageData;
-        console.log(`URL: ${textData.url}`);
-        console.log(`Title: ${textData.title}`);
-        console.log(`Content type: ${textData.contentType}`);
-        console.log(`Size: ${textData.size} bytes`);
-        console.log(`Text content preview: ${textData.textContent.substring(0, 150)}...`);
-        console.log(`Links found: ${textData.links.length}`);
-
-        // Display some links if available
-        if (textData.links.length > 0) {
-            console.log("\nSample links:");
-            textData.links.slice(0, 3).forEach(link => {
-                console.log(`- ${link.text || "(no text)"}: ${link.url}`);
-            });
-        }
-
-        // Test HTML format
-        console.log("\nTesting with HTML format...");
-        const htmlResult = await toolCall("fetch_web_page", {
-            url: pageUrl,
-            format: "html"
-        });
-
-        // Validate the HTML result
-        const htmlData = htmlResult as WebPageData;
-        console.log(`HTML content available: ${htmlData.content.length > 0 ? "✅" : "❌"}`);
-        console.log(`HTML content preview: ${htmlData.content.substring(0, 100)}...`);
-
-        results["fetch_web_page"] = {
-            success: textData.url === pageUrl && textData.title.length > 0,
-            data: { text: textData, html: htmlData }
-        };
-    } catch (err) {
-        console.error("Error testing fetch_web_page:", err);
-        results["fetch_web_page"] = { success: false, error: String(err) };
     }
 }
 
@@ -2243,7 +2188,6 @@ exports.testDeleteFile = testDeleteFile;
 exports.testWebSearch = testWebSearch;
 exports.testHttpRequest = testHttpRequest;
 exports.testDownloadFile = testDownloadFile;
-exports.testFetchWebPage = testFetchWebPage;
 exports.testDeviceInfo = testDeviceInfo;
 exports.testGetSystemSetting = testGetSystemSetting;
 exports.testModifySystemSetting = testModifySystemSetting;

@@ -4,7 +4,6 @@ import android.content.Context
 import android.util.Log
 import com.ai.assistance.operit.core.tools.HttpResponseData
 import com.ai.assistance.operit.core.tools.StringResultData
-import com.ai.assistance.operit.core.tools.WebPageData
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolResult
 import java.io.File
@@ -27,7 +26,6 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.ResponseBody
 import org.json.JSONArray
 import org.json.JSONObject
-import org.jsoup.Jsoup
 
 /** HTTP网络请求工具 提供直接访问网页和发送HTTP请求的能力 */
 class StandardHttpTools(private val context: Context) {
@@ -103,113 +101,6 @@ class StandardHttpTools(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "读取响应体时发生错误", e)
             ""
-        }
-    }
-    /** 获取网页内容 支持HTML和纯文本格式 */
-    suspend fun fetchWebPage(tool: AITool): ToolResult {
-        val url = tool.parameters.find { it.name == "url" }?.value ?: ""
-        val formatParam = tool.parameters.find { it.name == "format" }?.value
-        val format = formatParam?.lowercase() ?: "text"
-
-        if (url.isBlank()) {
-            return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "URL参数不能为空"
-            )
-        }
-
-        // 验证URL格式
-        if (!isValidUrl(url)) {
-            return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "无效的URL格式: $url"
-            )
-        }
-
-        return try {
-            // 构建请求
-            val request =
-                    Request.Builder()
-                            .url(url)
-                            .header("User-Agent", USER_AGENT)
-                            .header(
-                                    "Accept",
-                                    "text/html,application/xhtml+xml,application/xml,text/plain,*/*"
-                            )
-                            .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
-                            .build()
-
-            // 执行请求
-            val response = defaultClient.newCall(request).execute()
-
-            if (!response.isSuccessful) {
-                return ToolResult(
-                        toolName = tool.name,
-                        success = false,
-                        result = StringResultData(""),
-                        error = "HTTP请求失败: ${response.code} ${response.message}"
-                )
-            }
-
-            // 获取响应内容
-            val contentType = response.header("Content-Type") ?: ""
-            val responseBody =
-                    response.body
-                            ?: return ToolResult(
-                                    toolName = tool.name,
-                                    success = false,
-                                    result = StringResultData(""),
-                                    error = "响应体为空"
-                            )
-
-            // 使用智能读取方法处理编码
-            val responseBodyString = readResponseBody(responseBody, contentType)
-
-            // 提取基本数据
-            val document =
-                    if (contentType.contains("html", ignoreCase = true)) {
-                        Jsoup.parse(responseBodyString)
-                    } else {
-                        null
-                    }
-
-            val title = document?.title() ?: ""
-            val links =
-                    document?.select("a[href]")
-                            ?.map { element ->
-                                val linkUrl =
-                                        element.attr("abs:href").takeIf { it.isNotBlank() }
-                                                ?: element.attr("href")
-                                val linkText = element.text().takeIf { it.isNotBlank() } ?: linkUrl
-                                WebPageData.Link(text = linkText, url = linkUrl)
-                            }
-                            ?.take(20)
-                            ?: emptyList()
-
-            val webPageData =
-                    WebPageData(
-                            url = url,
-                            title = title,
-                            contentType = contentType,
-                            content = responseBodyString,
-                            textContent = responseBodyString,
-                            size = responseBodyString.length,
-                            links = links
-                    )
-
-            ToolResult(toolName = tool.name, success = true, result = webPageData, error = "")
-        } catch (e: Exception) {
-            Log.e(TAG, "获取网页内容时出错", e)
-            ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "获取网页内容时出错: ${e.message}"
-            )
         }
     }
 

@@ -2,7 +2,7 @@
  * Network operation type definitions for Assistance Package Tools
  */
 
-import { HttpResponseData, WebSearchResultData, WebPageData } from './results';
+import { HttpResponseData, VisitWebResultData } from './results';
 
 /**
  * Network operations namespace
@@ -22,16 +22,10 @@ export namespace Net {
     function httpPost(url: string, data: string | object): Promise<HttpResponseData>;
 
     /**
-     * Perform web search
-     * @param query - Search query
+     * Visit a webpage and extract its content
+     * @param url - URL to visit
      */
-    function search(query: string): Promise<WebSearchResultData>;
-
-    /**
-     * Fetch a web page
-     * @param url - URL to fetch
-     */
-    function fetchPage(url: string): Promise<WebPageData>;
+    function visit(url: string): Promise<VisitWebResultData>;
 
     /**
      * Enhanced HTTP request with flexible options

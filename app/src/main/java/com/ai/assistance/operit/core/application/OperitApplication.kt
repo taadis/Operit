@@ -18,6 +18,7 @@ import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.data.preferences.initAndroidPermissionPreferences
 import com.ai.assistance.operit.data.preferences.initUserPreferencesManager
 import com.ai.assistance.operit.data.preferences.preferencesManager
+import com.ai.assistance.operit.ui.features.chat.webview.LocalWebServer
 import com.ai.assistance.operit.util.LocaleUtils
 import com.ai.assistance.operit.util.SerializationSetup
 import com.ai.assistance.operit.util.TextSegmenter
@@ -186,6 +187,20 @@ class OperitApplication : Application() {
         } catch (e: Exception) {
             Log.e(TAG, "应用基础上下文语言失败", e)
             super.attachBaseContext(base)
+        }
+    }
+    
+    override fun onTerminate() {
+        super.onTerminate()
+        // 在应用终止时关闭LocalWebServer服务器
+        try {
+            val webServer = LocalWebServer.getInstance(applicationContext)
+            if (webServer.isRunning()) {
+                webServer.stop()
+                Log.d(TAG, "应用终止，已关闭本地Web服务器")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "关闭本地Web服务器失败: ${e.message}", e)
         }
     }
 }

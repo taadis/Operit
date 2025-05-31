@@ -7,7 +7,7 @@
 import {
     DirectoryListingData, FileContentData, FileOperationData, FileExistsData,
     FindFilesResultData, FileInfoData, FileConversionResultData, FileFormatConversionsResultData,
-    HttpResponseData, WebSearchResultData, WebPageData,
+    HttpResponseData, VisitWebResultData,
     SleepResultData, SystemSettingData, AppOperationData, AppListData,
     DeviceInfoResultData, NotificationData, LocationData,
     UIPageResultData, UIActionResultData, CombinedOperationResultData,
@@ -29,7 +29,7 @@ export type FileToolName = 'list_files' | 'read_file' | 'write_file' | 'delete_f
 /**
  * Network tool names
  */
-export type NetToolName = 'http_request' | 'web_search' | 'fetch_web_page' | 'multipart_request' | 'manage_cookies';
+export type NetToolName = 'http_request' | 'visit_web' | 'multipart_request' | 'manage_cookies';
 
 /**
  * System tool names
@@ -103,8 +103,7 @@ export interface ToolResultMap {
 
     // Network operations
     'http_request': HttpResponseData;
-    'web_search': WebSearchResultData;
-    'fetch_web_page': WebPageData;
+    'visit_web': VisitWebResultData;
     'multipart_request': HttpResponseData;
     'manage_cookies': HttpResponseData;
 

@@ -12,7 +12,7 @@ import {
     _AppOperationData, _AppListData, _DeviceInfoResultData, _UIPageResultData,
     _UIActionResultData, _SimplifiedUINode, _FileOperationData, _DirectoryListingData,
     _FileContentData, _FileExistsData, _FindFilesResultData, _FileInfoData,
-    _HttpResponseData, _WebSearchResultData, _WebPageData, _CombinedOperationResultData
+    _HttpResponseData, _VisitWebResultData, _CombinedOperationResultData
 } from './results';
 import { Intent as AndroidIntent, IntentFlag as AndroidIntentFlag, IntentAction as AndroidIntentAction, IntentCategory as AndroidIntentCategory } from './android';
 import { UINode as UINodeClass, UI as UINamespace } from './ui';
@@ -91,8 +91,7 @@ declare global {
     type FindFilesResultData = _FindFilesResultData;
     type FileInfoData = _FileInfoData;
     type HttpResponseData = _HttpResponseData;
-    type WebSearchResultData = _WebSearchResultData;
-    type WebPageData = _WebPageData;
+    type VisitWebResultData = _VisitWebResultData;
     type CombinedOperationResultData = _CombinedOperationResultData;
 
     // Global interface definitions
