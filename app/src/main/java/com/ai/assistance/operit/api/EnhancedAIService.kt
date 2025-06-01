@@ -43,12 +43,7 @@ import kotlinx.coroutines.withContext
  * Enhanced AI service that provides advanced conversational capabilities by integrating various
  * components like tool execution, conversation management, user preferences, and problem library.
  */
-class EnhancedAIService(
-        apiEndpoint: String,
-        apiKey: String,
-        modelName: String,
-        private val context: Context
-) {
+class EnhancedAIService(private val context: Context) {
     companion object {
         private const val TAG = "EnhancedAIService"
     }

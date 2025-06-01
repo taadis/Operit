@@ -3,6 +3,7 @@ package com.ai.assistance.operit.api.enhance
 import android.content.Context
 import android.util.Log
 import com.ai.assistance.operit.api.AIService
+import com.ai.assistance.operit.api.AIServiceFactory
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.model.ModelConfigData
 import com.ai.assistance.operit.data.preferences.FunctionalConfigManager
@@ -92,7 +93,8 @@ class MultiServiceManager(private val context: Context) {
 
     /** 根据配置创建AIService实例 */
     private fun createServiceFromConfig(config: ModelConfigData): AIService {
-        return AIService(
+        return AIServiceFactory.createService(
+                apiProviderType = config.apiProviderType,
                 apiEndpoint = config.apiEndpoint,
                 apiKey = config.apiKey,
                 modelName = config.modelName

@@ -11,6 +11,8 @@ import com.ai.assistance.operit.data.model.ChatHistory
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.model.PlanItem
 import com.ai.assistance.operit.data.model.ToolExecutionProgress
+import com.ai.assistance.operit.data.preferences.ApiPreferences
+import com.ai.assistance.operit.data.preferences.ModelConfigManager
 import com.ai.assistance.operit.ui.features.chat.attachments.AttachmentManager
 import com.ai.assistance.operit.ui.features.chat.webview.LocalWebServer
 import com.ai.assistance.operit.ui.permissions.PermissionLevel
@@ -19,7 +21,9 @@ import java.io.IOException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 class ChatViewModel(private val context: Context) : ViewModel() {
 
@@ -80,8 +84,6 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     // Use lazy initialization for exposed properties to avoid circular reference issues
     // API配置相关
     val apiKey: StateFlow<String> by lazy { apiConfigDelegate.apiKey }
-    val apiEndpoint: StateFlow<String> by lazy { apiConfigDelegate.apiEndpoint }
-    val modelName: StateFlow<String> by lazy { apiConfigDelegate.modelName }
     val isConfigured: StateFlow<Boolean> by lazy { apiConfigDelegate.isConfigured }
     val showThinking: StateFlow<Boolean> by lazy { apiConfigDelegate.showThinking }
     val enableAiPlanning: StateFlow<Boolean> by lazy { apiConfigDelegate.enableAiPlanning }
@@ -342,8 +344,6 @@ class ChatViewModel(private val context: Context) : ViewModel() {
 
     // API配置相关方法
     fun updateApiKey(key: String) = apiConfigDelegate.updateApiKey(key)
-    fun updateApiEndpoint(endpoint: String) = apiConfigDelegate.updateApiEndpoint(endpoint)
-    fun updateModelName(model: String) = apiConfigDelegate.updateModelName(model)
     fun saveApiSettings() = apiConfigDelegate.saveApiSettings()
     fun useDefaultConfig() {
         if (apiConfigDelegate.useDefaultConfig()) {
@@ -923,6 +923,30 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     // 强制WebView刷新
     fun refreshWebView() {
         _webViewNeedsRefresh.value = true
+    }
+
+    // 判断是否正在使用默认API配置
+    fun isUsingDefaultConfig(): Boolean {
+        // 初始化ModelConfigManager以检查所有配置
+        val modelConfigManager = ModelConfigManager(context)
+        var hasDefaultKey = false
+
+        // 使用runBlocking因为我们需要从flow中收集数据
+        runBlocking {
+            // 获取所有配置ID
+            val configIds = modelConfigManager.configListFlow.first()
+
+            // 检查每个配置是否使用默认API key
+            for (id in configIds) {
+                val config = modelConfigManager.getModelConfigFlow(id).first()
+                if (config.apiKey == ApiPreferences.DEFAULT_API_KEY) {
+                    hasDefaultKey = true
+                    break
+                }
+            }
+        }
+
+        return hasDefaultKey
     }
 
     override fun onCleared() {

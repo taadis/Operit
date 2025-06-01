@@ -114,6 +114,7 @@ class ModelConfigManager(private val context: Context) {
                 apiKey = apiKey,
                 apiEndpoint = apiEndpoint,
                 modelName = modelName,
+                apiProviderType = com.ai.assistance.operit.data.model.ApiProviderType.DEEPSEEK,
                 hasCustomParameters = customParamsJson != "[]",
                 maxTokensEnabled = maxTokensEnabled,
                 temperatureEnabled = temperatureEnabled,
@@ -453,6 +454,29 @@ class ModelConfigManager(private val context: Context) {
         val config = getModelConfigFlow(configId).first()
         val updatedConfig =
                 config.copy(apiKey = apiKey, apiEndpoint = apiEndpoint, modelName = modelName)
+
+        // 保存更新后的配置
+        saveModelConfig(updatedConfig)
+
+        return updatedConfig
+    }
+
+    // 更新模型配置 - 包含API提供商类型
+    suspend fun updateModelConfig(
+            configId: String,
+            apiKey: String,
+            apiEndpoint: String,
+            modelName: String,
+            apiProviderType: com.ai.assistance.operit.data.model.ApiProviderType
+    ): ModelConfigData {
+        val config = getModelConfigFlow(configId).first()
+        val updatedConfig =
+                config.copy(
+                        apiKey = apiKey,
+                        apiEndpoint = apiEndpoint,
+                        modelName = modelName,
+                        apiProviderType = apiProviderType
+                )
 
         // 保存更新后的配置
         saveModelConfig(updatedConfig)

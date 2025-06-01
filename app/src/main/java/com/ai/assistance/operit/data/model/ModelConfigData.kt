@@ -2,6 +2,24 @@ package com.ai.assistance.operit.data.model
 
 import kotlinx.serialization.Serializable
 
+/** API提供商类型枚举 */
+@Serializable
+enum class ApiProviderType {
+        OPENAI, // OpenAI (GPT系列)
+        ANTHROPIC, // Anthropic (Claude系列)
+        GOOGLE, // Google (Gemini系列)
+        BAIDU, // 百度 (文心一言系列)
+        ALIYUN, // 阿里云 (通义千问系列)
+        XUNFEI, // 讯飞 (星火认知系列)
+        ZHIPU, // 智谱AI (ChatGLM系列)
+        BAICHUAN, // 百川大模型
+        MOONSHOT, // 月之暗面大模型
+        DEEPSEEK, // Deepseek大模型
+        SILICONFLOW, // 硅基流动
+        OPENROUTER, // OpenRouter (多模型聚合)
+        OTHER // 其他提供商
+}
+
 /** 表示完整的模型配置，包括API设置和模型参数 */
 @Serializable
 data class ModelConfigData(
@@ -12,6 +30,7 @@ data class ModelConfigData(
         val apiKey: String = "",
         val apiEndpoint: String = "",
         val modelName: String = "",
+        val apiProviderType: ApiProviderType = ApiProviderType.DEEPSEEK,
 
         // 是否包含自定义参数
         val hasCustomParameters: Boolean = false,
@@ -44,5 +63,6 @@ data class ModelConfigSummary(
         val id: String,
         val name: String,
         val modelName: String = "",
-        val apiEndpoint: String = ""
+        val apiEndpoint: String = "",
+        val apiProviderType: ApiProviderType = ApiProviderType.DEEPSEEK
 )

@@ -59,8 +59,6 @@ fun AIChatScreen(
 
         // Collect state from ViewModel
         val apiKey by actualViewModel.apiKey.collectAsState()
-        val apiEndpoint by actualViewModel.apiEndpoint.collectAsState()
-        val modelName by actualViewModel.modelName.collectAsState()
         val isConfigured by actualViewModel.isConfigured.collectAsState()
         val chatHistory by actualViewModel.chatHistory.collectAsState()
         val userMessage by actualViewModel.userMessage.collectAsState()
@@ -78,7 +76,7 @@ fun AIChatScreen(
         val attachments by actualViewModel.attachments.collectAsState()
         // 收集附件面板状态
         val attachmentPanelState by actualViewModel.attachmentPanelState.collectAsState()
-        
+
         // 添加WebView刷新相关状态
         val webViewNeedsRefresh by actualViewModel.webViewNeedsRefresh.collectAsState()
 
@@ -284,10 +282,10 @@ fun AIChatScreen(
 
         // 判断是否有默认配置可用
         val hasDefaultConfig =
-                apiEndpoint.isNotBlank() && apiKey.isNotBlank() && modelName.isNotBlank()
+                apiKey.isNotBlank()
 
         // 判断是否正在使用默认配置
-        val isUsingDefaultConfig = apiKey == ApiPreferences.DEFAULT_API_KEY
+        val isUsingDefaultConfig = actualViewModel.isUsingDefaultConfig()
 
         // 只有在使用默认配置且用户尚未在当前会话中确认使用默认配置时才显示配置界面
         val shouldShowConfig =
@@ -407,12 +405,12 @@ fun AIChatScreen(
                 // 根据前面的逻辑条件决定是否显示配置界面
                 if (shouldShowConfig) {
                         ConfigurationScreen(
-                                apiEndpoint = apiEndpoint,
+                                apiEndpoint = "",
                                 apiKey = apiKey,
-                                modelName = modelName,
-                                onApiEndpointChange = { actualViewModel.updateApiEndpoint(it) },
+                                modelName = "",
+                                onApiEndpointChange = { },
                                 onApiKeyChange = { actualViewModel.updateApiKey(it) },
-                                onModelNameChange = { actualViewModel.updateModelName(it) },
+                                onModelNameChange = { },
                                 onSaveConfig = {
                                         actualViewModel.saveApiSettings()
                                         // 保存配置后导航到聊天界面
