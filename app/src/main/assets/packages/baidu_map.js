@@ -2,50 +2,8 @@
 METADATA
 {
     "name": "Experimental_baidu_map",
-    "description": "百度地图工具集合，提供POI（兴趣点）和AOI（兴趣区域）数据获取接口。通过调用百度地图API，支持按名称、类别或地理范围查询地点信息、获取详细的POI数据和AOI边界坐标，基于位置的路线规划、周边设施推荐等高级功能，助力地理信息系统应用开发、位置服务和空间数据分析。",
+    "description": "百度地图工具集合，提供AOI（兴趣区域）数据获取接口。通过调用百度地图API，支持按地理范围查询AOI边界坐标，基于位置的路线规划，助力地理信息系统应用开发和空间数据分析。",
     "tools": [
-        {
-            "name": "search_poi",
-            "description": "搜索百度地图兴趣点(POI)信息",
-            "parameters": [
-                {
-                    "name": "keyword",
-                    "description": "搜索关键词，如地名、商场名称等",
-                    "type": "string",
-                    "required": true
-                },
-                {
-                    "name": "city_name",
-                    "description": "城市名称，如'北京'、'上海'等，默认全国范围",
-                    "type": "string",
-                    "required": false
-                },
-                {
-                    "name": "page",
-                    "description": "结果页码，默认为0（第一页）",
-                    "type": "number",
-                    "required": false
-                },
-                {
-                    "name": "page_size",
-                    "description": "每页结果数量，默认为10",
-                    "type": "number",
-                    "required": false
-                }
-            ]
-        },
-        {
-            "name": "get_poi_detail",
-            "description": "获取特定POI的详细信息",
-            "parameters": [
-                {
-                    "name": "uid",
-                    "description": "POI的唯一ID",
-                    "type": "string",
-                    "required": true
-                }
-            ]
-        },
         {
             "name": "search_aoi",
             "description": "搜索百度地图兴趣区域(AOI)信息",
@@ -77,66 +35,6 @@ METADATA
             ]
         },
         {
-            "name": "search_nearby",
-            "description": "搜索指定坐标附近的POI",
-            "parameters": [
-                {
-                    "name": "keyword",
-                    "description": "搜索关键词，可选",
-                    "type": "string",
-                    "required": false
-                },
-                {
-                    "name": "longitude",
-                    "description": "中心点经度",
-                    "type": "number",
-                    "required": true
-                },
-                {
-                    "name": "latitude",
-                    "description": "中心点纬度",
-                    "type": "number",
-                    "required": true
-                },
-                {
-                    "name": "radius",
-                    "description": "搜索半径，单位为米，默认1000",
-                    "type": "number",
-                    "required": false
-                }
-            ]
-        },
-        {
-            "name": "findNearbyPlaces",
-            "description": "搜索附近特定类型的地点，自动获取当前位置",
-            "parameters": [
-                {
-                    "name": "type",
-                    "description": "地点类型，如'餐厅'、'超市'、'医院'等",
-                    "type": "string",
-                    "required": true
-                },
-                {
-                    "name": "radius",
-                    "description": "搜索半径，单位为米，默认1000",
-                    "type": "number",
-                    "required": false
-                },
-                {
-                    "name": "limit",
-                    "description": "返回结果数量限制，默认10个",
-                    "type": "number",
-                    "required": false
-                },
-                {
-                    "name": "sortByDistance",
-                    "description": "是否按距离排序，默认true",
-                    "type": "boolean",
-                    "required": false
-                }
-            ]
-        },
-        {
             "name": "planRoute",
             "description": "智能路线规划，从当前位置到指定目的地",
             "parameters": [
@@ -155,29 +53,6 @@ METADATA
                 {
                     "name": "transport_mode",
                     "description": "交通方式：driving(驾车)、walking(步行)或transit(公交)，默认driving",
-                    "type": "string",
-                    "required": false
-                }
-            ]
-        },
-        {
-            "name": "getCurrentAreaInfo",
-            "description": "获取当前所在区域信息，包括位置、周边环境分析",
-            "parameters": []
-        },
-        {
-            "name": "recommendNearbyFacilities",
-            "description": "推荐附近设施，根据用户需求和时间智能推荐",
-            "parameters": [
-                {
-                    "name": "purpose",
-                    "description": "目的：eating(用餐)、shopping(购物)、entertainment(娱乐)、accommodation(住宿)、transportation(交通)",
-                    "type": "string",
-                    "required": false
-                },
-                {
-                    "name": "time_of_day",
-                    "description": "时间段：morning、noon、afternoon、evening、night，默认自动判断",
                     "type": "string",
                     "required": false
                 }
@@ -245,6 +120,58 @@ const baiduMap = (function () {
         'sec-ch-ua-platform': '"Windows"',
         'Referer': 'https://map.baidu.com/'
     };
+    // 日志级别配置
+    const LOG_LEVELS = {
+        NONE: 0, // 不输出任何日志
+        ERROR: 1, // 只输出错误信息
+        WARN: 2, // 输出警告和错误
+        INFO: 3, // 输出普通信息、警告和错误
+        DEBUG: 4, // 输出调试信息、普通信息、警告和错误
+        TRACE: 5 // 输出所有日志，包括跟踪信息
+    };
+    // 默认日志级别
+    let currentLogLevel = LOG_LEVELS.INFO;
+    /**
+     * 设置日志级别
+     */
+    function setLogLevel(level) {
+        if (level >= LOG_LEVELS.NONE && level <= LOG_LEVELS.TRACE) {
+            currentLogLevel = level;
+        }
+    }
+    /**
+     * 统一的日志输出函数
+     */
+    function logger(level, message, data) {
+        if (level > currentLogLevel)
+            return;
+        switch (level) {
+            case LOG_LEVELS.ERROR:
+                if (data instanceof Error) {
+                    console.error(`[错误] ${message}`, data.message);
+                    // 只在TRACE级别输出堆栈
+                    if (currentLogLevel >= LOG_LEVELS.TRACE) {
+                        console.error(data.stack);
+                    }
+                }
+                else {
+                    console.error(`[错误] ${message}`, data ? data : '');
+                }
+                break;
+            case LOG_LEVELS.WARN:
+                console.warn(`[警告] ${message}`, data ? data : '');
+                break;
+            case LOG_LEVELS.INFO:
+                console.log(`[信息] ${message}`, data ? data : '');
+                break;
+            case LOG_LEVELS.DEBUG:
+                console.log(`[调试] ${message}`, data ? data : '');
+                break;
+            case LOG_LEVELS.TRACE:
+                console.log(`[跟踪] ${message}`, data ? data : '');
+                break;
+        }
+    }
     /**
      * 创建HTTP客户端
      * 使用OkHttp库实现网络请求
@@ -258,6 +185,42 @@ const baiduMap = (function () {
             .build();
     }
     /**
+     * 提取JSON对象的前N层结构
+     * @param obj 要处理的对象
+     * @param maxDepth 最大深度，默认为3
+     * @returns 只包含前N层的新对象
+     */
+    function extractTopLevels(obj, maxDepth = 3) {
+        // 基本类型或null直接返回类型说明
+        if (obj === null)
+            return "null";
+        if (typeof obj !== 'object')
+            return `${typeof obj}:${String(obj).substring(0, 10)}${String(obj).length > 10 ? '...' : ''}`;
+        // 达到最大深度，返回提示信息
+        if (maxDepth <= 0) {
+            if (Array.isArray(obj)) {
+                return `[数组:${obj.length}项]`;
+            }
+            else {
+                return `{对象:${Object.keys(obj).length}键}`;
+            }
+        }
+        // 处理数组 - 只取前5个元素作为样本
+        if (Array.isArray(obj)) {
+            const sample = obj.slice(0, 5).map(item => extractTopLevels(item, maxDepth - 1));
+            if (obj.length > 5) {
+                sample.push(`...还有${obj.length - 5}项`);
+            }
+            return sample;
+        }
+        // 处理对象 - 只提取键的结构
+        const result = {};
+        for (const key of Object.keys(obj)) {
+            result[key] = extractTopLevels(obj[key], maxDepth - 1);
+        }
+        return result;
+    }
+    /**
      * 对中文进行URL编码
      */
     function encodeURIComponentSafe(str) {
@@ -265,7 +228,7 @@ const baiduMap = (function () {
             return encodeURIComponent(str);
         }
         catch (e) {
-            console.error(`编码失败: ${e.message}`);
+            logger(LOG_LEVELS.ERROR, `编码失败:`, e);
             return str;
         }
     }
@@ -281,157 +244,19 @@ const baiduMap = (function () {
             }
             try {
                 const jsonResponse = await response.json();
-                // Debug: Registrar estructura de respuesta para ayudar en depuración
-                console.log(`API响应结构: ${JSON.stringify(Object.keys(jsonResponse))}`);
+                // 提取前三层键结构
+                const keyStructure = extractTopLevels(jsonResponse, 3);
+                logger(LOG_LEVELS.INFO, `API响应(仅前三层键结构):`, JSON.stringify(keyStructure, null, 2));
                 return jsonResponse;
             }
             catch (e) {
-                console.error(`解析JSON失败: ${e.message}`);
+                logger(LOG_LEVELS.ERROR, `解析JSON失败:`, e);
                 return response.content;
             }
         }
         catch (e) {
-            console.error(`网络请求错误: ${e.message}`);
+            logger(LOG_LEVELS.ERROR, `网络请求错误:`, e);
             throw e;
-        }
-    }
-    /**
-     * 搜索百度地图POI信息
-     */
-    async function search_poi(params) {
-        try {
-            // 参数处理
-            const keyword = params.keyword;
-            if (!keyword) {
-                throw new Error("关键词不能为空");
-            }
-            // 处理城市编码
-            let cityCode = "1"; // 默认全国
-            if (params.city_name) {
-                // 使用城市名称获取城市编码
-                try {
-                    cityCode = await getCityCode(params.city_name);
-                    console.log(`使用城市 "${params.city_name}" 的编码: ${cityCode}`);
-                }
-                catch (e) {
-                    console.error(`获取城市编码失败，使用默认编码: ${e.message}`);
-                }
-            }
-            // 处理分页
-            const page = parseInt(String(params.page || 0));
-            const pageSize = parseInt(String(params.page_size || 10));
-            // 构建URL
-            const encodedKeyword = encodeURIComponentSafe(keyword);
-            const url = `https://map.baidu.com/?newmap=1&qt=s&da_src=searchBox.button&wd=${encodedKeyword}&c=${cityCode}&pn=${page}&rn=${pageSize}`;
-            console.log(`搜索POI: ${keyword}, 城市名称: ${params.city_name || '全国'}, 页码: ${page}`);
-            // 发起请求
-            const result = await httpGet(url);
-            // 处理响应
-            if (!result || !result.result || !result.result.content) {
-                return {
-                    success: true,
-                    keyword: keyword,
-                    city_name: params.city_name || '全国',
-                    page: page,
-                    page_size: pageSize,
-                    total: 0,
-                    pois: []
-                };
-            }
-            // 提取POI信息
-            const pois = result.result.content.map(item => {
-                var _a, _b, _c, _d;
-                return ({
-                    uid: item.uid || "",
-                    name: item.name || "",
-                    address: item.addr || "",
-                    province: item.province || "",
-                    city: item.city || "",
-                    area: item.area || "",
-                    telephone: item.tel || "",
-                    type: ((_a = item.std_tag) === null || _a === void 0 ? void 0 : _a.primary_industry) || "",
-                    subtype: ((_b = item.std_tag) === null || _b === void 0 ? void 0 : _b.secondary_industry) || "",
-                    longitude: item.x || 0,
-                    latitude: item.y || 0,
-                    location: {
-                        lng: item.x || 0,
-                        lat: item.y || 0
-                    },
-                    detail_url: ((_d = (_c = item.ext) === null || _c === void 0 ? void 0 : _c.detail_info) === null || _d === void 0 ? void 0 : _d.detailUrl) || ""
-                });
-            });
-            return {
-                success: true,
-                keyword: keyword,
-                city_name: params.city_name || '全国',
-                page: page,
-                page_size: pageSize,
-                total: result.result.total || 0,
-                pois: pois
-            };
-        }
-        catch (error) {
-            console.error(`[search_poi] 错误: ${error.message}`);
-            console.error(error.stack);
-            return {
-                success: false,
-                message: `搜索POI失败: ${error.message}`,
-                keyword: params.keyword
-            };
-        }
-    }
-    /**
-     * 获取POI详细信息
-     */
-    async function get_poi_detail(params) {
-        try {
-            const uid = params.uid;
-            if (!uid) {
-                throw new Error("POI的UID不能为空");
-            }
-            // 构建URL - 使用百度地图详情接口
-            const url = `https://map.baidu.com/?qt=inf&uid=${uid}`;
-            console.log(`获取POI详情: ${uid}`);
-            // 发起请求
-            const result = await httpGet(url);
-            // 处理响应
-            if (!result || !result.content || !result.content.ext) {
-                return {
-                    success: false,
-                    message: "未找到POI详情",
-                    uid: uid
-                };
-            }
-            const content = result.content;
-            const detailInfo = content.ext.detail_info || {};
-            return {
-                success: true,
-                uid: uid,
-                name: content.name || "",
-                address: content.addr || "",
-                telephone: detailInfo.phone || content.tel || "",
-                website: detailInfo.website || "",
-                business_hours: detailInfo.shop_hours || "",
-                overall_rating: detailInfo.overall_rating || 0,
-                price: detailInfo.price || "",
-                introduction: detailInfo.introduction || "",
-                tags: detailInfo.tag || [],
-                images: detailInfo.image ? detailInfo.image.map(img => img.url) : [],
-                location: {
-                    lng: content.x || 0,
-                    lat: content.y || 0
-                },
-                raw_data: content
-            };
-        }
-        catch (error) {
-            console.error(`[get_poi_detail] 错误: ${error.message}`);
-            console.error(error.stack);
-            return {
-                success: false,
-                message: `获取POI详情失败: ${error.message}`,
-                uid: params.uid
-            };
         }
     }
     /**
@@ -451,16 +276,16 @@ const baiduMap = (function () {
             if (params.city_name) {
                 // 使用动态获取城市编码功能
                 cityCode = await getCityCode(params.city_name);
-                console.log(`城市 "${params.city_name}" 对应的编码: ${cityCode}`);
+                logger(LOG_LEVELS.DEBUG, `城市 "${params.city_name}" 对应的编码:`, cityCode);
             }
             // 构建URL - 使用搜索API
             const encodedKeyword = encodeURIComponentSafe(keyword);
             const url = `https://map.baidu.com/?newmap=1&qt=s&da_src=searchBox.button&wd=${encodedKeyword}&c=${cityCode}`;
-            console.log(`搜索AOI: ${keyword}, 城市名称: ${params.city_name || '全国'}`);
+            logger(LOG_LEVELS.INFO, `搜索AOI: ${keyword}, 城市名称: ${params.city_name || '全国'}`);
             // 发起请求
             const result = await httpGet(url);
             // 记录完整响应以便调试
-            console.log(`AOI搜索结果结构: ${JSON.stringify(Object.keys(result || {}))}`);
+            logger(LOG_LEVELS.DEBUG, `AOI搜索结果结构:`, Object.keys(result || {}));
             // 主要结构检查 (result.result 或 result.content 或其他可能的结构)
             const dataContent = ((_a = result === null || result === void 0 ? void 0 : result.result) === null || _a === void 0 ? void 0 : _a.content) ||
                 (result === null || result === void 0 ? void 0 : result.content) ||
@@ -468,7 +293,7 @@ const baiduMap = (function () {
                 [];
             // 如果没有找到任何内容数据结构，返回空结果
             if (!dataContent || dataContent.length === 0) {
-                console.log(`搜索结果为空或格式不符合预期: ${JSON.stringify(result)}`);
+                logger(LOG_LEVELS.INFO, `搜索结果为空或格式不符合预期:`, result);
                 return {
                     success: true,
                     keyword: keyword,
@@ -480,7 +305,7 @@ const baiduMap = (function () {
             // 尝试多种路径查找AOI数据
             let potentialAois = [];
             if (Array.isArray(dataContent)) {
-                console.log(`找到${dataContent.length}个潜在AOI条目`);
+                logger(LOG_LEVELS.DEBUG, `找到${dataContent.length}个潜在AOI条目`);
                 // 筛选含有坐标或边界数据的地点
                 potentialAois = dataContent
                     .filter(item => {
@@ -521,7 +346,7 @@ const baiduMap = (function () {
             }
             else if (typeof dataContent === 'object') {
                 // 处理单个结果对象
-                console.log(`找到单个AOI条目`);
+                logger(LOG_LEVELS.DEBUG, `找到单个AOI条目`);
                 if (dataContent.uid) {
                     let lng = dataContent.x ||
                         (dataContent.point && dataContent.point.x) ||
@@ -549,7 +374,7 @@ const baiduMap = (function () {
                     });
                 }
             }
-            console.log(`找到${potentialAois.length}个AOI结果`);
+            logger(LOG_LEVELS.DEBUG, `找到${potentialAois.length}个AOI结果`);
             return {
                 success: true,
                 keyword: keyword,
@@ -559,8 +384,8 @@ const baiduMap = (function () {
             };
         }
         catch (error) {
-            console.error(`[search_aoi] 错误: ${error.message}`);
-            console.error(error.stack);
+            logger(LOG_LEVELS.ERROR, `[search_aoi] 错误:`, error);
+            logger(LOG_LEVELS.ERROR, `错误堆栈:`, error.stack);
             return {
                 success: false,
                 message: `搜索AOI失败: ${error.message}`,
@@ -581,18 +406,18 @@ const baiduMap = (function () {
             // 构建URL - 使用百度地图地点详情接口 (尝试两种可能的接口)
             const url = `https://map.baidu.com/?qt=ext&uid=${uid}`;
             const backupUrl = `https://map.baidu.com/?qt=inf&uid=${uid}`;
-            console.log(`获取AOI边界: ${uid}`);
+            logger(LOG_LEVELS.INFO, `获取AOI边界: ${uid}`);
             // 发起请求
             let result = await httpGet(url);
             // 记录完整响应以便调试
-            console.log(`AOI边界结果结构: ${JSON.stringify(Object.keys(result || {}))}`);
+            logger(LOG_LEVELS.DEBUG, `AOI边界结果结构:`, Object.keys(result || {}));
             // 如果主接口没返回地理数据，尝试备用接口
             if (!result || !result.content || !result.content.geo) {
-                console.log(`主接口未返回地理数据，尝试备用接口: ${backupUrl}`);
+                logger(LOG_LEVELS.INFO, `主接口未返回地理数据，尝试备用接口: ${backupUrl}`);
                 // 增加延迟避免请求过快
                 await Tools.System.sleep(500);
                 result = await httpGet(backupUrl);
-                console.log(`备用接口响应结构: ${JSON.stringify(Object.keys(result || {}))}`);
+                logger(LOG_LEVELS.DEBUG, `备用接口响应结构:`, Object.keys(result || {}));
             }
             // 仍然没有找到地理数据，返回失败
             if (!result || !result.content) {
@@ -618,7 +443,7 @@ const baiduMap = (function () {
                     lng: point.x || (typeof point[0] !== 'undefined' ? point[0] : 0),
                     lat: point.y || (typeof point[1] !== 'undefined' ? point[1] : 0)
                 }));
-                console.log(`解析到${boundary.length}个边界点`);
+                logger(LOG_LEVELS.DEBUG, `解析到${boundary.length}个边界点`);
             }
             else if (typeof geoData === 'string') {
                 // 有些接口返回字符串形式的坐标集
@@ -628,10 +453,10 @@ const baiduMap = (function () {
                         const [x, y] = pair.split(',').map(parseFloat);
                         return { lng: x || 0, lat: y || 0 };
                     });
-                    console.log(`从字符串解析到${boundary.length}个边界点`);
+                    logger(LOG_LEVELS.DEBUG, `从字符串解析到${boundary.length}个边界点`);
                 }
                 catch (e) {
-                    console.error(`解析字符串坐标失败: ${e.message}`);
+                    logger(LOG_LEVELS.ERROR, `解析字符串坐标失败:`, e);
                 }
             }
             return {
@@ -649,8 +474,8 @@ const baiduMap = (function () {
             };
         }
         catch (error) {
-            console.error(`[get_aoi_boundary] 错误: ${error.message}`);
-            console.error(error.stack);
+            logger(LOG_LEVELS.ERROR, `[get_aoi_boundary] 错误:`, error);
+            logger(LOG_LEVELS.ERROR, `错误堆栈:`, error.stack);
             return {
                 success: false,
                 message: `获取AOI边界失败: ${error.message}`,
@@ -659,100 +484,25 @@ const baiduMap = (function () {
         }
     }
     /**
-     * 搜索附近POI
-     */
-    async function search_nearby(params) {
-        try {
-            // 参数处理
-            const longitude = parseFloat(String(params.longitude));
-            const latitude = parseFloat(String(params.latitude));
-            if (isNaN(longitude) || isNaN(latitude)) {
-                throw new Error("经纬度坐标无效");
-            }
-            const keyword = params.keyword || "";
-            const radius = parseInt(String(params.radius || 1000));
-            // 构建URL - 使用百度地图周边搜索API
-            let url = `https://map.baidu.com/?qt=rgeoc&b=${longitude - 0.05},${latitude - 0.05};${longitude + 0.05},${latitude + 0.05}&l=18`;
-            if (keyword) {
-                const encodedKeyword = encodeURIComponentSafe(keyword);
-                url = `https://map.baidu.com/?qt=nb&wd=${encodedKeyword}&cen=${longitude},${latitude}&radius=${radius}&l=18`;
-            }
-            console.log(`搜索附近POI: 坐标(${longitude}, ${latitude}), 半径: ${radius}米`);
-            // 发起请求
-            const result = await httpGet(url);
-            // 处理响应
-            let pois = [];
-            if (keyword && result && result.content && result.content.length > 0) {
-                // 关键词搜索结果
-                pois = result.content.map(item => {
-                    var _a;
-                    return ({
-                        uid: item.uid || "",
-                        name: item.name || "",
-                        address: item.addr || "",
-                        distance: item.dist || 0, // 距离中心点的距离
-                        type: ((_a = item.std_tag) === null || _a === void 0 ? void 0 : _a.primary_industry) || "",
-                        telephone: item.tel || "",
-                        location: {
-                            lng: item.x || 0,
-                            lat: item.y || 0
-                        }
-                    });
-                });
-            }
-            else if (result && result.content && result.content.poi_count > 0) {
-                // 周边地点搜索结果
-                pois = (result.content.poi || []).map(item => ({
-                    uid: item.uid || "",
-                    name: item.name || "",
-                    address: item.addr || "",
-                    distance: item.d || 0, // 距离中心点的距离
-                    type: item.poiType || "",
-                    location: {
-                        lng: item.point && item.point.x ? item.point.x : 0,
-                        lat: item.point && item.point.y ? item.point.y : 0
-                    }
-                }));
-            }
-            return {
-                success: true,
-                keyword: keyword,
-                center: {
-                    lng: longitude,
-                    lat: latitude
-                },
-                radius: radius,
-                count: pois.length,
-                pois: pois
-            };
-        }
-        catch (error) {
-            console.error(`[search_nearby] 错误: ${error.message}`);
-            console.error(error.stack);
-            return {
-                success: false,
-                message: `搜索附近POI失败: ${error.message}`,
-                center: {
-                    lng: params.longitude,
-                    lat: params.latitude
-                }
-            };
-        }
-    }
-    /**
      * 包装函数 - 统一处理所有百度地图工具函数的返回结果
      */
     async function map_wrap(func, params, successMessage, failMessage, additionalInfo = "") {
         try {
-            console.log(`开始执行函数: ${func.name || '匿名函数'}`);
-            console.log(`参数:`, JSON.stringify(params, null, 2));
+            logger(LOG_LEVELS.DEBUG, `开始执行函数: ${func.name || '匿名函数'}`);
+            logger(LOG_LEVELS.TRACE, `参数:`, params);
             // 处理getCityCode参数特殊情况
             if (func === getCityCode && typeof params === 'string') {
                 params = { city_name: params };
             }
             // 执行原始函数
             const result = await func(params);
-            console.log(`函数 ${func.name || '匿名函数'} 执行结果:`, JSON.stringify(result, null, 2));
+            // 仅在TRACE级别输出完整结果
+            logger(LOG_LEVELS.TRACE, `函数 ${func.name || '匿名函数'} 执行结果:`, result);
+            // 在INFO级别只输出简化结果
+            if (currentLogLevel === LOG_LEVELS.INFO && result) {
+                const simplified = Object.assign(Object.assign(Object.assign({ success: result.success, message: result.message }, (result.pois ? { pois_count: result.pois.length } : {})), (result.aois ? { aois_count: result.aois.length } : {})), (result.boundary ? { boundary_points: result.boundary.length } : {}));
+                logger(LOG_LEVELS.INFO, `函数 ${func.name || '匿名函数'} 执行完成:`, simplified);
+            }
             // 如果原始函数已经调用了complete，就不需要再次调用
             if (result === undefined)
                 return;
@@ -777,9 +527,7 @@ const baiduMap = (function () {
         }
         catch (error) {
             // 详细记录错误信息
-            console.error(`函数 ${func.name || '匿名函数'} 执行失败!`);
-            console.error(`错误信息: ${error.message}`);
-            console.error(`错误堆栈: ${error.stack}`);
+            logger(LOG_LEVELS.ERROR, `函数 ${func.name || '匿名函数'} 执行失败:`, error);
             // 处理错误
             complete({
                 success: false,
@@ -793,52 +541,27 @@ const baiduMap = (function () {
      * 测试和展示所有功能
      */
     async function main() {
-        var _a, _b, _c, _d;
+        var _a, _b, _c;
         try {
             const results = {};
-            console.log("========== 百度地图工具集合测试 ==========");
-            // 1. 测试POI搜索 - 搜索一个知名地点
-            console.log("\n[1] 测试POI搜索...");
-            try {
-                const poiResult = await search_poi({
-                    keyword: "故宫博物院",
-                    city_name: "北京"
-                });
-                console.log(`✓ 搜索成功，找到 ${poiResult.total} 个结果`);
-                if (poiResult.pois && poiResult.pois.length > 0) {
-                    const poi = poiResult.pois[0];
-                    console.log(`   名称: ${poi.name}`);
-                    console.log(`   地址: ${poi.address}`);
-                    console.log(`   坐标: (${poi.location.lng}, ${poi.location.lat})`);
-                }
-                results.poi_search = {
-                    success: poiResult.success,
-                    total: poiResult.total,
-                    first_result: (_a = poiResult.pois) === null || _a === void 0 ? void 0 : _a[0]
-                };
-            }
-            catch (error) {
-                console.log(`✗ POI搜索失败: ${error.message}`);
-                results.poi_search = { error: error.message };
-            }
-            await Tools.System.sleep(1000);
-            // 2. 测试AOI搜索和边界获取
-            console.log("\n[2] 测试AOI搜索和边界获取...");
+            logger(LOG_LEVELS.INFO, "========== 百度地图工具集合测试 ==========");
+            // 测试AOI搜索和边界获取
+            logger(LOG_LEVELS.INFO, "\n[1] 测试AOI搜索和边界获取...");
             try {
                 const aoiResult = await search_aoi({
                     keyword: "颐和园",
                     city_name: "北京"
                 });
-                console.log(`✓ AOI搜索成功，找到 ${aoiResult.total} 个结果`);
+                logger(LOG_LEVELS.INFO, `✓ AOI搜索成功，找到 ${aoiResult.total} 个结果`);
                 if (aoiResult.aois && aoiResult.aois.length > 0) {
                     const aoi = aoiResult.aois[0];
-                    console.log(`   名称: ${aoi.name}`);
-                    console.log(`   地址: ${aoi.address}`);
+                    logger(LOG_LEVELS.INFO, `   名称: ${aoi.name}`);
+                    logger(LOG_LEVELS.INFO, `   地址: ${aoi.address}`);
                     // 获取边界
                     if (aoi.uid) {
                         const boundaryResult = await get_aoi_boundary({ uid: aoi.uid });
                         if (boundaryResult.success && boundaryResult.boundary) {
-                            console.log(`   成功获取边界坐标，共 ${boundaryResult.boundary.length} 个点`);
+                            logger(LOG_LEVELS.INFO, `   成功获取边界坐标，共 ${boundaryResult.boundary.length} 个点`);
                             aoiResult.boundary = boundaryResult;
                         }
                     }
@@ -846,57 +569,27 @@ const baiduMap = (function () {
                 results.aoi_search = {
                     success: aoiResult.success,
                     total: aoiResult.total,
-                    first_result: (_b = aoiResult.aois) === null || _b === void 0 ? void 0 : _b[0],
+                    first_result: (_a = aoiResult.aois) === null || _a === void 0 ? void 0 : _a[0],
                     boundary: aoiResult.boundary
                 };
             }
             catch (error) {
-                console.log(`✗ AOI搜索失败: ${error.message}`);
+                logger(LOG_LEVELS.INFO, `✗ AOI搜索失败: ${error.message}`);
                 results.aoi_search = { error: error.message };
             }
             await Tools.System.sleep(1000);
-            // 3. 测试附近搜索 - 使用天安门坐标
-            console.log("\n[3] 测试附近POI搜索...");
-            try {
-                // 天安门坐标
-                const longitude = 116.397428;
-                const latitude = 39.90923;
-                const nearbyResult = await search_nearby({
-                    keyword: "餐厅",
-                    longitude: longitude,
-                    latitude: latitude,
-                    radius: 1000
-                });
-                console.log(`✓ 附近搜索成功，在天安门周边1公里发现 ${nearbyResult.count} 个餐厅`);
-                if (nearbyResult.pois && nearbyResult.pois.length > 0) {
-                    console.log("   附近餐厅示例:");
-                    nearbyResult.pois.slice(0, 3).forEach((poi, index) => {
-                        console.log(`   ${index + 1}. ${poi.name} (距离: ${poi.distance}米)`);
-                    });
-                }
-                results.nearby_search = {
-                    success: nearbyResult.success,
-                    count: nearbyResult.count,
-                    sample_results: (_c = nearbyResult.pois) === null || _c === void 0 ? void 0 : _c.slice(0, 3)
-                };
-            }
-            catch (error) {
-                console.log(`✗ 附近搜索失败: ${error.message}`);
-                results.nearby_search = { error: error.message };
-            }
-            await Tools.System.sleep(1000);
-            // 4. 测试高级功能 - getAoiByName
-            console.log("\n[4] 测试高级功能 - 按名称获取AOI...");
+            // 测试高级功能 - getAoiByName
+            logger(LOG_LEVELS.INFO, "\n[2] 测试高级功能 - 按名称获取AOI...");
             try {
                 const aoiInfo = await getAoiByName({
                     name: "北京大学",
                     city_name: "北京"
                 });
-                console.log("✓ 通过名称获取AOI成功");
+                logger(LOG_LEVELS.INFO, "✓ 通过名称获取AOI成功");
                 if (aoiInfo.success && aoiInfo.aoi_info) {
-                    console.log(`   名称: ${aoiInfo.aoi_info.name}`);
-                    console.log(`   地址: ${aoiInfo.aoi_info.address}`);
-                    console.log(`   边界点数: ${((_d = aoiInfo.aoi_info.boundary) === null || _d === void 0 ? void 0 : _d.length) || 0}`);
+                    logger(LOG_LEVELS.INFO, `   名称: ${aoiInfo.aoi_info.name}`);
+                    logger(LOG_LEVELS.INFO, `   地址: ${aoiInfo.aoi_info.address}`);
+                    logger(LOG_LEVELS.INFO, `   边界点数: ${((_b = aoiInfo.aoi_info.boundary) === null || _b === void 0 ? void 0 : _b.length) || 0}`);
                 }
                 results.advanced_feature = {
                     success: aoiInfo.success,
@@ -904,14 +597,46 @@ const baiduMap = (function () {
                 };
             }
             catch (error) {
-                console.log(`✗ 高级功能测试失败: ${error.message}`);
+                logger(LOG_LEVELS.INFO, `✗ 高级功能测试失败: ${error.message}`);
                 results.advanced_feature = { error: error.message };
             }
-            console.log("\n========== 测试完成 ==========");
+            await Tools.System.sleep(1000);
+            // 测试路径规划功能
+            logger(LOG_LEVELS.INFO, "\n[3] 测试路径规划功能...");
+            try {
+                const routeResult = await planRoute({
+                    destination: "故宫博物院",
+                    city_name: "北京",
+                    transport_mode: "driving"
+                });
+                if (routeResult.success) {
+                    logger(LOG_LEVELS.INFO, "✓ 路径规划成功");
+                    logger(LOG_LEVELS.INFO, `   目的地: ${routeResult.destination.name}`);
+                    logger(LOG_LEVELS.INFO, `   地址: ${routeResult.destination.address}`);
+                    logger(LOG_LEVELS.INFO, `   预估距离: ${routeResult.estimated_distance}`);
+                    logger(LOG_LEVELS.INFO, `   预估时间: ${routeResult.estimated_duration}`);
+                    logger(LOG_LEVELS.INFO, `   交通方式: ${routeResult.transport_mode}`);
+                    logger(LOG_LEVELS.INFO, `   建议: ${routeResult.suggestion}`);
+                }
+                else {
+                    logger(LOG_LEVELS.INFO, `✗ 路径规划失败: ${routeResult.message}`);
+                }
+                results.route_planning = {
+                    success: routeResult.success,
+                    destination: (_c = routeResult.destination) === null || _c === void 0 ? void 0 : _c.name,
+                    distance: routeResult.estimated_distance,
+                    duration: routeResult.estimated_duration
+                };
+            }
+            catch (error) {
+                logger(LOG_LEVELS.INFO, `✗ 路径规划测试失败: ${error.message}`);
+                results.route_planning = { error: error.message };
+            }
+            logger(LOG_LEVELS.INFO, "\n========== 测试完成 ==========");
             // 返回测试结果摘要
             return {
                 message: "百度地图功能测试完成",
-                summary: "测试了POI搜索、AOI搜索与边界获取、附近POI搜索和高级功能",
+                summary: "测试了AOI搜索与边界获取、按名称获取AOI和路径规划功能",
                 timestamp: new Date().toISOString(),
                 test_results: results
             };
@@ -929,10 +654,10 @@ const baiduMap = (function () {
      */
     async function getCurrentLocation() {
         try {
-            console.log("正在获取用户当前位置...");
+            logger(LOG_LEVELS.INFO, "正在获取用户当前位置...");
             const locationResult = await Tools.System.getLocation();
             if (!locationResult) {
-                console.error("获取位置失败:", "未知错误");
+                logger(LOG_LEVELS.ERROR, "获取位置失败:", "未知错误");
                 return null;
             }
             // 获取成功，返回经纬度
@@ -942,68 +667,8 @@ const baiduMap = (function () {
             };
         }
         catch (error) {
-            console.error("获取位置出错:", error.message);
+            logger(LOG_LEVELS.ERROR, "获取位置出错:", error.message);
             return null;
-        }
-    }
-    /**
-     * 查找附近的特定类型地点
-     * 高级封装函数，自动获取用户当前位置，并搜索附近指定类型的地点
-     */
-    async function findNearbyPlaces(params) {
-        try {
-            // 获取用户当前位置
-            const currentLocation = await getCurrentLocation();
-            if (!currentLocation) {
-                return {
-                    success: false,
-                    message: "无法获取当前位置信息",
-                    places: []
-                };
-            }
-            // 调用附近搜索API
-            const nearbyResult = await search_nearby({
-                keyword: params.type,
-                longitude: currentLocation.lng,
-                latitude: currentLocation.lat,
-                radius: params.radius || 1000
-            });
-            if (!nearbyResult.success) {
-                return nearbyResult;
-            }
-            // 处理结果
-            let places = nearbyResult.pois || [];
-            // 按距离排序
-            if (params.sortByDistance !== false && places.length > 0) {
-                places.sort((a, b) => (a.distance || 0) - (b.distance || 0));
-            }
-            // 限制返回数量
-            if (params.limit && places.length > params.limit) {
-                places = places.slice(0, params.limit);
-            }
-            // 返回处理后的结果
-            return {
-                success: true,
-                current_location: currentLocation,
-                type: params.type,
-                radius: params.radius || 1000,
-                places_count: places.length,
-                places: places.map(poi => ({
-                    name: poi.name,
-                    address: poi.address,
-                    distance: `${poi.distance}米`,
-                    telephone: poi.telephone || "暂无",
-                    location: poi.location
-                }))
-            };
-        }
-        catch (error) {
-            console.error(`[findNearbyPlaces] 错误: ${error.message}`);
-            return {
-                success: false,
-                message: `查找附近${params.type}失败: ${error.message}`,
-                places: []
-            };
         }
     }
     /**
@@ -1020,22 +685,28 @@ const baiduMap = (function () {
                     message: "无法获取当前位置信息"
                 };
             }
-            // 先搜索目的地POI
-            const poiResult = await search_poi({
+            // 使用search_aoi查找目的地
+            const searchResults = await search_aoi({
                 keyword: params.destination,
-                city_name: params.city_name,
-                page: 0,
-                page_size: 1 // 只需要最匹配的一个结果
+                city_name: params.city_name
             });
-            if (!poiResult.success || !poiResult.pois || poiResult.pois.length === 0) {
+            if (!searchResults.success || !searchResults.aois || searchResults.aois.length === 0) {
                 return {
                     success: false,
                     message: `未能找到目的地: ${params.destination}`,
                     current_location: currentLocation
                 };
             }
-            const destination = poiResult.pois[0];
-            const destLocation = destination.location;
+            const destination = searchResults.aois[0];
+            const destLocation = destination.center;
+            // 检查目的地坐标是否有效
+            if (!destLocation || !destLocation.lng || !destLocation.lat) {
+                return {
+                    success: false,
+                    message: `目的地坐标信息无效: ${params.destination}`,
+                    current_location: currentLocation
+                };
+            }
             // 计算直线距离（简单估算，不是实际路程）
             const distance = calculateDistance(currentLocation.lat, currentLocation.lng, destLocation.lat, destLocation.lng);
             // 构建导航链接（使用百度地图APP或网页版导航）
@@ -1062,250 +733,10 @@ const baiduMap = (function () {
             };
         }
         catch (error) {
-            console.error(`[planRoute] 错误: ${error.message}`);
+            logger(LOG_LEVELS.ERROR, `[planRoute] 错误:`, error);
             return {
                 success: false,
                 message: `路线规划失败: ${error.message}`
-            };
-        }
-    }
-    /**
-     * 提供当前所在区域信息
-     * 高级封装函数，根据用户位置提供周边环境分析
-     */
-    async function getCurrentAreaInfo() {
-        var _a, _b, _c;
-        try {
-            // 获取用户当前位置
-            const currentLocation = await getCurrentLocation();
-            if (!currentLocation) {
-                return {
-                    success: false,
-                    message: "无法获取当前位置信息"
-                };
-            }
-            // 获取周边地理信息
-            const url = `https://map.baidu.com/?qt=rgeoc&b=${currentLocation.lng - 0.005},${currentLocation.lat - 0.005};${currentLocation.lng + 0.005},${currentLocation.lat + 0.005}&l=18`;
-            const result = await httpGet(url);
-            if (!result || !result.content) {
-                return {
-                    success: false,
-                    message: "未能获取周边地理信息",
-                    current_location: currentLocation
-                };
-            }
-            // 提取位置信息
-            const geoInfo = result.content;
-            const address = geoInfo.address || "未知位置";
-            const district = ((_a = geoInfo.address_detail) === null || _a === void 0 ? void 0 : _a.district) || "";
-            const street = ((_b = geoInfo.address_detail) === null || _b === void 0 ? void 0 : _b.street) || "";
-            const streetNumber = ((_c = geoInfo.address_detail) === null || _c === void 0 ? void 0 : _c.street_number) || "";
-            // 尝试获取周边POI信息
-            const nearbyPois = await search_nearby({
-                longitude: currentLocation.lng,
-                latitude: currentLocation.lat,
-                radius: 500
-            });
-            // 分析周边地点类型
-            const poiTypes = {};
-            if (nearbyPois.success && nearbyPois.pois && nearbyPois.pois.length > 0) {
-                nearbyPois.pois.forEach(poi => {
-                    if (poi.type) {
-                        poiTypes[poi.type] = (poiTypes[poi.type] || 0) + 1;
-                    }
-                });
-            }
-            // 确定区域类型
-            let areaType = "未知区域";
-            let areaDescription = "无法确定当前区域特征";
-            const typeCount = Object.entries(poiTypes).sort((a, b) => b[1] - a[1]);
-            if (typeCount.length > 0) {
-                const dominantType = typeCount[0][0];
-                if (/商场|购物|超市/.test(dominantType)) {
-                    areaType = "商业区";
-                    areaDescription = "您所在区域是商业繁华地带，周边有多家商场和店铺";
-                }
-                else if (/住宅|小区|公寓/.test(dominantType)) {
-                    areaType = "居住区";
-                    areaDescription = "您所在区域是居民住宅区，环境较为安静";
-                }
-                else if (/办公|企业|公司/.test(dominantType)) {
-                    areaType = "办公区";
-                    areaDescription = "您所在区域是商务办公区，周边有多家企业和写字楼";
-                }
-                else if (/学校|大学|教育/.test(dominantType)) {
-                    areaType = "教育区";
-                    areaDescription = "您所在区域靠近教育机构，周边有学校或培训中心";
-                }
-                else if (/医院|诊所|医疗/.test(dominantType)) {
-                    areaType = "医疗区";
-                    areaDescription = "您所在区域靠近医疗机构，周边有医院或诊所";
-                }
-                else if (/公园|景点|旅游/.test(dominantType)) {
-                    areaType = "休闲娱乐区";
-                    areaDescription = "您所在区域是休闲娱乐场所，适合游玩和放松";
-                }
-                else if (/餐饮|餐厅|美食/.test(dominantType)) {
-                    areaType = "餐饮区";
-                    areaDescription = "您所在区域有丰富的餐饮选择，适合用餐";
-                }
-                else {
-                    areaType = dominantType;
-                    areaDescription = `您所在区域主要是${dominantType}集中的地方`;
-                }
-            }
-            return {
-                success: true,
-                current_location: currentLocation,
-                address: address,
-                district: district,
-                street: street + (streetNumber ? ` ${streetNumber}号` : ""),
-                area_type: areaType,
-                area_description: areaDescription,
-                nearby_categories: typeCount.slice(0, 5).map(([type, count]) => ({
-                    type: type,
-                    count: count
-                })),
-                nearby_landmarks: nearbyPois.success && nearbyPois.pois ?
-                    nearbyPois.pois.slice(0, 3).map(poi => ({
-                        name: poi.name,
-                        distance: `${poi.distance}米`,
-                        type: poi.type
-                    })) : []
-            };
-        }
-        catch (error) {
-            console.error(`[getCurrentAreaInfo] 错误: ${error.message}`);
-            return {
-                success: false,
-                message: `获取当前区域信息失败: ${error.message}`
-            };
-        }
-    }
-    /**
-     * 推荐附近设施
-     * 高级封装函数，根据用户需求智能推荐当前位置周边设施
-     */
-    async function recommendNearbyFacilities(params) {
-        try {
-            const purpose = params.purpose || "eating";
-            const timeOfDay = params.time_of_day || getCurrentTimeOfDay();
-            // 获取用户当前位置
-            const currentLocation = await getCurrentLocation();
-            if (!currentLocation) {
-                return {
-                    success: false,
-                    message: "无法获取当前位置信息"
-                };
-            }
-            // 根据目的和时间段确定要搜索的关键词
-            const keywordMap = {
-                eating: {
-                    morning: "早餐 早点",
-                    noon: "午餐 快餐",
-                    afternoon: "下午茶 咖啡厅",
-                    evening: "晚餐 餐厅",
-                    night: "夜宵 烧烤"
-                },
-                shopping: {
-                    morning: "超市 便利店",
-                    noon: "商场 购物中心",
-                    afternoon: "商场 购物中心",
-                    evening: "超市 便利店",
-                    night: "便利店 24小时"
-                },
-                entertainment: {
-                    morning: "公园 博物馆",
-                    noon: "电影院 购物中心",
-                    afternoon: "景点 游乐场",
-                    evening: "KTV 酒吧",
-                    night: "酒吧 夜店"
-                },
-                accommodation: {
-                    morning: "酒店 民宿",
-                    noon: "酒店 旅馆",
-                    afternoon: "酒店 公寓",
-                    evening: "酒店 旅馆",
-                    night: "快捷酒店 24小时"
-                },
-                transportation: {
-                    morning: "地铁站 公交站",
-                    noon: "出租车 网约车",
-                    afternoon: "地铁站 公交站",
-                    evening: "地铁站 出租车",
-                    night: "网约车 出租车"
-                }
-            };
-            const keyword = keywordMap[purpose][timeOfDay];
-            // 搜索附近设施
-            const nearbyResult = await search_nearby({
-                keyword: keyword,
-                longitude: currentLocation.lng,
-                latitude: currentLocation.lat,
-                radius: 1000
-            });
-            if (!nearbyResult.success || !nearbyResult.pois || nearbyResult.pois.length === 0) {
-                return {
-                    success: false,
-                    message: `未找到符合条件的设施`,
-                    purpose: purpose,
-                    time_of_day: timeOfDay,
-                    current_location: currentLocation
-                };
-            }
-            // 处理结果，按距离排序
-            let facilities = nearbyResult.pois;
-            facilities.sort((a, b) => (a.distance || 0) - (b.distance || 0));
-            // 生成推荐原因
-            const generateReason = (poi, index) => {
-                if (index === 0)
-                    return "距离最近，步行可达";
-                if (poi.type.includes("品牌"))
-                    return "知名品牌，服务有保障";
-                if (index < 3)
-                    return "距离较近，位置便捷";
-                return "在您附近，可供选择";
-            };
-            const recommendations = facilities.slice(0, 5).map((poi, index) => ({
-                name: poi.name,
-                address: poi.address,
-                distance: `${poi.distance}米`,
-                estimated_time: `步行约${Math.ceil(poi.distance / 80)}分钟`,
-                type: poi.type,
-                contact: poi.telephone || "暂无联系方式",
-                reason: generateReason(poi, index),
-                location: poi.location
-            }));
-            const purposeText = {
-                eating: "用餐",
-                shopping: "购物",
-                entertainment: "娱乐",
-                accommodation: "住宿",
-                transportation: "交通"
-            };
-            const timeText = {
-                morning: "早晨",
-                noon: "中午",
-                afternoon: "下午",
-                evening: "傍晚",
-                night: "夜间"
-            };
-            return {
-                success: true,
-                purpose: purposeText[purpose],
-                time_of_day: timeText[timeOfDay],
-                current_location: currentLocation,
-                keyword_used: keyword,
-                recommendation_count: recommendations.length,
-                recommendations: recommendations,
-                suggestion: `为您推荐了${recommendations.length}个适合${timeText[timeOfDay]}${purposeText[purpose]}的地点，距离您最近的是${recommendations[0].name}，${recommendations[0].estimated_time}可到达。`
-            };
-        }
-        catch (error) {
-            console.error(`[recommendNearbyFacilities] 错误: ${error.message}`);
-            return {
-                success: false,
-                message: `推荐附近设施失败: ${error.message}`
             };
         }
     }
@@ -1354,19 +785,6 @@ const baiduMap = (function () {
             return "目的地较远，建议驾车或使用公共交通工具";
         }
     }
-    // 工具函数：获取当前时间段
-    function getCurrentTimeOfDay() {
-        const hour = new Date().getHours();
-        if (hour >= 5 && hour < 10)
-            return "morning";
-        if (hour >= 10 && hour < 14)
-            return "noon";
-        if (hour >= 14 && hour < 18)
-            return "afternoon";
-        if (hour >= 18 && hour < 22)
-            return "evening";
-        return "night";
-    }
     /**
      * 按名称获取AOI详细信息和边界
      * 基于CSDN文章 https://blog.csdn.net/Jacey_cai/article/details/131524758
@@ -1374,7 +792,7 @@ const baiduMap = (function () {
      */
     async function getAoiByName(params) {
         try {
-            console.log(`开始通过名称查找AOI: ${params.name}`);
+            logger(LOG_LEVELS.INFO, `开始通过名称查找AOI: ${params.name}`);
             // 参数预处理
             const name = params.name;
             if (!name) {
@@ -1385,7 +803,7 @@ const baiduMap = (function () {
             if (params.city_name) {
                 // 使用新函数动态获取城市编码
                 cityCode = await getCityCode(params.city_name);
-                console.log(`城市 "${params.city_name}" 对应的编码: ${cityCode}`);
+                logger(LOG_LEVELS.DEBUG, `城市 "${params.city_name}" 对应的编码:`, cityCode);
             }
             const needBoundary = params.need_boundary !== false;
             // 第一步：搜索AOI获取uid
@@ -1401,7 +819,7 @@ const baiduMap = (function () {
                     city_name: params.city_name
                 };
             }
-            console.log(`找到${searchResults.aois.length}个匹配"${name}"的AOI结果`);
+            logger(LOG_LEVELS.DEBUG, `找到${searchResults.aois.length}个匹配"${name}"的AOI结果`);
             // 找出最匹配的AOI（通常是第一个结果）
             // 如果需要更精确匹配，可以在这里添加名称相似度比较逻辑
             const bestMatch = searchResults.aois[0];
@@ -1419,19 +837,19 @@ const baiduMap = (function () {
             if (needBoundary && bestMatch.uid) {
                 // 增加延迟以避免请求过快被限制
                 await Tools.System.sleep(1000);
-                console.log(`开始获取AOI边界: ${bestMatch.uid} (${bestMatch.name})`);
+                logger(LOG_LEVELS.DEBUG, `开始获取AOI边界: ${bestMatch.uid} (${bestMatch.name})`);
                 try {
                     const boundaryResult = await get_aoi_boundary({ uid: bestMatch.uid });
                     if (boundaryResult.success && boundaryResult.boundary) {
                         aoiInfo.boundary = boundaryResult.boundary;
-                        console.log(`成功获取AOI边界，共${boundaryResult.boundary.length}个坐标点`);
+                        logger(LOG_LEVELS.DEBUG, `成功获取AOI边界，共${boundaryResult.boundary.length}个坐标点`);
                     }
                     else {
-                        console.log(`获取边界返回成功但未找到边界数据`);
+                        logger(LOG_LEVELS.DEBUG, `获取边界返回成功但未找到边界数据`);
                     }
                 }
                 catch (error) {
-                    console.error(`获取AOI边界出错: ${error.message}`);
+                    logger(LOG_LEVELS.ERROR, `获取AOI边界出错:`, error);
                     // 即使边界获取失败，仍然返回基本信息
                 }
             }
@@ -1449,7 +867,7 @@ const baiduMap = (function () {
             };
         }
         catch (error) {
-            console.error(`[getAoiByName] 错误: ${error.message}`);
+            logger(LOG_LEVELS.ERROR, `[getAoiByName] 错误:`, error);
             return {
                 success: false,
                 message: `获取AOI失败: ${error.message}`,
@@ -1465,35 +883,35 @@ const baiduMap = (function () {
      */
     async function getCityCode(cityName) {
         try {
-            console.log(`开始查询城市编码: ${cityName}`);
+            logger(LOG_LEVELS.INFO, `开始查询城市编码: ${cityName}`);
             // 如果已在本地映射表中，直接返回
             if (CITY_CODES[cityName]) {
-                console.log(`本地映射表中找到城市"${cityName}"的编码: ${CITY_CODES[cityName]}`);
+                logger(LOG_LEVELS.DEBUG, `本地映射表中找到城市"${cityName}"的编码:`, CITY_CODES[cityName]);
                 return CITY_CODES[cityName];
             }
             // 使用百度地图API查询城市信息
             const encodedCityName = encodeURIComponentSafe(cityName);
             const url = `https://map.baidu.com/?newmap=1&qt=s&wd=${encodedCityName}&c=1`;
-            console.log(`发送请求获取城市编码: ${url}`);
+            logger(LOG_LEVELS.INFO, `发送请求获取城市编码:`, url);
             const result = await httpGet(url);
             // 尝试从不同路径提取城市编码
             let cityCode = "1"; // 默认值
             // 路径1: current_city.code
             if (result && result.current_city && result.current_city.code) {
                 cityCode = result.current_city.code.toString();
-                console.log(`从current_city中找到城市编码: ${cityCode}`);
+                logger(LOG_LEVELS.DEBUG, `从current_city中找到城市编码:`, cityCode);
             }
             // 路径2: content[].area_code 或 city_id
             else if (result && result.content && Array.isArray(result.content) && result.content.length > 0) {
                 for (const item of result.content) {
                     if (item.area_code) {
                         cityCode = item.area_code.toString();
-                        console.log(`从content[].area_code中找到城市编码: ${cityCode}`);
+                        logger(LOG_LEVELS.DEBUG, `从content[].area_code中找到城市编码:`, cityCode);
                         break;
                     }
                     else if (item.city_id) {
                         cityCode = item.city_id.toString();
-                        console.log(`从content[].city_id中找到城市编码: ${cityCode}`);
+                        logger(LOG_LEVELS.DEBUG, `从content[].city_id中找到城市编码:`, cityCode);
                         break;
                     }
                 }
@@ -1501,59 +919,56 @@ const baiduMap = (function () {
             // 路径3: result_code
             else if (result && result.result && result.result.code) {
                 cityCode = result.result.code.toString();
-                console.log(`从result.code中找到城市编码: ${cityCode}`);
+                logger(LOG_LEVELS.DEBUG, `从result.code中找到城市编码:`, cityCode);
             }
             // 路径4: result.city_id
             else if (result && result.result && result.result.city_id) {
                 cityCode = result.result.city_id.toString();
-                console.log(`从result.city_id中找到城市编码: ${cityCode}`);
+                logger(LOG_LEVELS.DEBUG, `从result.city_id中找到城市编码:`, cityCode);
             }
             // 如果没找到，尝试第二个API端点
             if (cityCode === "1") {
                 // 使用城市搜索API
                 const secondUrl = `https://map.baidu.com/?qt=cur&wd=${encodedCityName}`;
-                console.log(`未找到编码，尝试第二个API端点: ${secondUrl}`);
+                logger(LOG_LEVELS.DEBUG, `未找到编码，尝试第二个API端点:`, secondUrl);
                 try {
                     // 增加延迟避免请求过快
                     await Tools.System.sleep(500);
                     const secondResult = await httpGet(secondUrl);
                     if (secondResult && secondResult.current_city && secondResult.current_city.code) {
                         cityCode = secondResult.current_city.code.toString();
-                        console.log(`从第二个API获取到城市编码: ${cityCode}`);
+                        logger(LOG_LEVELS.DEBUG, `从第二个API获取到城市编码:`, cityCode);
                     }
                 }
                 catch (e) {
-                    console.error(`第二个API请求失败: ${e.message}`);
+                    logger(LOG_LEVELS.ERROR, `第二个API请求失败:`, e);
                 }
             }
             // 如果仍未找到，使用默认值
             if (cityCode === "1") {
-                console.log(`未能找到城市"${cityName}"的编码，使用默认编码"1"(全国)`);
+                logger(LOG_LEVELS.INFO, `未能找到城市"${cityName}"的编码，使用默认编码"1"(全国)`);
             }
             else {
                 // 找到编码后，可以临时添加到CITY_CODES中供本次会话使用
                 CITY_CODES[cityName] = cityCode;
-                console.log(`已将城市"${cityName}"的编码${cityCode}添加到临时映射表`);
+                logger(LOG_LEVELS.DEBUG, `已将城市"${cityName}"的编码${cityCode}添加到临时映射表`);
             }
             return cityCode;
         }
         catch (error) {
-            console.error(`获取城市编码失败: ${error.message}`);
+            logger(LOG_LEVELS.ERROR, `获取城市编码失败:`, error);
             return "1"; // 出错时返回默认编码(全国)
         }
     }
     return {
+        // 日志控制API
+        setLogLevel: (level) => setLogLevel(level),
+        LOG_LEVELS: LOG_LEVELS,
         // 基础API
-        search_poi: async (params) => await map_wrap(search_poi, params, "POI搜索成功", "POI搜索失败"),
-        get_poi_detail: async (params) => await map_wrap(get_poi_detail, params, "获取POI详情成功", "获取POI详情失败"),
         search_aoi: async (params) => await map_wrap(search_aoi, params, "AOI搜索成功", "AOI搜索失败"),
         get_aoi_boundary: async (params) => await map_wrap(get_aoi_boundary, params, "获取AOI边界成功", "获取AOI边界失败"),
-        search_nearby: async (params) => await map_wrap(search_nearby, params, "附近POI搜索成功", "附近POI搜索失败"),
         // 高级封装API - 更适合AI使用
-        findNearbyPlaces: async (params) => await map_wrap(findNearbyPlaces, params, "查找附近地点成功", "查找附近地点失败", "基于您当前位置的周边地点查询"),
         planRoute: async (params) => await map_wrap(planRoute, params, "路线规划成功", "路线规划失败", "从您当前位置到目的地的路线"),
-        getCurrentAreaInfo: async (params) => await map_wrap(getCurrentAreaInfo, params, "获取当前区域信息成功", "获取当前区域信息失败", "您所在区域的环境分析"),
-        recommendNearbyFacilities: async (params) => await map_wrap(recommendNearbyFacilities, params, "设施推荐成功", "设施推荐失败", "基于您当前情况的场所推荐"),
         // 测试函数
         main: async (params) => await map_wrap(main, params, "测试完成", "测试失败"),
         // 新增功能
@@ -1561,15 +976,11 @@ const baiduMap = (function () {
     };
 })();
 // 逐个导出
-exports.search_poi = baiduMap.search_poi;
-exports.get_poi_detail = baiduMap.get_poi_detail;
+exports.setLogLevel = baiduMap.setLogLevel;
+exports.LOG_LEVELS = baiduMap.LOG_LEVELS;
 exports.search_aoi = baiduMap.search_aoi;
 exports.get_aoi_boundary = baiduMap.get_aoi_boundary;
-exports.search_nearby = baiduMap.search_nearby;
 // 导出高级封装API
-exports.findNearbyPlaces = baiduMap.findNearbyPlaces;
 exports.planRoute = baiduMap.planRoute;
-exports.getCurrentAreaInfo = baiduMap.getCurrentAreaInfo;
-exports.recommendNearbyFacilities = baiduMap.recommendNearbyFacilities;
 exports.getAoiByName = baiduMap.getAoiByName;
 exports.main = baiduMap.main;
