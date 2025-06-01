@@ -23,7 +23,6 @@ import androidx.compose.ui.unit.sp
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.FreeUsagePreferences
 import com.ai.assistance.operit.ui.features.chat.components.config.*
-import com.ai.assistance.operit.util.ModelEndPointFix
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch

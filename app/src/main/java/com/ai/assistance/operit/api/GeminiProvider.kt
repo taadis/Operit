@@ -1,10 +1,13 @@
 package com.ai.assistance.operit.api
 
 import android.util.Log
+import com.ai.assistance.operit.data.model.ApiProviderType
+import com.ai.assistance.operit.data.model.ModelOption
 import com.ai.assistance.operit.data.model.ModelParameter
 import com.ai.assistance.operit.util.ChatUtils
 import java.io.IOException
 import java.net.SocketTimeoutException
+import java.net.URL
 import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
@@ -30,6 +33,7 @@ class GeminiProvider(
                     .build()
 
     private val JSON = "application/json; charset=utf-8".toMediaType()
+    private val TAG = "GeminiProvider"
 
     // 当前活跃的Call对象，用于取消流式传输
     private var activeCall: Call? = null
@@ -64,10 +68,67 @@ class GeminiProvider(
         activeCall?.let {
             if (!it.isCanceled()) {
                 it.cancel()
-                Log.d("AIService", "已取消当前流式传输")
+                Log.d(TAG, "已取消当前流式传输")
             }
         }
         activeCall = null
+    }
+
+    /** 确定请求的实际URL 处理不同形式的Gemini API端点格式 */
+    private fun determineRequestUrl(
+            endpoint: String,
+            model: String,
+            isStreaming: Boolean = false
+    ): String {
+        // 如果端点已经包含完整的方法路径，则直接使用
+        if (endpoint.contains(":generateContent") || endpoint.contains(":streamGenerateContent")) {
+            return endpoint
+        }
+
+        // 判断是否是标准Gemini API端点
+        val isGeminiAPI = endpoint.contains("generativelanguage.googleapis.com")
+
+        // 如果是标准Gemini API
+        if (isGeminiAPI) {
+            val version = if (endpoint.contains("/v1/")) "v1" else "v1beta"
+            val baseUrl = extractBaseUrl(endpoint)
+            val method = if (isStreaming) "streamGenerateContent" else "generateContent"
+
+            // 检查端点是否已经包含models路径
+            if (endpoint.endsWith("/models")) {
+                return "$endpoint/$model:$method"
+            } else {
+                return "$baseUrl/$version/models/$model:$method"
+            }
+        }
+
+        // Vertex AI格式
+        else if (endpoint.contains("aiplatform.googleapis.com") || endpoint.contains("vertex")) {
+            val projectMatch = Regex("projects/([^/]+)").find(endpoint)
+            val locationMatch = Regex("locations/([^/]+)").find(endpoint)
+
+            if (projectMatch != null && locationMatch != null) {
+                val project = projectMatch.groupValues[1]
+                val location = locationMatch.groupValues[1]
+                val method = if (isStreaming) "streamGenerateContent" else "generateContent"
+                return "https://$location-aiplatform.googleapis.com/v1/projects/$project/locations/$location/publishers/google/models/$model:$method"
+            }
+        }
+
+        // 默认情况下使用标准Gemini API格式
+        val method = if (isStreaming) "streamGenerateContent" else "generateContent"
+        return "https://generativelanguage.googleapis.com/v1beta/models/$model:$method"
+    }
+
+    /** 从完整URL提取基本URL */
+    private fun extractBaseUrl(fullUrl: String): String {
+        return try {
+            val url = URL(fullUrl)
+            "${url.protocol}://${url.host}"
+        } catch (e: Exception) {
+            Log.e(TAG, "URL解析错误: $e")
+            fullUrl.substringBefore("/v1")
+        }
     }
 
     // 解析服务器返回的内容，处理<think>标签
@@ -118,25 +179,44 @@ class GeminiProvider(
         // 创建contents数组
         val contentsArray = JSONArray()
 
+        // 标准化历史消息
+        val standardizedHistory = ChatUtils.mapChatHistoryToStandardRoles(chatHistory)
+
         // 首先添加历史消息
         if (chatHistory.isNotEmpty()) {
-            // 使用工具函数统一转换角色格式，并确保没有连续的相同角色
-            val standardizedHistory = ChatUtils.mapChatHistoryToStandardRoles(chatHistory)
-
             // 防止连续相同角色消息
             val filteredHistory = mutableListOf<Pair<String, String>>()
             var lastRole: String? = null
 
             for ((role, content) in standardizedHistory) {
-                // 如果是系统消息，添加为systemInstruction
+                // 如果是系统消息，处理逻辑
                 if (role == "system") {
-                    // 系统消息会在后面单独处理
-                    continue
+                    // 检查是否是支持systemInstruction的模型和端点
+                    // 只有gemini-2.0系列支持systemInstruction，不包括gemini-1.5-flash
+                    if (modelName.contains("gemini-2") && !apiEndpoint.contains("flash")) {
+                        // 系统指令将在后面单独设置
+                        continue
+                    } else {
+                        // 对于不支持systemInstruction的模型，将系统消息作为用户消息处理
+                        val contentObject = JSONObject()
+                        val partsArray = JSONArray()
+                        val textPart = JSONObject()
+                        textPart.put("text", content)
+                        partsArray.put(textPart)
+
+                        contentObject.put("role", "user")
+                        contentObject.put("parts", partsArray)
+                        contentsArray.put(contentObject)
+
+                        // 计算输入token
+                        _inputTokenCount += estimateTokenCount(content)
+                        continue
+                    }
                 }
 
                 // 如果当前消息角色与上一个相同，跳过
                 if (role == lastRole) {
-                    Log.d("AIService", "跳过连续相同角色的消息: $role")
+                    Log.d(TAG, "跳过连续相同角色的消息: $role")
                     continue
                 }
 
@@ -176,6 +256,28 @@ class GeminiProvider(
         // 添加内容到请求体
         jsonObject.put("contents", contentsArray)
 
+        // 检查是否有系统指令（只有特定Gemini模型支持）
+        val systemMessage = standardizedHistory.find { pair -> pair.first == "system" }
+        // 只有gemini-2.0系列支持systemInstruction，不包括gemini-1.5-flash
+        if (systemMessage != null &&
+                        modelName.contains("gemini-2") &&
+                        !apiEndpoint.contains("flash") &&
+                        !modelName.contains("flash")
+        ) {
+            val systemInstructionObject = JSONObject()
+            val systemPartsArray = JSONArray()
+            val systemTextPart = JSONObject()
+
+            systemTextPart.put("text", systemMessage.second)
+            systemPartsArray.put(systemTextPart)
+
+            systemInstructionObject.put("parts", systemPartsArray)
+            jsonObject.put("systemInstruction", systemInstructionObject)
+
+            // 计算系统指令token
+            _inputTokenCount += estimateTokenCount(systemMessage.second)
+        }
+
         // 添加生成配置
         val generationConfig = JSONObject()
 
@@ -201,34 +303,14 @@ class GeminiProvider(
                         generationConfig.put(param.apiName, param.currentValue)
                     }
                 }
-                Log.d("AIService", "添加参数 ${param.apiName} = ${param.currentValue}")
+                Log.d(TAG, "添加参数 ${param.apiName} = ${param.currentValue}")
             }
         }
 
-        // 设置流式响应
         jsonObject.put("generationConfig", generationConfig)
-        jsonObject.put("stream", true)
-
-        // 提取系统消息作为systemInstruction
-        val systemMessages = chatHistory.filter { it.first.equals("system", ignoreCase = true) }
-        if (systemMessages.isNotEmpty()) {
-            val combinedSystemMessage = systemMessages.joinToString("\n") { it.second }
-
-            val systemInstructionObject = JSONObject()
-            val systemPartsArray = JSONArray()
-            val systemTextPart = JSONObject()
-            systemTextPart.put("text", combinedSystemMessage)
-            systemPartsArray.put(systemTextPart)
-
-            systemInstructionObject.put("parts", systemPartsArray)
-            jsonObject.put("systemInstruction", systemInstructionObject)
-
-            // 计算系统消息token
-            _inputTokenCount += estimateTokenCount(combinedSystemMessage)
-        }
 
         // 使用分块日志函数记录完整的请求体
-        Log.d("AIService", "Gemini 请求体: ${jsonObject.toString(4)}")
+        Log.d(TAG, "Gemini 请求体: ${jsonObject.toString(4)}")
         return jsonObject.toString().toRequestBody(JSON)
     }
 
@@ -255,7 +337,7 @@ class GeminiProvider(
                     com.ai.assistance.operit.data.model.ParameterValueType.BOOLEAN ->
                             jsonObject.put(param.apiName, param.currentValue as Boolean)
                 }
-                Log.d("AIService", "添加OpenAI兼容参数 ${param.apiName} = ${param.currentValue}")
+                Log.d(TAG, "添加OpenAI兼容参数 ${param.apiName} = ${param.currentValue}")
             }
         }
 
@@ -273,7 +355,7 @@ class GeminiProvider(
             for ((role, content) in standardizedHistory) {
                 // 如果当前消息角色与上一个相同，跳过（除了system消息）
                 if (role == lastRole && role != "system") {
-                    Log.d("AIService", "跳过连续相同角色的消息: $role")
+                    Log.d(TAG, "跳过连续相同角色的消息: $role")
                     continue
                 }
 
@@ -309,7 +391,7 @@ class GeminiProvider(
             _inputTokenCount += estimateTokenCount(message)
         } else {
             // 如果上一条消息也是用户，将当前消息与上一条合并
-            Log.d("AIService", "合并连续的用户消息")
+            Log.d(TAG, "合并连续的用户消息")
             val lastMessage = messagesArray.getJSONObject(messagesArray.length() - 1)
             val combinedContent = lastMessage.getString("content") + "\n" + message
             lastMessage.put("content", combinedContent)
@@ -326,28 +408,47 @@ class GeminiProvider(
             val value = reasoningEffort.currentValue as? String
             if (!value.isNullOrEmpty()) {
                 jsonObject.put("reasoning_effort", value)
-                Log.d("AIService", "添加推理努力度参数: $value")
+                Log.d(TAG, "添加推理努力度参数: $value")
             }
         }
 
-        Log.d("AIService", "OpenAI兼容请求体: ${jsonObject.toString(4)}")
+        Log.d(TAG, "OpenAI兼容请求体: ${jsonObject.toString(4)}")
         return jsonObject.toString().toRequestBody(JSON)
     }
 
     // 创建请求
-    private fun createRequest(requestBody: RequestBody): Request {
+    private fun createRequest(requestBody: RequestBody, isStreaming: Boolean = false): Request {
         // 检测API端点是否使用OpenAI兼容模式
         val isOpenAICompatMode = apiEndpoint.contains("/openai/")
 
-        val builder = Request.Builder().url(apiEndpoint).post(requestBody)
+        // 确定正确的URL
+        val requestUrl = determineRequestUrl(apiEndpoint, modelName, isStreaming)
+        Log.d(TAG, "请求URL: $requestUrl")
+
+        val builder = Request.Builder().url(requestUrl).post(requestBody)
 
         if (isOpenAICompatMode) {
             // OpenAI兼容模式使用Bearer认证
             builder.addHeader("Authorization", "Bearer $apiKey")
+        } else if (requestUrl.contains("vertex") || requestUrl.contains("aiplatform.googleapis.com")
+        ) {
+            // Vertex AI使用OAuth认证，需要外部提供Bearer令牌
+            builder.addHeader("Authorization", "Bearer $apiKey")
         } else {
             // 原生Gemini API使用API密钥参数
-            // 注意：这通常是通过URL参数而不是头部提供，但这里我们仍然添加为头部以保持一致性
-            builder.addHeader("x-goog-api-key", apiKey)
+            // 如果URL中已经包含了key参数，就不再重复添加
+            val actualUrl =
+                    if (!requestUrl.contains("key=")) {
+                        if (requestUrl.contains("?")) {
+                            "$requestUrl&key=$apiKey"
+                        } else {
+                            "$requestUrl?key=$apiKey"
+                        }
+                    } else {
+                        requestUrl
+                    }
+
+            builder.url(actualUrl)
         }
 
         builder.addHeader("Content-Type", "application/json")
@@ -380,7 +481,7 @@ class GeminiProvider(
                 lines.forEach { line ->
                     // 如果call已被取消，提前退出
                     if (activeCall?.isCanceled() == true) {
-                        Log.d("AIService", "流式传输已被取消，提前退出处理")
+                        Log.d(TAG, "流式传输已被取消，提前退出处理")
                         wasCancelled = true // 设置取消标志
                         return@forEach
                     }
@@ -418,7 +519,7 @@ class GeminiProvider(
                                 }
                             } catch (e: Exception) {
                                 // 忽略解析错误，继续处理下一行
-                                Log.d("AIService", "JSON解析错误: ${e.message}")
+                                Log.d(TAG, "JSON解析错误: ${e.message}")
                             }
                         }
                     }
@@ -427,7 +528,7 @@ class GeminiProvider(
         } catch (e: IOException) {
             // 捕获IO异常，可能是由于取消Call导致的
             if (activeCall?.isCanceled() == true) {
-                Log.d("AIService", "流式传输已被取消，处理IO异常")
+                Log.d(TAG, "流式传输已被取消，处理IO异常")
                 wasCancelled = true // 设置取消标志
             } else {
                 throw e
@@ -436,10 +537,10 @@ class GeminiProvider(
 
         // 只有在未被取消时才调用完成回调
         if (!wasCancelled && activeCall?.isCanceled() != true) {
-            Log.d("AIService", "处理完成，调用完成回调")
+            Log.d(TAG, "处理完成，调用完成回调")
             onComplete()
         } else {
-            Log.d("AIService", "流被取消，跳过完成回调")
+            Log.d(TAG, "流被取消，跳过完成回调")
         }
 
         // 清理活跃Call引用
@@ -573,7 +674,7 @@ class GeminiProvider(
 
                 val standardizedHistory = ChatUtils.mapChatHistoryToStandardRoles(chatHistory)
                 val requestBody = createRequestBody(message, standardizedHistory, modelParameters)
-                val request = createRequest(requestBody)
+                val request = createRequest(requestBody, true) // 创建流式请求
 
                 onConnectionStatus?.invoke("准备连接到Gemini AI服务...")
                 while (retryCount < maxRetries) {
@@ -616,4 +717,17 @@ class GeminiProvider(
                 // 所有重试都失败
                 throw IOException("连接超时，已重试 $maxRetries 次: ${lastException?.message}")
             }
+
+    /**
+     * 获取模型列表 注意：此方法直接调用ModelListFetcher获取模型列表
+     * @return 模型列表结果
+     */
+    override suspend fun getModelsList(): Result<List<ModelOption>> {
+        // 调用ModelListFetcher获取模型列表
+        return ModelListFetcher.getModelsList(
+                apiKey = apiKey,
+                apiEndpoint = apiEndpoint,
+                apiProviderType = ApiProviderType.GOOGLE
+        )
+    }
 }

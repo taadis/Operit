@@ -303,9 +303,6 @@ MCP市场查看界面。
 ### `util/MediaConversionUtil.kt`
 提供在不同媒体格式之间转换的工具。
 
-### `util/ModelEndPointFix.kt`
-实现模型端点问题的修复。
-
 ### `util/NetworkUtils.kt`
 包含网络操作的实用功能。
 

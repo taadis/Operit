@@ -1,6 +1,7 @@
 package com.ai.assistance.operit.api
 
 import com.ai.assistance.operit.data.model.ModelParameter
+import com.ai.assistance.operit.data.model.ModelOption
 import okhttp3.*
 
 /** AI服务接口，定义与不同AI提供商进行交互的标准方法 */
@@ -16,6 +17,13 @@ interface AIService {
 
     /** 取消当前流式传输 */
     fun cancelStreaming()
+
+    /**
+     * 获取模型列表
+     * 
+     * @return 模型列表结果，成功返回模型列表，失败返回错误信息
+     */
+    suspend fun getModelsList(): Result<List<ModelOption>>
 
     /**
      * 发送消息到AI服务

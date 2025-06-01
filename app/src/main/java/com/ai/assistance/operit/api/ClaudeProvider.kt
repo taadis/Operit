@@ -1,6 +1,8 @@
 package com.ai.assistance.operit.api
 
 import android.util.Log
+import com.ai.assistance.operit.data.model.ApiProviderType
+import com.ai.assistance.operit.data.model.ModelOption
 import com.ai.assistance.operit.data.model.ModelParameter
 import com.ai.assistance.operit.util.ChatUtils
 import java.io.IOException
@@ -450,4 +452,18 @@ class ClaudeProvider(
                 // 所有重试都失败
                 throw IOException("连接超时，已重试 $maxRetries 次: ${lastException?.message}")
             }
+
+    /**
+     * 获取模型列表
+     * 注意：此方法直接调用ModelListFetcher获取模型列表
+     * @return 模型列表结果
+     */
+    override suspend fun getModelsList(): Result<List<ModelOption>> {
+        // 调用ModelListFetcher获取模型列表
+        return ModelListFetcher.getModelsList(
+            apiKey = apiKey,
+            apiEndpoint = apiEndpoint,
+            apiProviderType = ApiProviderType.ANTHROPIC
+        )
+    }
 }

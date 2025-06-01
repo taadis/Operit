@@ -1,5 +1,6 @@
 package com.ai.assistance.operit.ui.features.settings.sections
 
+import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,14 +18,15 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.ai.assistance.operit.api.OpenAIService
+import com.ai.assistance.operit.api.ModelListFetcher
 import com.ai.assistance.operit.data.model.ApiProviderType
 import com.ai.assistance.operit.data.model.ModelConfigData
 import com.ai.assistance.operit.data.model.ModelOption
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.ModelConfigManager
-import com.ai.assistance.operit.util.ModelEndPointFix
 import kotlinx.coroutines.launch
+
+val TAG = "ModelApiSettings"
 
 @Composable
 fun ModelApiSettingsSection(
@@ -33,14 +35,13 @@ fun ModelApiSettingsSection(
         showNotification: (String) -> Unit
 ) {
         val scope = rememberCoroutineScope()
-        val openAIService = remember { OpenAIService() }
 
     // 获取每个提供商的默认模型名称
     fun getDefaultModelName(providerType: ApiProviderType): String {
         return when (providerType) {
             ApiProviderType.OPENAI -> "gpt-4o"
             ApiProviderType.ANTHROPIC -> "claude-3-opus-20240229"
-            ApiProviderType.GOOGLE -> "gemini-pro"
+            ApiProviderType.GOOGLE -> "gemini-2.0-flash"
             ApiProviderType.DEEPSEEK -> "deepseek-chat"
             ApiProviderType.BAIDU -> "ernie-bot-4"
             ApiProviderType.ALIYUN -> "qwen-max"
@@ -71,7 +72,7 @@ fun ModelApiSettingsSection(
             ApiProviderType.OPENAI -> "https://api.openai.com/v1/chat/completions"
             ApiProviderType.ANTHROPIC -> "https://api.anthropic.com/v1/messages"
             ApiProviderType.GOOGLE ->
-                    "https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent"
+                    "https://generativelanguage.googleapis.com/v1beta/models"
             ApiProviderType.DEEPSEEK -> "https://api.deepseek.com/v1/chat/completions"
             ApiProviderType.BAIDU ->
                     "https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions"
@@ -99,10 +100,6 @@ fun ModelApiSettingsSection(
             apiEndpointInput = getDefaultApiEndpoint(selectedApiProvider)
         }
     }
-
-        // 警告状态
-        var showEndpointWarning by remember { mutableStateOf(false) }
-        var endpointWarningMessage by remember { mutableStateOf<String?>(null) }
 
         // 模型列表状态
         var isLoadingModels by remember { mutableStateOf(false) }
@@ -154,31 +151,12 @@ fun ModelApiSettingsSection(
                                 value = apiEndpointInput,
                                 onValueChange = {
                                         apiEndpointInput = it
-
-                                        // 检查是否包含补全路径
-                        if (it.isNotBlank() && !ModelEndPointFix.containsCompletionsPath(it)) {
-                            endpointWarningMessage = "提示：API地址应包含补全路径，如v1/chat/completions"
-                                                showEndpointWarning = true
-                                        } else {
-                                                showEndpointWarning = false
-                                        }
                                 },
                                 label = { Text("API端点") },
                     placeholder = { Text("例如: https://api.openai.com/v1/chat/completions") },
                                 modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                                 singleLine = true
                         )
-
-                        // 显示端点警告消息
-                        if (showEndpointWarning) {
-                                Text(
-                                        text = endpointWarningMessage ?: "",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.error,
-                                        modifier = Modifier.padding(bottom = 8.dp),
-                                        fontSize = 12.sp
-                                )
-                        }
 
                         // API密钥输入
                         OutlinedTextField(
@@ -253,37 +231,46 @@ fun ModelApiSettingsSection(
                                 // 获取模型列表按钮
                                 IconButton(
                                         onClick = {
+                                                Log.d(TAG, "模型列表按钮被点击 - API端点: $apiEndpointInput, API类型: ${selectedApiProvider.name}")
+                                                showNotification("正在获取模型列表...")
+                                                
                                                 scope.launch {
-                                                        if (apiEndpointInput.isNotBlank() &&
-                                                                        apiKeyInput.isNotBlank() &&
-                                                                        !isUsingDefaultApiKey
-                                                        ) {
+                                                        if (apiEndpointInput.isNotBlank() && apiKeyInput.isNotBlank() && !isUsingDefaultApiKey) {
                                                                 isLoadingModels = true
                                                                 modelLoadError = null
+                                                                Log.d(TAG, "开始获取模型列表: 端点=$apiEndpointInput, API类型=${selectedApiProvider.name}")
 
                                                                 try {
-                                                                        val result =
-                                                openAIService.getModels(
-                                                                                                apiKeyInput,
-                                                                                                apiEndpointInput
-                                                                                        )
+                                                                        val result = ModelListFetcher.getModelsList(
+                                                                                        apiKeyInput,
+                                                                                        apiEndpointInput,
+                                                                                        selectedApiProvider
+                                                                                )
                                                                         if (result.isSuccess) {
-                                            modelsList = result.getOrThrow()
-                                            showModelsDialog = true
+                                                                                val models = result.getOrThrow()
+                                                                                Log.d(TAG, "模型列表获取成功，共 ${models.size} 个模型")
+                                                                                modelsList = models
+                                                                                showModelsDialog = true
+                                                                                showNotification("成功获取 ${models.size} 个模型")
                                                                         } else {
-                                                                                modelLoadError =
-                                                                                        "获取模型列表失败: ${result.exceptionOrNull()?.message ?: "未知错误"}"
-                                            showNotification(modelLoadError ?: "获取模型列表失败")
+                                                                                val errorMsg = result.exceptionOrNull()?.message ?: "未知错误"
+                                                                                Log.e(TAG, "模型列表获取失败: $errorMsg")
+                                                                                modelLoadError = "获取模型列表失败: $errorMsg"
+                                                                                showNotification(modelLoadError ?: "获取模型列表失败")
                                                                         }
                                                                 } catch (e: Exception) {
-                                        modelLoadError = "获取模型列表失败: ${e.message}"
-                                        showNotification(modelLoadError ?: "获取模型列表失败")
+                                                                        Log.e(TAG, "获取模型列表发生异常", e)
+                                                                        modelLoadError = "获取模型列表失败: ${e.message}"
+                                                                        showNotification(modelLoadError ?: "获取模型列表失败")
                                                                 } finally {
                                                                         isLoadingModels = false
+                                                                        Log.d(TAG, "模型列表获取流程完成")
                                                                 }
                                                         } else if (isUsingDefaultApiKey) {
+                                                                Log.d(TAG, "使用默认配置，不获取模型列表")
                                                                 showNotification("使用默认配置时无法获取模型列表")
                                                         } else {
+                                                                Log.d(TAG, "API端点或密钥为空")
                                                                 showNotification("请先填写API端点和密钥")
                                                         }
                                                 }
@@ -342,38 +329,25 @@ fun ModelApiSettingsSection(
                         modifier = Modifier.fillMaxWidth(0.9f)
                 ) {
                     // 添加所有API提供商选项
-                    com.ai.assistance.operit.data.model.ApiProviderType.values().forEach { provider
+                    ApiProviderType.values().forEach { provider
                         ->
                         DropdownMenuItem(
                                 text = {
                                     Text(
                                             when (provider) {
-                                                com.ai.assistance.operit.data.model.ApiProviderType
-                                                        .OPENAI -> "OpenAI (GPT系列)"
-                                                com.ai.assistance.operit.data.model.ApiProviderType
-                                                        .ANTHROPIC -> "Anthropic (Claude系列)"
-                                                com.ai.assistance.operit.data.model.ApiProviderType
-                                                        .GOOGLE -> "Google (Gemini系列)"
-                                                com.ai.assistance.operit.data.model.ApiProviderType
-                                                        .BAIDU -> "百度 (文心一言系列)"
-                                                com.ai.assistance.operit.data.model.ApiProviderType
-                                                        .ALIYUN -> "阿里云 (通义千问系列)"
-                                                com.ai.assistance.operit.data.model.ApiProviderType
-                                                        .XUNFEI -> "讯飞 (星火认知系列)"
-                                                com.ai.assistance.operit.data.model.ApiProviderType
-                                                        .ZHIPU -> "智谱AI (ChatGLM系列)"
-                                                com.ai.assistance.operit.data.model.ApiProviderType
-                                                        .BAICHUAN -> "百川大模型"
-                                                com.ai.assistance.operit.data.model.ApiProviderType
-                                                        .MOONSHOT -> "月之暗面大模型"
-                                                com.ai.assistance.operit.data.model.ApiProviderType
-                                                        .DEEPSEEK -> "Deepseek大模型"
-                                                com.ai.assistance.operit.data.model.ApiProviderType
-                                                        .SILICONFLOW -> "硅基流动"
-                                                com.ai.assistance.operit.data.model.ApiProviderType
-                                                        .OPENROUTER -> "OpenRouter (多模型聚合)"
-                                                com.ai.assistance.operit.data.model.ApiProviderType
-                                                        .OTHER -> "其他提供商"
+                                                ApiProviderType.OPENAI -> "OpenAI (GPT系列)"
+                                                ApiProviderType.ANTHROPIC -> "Anthropic (Claude系列)"
+                                                ApiProviderType.GOOGLE -> "Google (Gemini系列)"
+                                                ApiProviderType.BAIDU -> "百度 (文心一言系列)"
+                                                ApiProviderType.ALIYUN -> "阿里云 (通义千问系列)"
+                                                ApiProviderType.XUNFEI -> "讯飞 (星火认知系列)"
+                                                ApiProviderType.ZHIPU -> "智谱AI (ChatGLM系列)"
+                                                ApiProviderType.BAICHUAN -> "百川大模型"
+                                                ApiProviderType.MOONSHOT -> "月之暗面大模型"
+                                                ApiProviderType.DEEPSEEK -> "Deepseek大模型"
+                                                ApiProviderType.SILICONFLOW -> "硅基流动"
+                                                ApiProviderType.OPENROUTER -> "OpenRouter (多模型聚合)"
+                                                ApiProviderType.OTHER -> "其他提供商"
                                             }
                                     )
                                 },
@@ -391,8 +365,7 @@ fun ModelApiSettingsSection(
                         )
 
                         if (provider.ordinal <
-                                        com.ai.assistance.operit.data.model.ApiProviderType.values()
-                                                .size - 1
+                                        ApiProviderType.values().size - 1
                         ) {
                             Divider()
                         }
@@ -417,17 +390,6 @@ fun ModelApiSettingsSection(
                                 Button(
                                         onClick = {
                                                 scope.launch {
-                                                        // 检查端点是否缺少补全路径
-                                                        if (apiEndpointInput.isNotBlank() &&
-                                            !ModelEndPointFix.containsCompletionsPath(
-                                                                                        apiEndpointInput
-                                                                                )
-                                                        ) {
-                                                                endpointWarningMessage =
-                                                                        "警告：您的API地址不包含补全路径（如v1/chat/completions）。请确保这是您想要的配置。"
-                                                                showEndpointWarning = true
-                                                        }
-
                                                         // 强制在使用默认API密钥时使用默认模型
                                                         val modelToSave =
                                     if (apiKeyInput == ApiPreferences.DEFAULT_API_KEY) {
@@ -435,6 +397,8 @@ fun ModelApiSettingsSection(
                                                                 } else {
                                                                         modelNameInput
                                                                 }
+
+                                                        Log.d(TAG, "保存API设置: apiKey=${apiKeyInput.take(5)}..., endpoint=$apiEndpointInput, model=$modelToSave, providerType=${selectedApiProvider.name}")
 
                                                         // 更新配置
                                                         configManager.updateModelConfig(
@@ -445,6 +409,7 @@ fun ModelApiSettingsSection(
                                     apiProviderType = selectedApiProvider
                                                         )
 
+                                                        Log.d(TAG, "API设置保存完成")
                                                         showNotification("API设置已保存")
                                                 }
                                         }
@@ -487,9 +452,10 @@ fun ModelApiSettingsSection(
                                             isLoadingModels = true
                                                                                 try {
                                                                                         val result =
-                                                        openAIService.getModels(
+                                                        ModelListFetcher.getModelsList(
                                                                                                                 apiKeyInput,
-                                                                                                                apiEndpointInput
+                                                                                                                apiEndpointInput,
+                                                                                                                selectedApiProvider
                                                                                                         )
                                                 if (result.isSuccess) {
                                                     modelsList = result.getOrThrow()

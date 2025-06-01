@@ -60,6 +60,9 @@ class ModelConfigManager(private val context: Context) {
 
     // 初始化，确保至少有一个默认配置
     suspend fun initializeIfNeeded() {
+        // 确保API提供商类型已初始化
+        apiPreferences.ensureApiProviderTypeInitialized()
+        
         val configList = configListFlow.first()
 
         if (configList.isEmpty() || configList == listOf(DEFAULT_CONFIG_ID)) {
@@ -80,6 +83,7 @@ class ModelConfigManager(private val context: Context) {
         val apiKey = apiPreferences.apiKeyFlow.first()
         val apiEndpoint = apiPreferences.apiEndpointFlow.first()
         val modelName = apiPreferences.modelNameFlow.first()
+        val apiProviderType = apiPreferences.apiProviderTypeFlow.first()
 
         // 获取参数启用状态
         val maxTokensEnabled = apiPreferences.maxTokensEnabledFlow.first()
@@ -114,7 +118,7 @@ class ModelConfigManager(private val context: Context) {
                 apiKey = apiKey,
                 apiEndpoint = apiEndpoint,
                 modelName = modelName,
-                apiProviderType = com.ai.assistance.operit.data.model.ApiProviderType.DEEPSEEK,
+                apiProviderType = apiProviderType,
                 hasCustomParameters = customParamsJson != "[]",
                 maxTokensEnabled = maxTokensEnabled,
                 temperatureEnabled = temperatureEnabled,
@@ -457,6 +461,11 @@ class ModelConfigManager(private val context: Context) {
 
         // 保存更新后的配置
         saveModelConfig(updatedConfig)
+        
+        // 如果是更新默认配置，同步更新ApiPreferences
+        if (configId == DEFAULT_CONFIG_ID) {
+            apiPreferences.saveApiSettings(apiKey, apiEndpoint, modelName)
+        }
 
         return updatedConfig
     }
@@ -480,6 +489,11 @@ class ModelConfigManager(private val context: Context) {
 
         // 保存更新后的配置
         saveModelConfig(updatedConfig)
+        
+        // 如果是更新默认配置，同步更新ApiPreferences
+        if (configId == DEFAULT_CONFIG_ID) {
+            apiPreferences.saveApiSettings(apiKey, apiEndpoint, modelName, apiProviderType)
+        }
 
         return updatedConfig
     }
