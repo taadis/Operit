@@ -19,6 +19,8 @@ import com.ai.assistance.operit.data.model.ParameterValueType
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.ModelConfigManager
 import kotlinx.coroutines.launch
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 @Composable
 fun ModelParametersSection(
@@ -222,12 +224,187 @@ fun ModelParametersSection(
         parameters = newParameters
     }
 
+    // 更新标准参数的辅助函数 - 作为ModelParametersSection的成员方法
+    suspend fun updateStandardParameters(
+        configId: String,
+        parameters: List<ModelParameter<*>>,
+        apiKey: String,
+        apiEndpoint: String,
+        modelName: String
+    ) {
+        // 处理标准参数
+        var maxTokens = 4096
+        var maxTokensEnabled = false
+        var temperature = 1.0f
+        var temperatureEnabled = false
+        var topP = 1.0f
+        var topPEnabled = false
+        var topK = 0
+        var topKEnabled = false
+        var presencePenalty = 0.0f
+        var presencePenaltyEnabled = false
+        var frequencyPenalty = 0.0f
+        var frequencyPenaltyEnabled = false
+        var repetitionPenalty = 1.0f
+        var repetitionPenaltyEnabled = false
+        
+        // 从参数列表中提取标准参数
+        parameters.forEach { param ->
+            when (param.id) {
+                "max_tokens" -> {
+                    maxTokens = (param.currentValue as Int)
+                    maxTokensEnabled = param.isEnabled
+                }
+                "temperature" -> {
+                    temperature = (param.currentValue as Float)
+                    temperatureEnabled = param.isEnabled
+                }
+                "top_p" -> {
+                    topP = (param.currentValue as Float)
+                    topPEnabled = param.isEnabled
+                }
+                "top_k" -> {
+                    topK = (param.currentValue as Int)
+                    topKEnabled = param.isEnabled
+                }
+                "presence_penalty" -> {
+                    presencePenalty = (param.currentValue as Float)
+                    presencePenaltyEnabled = param.isEnabled
+                }
+                "frequency_penalty" -> {
+                    frequencyPenalty = (param.currentValue as Float)
+                    frequencyPenaltyEnabled = param.isEnabled
+                }
+                "repetition_penalty" -> {
+                    repetitionPenalty = (param.currentValue as Float)
+                    repetitionPenaltyEnabled = param.isEnabled
+                }
+            }
+        }
+        
+        // 获取当前配置
+        val config = configManager.getModelConfigFlow(configId).collect { collectedConfig ->
+            // 更新配置
+            val updatedConfig = collectedConfig.copy(
+                apiKey = apiKey,
+                apiEndpoint = apiEndpoint,
+                modelName = modelName,
+                maxTokens = maxTokens,
+                maxTokensEnabled = maxTokensEnabled,
+                temperature = temperature,
+                temperatureEnabled = temperatureEnabled,
+                topP = topP,
+                topPEnabled = topPEnabled,
+                topK = topK,
+                topKEnabled = topKEnabled,
+                presencePenalty = presencePenalty,
+                presencePenaltyEnabled = presencePenaltyEnabled,
+                frequencyPenalty = frequencyPenalty,
+                frequencyPenaltyEnabled = frequencyPenaltyEnabled,
+                repetitionPenalty = repetitionPenalty,
+                repetitionPenaltyEnabled = repetitionPenaltyEnabled
+            )
+            
+            // 保存更新后的配置
+            configManager.saveModelConfig(updatedConfig)
+            
+            // 处理自定义参数 (如果有需要)
+            val customParams = parameters.filter { it.isCustom }
+            if (customParams.isNotEmpty()) {
+                val customParamsList = customParams.map { param ->
+                    when (param.valueType) {
+                        ParameterValueType.INT -> {
+                            com.ai.assistance.operit.data.model.CustomParameterData(
+                                id = param.id,
+                                name = param.name,
+                                apiName = param.apiName,
+                                description = param.description,
+                                defaultValue = (param.defaultValue as Int).toString(),
+                                currentValue = (param.currentValue as Int).toString(),
+                                isEnabled = param.isEnabled,
+                                valueType = param.valueType.name,
+                                minValue = (param.minValue as? Int)?.toString(),
+                                maxValue = (param.maxValue as? Int)?.toString(),
+                                category = param.category.name
+                            )
+                        }
+                        ParameterValueType.FLOAT -> {
+                            com.ai.assistance.operit.data.model.CustomParameterData(
+                                id = param.id,
+                                name = param.name,
+                                apiName = param.apiName,
+                                description = param.description,
+                                defaultValue = (param.defaultValue as Float).toString(),
+                                currentValue = (param.currentValue as Float).toString(),
+                                isEnabled = param.isEnabled,
+                                valueType = param.valueType.name,
+                                minValue = (param.minValue as? Float)?.toString(),
+                                maxValue = (param.maxValue as? Float)?.toString(),
+                                category = param.category.name
+                            )
+                        }
+                        ParameterValueType.STRING -> {
+                            com.ai.assistance.operit.data.model.CustomParameterData(
+                                id = param.id,
+                                name = param.name,
+                                apiName = param.apiName,
+                                description = param.description,
+                                defaultValue = param.defaultValue as String,
+                                currentValue = param.currentValue as String,
+                                isEnabled = param.isEnabled,
+                                valueType = param.valueType.name,
+                                category = param.category.name
+                            )
+                        }
+                        ParameterValueType.BOOLEAN -> {
+                            com.ai.assistance.operit.data.model.CustomParameterData(
+                                id = param.id,
+                                name = param.name,
+                                apiName = param.apiName,
+                                description = param.description,
+                                defaultValue = (param.defaultValue as Boolean).toString(),
+                                currentValue = (param.currentValue as Boolean).toString(),
+                                isEnabled = param.isEnabled,
+                                valueType = param.valueType.name,
+                                category = param.category.name
+                            )
+                        }
+                    }
+                }
+                
+                // 使用新方法更新自定义参数
+                configManager.updateCustomParameters(
+                    configId = configId, 
+                    parametersJson = Json.encodeToString(customParamsList)
+                )
+            } else {
+                // 如果没有自定义参数，清空自定义参数列表
+                configManager.updateCustomParameters(configId = configId, parametersJson = "[]")
+            }
+        }
+    }
+
     // 保存参数设置
     val saveParameters = {
         scope.launch {
             try {
-                // 直接更新配置，不再验证参数
-                configManager.updateModelConfig(configId = config.id, parameters = parameters)
+                // 使用新的方法来更新参数
+                // 首先获取当前配置的API设置
+                val currentConfig = configManager.getModelConfigFlow(config.id).collect { 
+                    val apiKey = it.apiKey
+                    val apiEndpoint = it.apiEndpoint
+                    val modelName = it.modelName
+                    
+                    // 为每个参数类型创建单独更新方法
+                    updateStandardParameters(
+                        configId = config.id, 
+                        parameters = parameters,
+                        apiKey = apiKey,
+                        apiEndpoint = apiEndpoint,
+                        modelName = modelName
+                    )
+                }
+                
                 showNotification("参数已保存")
             } catch (e: Exception) {
                 // 处理异常
@@ -276,8 +453,22 @@ fun ModelParametersSection(
                         }
                 parameters = resetParams
 
-                // 保存重置后的值
-                configManager.updateModelConfig(configId = config.id, parameters = resetParams)
+                // 获取当前配置的API设置
+                val currentConfig = configManager.getModelConfigFlow(config.id).collect {
+                    val apiKey = it.apiKey
+                    val apiEndpoint = it.apiEndpoint
+                    val modelName = it.modelName
+                    
+                    // 使用新的方法保存重置后的参数
+                    updateStandardParameters(
+                        configId = config.id, 
+                        parameters = resetParams,
+                        apiKey = apiKey,
+                        apiEndpoint = apiEndpoint,
+                        modelName = modelName
+                    )
+                }
+                
                 showNotification("所有参数已重置为默认值")
             } catch (e: Exception) {
                 e.printStackTrace()

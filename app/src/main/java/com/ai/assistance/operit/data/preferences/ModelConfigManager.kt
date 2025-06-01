@@ -32,7 +32,7 @@ class ModelConfigManager(private val context: Context) {
     companion object {
         // 配置相关key
         val CONFIG_LIST = stringPreferencesKey("config_list")
-        val ACTIVE_CONFIG_ID = stringPreferencesKey("active_config_id")
+        // 删除活跃配置ID
 
         // 默认值
         const val DEFAULT_CONFIG_ID = "default"
@@ -56,11 +56,7 @@ class ModelConfigManager(private val context: Context) {
                 else json.decodeFromString<List<String>>(configList)
             }
 
-    // 获取当前活跃配置ID
-    val activeConfigIdFlow: Flow<String> =
-            context.modelConfigDataStore.data.map { preferences ->
-                preferences[ACTIVE_CONFIG_ID] ?: DEFAULT_CONFIG_ID
-            }
+    // 删除获取当前活跃配置ID的流
 
     // 初始化，确保至少有一个默认配置
     suspend fun initializeIfNeeded() {
@@ -71,10 +67,9 @@ class ModelConfigManager(private val context: Context) {
             val defaultConfig = createDefaultConfigFromApiPreferences()
             saveModelConfig(defaultConfig)
 
-            // 保存配置列表和活跃ID
+            // 保存配置列表，移除活跃ID
             context.modelConfigDataStore.edit { preferences ->
                 preferences[CONFIG_LIST] = json.encodeToString(listOf(DEFAULT_CONFIG_ID))
-                preferences[ACTIVE_CONFIG_ID] = DEFAULT_CONFIG_ID
             }
         }
     }
@@ -115,7 +110,7 @@ class ModelConfigManager(private val context: Context) {
         return ModelConfigData(
                 id = DEFAULT_CONFIG_ID,
                 name = DEFAULT_CONFIG_NAME,
-                isActive = true,
+                // 移除isActive = true
                 apiKey = apiKey,
                 apiEndpoint = apiEndpoint,
                 modelName = modelName,
@@ -159,14 +154,14 @@ class ModelConfigManager(private val context: Context) {
                     if (configId == DEFAULT_CONFIG_ID) {
                         createDefaultConfigFromApiPreferences()
                     } else {
-                        ModelConfigData(id = configId, name = "配置 $configId", isActive = false)
+                        ModelConfigData(id = configId, name = "配置 $configId")
                     }
                 }
             } else {
                 if (configId == DEFAULT_CONFIG_ID) {
                     createDefaultConfigFromApiPreferences()
                 } else {
-                    ModelConfigData(id = configId, name = "配置 $configId", isActive = false)
+                    ModelConfigData(id = configId, name = "配置 $configId")
                 }
             }
         }
@@ -175,7 +170,6 @@ class ModelConfigManager(private val context: Context) {
     // 获取所有配置的摘要信息
     suspend fun getAllConfigSummaries(): List<ModelConfigSummary> {
         val configIds = configListFlow.first()
-        val activeId = activeConfigIdFlow.first()
         val summaries = mutableListOf<ModelConfigSummary>()
 
         for (id in configIds) {
@@ -184,7 +178,6 @@ class ModelConfigManager(private val context: Context) {
                     ModelConfigSummary(
                             id = config.id,
                             name = config.name,
-                            isActive = id == activeId,
                             modelName = config.modelName,
                             apiEndpoint = config.apiEndpoint
                     )
@@ -200,10 +193,9 @@ class ModelConfigManager(private val context: Context) {
         val configList = configListFlow.first().toMutableList()
 
         // 复制当前活跃配置作为新配置的基础
-        val activeId = activeConfigIdFlow.first()
-        val baseConfig = getModelConfigFlow(activeId).first()
+        val baseConfig = getModelConfigFlow(DEFAULT_CONFIG_ID).first()
 
-        val newConfig = baseConfig.copy(id = configId, name = name, isActive = false)
+        val newConfig = baseConfig.copy(id = configId, name = name)
 
         // 保存新配置
         saveModelConfig(newConfig)
@@ -219,66 +211,32 @@ class ModelConfigManager(private val context: Context) {
 
     // 删除配置
     suspend fun deleteConfig(configId: String) {
-        // 不能删除默认配置
-        if (configId == DEFAULT_CONFIG_ID) return
+        if (configId == DEFAULT_CONFIG_ID) {
+            // 不允许删除默认配置
+            return
+        }
 
         val configList = configListFlow.first().toMutableList()
-        val activeId = activeConfigIdFlow.first()
-
-        // 如果删除的是当前活跃配置，切换到默认配置
-        if (configId == activeId) {
-            setActiveConfig(DEFAULT_CONFIG_ID)
-        }
 
         // 从列表中移除
         configList.remove(configId)
         context.modelConfigDataStore.edit { preferences ->
-            preferences[CONFIG_LIST] = json.encodeToString(configList)
-            // 删除配置数据
+            // 删除配置记录 - 修复null赋值问题
             preferences.remove(stringPreferencesKey("config_${configId}"))
+            // 更新配置列表
+            preferences[CONFIG_LIST] = json.encodeToString(configList)
         }
     }
 
-    // 设置活跃配置
-    suspend fun setActiveConfig(configId: String) {
-        val configList = configListFlow.first()
-        if (configId !in configList) return
-
-        // 获取所选配置
-        val selectedConfig = getModelConfigFlow(configId).first()
-
-        // 更新所有配置的活跃状态
-        for (id in configList) {
-            if (id == configId) {
-                val config = getModelConfigFlow(id).first()
-                saveModelConfig(config.copy(isActive = true))
-            } else {
-                val config = getModelConfigFlow(id).first()
-                if (config.isActive) {
-                    saveModelConfig(config.copy(isActive = false))
-                }
-            }
-        }
-
-        // 更新活跃配置ID
-        context.modelConfigDataStore.edit { preferences ->
-            preferences[ACTIVE_CONFIG_ID] = configId
-        }
-
-        // 将活跃配置同步到ApiPreferences (这样现有代码不需要修改)
-        applyConfigToApiPreferences(selectedConfig)
+    // 获取配置参数列表
+    suspend fun getModelParametersForConfig(configId: String): List<ModelParameter<*>> {
+        // 获取配置
+        val config = getModelConfigFlow(configId).first()
+        return createParametersFromConfig(config)
     }
 
-    // 将配置应用到ApiPreferences
-    private suspend fun applyConfigToApiPreferences(config: ModelConfigData) {
-        // 保存API设置
-        apiPreferences.saveApiSettings(
-                apiKey = config.apiKey,
-                endpoint = config.apiEndpoint,
-                modelName = config.modelName
-        )
-
-        // 保存模型参数
+    // 从配置创建参数列表
+    private fun createParametersFromConfig(config: ModelConfigData): List<ModelParameter<*>> {
         val parameters = mutableListOf<ModelParameter<*>>()
 
         // 添加标准参数
@@ -474,190 +432,46 @@ class ModelConfigManager(private val context: Context) {
             }
         }
 
-        // 保存所有参数
-        try {
-            apiPreferences.saveModelParameters(parameters)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        return parameters
     }
 
-    // 更新配置
+    // 更新配置基本信息（名称等）
+    suspend fun updateConfigBase(configId: String, name: String): ModelConfigData {
+        val config = getModelConfigFlow(configId).first()
+        val updatedConfig = config.copy(name = name)
+        saveModelConfig(updatedConfig)
+        return updatedConfig
+    }
+
+    // 更新模型配置
     suspend fun updateModelConfig(
             configId: String,
-            name: String? = null,
-            apiKey: String? = null,
-            apiEndpoint: String? = null,
-            modelName: String? = null,
-            parameters: List<ModelParameter<*>>? = null
-    ) {
+            apiKey: String,
+            apiEndpoint: String,
+            modelName: String
+    ): ModelConfigData {
         val config = getModelConfigFlow(configId).first()
-
-        // 准备更新的配置
-        var updatedConfig = config.copy()
-
-        // 更新名称
-        if (name != null) {
-            updatedConfig = updatedConfig.copy(name = name)
-        }
-
-        // 更新API设置
-        if (apiKey != null) {
-            updatedConfig = updatedConfig.copy(apiKey = apiKey)
-        }
-
-        if (apiEndpoint != null) {
-            updatedConfig = updatedConfig.copy(apiEndpoint = apiEndpoint)
-        }
-
-        if (modelName != null) {
-            updatedConfig = updatedConfig.copy(modelName = modelName)
-        }
-
-        // 更新参数
-        if (parameters != null) {
-            // 提取标准参数设置和自定义参数
-            val standardParams = parameters.filterNot { it.isCustom }
-            val customParams = parameters.filter { it.isCustom }
-
-            for (param in standardParams) {
-                when (param.id) {
-                    "max_tokens" -> {
-                        updatedConfig =
-                                updatedConfig.copy(
-                                        maxTokens = param.currentValue as Int,
-                                        maxTokensEnabled = param.isEnabled
-                                )
-                    }
-                    "temperature" -> {
-                        updatedConfig =
-                                updatedConfig.copy(
-                                        temperature = param.currentValue as Float,
-                                        temperatureEnabled = param.isEnabled
-                                )
-                    }
-                    "top_p" -> {
-                        updatedConfig =
-                                updatedConfig.copy(
-                                        topP = param.currentValue as Float,
-                                        topPEnabled = param.isEnabled
-                                )
-                    }
-                    "top_k" -> {
-                        updatedConfig =
-                                updatedConfig.copy(
-                                        topK = param.currentValue as Int,
-                                        topKEnabled = param.isEnabled
-                                )
-                    }
-                    "presence_penalty" -> {
-                        updatedConfig =
-                                updatedConfig.copy(
-                                        presencePenalty = param.currentValue as Float,
-                                        presencePenaltyEnabled = param.isEnabled
-                                )
-                    }
-                    "frequency_penalty" -> {
-                        updatedConfig =
-                                updatedConfig.copy(
-                                        frequencyPenalty = param.currentValue as Float,
-                                        frequencyPenaltyEnabled = param.isEnabled
-                                )
-                    }
-                    "repetition_penalty" -> {
-                        updatedConfig =
-                                updatedConfig.copy(
-                                        repetitionPenalty = param.currentValue as Float,
-                                        repetitionPenaltyEnabled = param.isEnabled
-                                )
-                    }
-                }
-            }
-
-            // 更新自定义参数
-            if (customParams.isNotEmpty()) {
-                val customParamsList =
-                        customParams.map { param ->
-                            when (param.valueType) {
-                                ParameterValueType.INT -> {
-                                    CustomParameterData(
-                                            id = param.id,
-                                            name = param.name,
-                                            apiName = param.apiName,
-                                            description = param.description,
-                                            defaultValue = (param.defaultValue as Int).toString(),
-                                            currentValue = (param.currentValue as Int).toString(),
-                                            isEnabled = param.isEnabled,
-                                            valueType = param.valueType.name,
-                                            minValue = (param.minValue as? Int)?.toString(),
-                                            maxValue = (param.maxValue as? Int)?.toString(),
-                                            category = param.category.name
-                                    )
-                                }
-                                ParameterValueType.FLOAT -> {
-                                    CustomParameterData(
-                                            id = param.id,
-                                            name = param.name,
-                                            apiName = param.apiName,
-                                            description = param.description,
-                                            defaultValue = (param.defaultValue as Float).toString(),
-                                            currentValue = (param.currentValue as Float).toString(),
-                                            isEnabled = param.isEnabled,
-                                            valueType = param.valueType.name,
-                                            minValue = (param.minValue as? Float)?.toString(),
-                                            maxValue = (param.maxValue as? Float)?.toString(),
-                                            category = param.category.name
-                                    )
-                                }
-                                ParameterValueType.STRING -> {
-                                    CustomParameterData(
-                                            id = param.id,
-                                            name = param.name,
-                                            apiName = param.apiName,
-                                            description = param.description,
-                                            defaultValue = param.defaultValue as String,
-                                            currentValue = param.currentValue as String,
-                                            isEnabled = param.isEnabled,
-                                            valueType = param.valueType.name,
-                                            category = param.category.name
-                                    )
-                                }
-                                ParameterValueType.BOOLEAN -> {
-                                    CustomParameterData(
-                                            id = param.id,
-                                            name = param.name,
-                                            apiName = param.apiName,
-                                            description = param.description,
-                                            defaultValue =
-                                                    (param.defaultValue as Boolean).toString(),
-                                            currentValue =
-                                                    (param.currentValue as Boolean).toString(),
-                                            isEnabled = param.isEnabled,
-                                            valueType = param.valueType.name,
-                                            category = param.category.name
-                                    )
-                                }
-                            }
-                        }
-
-                updatedConfig =
-                        updatedConfig.copy(
-                                hasCustomParameters = true,
-                                customParameters = json.encodeToString(customParamsList)
-                        )
-            } else if (customParams.isEmpty() && parameters.isNotEmpty()) {
-                // 如果参数列表中没有自定义参数但有其他参数，则清空自定义参数
-                updatedConfig =
-                        updatedConfig.copy(hasCustomParameters = false, customParameters = "[]")
-            }
-        }
+        val updatedConfig =
+                config.copy(apiKey = apiKey, apiEndpoint = apiEndpoint, modelName = modelName)
 
         // 保存更新后的配置
         saveModelConfig(updatedConfig)
 
-        // 如果这是活跃配置，同步到ApiPreferences
-        if (updatedConfig.isActive) {
-            applyConfigToApiPreferences(updatedConfig)
-        }
+        return updatedConfig
+    }
+
+    // 更新自定义参数
+    suspend fun updateCustomParameters(configId: String, parametersJson: String): ModelConfigData {
+        val config = getModelConfigFlow(configId).first()
+        val updatedConfig =
+                config.copy(
+                        customParameters = parametersJson,
+                        hasCustomParameters = parametersJson != "[]"
+                )
+
+        // 保存更新后的配置
+        saveModelConfig(updatedConfig)
+
+        return updatedConfig
     }
 }

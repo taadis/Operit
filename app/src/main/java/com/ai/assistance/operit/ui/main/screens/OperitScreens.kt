@@ -12,6 +12,7 @@ import com.ai.assistance.operit.ui.features.help.screens.HelpScreen
 import com.ai.assistance.operit.ui.features.packages.screens.PackageManagerScreen
 import com.ai.assistance.operit.ui.features.problems.screens.ProblemLibraryScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ChatHistorySettingsScreen
+import com.ai.assistance.operit.ui.features.settings.screens.FunctionalConfigScreen
 import com.ai.assistance.operit.ui.features.settings.screens.LanguageSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ModelConfigScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ModelPromptsSettingsScreen
@@ -179,6 +180,7 @@ sealed class Screen(
                                 navigateToModelConfig = { navigateTo(ModelConfig) },
                                 navigateToThemeSettings = { navigateTo(ThemeSettings) },
                                 navigateToModelPrompts = { navigateTo(ModelPromptsSettings) },
+                                navigateToFunctionalConfig = { navigateTo(FunctionalConfig) },
                                 navigateToChatHistorySettings = { navigateTo(ChatHistorySettings) },
                                 navigateToLanguageSettings = { navigateTo(LanguageSettings) }
                         )
@@ -351,6 +353,31 @@ sealed class Screen(
                         onGestureConsumed: (Boolean) -> Unit
                 ) {
                         ModelPromptsSettingsScreen(
+                                onBackPressed = {
+                                        parentScreen?.let {
+                                                navigateTo(it)
+                                                it.navItem?.let { navItem ->
+                                                        updateNavItem(navItem)
+                                                }
+                                        }
+                                }
+                        )
+                }
+        }
+
+        data object FunctionalConfig :
+                Screen(parentScreen = Settings, navItem = NavItem.Settings, titleRes = "功能模型配置") {
+                @Composable
+                override fun Content(
+                        navController: NavController,
+                        navigateTo: ScreenNavigationHandler,
+                        updateNavItem: NavItemChangeHandler,
+                        hasBackgroundImage: Boolean,
+                        onLoading: (Boolean) -> Unit,
+                        onError: (String) -> Unit,
+                        onGestureConsumed: (Boolean) -> Unit
+                ) {
+                        FunctionalConfigScreen(
                                 onBackPressed = {
                                         parentScreen?.let {
                                                 navigateTo(it)

@@ -7,7 +7,6 @@ import kotlinx.serialization.Serializable
 data class ModelConfigData(
         val id: String,
         val name: String,
-        val isActive: Boolean = false,
 
         // API设置
         val apiKey: String = "",
@@ -44,7 +43,6 @@ data class ModelConfigData(
 data class ModelConfigSummary(
         val id: String,
         val name: String,
-        val isActive: Boolean = false,
         val modelName: String = "",
         val apiEndpoint: String = ""
 )

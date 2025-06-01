@@ -26,6 +26,7 @@ fun SettingsScreen(
         navigateToModelConfig: () -> Unit,
         navigateToThemeSettings: () -> Unit,
         navigateToModelPrompts: () -> Unit,
+        navigateToFunctionalConfig: () -> Unit,
         navigateToChatHistorySettings: () -> Unit,
         navigateToLanguageSettings: () -> Unit
 ) {
@@ -175,6 +176,15 @@ fun SettingsScreen(
                         onClick = navigateToModelConfig,
                         buttonText = "配置模型",
                         icon = Icons.Default.Api
+                )
+
+                // 功能模型配置卡片
+                SettingsCard(
+                        title = "功能模型配置",
+                        description = "为不同功能（如对话、总结、问题库等）配置专用的模型与API设置",
+                        onClick = navigateToFunctionalConfig,
+                        buttonText = "配置功能",
+                        icon = Icons.Default.Tune
                 )
 
                 // ======= SECTION 3: DISPLAY AND BEHAVIOR =======
