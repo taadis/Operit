@@ -31,7 +31,7 @@
 
 ### 🌐 WebDev 功能
 
-Operit AI 现已支持 WebDev 功能，让您在移动端也能享受到丰富的 Web 开发和互动体验。
+Operit AI 现已支持 WebDev 功能，让您在移动端也能享受到丰富的 Web 开发和互动体验。同时可以通过软件把生成的网页导出到apk和exe，在手机或者电脑上独立运行。
 
 <div align="center">
   <div style="margin: 30px 0;">
