@@ -13,16 +13,19 @@
         </DropdownSelection>
         <DialogSelection />
       </SelectionState>
-      <SelectionState runConfigName="StreamAndroidTest">
+      <SelectionState runConfigName="StreamKmpGraphTest">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
-      <SelectionState runConfigName="HotStreamAndroidTest">
+      <SelectionState runConfigName="testOptionalGraph()">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
-      <SelectionState runConfigName="TagPluginTest">
+      <SelectionState runConfigName="testComplexDSLPattern()">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
-      <SelectionState runConfigName="StreamGroupInstrumentedTest">
+      <SelectionState runConfigName="testRepeat()">
+        <option name="selectionMode" value="DROPDOWN" />
+      </SelectionState>
+      <SelectionState runConfigName="StreamXmlPluginTest">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
     </selectionStates>
