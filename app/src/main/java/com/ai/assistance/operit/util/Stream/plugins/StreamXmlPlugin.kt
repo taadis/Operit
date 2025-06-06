@@ -11,25 +11,23 @@ private const val GROUP_CONTENT = 2
  */
 class StreamXmlPlugin : StreamPlugin {
 
-    override var isProcessing: Boolean = false
-        private set
+    override val isProcessing: Boolean
+        get() = endTagMatcher != null
 
-    // This flag is no longer driven by the listener but by the new result object.
-    override var isTryingToStart: Boolean = false
-        private set
+    override val isTryingToStart: Boolean
+        get() = !isProcessing && startTagMatcher.getCurrentNode() != startTagMatcher.getStartNode()
 
     private var startTagMatcher: StreamKmpGraph
     private var endTagMatcher: StreamKmpGraph? = null
-    private var currentTagName: String? = null
 
     init {
         startTagMatcher =
                 StreamKmpGraphBuilder()
                         .build(
                                 kmpPattern {
+                                    char('<')
                                     // Group 1: Capture the tag name
                                     group(GROUP_TAG_NAME) {
-                                        char('<')
                                         // Tag names cannot start with these chars
                                         noneOf('>', '/', '!', ' ')
                                         // Then, match anything until a space or '>'
@@ -46,51 +44,51 @@ class StreamXmlPlugin : StreamPlugin {
 
     /** Process a single character for XML stream parsing. */
     override fun processChar(c: Char): Boolean {
-        // If we are processing content, we are only looking for the end tag.
-        endTagMatcher?.let { matcher ->
+        return if (isProcessing) {
+            // If we are already processing, we are looking for the end tag.
+            val matcher = endTagMatcher!!
             val result = matcher.processChar(c)
             if (result is StreamKmpMatchResult.Match && result.isFullMatch) {
-                // End tag found, stop processing.
-                isProcessing = false
-                endTagMatcher = null // Invalidate the end tag matcher.
+                reset() // End tag found, reset to initial state.
+            } else if (result is StreamKmpMatchResult.NoMatch) {
+                // The character did not match the end tag pattern, which is an error.
+                reset()
             }
-            return true // Always consume characters while processing.
-        }
-
-        // If not processing, look for a start tag.
-        val result = startTagMatcher.processChar(c)
-        isTryingToStart = result is StreamKmpMatchResult.InProgress
-
-        if (result is StreamKmpMatchResult.Match) {
-            // A match occurred, check for our groups.
-            result.groups[GROUP_TAG_NAME]?.let {
-                // The tag name was captured (e.g., "<tagname").
-                // It removes the leading '<'.
-                currentTagName = it.substring(1)
-            }
-
-            if (result.isFullMatch) {
-                // The entire start tag pattern was matched (e.g., "<tagname>").
-                isProcessing = true
-                isTryingToStart = false
-                startTagMatcher.reset()
-
-                // Dynamically build the matcher for the corresponding end tag.
-                currentTagName?.let {
-                    endTagMatcher =
-                            StreamKmpGraphBuilder()
-                                    .build(
-                                            kmpPattern {
-                                                literal("</")
-                                                literal(it)
-                                                char('>')
-                                            }
-                                    )
+            true // Always consume all chars while processing.
+        } else {
+            // If not processing, we are looking for a start tag.
+            when (val result = startTagMatcher.processChar(c)) {
+                is StreamKmpMatchResult.Match -> {
+                    // This case should now only be triggered on a full "<tag...>" match.
+                    val tagName = result.groups[GROUP_TAG_NAME]
+                    if (tagName != null) {
+                        // We have a full start tag. Start processing.
+                        endTagMatcher =
+                                StreamKmpGraphBuilder()
+                                        .build(
+                                                kmpPattern {
+                                                    literal("</")
+                                                    literal(tagName)
+                                                    char('>')
+                                                }
+                                        )
+                        startTagMatcher.reset()
+                    } else {
+                        // Should not happen with the current pattern, but as a safeguard:
+                        reset()
+                    }
+                    true
                 }
-                currentTagName = null // Reset for next tag.
+                is StreamKmpMatchResult.InProgress -> {
+                    // We are in the middle of matching a start tag (e.g., after '<' or '<t').
+                    true // Character consumed.
+                }
+                is StreamKmpMatchResult.NoMatch -> {
+                    // The character did not fit the pattern. The matcher has reset itself.
+                    false // Character not consumed.
+                }
             }
         }
-        return isProcessing || isTryingToStart
     }
 
     /** Initializes the plugin to its default state. */
@@ -104,11 +102,7 @@ class StreamXmlPlugin : StreamPlugin {
 
     /** Resets the plugin state. */
     override fun reset() {
-        isProcessing = false
-        isTryingToStart = false
-        currentTagName = null
-        startTagMatcher.reset()
-        endTagMatcher?.reset()
         endTagMatcher = null
+        startTagMatcher.reset()
     }
 }

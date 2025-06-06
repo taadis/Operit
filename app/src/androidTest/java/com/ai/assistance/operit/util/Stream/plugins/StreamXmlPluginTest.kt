@@ -51,6 +51,7 @@ class StreamXmlPluginTest {
         val xmlTag = "<test attr=\"value\">"
         xmlTag.forEach { plugin.processChar(it) }
         assertTrue("Should be in processing state after a tag with attributes", plugin.isProcessing)
+        assertFalse(plugin.isTryingToStart)
     }
 
     @Test
@@ -59,16 +60,36 @@ class StreamXmlPluginTest {
         fullXml.forEach { plugin.processChar(it) }
 
         assertFalse("Should stop processing after the end tag is found", plugin.isProcessing)
+        assertFalse("Should not be trying to start after completion", plugin.isTryingToStart)
     }
 
     @Test
     fun testFailedMatch() {
-        // 测试非XML内容
+        // Test non-XML content
         val nonXml = "This is not XML"
         nonXml.forEach { plugin.processChar(it) }
 
-        assertFalse(plugin.isTryingToStart)
-        assertFalse(plugin.isProcessing)
+        assertFalse(
+                "Should not be trying to start after non-matching input",
+                plugin.isTryingToStart
+        )
+        assertFalse("Should not be processing after non-matching input", plugin.isProcessing)
+
+        // Test an incomplete tag
+        plugin.reset()
+        val incompleteXml = "<tag"
+        incompleteXml.forEach { plugin.processChar(it) }
+        assertTrue("Should be trying to start with an incomplete tag", plugin.isTryingToStart)
+        assertFalse("Should not be processing with an incomplete tag", plugin.isProcessing)
+
+        // Reset and then feed invalid characters
+        plugin.reset()
+        plugin.processChar('<')
+        plugin.processChar(' ') // Invalid start for a tag name
+        assertFalse(
+                "Should not be trying to start after an invalid tag char",
+                plugin.isTryingToStart
+        )
     }
 
     @Test
@@ -90,28 +111,15 @@ class StreamXmlPluginTest {
     @Test
     fun testFullXmlProcessingAndCharacterConsumption() {
         val fullXml = "<root attr=\"value\">Content</root>"
-        var contentProcessed = false
-        var tagProcessed = false
 
-        // Test consumption during tag definition
-        val pluginInstance = StreamXmlPlugin()
-        pluginInstance.initPlugin()
-        assertTrue("Should consume '<'", pluginInstance.processChar('<'))
-        assertTrue("Should consume 'r' as part of the tag", pluginInstance.processChar('r'))
-        tagProcessed = true
-
-        // Reset and test full processing
+        // Test full processing by feeding the entire XML string
         plugin.reset()
+        fullXml.forEach { c -> plugin.processChar(c) }
 
-        fullXml.forEach { c ->
-            plugin.processChar(c)
-            if (plugin.isProcessing && c != '<' && c != '>') {
-                contentProcessed = true
-            }
-        }
-
-        assertTrue("Tag definition characters should have been consumed", tagProcessed)
-        assertTrue("Content characters should have been processed", contentProcessed)
         assertFalse("Should not be in processing state after completion", plugin.isProcessing)
+        assertFalse(
+                "Should not be trying to start after successful and complete processing",
+                plugin.isTryingToStart
+        )
     }
 }

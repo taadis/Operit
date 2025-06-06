@@ -417,11 +417,6 @@ class StreamKmpGraphBuilder {
                                 condition.condition
                             }
                     graph.addTransition(currentNode, currentNode, loopCondition)
-                    // If the greedy star is the very last part of the pattern, this node should
-                    // also be final.
-                    if (nextRealCondition == null) {
-                        currentNode.isFinal = true
-                    }
                 }
                 else -> { // Regular condition
                     currentDepth++
