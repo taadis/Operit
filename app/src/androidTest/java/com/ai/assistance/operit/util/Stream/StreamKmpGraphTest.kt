@@ -470,12 +470,140 @@ class StreamKmpGraphTest {
         // Test a successful match
         graph.reset()
         var result: StreamKmpMatchResult = StreamKmpMatchResult.NoMatch
-        "abc".forEach { result = graph.processChar(it) }
+
+        println("初始result: $result")
+
+        result = graph.processChar('a')
+        println("处理字符 'a' 后的result: $result")
+
+        result = graph.processChar('b')
+        println("处理字符 'b' 后的result: $result")
+
+        result = graph.processChar('c')
+        println("处理字符 'c' 后的result: $result")
 
         assertTrue(result is StreamKmpMatchResult.Match)
         val match = result as StreamKmpMatchResult.Match
         assertTrue(match.isFullMatch)
         assertEquals("ab", match.groups[GROUP_TAG_NAME])
+
+        // 测试更多情况
+        println("\n测试不匹配的情况：")
+        graph.reset()
+        result = graph.processChar('x')
+        println("处理字符 'x' 后的result: $result")
+
+        println("\n测试部分匹配后失败的情况：")
+        graph.reset()
+        result = graph.processChar('a')
+        println("处理字符 'a' 后的result: $result")
+        result = graph.processChar('x')
+        println("处理字符 'x' 后的result: $result")
+    }
+
+    @Test
+    fun testAdvancedGroupCapture() {
+        val builder = StreamKmpGraphBuilder()
+
+        // 测试多个分组
+        val multiGroupPattern = kmpPattern {
+            group(1) { char('a') }
+            char('-')
+            group(2) { digit() }
+        }
+
+        var graph = builder.build(multiGroupPattern)
+        graph.reset()
+        graph.processChar('a')
+        graph.processChar('-')
+        var result = graph.processChar('5')
+
+        assertTrue(result is StreamKmpMatchResult.Match)
+        var match = result as StreamKmpMatchResult.Match
+        assertTrue(match.isFullMatch)
+        assertEquals("a", match.groups[1])
+        assertEquals("5", match.groups[2])
+
+        // 测试嵌套分组
+        val nestedGroupPattern = kmpPattern {
+            group(1) {
+                char('(')
+                group(2) {
+                    letter()
+                    digit()
+                }
+                char(')')
+            }
+        }
+
+        graph = builder.build(nestedGroupPattern)
+        graph.reset()
+        graph.processChar('(')
+        graph.processChar('x')
+        graph.processChar('7')
+        result = graph.processChar(')')
+
+        assertTrue(result is StreamKmpMatchResult.Match)
+        match = result as StreamKmpMatchResult.Match
+        assertTrue(match.isFullMatch)
+        assertEquals("(x7)", match.groups[1])
+        assertEquals("x7", match.groups[2])
+
+        // 测试分组与贪婪星号组合
+        val greedyGroupPattern = kmpPattern {
+            group(1) {
+                char('a')
+                greedyStar { notChar('b') }
+            }
+            char('b')
+        }
+
+        graph = builder.build(greedyGroupPattern)
+        graph.reset()
+        graph.processChar('a')
+        graph.processChar('x')
+        graph.processChar('y')
+        graph.processChar('z')
+        result = graph.processChar('b')
+
+        assertTrue(result is StreamKmpMatchResult.Match)
+        match = result as StreamKmpMatchResult.Match
+        assertTrue(match.isFullMatch)
+        assertEquals("axyz", match.groups[1])
+
+        // 测试分组与重复组合
+        val repeatGroupPattern = kmpPattern { group(1) { repeat(2) { digit() } } }
+
+        graph = builder.build(repeatGroupPattern)
+        graph.reset()
+        graph.processChar('1')
+        result = graph.processChar('2')
+
+        assertTrue(result is StreamKmpMatchResult.Match)
+        match = result as StreamKmpMatchResult.Match
+        assertTrue(match.isFullMatch)
+        assertEquals("12", match.groups[1])
+
+        // 测试分组内使用复杂条件
+        val complexGroupPattern = kmpPattern {
+            group(1) {
+                char('x')
+                group(2) { predicate("偶数") { it.isDigit() && it.digitToInt() % 2 == 0 } }
+                charIgnoreCase('y')
+            }
+        }
+
+        graph = builder.build(complexGroupPattern)
+        graph.reset()
+        graph.processChar('x')
+        graph.processChar('4')
+        result = graph.processChar('Y')
+
+        assertTrue(result is StreamKmpMatchResult.Match)
+        match = result as StreamKmpMatchResult.Match
+        assertTrue(match.isFullMatch)
+        assertEquals("x4Y", match.groups[1])
+        assertEquals("4", match.groups[2])
     }
 }
 

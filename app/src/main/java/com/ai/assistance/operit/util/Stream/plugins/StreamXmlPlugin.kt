@@ -26,14 +26,10 @@ class StreamXmlPlugin : StreamPlugin {
                         .build(
                                 kmpPattern {
                                     char('<')
-                                    // Group 1: Capture the tag name
-                                    group(GROUP_TAG_NAME) {
-                                        // Tag names cannot start with these chars
-                                        noneOf('>', '/', '!', ' ')
-                                        // Then, match anything until a space or '>'
-                                        greedyStar { noneOf(' ', '>') }
-                                    }
-                                    // Match attributes until the tag closes
+                                    // Group 1: Capture the tag name, which is everything up to the
+                                    // first space or '>'.
+                                    group(GROUP_TAG_NAME) { greedyStar { noneOf(' ', '>') } }
+                                    // Optional: Match attributes until the tag closes
                                     greedyStar { notChar('>') }
                                     char('>')
                                 }
@@ -44,22 +40,20 @@ class StreamXmlPlugin : StreamPlugin {
 
     /** Process a single character for XML stream parsing. */
     override fun processChar(c: Char): Boolean {
-        return if (isProcessing) {
+        if (isProcessing) {
             // If we are already processing, we are looking for the end tag.
             val matcher = endTagMatcher!!
             val result = matcher.processChar(c)
+            StreamLogger.d("StreamXmlPlugin", "processChar: $c, result: $result")
             if (result is StreamKmpMatchResult.Match && result.isFullMatch) {
                 reset() // End tag found, reset to initial state.
-            } else if (result is StreamKmpMatchResult.NoMatch) {
-                // The character did not match the end tag pattern, which is an error.
-                reset()
             }
-            true // Always consume all chars while processing.
         } else {
             // If not processing, we are looking for a start tag.
             when (val result = startTagMatcher.processChar(c)) {
                 is StreamKmpMatchResult.Match -> {
                     // This case should now only be triggered on a full "<tag...>" match.
+                    StreamLogger.d("StreamXmlPlugin", "processChar: $c, result: $result")
                     val tagName = result.groups[GROUP_TAG_NAME]
                     if (tagName != null) {
                         // We have a full start tag. Start processing.
@@ -72,23 +66,24 @@ class StreamXmlPlugin : StreamPlugin {
                                                     char('>')
                                                 }
                                         )
+                        StreamLogger.d("StreamXmlPlugin", "endTagMatcher: $endTagMatcher")
                         startTagMatcher.reset()
                     } else {
                         // Should not happen with the current pattern, but as a safeguard:
                         reset()
                     }
-                    true
                 }
                 is StreamKmpMatchResult.InProgress -> {
+                    StreamLogger.d("StreamXmlPlugin", "processChar: $c, result: $result")
                     // We are in the middle of matching a start tag (e.g., after '<' or '<t').
-                    true // Character consumed.
                 }
                 is StreamKmpMatchResult.NoMatch -> {
+                    StreamLogger.d("StreamXmlPlugin", "processChar: $c, result: $result")
                     // The character did not fit the pattern. The matcher has reset itself.
-                    false // Character not consumed.
                 }
             }
         }
+        return true
     }
 
     /** Initializes the plugin to its default state. */

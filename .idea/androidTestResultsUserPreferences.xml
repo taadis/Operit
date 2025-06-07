@@ -29,6 +29,19 @@
             </AndroidTestResultsTableState>
           </value>
         </entry>
+        <entry key="-2020286966">
+          <value>
+            <AndroidTestResultsTableState>
+              <option name="preferredColumnWidths">
+                <map>
+                  <entry key="Duration" value="90" />
+                  <entry key="Medium_Phone_API_35" value="120" />
+                  <entry key="Tests" value="360" />
+                </map>
+              </option>
+            </AndroidTestResultsTableState>
+          </value>
+        </entry>
         <entry key="-1584590594">
           <value>
             <AndroidTestResultsTableState>
@@ -77,6 +90,7 @@
                   <entry key="Medium_Phone_API_35" value="120" />
                   <entry key="Tests" value="360" />
                   <entry key="vivo V2055A" value="120" />
+                  <entry key="vivo V2361A" value="120" />
                 </map>
               </option>
             </AndroidTestResultsTableState>
@@ -121,6 +135,19 @@
             </AndroidTestResultsTableState>
           </value>
         </entry>
+        <entry key="36081802">
+          <value>
+            <AndroidTestResultsTableState>
+              <option name="preferredColumnWidths">
+                <map>
+                  <entry key="Duration" value="90" />
+                  <entry key="Medium_Phone_API_35" value="120" />
+                  <entry key="Tests" value="360" />
+                </map>
+              </option>
+            </AndroidTestResultsTableState>
+          </value>
+        </entry>
         <entry key="460957005">
           <value>
             <AndroidTestResultsTableState>
@@ -130,6 +157,7 @@
                   <entry key="Medium_Phone_API_35" value="120" />
                   <entry key="Tests" value="360" />
                   <entry key="vivo V2055A" value="120" />
+                  <entry key="vivo V2361A" value="120" />
                 </map>
               </option>
             </AndroidTestResultsTableState>
