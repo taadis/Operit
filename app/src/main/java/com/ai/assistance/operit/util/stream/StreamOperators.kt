@@ -1,10 +1,15 @@
-package com.ai.assistance.operit.util.Stream
+package com.ai.assistance.operit.util.stream
 
-import com.ai.assistance.operit.util.Stream.plugins.*
+import com.ai.assistance.operit.util.stream.plugins.PluginState
+import com.ai.assistance.operit.util.stream.plugins.StreamPlugin
+import kotlin.collections.ArrayDeque
 import kotlin.time.Duration
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.consumeAsFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /** 将Stream中的元素转换为另一种类型 */
@@ -201,6 +206,164 @@ fun <T> Stream<T>.chunked(size: Int): Stream<List<T>> {
         // Emit the last chunk if it's not empty
         if (currentChunk.isNotEmpty()) {
             emit(currentChunk.toList())
+        }
+    }
+}
+
+/**
+ * 使用一组插件将字符流分割成不同的组。
+ *
+ * 该函数会根据插件的匹配状态将字符流划分为不同的组：
+ * 1. 匹配到插件的字符会分到对应插件组
+ * 2. 未匹配到任何插件的字符会归为默认文本组（tag为null）
+ *
+ * @param plugins 用于分割流的插件列表
+ * @return 返回一个包含分组后结果的Stream。每个组内的流会实时发射单个字符（作为String）。
+ */
+fun Stream<Char>.splitBy(plugins: List<StreamPlugin>): Stream<StreamGroup<StreamPlugin?>> {
+    val upstream = this
+
+    return object : Stream<StreamGroup<StreamPlugin?>> {
+        override suspend fun collect(collector: StreamCollector<StreamGroup<StreamPlugin?>>) {
+            coroutineScope {
+                val groupChannel = Channel<StreamGroup<StreamPlugin?>>(Channel.UNLIMITED)
+
+                launch { // Producer Coroutine
+                    try {
+                        plugins.forEach { it.initPlugin() }
+
+                        var defaultTextChannel: Channel<Char>? = null
+                        var activePlugin: StreamPlugin? = null
+                        var activePluginChannel: Channel<Char>? = null
+
+                        // 用于在没有活动插件时缓冲字符和插件处理结果
+                        val evaluationBuffer = mutableListOf<Char>()
+                        val evaluationShouldEmit = mutableListOf<Map<StreamPlugin, Boolean>>()
+
+                        // 用于处理插件状态转换时需要重新评估的字符
+                        val pendingChars = ArrayDeque<Char>()
+                        val upstreamChannel = Channel<Char>(Channel.UNLIMITED)
+
+                        launch {
+                            try {
+                                upstream.collect { upstreamChannel.send(it) }
+                            } finally {
+                                upstreamChannel.close()
+                            }
+                        }
+
+                        suspend fun openDefaultChannel() {
+                            if (defaultTextChannel == null) {
+                                val newChannel = Channel<Char>(Channel.UNLIMITED)
+                                defaultTextChannel = newChannel
+                                val stream =
+                                        newChannel.consumeAsFlow().map { it.toString() }.asStream()
+                                groupChannel.send(StreamGroup(null, stream))
+                            }
+                        }
+
+                        suspend fun closeDefaultChannel() {
+                            defaultTextChannel?.close()
+                            defaultTextChannel = null
+                        }
+
+                        suspend fun openPluginChannel(plugin: StreamPlugin) {
+                            val newChannel = Channel<Char>(Channel.UNLIMITED)
+                            activePluginChannel = newChannel
+                            activePlugin = plugin
+                            val stream = newChannel.consumeAsFlow().map { it.toString() }.asStream()
+                            groupChannel.send(StreamGroup(plugin, stream))
+                        }
+
+                        suspend fun closePluginChannel() {
+                            activePluginChannel?.close()
+                            activePluginChannel = null
+                            activePlugin = null
+                        }
+
+                        while (coroutineContext.isActive) {
+                            val char: Char =
+                                    if (pendingChars.isNotEmpty()) {
+                                        pendingChars.removeFirst()
+                                    } else {
+                                        upstreamChannel.receiveCatching().getOrNull() ?: break
+                                    }
+
+                            val currentActivePlugin = activePlugin
+
+                            if (currentActivePlugin != null) {
+                                // --- 状态：处理中 ---
+                                val shouldEmit = currentActivePlugin.processChar(char)
+                                if (shouldEmit) {
+                                    activePluginChannel?.send(char)
+                                }
+
+                                if (currentActivePlugin.state != PluginState.PROCESSING) {
+                                    closePluginChannel()
+                                    // 将导致插件状态改变的字符放回队列，以便重新评估 (REMOVED - This was causing bugs)
+                                    // pendingChars.addFirst(char)
+                                }
+                            } else {
+                                // --- 状态：评估中 ---
+                                // 所有插件并行处理字符
+                                evaluationBuffer.add(char)
+                                val shouldEmitMap = plugins.associateWith { it.processChar(char) }
+                                evaluationShouldEmit.add(shouldEmitMap)
+
+                                val successfulPlugin =
+                                        plugins.find { it.state == PluginState.PROCESSING }
+
+                                if (successfulPlugin != null) {
+                                    // --- 转换：评估中 -> 处理中 ---
+                                    closeDefaultChannel()
+                                    openPluginChannel(successfulPlugin)
+
+                                    // 回放缓冲区中的字符到成功的插件
+                                    evaluationBuffer.forEachIndexed { index, bufferedChar ->
+                                        val shouldEmit =
+                                                evaluationShouldEmit[index][successfulPlugin]
+                                        if (shouldEmit == true) {
+                                            activePluginChannel?.send(bufferedChar)
+                                        }
+                                    }
+                                    evaluationBuffer.clear()
+                                    evaluationShouldEmit.clear()
+
+                                    // 重置其他插件
+                                    plugins.forEach { if (it != successfulPlugin) it.reset() }
+                                } else if (plugins.none { it.state == PluginState.TRYING }) {
+                                    // --- 转换：评估中 -> 空闲 ---
+                                    // 没有插件处于TRYING状态，意味着匹配失败
+                                    openDefaultChannel()
+                                    evaluationBuffer.forEach { defaultTextChannel?.send(it) }
+                                    evaluationBuffer.clear()
+                                    evaluationShouldEmit.clear()
+
+                                    // 重置所有插件
+                                    plugins.forEach { it.reset() }
+                                }
+                                // 如果有插件处于TRYING状态，则继续缓冲
+                            }
+                        }
+
+                        // 流结束后，关闭所有剩余通道并清空缓冲区
+                        closeDefaultChannel()
+                        closePluginChannel()
+
+                        if (evaluationBuffer.isNotEmpty()) {
+                            openDefaultChannel()
+                            evaluationBuffer.forEach { defaultTextChannel?.send(it) }
+                            closeDefaultChannel()
+                        }
+                    } finally {
+                        groupChannel.close()
+                    }
+                }
+
+                for (group in groupChannel) {
+                    collector.emit(group)
+                }
+            }
         }
     }
 }

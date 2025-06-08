@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.util.Stream
+package com.ai.assistance.operit.util.stream
 
 /**
  * StreamGroup represents a grouped stream of data with an associated tag. It encapsulates a

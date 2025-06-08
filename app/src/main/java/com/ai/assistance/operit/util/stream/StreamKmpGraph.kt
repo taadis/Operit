@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.util.Stream
+package com.ai.assistance.operit.util.stream
 
 /** 条件接口，用于KMP图中的字符匹配 允许灵活的模式匹配，超越简单的字符相等性比较 */
 interface KmpCondition {
@@ -16,19 +16,20 @@ interface KmpCondition {
 
     /** 对此条件取反 */
     operator fun not(): KmpCondition = NotCondition(this)
-    
+
     /** 转换为等效的正则表达式模式字符串 */
-    fun toRegexPattern(): String = "."  // 默认实现，子类应覆盖
+    fun toRegexPattern(): String = "." // 默认实现，子类应覆盖
 }
 
 /** 匹配特定字符的简单条件 */
 class CharCondition(private val expectedChar: Char) : KmpCondition {
     override fun matches(c: Char): Boolean = c == expectedChar
     override fun getDescription(): String = "'$expectedChar'"
-    override fun toRegexPattern(): String = expectedChar.toString().let {
-        // 转义正则表达式特殊字符
-        if (it in ".*+?^\${}()|[]\\") "\\" + it else it
-    }
+    override fun toRegexPattern(): String =
+            expectedChar.toString().let {
+                // 转义正则表达式特殊字符
+                if (it in ".*+?^\${}()|[]\\") "\\" + it else it
+            }
 }
 
 /** 匹配指定范围内任何字符的条件 */
@@ -45,9 +46,10 @@ class CharSetCondition(private val charSet: Set<Char>) : KmpCondition {
     override fun matches(c: Char): Boolean = c in charSet
     override fun getDescription(): String = "[${charSet.joinToString("")}]"
     override fun toRegexPattern(): String {
-        val escapedChars = charSet.joinToString("") { 
-            if (it in ".*+?^\${}()|[]\\") "\\" + it else it.toString() 
-        }
+        val escapedChars =
+                charSet.joinToString("") {
+                    if (it in ".*+?^\${}()|[]\\") "\\" + it else it.toString()
+                }
         return "[$escapedChars]"
     }
 }
@@ -58,7 +60,10 @@ class NotCondition(private val condition: KmpCondition) : KmpCondition {
     override fun getDescription(): String = "not(${condition.getDescription()})"
     override fun toRegexPattern(): String {
         // 简单条件的否定可以直接使用 [^...]
-        if (condition is CharCondition || condition is CharSetCondition || condition is CharRangeCondition) {
+        if (condition is CharCondition ||
+                        condition is CharSetCondition ||
+                        condition is CharRangeCondition
+        ) {
             val innerPattern = condition.toRegexPattern()
             if (innerPattern.startsWith("[") && innerPattern.endsWith("]")) {
                 return "[^${innerPattern.substring(1, innerPattern.length - 1)}]"
@@ -99,7 +104,7 @@ class PredicateCondition(
     override fun getDescription(): String = description
     override fun toRegexPattern(): String {
         // 将常见谓词转换为等效的正则表达式
-        return when(description) {
+        return when (description) {
             "digit" -> "\\d"
             "not digit" -> "\\D"
             "letter" -> "[a-zA-Z]"
@@ -108,7 +113,7 @@ class PredicateCondition(
             "letterOrDigit" -> "\\w"
             "not letterOrDigit" -> "\\W"
             "any" -> "."
-            else -> "."  // 默认为任意字符
+            else -> "." // 默认为任意字符
         }
     }
 }
@@ -128,9 +133,9 @@ internal class GroupCondition(val groupId: Int, val conditions: List<KmpConditio
             )
 
     override fun getDescription(): String = "GROUP($groupId)"
-    override fun toRegexPattern(): String = 
+    override fun toRegexPattern(): String =
             "(${conditions.joinToString("") { it.toRegexPattern() }})"
-    
+
     fun getAllGroupIds(): List<Int> {
         val ids = mutableListOf(groupId)
         conditions.forEach {
@@ -191,16 +196,11 @@ class StreamKmpGraph {
     private val nodeChangeListeners = mutableListOf<KmpNodeChangeListener>()
     private val characterStreamBuffer = StringBuilder()
     private var currentMatchLength = 0
-    private var pattern: KmpPattern? = null
-    
+    var pattern: KmpPattern? = null
+
     init {
         startNode = createNode(0)
         currentNode = startNode
-    }
-
-    /** 设置用于构建正则表达式的原始模式 */
-    fun setPattern(pattern: KmpPattern) {
-        this.pattern = pattern
     }
 
     /** 添加节点变化监听器 */
@@ -273,7 +273,7 @@ class StreamKmpGraph {
         }
 
         currentNode = nextNode ?: startNode
-        
+
         // 如果是最终节点，可能存在匹配，需要进行二次正则匹配确认
         if (currentNode.isFinal) {
             return performRegexMatchingIfNeeded(true)
@@ -285,22 +285,22 @@ class StreamKmpGraph {
             StreamKmpMatchResult.InProgress
         }
     }
-    
+
     /** 在KMP匹配成功后使用正则表达式进行二次匹配以提取捕获组 */
     private fun performRegexMatchingIfNeeded(isFullMatch: Boolean): StreamKmpMatchResult {
         val patternObj = this.pattern ?: return StreamKmpMatchResult.Match(emptyMap(), isFullMatch)
-        
+
         // 构建等效的正则表达式
         val regexPattern = patternObj.toRegexPattern()
         val text = characterStreamBuffer.toString()
-        
+
         try {
             val regex = Regex(regexPattern)
             val matchResult = regex.find(text)
-            
+
             if (matchResult != null) {
                 val groups = mutableMapOf<Int, String>()
-                
+
                 // 从正则表达式的捕获组中提取匹配
                 patternObj.groupIds.forEachIndexed { index, groupId ->
                     // 跳过组索引0（整个匹配）
@@ -309,13 +309,13 @@ class StreamKmpGraph {
                         groups[groupId] = groupValue
                     }
                 }
-                
+
                 return StreamKmpMatchResult.Match(groups, isFullMatch)
             }
         } catch (e: Exception) {
             // 正则表达式处理错误，返回无组的匹配结果
         }
-        
+
         return StreamKmpMatchResult.Match(emptyMap(), isFullMatch)
     }
 
@@ -412,8 +412,8 @@ class StreamKmpGraph {
 class StreamKmpGraphBuilder {
     fun build(pattern: KmpPattern): StreamKmpGraph {
         val graph = StreamKmpGraph()
-        graph.setPattern(pattern)  // 保存模式以便后续用于正则表达式匹配
-        
+        graph.pattern = pattern // 保存模式以便后续用于正则表达式匹配
+
         val finalNode = buildRecursive(graph, graph.getStartNode(), pattern.conditions, 0).first
         finalNode.isFinal = true
         setupFailureTransitions(graph)
@@ -490,7 +490,7 @@ class StreamKmpGraphBuilder {
 /** 简化的模式构建DSL，允许以更简洁的方式构建KMP匹配条件 */
 class KmpPattern {
     val conditions = mutableListOf<KmpCondition>()
-    val groupIds = mutableListOf<Int>()  // 跟踪模式中所有组的ID，按定义顺序
+    val groupIds = mutableListOf<Int>() // 跟踪模式中所有组的ID，按定义顺序
 
     /** 添加一个匹配条件 */
     private fun add(condition: KmpCondition, isTopLevel: Boolean = false) {
@@ -499,7 +499,7 @@ class KmpPattern {
             groupIds.addAll(condition.getAllGroupIds())
         }
     }
-    
+
     /** 添加一个匹配条件 */
     fun add(condition: KmpCondition) {
         add(condition, true)
@@ -511,7 +511,7 @@ class KmpPattern {
         // GroupCondition现在只封装子模式
         add(GroupCondition(id, subPattern.conditions), true)
     }
-    
+
     /** 将模式转换为等效的正则表达式 */
     fun toRegexPattern(): String {
         return conditions.joinToString("") { it.toRegexPattern() }

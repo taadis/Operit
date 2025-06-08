@@ -1,4 +1,16 @@
-package com.ai.assistance.operit.util.Stream.plugins
+package com.ai.assistance.operit.util.stream.plugins
+
+/**
+ * The possible states of a stream processing plugin.
+ */
+enum class PluginState {
+    /** The plugin is inactive and not matching any pattern. */
+    IDLE,
+    /** The plugin has matched the beginning of a potential pattern and is consuming more characters to verify a full match. */
+    TRYING,
+    /** The plugin has confirmed a full pattern match and is actively processing the content of that pattern. */
+    PROCESSING
+}
 
 /**
  * 流处理插件接口
@@ -6,19 +18,15 @@ package com.ai.assistance.operit.util.Stream.plugins
  */
 interface StreamPlugin {
     /**
-     * 当前插件是否处于处理状态
+     * The current state of the plugin. This replaces the previous boolean flags
+     * for better state management.
      */
-    val isProcessing: Boolean
+    val state: PluginState
     
     /**
-     * 当前插件是否正在尝试开始处理
-     */
-    val isTryingToStart: Boolean
-    
-    /**
-     * 处理单个字符
+     * 处理单个字符，并决定是否应将其发射到流中。
      * @param c 要处理的字符
-     * @return 是否消费了该字符
+     * @return 如果该字符应被包含在最终的组流中，则返回 `true`；如果希望过滤掉（不发射），则返回 `false`。
      */
     fun processChar(c: Char): Boolean
     

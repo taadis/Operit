@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.util.Stream
+package com.ai.assistance.operit.util.stream
 
 /** Represents the outcome of processing a single character in a StreamKmpGraph. */
 sealed class StreamKmpMatchResult {

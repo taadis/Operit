@@ -1,198 +1,399 @@
-# Stream库
+# Stream 库 - 综合应用指南
 
-Stream是一个类似Kotlin Flow的轻量级异步数据流处理库。它提供了丰富的操作符和工具，用于处理异步数据流。
+`Stream` 是一个受 Kotlin Flow 启发的轻量级异步数据流处理库。它旨在提供一套简洁、强大且易于使用的API，用于创建、转换和消费异步数据序列。无论您是处理用户输入、网络响应还是复杂的数据管道，`Stream` 都能提供优雅的解决方案。
 
-## 基本概念
+本文档将作为一份全面的指南，帮助您从入门到精通 `Stream` 库的各项功能。
 
-- `Stream<T>` - 异步数据流的主要接口
-- `SharedStream<T>` - 可共享的热流，类似于SharedFlow
-- `StateStream<T>` - 带状态的热流，类似于StateFlow
+## 核心概念
 
-## 主要功能
+-   **`Stream<T>`**: 这是库的核心，代表一个"冷"的异步数据序列。这意味着只有当存在收集器（Collector）时，`Stream` 才会开始执行其代码并发射元素。
+-   **`SharedStream<T>`**: 一种"热"流，类似于 `SharedFlow`。它可以在多个收集器之间共享数据。即使没有收集器，它也可以保持活动状态。
+-   **`StateStream<T>`**: 一种特殊的"热"流，类似于 `StateFlow`。它总是拥有一个当前值，并且新的收集器会立即收到最新的值。
 
-### 创建Stream
+---
+
+## 快速上手
+
+### 1. 创建 Stream
+
+`Stream` 库提供了多种灵活的方式来创建数据流。
+
+**从现有数据创建：**
 
 ```kotlin
-// 从单个值创建Stream
-val stream = streamOf(1)
+// 从单个值创建
+val singleValueStream = streamOf("Hello, Stream!")
 
-// 从多个值创建Stream
-val stream = streamOf(1, 2, 3, 4, 5)
+// 从多个值创建
+val multiValueStream = streamOf(1, 2, 3, 4, 5)
 
-// 从集合创建Stream
-val list = listOf(1, 2, 3, 4, 5)
-val stream = list.asStream()
+// 从集合创建
+val list = listOf("A", "B", "C")
+val streamFromList = list.asStream()
 
-// 自定义构建Stream
-val stream = stream<Int> {
-    for (i in 1..5) {
-        emit(i)
-        delay(1000)
+// 从序列创建
+val streamFromSequence = generateSequence(0) { it + 1 }.asStream()
+```
+
+**使用构建器创建：**
+
+`stream { ... }` 构建器是最通用和强大的创建方式，您可以在其中定义异步操作。
+
+```kotlin
+import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.seconds
+
+// 创建一个每秒发射一次递增数字的 Stream
+val counterStream = stream<Int> {
+    var count = 0
+    while (true) {
+        emit(count++)
+        delay(1.seconds)
     }
 }
-
-// 创建范围Stream
-val stream = rangeStream(1, 5) // 创建包含1到5的Stream
-
-// 创建间隔Stream
-val stream = intervalStream(Duration.seconds(1)) // 每秒发射一次
 ```
 
-### 操作Stream
+**使用预设构建器：**
 
 ```kotlin
-// 映射操作
-val stream = streamOf(1, 2, 3, 4, 5)
-    .map { it * 2 } // 结果: 2, 4, 6, 8, 10
+// 创建一个发射指定范围整数的 Stream
+val rangeStream = rangeStream(start = 1, count = 5) // 会发射 1, 2, 3, 4, 5
 
-// 过滤操作
-val stream = streamOf(1, 2, 3, 4, 5)
-    .filter { it % 2 == 0 } // 结果: 2, 4
-
-// 限制数量
-val stream = streamOf(1, 2, 3, 4, 5)
-    .take(3) // 结果: 1, 2, 3
-
-// 转换操作
-val stream = streamOf(1, 2, 3)
-    .flatMap { num -> 
-        streamOf("a$num", "b$num") 
-    } // 结果: a1, b1, a2, b2, a3, b3
+// 创建一个按指定时间间隔发射的 Stream
+val intervalStream = intervalStream(period = 2.seconds) // 每2秒发射 0, 1, 2, ...
 ```
 
-### 分块/分组 Stream (Chunking / Grouping)
+### 2. 消费 Stream
+
+一旦创建了 `Stream`，您就可以使用 `collect` 来消费它发射的元素。
 
 ```kotlin
-// 将Stream中的元素按固定大小分块
-val stream = streamOf(1, 2, 3, 4, 5, 6, 7)
-    .chunked(3)
-// 上述操作会产生一个Stream，它依次发射:
-// listOf(1, 2, 3)
-// listOf(4, 5, 6)
-// listOf(7)
-
-stream.collect { group ->
-    println("Group: $group")
+suspend fun main() {
+    rangeStream(1, 3)
+        .collect { number ->
+            println("Received: $number")
+        }
+    // 输出:
+    // Received: 1
+    // Received: 2
+    // Received: 3
 }
 ```
 
-### 合并Stream
+在协程作用域中，您可以使用 `launchIn` 来启动一个 `Stream` 的收集，而无需手动管理 `Job`。
 
 ```kotlin
-// 合并两个Stream
-val stream1 = streamOf(1, 2, 3)
-val stream2 = streamOf(4, 5, 6)
-val merged = stream1.merge(stream2) // 结果可能是: 1, 4, 2, 5, 3, 6（顺序不确定）
-
-// 连接Stream
-val concat = stream1.concatWith(stream2) // 结果: 1, 2, 3, 4, 5, 6（顺序确定）
-
-// 组合Stream
-val stream1 = intervalStream(Duration.seconds(1))
-val stream2 = intervalStream(Duration.seconds(1))
-val combined = stream1.combine(stream2) { a, b -> a + b }
+// 在 ViewModel 的 CoroutineScope 中启动
+counterStream.launchIn(viewModelScope) { count ->
+    // 更新 UI
+    _uiState.value = "Current count: $count"
+}
 ```
 
-### 热流
+---
+
+## 操作符 (Operators)
+
+操作符是 `Stream` 的核心功能，它们可以对数据流进行各种方式的转换和组合。
+
+### 转换操作
+
+-   `map { ... }`: 将每个元素转换为一个新的元素。
+-   `flatMap { ... }`: 将每个元素转换为一个新的 `Stream`，然后将所有这些新的 `Stream` 合并为一个。
 
 ```kotlin
-// 创建共享Stream
-val sharedStream = MutableSharedStream<Int>(replay = 3)
-sharedStream.emit(1)
-sharedStream.emit(2)
+streamOf(1, 2, 3)
+    .map { "Item #$it" } // Stream<String>
+    .collect { println(it) } // 输出: Item #1, Item #2, Item #3
 
-// 创建状态Stream
-val stateStream = MutableStateStream(0)
-stateStream.value = 1
+streamOf("A", "B")
+    .flatMap { letter ->
+        streamOf("${letter}1", "${letter}2")
+    }
+    .collect { println(it) } // 输出: A1, A2, B1, B2
+```
 
-// 将普通Stream转为热Stream
-val coldStream = streamOf(1, 2, 3, 4, 5)
-val hotStream = coldStream.share(
-    scope = viewModelScope,
-    replay = 2,
-    started = StreamStart.EAGERLY
-)
+### 过滤操作
+
+-   `filter { ... }`: 只保留满足条件的元素。
+-   `take(n)`: 只取前 `n` 个元素。
+-   `drop(n)`: 丢弃前 `n` 个元素。
+-   `distinctUntilChanged()`: 移除连续的重复元素。
+
+```kotlin
+streamOf(1, 2, 2, 3, 3, 3, 4, 3)
+    .distinctUntilChanged()
+    .collect { print("$it ") } // 输出: 1 2 3 4 3
+```
+
+### 组合操作
+
+-   `merge(other)`: 将两个 `Stream` 合并，元素发射顺序不确定。
+-   `concatWith(other)`: 连接两个 `Stream`，当前一个完成后再开始收集另一个。
+-   `combine(other) { a, b -> ... }`: 将两个 `Stream` 的最新值组合在一起。
+
+```kotlin
+val streamA = streamOf("A", "B").onEach { delay(100) }
+val streamB = streamOf(1, 2).onEach { delay(150) }
+
+streamA.combine(streamB) { letter, number -> "$letter$number" }
+    .collect { println(it) }
+// 可能的输出: A1, B1, B2
+```
+
+### 工具操作
+
+-   `onEach { ... }`: 对每个元素执行一个操作，但不改变元素本身，常用于调试或副作用。
+-   `chunked(size)`: 将流中的元素按指定大小分块。
+-   `throttleFirst(duration)`: 在指定时间窗口内只发射第一个元素。
+-   `timeout(duration)`: 如果在指定时间内没有发射新元素，则抛出 `TimeoutException`。
+
+```kotlin
+streamOf(1, 2, 3, 4, 5, 6, 7)
+    .chunked(3)
+    .collect { group ->
+        println("Chunk: $group")
+    }
+// 输出:
+// Chunk: [1, 2, 3]
+// Chunk: [4, 5, 6]
+// Chunk: [7]
 ```
 
 ### 错误处理
 
-```kotlin
-// 捕获异常
-val stream = streamOf(1, 2, 3)
-    .map { 
-        if (it == 2) throw Exception("Error at 2")
-        it
-    }
-    .catch { e ->
-        println("Caught: ${e.message}")
-    }
-
-// finally模式
-val stream = streamOf(1, 2, 3)
-    .finally {
-        println("Stream completed")
-    }
-```
-
-### 与Kotlin Flow的互操作
+-   `catch { e -> ... }`: 捕获上游 `Stream` 中发生的异常。
+-   `finally { ... }`: 在 `Stream` 完成或被取消时执行一个动作。
 
 ```kotlin
-// 将Flow转换为Stream
-val flow: Flow<Int> = flow { emit(1) }
-val stream: Stream<Int> = flow.asStream()
-
-// 将Stream转换为Flow
-val originalStream = streamOf(1, 2, 3)
-val flow: Flow<Int> = originalStream.asFlow()
-```
-
-## 最佳实践
-
-- 对于短暂的数据转换，使用冷流（普通Stream）
-- 对于需要在多个收集点共享的数据，使用SharedStream
-- 对于表示状态的数据，使用StateStream
-- 总是处理异常，使用`catch`操作符
-- 及时取消不再需要的Stream收集
-
-## 示例：HTTP请求结果作为Stream返回
-
-```kotlin
-fun getDataAsStream(url: String): Stream<Data> = stream {
-    try {
-        val response = httpClient.get(url)
-        val data = response.body<Data>()
-        emit(data)
-    } catch (e: Exception) {
-        throw e  // 允许调用方使用catch操作符处理错误
+stream<Int> {
+    emit(1)
+    emit(2)
+    throw IllegalStateException("Something went wrong")
     }
+.catch { error ->
+    println("Caught error: ${error.message}")
+    }
+.collect {
+    println("Received: $it")
 }
-
-// 使用
-getDataAsStream("https://api.example.com/data")
-    .catch { e -> emit(Data.Error(e.message)) }
-    .collect { data ->
-        // 处理数据
-    }
+// 输出:
+// Received: 1
+// Received: 2
+// Caught error: Something went wrong
 ```
 
-## 示例：UI事件作为Stream
+---
+
+## 热流：共享与状态管理
+
+热流用于在多个观察者之间广播数据或管理应用状态。
+
+-   `MutableSharedStream<T>`: 可变共享流，用于手动发射事件。
+-   `MutableStateStream<T>`: 可变状态流，用于维护和更新状态。
+
+**应用示例：在 ViewModel 中管理 UI 状态和事件**
 
 ```kotlin
-class ViewModel {
-    private val _events = MutableSharedStream<UiEvent>()
-    val events: SharedStream<UiEvent> = _events
-    
-    fun onButtonClick() {
+class MyViewModel : ViewModel() {
+    // 用于管理一次性事件，如Toast或导航
+    private val _events = MutableSharedStream<String>()
+    val events: SharedStream<String> = _events
+
+    // 用于管理UI状态
+    private val _uiState = MutableStateStream("Initial State")
+    val uiState: StateStream<String> = _uiState
+
+    fun performAction() {
         viewModelScope.launch {
-            _events.emit(UiEvent.ButtonClicked)
+            // 更新状态
+            _uiState.value = "Loading..."
+            delay(1000)
+
+            // 模拟操作成功
+            _uiState.value = "Action Successful"
+            // 发射一次性事件
+            _events.emit("Show success toast")
         }
     }
+    }
+```
+
+### 将冷流转换为热流
+
+您可以使用 `shareIn` 和 `stateIn` 将任何冷流转换为热流。
+
+-   `share(scope, ...)`: 将冷流转换为 `SharedStream`。
+-   `state(scope, ...)`: 将冷流转换为 `StateStream`。
+
+```kotlin
+val coldStream = intervalStream(1.seconds)
+
+// 转换为在 viewModelScope 中共享的 SharedStream
+val shared = coldStream.share(viewModelScope, replay = 1)
+
+// 转换为在 viewModelScope 中维护状态的 StateStream
+val state = coldStream.state(viewModelScope, initialValue = -1L)
+```
+
+---
+
+## 高级功能：流分割与模式匹配
+
+这是 `Stream` 库一个非常强大的特性，允许您将一个字符流 (`Stream<Char>`) 基于复杂的模式匹配规则分割成多个带有语义的子流。这在解析结构化文本、处理协议或任何需要从原始字节流中提取信息的场景中非常有用。
+
+### 核心概念
+
+-   **`StreamPlugin`**: 一个插件，定义了如何识别和处理流中的特定模式。插件会根据状态处理输入字符。
+-   **`PluginState`**: 插件的状态枚举，包含三种状态：
+    -   `IDLE`: 插件处于空闲状态，等待匹配模式的开始。
+    -   `TRYING`: 插件已经匹配到模式的开始部分，正在尝试验证完整匹配。
+    -   `PROCESSING`: 插件已确认完整匹配，正在处理匹配到的内容。
+-   **`splitBy(plugins)`**: `Stream<Char>` 的一个操作符，它接收一组插件，并根据这些插件的匹配结果将字符流分割。
+-   **`StreamGroup`**: `splitBy` 的输出结果，它包含一个标签（匹配到的插件）和一个子 `Stream`（匹配到的内容）。未被任何插件匹配的文本将进入一个标签为 `null` 的默认组。
+-   **`kmpPattern` DSL**: 一个用于在插件中定义匹配模式的领域特定语言，其底层基于高效的KMP算法。
+
+### 示例 1：使用内置 `StreamXmlPlugin` 解析 XML
+
+`Stream` 库提供了一个内置插件 `StreamXmlPlugin` 用于识别 XML/HTML 标签。下面的例子展示了如何用它来分割一个包含文本和XML的混合流。
+
+```kotlin
+// 流包含前导文本、一个XML块和尾随文本
+val mixedContentStream = "Some leading text<item>Content</item>Some trailing text".asCharStream()
+
+val plugins = listOf(StreamXmlPlugin())
+
+mixedContentStream.splitBy(plugins)
+    .collect { group ->
+        val groupType = when (group.tag) {
+            is StreamXmlPlugin -> "XML"
+            null -> "Text" // tag为null表示默认的文本组
+        }
+        print("发现组 '$groupType': ")
+        
+        val content = StringBuilder()
+        group.stream.collect { content.append(it) }
+        
+        println(content.toString())
 }
 
-// 在UI中收集
-viewModel.events.collect { event ->
-    when (event) {
-        is UiEvent.ButtonClicked -> showToast("Button clicked")
+// 输出:
+// 发现组 'Text': Some leading text
+// 发现组 'XML': <item>Content</item>
+// 发现组 'Text': Some trailing text
+```
+*注意：`StreamXmlPlugin` 是一个基础插件，用于演示 `splitBy` 的能力。它会将从开始标签到对应结束标签的所有内容（包括内部的其它标签）视为单个组，并且不支持真正的 XML 嵌套解析。对于复杂的 XML 处理，需要使用更专业的库。*
+
+### 示例 2：创建自定义插件解析键值对
+
+假设我们有一个流，格式为 `[KEY1:VALUE1][KEY2:VALUE2]...`，我们想把它们解析出来。
+
+**1. 定义我们的自定义插件**
+
+```kotlin
+private const val GROUP_KEY = 1
+private const val GROUP_VALUE = 2
+
+class KeyValuePlugin : StreamPlugin {
+    override var state: PluginState = PluginState.IDLE
+        private set
+        
+    private var matcher: StreamKmpGraph
+
+    init {
+        matcher = StreamKmpGraphBuilder().build(kmpPattern {
+            char('[')
+            group(GROUP_KEY) { greedyStar { noneOf(':') } }
+            char(':')
+            group(GROUP_VALUE) { greedyStar { noneOf(']') } }
+            char(']')
+        })
+        reset()
+    }
+
+    override fun processChar(c: Char): Boolean {
+        when (val result = matcher.processChar(c)) {
+            is StreamKmpMatchResult.Match -> {
+                // 完全匹配，转为IDLE状态
+                state = PluginState.IDLE
+                matcher.reset()
+                return true
+            }
+            is StreamKmpMatchResult.InProgress -> {
+                // 正在匹配中
+                state = if (result.isMatchStarted) PluginState.PROCESSING else PluginState.TRYING
+                return true
+            }
+            is StreamKmpMatchResult.NoMatch -> {
+                // 匹配失败，重置状态
+                if (state != PluginState.IDLE) {
+                    state = PluginState.IDLE
+                    matcher.reset()
+                }
+                return false
+            }
+        }
+    }
+
+    override fun reset() {
+        matcher.reset()
+        state = PluginState.IDLE
+    }
+    
+    override fun initPlugin(): Boolean {
+        reset()
+        return true
+    }
+    
+    override fun destroy() {
+        // 清理资源
     }
 }
 ``` 
+
+**2. 使用 `kmpPattern` DSL**
+
+`kmpPattern` DSL 是定义匹配逻辑的核心。
+
+-   `char('[')`: 匹配单个字符 `[`。
+-   `group(ID) { ... }`: 定义一个捕获组。匹配到的内容可以通过ID获取。
+-   `greedyStar { ... }`: 贪心匹配。它会尽可能多地匹配满足内部条件的字符。
+-   `noneOf(':')`: 匹配任何不是冒号 `:` 的字符。
+
+**3. 使用插件分割流**
+
+一旦插件定义好了，使用它就和使用内置插件一样简单。`splitBy` 会处理所有的状态转换和缓冲逻辑。
+
+这个强大的模式匹配系统，结合 `Stream` 的异步处理能力，为处理复杂的、连续的数据流提供了极大的灵活性。
+
+---
+
+## 与 Kotlin Flow 互操作
+
+`Stream` 提供了与 Kotlin Flow 的无缝转换。
+
+-   `Flow<T>.asStream()`: 将一个 `Flow` 转换为 `Stream`。
+-   `Stream<T>.asFlow()`: 将一个 `Stream` 转换为 `Flow`。
+
+```kotlin
+// Flow -> Stream
+val myFlow: Flow<Int> = flow { emit(1) }
+val myStream: Stream<Int> = myFlow.asStream()
+
+// Stream -> Flow
+val originalStream: Stream<Int> = streamOf(1, 2, 3)
+val resultFlow: Flow<Int> = originalStream.asFlow()
+```
+
+这使得您可以在现有项目中逐步引入 `Stream`，或者在需要时利用 `Flow` 生态系统中的特定功能。
+
+---
+
+## 最佳实践
+
+-   **冷流 vs 热流**: 对短暂、一次性的数据转换使用冷流（普通 `Stream`）。对于需要在多个地方共享的数据（如配置、用户状态）或事件源，使用热流（`SharedStream`, `StateStream`）。
+-   **异常处理**: 始终考虑数据流中可能出现的异常，并使用 `catch` 操作符来优雅地处理它们，防止应用崩溃。
+-   **生命周期管理**: 在 Android 等具有生命周期的组件中，使用 `viewModelScope` 或 `lifecycleScope` 并结合 `launchIn` 来自动管理流的收集，避免内存泄漏。
+-   **利用 `onEach` 调试**: 当流的行为不符合预期时，`onEach { ... }` 是一个极佳的调试工具，可以在不影响流的情况下观察每个阶段的数据。
+
+希望这份指南能帮助您充分利用 `Stream` 库的强大功能！ 

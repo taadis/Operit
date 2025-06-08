@@ -1,9 +1,9 @@
-package com.ai.assistance.operit.util.Stream
+package com.ai.assistance.operit.util.stream
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
-import com.ai.assistance.operit.util.Stream.plugins.StreamPlugin
-import com.ai.assistance.operit.util.Stream.plugins.StreamXmlPlugin
+import com.ai.assistance.operit.util.stream.plugins.StreamPlugin
+import com.ai.assistance.operit.util.stream.plugins.StreamXmlPlugin
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Before
@@ -193,5 +193,33 @@ class StreamSplitByTest {
 
         assertNull("应该是普通文本组（tag为null）", groups[0].tag)
         assertEquals("内容应该匹配", "Just plain text, no XML here", content)
+    }
+
+    @Test
+    fun testSplitByWithNestedContentForReadme() = runBlocking {
+        // 这个测试用例用于验证 StreamXmlPlugin 的实际行为，以便纠正 README.md 中的文档。
+        val xmlStreamText = "<user><id>123</id><name>test</name></user>"
+        val charStream = xmlStreamText.asSequence().asStream()
+
+        val groupedStream = charStream.splitBy(listOf(xmlPlugin))
+
+        val groups = mutableListOf<StreamGroup<StreamPlugin?>>()
+        groupedStream.collect { groups.add(it) }
+
+        // 当前的插件实现不支持嵌套。它会找到第一个 <user> 标签，并消耗所有内容，直到找到 </user>。
+        // 因此，结果应该是一个单独的组。
+        assertEquals("应该只有一个XML组", 1, groups.size)
+
+        val contents =
+            groups.map { group ->
+                var content = ""
+                runBlocking { group.stream.collect { content += it } }
+                Pair(group.tag, content)
+            }
+
+        // 该组应该是一个XML组
+        assertSame("该组应该是XML组", xmlPlugin, contents[0].first)
+        // 内容应该是整个XML字符串
+        assertEquals("内容应该是完整的XML字符串", xmlStreamText, contents[0].second)
     }
 }
