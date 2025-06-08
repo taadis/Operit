@@ -1,0 +1,299 @@
+<resources>
+    <string name="app_name">Operit AI</string>
+    <string name="accessibility_service_description">Se utiliza para obtener la jerarquía de la interfaz de usuario, proporcionando al asistente de IA capacidades de análisis de interfaz más rápidas. No recopilará ni almacenará ninguna información personal.</string>
+
+    <!-- Navigation -->
+    <string name="nav_ai_chat">Chat IA</string>
+    <string name="nav_adb_commands">Concesión de permisos</string>
+    <string name="nav_settings">Ajustes</string>
+    <string name="nav_tool_permissions">Permisos de herramientas</string>
+    <string name="nav_about">Acerca de</string>
+    <string name="nav_packages">Gestión de paquetes</string>
+    <string name="nav_problem_library">Biblioteca de problemas</string>
+    <string name="nav_terminal">Terminal</string>
+    <string name="nav_toolbox">Caja de herramientas</string>
+    <string name="nav_item_agreement">Acuerdo de usuario</string>
+    <string name="nav_help">Centro de ayuda</string>
+    <string name="menu">Menú</string>
+    <string name="token_config">Obtener clave</string>
+
+    <!-- 用于NavItem类的标识符 -->
+    <string name="shizuku_commands">Concesión de permisos</string>
+    <string name="tool_permissions">Configuración de permisos de herramientas</string>
+    <string name="about">Acerca de</string>
+    <string name="terminal">Terminal</string>
+    <string name="toolbox">Caja de herramientas</string>
+    <string name="mcp">MCP</string>
+    <string name="token_config_title">Configuración de token DeepSeek</string>
+    <string name="chat_history_settings">Gestión del historial de chat</string>
+
+    <!-- 聊天记录管理界面 -->
+    <string name="chat_history_manager">Gestión del historial de chat</string>
+    <string name="export_chat_history">Exportar historial de chat</string>
+    <string name="import_chat_history">Importar historial de chat</string>
+    <string name="clear_chat_history">Borrar todo el historial de chat</string>
+    <string name="confirm_delete">Confirmar eliminación</string>
+    <string name="delete_warning">Eliminar todo el historial de chat será irreversible. Se recomienda exportar una copia de seguridad antes de realizar esta operación.</string>
+    <string name="export_success">Exportación exitosa</string>
+    <string name="import_success">Importación exitosa</string>
+    <string name="operation_failed">Operación fallida</string>
+    <string name="danger_zone">Zona peligrosa</string>
+    <string name="chat_statistics">Estadísticas del historial de chat</string>
+    <string name="current_chats">Actualmente hay %1$d registros de chat</string>
+    <string name="backup_location">Los archivos de copia de seguridad se guardan en la carpeta "Descargas/Operit"</string>
+    <string name="faq_backup">Preguntas frecuentes</string>
+
+    <!-- Terminal Screen -->
+    <string name="termux_not_installed">Termux no instalado</string>
+    <string name="termux_not_running">Termux no se está ejecutando</string>
+    <string name="termux_command">Comando Termux</string>
+    <string name="execute_termux_command">Ejecutar comando</string>
+    <string name="termux_result">Resultado del comando</string>
+
+    <!-- Termux Installation -->
+    <string name="install_termux_title">Instalar Termux</string>
+    <string name="install_termux_from_store">Instalar Termux desde la tienda de aplicaciones</string>
+    <string name="install_bundled_termux">Instalar versión integrada</string>
+    <string name="installing_bundled_termux">Instalando Termux integrado, por favor conceda permiso de instalación</string>
+    <string name="install_termux_failed">Error al instalar Termux</string>
+    <string name="open_termux">Abrir Termux</string>
+    <string name="termux_setup_guide">Guía de configuración de Termux</string>
+    <string name="termux_wizard_title">Asistente de configuración de Termux</string>
+
+    <!-- About Screen -->
+    <string name="about_title">Acerca de Operit AI</string>
+    <string name="about_version">Versión: %1$s</string>
+    <string name="about_description">Operit AI es una aplicación de asistente inteligente que ayuda a los usuarios a utilizar sus dispositivos de manera más eficiente, proporcionando funciones como análisis de interfaz y chat.</string>
+    <string name="about_developer">Desarrollador: &lt;a href="https://github.com/AAswordman"&gt;AAswordman&lt;/a&gt;</string>
+    <string name="about_contact">Contáctenos: aaswordsman@foxmail.com</string>
+    <string name="about_website">&lt;a href="https://github.com/AAswordman/Operit"&gt;GitHub: https://github.com/AAswordman/Operit&lt;/a&gt;</string>
+    <string name="about_copyright">© 2023-2024 Operit. Todos los derechos reservados.</string>
+
+    <!-- AI Chat Screen -->
+    <string name="configure_ai">Configurar interfaz AI</string>
+    <string name="api_endpoint">Dirección de la interfaz API</string>
+    <string name="api_key">Clave API</string>
+    <string name="model_name">Nombre del modelo</string>
+    <string name="save_and_start">Guardar e iniciar chat</string>
+    <string name="ai_chat">Chat IA</string>
+    <string name="start_chat_hint">Comience una nueva conversación. Ingrese su pregunta para obtener una respuesta de la IA.</string>
+    <string name="enter_question">Ingrese su pregunta</string>
+    <string name="send">Enviar</string>
+    <string name="ai_response_placeholder">Esta es una respuesta simulada de la IA. En una aplicación real, aquí se integraría una llamada API de IA real.</string>
+    <string name="network_unavailable">Conexión de red no disponible, verifique la configuración de su red</string>
+    <string name="network_status">Estado de la red: %1$s</string>
+
+    <!-- Floating Window -->
+    <string name="floating_chat_window">Ventana flotante de chat</string>
+    <string name="enable_floating_mode">Habilitar modo de ventana flotante</string>
+    <string name="disable_floating_mode">Deshabilitar modo de ventana flotante</string>
+    <string name="overlay_permission_required">Se requiere permiso de superposición</string>
+    <string name="overlay_permission_denied">Permiso de superposición no otorgado, no se puede mostrar la ventana flotante</string>
+    <string name="close_floating_window">Cerrar ventana flotante</string>
+
+    <!-- AI Tools -->
+    <string name="ai_tools_enabled">Función de herramientas AI habilitada</string>
+    <string name="tools_extracting">Detectando llamada de herramienta...</string>
+    <string name="tools_executing">Ejecutando herramienta: %1$s</string>
+    <string name="tools_completed">Ejecución de herramienta completada</string>
+    <string name="tools_failed">Error en la ejecución de la herramienta: %1$s</string>
+    <string name="tool_result">Resultado de la ejecución de la herramienta</string>
+    <string name="processing_input">Procesando entrada...</string>
+    <string name="references">Referencias:</string>
+    <string name="tool_weather">Consulta meteorológica</string>
+    <string name="tool_calculator">Calculadora</string>
+    <string name="tool_web_search">Búsqueda web</string>
+    <string name="enhanced_service_not_initialized">Servicio AI mejorado no inicializado, verifique la configuración</string>
+
+    <!-- Settings Screen -->
+    <string name="settings">Ajustes</string>
+    <string name="no_settings">No hay opciones de configuración disponibles actualmente</string>
+    <string name="api_settings">Configuración de API</string>
+    <string name="save_settings">Guardar ajustes</string>
+    <string name="settings_saved">Ajustes guardados</string>
+    <string name="display_settings">Ajustes de visualización</string>
+    <string name="show_thinking">Mostrar proceso de pensamiento</string>
+    <string name="show_fps_counter">Mostrar contador de FPS</string>
+    <string name="fps_counter_description">Mostrar FPS en tiempo real en la esquina superior derecha de la pantalla</string>
+
+    <!-- Shizuku Command Screen -->
+    <string name="shizuku_command_executor">Ejecutor de comandos ADB Shizuku</string>
+    <string name="device_info">Información del dispositivo</string>
+    <string name="android_version">Versión de Android: %1$s (API %2$d)</string>
+    <string name="device_model">Modelo de dispositivo: %1$s %2$s</string>
+    <string name="shizuku_status">Estado de Shizuku</string>
+    <string name="refresh">Actualizar</string>
+    <string name="installed">Instalado: %1$s</string>
+    <string name="service_running">Servicio en ejecución: %1$s</string>
+    <string name="permission_status">Estado del permiso: %1$s</string>
+    <string name="yes">Sí</string>
+    <string name="no">No</string>
+    <string name="authorized">Autorizado</string>
+    <string name="unauthorized">No autorizado</string>
+    <string name="install_shizuku">Instalar Shizuku</string>
+    <string name="open_shizuku">Abrir aplicación Shizuku</string>
+    <string name="show_help">Mostrar ayuda</string>
+    <string name="hide_help">Ocultar ayuda</string>
+    <string name="request_permission">Solicitar permiso de Shizuku</string>
+    <string name="execute_shell">Ejecutar comando shell</string>
+    <string name="enter_command">Ingresar comando ADB</string>
+    <string name="show_samples">Mostrar comandos de ejemplo</string>
+    <string name="hide_samples">Ocultar comandos de ejemplo</string>
+    <string name="select_example">Seleccione un comando de ejemplo:</string>
+    <string name="execute_command">Ejecutar comando</string>
+    <string name="result_placeholder">El resultado se mostrará aquí</string>
+    <string name="executing">Ejecutando...</string>
+    <string name="command_success">Comando ejecutado con éxito:\n%1$s</string>
+    <string name="command_failure">Error al ejecutar el comando (código de salida: %1$d):\n%2$s</string>
+    <string name="start_shizuku_first">Por favor, inicie primero el servicio Shizuku</string>
+    <string name="grant_permission_first">Por favor, conceda primero el permiso de Shizuku</string>
+    <string name="feature_unavailable">No se puede usar la función de comandos ADB</string>
+    <string name="thinking_process">Proceso de pensamiento</string>
+
+    <!-- 内置Shizuku -->
+    <string name="install_from_store">Instalar Shizuku desde la tienda de aplicaciones</string>
+    <string name="install_bundled">Instalar versión integrada (v%1$s)</string>
+    <string name="installing_bundled">Instalando Shizuku integrado, por favor conceda permiso de instalación</string>
+    <string name="install_failed">Error al instalar Shizuku integrado, intente instalar desde la tienda de aplicaciones</string>
+
+    <!-- 用户偏好 -->
+    <string name="user_preferences_guide">Configuración personalizada</string>
+    <string name="user_preferences">Preferencias de usuario</string>
+    <string name="user_preferences_settings">Configuración detallada de preferencias de usuario</string>
+    <string name="custom_description">Descripción personalizada</string>
+    <string name="preferences_hint">Ingrese su descripción personal (máximo 100 caracteres)</string>
+    <string name="enter_preferences">Ingrese aquí su descripción personal...</string>
+    <string name="save">Guardar</string>
+    <string name="cancel">Cancelar</string>
+    <string name="edit_preferences">Editar descripción de preferencias</string>
+    <string name="reset_preferences">Restablecer preferencias</string>
+    <string name="set_preferences">Establecer preferencias</string>
+    <string name="no_preferences">Sin información de preferencias</string>
+    <string name="gender">Género</string>
+    <string name="occupation">Ocupación</string>
+    <string name="age">Año de nacimiento</string>
+    <string name="birth_year">Año de nacimiento</string>
+    <string name="birth_date">Fecha de nacimiento</string>
+    <string name="enter_age">Ingrese el año de nacimiento</string>
+    <string name="select_birth_date">Seleccione la fecha de nacimiento</string>
+    <string name="complete">Completar</string>
+    <string name="preferences_guide_title">Para servirle mejor, complete la siguiente configuración</string>
+    <string name="preference_lock">Bloquear preferencias de usuario</string>
+    <string name="preference_lock_desc">Una vez bloqueado, no podrá modificar la información de preferencias de usuario</string>
+
+    <!-- Package Manager Screen -->
+    <string name="packages">Gestión de paquetes</string>
+    <string name="package_manager">Gestor de paquetes</string>
+    <string name="available_packages">Paquetes disponibles</string>
+    <string name="imported_packages">Paquetes importados</string>
+    <string name="import_package">Importar paquete</string>
+    <string name="package_details">Detalles del paquete</string>
+    <string name="package_tools">Herramientas incluidas</string>
+    <string name="package_import_success">Paquete importado con éxito</string>
+    <string name="package_import_error">Error al importar el paquete</string>
+    <string name="no_packages_available">No hay paquetes disponibles</string>
+    <string name="no_packages_imported">Aún no se han importado paquetes</string>
+    <string name="remove_package">Eliminar paquete</string>
+    <string name="package_removed">Paquete eliminado</string>
+    <string name="import_external_package">Importar paquete externo</string>
+    <string name="external_package_import_success">Paquete externo importado con éxito</string>
+    <string name="external_package_import_error">Error al importar paquete externo</string>
+    <string name="only_hjson_supported">Solo se admiten archivos en formato HJSON</string>
+    <string name="select_package_file">Seleccionar archivo de paquete</string>
+    <string name="package_file_invalid">Archivo de paquete no válido</string>
+    <string name="package_already_exists">Ya existe un paquete con el mismo nombre</string>
+    <string name="external_packages_path">Ruta de almacenamiento de paquetes externos</string>
+    <string name="copy_path">Copiar ruta</string>
+    <string name="path_copied_to_clipboard">Ruta copiada al portapapeles</string>
+    <string name="open_file_manager">Abrir gestor de archivos</string>
+    <string name="navigate_to_external_files">Navegue a Android/data/com.ai.assistance.operit/files/packages</string>
+
+    <!-- OperScript Execution -->
+    <string name="run_script">Ejecutar script</string>
+    <string name="edit_script">Editar script</string>
+    <string name="execute_script">Ejecutar script</string>
+    <string name="script_execution">Ejecución de script</string>
+    <string name="script_code">Código de script</string>
+    <string name="script_parameters">Parámetros de script</string>
+    <string name="execution_result">Resultado de la ejecución</string>
+    <string name="script_executing">Ejecutando script...</string>
+    <string name="script_execution_success">Script ejecutado con éxito</string>
+    <string name="script_execution_error">Error en la ejecución del script: %1$s</string>
+    <string name="missing_parameters">Faltan parámetros necesarios: %1$s</string>
+
+    <!-- Problem Library Screen -->
+    <string name="problem_library">Biblioteca de problemas</string>
+    <string name="search_problems">Buscar problemas</string>
+    <string name="problem_details">Detalles del problema</string>
+    <string name="edit_problem">Editar problema</string>
+    <string name="delete_problem">Eliminar problema</string>
+    <string name="empty_problem_library">La biblioteca de problemas está vacía</string>
+    <string name="problem_summary">Resumen del problema</string>
+    <string name="problem_solution">Solución</string>
+    <string name="problem_tools">Herramientas utilizadas</string>
+    <string name="problem_time">Hora de creación</string>
+    <string name="save_changes">Guardar cambios</string>
+    <string name="back_to_list">Volver a la lista</string>
+
+    <!-- Language Settings -->
+    <string name="language_settings">Configuración de idioma</string>
+    <string name="language_settings_desc">Cambiar el idioma de visualización de la interfaz de la aplicación</string>
+    <string name="change_language">Cambiar idioma</string>
+    <string name="select_language">Seleccionar idioma</string>
+    <string name="language_info">Después de cambiar el idioma, la aplicación se reiniciará automáticamente para aplicar la nueva configuración de idioma</string>
+    <string name="language_changing">Cambiando idioma...</string>
+    <string name="language_changed">Idioma cambiado, reiniciando la aplicación</string>
+
+    <!-- 用户协议界面 -->
+    <string name="agreement_title">Acuerdo de usuario y política de privacidad</string>
+    <string name="agreement_subtitle">Lea atentamente el siguiente acuerdo antes de utilizar nuestra aplicación</string>
+    <string name="agreement_user_title">Acuerdo de usuario</string>
+    <string name="agreement_privacy_title">Política de privacidad</string>
+    <string name="agreement_accept">He leído y acepto el acuerdo anterior</string>
+    <string name="agreement_wait">Lea primero el acuerdo (%1$d)</string>
+
+    <string name="agreement_user_content">¡Gracias por elegir usar nuestra aplicación! Antes de comenzar a usarla, asegúrese de leer atentamente las siguientes declaraciones importantes:\n\n1. Descargo de responsabilidad\n   Este software tiene funciones potentes y puede tener un poder destructivo potencial. El usuario es el único responsable de cualquier operación realizada con este software y sus consecuencias, y los desarrolladores no asumen ninguna responsabilidad.\n\n2. Canales de descarga oficiales\n   Para garantizar su seguridad, asegúrese de descargar este software desde nuestro repositorio oficial de GitHub. La descarga desde otros canales puede presentar riesgos de seguridad, de los cuales no nos hacemos responsables.\n\n3. Acuerdo de código abierto\n   Este software es un proyecto de código abierto y sigue el acuerdo GPL (Licencia Pública General de GNU). Los usuarios pueden usar, modificar y distribuir libremente este software, pero deben cumplir con los términos relevantes del acuerdo GPL.\n\n4. Uso por terceros\n   No somos responsables de cómo terceros usan, modifican o distribuyen este software. Cualquier trabajo derivado o comportamiento relacionado basado en este software no está relacionado con los desarrolladores originales.\n\n5. Comportamiento del usuario\n   Los usuarios deben asumir todos los riesgos y la responsabilidad legal de usar este software. Asegúrese de que su comportamiento de uso cumpla con las leyes y regulaciones locales.\n\n6. Cláusula de rescisión\n   Nos reservamos el derecho de rescindir el derecho de uso del usuario si viola el acuerdo.\n\n7. Sin declaración de garantía\n   Este software se proporciona "tal cual", sin ninguna forma de garantía, incluidas, entre otras, la idoneidad, la fiabilidad o la precisión.\n\n8. Limitación de responsabilidad\n   En la medida máxima permitida por la ley, no somos responsables de ninguna pérdida directa o indirecta causada por el uso de este software.\n\n9. Modificación del acuerdo\n   Podemos modificar este acuerdo de vez en cuando, y el acuerdo modificado entrará en vigor en el momento de su publicación.\n\n10. Ley aplicable\n    Este acuerdo se rige por las leyes de la República Popular China.</string>
+
+    <string name="agreement_privacy_content">Con respecto a su privacidad, comprenda la siguiente información importante:\n\n1. Sin recopilación de datos\n   No recopilaremos activamente ninguna de su información personal o datos de uso. El concepto de diseño de esta aplicación es respetar la privacidad del usuario y no realizar ninguna forma de recopilación de datos.\n\n2. Procesamiento local\n   Todo el procesamiento de datos se realiza localmente en su dispositivo y no se cargará a nuestros servidores ni a ningún servidor de terceros. Por lo tanto, la seguridad de sus datos de privacidad está completamente bajo su control.\n\n3. Servicios de terceros\n   Si esta aplicación integra algún servicio o biblioteca de terceros, su comportamiento de procesamiento de datos no está bajo nuestro control. Consulte las políticas de privacidad de los terceros pertinentes.\n\n4. Descripción de permisos\n   Esta aplicación puede requerir ciertos permisos del sistema para funcionar normalmente. Estos permisos solo se utilizan para la implementación de funciones de la aplicación y no se utilizarán para recopilar su información personal.\n\n5. Transparencia de código abierto\n   Como proyecto de código abierto, nuestro código es abierto y transparente para todos. Puede ver el código fuente en GitHub para verificar nuestra declaración de privacidad.\n\n6. Descargo de responsabilidad\n   Dado que no recopilamos ni almacenamos datos de usuario, no somos responsables de la filtración, pérdida o robo de datos de usuario.\n\n7. Actualizaciones de la política\n   Podemos actualizar esta política de privacidad, y la política actualizada se publicará en GitHub y se actualizará en la aplicación.\n\n8. Contáctenos\n   Si tiene alguna pregunta sobre la política de privacidad, contáctenos a través de la página del proyecto de GitHub.</string>
+
+    <!-- File Manager -->
+    <string name="files_selected">%1$d archivos seleccionados</string>
+    <string name="file_count">%1$d elementos</string>
+    <string name="exit_multi_select">Salir del modo de selección múltiple</string>
+
+    <!-- Search Dialog -->
+    <string name="search_files">Buscar archivos</string>
+    <string name="searching">Buscando...</string>
+    <string name="case_sensitive">Distinguir mayúsculas y minúsculas</string>
+    <string name="use_wildcard">Usar comodines</string>
+    <string name="search">Buscar</string>
+
+    <!-- File Operations -->
+    <string name="new_folder">Nueva carpeta</string>
+    <string name="folder_name">Nombre de la carpeta</string>
+    <string name="create_folder">Crear carpeta</string>
+    <string name="open">Abrir</string>
+    <string name="copy">Copiar</string>
+    <string name="cut">Cortar</string>
+    <string name="paste">Pegar</string>
+    <string name="share">Compartir</string>
+    <string name="rename">Renombrar</string>
+    <string name="delete">Eliminar</string>
+    <string name="loading_files">Cargando archivos...</string>
+
+    <!-- ErrorDialog -->
+    <string name="request_failed">Solicitud fallida</string>
+    <string name="confirm">Confirmar</string>
+    <string name="unknown_error">Error desconocido</string>
+    <string name="server_connection_failed">No se pudo conectar al servidor, verifique la conexión de red</string>
+    <string name="connection_timeout">Tiempo de espera de conexión al servidor agotado, verifique la red o inténtelo de nuevo más tarde</string>
+    <string name="connection_refused">El servidor rechazó la conexión, inténtelo de nuevo más tarde</string>
+    <string name="connection_check_network">Tiempo de espera de conexión agotado, verifique la red</string>
+    <string name="cannot_resolve_host">No se pudo resolver la dirección del servidor, verifique la conexión de red</string>
+    <string name="cannot_connect_to_server">No se pudo conectar al servidor</string>
+    <string name="secure_connection_failed">Error de conexión segura</string>
+    <string name="request_timeout">Tiempo de espera de la solicitud agotado, inténtelo de nuevo más tarde</string>
+    <string name="network_transfer_failed">Error en la transferencia de red, verifique la conexión de red</string>
+    <string name="error_occurred">Ocurrió un error: %1$s</string>
+    <string name="try_again_later">Solicitud fallida, inténtelo de nuevo más tarde</string>
+</resources>
