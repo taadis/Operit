@@ -368,22 +368,128 @@ class KeyValuePlugin : StreamPlugin {
 
 ---
 
+## 高级主题：使用插件系统进行流解析
+
+这是 `Stream` 库一个非常强大的特性，它允许您将一个字符流 (`Stream<Char>`) 基于复杂的模式匹配规则，分割成多个带有语义的子流。这在解析结构化文本（如Markdown、XML）、处理网络协议或任何需要从原始字节流中提取信息的场景中非常有用。
+
+### 核心概念
+
+-   **`Stream<Char>.splitBy(plugins)`**: 这是核心操作符。它接收一个 `StreamPlugin` 列表，并根据这些插件的匹配规则，将输入的 `Stream<Char>` 分割成一个 `Stream<StreamGroup<StreamPlugin?>>`。
+-   **`StreamPlugin`**: 插件是实现模式识别逻辑的地方。它本质上是一个状态机，通过 `processChar(c: Char, atStartOfLine: Boolean)` 方法处理流中的每个字符。
+    -   `atStartOfLine` 参数对于解析那些对位置敏感的语法（如Markdown的标题和列表）至关重要。
+    -   插件内部有三种状态 (`PluginState`):
+        -   `IDLE`: 空闲状态，等待匹配模式的开始。
+        -   `TRYING`: 已经匹配到模式的开始部分，正在尝试验证完整匹配。如果后续字符不匹配，插件将重置并放弃。
+        -   `PROCESSING`: 已确认完整匹配，正在处理匹配到的内容，直到模式结束。
+-   **`StreamGroup<TAG>`**: `splitBy` 的输出单元。它包含一个 `tag`（匹配成功的插件实例，如果是不属于任何插件的默认文本，则为 `null`）和一个 `stream: Stream<String>`。注意，子流的类型是 `Stream<String>`，它按块发射由插件捕获的字符。
+
+### 实战：构建一个流式 Markdown 解析器
+
+这个库提供了一套完整的Markdown插件。下面的例子将展示如何利用它们来构建一个高性能的流式Markdown解析器，这正是本库中 `StreamMarkdownRenderer` 组件的工作原理。
+
+#### 1. 两阶段解析策略
+
+Markdown语法具有嵌套结构（例如，一个列表项可以包含粗体文本）。最优的处理方式是分两步进行：
+1.  **块级解析**：首先，使用块级元素插件（如标题、列表、代码块）分割整个Markdown文本。
+2.  **内联解析**：然后，对每个块级元素的内容，再次使用内联元素插件（如粗体、斜体、链接）进行分割。
+
+#### 2. 获取预设插件
+
+为了方便使用，`MarkdownProcessor.kt` 提供了预设的插件列表。
+
+```kotlin
+// 获取所有块级插件
+val blockPlugins = NestedMarkdownProcessor.getBlockPlugins()
+
+// 获取所有内联插件
+val inlinePlugins = NestedMarkdownProcessor.getInlinePlugins()
+```
+
+> **重要提示**：插件的顺序至关重要！对于有重叠分隔符的语法（例如 `**` 用于粗体，`*` 用于斜体），必须将更长的分隔符插件放在前面，以确保 `**text**` 被正确解析为粗体，而不是两个连续的斜体。`getInlinePlugins()` 已经处理好了正确的顺序。
+
+#### 3. 实现流式解析
+
+下面的代码演示了如何实现流式解析和UI模型构建：
+
+```kotlin
+// 假设 markdownStream: Stream<Char> 是输入的Markdown字符流
+// nodes 是一个UI状态列表 (e.g., mutableStateListOf<MarkdownNode>())
+
+// 1. 块级解析
+markdownStream.splitBy(blockPlugins).collect { blockGroup ->
+    // 根据匹配的插件确定块类型
+    val blockType = NestedMarkdownProcessor.getTypeForPlugin(blockGroup.tag)
+    
+    // 为这个新块创建一个UI节点
+    val node = MarkdownNode(type = blockType, content = "", children = mutableListOf())
+    val nodeIndex = nodes.add(node) // 添加到UI列表并获取索引
+
+    val isInlineContainer = blockType != MarkdownProcessorType.CODE_BLOCK
+    val contentBuilder = StringBuilder()
+
+    // 收集块的内容
+    blockGroup.stream.collect { contentChunk ->
+        // 流式更新UI节点的内容，实现"打字机"效果
+        nodes[nodeIndex] = nodes[nodeIndex].copy(content = nodes[nodeIndex].content + contentChunk)
+        contentBuilder.append(contentChunk)
+    }
+
+    val blockContent = contentBuilder.toString()
+
+    // 2. 如果块可以包含内联元素，则进行内联解析
+    if (isInlineContainer && blockContent.isNotEmpty()) {
+        val inlineChildren = mutableListOf<MarkdownNode>()
+        
+        // 将块内容转换为字符流以供再次分割
+        val charStream = blockContent.toCharStream()
+
+        charStream.splitBy(inlinePlugins).collect { inlineGroup ->
+            val inlineType = NestedMarkdownProcessor.getTypeForPlugin(inlineGroup.tag)
+            val inlineContent = inlineGroup.stream.collectToString() // 辅助函数
+            
+            if (inlineContent.isNotEmpty()) {
+                inlineChildren.add(MarkdownNode(type = inlineType, content = inlineContent))
+            }
+        }
+        
+        // 内联解析完成后，用解析出的子节点更新UI节点
+        if (inlineChildren.isNotEmpty()) {
+            nodes[nodeIndex] = nodes[nodeIndex].copy(children = inlineChildren)
+        }
+    }
+}
+```
+
+这个例子完美地展示了 `splitBy` 的嵌套能力，实现了复杂文本的流式增量解析。
+
+### 可用的 Markdown 插件
+
+以下是 `com.ai.assistance.operit.util.stream.plugins` 包中提供的主要Markdown插件：
+
+| 插件类 | 功能 | 主要构造参数 |
+| :--- | :--- | :--- |
+| `StreamMarkdownHeaderPlugin` | 识别ATX风格的标题 (`# ...`) | `includeMarker: Boolean` - 是否包含`#` |
+| `StreamMarkdownFencedCodeBlockPlugin` | 识别代码块 (```...```) | `includeFences: Boolean` - 是否包含 ``` |
+| `StreamMarkdownBlockQuotePlugin` | 识别引用块 (`> ...`) | `includeMarker: Boolean` - 是否包含 `>` |
+| `StreamMarkdownOrderedListPlugin` | 识别有序列表 (`1. ...`) | `includeMarker: Boolean` - 是否包含 `1.` |
+| `StreamMarkdownUnorderedListPlugin`| 识别无序列表 (`- ...` 或 `* ...`) | `includeMarker: Boolean` - 是否包含 `-` |
+| `StreamMarkdownHorizontalRulePlugin`| 识别水平分割线 (`---`, `***`) | `includeMarker: Boolean` - 是否包含分隔符 |
+| `StreamMarkdownBoldPlugin` | 识别粗体 (`**...**`) | `includeAsterisks: Boolean` - 是否包含 `**` |
+| `StreamMarkdownItalicPlugin` | 识别斜体 (`*...*`) | `includeAsterisks: Boolean` - 是否包含 `*` |
+| `StreamMarkdownInlineCodePlugin` | 识别行内代码 (`` `...` ``) | `includeTicks: Boolean` - 是否包含 `` ` `` |
+| `StreamMarkdownLinkPlugin` | 识别链接 (`[text](url)`) | `includeDelimiters: Boolean` - 是否包含 `[]()` |
+| `StreamMarkdownImagePlugin` | 识别图片 (`![alt](url)`) | `includeDelimiters: Boolean` - 是否包含 `![]()` |
+| `StreamMarkdownStrikethroughPlugin`| 识别删除线 (`~~...~~`) | `includeDelimiters: Boolean` - 是否包含 `~~` |
+| `StreamMarkdownUnderlinePlugin` | 识别下划线 (`__...__`) | `includeDelimiters: Boolean` - 是否包含 `__` |
+
+---
+
 ## 与 Kotlin Flow 互操作
 
 `Stream` 提供了与 Kotlin Flow 的无缝转换。
 
 -   `Flow<T>.asStream()`: 将一个 `Flow` 转换为 `Stream`。
 -   `Stream<T>.asFlow()`: 将一个 `Stream` 转换为 `Flow`。
-
-```kotlin
-// Flow -> Stream
-val myFlow: Flow<Int> = flow { emit(1) }
-val myStream: Stream<Int> = myFlow.asStream()
-
-// Stream -> Flow
-val originalStream: Stream<Int> = streamOf(1, 2, 3)
-val resultFlow: Flow<Int> = originalStream.asFlow()
-```
 
 这使得您可以在现有项目中逐步引入 `Stream`，或者在需要时利用 `Flow` 生态系统中的特定功能。
 

@@ -27,17 +27,17 @@ class StreamXmlPluginTest {
     @Test
     fun testStartTagDetection() {
         // 检测"<"字符是否正确触发尝试开始状态
-        plugin.processChar('<')
+        plugin.processChar('<', false)
         assertEquals(PluginState.TRYING, plugin.state)
 
-        plugin.processChar('t')
+        plugin.processChar('t', false)
         assertEquals(PluginState.TRYING, plugin.state)
     }
 
     @Test
     fun testCompleteTagRecognitionAndProcessingEnter() {
         val xmlTag = "<test>"
-        xmlTag.forEach { plugin.processChar(it) }
+        xmlTag.forEach { plugin.processChar(it, false) }
 
         assertEquals("Should be in processing state after a full start tag", PluginState.PROCESSING, plugin.state)
     }
@@ -45,14 +45,14 @@ class StreamXmlPluginTest {
     @Test
     fun testTagWithAttributes() {
         val xmlTag = "<test attr=\"value\">"
-        xmlTag.forEach { plugin.processChar(it) }
+        xmlTag.forEach { plugin.processChar(it, false) }
         assertEquals("Should be in processing state after a tag with attributes", PluginState.PROCESSING, plugin.state)
     }
 
     @Test
     fun testEndTagRecognition() {
         val fullXml = "<test>content</test>"
-        fullXml.forEach { plugin.processChar(it) }
+        fullXml.forEach { plugin.processChar(it, false) }
 
         assertEquals("Should be in IDLE state after the end tag is found", PluginState.IDLE, plugin.state)
     }
@@ -61,7 +61,7 @@ class StreamXmlPluginTest {
     fun testFailedMatch() {
         // Test non-XML content
         val nonXml = "This is not XML"
-        nonXml.forEach { plugin.processChar(it) }
+        nonXml.forEach { plugin.processChar(it, false) }
 
         assertEquals(
                 "Should be in IDLE state after non-matching input",
@@ -72,13 +72,13 @@ class StreamXmlPluginTest {
         // Test an incomplete tag
         plugin.reset()
         val incompleteXml = "<tag"
-        incompleteXml.forEach { plugin.processChar(it) }
+        incompleteXml.forEach { plugin.processChar(it, false) }
         assertEquals("Should be in TRYING state with an incomplete tag", PluginState.TRYING, plugin.state)
 
         // Reset and then feed invalid characters
         plugin.reset()
-        plugin.processChar('<')
-        plugin.processChar(' ') // Invalid start for a tag name
+        plugin.processChar('<', false)
+        plugin.processChar(' ', false) // Invalid start for a tag name
         assertEquals(
                 "Should be in IDLE state after an invalid tag char",
                 PluginState.IDLE,
@@ -90,7 +90,7 @@ class StreamXmlPluginTest {
     fun testResetFunction() {
         // 先进入处理状态
         val xmlTag = "<test>"
-        xmlTag.forEach { plugin.processChar(it) }
+        xmlTag.forEach { plugin.processChar(it, false) }
 
         assertEquals(PluginState.PROCESSING, plugin.state)
 
@@ -107,7 +107,7 @@ class StreamXmlPluginTest {
 
         // Test full processing by feeding the entire XML string
         plugin.reset()
-        fullXml.forEach { c -> plugin.processChar(c) }
+        fullXml.forEach { c -> plugin.processChar(c, false) }
 
         assertEquals("Should be in IDLE state after completion", PluginState.IDLE, plugin.state)
     }

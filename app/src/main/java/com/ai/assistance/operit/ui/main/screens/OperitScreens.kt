@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.ai.assistance.operit.ui.common.NavItem
+import com.ai.assistance.operit.ui.common.markdown.StreamMarkdownDemoScreen
 import com.ai.assistance.operit.ui.features.about.screens.AboutScreen
 import com.ai.assistance.operit.ui.features.chat.screens.AIChatScreen
 import com.ai.assistance.operit.ui.features.demo.screens.ShizukuDemoScreen
@@ -141,7 +142,8 @@ sealed class Screen(
                                 onUIDebuggerSelected = { navigateTo(UIDebugger) },
                                 onFFmpegToolboxSelected = { navigateTo(FFmpegToolbox) },
                                 onShellExecutorSelected = { navigateTo(ShellExecutor) },
-                                onLogcatSelected = { navigateTo(Logcat) }
+                                onLogcatSelected = { navigateTo(Logcat) },
+                                onMarkdownDemoSelected = { navigateTo(MarkdownDemo) }
                         )
                 }
         }
@@ -590,6 +592,28 @@ sealed class Screen(
                         onGestureConsumed: (Boolean) -> Unit
                 ) {
                         FFmpegToolboxScreen(navController = navController)
+                }
+        }
+
+        // 流式Markdown演示屏幕
+        data object MarkdownDemo :
+                Screen(parentScreen = Toolbox, navItem = NavItem.Toolbox, titleRes = "流式Markdown演示") {
+                @Composable
+                override fun Content(
+                        navController: NavController,
+                        navigateTo: ScreenNavigationHandler,
+                        updateNavItem: NavItemChangeHandler,
+                        hasBackgroundImage: Boolean,
+                        onLoading: (Boolean) -> Unit,
+                        onError: (String) -> Unit,
+                        onGestureConsumed: (Boolean) -> Unit
+                ) {
+                        StreamMarkdownDemoScreen(
+                                onBackClick = { 
+                                        navigateTo(parentScreen as Screen) 
+                                        updateNavItem(NavItem.Toolbox)
+                                }
+                        )
                 }
         }
 

@@ -42,6 +42,19 @@
             </AndroidTestResultsTableState>
           </value>
         </entry>
+        <entry key="-1598161691">
+          <value>
+            <AndroidTestResultsTableState>
+              <option name="preferredColumnWidths">
+                <map>
+                  <entry key="Duration" value="90" />
+                  <entry key="Medium_Phone_API_35" value="120" />
+                  <entry key="Tests" value="360" />
+                </map>
+              </option>
+            </AndroidTestResultsTableState>
+          </value>
+        </entry>
         <entry key="-1584590594">
           <value>
             <AndroidTestResultsTableState>
@@ -117,6 +130,19 @@
                   <entry key="Tests" value="360" />
                   <entry key="vivo V2055A" value="120" />
                   <entry key="vivo V2361A" value="120" />
+                </map>
+              </option>
+            </AndroidTestResultsTableState>
+          </value>
+        </entry>
+        <entry key="-745052641">
+          <value>
+            <AndroidTestResultsTableState>
+              <option name="preferredColumnWidths">
+                <map>
+                  <entry key="Duration" value="90" />
+                  <entry key="Medium_Phone_API_35" value="120" />
+                  <entry key="Tests" value="360" />
                 </map>
               </option>
             </AndroidTestResultsTableState>
@@ -291,6 +317,19 @@
                   <entry key="Medium_Phone_API_35" value="120" />
                   <entry key="Tests" value="360" />
                   <entry key="vivo V2055A" value="120" />
+                </map>
+              </option>
+            </AndroidTestResultsTableState>
+          </value>
+        </entry>
+        <entry key="1499385077">
+          <value>
+            <AndroidTestResultsTableState>
+              <option name="preferredColumnWidths">
+                <map>
+                  <entry key="Duration" value="228" />
+                  <entry key="Medium_Phone_API_35" value="257" />
+                  <entry key="Tests" value="498" />
                 </map>
               </option>
             </AndroidTestResultsTableState>

@@ -19,7 +19,7 @@ abstract class BaseJsonPlugin : StreamPlugin {
         ARRAY
     }
 
-    override fun processChar(c: Char): Boolean {
+    override fun processChar(c: Char, atStartOfLine: Boolean): Boolean {
         if (state == PluginState.IDLE) {
             when (c) {
                 '{' -> {

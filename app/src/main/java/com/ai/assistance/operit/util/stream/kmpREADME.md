@@ -2,6 +2,7 @@
 
 `StreamKmpGraph` 是一个使用 Kotlin 编写的高效、可扩展的流式模式匹配库。它结合了 Knuth-Morris-Pratt (KMP) 算法思想和灵活的条件匹配，提供了一个强大的 DSL（领域特定语言）来构建复杂的匹配模式。该库特别适用于需要逐字符处理数据流并实时识别模式的场景，同时支持捕获组以提取匹配内容。
 
+
 ## 核心特性
 *   **流式处理:** 能够逐字符处理输入，非常适合处理大型文件或网络数据流，内存占用低。
 *   **丰富的匹配条件:** 不仅仅是字符匹配，还支持字符范围、字符集、逻辑组合（与、或、非）以及自定义断言。
@@ -38,7 +39,7 @@
 使用 `kmpPattern` DSL 可以轻松创建一个模式。例如，匹配字符串 "abc":
 
 ```kotlin
-import com.ai.assistance.operit.util.Stream.kmpPattern
+import com.ai.assistance.operit.util.stream.kmpPattern
 
 val pattern = kmpPattern {
     literal("abc")
@@ -50,7 +51,7 @@ val pattern = kmpPattern {
 使用 `StreamKmpGraphBuilder` 从模式构建图，然后使用 `processText` 方法在文本中查找所有匹配项的位置。
 
 ```kotlin
-import com.ai.assistance.operit.util.Stream.StreamKmpGraphBuilder
+import com.ai.assistance.operit.util.stream.StreamKmpGraphBuilder
 
 val builder = StreamKmpGraphBuilder()
 val graph = builder.build(pattern)

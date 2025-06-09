@@ -26,9 +26,10 @@ interface StreamPlugin {
     /**
      * 处理单个字符，并决定是否应将其发射到流中。
      * @param c 要处理的字符
+     * @param atStartOfLine 标记字符是否位于一行的开头
      * @return 如果该字符应被包含在最终的组流中，则返回 `true`；如果希望过滤掉（不发射），则返回 `false`。
      */
-    fun processChar(c: Char): Boolean
+    fun processChar(c: Char, atStartOfLine: Boolean): Boolean
     
     /**
      * 初始化插件

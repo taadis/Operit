@@ -13,15 +13,9 @@
         </DropdownSelection>
         <DialogSelection />
       </SelectionState>
-      <SelectionState runConfigName="StreamSplitByTest">
+      <SelectionState runConfigName="StreamMarkdownPluginTest (1)">
         <option name="selectionMode" value="DROPDOWN" />
-      </SelectionState>
-      <SelectionState runConfigName="StreamRealTimeSplitTest">
-        <option name="selectionMode" value="DROPDOWN" />
-      </SelectionState>
-      <SelectionState runConfigName="StreamMarkdownPluginTest">
-        <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2025-06-08T06:48:26.012683500Z">
+        <DropdownSelection timestamp="2025-06-09T03:22:38.104785200Z">
           <Target type="DEFAULT_BOOT">
             <handle>
               <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\12809\.android\avd\Medium_Phone_API_35.avd" />
@@ -30,10 +24,16 @@
         </DropdownSelection>
         <DialogSelection />
       </SelectionState>
-      <SelectionState runConfigName="StreamMarkdownPluginTest (1)">
+      <SelectionState runConfigName="StreamKmpGraphTest">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
-      <SelectionState runConfigName="StreamKmpGraphTest">
+      <SelectionState runConfigName="StreamXmlPluginTest">
+        <option name="selectionMode" value="DROPDOWN" />
+      </SelectionState>
+      <SelectionState runConfigName="NestedMarkdownProcessorTest">
+        <option name="selectionMode" value="DROPDOWN" />
+      </SelectionState>
+      <SelectionState runConfigName="StreamMarkdownRendererTest">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
     </selectionStates>

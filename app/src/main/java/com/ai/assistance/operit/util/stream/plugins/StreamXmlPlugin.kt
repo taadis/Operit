@@ -48,7 +48,7 @@ class StreamXmlPlugin(private val includeTagsInOutput: Boolean = true) : StreamP
      * Processes a single character for XML stream parsing and decides if it should be emitted. The
      * return value is used by `splitBy` as a filter.
      */
-    override fun processChar(c: Char): Boolean {
+    override fun processChar(c: Char, atStartOfLine: Boolean): Boolean {
         if (state == PluginState.PROCESSING) {
             // We are inside a tag, looking for the end tag.
             val matcher = endTagMatcher!!

@@ -71,7 +71,8 @@ fun ToolboxScreen(
         onUIDebuggerSelected: () -> Unit,
         onFFmpegToolboxSelected: () -> Unit,
         onShellExecutorSelected: () -> Unit,
-        onLogcatSelected: () -> Unit
+        onLogcatSelected: () -> Unit,
+        onMarkdownDemoSelected: () -> Unit
 ) {
         // 屏幕配置信息，用于响应式布局
         val configuration = LocalConfiguration.current
@@ -138,6 +139,13 @@ fun ToolboxScreen(
                                 description = "强大的音视频处理工具，支持转换、裁剪、合并等功能",
                                 category = ToolCategory.DEVELOPMENT,
                                 onClick = onFFmpegToolboxSelected
+                        ),
+                        Tool(
+                                name = "流式Markdown演示",
+                                icon = Icons.Default.FormatAlignLeft,
+                                description = "高性能流式Markdown渲染演示，支持实时字符流动效果",
+                                category = ToolCategory.DEVELOPMENT,
+                                onClick = onMarkdownDemoSelected
                         ),
                         Tool(
                                 name = "命令执行器",

@@ -243,6 +243,7 @@ fun Stream<Char>.splitBy(plugins: List<StreamPlugin>): Stream<StreamGroup<Stream
                         // 用于处理插件状态转换时需要重新评估的字符
                         val pendingChars = ArrayDeque<Char>()
                         val upstreamChannel = Channel<Char>(Channel.UNLIMITED)
+                        var atStartOfLine = true
 
                         launch {
                             try {
@@ -289,11 +290,14 @@ fun Stream<Char>.splitBy(plugins: List<StreamPlugin>): Stream<StreamGroup<Stream
                                         upstreamChannel.receiveCatching().getOrNull() ?: break
                                     }
 
+                            val isAtStartOfLineForCurrentChar = atStartOfLine
+                            atStartOfLine = (char == '\n')
+
                             val currentActivePlugin = activePlugin
 
                             if (currentActivePlugin != null) {
                                 // --- 状态：处理中 ---
-                                val shouldEmit = currentActivePlugin.processChar(char)
+                                val shouldEmit = currentActivePlugin.processChar(char, isAtStartOfLineForCurrentChar)
                                 if (shouldEmit) {
                                     activePluginChannel?.send(char)
                                 }
@@ -307,7 +311,7 @@ fun Stream<Char>.splitBy(plugins: List<StreamPlugin>): Stream<StreamGroup<Stream
                                 // --- 状态：评估中 ---
                                 // 所有插件并行处理字符
                                 evaluationBuffer.add(char)
-                                val shouldEmitMap = plugins.associateWith { it.processChar(char) }
+                                val shouldEmitMap = plugins.associateWith { it.processChar(char, isAtStartOfLineForCurrentChar) }
                                 evaluationShouldEmit.add(shouldEmitMap)
 
                                 val successfulPlugin =

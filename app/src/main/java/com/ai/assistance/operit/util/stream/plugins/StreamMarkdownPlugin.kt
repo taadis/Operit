@@ -24,6 +24,8 @@ import com.ai.assistance.operit.util.stream.*
  */
 private const val GROUP_DELIMITER = 1
 private const val GROUP_HEADER_HASHES = 1
+private const val GROUP_TEXT = 2
+private const val GROUP_URL = 3
 
 /**
  * A stream plugin for identifying Markdown fenced code blocks. This plugin identifies a block
@@ -50,7 +52,7 @@ class StreamMarkdownFencedCodeBlockPlugin(private val includeFences: Boolean = t
                     )
     private var endMatcher: StreamKmpGraph? = null
 
-    override fun processChar(c: Char): Boolean {
+    override fun processChar(c: Char, atStartOfLine: Boolean): Boolean {
         if (state == PluginState.PROCESSING) {
             val matcher = endMatcher!!
             when (matcher.processChar(c)) {
@@ -125,7 +127,7 @@ class StreamMarkdownInlineCodePlugin(private val includeTicks: Boolean = true) :
                     )
     private var endMatcher: StreamKmpGraph? = null
 
-    override fun processChar(c: Char): Boolean {
+    override fun processChar(c: Char, atStartOfLine: Boolean): Boolean {
         // As per original logic, inline code cannot span multiple lines.
         // If we see a newline while processing, the match is considered failed.
         if (state == PluginState.PROCESSING && c == '\n') {
@@ -210,7 +212,7 @@ class StreamMarkdownBoldPlugin(private val includeAsterisks: Boolean = true) : S
         reset()
     }
 
-    override fun processChar(c: Char): Boolean {
+    override fun processChar(c: Char, atStartOfLine: Boolean): Boolean {
         if (state == PluginState.PROCESSING) {
             when (endMatcher.processChar(c)) {
                 is StreamKmpMatchResult.Match -> {
@@ -283,7 +285,7 @@ class StreamMarkdownItalicPlugin(private val includeAsterisks: Boolean = true) :
         reset()
     }
 
-    override fun processChar(c: Char): Boolean {
+    override fun processChar(c: Char, atStartOfLine: Boolean): Boolean {
         if (lastChar == '*' && c == '*') {
             lastChar = null
             reset()
@@ -293,6 +295,10 @@ class StreamMarkdownItalicPlugin(private val includeAsterisks: Boolean = true) :
         lastChar = c
 
         if (state == PluginState.PROCESSING) {
+            if (c == '\n') {
+                reset()
+                return true
+            }
             when (endMatcher.processChar(c)) {
                 is StreamKmpMatchResult.Match -> {
                     reset()
@@ -349,8 +355,6 @@ class StreamMarkdownHeaderPlugin(private val includeMarker: Boolean = true) : St
     override var state: PluginState = PluginState.IDLE
         private set
 
-    private var atStartOfLine = true
-
     private val headerMatcher =
             StreamKmpGraphBuilder()
                     .build(
@@ -363,27 +367,19 @@ class StreamMarkdownHeaderPlugin(private val includeMarker: Boolean = true) : St
                             }
                     )
 
-    override fun processChar(c: Char): Boolean {
+    override fun processChar(c: Char, atStartOfLine: Boolean): Boolean {
         if (state == PluginState.PROCESSING) {
             if (c == '\n') {
-                reset() // This will call our new reset(), which is just resetInternal()
-                atStartOfLine = true
+                reset()
             }
             return true // Return true to emit the character in the header content
         }
 
-        if (c == '\n') {
-            reset() // reset if we are in TRYING state
-            atStartOfLine = true // We are now at the start of a new line.
-            return true
+        if (atStartOfLine) {
+            return handleMatch(c)
         }
 
-        if (atStartOfLine) {
-            // Once we are no longer at the start of the line, we stop trying to match a header
-            // for the rest of the line, unless we are already in a TRYING state.
-            atStartOfLine = false
-            return handleMatch(c)
-        } else if (state == PluginState.TRYING) {
+        if (state == PluginState.TRYING) {
             // We are already in the middle of a potential match, continue feeding.
             return handleMatch(c)
         }
@@ -419,7 +415,6 @@ class StreamMarkdownHeaderPlugin(private val includeMarker: Boolean = true) : St
 
     override fun initPlugin(): Boolean {
         reset()
-        atStartOfLine = true
         return true
     }
 
@@ -435,5 +430,537 @@ class StreamMarkdownHeaderPlugin(private val includeMarker: Boolean = true) : St
     private fun resetInternal() {
         state = PluginState.IDLE
         headerMatcher.reset()
+    }
+}
+
+/**
+ * A stream plugin for identifying Markdown links in the format [text](url).
+ *
+ * @param includeDelimiters If true, the link delimiters are included in the output.
+ */
+class StreamMarkdownLinkPlugin(private val includeDelimiters: Boolean = true) : StreamPlugin {
+    override var state: PluginState = PluginState.IDLE
+        private set
+
+    private val linkMatcher: StreamKmpGraph =
+            StreamKmpGraphBuilder()
+                    .build(
+                            kmpPattern {
+                                char('[')
+                                group(GROUP_TEXT) { greedyStar { noneOf(']', '\n') } }
+                                char(']')
+                                char('(')
+                                group(GROUP_URL) { greedyStar { noneOf(')', '\n') } }
+                                char(')')
+                            }
+                    )
+
+    override fun processChar(c: Char, atStartOfLine: Boolean): Boolean {
+        when (val result = linkMatcher.processChar(c)) {
+            is StreamKmpMatchResult.Match -> {
+                reset()
+                return includeDelimiters
+            }
+            is StreamKmpMatchResult.InProgress -> {
+                state = PluginState.PROCESSING
+                return includeDelimiters
+            }
+            is StreamKmpMatchResult.NoMatch -> {
+                if (state == PluginState.PROCESSING) {
+                    reset()
+                }
+                return true
+            }
+        }
+    }
+
+    override fun initPlugin(): Boolean {
+        reset()
+        return true
+    }
+
+    override fun destroy() {}
+
+    override fun reset() {
+        state = PluginState.IDLE
+        linkMatcher.reset()
+    }
+}
+
+/**
+ * A stream plugin for identifying Markdown images in the format ![alt text](url).
+ *
+ * @param includeDelimiters If true, the image delimiters are included in the output.
+ */
+class StreamMarkdownImagePlugin(private val includeDelimiters: Boolean = true) : StreamPlugin {
+    override var state: PluginState = PluginState.IDLE
+        private set
+
+    private val imageMatcher: StreamKmpGraph =
+            StreamKmpGraphBuilder()
+                    .build(
+                            kmpPattern {
+                                literal("![")
+                                group(GROUP_TEXT) { greedyStar { noneOf(']', '\n') } }
+                                char(']')
+                                char('(')
+                                group(GROUP_URL) { greedyStar { noneOf(')', '\n') } }
+                                char(')')
+                            }
+                    )
+
+    override fun processChar(c: Char, atStartOfLine: Boolean): Boolean {
+        when (val result = imageMatcher.processChar(c)) {
+            is StreamKmpMatchResult.Match -> {
+                reset()
+                return includeDelimiters
+            }
+            is StreamKmpMatchResult.InProgress -> {
+                state = PluginState.PROCESSING
+                return includeDelimiters
+            }
+            is StreamKmpMatchResult.NoMatch -> {
+                if (state == PluginState.PROCESSING) {
+                    reset()
+                }
+                return true
+            }
+        }
+    }
+
+    override fun initPlugin(): Boolean {
+        reset()
+        return true
+    }
+
+    override fun destroy() {}
+
+    override fun reset() {
+        state = PluginState.IDLE
+        imageMatcher.reset()
+    }
+}
+
+/**
+ * A stream plugin for identifying Markdown blockquotes (lines starting with >).
+ *
+ * @param includeMarker If true, includes the '>' character in the output.
+ */
+class StreamMarkdownBlockQuotePlugin(private val includeMarker: Boolean = true) : StreamPlugin {
+    override var state: PluginState = PluginState.IDLE
+        private set
+
+    private val blockQuoteMatcher =
+            StreamKmpGraphBuilder()
+                    .build(
+                            kmpPattern {
+                                char('>')
+                                char(' ') // 符合 Markdown 规范的引用块后面应该有一个空格
+                            }
+                    )
+
+    override fun processChar(c: Char, atStartOfLine: Boolean): Boolean {
+        if (state == PluginState.PROCESSING) {
+            if (c == '\n') {
+                reset()
+            }
+            return true
+        }
+
+        if (atStartOfLine) {
+            return handleMatch(c)
+        }
+
+        if (state == PluginState.TRYING) {
+            return handleMatch(c)
+        }
+
+        return true
+    }
+
+    private fun handleMatch(c: Char): Boolean {
+        return when (val result = blockQuoteMatcher.processChar(c)) {
+            is StreamKmpMatchResult.Match -> {
+                state = PluginState.PROCESSING
+                includeMarker
+            }
+            is StreamKmpMatchResult.InProgress -> {
+                state = PluginState.TRYING
+                includeMarker
+            }
+            is StreamKmpMatchResult.NoMatch -> {
+                resetInternal()
+                true
+            }
+        }
+    }
+
+    override fun initPlugin(): Boolean {
+        reset()
+        return true
+    }
+
+    override fun destroy() {}
+
+    override fun reset() {
+        resetInternal()
+    }
+
+    private fun resetInternal() {
+        state = PluginState.IDLE
+        blockQuoteMatcher.reset()
+    }
+}
+
+/**
+ * A stream plugin for identifying Markdown horizontal rules (---, ***, ___).
+ *
+ * @param includeMarker If true, includes the horizontal rule marker in the output.
+ */
+class StreamMarkdownHorizontalRulePlugin(private val includeMarker: Boolean = true) : StreamPlugin {
+    override var state: PluginState = PluginState.IDLE
+        private set
+
+    private var currentMarker: Char? = null
+    private var markerCount = 0
+
+    override fun processChar(c: Char, atStartOfLine: Boolean): Boolean {
+        if (c == '\n') {
+            val isMatch = (state == PluginState.TRYING || state == PluginState.PROCESSING) && markerCount >= 3
+            val shouldEmit = isMatch && includeMarker
+
+            resetInternal()
+
+            return if (isMatch) shouldEmit else true
+        }
+
+        if (state == PluginState.IDLE) {
+            if (atStartOfLine) {
+                if (c == '-' || c == '*' || c == '_') {
+                    state = PluginState.TRYING
+                    currentMarker = c
+                    markerCount = 1
+                    return includeMarker
+                }
+            }
+            return true
+        }
+
+        if (c == currentMarker || c == ' ' || c == '\t') {
+            if (c == currentMarker) {
+                markerCount++
+            }
+            if (markerCount >= 3) {
+                state = PluginState.PROCESSING
+            }
+            return includeMarker
+        }
+
+        resetInternal()
+        return true
+    }
+
+    override fun initPlugin(): Boolean {
+        reset()
+        return true
+    }
+
+    override fun destroy() {}
+
+    override fun reset() {
+        resetInternal()
+    }
+
+    private fun resetInternal() {
+        state = PluginState.IDLE
+        currentMarker = null
+        markerCount = 0
+    }
+}
+
+/**
+ * A stream plugin for identifying Markdown strikethrough text using double tildes (`~~text~~`).
+ *
+ * @param includeDelimiters If true, the `~~` delimiters are included in the output.
+ */
+class StreamMarkdownStrikethroughPlugin(private val includeDelimiters: Boolean = true) :
+        StreamPlugin {
+    override var state: PluginState = PluginState.IDLE
+        internal set
+
+    private var startMatcher: StreamKmpGraph
+    private var endMatcher: StreamKmpGraph
+
+    init {
+        val builder = StreamKmpGraphBuilder()
+        startMatcher =
+                builder.build(
+                        kmpPattern {
+                            literal("~~")
+                            noneOf('~', '\n')
+                        }
+                )
+        endMatcher = builder.build(kmpPattern { literal("~~") })
+        reset()
+    }
+
+    override fun processChar(c: Char, atStartOfLine: Boolean): Boolean {
+        if (state == PluginState.PROCESSING) {
+            when (endMatcher.processChar(c)) {
+                is StreamKmpMatchResult.Match -> {
+                    reset()
+                    return includeDelimiters
+                }
+                is StreamKmpMatchResult.InProgress -> return includeDelimiters
+                is StreamKmpMatchResult.NoMatch -> return true
+            }
+        } else { // IDLE or TRYING
+            when (startMatcher.processChar(c)) {
+                is StreamKmpMatchResult.Match -> {
+                    state = PluginState.PROCESSING
+                    endMatcher.reset()
+                    startMatcher.reset()
+                    return true
+                }
+                is StreamKmpMatchResult.InProgress -> {
+                    state = PluginState.TRYING
+                    return includeDelimiters
+                }
+                is StreamKmpMatchResult.NoMatch -> {
+                    if (state == PluginState.TRYING) {
+                        reset()
+                    }
+                    return true
+                }
+            }
+        }
+        return true // Should be unreachable
+    }
+
+    override fun initPlugin(): Boolean {
+        reset()
+        return true
+    }
+
+    override fun destroy() {}
+
+    override fun reset() {
+        startMatcher.reset()
+        endMatcher.reset()
+        state = PluginState.IDLE
+    }
+}
+
+/**
+ * A stream plugin for identifying Markdown underlined text using double underscores (`__text__`).
+ *
+ * @param includeDelimiters If true, the `__` delimiters are included in the output.
+ */
+class StreamMarkdownUnderlinePlugin(private val includeDelimiters: Boolean = true) : StreamPlugin {
+    override var state: PluginState = PluginState.IDLE
+        internal set
+
+    private var startMatcher: StreamKmpGraph
+    private var endMatcher: StreamKmpGraph
+
+    init {
+        val builder = StreamKmpGraphBuilder()
+        startMatcher =
+                builder.build(
+                        kmpPattern {
+                            literal("__")
+                            noneOf('_', '\n')
+                        }
+                )
+        endMatcher = builder.build(kmpPattern { literal("__") })
+        reset()
+    }
+
+    override fun processChar(c: Char, atStartOfLine: Boolean): Boolean {
+        if (state == PluginState.PROCESSING) {
+            when (endMatcher.processChar(c)) {
+                is StreamKmpMatchResult.Match -> {
+                    reset()
+                    return includeDelimiters
+                }
+                is StreamKmpMatchResult.InProgress -> return includeDelimiters
+                is StreamKmpMatchResult.NoMatch -> return true
+            }
+        } else { // IDLE or TRYING
+            when (startMatcher.processChar(c)) {
+                is StreamKmpMatchResult.Match -> {
+                    state = PluginState.PROCESSING
+                    endMatcher.reset()
+                    startMatcher.reset()
+                    return true
+                }
+                is StreamKmpMatchResult.InProgress -> {
+                    state = PluginState.TRYING
+                    return includeDelimiters
+                }
+                is StreamKmpMatchResult.NoMatch -> {
+                    if (state == PluginState.TRYING) {
+                        reset()
+                    }
+                    return true
+                }
+            }
+        }
+        return true // Should be unreachable
+    }
+
+    override fun initPlugin(): Boolean {
+        reset()
+        return true
+    }
+
+    override fun destroy() {}
+
+    override fun reset() {
+        startMatcher.reset()
+        endMatcher.reset()
+        state = PluginState.IDLE
+    }
+}
+
+/**
+ * A stream plugin for identifying Markdown ordered lists (lines starting with a number followed by
+ * a dot and space).
+ *
+ * @param includeMarker If true, includes the list marker (e.g., "1. ") in the output.
+ */
+class StreamMarkdownOrderedListPlugin(private val includeMarker: Boolean = true) : StreamPlugin {
+    override var state: PluginState = PluginState.IDLE
+        private set
+
+    private val listMatcher =
+            StreamKmpGraphBuilder()
+                    .build(
+                            kmpPattern {
+                                digit() // 至少一个数字
+                                greedyStar { digit() }
+                                char('.')
+                                char(' ')
+                            }
+                    )
+
+    override fun processChar(c: Char, atStartOfLine: Boolean): Boolean {
+        if (state == PluginState.PROCESSING) {
+            if (c == '\n') {
+                reset()
+            }
+            return true
+        }
+
+        if (atStartOfLine) {
+            return handleMatch(c)
+        } else if (state == PluginState.TRYING) {
+            return handleMatch(c)
+        }
+
+        return true
+    }
+
+    private fun handleMatch(c: Char): Boolean {
+        return when (val result = listMatcher.processChar(c)) {
+            is StreamKmpMatchResult.Match -> {
+                state = PluginState.PROCESSING
+                includeMarker
+            }
+            is StreamKmpMatchResult.InProgress -> {
+                state = PluginState.TRYING
+                includeMarker
+            }
+            is StreamKmpMatchResult.NoMatch -> {
+                resetInternal()
+                true
+            }
+        }
+    }
+
+    override fun initPlugin(): Boolean {
+        reset()
+        return true
+    }
+
+    override fun destroy() {}
+
+    override fun reset() {
+        resetInternal()
+    }
+
+    private fun resetInternal() {
+        state = PluginState.IDLE
+        listMatcher.reset()
+    }
+}
+
+/**
+ * A stream plugin for identifying Markdown unordered lists (lines starting with *, - or + followed
+ * by a space).
+ *
+ * @param includeMarker If true, includes the list marker (e.g., "* ") in the output.
+ */
+class StreamMarkdownUnorderedListPlugin(private val includeMarker: Boolean = true) : StreamPlugin {
+    override var state: PluginState = PluginState.IDLE
+        private set
+
+    private val listMatcher =
+            StreamKmpGraphBuilder()
+                    .build(
+                            kmpPattern {
+                                anyOf('-', '+')
+                                char(' ')
+                            }
+                    )
+
+    override fun processChar(c: Char, atStartOfLine: Boolean): Boolean {
+        if (state == PluginState.PROCESSING) {
+            if (c == '\n') {
+                reset()
+            }
+            return true
+        }
+
+        if (atStartOfLine) {
+            return handleMatch(c)
+        } else if (state == PluginState.TRYING) {
+            return handleMatch(c)
+        }
+
+        return true
+    }
+
+    private fun handleMatch(c: Char): Boolean {
+        return when (val result = listMatcher.processChar(c)) {
+            is StreamKmpMatchResult.Match -> {
+                state = PluginState.PROCESSING
+                includeMarker
+            }
+            is StreamKmpMatchResult.InProgress -> {
+                state = PluginState.TRYING
+                includeMarker
+            }
+            is StreamKmpMatchResult.NoMatch -> {
+                resetInternal()
+                true
+            }
+        }
+    }
+
+    override fun initPlugin(): Boolean {
+        reset()
+        return true
+    }
+
+    override fun destroy() {}
+
+    override fun reset() {
+        resetInternal()
+    }
+
+    private fun resetInternal() {
+        state = PluginState.IDLE
+        listMatcher.reset()
     }
 }
