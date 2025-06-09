@@ -1,5 +1,6 @@
 package com.ai.assistance.operit.util.stream
 
+import android.util.Log
 import com.ai.assistance.operit.util.stream.plugins.PluginState
 import com.ai.assistance.operit.util.stream.plugins.StreamPlugin
 import kotlin.collections.ArrayDeque
@@ -222,6 +223,7 @@ fun <T> Stream<T>.chunked(size: Int): Stream<List<T>> {
  */
 fun Stream<Char>.splitBy(plugins: List<StreamPlugin>): Stream<StreamGroup<StreamPlugin?>> {
     val upstream = this
+    val TAG = "StreamSplitter"
 
     return object : Stream<StreamGroup<StreamPlugin?>> {
         override suspend fun collect(collector: StreamCollector<StreamGroup<StreamPlugin?>>) {
@@ -230,7 +232,11 @@ fun Stream<Char>.splitBy(plugins: List<StreamPlugin>): Stream<StreamGroup<Stream
 
                 launch { // Producer Coroutine
                     try {
-                        plugins.forEach { it.initPlugin() }
+                        Log.d(TAG, "初始化 ${plugins.size} 个插件")
+                        plugins.forEach {
+                            Log.d(TAG, "初始化插件: ${it.javaClass.simpleName}")
+                            it.initPlugin()
+                        }
 
                         var defaultTextChannel: Channel<Char>? = null
                         var activePlugin: StreamPlugin? = null
@@ -260,12 +266,14 @@ fun Stream<Char>.splitBy(plugins: List<StreamPlugin>): Stream<StreamGroup<Stream
                                 val stream =
                                         newChannel.consumeAsFlow().map { it.toString() }.asStream()
                                 groupChannel.send(StreamGroup(null, stream))
+                                Log.d(TAG, "打开默认文本通道")
                             }
                         }
 
                         suspend fun closeDefaultChannel() {
                             defaultTextChannel?.close()
                             defaultTextChannel = null
+                            Log.d(TAG, "关闭默认文本通道")
                         }
 
                         suspend fun openPluginChannel(plugin: StreamPlugin) {
@@ -274,9 +282,11 @@ fun Stream<Char>.splitBy(plugins: List<StreamPlugin>): Stream<StreamGroup<Stream
                             activePlugin = plugin
                             val stream = newChannel.consumeAsFlow().map { it.toString() }.asStream()
                             groupChannel.send(StreamGroup(plugin, stream))
+                            Log.i(TAG, "激活插件: ${plugin.javaClass.simpleName}")
                         }
 
                         suspend fun closePluginChannel() {
+                            Log.i(TAG, "关闭插件通道: ${activePlugin?.javaClass?.simpleName ?: "无"}")
                             activePluginChannel?.close()
                             activePluginChannel = null
                             activePlugin = null
@@ -297,12 +307,20 @@ fun Stream<Char>.splitBy(plugins: List<StreamPlugin>): Stream<StreamGroup<Stream
 
                             if (currentActivePlugin != null) {
                                 // --- 状态：处理中 ---
-                                val shouldEmit = currentActivePlugin.processChar(char, isAtStartOfLineForCurrentChar)
+                                val shouldEmit =
+                                        currentActivePlugin.processChar(
+                                                char,
+                                                isAtStartOfLineForCurrentChar
+                                        )
                                 if (shouldEmit) {
                                     activePluginChannel?.send(char)
                                 }
 
                                 if (currentActivePlugin.state != PluginState.PROCESSING) {
+                                    Log.i(
+                                            TAG,
+                                            "插件 ${currentActivePlugin.javaClass.simpleName} 状态变更为: ${currentActivePlugin.state}"
+                                    )
                                     closePluginChannel()
                                     // 将导致插件状态改变的字符放回队列，以便重新评估 (REMOVED - This was causing bugs)
                                     // pendingChars.addFirst(char)
@@ -311,14 +329,45 @@ fun Stream<Char>.splitBy(plugins: List<StreamPlugin>): Stream<StreamGroup<Stream
                                 // --- 状态：评估中 ---
                                 // 所有插件并行处理字符
                                 evaluationBuffer.add(char)
-                                val shouldEmitMap = plugins.associateWith { it.processChar(char, isAtStartOfLineForCurrentChar) }
+                                val shouldEmitMap =
+                                        plugins.associateWith {
+                                            it.processChar(char, isAtStartOfLineForCurrentChar)
+                                        }
                                 evaluationShouldEmit.add(shouldEmitMap)
+
+                                // 记录所有TRYING状态的插件
+                                val tryingPlugins =
+                                        plugins.filter { it.state == PluginState.TRYING }
+                                if (tryingPlugins.isNotEmpty()) {
+                                    Log.v(
+                                            TAG,
+                                            "当前字符 '${char}' (ASCII: ${char.code}), 正在尝试匹配的插件: ${tryingPlugins.map { it.javaClass.simpleName }}"
+                                    )
+                                }
 
                                 val successfulPlugin =
                                         plugins.find { it.state == PluginState.PROCESSING }
 
                                 if (successfulPlugin != null) {
                                     // --- 转换：评估中 -> 处理中 ---
+                                    Log.i(
+                                            TAG,
+                                            "插件 ${successfulPlugin.javaClass.simpleName} 成功匹配并开始处理"
+                                    )
+
+                                    // 如果有多个插件可能同时匹配，记录潜在冲突
+                                    val otherTryingPlugins =
+                                            plugins.filter {
+                                                it != successfulPlugin &&
+                                                        it.state == PluginState.TRYING
+                                            }
+                                    if (otherTryingPlugins.isNotEmpty()) {
+                                        Log.w(
+                                                TAG,
+                                                "潜在冲突: 选中 ${successfulPlugin.javaClass.simpleName}, 但以下插件也在尝试匹配: ${otherTryingPlugins.map { it.javaClass.simpleName }}"
+                                        )
+                                    }
+
                                     closeDefaultChannel()
                                     openPluginChannel(successfulPlugin)
 
@@ -330,6 +379,10 @@ fun Stream<Char>.splitBy(plugins: List<StreamPlugin>): Stream<StreamGroup<Stream
                                             activePluginChannel?.send(bufferedChar)
                                         }
                                     }
+                                    Log.d(
+                                            TAG,
+                                            "回放缓冲区 (大小: ${evaluationBuffer.size}) 到插件 ${successfulPlugin.javaClass.simpleName}"
+                                    )
                                     evaluationBuffer.clear()
                                     evaluationShouldEmit.clear()
 
@@ -338,6 +391,7 @@ fun Stream<Char>.splitBy(plugins: List<StreamPlugin>): Stream<StreamGroup<Stream
                                 } else if (plugins.none { it.state == PluginState.TRYING }) {
                                     // --- 转换：评估中 -> 空闲 ---
                                     // 没有插件处于TRYING状态，意味着匹配失败
+                                    Log.d(TAG, "所有插件匹配失败, 切换到默认文本通道")
                                     openDefaultChannel()
                                     evaluationBuffer.forEach { defaultTextChannel?.send(it) }
                                     evaluationBuffer.clear()
@@ -351,10 +405,12 @@ fun Stream<Char>.splitBy(plugins: List<StreamPlugin>): Stream<StreamGroup<Stream
                         }
 
                         // 流结束后，关闭所有剩余通道并清空缓冲区
+                        Log.d(TAG, "流处理完成，清理资源")
                         closeDefaultChannel()
                         closePluginChannel()
 
                         if (evaluationBuffer.isNotEmpty()) {
+                            Log.d(TAG, "处理剩余的评估缓冲区，大小: ${evaluationBuffer.size}")
                             openDefaultChannel()
                             evaluationBuffer.forEach { defaultTextChannel?.send(it) }
                             closeDefaultChannel()

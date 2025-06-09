@@ -626,7 +626,9 @@ class StreamMarkdownHorizontalRulePlugin(private val includeMarker: Boolean = tr
 
     override fun processChar(c: Char, atStartOfLine: Boolean): Boolean {
         if (c == '\n') {
-            val isMatch = (state == PluginState.TRYING || state == PluginState.PROCESSING) && markerCount >= 3
+            val isMatch =
+                    (state == PluginState.TRYING || state == PluginState.PROCESSING) &&
+                            markerCount >= 3
             val shouldEmit = isMatch && includeMarker
 
             resetInternal()
@@ -962,5 +964,139 @@ class StreamMarkdownUnorderedListPlugin(private val includeMarker: Boolean = tru
     private fun resetInternal() {
         state = PluginState.IDLE
         listMatcher.reset()
+    }
+}
+
+/**
+ * A stream plugin for identifying LaTeX inline math expressions using single dollar signs ($...$).
+ *
+ * @param includeDelimiters If true, the $ delimiters are included in the output.
+ */
+class StreamMarkdownInlineLaTeXPlugin(private val includeDelimiters: Boolean = true) :
+        StreamPlugin {
+    override var state: PluginState = PluginState.IDLE
+        private set
+
+    // 模式匹配器用于查找单个美元符号
+    private var startMatcher: StreamKmpGraph =
+            StreamKmpGraphBuilder()
+                    .build(
+                            kmpPattern {
+                                char('$')
+                                noneOf('$', '\n')
+                            }
+                    )
+    private var endMatcher: StreamKmpGraph = StreamKmpGraphBuilder().build(kmpPattern { char('$') })
+
+    override fun processChar(c: Char, atStartOfLine: Boolean): Boolean {
+        if (state == PluginState.PROCESSING) {
+            // 处理结束匹配符
+            when (endMatcher.processChar(c)) {
+                is StreamKmpMatchResult.Match -> {
+                    reset()
+                    return includeDelimiters
+                }
+                is StreamKmpMatchResult.InProgress -> return includeDelimiters
+                is StreamKmpMatchResult.NoMatch -> return true
+            }
+        } else { // IDLE或TRYING
+            // 处理开始匹配符
+            when (startMatcher.processChar(c)) {
+                is StreamKmpMatchResult.Match -> {
+                    state = PluginState.PROCESSING
+                    endMatcher.reset()
+                    startMatcher.reset()
+                    return true
+                }
+                is StreamKmpMatchResult.InProgress -> {
+                    state = PluginState.TRYING
+                    return includeDelimiters
+                }
+                is StreamKmpMatchResult.NoMatch -> {
+                    if (state == PluginState.TRYING) {
+                        reset()
+                    }
+                    return true
+                }
+            }
+        }
+        return true // 不应该到达这里
+    }
+
+    override fun initPlugin(): Boolean {
+        reset()
+        return true
+    }
+
+    override fun destroy() {}
+
+    override fun reset() {
+        state = PluginState.IDLE
+        startMatcher.reset()
+        endMatcher.reset()
+    }
+}
+
+/**
+ * A stream plugin for identifying LaTeX block math expressions using double dollar signs ($$...$$).
+ *
+ * @param includeDelimiters If true, the $$ delimiters are included in the output.
+ */
+class StreamMarkdownBlockLaTeXPlugin(private val includeDelimiters: Boolean = true) : StreamPlugin {
+    override var state: PluginState = PluginState.IDLE
+        private set
+
+    // 模式匹配器用于查找双美元符号
+    private var startMatcher: StreamKmpGraph =
+            StreamKmpGraphBuilder().build(kmpPattern { literal("$$") })
+    private var endMatcher: StreamKmpGraph =
+            StreamKmpGraphBuilder().build(kmpPattern { literal("$$") })
+
+    override fun processChar(c: Char, atStartOfLine: Boolean): Boolean {
+        if (state == PluginState.PROCESSING) {
+            // 处理结束匹配符
+            when (endMatcher.processChar(c)) {
+                is StreamKmpMatchResult.Match -> {
+                    reset()
+                    return includeDelimiters
+                }
+                is StreamKmpMatchResult.InProgress -> return includeDelimiters
+                is StreamKmpMatchResult.NoMatch -> return true
+            }
+        } else { // IDLE或TRYING
+            // 处理开始匹配符
+            when (startMatcher.processChar(c)) {
+                is StreamKmpMatchResult.Match -> {
+                    state = PluginState.PROCESSING
+                    endMatcher.reset()
+                    startMatcher.reset()
+                    return true
+                }
+                is StreamKmpMatchResult.InProgress -> {
+                    state = PluginState.TRYING
+                    return includeDelimiters
+                }
+                is StreamKmpMatchResult.NoMatch -> {
+                    if (state == PluginState.TRYING) {
+                        reset()
+                    }
+                    return true
+                }
+            }
+        }
+        return true // 不应该到达这里
+    }
+
+    override fun initPlugin(): Boolean {
+        reset()
+        return true
+    }
+
+    override fun destroy() {}
+
+    override fun reset() {
+        state = PluginState.IDLE
+        startMatcher.reset()
+        endMatcher.reset()
     }
 }

@@ -76,57 +76,17 @@ fun StreamMarkdownDemoScreen(onBackClick: () -> Unit = {}) {
     // 模拟的Markdown内容
     val fullMarkdownContent = remember {
         """
-        # 流式Markdown演示
+        `你好啊`
+
+        $$
+        \begin{aligned}
+        \nabla \times \vec{E} &= -\frac{\partial \vec{B}}{\partial t} \\
+        \nabla \times \vec{H} &= \vec{J} + \frac{\partial \vec{D}}{\partial t} \\
+        \nabla \cdot \vec{D} &= \rho \\
+        \nabla \cdot \vec{B} &= 0
+        \end{aligned}
+        $$
         
-        这是一个**流式Markdown**渲染的演示，字符正在*一个一个*地发送。
-        
-        ## 支持的功能
-        
-        1. 标题渲染
-        2. **粗体**文本
-        3. *斜体*文本
-        4. ~~删除线~~文本
-        5. `行内代码`显示
-        
-        > 这是一个引用块，也支持**富文本**格式。
-        
-        ### 代码块演示
-        
-        ```kotlin
-        fun main() {
-            // 这是代码块
-            println("Hello, Markdown!")
-            
-            // 支持语法高亮
-            val list = listOf(1, 2, 3)
-            list.forEach { println(it) }
-        }
-        ```
-        
-        #### 列表演示
-        
-        - 无序列表项1
-        - 无序列表项2
-          - 嵌套列表项
-        
-        1. 有序列表项1
-        2. 有序列表项2
-           1. 嵌套有序列表
-        
-        -----
-        
-        这是一个[链接示例](https://example.com)。
-        
-        ###### 性能测试
-        
-        这个渲染器使用了我们自己开发的流式处理框架，与传统渲染方法相比有以下优点：
-        
-        1. **增量渲染** - 随着内容的流入逐步构建渲染树
-        2. **高性能** - 不阻塞UI线程，平滑渲染大型文档
-        3. **内存效率** - 优化的内存使用，减少GC压力
-        4. **嵌套支持** - 完美处理复杂嵌套的Markdown结构
-        
-        希望这个演示能够展示流式处理的优势。
         """.trimIndent()
     }
 

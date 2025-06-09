@@ -2,7 +2,6 @@ package com.ai.assistance.operit.util.markdown
 
 import com.ai.assistance.operit.util.stream.*
 import com.ai.assistance.operit.util.stream.plugins.*
-import com.ai.assistance.operit.util.stream.splitBy as streamSplitBy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -24,6 +23,7 @@ enum class MarkdownProcessorType {
     ORDERED_LIST,
     UNORDERED_LIST,
     HORIZONTAL_RULE,
+    BLOCK_LATEX, // LaTeX块级公式
 
     // 内联处理器
     BOLD,
@@ -33,6 +33,7 @@ enum class MarkdownProcessorType {
     IMAGE,
     STRIKETHROUGH,
     UNDERLINE,
+    INLINE_LATEX, // LaTeX行内公式
 
     // 纯文本
     PLAIN_TEXT
@@ -88,151 +89,10 @@ object NestedMarkdownProcessor {
                     StreamMarkdownLinkPlugin(),
                     StreamMarkdownImagePlugin(),
                     StreamMarkdownStrikethroughPlugin(),
-                    StreamMarkdownUnderlinePlugin()
+                    StreamMarkdownUnderlinePlugin(),
+                    StreamMarkdownBlockLaTeXPlugin(includeDelimiters = false), // 先检测块级LaTeX
+                    StreamMarkdownInlineLaTeXPlugin(includeDelimiters = false) // 后检测行内LaTeX
             )
-
-    /**
-     * 处理Markdown文本，生成嵌套的StreamGroup结构
-     * @param text 原始Markdown文本
-     * @return 包含嵌套结构的根StreamGroup
-     */
-    suspend fun process(text: String): StreamGroup<MarkdownProcessorType> {
-        val charStream = text.toCharStream()
-        return processWithPlugins(charStream, getBlockPlugins(), getInlinePlugins())
-    }
-
-    /**
-     * 使用给定的插件列表处理字符流
-     * @param charStream 原始字符流
-     * @param blockPlugins 块级插件列表
-     * @param inlinePlugins 内联插件列表
-     * @return 处理后的StreamGroup结构
-     */
-    suspend fun processWithPlugins(
-            charStream: Stream<Char>,
-            blockPlugins: List<StreamPlugin>,
-            inlinePlugins: List<StreamPlugin>
-    ): StreamGroup<MarkdownProcessorType> {
-
-        // 创建根组
-        val rootBuilder =
-                StreamGroupBuilder<MarkdownProcessorType>()
-                        .tag(MarkdownProcessorType.PLAIN_TEXT)
-                        .stream(streamOf("")) // 临时流，后面会被替换
-
-        // 收集块级分组
-        val blockGroups = mutableListOf<StreamGroup<MarkdownProcessorType>>()
-
-        // 先用块级插件处理
-        charStream.streamSplitBy(blockPlugins).collect { blockGroup ->
-            val blockType = getTypeForPlugin(blockGroup.tag)
-            val blockProcessor = MarkdownNodeProcessor(blockType)
-
-            val contentBuffer = StringBuilder()
-
-            // 收集块内容到buffer
-            blockGroup.stream.collect { s: String ->
-                contentBuffer.append(s)
-
-                // 如果块已经结束或累积了足够多的内容，可以进行内联处理
-                if (contentBuffer.isNotEmpty() && (s.endsWith("\n") || contentBuffer.length > 100)
-                ) {
-                    val content = contentBuffer.toString()
-                    contentBuffer.clear()
-
-                    // 如果是代码块，不做内联处理
-                    if (blockType == MarkdownProcessorType.CODE_BLOCK) {
-                        val codeStream = streamOf(content)
-                        val codeGroup = StreamGroup(blockType, codeStream, blockProcessor)
-                        blockGroups.add(codeGroup)
-                    } else {
-                        // 对块内容再次应用内联插件
-                        val charContent = content.toCharStream()
-
-                        // 创建内联处理的构建器
-                        val inlineGroupBuilder =
-                                StreamGroupBuilder<MarkdownProcessorType>()
-                                        .tag(blockType)
-                                        .processor(blockProcessor)
-
-                        // 处理内联
-                        processInlineContentSuspend(charContent, inlinePlugins) { inlineGroup ->
-                            inlineGroupBuilder.addChild(inlineGroup)
-                        }
-
-                        // 此时inlineGroupBuilder还没有stream，需要设置
-                        inlineGroupBuilder.stream(streamOf(content))
-
-                        blockGroups.add(inlineGroupBuilder.build())
-                    }
-                }
-            }
-
-            // 处理剩余内容
-            if (contentBuffer.isNotEmpty()) {
-                val content = contentBuffer.toString()
-
-                // 如果是代码块，不做内联处理
-                if (blockType == MarkdownProcessorType.CODE_BLOCK) {
-                    val codeStream = streamOf(content)
-                    val codeGroup = StreamGroup(blockType, codeStream, blockProcessor)
-                    blockGroups.add(codeGroup)
-                } else {
-                    // 对块内容再次应用内联插件
-                    val charContent = content.toCharStream()
-
-                    // 创建内联处理的构建器
-                    val inlineGroupBuilder =
-                            StreamGroupBuilder<MarkdownProcessorType>()
-                                    .tag(blockType)
-                                    .processor(blockProcessor)
-
-                    // 处理内联
-                    processInlineContentSuspend(charContent, inlinePlugins) { inlineGroup ->
-                        inlineGroupBuilder.addChild(inlineGroup)
-                    }
-
-                    // 此时inlineGroupBuilder还没有stream，需要设置
-                    inlineGroupBuilder.stream(streamOf(content))
-
-                    blockGroups.add(inlineGroupBuilder.build())
-                }
-            }
-        }
-
-        // 将所有块级组添加为根组的子组
-        blockGroups.forEach { rootBuilder.addChild(it) }
-
-        // 获取整个文本作为根组的内容
-        val fullText = StringBuilder()
-        val textStream = charStream.map<Char, String> { char -> char.toString() }
-        textStream.collect { str -> fullText.append(str) }
-
-        return rootBuilder
-                .stream(streamOf(fullText.toString()))
-                .processor(StringCollectorProcessor())
-                .build()
-    }
-
-    /** 处理内联内容（挂起函数版） */
-    private suspend fun processInlineContentSuspend(
-            charContent: Stream<Char>,
-            inlinePlugins: List<StreamPlugin>,
-            onGroupFound: (StreamGroup<MarkdownProcessorType>) -> Unit
-    ) {
-        charContent.streamSplitBy(inlinePlugins).collect { inlineGroup ->
-            val inlineType = getTypeForPlugin(inlineGroup.tag)
-            val inlineProcessor = MarkdownNodeProcessor(inlineType)
-
-            val contentBuilder = StringBuilder()
-            inlineGroup.stream.collect { str -> contentBuilder.append(str) }
-            val content = contentBuilder.toString()
-
-            val newGroup = StreamGroup(inlineType, streamOf(content), inlineProcessor)
-
-            onGroupFound(newGroup)
-        }
-    }
 
     /** 根据插件获取对应的Markdown处理器类型 */
     internal fun getTypeForPlugin(plugin: StreamPlugin?): MarkdownProcessorType {
@@ -250,6 +110,8 @@ object NestedMarkdownProcessor {
             is StreamMarkdownImagePlugin -> MarkdownProcessorType.IMAGE
             is StreamMarkdownStrikethroughPlugin -> MarkdownProcessorType.STRIKETHROUGH
             is StreamMarkdownUnderlinePlugin -> MarkdownProcessorType.UNDERLINE
+            is StreamMarkdownInlineLaTeXPlugin -> MarkdownProcessorType.INLINE_LATEX
+            is StreamMarkdownBlockLaTeXPlugin -> MarkdownProcessorType.BLOCK_LATEX
             else -> MarkdownProcessorType.PLAIN_TEXT
         }
     }
