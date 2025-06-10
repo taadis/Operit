@@ -1,9 +1,5 @@
 package com.ai.assistance.operit.util.markdown
 
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.snapshots.SnapshotStateList
 import com.ai.assistance.operit.util.stream.*
 import com.ai.assistance.operit.util.stream.plugins.*
 import kotlinx.coroutines.Dispatchers
@@ -43,22 +39,12 @@ enum class MarkdownProcessorType {
     PLAIN_TEXT
 }
 
-/**
- * Markdown数据模型
- *
- * @param type 节点的类型，例如标题、列表等
- * @param content 节点包含的文本内容，使用MutableState包装以实现增量更新
- * @param children 子节点列表，使用SnapshotStateList包装以实现列表的增量更新
- */
-class MarkdownNode(
+/** Markdown数据模型 */
+data class MarkdownNode(
         val type: MarkdownProcessorType,
-        initialContent: String = "",
-        initialChildren: List<MarkdownNode> = emptyList()
-) {
-    val content: MutableState<String> = mutableStateOf(initialContent)
-    val children: SnapshotStateList<MarkdownNode> =
-            mutableStateListOf<MarkdownNode>().apply { addAll(initialChildren) }
-}
+        val content: String,
+        val children: MutableList<MarkdownNode> = mutableListOf()
+)
 
 /** 将字符串转换为字符流 */
 fun String.toCharStream(): Stream<Char> {
