@@ -157,7 +157,7 @@ class StreamMarkdownInlineCodePlugin(private val includeTicks: Boolean = true) :
                     } else {
                         reset()
                     }
-                    return includeTicks
+                    return true
                 }
                 is StreamKmpMatchResult.InProgress -> {
                     state = PluginState.TRYING

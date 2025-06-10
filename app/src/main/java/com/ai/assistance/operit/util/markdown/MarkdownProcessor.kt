@@ -1,5 +1,9 @@
 package com.ai.assistance.operit.util.markdown
 
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import com.ai.assistance.operit.util.stream.*
 import com.ai.assistance.operit.util.stream.plugins.*
 import kotlinx.coroutines.Dispatchers
@@ -40,11 +44,10 @@ enum class MarkdownProcessorType {
 }
 
 /** Markdown数据模型 */
-data class MarkdownNode(
-        val type: MarkdownProcessorType,
-        val content: String,
-        val children: MutableList<MarkdownNode> = mutableListOf()
-)
+class MarkdownNode(val type: MarkdownProcessorType, initialContent: String = "") {
+    val content: MutableState<String> = mutableStateOf(initialContent)
+    val children: SnapshotStateList<MarkdownNode> = mutableStateListOf()
+}
 
 /** 将字符串转换为字符流 */
 fun String.toCharStream(): Stream<Char> {
@@ -62,7 +65,7 @@ class MarkdownNodeProcessor(private val type: MarkdownProcessorType) :
             withContext(Dispatchers.Default) {
                 val contentBuilder = StringBuilder()
                 stream.collect { contentBuilder.append(it) }
-                MarkdownNode(type, contentBuilder.toString())
+                MarkdownNode(type, initialContent = contentBuilder.toString())
             }
 }
 
@@ -137,7 +140,7 @@ class MarkdownUIBinder<T>(
         val content = StringBuilder()
         group.stream.collect { content.append(it) }
 
-        val node = MarkdownNode(group.tag, content.toString())
+        val node = MarkdownNode(group.tag, initialContent = content.toString())
 
         // 递归处理子组
         for (child in group.children) {

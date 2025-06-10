@@ -93,6 +93,12 @@ fun StreamMarkdownDemoScreen(onBackClick: () -> Unit = {}) {
 
         我是纯文本
 
+        ```kotlin
+        fun main() {
+            println("Hello, World!")
+        }
+        ```
+
         $$
         \begin{aligned}
         \nabla \times \vec{E} &= -\frac{\partial \vec{B}}{\partial t} \\
