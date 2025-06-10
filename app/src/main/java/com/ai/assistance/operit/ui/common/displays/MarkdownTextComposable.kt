@@ -1,29 +1,15 @@
 package com.ai.assistance.operit.ui.common.displays
 
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.TextUnit.Companion.Unspecified
+import com.ai.assistance.operit.ui.common.markdown.StreamMarkdownRenderer
+import com.ai.assistance.operit.util.stream.stream
 
-/**
- * An integrated Markdown and LaTeX renderer composable that renders both standard Markdown features
- * and LaTeX equations in the same content.
- *
- * This composable supports:
- * - All standard Markdown features (headings, lists, bold, italic, links, etc.)
- * - Markdown images using the standard syntax: `![alt text](image_url)` (loaded using Coil)
- * - LaTeX equations embedded in Markdown content using:
- * - Inline equations with `$...$`
- * - Block equations with `$$...$$`
- * - Math expressions with recognized symbols like subscripts, integrals, etc.
- *
- * The implementation uses Markwon for Markdown rendering, JLatexMath for LaTeX rendering, and Coil
- * for efficient image loading with caching support.
- */
+/** 新一代流式Markdown+LaTeX渲染器，完全替换原有实现。 兼容原有API，支持所有Markdown和LaTeX混排。 */
 @Composable
 fun MarkdownTextComposable(
         text: String,
@@ -31,26 +17,15 @@ fun MarkdownTextComposable(
         modifier: Modifier = Modifier,
         fontSize: TextUnit = Unspecified,
         textAlign: TextAlign? = null,
-        isSelectable: Boolean = true,
+        isSelectable: Boolean = true, // 保留参数，暂不处理
         onLinkClicked: ((String) -> Unit)? = null
 ) {
-        val customTextStyle =
-                MaterialTheme.typography.bodyMedium.copy(
-                        fontSize =
-                                if (fontSize != Unspecified) fontSize
-                                else MaterialTheme.typography.bodyMedium.fontSize,
-                        textAlign = textAlign ?: MaterialTheme.typography.bodyMedium.textAlign
-                )
-
-        // Use the integrated renderer for both Markdown and LaTeX
-        IntegratedMarkdownLatexRenderer(
-                content = text,
+        // 直接用流式渲染器替换
+        StreamMarkdownRenderer(
+                markdownStream = text.stream(),
+                modifier = modifier,
                 textColor = textColor,
-                modifier = modifier.fillMaxWidth(),
-                textStyle = customTextStyle,
-                fontSize = fontSize,
-                textAlign = textAlign,
-                isSelectable = isSelectable,
-                onLinkClicked = onLinkClicked
+                // 其它参数可扩展
+                onLinkClick = onLinkClicked
         )
 }

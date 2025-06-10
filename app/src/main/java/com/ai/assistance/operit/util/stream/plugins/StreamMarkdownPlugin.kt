@@ -1100,3 +1100,127 @@ class StreamMarkdownBlockLaTeXPlugin(private val includeDelimiters: Boolean = tr
         endMatcher.reset()
     }
 }
+
+/**
+ * A stream plugin for identifying Markdown tables. It recognizes complete table blocks with
+ * multiple rows, starting with pipe characters and maintaining table state across newlines.
+ * 
+ * @param includeDelimiters If true, the pipe delimiters are included in the output.
+ */
+class StreamMarkdownTablePlugin(private val includeDelimiters: Boolean = true) : StreamPlugin {
+    override var state: PluginState = PluginState.IDLE
+        private set
+    
+    // 用于记录表格状态
+    private var tableRowCount = 0
+    private var foundHeaderSeparator = false
+    private var emptyLineCount = 0 // 用于检测表格结束的空行计数
+    
+    // 用于匹配表格行开始
+    private val tableRowMatcher = 
+            StreamKmpGraphBuilder()
+                    .build(
+                            kmpPattern {
+                                char('|') // 表格行必须以竖线开始
+                            }
+                    )
+    
+    // 用于匹配表头分隔符行
+    private val headerSeparatorMatcher =
+            StreamKmpGraphBuilder()
+                    .build(
+                            kmpPattern {
+                                char('|')
+                                greedyStar { anyOf('-', ':', ' ') }
+                            }
+                    )
+    
+    override fun processChar(c: Char, atStartOfLine: Boolean): Boolean {
+        // 处理换行符
+        if (c == '\n') {
+            if (state == PluginState.PROCESSING) {
+                // 在表格处理模式下遇到换行符
+                // 保持在PROCESSING状态，等待下一行判断
+                return true
+            }
+            return true
+        }
+        
+        // 处理行开始
+        if (atStartOfLine) {
+            // 检查是否是表格行开始
+            when (val result = tableRowMatcher.processChar(c)) {
+                is StreamKmpMatchResult.Match, is StreamKmpMatchResult.InProgress -> {
+                    if (state == PluginState.IDLE) {
+                        // 开始新的表格
+                        state = PluginState.PROCESSING
+                        tableRowCount = 1
+                        emptyLineCount = 0
+                        tableRowMatcher.reset()
+                    } else if (state == PluginState.PROCESSING) {
+                        // 继续处理表格的下一行
+                        tableRowCount++
+                        emptyLineCount = 0
+                    }
+                    
+                    // 检查是否是表头分隔符行
+                    if (tableRowCount == 2 && !foundHeaderSeparator) {
+                        headerSeparatorMatcher.processChar(c)
+                    }
+                    
+                    return includeDelimiters
+                }
+                else -> {
+                    if (state == PluginState.PROCESSING) {
+                        // 在表格处理模式下遇到不是表格行开始的行
+                        // 如果已经处理了至少一行表格，则认为表格结束
+                        emptyLineCount++
+                        
+                        if (emptyLineCount > 1) {
+                            // 连续两个非表格行，结束表格处理
+                            reset()
+                        }
+                    }
+                    return true
+                }
+            }
+        } else if (state == PluginState.PROCESSING) {
+            // 在表格行中间处理字符
+            
+            // 如果是第二行且可能是分隔符行
+            if (tableRowCount == 2 && !foundHeaderSeparator) {
+                // 处理头部分隔符检测
+                when (val result = headerSeparatorMatcher.processChar(c)) {
+                    is StreamKmpMatchResult.Match -> {
+                        foundHeaderSeparator = true
+                    }
+                    is StreamKmpMatchResult.NoMatch -> {
+                        // 如果第二行不是分隔符，继续正常处理
+                    }
+                    else -> { /* 继续收集字符 */ }
+                }
+            }
+            
+            // 返回字符是否应该包含在输出中
+            return includeDelimiters || c != '|'
+        }
+        
+        return true
+    }
+    
+    override fun initPlugin(): Boolean {
+        reset()
+        return true
+    }
+    
+    override fun destroy() {}
+    
+    override fun reset() {
+        state = PluginState.IDLE
+        tableRowCount = 0
+        foundHeaderSeparator = false
+        emptyLineCount = 0
+        tableRowMatcher.reset()
+        headerSeparatorMatcher.reset()
+    }
+}

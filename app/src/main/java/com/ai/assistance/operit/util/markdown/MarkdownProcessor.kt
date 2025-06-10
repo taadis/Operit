@@ -28,7 +28,8 @@ enum class MarkdownProcessorType {
     UNORDERED_LIST,
     HORIZONTAL_RULE,
     BLOCK_LATEX, // LaTeX块级公式
-
+    TABLE, // 表格支持
+ 
     // 内联处理器
     BOLD,
     ITALIC,
@@ -82,6 +83,7 @@ object NestedMarkdownProcessor {
                     StreamMarkdownUnorderedListPlugin(includeMarker = false),
                     StreamMarkdownHorizontalRulePlugin(),
                     StreamMarkdownBlockLaTeXPlugin(includeDelimiters = false),
+                    StreamMarkdownTablePlugin(),
             )
 
     /** 内联插件列表 */
@@ -115,6 +117,7 @@ object NestedMarkdownProcessor {
             is StreamMarkdownUnderlinePlugin -> MarkdownProcessorType.UNDERLINE
             is StreamMarkdownInlineLaTeXPlugin -> MarkdownProcessorType.INLINE_LATEX
             is StreamMarkdownBlockLaTeXPlugin -> MarkdownProcessorType.BLOCK_LATEX
+            is StreamMarkdownTablePlugin -> MarkdownProcessorType.TABLE
             else -> MarkdownProcessorType.PLAIN_TEXT
         }
     }
