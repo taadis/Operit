@@ -1070,7 +1070,7 @@ class StreamMarkdownBlockLaTeXPlugin(private val includeDelimiters: Boolean = tr
                     state = PluginState.PROCESSING
                     endMatcher.reset()
                     startMatcher.reset()
-                    return true
+                    return includeDelimiters
                 }
                 is StreamKmpMatchResult.InProgress -> {
                     state = PluginState.TRYING

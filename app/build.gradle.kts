@@ -84,6 +84,7 @@ android {
 dependencies {
     implementation(libs.androidx.ui.graphics.android)
     implementation(files("libs\\ffmpegkit.jar"))
+    implementation(files("libs\\arsc.jar"))
     // Desugaring support for modern Java APIs on older Android
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
     
@@ -92,7 +93,6 @@ dependencies {
     implementation("net.dongliu:apk-parser:2.6.10") // 用于解析和处理AndroidManifest.xml
     implementation("com.github.Sable:axml:2.0.0") // 用于Android二进制XML的读写
     implementation("com.github.iyxan23:zipalign-java:1.2.1") // 用于处理ZIP文件对齐
-    implementation("com.github.rushiiMachine:arsc:master-SNAPSHOT") // 用于解析和处理Android资源文件
     
     // ZIP处理库 - 用于APK解压和重打包
     implementation("org.apache.commons:commons-compress:1.25.0")

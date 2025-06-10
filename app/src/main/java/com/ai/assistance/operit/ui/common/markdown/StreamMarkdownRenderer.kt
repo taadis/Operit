@@ -1,5 +1,6 @@
 package com.ai.assistance.operit.ui.common.markdown
 
+import android.util.Log
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.compose.foundation.background
@@ -20,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -47,15 +49,13 @@ import com.ai.assistance.operit.util.markdown.MarkdownNode
 import com.ai.assistance.operit.util.markdown.MarkdownProcessorType
 import com.ai.assistance.operit.util.markdown.NestedMarkdownProcessor
 import com.ai.assistance.operit.util.stream.Stream
-import com.ai.assistance.operit.util.stream.splitBy
+import com.ai.assistance.operit.util.stream.splitBy as streamSplitBy
 import com.ai.assistance.operit.util.stream.stream
 import ru.noties.jlatexmath.JLatexMathDrawable
 
-data class DisplayableMarkdownNode(
-        val staticNode: MarkdownNode,
-        val streamingContent: StringBuilder = StringBuilder(staticNode.content),
-        val version: Int = 0
-)
+private const val TAG = "StreamMarkdownRenderer"
+private const val PARSER_TAG = "MD-Parser"
+private const val RENDER_TAG = "MD-Render"
 
 /** 高性能流式Markdown渲染组件 通过Jetpack Compose实现，支持流式渲染Markdown内容 使用Stream处理系统，实现高效的异步处理 */
 @Composable
@@ -66,158 +66,153 @@ fun StreamMarkdownRenderer(
         backgroundColor: Color = MaterialTheme.colorScheme.surface,
         onLinkClick: ((String) -> Unit)? = null
 ) {
-    val nodes = remember { mutableStateListOf<DisplayableMarkdownNode>() }
+    val nodes = remember { mutableStateListOf<MarkdownNode>() }
 
     LaunchedEffect(markdownStream) {
+        Log.d(PARSER_TAG, "【初始化】开始处理Markdown流")
         nodes.clear() // 在流实例更改时清除节点
+        Log.d(PARSER_TAG, "【初始化】流实例更改，清除节点列表")
 
-        markdownStream.splitBy(NestedMarkdownProcessor.getBlockPlugins()).collect { blockGroup
+        markdownStream.streamSplitBy(NestedMarkdownProcessor.getBlockPlugins()).collect { blockGroup
             ->
             val blockType = NestedMarkdownProcessor.getTypeForPlugin(blockGroup.tag)
+            Log.d(
+                    PARSER_TAG,
+                    "══════════════════START BLOCK TYPE: $blockType══════════════════════"
+            )
+            Log.d(PARSER_TAG, "【解析】发现块类型: $blockType [tag=${blockGroup.tag}]")
 
             // 对于水平分割线，内容无关紧要，直接添加节点
             if (blockType == MarkdownProcessorType.HORIZONTAL_RULE) {
-                nodes.add(DisplayableMarkdownNode(MarkdownNode(type = blockType, content = "---")))
+                Log.d(PARSER_TAG, "【解析】处理水平分割线 - 直接添加节点")
+                nodes.add(MarkdownNode(type = blockType, initialContent = "---"))
                 return@collect
             }
 
-            val isInlineContainer = blockType != MarkdownProcessorType.CODE_BLOCK
+            val isInlineContainer =
+                    blockType != MarkdownProcessorType.CODE_BLOCK &&
+                            blockType != MarkdownProcessorType.BLOCK_LATEX
+            Log.d(
+                    PARSER_TAG,
+                    "【解析】▶ 内联判定结果: isInlineContainer=$isInlineContainer (${if(isInlineContainer) "可以" else "不可以"}包含内联元素)"
+            )
 
             // 为新块创建并添加节点
-            val newNode = MarkdownNode(type = blockType, content = "", children = mutableListOf())
-            val nodeIndex = nodes.size
-            nodes.add(DisplayableMarkdownNode(newNode))
-
-            streamContentWithThrottledUpdates(blockGroup.stream, nodes, nodeIndex)
+            val newNode =
+                    MarkdownNode(
+                            type = blockType,
+                            initialContent = "",
+                            initialChildren = mutableListOf()
+                    )
+            nodes.add(newNode)
+            Log.d(PARSER_TAG, "【解析】创建新节点: index=${nodes.size - 1}, type=$blockType")
 
             if (isInlineContainer) {
-                val blockContent = nodes[nodeIndex].streamingContent.toString()
-                if (blockContent.isEmpty()) return@collect
+                Log.d(PARSER_TAG, "【解析】⟢ 开始处理可包含内联元素的块: 直接从流中解析内联元素")
 
-                var contentForInlineParsing = blockContent
-                when (blockType) {
-                    MarkdownProcessorType.ORDERED_LIST -> {
-                        val markerMatch = Regex("""^(\d+)\.\s*""").find(blockContent)
-                        contentForInlineParsing =
-                                markerMatch?.let { blockContent.substring(it.range.last + 1) }
-                                        ?: blockContent
-                    }
-                    MarkdownProcessorType.UNORDERED_LIST -> {
-                        val markerMatch = Regex("""^[-*+]\s+""").find(blockContent)
-                        contentForInlineParsing =
-                                markerMatch?.let { blockContent.substring(it.range.last + 1) }
-                                        ?: blockContent
-                    }
-                    MarkdownProcessorType.BLOCK_QUOTE -> {
-                        contentForInlineParsing =
-                                blockContent.lines().joinToString("\n") {
-                                    it.removePrefix("> ").removePrefix(">")
-                                }
-                    }
-                    else -> {
-                        /* No change needed */
-                    }
-                }
+                val contentBuilderForNode = StringBuilder()
 
-                val inlineChildren = mutableListOf<MarkdownNode>()
-                val charStream = stream {
-                    for (char in contentForInlineParsing) {
-                        emit(char)
-                    }
-                }
-
-                charStream.splitBy(NestedMarkdownProcessor.getInlinePlugins()).collect {
-                        inlineGroup ->
-                    val inlineType = NestedMarkdownProcessor.getTypeForPlugin(inlineGroup.tag)
-                    val inlineContentBuilder = StringBuilder()
-                    inlineGroup.stream.collect { str -> inlineContentBuilder.append(str) }
-                    var inlineContent = inlineContentBuilder.toString()
-
-                    if (inlineType == MarkdownProcessorType.PLAIN_TEXT) {
-                        inlineContent = inlineContent.trim()
-                    }
-
-                    if (inlineContent.isNotEmpty()) {
-                        inlineChildren.add(MarkdownNode(type = inlineType, content = inlineContent))
-                    }
-                }
-
-                if (inlineChildren.isNotEmpty()) {
-                    val finalNode =
-                            nodes[nodeIndex].staticNode.copy(
-                                    children = inlineChildren,
-                                    content = blockContent
+                // Directly parse the block stream for inline elements
+                blockGroup.stream.streamSplitBy(NestedMarkdownProcessor.getInlinePlugins())
+                        .collect { inlineGroup ->
+                            val inlineType =
+                                    NestedMarkdownProcessor.getTypeForPlugin(inlineGroup.tag)
+                            val inlineContentBuilder = StringBuilder()
+                            inlineGroup.stream.collect { str -> inlineContentBuilder.append(str) }
+                            val rawInlineContent = inlineContentBuilder.toString()
+                            Log.d(
+                                    PARSER_TAG,
+                                    "【解析】内联元素: $inlineType, 内容=\"${if(rawInlineContent.length > 20) rawInlineContent.substring(0, 17) + "..." else rawInlineContent}\""
                             )
-                    nodes[nodeIndex] = DisplayableMarkdownNode(finalNode)
+                            contentBuilderForNode.append(rawInlineContent)
+
+                            var contentForChildNode = rawInlineContent
+                            if (inlineType == MarkdownProcessorType.PLAIN_TEXT) {
+                                contentForChildNode = contentForChildNode.trim()
+                            }
+
+                            if (contentForChildNode.isNotEmpty()) {
+                                val childNode =
+                                        MarkdownNode(
+                                                type = inlineType,
+                                                initialContent = contentForChildNode
+                                        )
+                                newNode.children.add(childNode)
+                                Log.d(
+                                        PARSER_TAG,
+                                        "【解析】⊕ 添加内联子节点到节点 ${nodes.size-1}: type=${childNode.type}, content=\"${if (childNode.content.value.length > 20) childNode.content.value.substring(0, 17) + "..." else childNode.content.value}\""
+                                )
+                            } else {
+                                Log.v(PARSER_TAG, "【解析】- 跳过空的内联子节点: type=$inlineType")
+                            }
+                        }
+
+                val fullContent = contentBuilderForNode.toString()
+                if (fullContent.isEmpty()) {
+                    Log.d(PARSER_TAG, "【解析】块内容为空，跳过处理")
+                    return@collect
                 }
+                newNode.content.value = fullContent
+
+                Log.d(PARSER_TAG, "【解析】块内容收集与内联解析完成, 总长度: ${fullContent.length} 字符")
+                Log.d(
+                        PARSER_TAG,
+                        "【解析】更新父节点 (index=${nodes.size-1}): content=\"${if (fullContent.length > 30) fullContent.substring(0, 27) + "..." else fullContent}\", children=${newNode.children.size}个"
+                )
+                Log.d(PARSER_TAG, "【解析】⟣ 内联元素解析完成")
             } else {
                 // 对于没有内联格式的代码块，直接流式传输内容。
-                val finalNode =
-                        nodes[nodeIndex].staticNode.copy(
-                                content = nodes[nodeIndex].streamingContent.toString()
-                        )
-                nodes[nodeIndex] = DisplayableMarkdownNode(finalNode)
+                Log.d(PARSER_TAG, "【解析】⟢ 开始处理代码块（不解析内联元素）")
+                blockGroup.stream.collect { contentChunk ->
+                    newNode.content.value += contentChunk
+                    Log.v(
+                            PARSER_TAG,
+                            "【解析】追加代码块内容: \"${if(contentChunk.length > 30) contentChunk.substring(0, 27) + "..." else contentChunk}\""
+                    )
+                }
+                Log.d(PARSER_TAG, "【解析】⟣ 代码块处理完成")
             }
+            Log.d(PARSER_TAG, "═══════════════════END BLOCK TYPE: $blockType═════════════════════")
         }
+        Log.d(PARSER_TAG, "【解析完成】Markdown流处理完成，共生成 ${nodes.size} 个节点")
     }
 
     // 渲染Markdown内容
     Surface(modifier = modifier, color = backgroundColor, shape = RoundedCornerShape(4.dp)) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            nodes.forEach { displayableNode ->
-                MarkdownNodeRenderer(
-                        node = displayableNode.staticNode,
-                        streamingContent = displayableNode.streamingContent,
-                        textColor = textColor,
-                        onLinkClick = onLinkClick
-                )
+            nodes.forEachIndexed { index, node ->
+                key(index, node.type, node.content.value.hashCode(), node.children.size) {
+                    Log.v(RENDER_TAG, "【渲染】节点: index=$index, type=${node.type}")
+                    MarkdownNodeRenderer(
+                            node = node,
+                            textColor = textColor,
+                            onLinkClick = onLinkClick
+                    )
+                }
             }
         }
     }
-}
-
-/**
- * 从流中收集内容，并以节流方式更新UI，以实现平滑的 "打字机 "效果，而不会出现性能问题。
- * @param stream 要从中收集字符的源流。
- * @param nodes 要更新的显示节点的可变列表。
- * @param nodeIndex 要在列表中更新的节点的索引。
- * @param updateInterval 强制UI更新之间的最小毫秒间隔。
- */
-private suspend fun streamContentWithThrottledUpdates(
-        stream: Stream<String>,
-        nodes: MutableList<DisplayableMarkdownNode>,
-        nodeIndex: Int,
-        updateInterval: Long = 50L // 每秒20次更新
-) {
-    var lastUpdateTime = System.currentTimeMillis()
-    stream.collect { contentChunk ->
-        nodes[nodeIndex].streamingContent.append(contentChunk)
-        val currentTime = System.currentTimeMillis()
-        if (currentTime - lastUpdateTime > updateInterval) {
-            val currentNode = nodes[nodeIndex]
-            nodes[nodeIndex] = currentNode.copy(version = currentNode.version + 1)
-            lastUpdateTime = currentTime
-        }
-    }
-    // 执行最终更新以确保显示最后一块文本。
-    val currentNode = nodes[nodeIndex]
-    nodes[nodeIndex] = currentNode.copy(version = currentNode.version + 1)
 }
 
 /** 渲染单个Markdown节点 */
 @Composable
 fun MarkdownNodeRenderer(
         node: MarkdownNode,
-        streamingContent: StringBuilder,
         textColor: Color,
         modifier: Modifier = Modifier,
         onLinkClick: ((String) -> Unit)? = null
 ) {
+    val content by node.content
+    val children = node.children
+
+    Log.d(RENDER_TAG, "【渲染】◆ 节点: type=${node.type}, 内容长度=${content.length}, 子节点数量=${children.size}")
+
     when (node.type) {
         // 块级元素
         MarkdownProcessorType.HEADER -> {
-            val level = determineHeaderLevel(streamingContent.toString())
-            val headerText = streamingContent.toString().trimStart('#', ' ')
+            val level = determineHeaderLevel(content)
+            val headerText = content.trimStart('#', ' ')
+            Log.d(RENDER_TAG, "【渲染】标题: 级别=$level, 文本=\"$headerText\"")
             val headerStyle =
                     when (level) {
                         1 -> MaterialTheme.typography.headlineLarge.copy(fontSize = 32.sp)
@@ -248,6 +243,7 @@ fun MarkdownNodeRenderer(
             )
         }
         MarkdownProcessorType.BLOCK_QUOTE -> {
+            Log.d(RENDER_TAG, "【渲染】引用块: 子节点数量=${children.size}")
             Surface(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
@@ -273,18 +269,20 @@ fun MarkdownNodeRenderer(
                 ) {
                     val inlineContentMap = remember { mutableMapOf<String, InlineTextContent>() }
                     val inlineContent =
-                            if (node.children.isEmpty()) {
+                            if (children.isEmpty()) {
+                                Log.v(RENDER_TAG, "【渲染】引用块无子节点，直接使用内容")
                                 buildAnnotatedString {
                                     append(
-                                            streamingContent.toString().lines().joinToString("\n") {
+                                            content.lines().joinToString("\n") {
                                                 it.removePrefix("> ").removePrefix(">")
                                             }
                                     )
                                 }
                             } else {
+                                Log.v(RENDER_TAG, "【渲染】引用块有子节点，应用样式: ${children.size}个")
                                 buildAnnotatedString {
                                     appendStyledText(
-                                            node.children,
+                                            children,
                                             textColor,
                                             onLinkClick,
                                             inlineContentMap
@@ -303,6 +301,7 @@ fun MarkdownNodeRenderer(
             }
         }
         MarkdownProcessorType.CODE_BLOCK -> {
+            Log.d(RENDER_TAG, "【渲染】代码块: 内容长度=${content.length}")
             Surface(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant,
@@ -310,7 +309,7 @@ fun MarkdownNodeRenderer(
             ) {
                 Text(
                         text =
-                                streamingContent.toString().trim().lines().joinToString("\n") {
+                                content.trim().lines().joinToString("\n") {
                                     it.removePrefix("```").removeSuffix("```")
                                 },
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -321,9 +320,10 @@ fun MarkdownNodeRenderer(
             }
         }
         MarkdownProcessorType.ORDERED_LIST -> {
-            val itemContent = streamingContent.toString().trim()
+            val itemContent = content.trim()
             val numberMatch = Regex("""^(\d+)\.\s*""").find(itemContent)
             val numberStr = numberMatch?.groupValues?.getOrNull(1) ?: ""
+            Log.d(RENDER_TAG, "【渲染】有序列表项: 序号=$numberStr, 内容长度=${itemContent.length}")
 
             Row(
                     modifier = Modifier.fillMaxWidth().padding(start = 8.dp, bottom = 1.dp),
@@ -338,19 +338,16 @@ fun MarkdownNodeRenderer(
 
                 val inlineContentMap = remember { mutableMapOf<String, InlineTextContent>() }
                 val inlineContent =
-                        if (node.children.isEmpty()) {
+                        if (children.isEmpty()) {
+                            Log.v(RENDER_TAG, "【渲染】列表项无子节点，直接使用内容")
                             val streamingText =
                                     numberMatch?.let { itemContent.substring(it.range.last + 1) }
                                             ?: itemContent
                             buildAnnotatedString { append(streamingText) }
                         } else {
+                            Log.v(RENDER_TAG, "【渲染】列表项有子节点，应用样式: ${children.size}个")
                             buildAnnotatedString {
-                                appendStyledText(
-                                        node.children,
-                                        textColor,
-                                        onLinkClick,
-                                        inlineContentMap
-                                )
+                                appendStyledText(children, textColor, onLinkClick, inlineContentMap)
                             }
                         }
 
@@ -364,8 +361,9 @@ fun MarkdownNodeRenderer(
             }
         }
         MarkdownProcessorType.UNORDERED_LIST -> {
-            val itemContent = streamingContent.toString().trim()
+            val itemContent = content.trim()
             val markerMatch = Regex("""^[-*+]\s+""").find(itemContent)
+            Log.d(RENDER_TAG, "【渲染】无序列表项: 内容长度=${itemContent.length}")
 
             Row(
                     modifier = Modifier.fillMaxWidth().padding(start = 8.dp, bottom = 1.dp),
@@ -379,19 +377,16 @@ fun MarkdownNodeRenderer(
                 )
                 val inlineContentMap = remember { mutableMapOf<String, InlineTextContent>() }
                 val inlineContent =
-                        if (node.children.isEmpty()) {
+                        if (children.isEmpty()) {
+                            Log.v(RENDER_TAG, "【渲染】列表项无子节点，直接使用内容")
                             val streamingText =
                                     markerMatch?.let { itemContent.substring(it.range.last + 1) }
                                             ?: itemContent
                             buildAnnotatedString { append(streamingText) }
                         } else {
+                            Log.v(RENDER_TAG, "【渲染】列表项有子节点，应用样式: ${children.size}个")
                             buildAnnotatedString {
-                                appendStyledText(
-                                        node.children,
-                                        textColor,
-                                        onLinkClick,
-                                        inlineContentMap
-                                )
+                                appendStyledText(children, textColor, onLinkClick, inlineContentMap)
                             }
                         }
 
@@ -405,6 +400,7 @@ fun MarkdownNodeRenderer(
             }
         }
         MarkdownProcessorType.HORIZONTAL_RULE -> {
+            Log.d(RENDER_TAG, "【渲染】水平分割线")
             Divider(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     thickness = 1.dp,
@@ -412,6 +408,7 @@ fun MarkdownNodeRenderer(
             )
         }
         MarkdownProcessorType.BLOCK_LATEX -> {
+            Log.d(RENDER_TAG, "【渲染】块级LaTeX公式: 内容长度=${content.length}")
             // 块级LaTeX公式渲染
             Surface(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -425,8 +422,7 @@ fun MarkdownNodeRenderer(
                         contentAlignment = Alignment.Center
                 ) {
                     // 提取LaTeX内容，移除$$分隔符
-                    val latexContent =
-                            streamingContent.toString().trim().removeSurrounding("$$", "$$")
+                    val latexContent = content.trim().removeSurrounding("$$", "$$")
 
                     // 使用AndroidView和JLatexMath渲染LaTeX公式
                     AndroidView(
@@ -465,7 +461,7 @@ fun MarkdownNodeRenderer(
                                     textView.setCompoundDrawables(null, drawable, null, null)
                                 } catch (e: Exception) {
                                     // 渲染失败时回退到纯文本显示
-                                    textView.text = latexContent
+                                    textView.text = e.message ?: "渲染失败"
                                     textView.setTextColor(textColor.toArgb())
                                     textView.textSize = 16f
                                     textView.typeface = android.graphics.Typeface.MONOSPACE
@@ -479,20 +475,22 @@ fun MarkdownNodeRenderer(
 
         // 内联元素通常不会直接渲染，只在父节点中应用样式
         MarkdownProcessorType.PLAIN_TEXT -> {
-            if (streamingContent.trim().isEmpty()) return
+            if (content.trim().isEmpty()) {
+                Log.v(RENDER_TAG, "【渲染】纯文本内容为空，跳过渲染")
+                return
+            }
+            Log.d(
+                    RENDER_TAG,
+                    "【渲染】纯文本: 内容=\"${if(content.length > 30) content.substring(0, 27) + "..." else content}\""
+            )
 
             val inlineContentMap = remember { mutableMapOf<String, InlineTextContent>() }
             val inlineContent =
-                    if (node.children.isEmpty()) {
-                        buildAnnotatedString { append(streamingContent.toString().trim()) }
+                    if (children.isEmpty()) {
+                        buildAnnotatedString { append(content.trim()) }
                     } else {
                         buildAnnotatedString {
-                            appendStyledText(
-                                    node.children,
-                                    textColor,
-                                    onLinkClick,
-                                    inlineContentMap
-                            )
+                            appendStyledText(children, textColor, onLinkClick, inlineContentMap)
                         }
                     }
 
@@ -509,20 +507,19 @@ fun MarkdownNodeRenderer(
 
         // 如果节点类型不在上述处理范围内，则作为普通文本处理
         else -> {
-            if (streamingContent.trim().isEmpty()) return
+            if (content.trim().isEmpty()) {
+                Log.v(RENDER_TAG, "【渲染】其他类型内容为空，跳过渲染: type=${node.type}")
+                return
+            }
+            Log.d(RENDER_TAG, "【渲染】其他类型: type=${node.type}, 内容长度=${content.length}")
 
             val inlineContentMap = remember { mutableMapOf<String, InlineTextContent>() }
             val inlineContent =
-                    if (node.children.isEmpty()) {
-                        buildAnnotatedString { append(streamingContent.toString().trim()) }
+                    if (children.isEmpty()) {
+                        buildAnnotatedString { append(content.trim()) }
                     } else {
                         buildAnnotatedString {
-                            appendStyledText(
-                                    node.children,
-                                    textColor,
-                                    onLinkClick,
-                                    inlineContentMap
-                            )
+                            appendStyledText(children, textColor, onLinkClick, inlineContentMap)
                         }
                     }
 
@@ -547,38 +544,47 @@ private fun AnnotatedString.Builder.appendStyledText(
         onLinkClick: ((String) -> Unit)?,
         inlineContentMap: MutableMap<String, InlineTextContent>
 ) {
+    Log.d(RENDER_TAG, "【渲染】◇ 开始应用文本样式，处理 ${children.size} 个子节点")
+
     // 如果一个块有子节点，那么这些子节点就代表了全部内容。
     // 我们只需按顺序渲染每个子节点，并应用其特定的样式。
     children.forEach { child ->
+        val childContent by child.content
         when (child.type) {
             MarkdownProcessorType.BOLD -> {
-                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(child.content) }
+                Log.v(RENDER_TAG, "【渲染】应用粗体样式: \"${childContent}\"")
+                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(childContent) }
             }
             MarkdownProcessorType.ITALIC -> {
-                withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append(child.content) }
+                Log.v(RENDER_TAG, "【渲染】应用斜体样式: \"${childContent}\"")
+                withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append(childContent) }
             }
             MarkdownProcessorType.INLINE_CODE -> {
+                Log.v(RENDER_TAG, "【渲染】应用内联代码样式: \"${childContent}\"")
                 withStyle(
                         SpanStyle(
                                 fontFamily = FontFamily.Monospace,
                                 background = Color.LightGray.copy(alpha = 0.3f),
                                 fontSize = 14.sp
                         )
-                ) { append(child.content) }
+                ) { append(childContent) }
             }
             MarkdownProcessorType.STRIKETHROUGH -> {
+                Log.v(RENDER_TAG, "【渲染】应用删除线样式: \"${childContent}\"")
                 withStyle(SpanStyle(textDecoration = TextDecoration.LineThrough)) {
-                    append(child.content)
+                    append(childContent)
                 }
             }
             MarkdownProcessorType.UNDERLINE -> {
+                Log.v(RENDER_TAG, "【渲染】应用下划线样式: \"${childContent}\"")
                 withStyle(SpanStyle(textDecoration = TextDecoration.Underline)) {
-                    append(child.content)
+                    append(childContent)
                 }
             }
             MarkdownProcessorType.LINK -> {
-                val linkText = extractLinkText(child.content)
-                val linkUrl = extractLinkUrl(child.content)
+                val linkText = extractLinkText(childContent)
+                val linkUrl = extractLinkUrl(childContent)
+                Log.v(RENDER_TAG, "【渲染】应用链接样式: 文本=\"$linkText\", URL=\"$linkUrl\"")
 
                 pushStringAnnotation("URL", linkUrl)
                 withStyle(
@@ -590,17 +596,19 @@ private fun AnnotatedString.Builder.appendStyledText(
                 pop()
             }
             MarkdownProcessorType.IMAGE -> {
+                Log.v(RENDER_TAG, "【渲染】图片处理: \"${childContent}\" (暂不实现)")
                 // 图片处理暂不实现
-                append(child.content)
+                append(childContent)
             }
             MarkdownProcessorType.INLINE_LATEX -> {
+                val latexContent = childContent.trim().removeSurrounding("$$", "$$")
+                Log.v(RENDER_TAG, "【渲染】应用内联LaTeX样式: \"$latexContent\"")
+
                 val context = LocalContext.current
                 val density = LocalDensity.current
                 val color = textColor.toArgb()
                 val textSize = MaterialTheme.typography.bodyLarge.fontSize
 
-                // 移除$分隔符
-                val latexContent = child.content.trim().removeSurrounding("$", "$")
                 if (latexContent.isBlank()) return@forEach
 
                 val drawable =
@@ -640,38 +648,53 @@ private fun AnnotatedString.Builder.appendStyledText(
             }
             else -> {
                 // 默认情况，通常是 PLAIN_TEXT
-                append(child.content)
+                Log.v(
+                        RENDER_TAG,
+                        "【渲染】应用默认样式(${child.type}): \"${if(childContent.length > 20) childContent.substring(0, 17) + "..." else childContent}\""
+                )
+                append(childContent)
             }
         }
     }
+    Log.d(RENDER_TAG, "【渲染】◇ 文本样式应用完成")
 }
 
 /** 确定标题级别 */
 private fun determineHeaderLevel(content: String): Int {
-    if (content.isEmpty()) return 0
     val headerMarkers = content.takeWhile { it == '#' }.count()
-    return minOf(headerMarkers, 6) // 标题级别最高到6
+    val level = minOf(headerMarkers, 6) // 标题级别最高到6
+    Log.v(
+            RENDER_TAG,
+            "【渲染】确定标题级别: 原始标记数=$headerMarkers, 最终级别=$level, 原始内容=\"${content.take(20)}${if(content.length > 20) "..." else ""}\""
+    )
+    return level
 }
 
 /** 从链接Markdown中提取链接文本 例如：从 [链接文本](https://example.com) 中提取 "链接文本" */
 private fun extractLinkText(linkContent: String): String {
     val startBracket = linkContent.indexOf('[')
     val endBracket = linkContent.indexOf(']')
-    return if (startBracket != -1 && endBracket != -1 && startBracket < endBracket) {
-        linkContent.substring(startBracket + 1, endBracket)
-    } else {
-        linkContent
-    }
+    val result =
+            if (startBracket != -1 && endBracket != -1 && startBracket < endBracket) {
+                linkContent.substring(startBracket + 1, endBracket)
+            } else {
+                linkContent
+            }
+    Log.v(RENDER_TAG, "【渲染】提取链接文本: 原始=\"$linkContent\", 提取结果=\"$result\"")
+    return result
 }
 
 /** 从链接Markdown中提取链接URL 例如：从 [链接文本](https://example.com) 中提取 "https://example.com" */
 private fun extractLinkUrl(linkContent: String): String {
     val startParenthesis = linkContent.indexOf('(')
     val endParenthesis = linkContent.indexOf(')')
-    return if (startParenthesis != -1 && endParenthesis != -1 && startParenthesis < endParenthesis
-    ) {
-        linkContent.substring(startParenthesis + 1, endParenthesis)
-    } else {
-        ""
-    }
+    val result =
+            if (startParenthesis != -1 && endParenthesis != -1 && startParenthesis < endParenthesis
+            ) {
+                linkContent.substring(startParenthesis + 1, endParenthesis)
+            } else {
+                ""
+            }
+    Log.v(RENDER_TAG, "【渲染】提取链接URL: 原始=\"$linkContent\", 提取结果=\"$result\"")
+    return result
 }

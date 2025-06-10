@@ -70,10 +70,8 @@ fun <T> Sequence<T>.asStream(): Stream<T> = object : Stream<T> {
  */
 fun <T> stream(block: suspend StreamCollector<T>.() -> Unit): Stream<T> = object : Stream<T> {
     override suspend fun collect(collector: StreamCollector<T>) {
-        StreamLogger.d("stream", "开始构建器创建的Stream收集")
         try {
             block(collector)
-            StreamLogger.d("stream", "构建器Stream收集完成")
         } catch (e: Exception) {
             StreamLogger.e("stream", "构建器Stream收集出错", e)
             throw e

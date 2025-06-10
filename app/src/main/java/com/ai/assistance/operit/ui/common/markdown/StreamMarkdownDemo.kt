@@ -1,5 +1,6 @@
 package com.ai.assistance.operit.ui.common.markdown
 
+import android.util.Log
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -42,9 +43,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.assistance.operit.util.stream.asStream
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.consumeAsFlow
+
+private const val TAG = "StreamMarkdownDemo"
 
 /** 流式Markdown演示屏幕 展示流式渲染的效果，包括字节一个一个发送时的表现和发送间隔控制 */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -62,21 +66,32 @@ fun StreamMarkdownDemoScreen(onBackClick: () -> Unit = {}) {
 
     // 用于重置渲染器的键
     var streamKey by remember { mutableStateOf(0) }
-    // 为渲染器创建通道和流
+
+    // 为渲染器创建通道和流，使用key确保重置时能重新创建
     val (channel, markdownStream) =
             remember(streamKey) {
+                Log.d(TAG, "创建新的Channel和Stream实例 (key=$streamKey)")
                 val ch = Channel<Char>(Channel.UNLIMITED)
                 val stream = ch.consumeAsFlow().asStream()
                 ch to stream
             }
 
-    // 在Composable销毁时关闭通道以防泄漏
-    DisposableEffect(channel) { onDispose { channel.close() } }
+    // 在Composable销毁或streamKey改变时关闭通道以防泄漏
+    DisposableEffect(streamKey) {
+        onDispose {
+            Log.d(TAG, "关闭Channel (key=$streamKey)")
+            channel.close()
+        }
+    }
 
     // 模拟的Markdown内容
     val fullMarkdownContent = remember {
         """
-        `你好啊`
+        1. `你好啊`
+
+        `你好呀`
+
+        我是纯文本
 
         $$
         \begin{aligned}
@@ -101,47 +116,49 @@ fun StreamMarkdownDemoScreen(onBackClick: () -> Unit = {}) {
             val chars = fullMarkdownContent.toCharArray()
 
             while (index < chars.size && isStreaming) {
-                val char = chars[index]
-                channel.send(char) // 发送到通道
-                processedChars = index + 1
+                try {
+                    val char = chars[index]
+                    channel.send(char) // 发送到通道
+                    processedChars = index + 1
+                    Log.v(
+                            TAG,
+                            "发送字符: '${char}' (ASCII: ${char.code}), 进度: $processedChars/$totalChars"
+                    )
 
-                // 根据字符类型调整延迟时间，模拟真实打字效果
-                val baseDelay = (50 / speedFactor).toLong()
-                val charDelay =
-                        when {
-                            char == '\n' -> baseDelay * 3
-                            char in " .,!?;:\"'" -> baseDelay * 2
-                            else -> baseDelay
-                        }
+                    // 根据字符类型调整延迟时间，模拟真实打字效果
+                    val baseDelay = (50 / speedFactor).toLong()
+                    val charDelay =
+                            when {
+                                char == '\n' -> baseDelay * 3
+                                char in " .,!?;:\"'" -> baseDelay * 2
+                                else -> baseDelay
+                            }
 
-                delay(charDelay)
-                index++
+                    delay(charDelay)
+                    index++
 
-                // 自动滚动到底部
-                if (autoScroll) {
-                    scrollState.scrollTo(scrollState.maxValue)
+                    // 自动滚动到底部
+                    if (autoScroll) {
+                        scrollState.scrollTo(scrollState.maxValue)
+                    }
+                } catch (e: CancellationException) {
+                    Log.w(TAG, "打字机协程被取消")
+                    throw e // 必须重新抛出CancellationException
+                } catch (e: Exception) {
+                    Log.e(TAG, "发送字符时出错: ${e.message}")
+                    break // 在其他异常时退出循环
                 }
             }
 
             // 流式传输完成
             if (processedChars >= totalChars) {
                 isStreaming = false
+                channel.close()
             }
         }
     }
 
-    Scaffold(
-            topBar = {
-                TopAppBar(
-                        title = { Text("流式Markdown渲染演示") },
-                        navigationIcon = {
-                            IconButton(onClick = onBackClick) {
-                                Icon(Icons.Default.ArrowBack, contentDescription = "返回")
-                            }
-                        }
-                )
-            }
-    ) { paddingValues ->
+    Scaffold() { paddingValues ->
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues).padding(16.dp)) {
             // 控制面板
             Card(

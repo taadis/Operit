@@ -391,7 +391,7 @@ fun Stream<Char>.splitBy(plugins: List<StreamPlugin>): Stream<StreamGroup<Stream
                                 } else if (plugins.none { it.state == PluginState.TRYING }) {
                                     // --- 转换：评估中 -> 空闲 ---
                                     // 没有插件处于TRYING状态，意味着匹配失败
-                                    Log.d(TAG, "所有插件匹配失败, 切换到默认文本通道")
+                                    // Log.d(TAG, "所有插件匹配失败, 切换到默认文本通道")
                                     openDefaultChannel()
                                     evaluationBuffer.forEach { defaultTextChannel?.send(it) }
                                     evaluationBuffer.clear()
@@ -426,6 +426,28 @@ fun Stream<Char>.splitBy(plugins: List<StreamPlugin>): Stream<StreamGroup<Stream
             }
         }
     }
+}
+
+/**
+ * 使用一组插件将字符串流分割成不同的组。
+ *
+ * 该函数将字符串流中的每个字符串拆分为单个字符，然后应用与 Char 版本相同的分割逻辑。 这允许字符串流以与字符流相同的方式被处理，便于处理文本数据流。
+ *
+ * @param plugins 用于分割流的插件列表
+ * @return 返回一个包含分组后结果的Stream。每个组内的流会实时发射文本片段。
+ */
+@JvmName("splitByString")
+fun Stream<String>.splitBy(plugins: List<StreamPlugin>): Stream<StreamGroup<StreamPlugin?>> {
+    val TAG = "StringStreamSplitter"
+    // 将字符串流转换为字符流
+    return this.flatMap { str ->
+                stream {
+                    for (char in str) {
+                        emit(char)
+                    }
+                }
+            }
+            .splitBy(plugins) // 复用字符流的splitBy实现
 }
 
 /** 用于表示没有值的标记对象 */
