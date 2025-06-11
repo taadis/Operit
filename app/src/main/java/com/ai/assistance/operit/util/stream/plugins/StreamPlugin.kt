@@ -9,7 +9,12 @@ enum class PluginState {
     /** The plugin has matched the beginning of a potential pattern and is consuming more characters to verify a full match. */
     TRYING,
     /** The plugin has confirmed a full pattern match and is actively processing the content of that pattern. */
-    PROCESSING
+    PROCESSING,
+    /** 
+     * The plugin is in a waiting state, accumulating characters that may need to be returned to the processor.
+     * If the next character confirms the pattern, it continues as PROCESSING; otherwise, returns all accumulated characters.
+     */
+    WAITFOR
 }
 
 /**

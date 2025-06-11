@@ -321,9 +321,57 @@ fun Stream<Char>.splitBy(plugins: List<StreamPlugin>): Stream<StreamGroup<Stream
                                             TAG,
                                             "插件 ${currentActivePlugin.javaClass.simpleName} 状态变更为: ${currentActivePlugin.state}"
                                     )
+                                    
+                                    // 处理WAITFOR状态 - 积累字符，等待确认或退出
+                                    if (currentActivePlugin.state == PluginState.WAITFOR) {
+                                        Log.i(
+                                            TAG,
+                                            "插件 ${currentActivePlugin.javaClass.simpleName} 进入WAITFOR状态，开始积累字符"
+                                        )
+                                        
+                                        // 创建WAITFOR缓冲区
+                                        val waitforBuffer = mutableListOf<Char>()
+                                        if (shouldEmit) {
+                                            waitforBuffer.add(char)
+                                        }
+                                        
+                                        // 等待下一个字符决定去留
+                                        var nextChar: Char? = null
+                                        try {
+                                            nextChar = upstreamChannel.receiveCatching().getOrNull()
+                                        } catch (e: Exception) {
+                                            Log.w(TAG, "WAITFOR状态时接收字符失败: ${e.message}")
+                                        }
+                                        
+                                        if (nextChar != null) {
+                                            val isNextAtStartOfLine = (char == '\n')
+                                            val nextShouldEmit = currentActivePlugin.processChar(
+                                                nextChar,
+                                                isNextAtStartOfLine
+                                            )
+                                            
+                                            if (currentActivePlugin.state == PluginState.PROCESSING) {
+                                                // 确认继续处理 - 发射缓冲的字符
+                                                Log.i(TAG, "WAITFOR状态确认继续处理")
+                                                if (nextShouldEmit) {
+                                                    activePluginChannel?.send(nextChar)
+                                                }
+                                                atStartOfLine = (nextChar == '\n')
+                                                continue
+                                            } else {
+                                                // 退出WAITFOR状态 - 返还所有字符
+                                                Log.i(TAG, "WAITFOR状态退出，返还字符")
+                                                pendingChars.addFirst(nextChar)
+                                                waitforBuffer.reversed().forEach { pendingChars.addFirst(it) }
+                                            }
+                                        } else {
+                                            // 流结束，返还缓冲的字符
+                                            Log.i(TAG, "WAITFOR状态流结束，返还积累的字符")
+                                            waitforBuffer.reversed().forEach { pendingChars.addFirst(it) }
+                                        }
+                                    }
+                                    
                                     closePluginChannel()
-                                    // 将导致插件状态改变的字符放回队列，以便重新评估 (REMOVED - This was causing bugs)
-                                    // pendingChars.addFirst(char)
                                 }
                             } else {
                                 // --- 状态：评估中 ---

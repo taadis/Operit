@@ -1135,15 +1135,39 @@ class StreamMarkdownTablePlugin(private val includeDelimiters: Boolean = true) :
                             }
                     )
     
+    // 用于检测其他块元素开始符号
+    private val otherBlockStarters = setOf('$', '`', '#', '>', '*', '-', '+')
+    
     override fun processChar(c: Char, atStartOfLine: Boolean): Boolean {
         // 处理换行符
         if (c == '\n') {
             if (state == PluginState.PROCESSING) {
                 // 在表格处理模式下遇到换行符
-                // 保持在PROCESSING状态，等待下一行判断
+                // 进入WAITFOR状态，等待下一行决定去留
+                state = PluginState.WAITFOR
                 return true
             }
             return true
+        }
+        
+        // WAITFOR状态下处理字符
+        if (state == PluginState.WAITFOR) {
+            if (atStartOfLine) {
+                if (c == '|') {
+                    // 确认是表格的下一行，继续处理
+                    state = PluginState.PROCESSING
+                    tableRowCount++
+                    return includeDelimiters
+                } else if (c in otherBlockStarters) {
+                    // 遇到其他块元素的起始符号，结束表格处理
+                    reset()
+                    return true
+                } else {
+                    // 其他非表格行，结束表格处理
+                    reset()
+                    return true
+                }
+            }
         }
         
         // 处理行开始
@@ -1173,13 +1197,8 @@ class StreamMarkdownTablePlugin(private val includeDelimiters: Boolean = true) :
                 else -> {
                     if (state == PluginState.PROCESSING) {
                         // 在表格处理模式下遇到不是表格行开始的行
-                        // 如果已经处理了至少一行表格，则认为表格结束
-                        emptyLineCount++
-                        
-                        if (emptyLineCount > 1) {
-                            // 连续两个非表格行，结束表格处理
-                            reset()
-                        }
+                        // 立即结束表格处理
+                        reset()
                     }
                     return true
                 }
