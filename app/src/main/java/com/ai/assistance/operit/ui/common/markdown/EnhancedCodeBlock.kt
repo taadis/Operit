@@ -44,7 +44,7 @@ private const val TAG = "CodeBlock"
 @Composable
 fun EnhancedCodeBlock(code: String, language: String = "", modifier: Modifier = Modifier) {
     Log.d(TAG, "【渲染性能】EnhancedCodeBlock重组: 代码长度=${code.length}, 语言=$language")
-
+    
     val clipboardManager = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
     var showCopiedToast by remember { mutableStateOf(false) }
@@ -76,7 +76,7 @@ fun EnhancedCodeBlock(code: String, language: String = "", modifier: Modifier = 
     // 这种方法比使用 LaunchedEffect 和 mutableStateListOf 更稳定，
     // 可以防止因状态更新时序问题而导致的双重渲染。
     val codeLines = remember(code) { code.lines() }
-
+    
     // 缓存已计算过的行，避免重复创建
     val lineCache = remember { mutableMapOf<String, AnnotatedString>() }
 
@@ -121,16 +121,16 @@ fun EnhancedCodeBlock(code: String, language: String = "", modifier: Modifier = 
                                     modifier = Modifier.size(16.dp)
                             )
                         }
-                    }
+                }
 
-                    // 复制按钮
-                    IconButton(onClick = handleCopy, modifier = Modifier.size(28.dp)) {
-                        Icon(
-                                imageVector = Icons.Default.ContentCopy,
-                                contentDescription = "复制代码",
-                                tint = Color(0xFFAAAAAA),
-                                modifier = Modifier.size(16.dp)
-                        )
+                // 复制按钮
+                IconButton(onClick = handleCopy, modifier = Modifier.size(28.dp)) {
+                    Icon(
+                            imageVector = Icons.Default.ContentCopy,
+                            contentDescription = "复制代码",
+                            tint = Color(0xFFAAAAAA),
+                            modifier = Modifier.size(16.dp)
+                    )
                     }
                 }
             }
@@ -141,74 +141,74 @@ fun EnhancedCodeBlock(code: String, language: String = "", modifier: Modifier = 
                 MermaidRenderer(code = code, modifier = Modifier.fillMaxWidth().height(300.dp))
             } else {
                 // 显示代码
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                    // 行号列
-                    val digits = codeLines.size.toString().length.coerceAtLeast(2) // 至少2位数的宽度
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                // 行号列
+                val digits = codeLines.size.toString().length.coerceAtLeast(2) // 至少2位数的宽度
 
-                    // 行号栏
-                    Column(
+                // 行号栏
+                Column(
                             modifier =
                                     Modifier.background(Color(0xFF252526))
-                                            .padding(horizontal = 8.dp, vertical = 8.dp),
-                            horizontalAlignment = Alignment.End
-                    ) {
-                        codeLines.forEachIndexed { index, _ ->
-                            Text(
-                                    text = (index + 1).toString().padStart(digits),
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 12.sp,
-                                    lineHeight = 16.sp,
-                                    color = Color(0xFF6A737D),
-                                    modifier = Modifier.padding(end = 4.dp)
-                            )
-                        }
+                                .padding(horizontal = 8.dp, vertical = 8.dp),
+                        horizontalAlignment = Alignment.End
+                ) {
+                    codeLines.forEachIndexed { index, _ ->
+                        Text(
+                                text = (index + 1).toString().padStart(digits),
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 12.sp,
+                                lineHeight = 16.sp,
+                                color = Color(0xFF6A737D),
+                                modifier = Modifier.padding(end = 4.dp)
+                        )
                     }
+                }
 
-                    // 代码内容
+                // 代码内容
                     Column(modifier = Modifier.weight(1f).padding(end = 8.dp, top = 8.dp)) {
-                        // 使用key为每行建立记忆
-                        // Compose会高效地只更新变化的行
-                        codeLines.forEachIndexed { index, line ->
-                            val lineHash = line.hashCode()
-                            val lineKey = "$index:$lineHash"
-
-                            key(lineKey) {
+                    // 使用key为每行建立记忆
+                    // Compose会高效地只更新变化的行
+                    codeLines.forEachIndexed { index, line ->
+                        val lineHash = line.hashCode()
+                        val lineKey = "$index:$lineHash"
+                        
+                        key(lineKey) {
                                 // 删除渲染代码行的日志，减少噪音
-                                if (index > 0) {
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                }
-
-                                // 渲染单行代码，利用行缓存机制
-                                CachedCodeLine(
-                                        line = line,
-                                        language = language,
-                                        index = index,
-                                        lineCache = lineCache
-                                )
+                            if (index > 0) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                            }
+                            
+                            // 渲染单行代码，利用行缓存机制
+                            CachedCodeLine(
+                                line = line, 
+                                language = language, 
+                                index = index,
+                                lineCache = lineCache
+                            )
                             }
                         }
                     }
-                }
-            }
-
-            // 显示复制成功提示
-            if (showCopiedToast) {
-                Surface(
-                        modifier = Modifier.align(Alignment.End).padding(4.dp),
-                        color = Color(0xFF0366D6), // GitHub 蓝色
-                        shape = RoundedCornerShape(4.dp)
-                ) {
-                    Text(
-                            text = "已复制",
-                            color = Color.White,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
+                        }
+                    }
+                    
+                    // 显示复制成功提示
+                    if (showCopiedToast) {
+                        Surface(
+                                modifier = Modifier.align(Alignment.End).padding(4.dp),
+                                color = Color(0xFF0366D6), // GitHub 蓝色
+                                shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                    text = "已复制",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
                 }
             }
         }
-    }
-}
 
 /** Mermaid图表渲染组件 */
 @Composable
@@ -414,7 +414,7 @@ fun MermaidRenderer(code: String, modifier: Modifier = Modifier) {
         </html>
         """.trimIndent()
             }
-    
+
     // 记住WebView实例以便重用
     val webView = remember {
         WebView(context).apply {
@@ -423,92 +423,96 @@ fun MermaidRenderer(code: String, modifier: Modifier = Modifier) {
             settings.domStorageEnabled = true // 允许DOM存储
             settings.loadWithOverviewMode = true
             settings.useWideViewPort = true
-            
+
             // 启用内置缩放但隐藏缩放控件
-            settings.builtInZoomControls = true 
+            settings.builtInZoomControls = true
             settings.displayZoomControls = false
-            
+
             // 设置混合内容模式
             settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-            
+
             // 设置WebViewClient来拦截事件
-            webViewClient = object : android.webkit.WebViewClient() {
-                override fun shouldOverrideUrlLoading(view: android.webkit.WebView, url: String): Boolean {
-                    // 拦截所有URL导航，保持在当前WebView内
-                    return true
-                }
-                
-                override fun onPageFinished(view: android.webkit.WebView, url: String) {
-                    super.onPageFinished(view, url)
-                    // 页面加载完成后，可以在这里执行JavaScript
-                    view.evaluateJavascript("""
+            webViewClient =
+                    object : android.webkit.WebViewClient() {
+                        override fun shouldOverrideUrlLoading(
+                                view: android.webkit.WebView,
+                                url: String
+                        ): Boolean {
+                            // 拦截所有URL导航，保持在当前WebView内
+                            return true
+                        }
+
+                        override fun onPageFinished(view: android.webkit.WebView, url: String) {
+                            super.onPageFinished(view, url)
+                            // 页面加载完成后，可以在这里执行JavaScript
+                            view.evaluateJavascript(
+                                    """
                         // 防止长按文本选择
                         document.body.style.webkitUserSelect = 'none';
                         document.body.style.userSelect = 'none';
-                    """.trimIndent(), null)
-                }
-            }
-            
+                    """.trimIndent(),
+                                    null
+                            )
+                        }
+                    }
+
             // 处理触摸事件
             setOnTouchListener { v, event ->
                 // 让WebView处理所有触摸事件
                 v.parent.requestDisallowInterceptTouchEvent(true)
                 false // 返回false以便WebView可以处理事件
             }
-            
+
             // 设置背景颜色
             setBackgroundColor(android.graphics.Color.parseColor("#1E1E1E"))
         }
     }
-    
+
     // 每次代码变化时更新内容
     LaunchedEffect(htmlContent) {
         webView.loadDataWithBaseURL(
-            "https://mermaid.js.org/",
-            htmlContent,
-            "text/html",
-            "UTF-8",
-            null
+                "https://mermaid.js.org/",
+                htmlContent,
+                "text/html",
+                "UTF-8",
+                null
         )
     }
 
     // 渲染WebView
-    AndroidView(
-        factory = { webView },
-        modifier = modifier
-    )
+    AndroidView(factory = { webView }, modifier = modifier)
 }
 
 /** 带缓存的单行代码组件，进一步减少重组和计算 */
 @Composable
 private fun CachedCodeLine(
-        line: String,
-        language: String,
-        index: Int,
-        lineCache: MutableMap<String, AnnotatedString>
+    line: String, 
+    language: String, 
+    index: Int,
+    lineCache: MutableMap<String, AnnotatedString>
 ) {
     // 计算缓存key
     val cacheKey = "$language:$line"
-
+    
     // 使用缓存或重新计算高亮
     val highlightedLine =
             if (lineCache.containsKey(cacheKey)) {
                 // 删除缓存命中的日志，减少噪音
-                lineCache[cacheKey]!!
-            } else {
-                val lineStart = if (line.length > 15) line.substring(0, 15) + "..." else line
+        lineCache[cacheKey]!!
+    } else {
+        val lineStart = if (line.length > 15) line.substring(0, 15) + "..." else line
                 Log.d(TAG, "【渲染性能】计算新行高亮 #${index+1}: 语言=$language, 内容=\"$lineStart\"")
-                val result = highlightSyntaxLine(line, language)
-                lineCache[cacheKey] = result
-                result
-            }
-
+        val result = highlightSyntaxLine(line, language)
+        lineCache[cacheKey] = result
+        result
+    }
+    
     Text(
-            text = highlightedLine,
-            fontFamily = FontFamily.Monospace,
-            fontSize = 12.sp,
-            lineHeight = 16.sp,
-            color = Color.White
+        text = highlightedLine,
+        fontFamily = FontFamily.Monospace,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        color = Color.White
     )
 }
 
@@ -522,7 +526,7 @@ private fun highlightSyntaxLine(line: String, language: String): AnnotatedString
     val typeColor = Color(0xFF4EC9B0) // 青色 - 类型
     val functionColor = Color(0xFFDCDCAA) // 黄色 - 函数
     val textColor = Color(0xFFD4D4D4) // 浅灰色 - 普通文本
-
+    
     return buildAnnotatedString {
         when (language.lowercase()) {
             "kotlin", "java", "swift", "typescript", "javascript", "dart" -> {
@@ -689,7 +693,7 @@ private fun highlightSyntaxLine(line: String, language: String): AnnotatedString
                     withStyle(SpanStyle(color = textColor)) { append(afterArrow) }
                 } else if (line.trim().startsWith("%")) {
                     // 注释行
-                    withStyle(SpanStyle(color = commentColor)) { append(line) }
+                        withStyle(SpanStyle(color = commentColor)) { append(line) }
                 } else {
                     // 检查是否有关键字
                     var hasKeyword = false

@@ -96,6 +96,32 @@ counterStream.launchIn(viewModelScope) { count ->
 
 操作符是 `Stream` 的核心功能，它们可以对数据流进行各种方式的转换和组合。
 
+### 流控制操作
+
+- `lock()`: 锁定流，暂停接收新数据，但发送方仍然可以继续发送（数据会被缓存）
+- `unlock()`: 解锁流，恢复数据接收，并按顺序发送锁定期间缓存的所有数据
+- `clearBuffer()`: 清空锁定期间缓存的数据
+- `isLocked`: 检查流是否处于锁定状态
+- `bufferedCount`: 查看当前缓存的元素数量
+
+```kotlin
+// 使用锁定功能控制数据流
+val stream = intervalStream(100.milliseconds)
+
+// 在某个时刻锁定流，后续数据将被缓存
+stream.lock()
+
+// 检查锁定状态和缓冲区数据
+println("流已锁定: ${stream.isLocked}")
+println("缓冲区项数: ${stream.bufferedCount}")
+
+// 在需要时解锁流，之前缓存的数据会按顺序发送
+stream.unlock()
+
+// 可以选择在解锁前清空缓冲区数据
+stream.clearBuffer()
+```
+
 ### 转换操作
 
 -   `map { ... }`: 将每个元素转换为一个新的元素。

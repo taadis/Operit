@@ -84,6 +84,7 @@ object NestedMarkdownProcessor {
                     StreamMarkdownHorizontalRulePlugin(),
                     StreamMarkdownBlockLaTeXPlugin(includeDelimiters = false),
                     StreamMarkdownTablePlugin(),
+                    StreamMarkdownImagePlugin(),
             )
 
     /** 内联插件列表 */
@@ -93,7 +94,6 @@ object NestedMarkdownProcessor {
                     StreamMarkdownItalicPlugin(includeAsterisks = false),
                     StreamMarkdownInlineCodePlugin(includeTicks = false),
                     StreamMarkdownLinkPlugin(),
-                    StreamMarkdownImagePlugin(),
                     StreamMarkdownStrikethroughPlugin(includeDelimiters = false),
                     StreamMarkdownUnderlinePlugin(), // 先检测块级LaTeX
                     StreamMarkdownInlineLaTeXPlugin(includeDelimiters = false) // 后检测行内LaTeX

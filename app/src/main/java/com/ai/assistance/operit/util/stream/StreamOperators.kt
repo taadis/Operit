@@ -6,8 +6,10 @@ import com.ai.assistance.operit.util.stream.plugins.StreamPlugin
 import kotlin.collections.ArrayDeque
 import kotlin.time.Duration
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
@@ -226,6 +228,15 @@ fun Stream<Char>.splitBy(plugins: List<StreamPlugin>): Stream<StreamGroup<Stream
     val TAG = "StreamSplitter"
 
     return object : Stream<StreamGroup<StreamPlugin?>> {
+        // 实现Stream接口必须的属性
+        override val isLocked: Boolean get() = upstream.isLocked
+        override val bufferedCount: Int get() = upstream.bufferedCount
+        
+        // 实现Stream接口必须的方法
+        override suspend fun lock() = upstream.lock()
+        override suspend fun unlock() = upstream.unlock()
+        override fun clearBuffer() = upstream.clearBuffer()
+        
         override suspend fun collect(collector: StreamCollector<StreamGroup<StreamPlugin?>>) {
             coroutineScope {
                 val groupChannel = Channel<StreamGroup<StreamPlugin?>>(Channel.UNLIMITED)
@@ -487,8 +498,17 @@ fun Stream<Char>.splitBy(plugins: List<StreamPlugin>): Stream<StreamGroup<Stream
 @JvmName("splitByString")
 fun Stream<String>.splitBy(plugins: List<StreamPlugin>): Stream<StreamGroup<StreamPlugin?>> {
     val TAG = "StringStreamSplitter"
+    val upstream = this
+    
+    // 创建一个包装的Stream，附带委托功能
+    val delegatingStream = object : Stream<String> by upstream {
+        override suspend fun collect(collector: StreamCollector<String>) {
+            upstream.collect(collector)
+        }
+    }
+    
     // 将字符串流转换为字符流
-    return this.flatMap { str ->
+    return delegatingStream.flatMap { str ->
                 stream {
                     for (char in str) {
                         emit(char)
@@ -506,3 +526,157 @@ private class TakeCompletedException : Exception()
 
 /** 超时异常 */
 class TimeoutException(message: String) : Exception(message)
+
+/** 对每个元素应用延迟后再发射 */
+fun <T> Stream<T>.delay(duration: Duration): Stream<T> = stream {
+    collect { value ->
+        delay(duration.inWholeMilliseconds)
+        emit(value)
+    }
+}
+
+/** 
+ * 防抖操作，仅在指定时间内没有新值到来时才发射最后一个值 
+ */
+fun <T> Stream<T>.debounce(timeout: Duration): Stream<T> = stream {
+    var lastValue: T? = null
+    var lastEmitJob: Job? = null
+    
+    coroutineScope {
+        collect { value ->
+            lastValue = value
+            lastEmitJob?.cancel()
+            lastEmitJob = launch {
+                delay(timeout.inWholeMilliseconds)
+                lastValue?.let {
+                    StreamLogger.v("Stream.debounce", "发射防抖元素: $it")
+                    emit(it)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 采样操作，以固定时间间隔发射最近的一个值
+ * 即使没有新值到来也会按间隔发射最后已知的值
+ *
+ * @param period 采样间隔
+ */
+fun <T> Stream<T>.sample(period: Duration): Stream<T> = stream {
+    var latestValue: Any? = NoValue
+    var hasValue = false
+    
+    coroutineScope {
+        launch {
+            while (true) {
+                delay(period.inWholeMilliseconds)
+                if (hasValue) {
+                    @Suppress("UNCHECKED_CAST")
+                    emit(latestValue as T)
+                }
+            }
+        }
+        
+        collect { value ->
+            latestValue = value
+            hasValue = true
+        }
+    }
+}
+
+/**
+ * 节流操作，在指定的时间窗口内仅发射最后一个元素
+ * 与throttleFirst相反，throttleFirst保留窗口内第一个元素
+ *
+ * @param windowDuration 时间窗口大小
+ */
+fun <T> Stream<T>.throttleLast(windowDuration: Duration): Stream<T> = stream {
+    var lastEmitTime = 0L
+    var pendingValue: T? = null
+    var hasPending = false
+    
+    collect { value ->
+        val currentTime = System.currentTimeMillis()
+        pendingValue = value
+        hasPending = true
+        
+        if (currentTime - lastEmitTime >= windowDuration.inWholeMilliseconds) {
+            lastEmitTime = currentTime
+            if (hasPending) {
+                pendingValue?.let { 
+                    emit(it)
+                    hasPending = false
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 以固定频率限制发射的值，如果在时间内没有值，则等待下个周期
+ * 与sample不同，fixedRate只会发射实际接收到的值，不会重复发射同一个值
+ *
+ * @param period 固定周期
+ */
+fun <T> Stream<T>.fixedRate(period: Duration): Stream<T> = stream {
+    var nextEmitTime = 0L
+    
+    collect { value ->
+        val currentTime = System.currentTimeMillis()
+        
+        if (nextEmitTime == 0L) {
+            // 第一个元素立即发射
+            nextEmitTime = currentTime + period.inWholeMilliseconds
+            emit(value)
+        } else if (currentTime >= nextEmitTime) {
+            // 已经过了发射时间，立即发射并设置下次时间
+            emit(value)
+            nextEmitTime = currentTime + period.inWholeMilliseconds
+        } else {
+            // 等待到下次发射时间
+            val waitTime = nextEmitTime - currentTime
+            delay(waitTime)
+            emit(value)
+            nextEmitTime = System.currentTimeMillis() + period.inWholeMilliseconds
+        }
+    }
+}
+
+/**
+ * 在超时时间内每次有新值都会重新计时，如果超时则发出超时信号并终止
+ * 
+ * @param timeoutDuration 超时时间
+ * @param timeoutValue 超时时发射的值，如果为null则不发射值
+ */
+fun <T> Stream<T>.timeoutTrigger(timeoutDuration: Duration, timeoutValue: T? = null): Stream<T> = stream {
+    var timeoutJob: Job? = null
+    
+    try {
+        coroutineScope {
+            timeoutJob = launch {
+                delay(timeoutDuration)
+                if (timeoutValue != null) {
+                    emit(timeoutValue)
+                }
+                throw TimeoutException("Stream timeoutTrigger after $timeoutDuration")
+            }
+            
+            this@timeoutTrigger.collect { value ->
+                timeoutJob?.cancel()
+                timeoutJob = launch {
+                    delay(timeoutDuration)
+                    if (timeoutValue != null) {
+                        emit(timeoutValue)
+                    }
+                    throw TimeoutException("Stream timeoutTrigger after $timeoutDuration")
+                }
+                emit(value)
+            }
+        }
+    } catch (e: TimeoutException) {
+        StreamLogger.d("Stream.timeoutTrigger", "流已超时: ${e.message}")
+    } finally {
+        timeoutJob?.cancel()
+    }
+}

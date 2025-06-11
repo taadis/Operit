@@ -91,6 +91,25 @@ class MutableSharedStreamImpl<T>(
 ) : MutableSharedStream<T> {
     internal val internalFlow = MutableSharedFlow<T>(replay, extraBufferCapacity, onBufferOverflow)
     
+    // 热流不需要锁定机制，所以这里提供默认实现
+    override val isLocked: Boolean = false
+    override val bufferedCount: Int = 0
+    
+    override suspend fun lock() {
+        // 热流不支持锁定，此处不执行任何操作
+        StreamLogger.d("HotStream", "热流不支持锁定操作")
+    }
+    
+    override suspend fun unlock() {
+        // 热流不支持锁定，此处不执行任何操作
+        StreamLogger.d("HotStream", "热流不支持解锁操作")
+    }
+    
+    override fun clearBuffer() {
+        // 热流有自己的缓冲管理，此方法不适用
+        StreamLogger.d("HotStream", "热流不支持清空缓冲区操作")
+    }
+    
     override val subscriptionCount: Int
         get() = internalFlow.subscriptionCount.value
     
@@ -121,6 +140,25 @@ class MutableSharedStreamImpl<T>(
  */
 class MutableStateStreamImpl<T>(initialValue: T) : MutableStateStream<T> {
     internal val internalFlow = MutableStateFlow(initialValue)
+    
+    // 热流不需要锁定机制，所以这里提供默认实现
+    override val isLocked: Boolean = false
+    override val bufferedCount: Int = 0
+    
+    override suspend fun lock() {
+        // 热流不支持锁定，此处不执行任何操作
+        StreamLogger.d("HotStream", "状态流不支持锁定操作")
+    }
+    
+    override suspend fun unlock() {
+        // 热流不支持锁定，此处不执行任何操作
+        StreamLogger.d("HotStream", "状态流不支持解锁操作")
+    }
+    
+    override fun clearBuffer() {
+        // 热流有自己的缓冲管理，此方法不适用
+        StreamLogger.d("HotStream", "状态流不支持清空缓冲区操作")
+    }
     
     override var value: T
         get() = internalFlow.value

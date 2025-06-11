@@ -3,13 +3,18 @@ package com.ai.assistance.operit.ui.common.markdown
 import android.util.Log
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
@@ -23,10 +28,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
@@ -51,9 +60,13 @@ import com.ai.assistance.operit.util.markdown.NestedMarkdownProcessor
 import com.ai.assistance.operit.util.stream.Stream
 import com.ai.assistance.operit.util.stream.splitBy as streamSplitBy
 import com.ai.assistance.operit.util.stream.stream
+import kotlinx.coroutines.delay
 import ru.noties.jlatexmath.JLatexMathDrawable
+import kotlin.time.Duration.Companion.milliseconds
 
 private const val TAG = "MarkdownRenderer"
+private const val RENDER_INTERVAL_MS = 100L // 渲染间隔 0.1 秒
+private const val FADE_IN_DURATION_MS = 800 // 淡入动画持续时间
 
 /** 扩展函数：去除字符串首尾的所有空白字符（包括空格、制表符、换行符等） 与标准trim()相比，这个函数更明确地处理所有类型的空白字符 */
 private fun String.trimAll(): String {
@@ -69,132 +82,212 @@ fun StreamMarkdownRenderer(
         backgroundColor: Color = MaterialTheme.colorScheme.surface,
         onLinkClick: ((String) -> Unit)? = null
 ) {
-    // 使用remember保持节点列表的状态
+    // 原始数据收集列表
     val nodes = remember { mutableStateListOf<MarkdownNode>() }
+    // 用于UI渲染的列表
+    val renderNodes = remember { mutableStateListOf<MarkdownNode>() }
+    // 节点动画状态映射表
+    val nodeAnimationStates = remember { mutableStateMapOf<String, Boolean>() }
+    // 跟踪流是否正在收集数据
+    val isCollecting = remember { mutableStateOf(false) }
+    // 用于防止流完成后操作
+    val streamActive = remember { mutableStateOf(true) }
 
-    // 使用remember创建一个固定的渲染器ID，用于调试
-    val rendererId = remember { "renderer-${System.identityHashCode(markdownStream)}" }
-    Log.d(TAG, "【渲染性能】初始化Markdown渲染器: id=$rendererId")
+    // 当流实例变化时，获得一个稳定的渲染器ID
+    val rendererId = remember(markdownStream) { "renderer-${System.identityHashCode(markdownStream)}" }
+
+    // 定时渲染的副作用：仅在流收集中运行时启动
+    LaunchedEffect(isCollecting.value, streamActive.value) {
+        // 当流不再活跃或不再收集数据时，退出
+        if (!isCollecting.value || !streamActive.value) {
+            Log.d(TAG, "【渲染性能】定时渲染协程退出: isCollecting=${isCollecting.value}, streamActive=${streamActive.value}")
+            return@LaunchedEffect
+        }
+
+        try {
+            // 当isCollecting变为false时，此协程会被自动取消
+            markdownStream.lock()
+            while (streamActive.value) {
+                markdownStream.unlock()
+                markdownStream.lock()
+                delay(RENDER_INTERVAL_MS)
+                
+                // 锁定后，`nodes` 列表是稳定的，可以安全地更新UI列表
+                if (nodes.size > renderNodes.size) {
+                    // 对新添加的节点应用淡入动画
+                    for (i in renderNodes.size until nodes.size) {
+                        val nodeKey = "node-$rendererId-$i-${nodes[i].type}"
+                        nodeAnimationStates[nodeKey] = false // 标记为新节点，需要播放动画
+                        
+                        // 延迟一小段时间后启动淡入动画
+                        renderNodes.add(nodes[i])
+                    }
+                }
+                
+                // 这将允许在锁定期间缓存的数据被处理并添加到`nodes`列表中。
+                for (i in 0 until renderNodes.size) {
+                    val nodeKey = "node-$rendererId-$i-${renderNodes[i].type}"
+                    if (nodeAnimationStates.containsKey(nodeKey) && !nodeAnimationStates[nodeKey]!!) {
+                        nodeAnimationStates[nodeKey] = true
+                    }
+                }
+            }
+
+
+        } catch (e: Exception) {
+            Log.e(TAG, "【渲染性能】定时渲染协程异常: ${e.message}", e)
+        }
+    }
 
     // 处理Markdown流的变化
     LaunchedEffect(markdownStream) {
         Log.d(TAG, "【渲染性能】处理新的Markdown流: id=$rendererId")
-        nodes.clear() // 在流实例更改时清除节点
+        // 重置状态
+        nodes.clear()
+        renderNodes.clear()
+        isCollecting.value = true
+        streamActive.value = true
 
-        markdownStream.streamSplitBy(NestedMarkdownProcessor.getBlockPlugins()).collect { blockGroup
-            ->
-            val blockType = NestedMarkdownProcessor.getTypeForPlugin(blockGroup.tag)
+        try {
+            markdownStream.streamSplitBy(NestedMarkdownProcessor.getBlockPlugins()).collect { blockGroup
+                ->
+                val blockType = NestedMarkdownProcessor.getTypeForPlugin(blockGroup.tag)
 
-            // 对于水平分割线，内容无关紧要，直接添加节点
-            if (blockType == MarkdownProcessorType.HORIZONTAL_RULE) {
-                nodes.add(MarkdownNode(type = blockType, initialContent = "---"))
-                return@collect
-            }
+                // 对于水平分割线，内容无关紧要，直接添加节点
+                if (blockType == MarkdownProcessorType.HORIZONTAL_RULE) {
+                    nodes.add(MarkdownNode(type = blockType, initialContent = "---"))
+                    return@collect
+                }
 
-            // 判断是否为LaTeX块，如果是，先作为文本节点处理
-            val isLatexBlock = blockType == MarkdownProcessorType.BLOCK_LATEX
-            // 临时类型：如果是LaTeX块，先作为纯文本处理
-            val tempBlockType = if (isLatexBlock) MarkdownProcessorType.PLAIN_TEXT else blockType
+                // 判断是否为LaTeX块，如果是，先作为文本节点处理
+                val isLatexBlock = blockType == MarkdownProcessorType.BLOCK_LATEX
+                // 临时类型：如果是LaTeX块，先作为纯文本处理
+                val tempBlockType = if (isLatexBlock) MarkdownProcessorType.PLAIN_TEXT else blockType
 
-            val isInlineContainer =
-                    tempBlockType != MarkdownProcessorType.CODE_BLOCK &&
-                            tempBlockType != MarkdownProcessorType.BLOCK_LATEX
+                val isInlineContainer =
+                        tempBlockType != MarkdownProcessorType.CODE_BLOCK &&
+                                tempBlockType != MarkdownProcessorType.BLOCK_LATEX
 
-            // 为新块创建并添加节点
-            val newNode = MarkdownNode(type = tempBlockType)
-            nodes.add(newNode)
-            val nodeIndex = nodes.lastIndex
-            Log.d(TAG, "【渲染性能】添加新节点: 类型=${newNode.type}, 索引=$nodeIndex")
+                // 为新块创建并添加节点
+                val newNode = MarkdownNode(type = tempBlockType)
+                nodes.add(newNode)
+                val nodeIndex = nodes.lastIndex
+                Log.d(TAG, "【渲染性能】添加新节点: 类型=${newNode.type}, 索引=$nodeIndex")
 
-            if (isInlineContainer) {
-                // Stream-parse the block stream for inline elements
-                blockGroup.stream.streamSplitBy(NestedMarkdownProcessor.getInlinePlugins())
-                        .collect { inlineGroup ->
-                            val inlineType =
-                                    NestedMarkdownProcessor.getTypeForPlugin(inlineGroup.tag)
-                            var childNode: MarkdownNode? = null
-                            var lastCharWasNewline = false // 跟踪上一个字符是否为换行符
+                if (isInlineContainer) {
+                    // Stream-parse the block stream for inline elements
+                    blockGroup.stream.streamSplitBy(NestedMarkdownProcessor.getInlinePlugins())
+                            .collect { inlineGroup ->
+                                val inlineType =
+                                        NestedMarkdownProcessor.getTypeForPlugin(inlineGroup.tag)
+                                var childNode: MarkdownNode? = null
+                                var lastCharWasNewline = false // 跟踪上一个字符是否为换行符
 
-                            inlineGroup.stream.collect { str ->
-                                // 检查是否为空白内容
-                                val isCurrentCharNewline = str == "\n" || str == "\r\n"
+                                inlineGroup.stream.collect { str ->
+                                    // 检查是否为空白内容
+                                    val isCurrentCharNewline = str == "\n" || str == "\r\n"
 
-                                // 处理连续换行符逻辑
-                                if (isCurrentCharNewline) {
-                                    lastCharWasNewline = true
-                                    return@collect
+                                    // 处理连续换行符逻辑
+                                    if (isCurrentCharNewline) {
+                                        lastCharWasNewline = true
+                                        return@collect
+                                    }
+
+                                    if (childNode == null) {
+                                        childNode = MarkdownNode(type = inlineType)
+                                        newNode.children.add(childNode!!)
+                                        Log.d(TAG, "【渲染性能】添加内联子节点: 类型=${childNode!!.type}")
+                                    }
+
+                                    if (lastCharWasNewline) {
+                                        // 更新父节点和子节点内容
+                                        newNode.content.value += "\n" + str
+                                        childNode!!.content.value += "\n" + str
+                                        lastCharWasNewline = false
+                                    } else {
+                                        newNode.content.value += str
+                                        childNode!!.content.value += str
+                                    }
+
+                                    // 更新lastCharWasNewline状态
+                                    lastCharWasNewline = isCurrentCharNewline
                                 }
 
-                                if (childNode == null) {
-                                    childNode = MarkdownNode(type = inlineType)
-                                    newNode.children.add(childNode!!)
-                                    Log.d(TAG, "【渲染性能】添加内联子节点: 类型=${childNode!!.type}")
+                                // 优化：如果子节点内容经过trim后为空，则移除该子节点
+                                if (childNode != null &&
+                                                childNode!!.content.value.trimAll().isEmpty() &&
+                                                inlineType == MarkdownProcessorType.PLAIN_TEXT
+                                ) {
+                                    val lastIndex = newNode.children.lastIndex
+                                    if (lastIndex >= 0 && newNode.children[lastIndex] == childNode) {
+                                        newNode.children.removeAt(lastIndex)
+                                        Log.d(TAG, "【渲染性能】移除空内联节点")
+                                    }
                                 }
-
-                                if (lastCharWasNewline) {
-                                    // 更新父节点和子节点内容
-                                    newNode.content.value += "\n" + str
-                                    childNode!!.content.value += "\n" + str
-                                    lastCharWasNewline = false
-                                } else {
-                                    newNode.content.value += str
-                                    childNode!!.content.value += str
-                                }
-
-                                // 更新lastCharWasNewline状态
-                                lastCharWasNewline = isCurrentCharNewline
                             }
+                } else {
+                    // 对于没有内联格式的代码块，直接流式传输内容。
+                    Log.d(TAG, "【渲染性能】处理无内联格式块: 类型=${tempBlockType}")
+                    blockGroup.stream.collect { contentChunk -> newNode.content.value += contentChunk }
+                }
 
-                            // 优化：如果子节点内容经过trim后为空，则移除该子节点
-                            if (childNode != null &&
-                                            childNode!!.content.value.trimAll().isEmpty() &&
-                                            inlineType == MarkdownProcessorType.PLAIN_TEXT
-                            ) {
-                                val lastIndex = newNode.children.lastIndex
-                                if (lastIndex >= 0 && newNode.children[lastIndex] == childNode) {
-                                    newNode.children.removeAt(lastIndex)
-                                    Log.d(TAG, "【渲染性能】移除空内联节点")
-                                }
-                            }
-                        }
-            } else {
-                // 对于没有内联格式的代码块，直接流式传输内容。
-                Log.d(TAG, "【渲染性能】处理无内联格式块: 类型=${tempBlockType}")
-                blockGroup.stream.collect { contentChunk -> newNode.content.value += contentChunk }
+                // 如果原始类型是LaTeX块，现在收集完毕，将其转换回LaTeX节点
+                if (isLatexBlock) {
+                    val latexContent = newNode.content.value
+                    // 删除当前文本节点
+                    nodes.removeAt(nodeIndex)
+                    // 创建新的LaTeX节点
+                    val latexNode = MarkdownNode(type = MarkdownProcessorType.BLOCK_LATEX)
+                    latexNode.content.value = latexContent
+                    nodes.add(latexNode)
+                    Log.d(TAG, "【渲染性能】转换为LaTeX节点")
+                }
             }
+            
+            // 收集完成
+            Log.d(TAG, "【渲染性能】Markdown流处理完成，共生成 ${nodes.size} 个节点")
+        } catch (e: Exception) {
+            Log.e(TAG, "【渲染性能】Markdown流处理异常: ${e.message}", e)
+        } finally {
+            // 标记流不再活跃，防止后续操作
+            streamActive.value = false
+            isCollecting.value = false
 
-            // 如果原始类型是LaTeX块，现在收集完毕，将其转换回LaTeX节点
-            if (isLatexBlock) {
-                val latexContent = newNode.content.value
-                // 删除当前文本节点
-                nodes.removeAt(nodeIndex)
-                // 创建新的LaTeX节点
-                val latexNode = MarkdownNode(type = MarkdownProcessorType.BLOCK_LATEX)
-                latexNode.content.value = latexContent
-                nodes.add(latexNode)
-                Log.d(TAG, "【渲染性能】转换为LaTeX节点")
+            // 执行最终的渲染，确保所有节点都被显示
+            if (nodes.size != renderNodes.size) {
+                renderNodes.clear()
+                renderNodes.addAll(nodes)
+                Log.d(TAG, "【渲染性能】执行最终渲染，节点数: ${renderNodes.size}")
             }
         }
-        Log.d(TAG, "【渲染性能】Markdown流处理完成，共生成 ${nodes.size} 个节点")
     }
 
     // 渲染Markdown内容
     Surface(modifier = modifier, color = Color.Transparent, shape = RoundedCornerShape(4.dp)) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // 使用唯一的容器ID作为key，防止整个列表重建
             key(rendererId) {
                 // 只渲染节点列表，内容更新不会触发重建
-                nodes.forEachIndexed { index, node ->
+                renderNodes.forEachIndexed { index, node ->
                     // 使用节点的唯一标识符作为key，与内容无关
-                    // 这确保即使内容更新，组件也不会重建
                     val nodeKey = "node-$rendererId-$index-${node.type}"
                     key(nodeKey) {
-                        StableMarkdownNodeRenderer(
+                        // 获取节点动画状态，默认为显示状态
+                        val isVisible = nodeAnimationStates[nodeKey] ?: true
+                        // 创建淡入动画
+                        val alpha by animateFloatAsState(
+                            targetValue = if (isVisible) 1f else 0f,
+                            animationSpec = tween(durationMillis = FADE_IN_DURATION_MS),
+                            label = "fadeIn"
+                        )
+                        
+                        Box(modifier = Modifier.alpha(alpha)) {
+                            StableMarkdownNodeRenderer(
                                 node = node,
                                 textColor = textColor,
                                 onLinkClick = onLinkClick,
                                 index = index
-                        )
+                            )
+                        }
                     }
                 }
             }
@@ -530,6 +623,31 @@ fun StableMarkdownNodeRenderer(
             )
         }
 
+        // 添加对图片的专门处理
+        MarkdownProcessorType.IMAGE -> {
+            val imageContent = content.trimAll()
+            if (isCompleteImageMarkdown(imageContent)) {
+                // 使用更紧凑的图片渲染
+                Box(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp) // 最小的垂直内边距
+                ) {
+                    MarkdownImageRenderer(
+                            imageMarkdown = imageContent,
+                            modifier = Modifier.fillMaxWidth(),
+                            maxImageHeight = 140 // 更小的最大高度
+                    )
+                }
+            } else {
+                // 不完整的图片标记作为普通文本处理
+                Text(
+                        text = imageContent,
+                        color = textColor,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+                )
+            }
+        }
+
         // 内联元素通常不会直接渲染，只在父节点中应用样式
         MarkdownProcessorType.PLAIN_TEXT -> {
             if (content.trimAll().isEmpty()) {
@@ -636,10 +754,6 @@ private fun AnnotatedString.Builder.appendStyledText(
                 ) { append(linkText) }
                 pop()
             }
-            MarkdownProcessorType.IMAGE -> {
-                // 图片处理暂不实现
-                append(child.content.value)
-            }
             MarkdownProcessorType.INLINE_LATEX -> {
                 val latexContent = child.content.value.trimAll().removeSurrounding("$$", "$$")
 
@@ -721,6 +835,36 @@ private fun extractLinkUrl(linkContent: String): String {
             if (startParenthesis != -1 && endParenthesis != -1 && startParenthesis < endParenthesis
             ) {
                 linkContent.substring(startParenthesis + 1, endParenthesis)
+            } else {
+                ""
+            }
+    return result
+}
+
+/** 从图片Markdown中提取替代文本 例如：从 ![替代文本](https://example.com/image.jpg) 中提取 "替代文本" */
+private fun extractImageAlt(imageContent: String): String {
+    val startBracket = imageContent.indexOf('[')
+    val endBracket = imageContent.indexOf(']')
+    val result =
+            if (startBracket != -1 && endBracket != -1 && startBracket < endBracket) {
+                imageContent.substring(startBracket + 1, endBracket)
+            } else {
+                "图片"
+            }
+    return result
+}
+
+/**
+ * 从图片Markdown中提取图片URL 例如：从 ![替代文本](https://example.com/image.jpg) 中提取
+ * "https://example.com/image.jpg"
+ */
+private fun extractImageUrl(imageContent: String): String {
+    val startParenthesis = imageContent.indexOf('(')
+    val endParenthesis = imageContent.indexOf(')')
+    val result =
+            if (startParenthesis != -1 && endParenthesis != -1 && startParenthesis < endParenthesis
+            ) {
+                imageContent.substring(startParenthesis + 1, endParenthesis)
             } else {
                 ""
             }

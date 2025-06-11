@@ -95,6 +95,12 @@ fun StreamMarkdownDemoScreen(onBackClick: () -> Unit = {}) {
             println("Hello, World!")
         }
         ```
+        
+        ## 图片示例
+        
+        ![Android机器人](https://developer.android.com/static/images/brand/Android_Robot.png)
+        
+        ![大尺寸风景图](https://images.pexels.com/photos/2662116/pexels-photo-2662116.jpeg)
 
         | 表头1 | 表头2 | 表头3 | 表头4 | 表头5 |
         |-------|-------|-------|-------|-------|
@@ -234,7 +240,7 @@ fun StreamMarkdownDemoScreen(onBackClick: () -> Unit = {}) {
                     Slider(
                             value = speedFactor,
                             onValueChange = { speedFactor = it },
-                            valueRange = 0.1f..5f,
+                            valueRange = 0.1f..20f,
                             steps = 48
                     )
 
