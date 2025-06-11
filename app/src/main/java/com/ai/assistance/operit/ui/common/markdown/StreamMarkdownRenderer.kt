@@ -23,7 +23,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -72,14 +71,14 @@ fun StreamMarkdownRenderer(
 ) {
     // 使用remember保持节点列表的状态
     val nodes = remember { mutableStateListOf<MarkdownNode>() }
-    
+
     // 使用remember创建一个固定的渲染器ID，用于调试
     val rendererId = remember { "renderer-${System.identityHashCode(markdownStream)}" }
-    Log.d(TAG, "初始化渲染器: id=$rendererId")
+    Log.d(TAG, "【渲染性能】初始化Markdown渲染器: id=$rendererId")
 
     // 处理Markdown流的变化
     LaunchedEffect(markdownStream) {
-        Log.d(TAG, "开始处理Markdown流: id=$rendererId")
+        Log.d(TAG, "【渲染性能】处理新的Markdown流: id=$rendererId")
         nodes.clear() // 在流实例更改时清除节点
 
         markdownStream.streamSplitBy(NestedMarkdownProcessor.getBlockPlugins()).collect { blockGroup
@@ -105,6 +104,7 @@ fun StreamMarkdownRenderer(
             val newNode = MarkdownNode(type = tempBlockType)
             nodes.add(newNode)
             val nodeIndex = nodes.lastIndex
+            Log.d(TAG, "【渲染性能】添加新节点: 类型=${newNode.type}, 索引=$nodeIndex")
 
             if (isInlineContainer) {
                 // Stream-parse the block stream for inline elements
@@ -128,6 +128,7 @@ fun StreamMarkdownRenderer(
                                 if (childNode == null) {
                                     childNode = MarkdownNode(type = inlineType)
                                     newNode.children.add(childNode!!)
+                                    Log.d(TAG, "【渲染性能】添加内联子节点: 类型=${childNode!!.type}")
                                 }
 
                                 if (lastCharWasNewline) {
@@ -152,15 +153,14 @@ fun StreamMarkdownRenderer(
                                 val lastIndex = newNode.children.lastIndex
                                 if (lastIndex >= 0 && newNode.children[lastIndex] == childNode) {
                                     newNode.children.removeAt(lastIndex)
+                                    Log.d(TAG, "【渲染性能】移除空内联节点")
                                 }
                             }
                         }
             } else {
                 // 对于没有内联格式的代码块，直接流式传输内容。
-                Log.d(TAG, "处理代码块，不解析内联元素")
-                blockGroup.stream.collect { contentChunk ->
-                    newNode.content.value += contentChunk
-                }
+                Log.d(TAG, "【渲染性能】处理无内联格式块: 类型=${tempBlockType}")
+                blockGroup.stream.collect { contentChunk -> newNode.content.value += contentChunk }
             }
 
             // 如果原始类型是LaTeX块，现在收集完毕，将其转换回LaTeX节点
@@ -172,9 +172,10 @@ fun StreamMarkdownRenderer(
                 val latexNode = MarkdownNode(type = MarkdownProcessorType.BLOCK_LATEX)
                 latexNode.content.value = latexContent
                 nodes.add(latexNode)
+                Log.d(TAG, "【渲染性能】转换为LaTeX节点")
             }
         }
-        Log.d(TAG, "Markdown流处理完成，共生成 ${nodes.size} 个节点")
+        Log.d(TAG, "【渲染性能】Markdown流处理完成，共生成 ${nodes.size} 个节点")
     }
 
     // 渲染Markdown内容
@@ -186,7 +187,8 @@ fun StreamMarkdownRenderer(
                 nodes.forEachIndexed { index, node ->
                     // 使用节点的唯一标识符作为key，与内容无关
                     // 这确保即使内容更新，组件也不会重建
-                    key("node-$rendererId-$index-${node.type}") {
+                    val nodeKey = "node-$rendererId-$index-${node.type}"
+                    key(nodeKey) {
                         StableMarkdownNodeRenderer(
                                 node = node,
                                 textColor = textColor,
@@ -200,10 +202,7 @@ fun StreamMarkdownRenderer(
     }
 }
 
-/** 
- * 稳定的Markdown节点渲染器
- * 可以处理节点内容的更新而不重建组件
- */
+/** 稳定的Markdown节点渲染器 可以处理节点内容的更新而不重建组件 */
 @Composable
 fun StableMarkdownNodeRenderer(
         node: MarkdownNode,
@@ -214,7 +213,7 @@ fun StableMarkdownNodeRenderer(
 ) {
     // 使用remember创建每个渲染器的唯一ID，用于调试
     val rendererId = remember { "node-${node.type}-$index-${System.identityHashCode(node)}" }
-    
+
     // 通过观察state的方式获取内容和子节点，避免引起不必要的重组
     val content by remember { node.content }
     val children = remember { node.children }
@@ -309,7 +308,7 @@ fun StableMarkdownNodeRenderer(
             }
         }
         MarkdownProcessorType.CODE_BLOCK -> {
-            Log.d(TAG, "渲染代码块[$rendererId]: 内容长度=${content.length}")
+            Log.d(TAG, "【渲染性能】渲染代码块: id=$rendererId, 内容长度=${content.length}")
 
             // 提取代码内容和语言
             val codeLines = content.trimAll().lines()
@@ -329,9 +328,7 @@ fun StableMarkdownNodeRenderer(
                             .dropWhile { it.startsWith("```") }
                             .dropLastWhile { it.endsWith("```") }
                             .joinToString("\n")
-            
-            Log.d(TAG, "准备代码块[$rendererId]: 语言=$language, 行数=${codeContent.lines().size}")
-            
+
             // 使用整个代码块的稳定标识符作为key
             // 这确保即使内容更新，组件也不会重建
             EnhancedCodeBlock(
@@ -523,13 +520,13 @@ fun StableMarkdownNodeRenderer(
             }
         }
         MarkdownProcessorType.TABLE -> {
-            Log.d(TAG, "渲染表格[$rendererId]: 内容长度=${content.length}")
-            
+            Log.d(TAG, "【渲染性能】渲染表格: id=$rendererId")
+
             // 使用增强型表格组件
             EnhancedTableBlock(
-                tableContent = content,
-                textColor = textColor,
-                modifier = Modifier.fillMaxWidth()
+                    tableContent = content,
+                    textColor = textColor,
+                    modifier = Modifier.fillMaxWidth()
             )
         }
 

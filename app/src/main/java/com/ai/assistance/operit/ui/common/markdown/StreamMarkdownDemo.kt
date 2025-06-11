@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -22,13 +21,11 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -104,6 +101,15 @@ fun StreamMarkdownDemoScreen(onBackClick: () -> Unit = {}) {
         | 内容1 | 内容2 | 内容3 | 2023-01-01 | 这是一个很长很长的单元格内容，用于测试水平滚动功能 |
         | 内容4 | 内容5 | 内容6 | 2023-02-15 | 另一个长内容 |
         | 较长的单元格内容 | 数值 42 | 2023-05-15 | 是的 | 不超过20个字符 |
+
+        ```mermaid
+        graph TD;
+            A[开始] --> B[处理];
+            B --> C{是否成功?};
+            C -->|是| D[完成];
+            C -->|否| E[重试];
+            E --> B;
+        ```
 
         $$
         \begin{aligned}
