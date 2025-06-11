@@ -119,7 +119,7 @@ abstract class AbstractStream<T> : Stream<T> {
     override suspend fun lock() {
         mutex.withLock {
             if (!isLockedFlag.get() && !isClosedFlag.get()) {
-                StreamLogger.d("Stream", "流已锁定")
+                // StreamLogger.d("Stream", "流已锁定")
                 isLockedFlag.set(true)
             } else if (isClosedFlag.get()) {
                 StreamLogger.d("Stream", "流已关闭，锁定操作被忽略")
@@ -147,7 +147,7 @@ abstract class AbstractStream<T> : Stream<T> {
                         }
                     }
                 } else {
-                    StreamLogger.d("Stream", "流已解锁，无缓存数据")
+                    // StreamLogger.d("Stream", "流已解锁，无缓存数据")
                 }
             }
         }

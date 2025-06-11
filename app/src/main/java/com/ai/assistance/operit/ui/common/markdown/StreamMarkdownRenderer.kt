@@ -68,6 +68,59 @@ private const val TAG = "MarkdownRenderer"
 private const val RENDER_INTERVAL_MS = 100L // 渲染间隔 0.1 秒
 private const val FADE_IN_DURATION_MS = 800 // 淡入动画持续时间
 
+// XML内容渲染器接口，用于自定义XML渲染
+interface XmlContentRenderer {
+    @Composable
+    fun RenderXmlContent(
+        xmlContent: String,
+        modifier: Modifier,
+        textColor: Color
+    )
+}
+
+// 默认XML渲染器
+class DefaultXmlRenderer : XmlContentRenderer {
+    @Composable
+    override fun RenderXmlContent(
+        xmlContent: String, 
+        modifier: Modifier, 
+        textColor: Color
+    ) {
+        Surface(
+            modifier = modifier.fillMaxWidth().padding(vertical = 4.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f),
+            shape = RoundedCornerShape(4.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth()
+                    .padding(8.dp)
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(2.dp)
+                    )
+                    .padding(8.dp)
+            ) {
+                Text(
+                    text = "XML内容",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = textColor,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                Text(
+                    text = xmlContent,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace
+                    ),
+                    color = textColor,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+        }
+    }
+}
+
 /** 扩展函数：去除字符串首尾的所有空白字符（包括空格、制表符、换行符等） 与标准trim()相比，这个函数更明确地处理所有类型的空白字符 */
 private fun String.trimAll(): String {
     return this.trim { it.isWhitespace() }
@@ -80,7 +133,8 @@ fun StreamMarkdownRenderer(
         modifier: Modifier = Modifier,
         textColor: Color = LocalContentColor.current,
         backgroundColor: Color = MaterialTheme.colorScheme.surface,
-        onLinkClick: ((String) -> Unit)? = null
+        onLinkClick: ((String) -> Unit)? = null,
+        xmlRenderer: XmlContentRenderer = remember { DefaultXmlRenderer() }
 ) {
     // 原始数据收集列表
     val nodes = remember { mutableStateListOf<MarkdownNode>() }
@@ -166,7 +220,8 @@ fun StreamMarkdownRenderer(
 
                 val isInlineContainer =
                         tempBlockType != MarkdownProcessorType.CODE_BLOCK &&
-                                tempBlockType != MarkdownProcessorType.BLOCK_LATEX
+                                tempBlockType != MarkdownProcessorType.BLOCK_LATEX &&
+                                tempBlockType != MarkdownProcessorType.XML_BLOCK
 
                 // 为新块创建并添加节点
                 val newNode = MarkdownNode(type = tempBlockType)
@@ -284,8 +339,10 @@ fun StreamMarkdownRenderer(
                             StableMarkdownNodeRenderer(
                                 node = node,
                                 textColor = textColor,
+                                modifier = Modifier,
                                 onLinkClick = onLinkClick,
-                                index = index
+                                index = index,
+                                xmlRenderer = xmlRenderer
                             )
                         }
                     }
@@ -302,7 +359,8 @@ fun StableMarkdownNodeRenderer(
         textColor: Color,
         modifier: Modifier = Modifier,
         onLinkClick: ((String) -> Unit)? = null,
-        index: Int
+        index: Int,
+        xmlRenderer: XmlContentRenderer = DefaultXmlRenderer()
 ) {
     // 使用remember创建每个渲染器的唯一ID，用于调试
     val rendererId = remember { "node-${node.type}-$index-${System.identityHashCode(node)}" }
@@ -620,6 +678,16 @@ fun StableMarkdownNodeRenderer(
                     tableContent = content,
                     textColor = textColor,
                     modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        // 添加XML块渲染支持
+        MarkdownProcessorType.XML_BLOCK -> {
+            Log.d(TAG, "【渲染性能】渲染XML块: id=$rendererId, 内容长度=${content.length}")
+            xmlRenderer.RenderXmlContent(
+                xmlContent = content,
+                modifier = Modifier.fillMaxWidth(),
+                textColor = textColor
             )
         }
 

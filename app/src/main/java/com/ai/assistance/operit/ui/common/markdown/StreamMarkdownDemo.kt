@@ -95,6 +95,93 @@ fun StreamMarkdownDemoScreen(onBackClick: () -> Unit = {}) {
             println("Hello, World!")
         }
         ```
+
+        ## XML渲染器测试
+
+        ### 思考内容测试
+
+        <think>
+        这是AI的思考过程，可以折叠和展开。
+        1. 首先分析问题
+        2. 然后寻找解决方案
+        3. 最后给出答案
+        </think>
+
+        ### 工具测试
+
+        <tool name="file_info">
+        <param name="path">/sdcard/Download/example.txt</param>
+        </tool>
+
+        <tool name="search">
+        <param name="query">android development tutorial</param>
+        </tool>
+
+        <tool name="write_file">
+        <param name="path">/sdcard/Download/Operit/workspace/example.txt</param>
+        <param name="content">这是一个很长的文件内容示例，用于测试DetailedToolDisplay组件的渲染效果。
+        文件内容可以包含多行文本，甚至可以包含一些代码片段：
+        ```kotlin
+        fun main() {
+            println("Hello, World!")
+            val numbers = listOf(1, 2, 3, 4, 5)
+            numbers.forEach { println(it) }
+        }
+        ```
+        这样我们就可以测试工具调用的长内容显示效果了。长内容会使用卡片式布局展示，而不是单行显示。
+        这对于包含大量参数或参数内容较长的工具调用非常有用。</param>
+        <param name="append">false</param>
+        </tool>
+
+        <tool name="http_request">
+        <param name="url">https://api.example.com/data</param>
+        <param name="method">GET</param>
+        </tool>
+
+        ### 状态信息测试
+        <status type="executing" tool="文件分析器">
+        正在分析文件内容...
+        </status>
+
+        <status type="result" tool="文件分析器" success="true">
+        文件分析完成，共发现3个问题
+        </status>
+
+        <status type="result" tool="代码检查" success="false">
+        执行失败：权限不足
+        </status>
+
+        <status type="completion"></status>
+
+        <status type="wait_for_user_need"></status>
+
+        <status type="warning"></status>
+
+        ### 计划测试
+        <plan_item id="1" status="todo">
+        计划分析项目结构
+        </plan_item>
+
+        <plan_item id="2" status="in_progress">
+        正在编写核心功能
+        </plan_item>
+
+        <plan_update id="2" status="in_progress">
+        已完成50%的核心功能
+        </plan_update>
+
+        <plan_item id="3" status="completed">
+        完成用户界面设计
+        </plan_item>
+
+        <plan_item id="4" status="failed">
+        尝试优化性能但失败了
+        </plan_item>
+
+        <xml>
+            <name>张三</name>
+            <age>20</age>
+        </xml>
         
         ## 图片示例
         
@@ -292,6 +379,7 @@ fun StreamMarkdownDemoScreen(onBackClick: () -> Unit = {}) {
                 StreamMarkdownRenderer(
                         markdownStream = markdownStream,
                         modifier = Modifier.fillMaxWidth(),
+                        xmlRenderer = CustomXmlRenderer(),
                         onLinkClick = { url -> /* 处理链接点击 */ }
                 )
             }
