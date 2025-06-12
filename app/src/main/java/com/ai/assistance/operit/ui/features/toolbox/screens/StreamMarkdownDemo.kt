@@ -111,15 +111,39 @@ fun StreamMarkdownDemoScreen(onBackClick: () -> Unit = {}) {
         3. 最后给出答案
         </think>
 
-        ### 工具测试
+        ### 工具调用与结果测试
+
+        #### 文件信息查询
 
         <tool name="file_info">
         <param name="path">/sdcard/Download/example.txt</param>
         </tool>
 
+        <tool_result name="file_info" status="success">
+        <content>
+        文件大小: 1.2MB
+        创建时间: 2023-06-15 14:30:22
+        最后修改: 2023-06-16 09:45:11
+        权限: rw-r--r--
+        </content>
+        </tool_result>
+
+        #### 搜索功能
+
         <tool name="search">
         <param name="query">android development tutorial</param>
         </tool>
+
+        <tool_result name="search" status="success">
+        <content>
+        找到 15 条相关结果:
+        1. Android开发入门教程 - developer.android.com
+        2. Android Studio使用指南 - android.developers.blog
+        3. Jetpack Compose基础 - kotlinlang.org
+        </content>
+        </tool_result>
+
+        #### 文件写入
 
         <tool name="write_file">
         <param name="path">/sdcard/Download/Operit/workspace/example.txt</param>
@@ -137,23 +161,26 @@ fun StreamMarkdownDemoScreen(onBackClick: () -> Unit = {}) {
         <param name="append">false</param>
         </tool>
 
+        <tool_result name="write_file" status="success">
+        <content>
+        文件写入成功，共写入 325 字节
+        </content>
+        </tool_result>
+
+        #### 网络请求
+
         <tool name="http_request">
         <param name="url">https://api.example.com/data</param>
         <param name="method">GET</param>
         </tool>
 
-        ### 状态信息测试
-        <status type="executing" tool="文件分析器">
-        正在分析文件内容...
-        </status>
+        <tool_result name="http_request" status="error">
+        <content>
+        <error>请求失败：无法连接到服务器 (错误码: 404)</error>
+        </content>
+        </tool_result>
 
-        <status type="result" tool="文件分析器" success="true">
-        文件分析完成，共发现3个问题
-        </status>
-
-        <status type="result" tool="代码检查" success="false">
-        执行失败：权限不足
-        </status>
+        ### 其他状态信息测试
 
         <status type="completion"></status>
 

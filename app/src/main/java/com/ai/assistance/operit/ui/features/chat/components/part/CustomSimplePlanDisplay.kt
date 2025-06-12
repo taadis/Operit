@@ -27,10 +27,7 @@ fun CustomSimplePlanDisplay(
             if (!isUpdate) { // 只为计划项显示待办项，不为更新显示
                 // TODO计划：小尺寸显示
                 Row(
-                        modifier =
-                                modifier.fillMaxWidth()
-                                        .padding(vertical = 2.dp)
-                                        .padding(horizontal = 16.dp),
+                        modifier = modifier.fillMaxWidth().padding(vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
@@ -56,7 +53,7 @@ fun CustomSimplePlanDisplay(
             if (!isUpdate || content.isNotBlank()) {
                 Column(modifier = modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     // 靠左对齐的计划开始标记
-                    Box(modifier = Modifier.padding(start = 8.dp, end = 16.dp)) {
+                    Box(modifier = Modifier.padding(end = 16.dp)) {
                         Card(
                                 shape = RoundedCornerShape(16.dp),
                                 colors =
@@ -99,7 +96,7 @@ fun CustomSimplePlanDisplay(
                 Column(modifier = modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     // 横线
                     Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                            modifier = Modifier.fillMaxWidth().padding(),
                             verticalAlignment = Alignment.CenterVertically
                     ) {
                         Divider(
@@ -133,7 +130,7 @@ fun CustomSimplePlanDisplay(
                 Column(modifier = modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     // 横线
                     Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                            modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                     ) {
                         // 确定线的颜色
@@ -196,7 +193,7 @@ fun CustomSimplePlanDisplay(
                 Column(modifier = modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     // 横线代替状态卡片
                     Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                            modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                     ) {
                         // 横线 - 横跨整个宽度

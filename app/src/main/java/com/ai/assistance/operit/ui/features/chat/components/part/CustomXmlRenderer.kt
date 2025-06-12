@@ -24,7 +24,8 @@ import com.ai.assistance.operit.R
 class CustomXmlRenderer(private val fallback: XmlContentRenderer = DefaultXmlRenderer()) :
         XmlContentRenderer {
     // 定义渲染器能够处理的内置标签集合
-    private val builtInTags = setOf("think", "tool", "status", "plan_item", "plan_update")
+    private val builtInTags =
+            setOf("think", "tool", "status", "plan_item", "plan_update", "tool_result")
 
     @Composable
     override fun RenderXmlContent(xmlContent: String, modifier: Modifier, textColor: Color) {
@@ -53,6 +54,7 @@ class CustomXmlRenderer(private val fallback: XmlContentRenderer = DefaultXmlRen
         when (tagName) {
             "think" -> renderThinkContent(trimmedContent, modifier, textColor)
             "tool" -> renderToolRequest(trimmedContent, modifier, textColor)
+            "tool_result" -> renderToolResult(trimmedContent, modifier, textColor)
             "status" -> renderStatus(trimmedContent, modifier, textColor)
             "plan_item" -> renderPlanItem(trimmedContent, modifier, textColor)
             "plan_update" -> renderPlanUpdate(trimmedContent, modifier, textColor)
@@ -60,19 +62,13 @@ class CustomXmlRenderer(private val fallback: XmlContentRenderer = DefaultXmlRen
         }
     }
 
-    /**
-     * 从XML字符串中提取第一个标签的名称。
-     * 例如: "<think>...</think>" -> "think"
-     */
+    /** 从XML字符串中提取第一个标签的名称。 例如: "<think>...</think>" -> "think" */
     private fun extractTagName(content: String): String? {
         val openTagRegex = "<([a-zA-Z_][a-zA-Z0-9_]*)".toRegex()
         return openTagRegex.find(content)?.groupValues?.getOrNull(1)
     }
 
-    /**
-     * 检查XML标签是否完全闭合。
-     * 支持标准配对标签 (<tag>...</tag>) 和自闭合标签 (<tag/>)。
-     */
+    /** 检查XML标签是否完全闭合。 支持标准配对标签 (<tag>...</tag>) 和自闭合标签 (<tag/>)。 */
     private fun isXmlFullyClosed(content: String): Boolean {
         val tagName = extractTagName(content) ?: return false
 
@@ -140,7 +136,7 @@ class CustomXmlRenderer(private val fallback: XmlContentRenderer = DefaultXmlRen
 
         var expanded by remember { mutableStateOf(false) }
 
-        Column(modifier = modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
+        Column(modifier = modifier.fillMaxWidth().padding(horizontal = 0.dp, vertical = 4.dp)) {
             Row(
                     modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
                     horizontalArrangement = Arrangement.Start,
@@ -219,27 +215,61 @@ class CustomXmlRenderer(private val fallback: XmlContentRenderer = DefaultXmlRen
         }
     }
 
-    /**
-     * 渲染状态信息标签 <status type="..." tool="..." uuid="..." success="..." title="..."
-     * subtitle="...">...</status>
-     */
+    /** 渲染工具结果标签 <tool_result name="..." status="..."><content>...</content></tool_result> */
+    @Composable
+    private fun renderToolResult(content: String, modifier: Modifier, textColor: Color) {
+        val clipboardManager = LocalClipboardManager.current
+
+        // 提取工具名称
+        val nameRegex = "name=\"([^\"]+)\"".toRegex()
+        val nameMatch = nameRegex.find(content)
+        val toolName = nameMatch?.groupValues?.get(1) ?: "未知工具"
+
+        // 提取状态
+        val statusRegex = "status=\"([^\"]+)\"".toRegex()
+        val statusMatch = statusRegex.find(content)
+        val status = statusMatch?.groupValues?.get(1) ?: "success"
+        val isSuccess = status.toLowerCase() == "success"
+
+        // 提取结果内容
+        val contentRegex = "<content>(.*?)</content>".toRegex(RegexOption.DOT_MATCHES_ALL)
+        val contentMatch = contentRegex.find(content)
+        val resultContent = contentMatch?.groupValues?.get(1)?.trim() ?: ""
+
+        // 如果是错误状态，尝试提取错误信息
+        val errorContent =
+                if (!isSuccess) {
+                    val errorRegex = "<error>(.*?)</error>".toRegex(RegexOption.DOT_MATCHES_ALL)
+                    val errorMatch = errorRegex.find(resultContent)
+                    errorMatch?.groupValues?.get(1)?.trim() ?: resultContent
+                } else {
+                    resultContent
+                }
+
+        // 使用ToolResultDisplay组件显示结果
+        ToolResultDisplay(
+                toolName = toolName,
+                result = if (isSuccess) resultContent else errorContent,
+                isSuccess = isSuccess,
+                onCopyResult = {
+                    val textToCopy = if (isSuccess) resultContent else errorContent
+                    if (textToCopy.isNotBlank()) {
+                        clipboardManager.setText(AnnotatedString(textToCopy))
+                    }
+                }
+        )
+    }
+
+    /** 渲染状态信息标签 <status type="..." tool="..." uuid="..." title="..." subtitle="...">...</status> */
     @Composable
     private fun renderStatus(content: String, modifier: Modifier, textColor: Color) {
         // 提取状态属性
         val typeRegex = "type=\"([^\"]+)\"".toRegex()
-        val toolRegex = "tool=\"([^\"]+)\"".toRegex()
-        val uuidRegex = "uuid=\"([^\"]+)\"".toRegex()
-        val successRegex = "success=\"([^\"]+)\"".toRegex()
         val titleRegex = "title=\"([^\"]+)\"".toRegex()
         val subtitleRegex = "subtitle=\"([^\"]+)\"".toRegex()
 
         val typeMatch = typeRegex.find(content)
-        val toolMatch = toolRegex.find(content)
-        val successMatch = successRegex.find(content)
-
         val statusType = typeMatch?.groupValues?.get(1) ?: "info"
-        val toolName = toolMatch?.groupValues?.getOrNull(1) ?: ""
-        val isSuccess = successMatch?.groupValues?.get(1)?.toLowerCase() != "false"
 
         // 提取状态内容 - 只有在非特殊状态类型时才需要
         val statusContent =
@@ -250,105 +280,52 @@ class CustomXmlRenderer(private val fallback: XmlContentRenderer = DefaultXmlRen
                     "" // 特殊状态类型不需要内容
                 }
 
-        // 如果有工具名称，这是工具相关的状态
-        if (toolName.isNotBlank()) {
-            val clipboardManager = LocalClipboardManager.current
-
-            when (statusType) {
-                "executing" -> {
-                    // 使用CustomToolDisplay来展示工具执行状态
-                    CustomToolDisplay(
-                            toolName = toolName,
-                            isProcessing = true,
-                            isError = false,
-                            result = null,
-                            params = "",
-                            onShowResult = {},
-                            onCopyResult = {},
-                            isSimulated = false
-                    )
+        // 非工具相关的状态信息
+        val bgColor =
+                when (statusType) {
+                    "completion", "complete" ->
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                    "wait_for_user_need" ->
+                            MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
+                    "warning" -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+                    else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
                 }
-                "result" -> {
-                    // 使用CustomToolDisplay来展示工具结果状态
-                    CustomToolDisplay(
-                            toolName = toolName,
-                            isProcessing = false,
-                            isError = !isSuccess,
-                            result = statusContent,
-                            params = "",
-                            onShowResult = {},
-                            onCopyResult = {
-                                if (statusContent.isNotBlank()) {
-                                    clipboardManager.setText(AnnotatedString(statusContent))
-                                }
+
+        val borderColor =
+                when (statusType) {
+                    "completion", "complete" -> MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                    "wait_for_user_need" -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f)
+                    "warning" -> MaterialTheme.colorScheme.error.copy(alpha = 0.3f)
+                    else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                }
+
+        // 使用硬编码的文本，不管标签内有无内容
+        val statusText =
+                when (statusType) {
+                    "completion", "complete" -> "✓ Task completed"
+                    "wait_for_user_need" -> "✓ Ready for further assistance"
+                    "warning" -> "警告：发现潜在问题，请检查配置文件"
+                    else -> statusContent
+                }
+
+        Card(
+                modifier = modifier.fillMaxWidth().padding(vertical = 4.dp),
+                colors = CardDefaults.cardColors(containerColor = bgColor),
+                border = BorderStroke(width = 1.dp, color = borderColor),
+                shape = RoundedCornerShape(8.dp)
+        ) {
+            Text(
+                    text = statusText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color =
+                            when (statusType) {
+                                "completion", "complete" -> MaterialTheme.colorScheme.primary
+                                "wait_for_user_need" -> MaterialTheme.colorScheme.tertiary
+                                "warning" -> MaterialTheme.colorScheme.error
+                                else -> textColor
                             },
-                            isSimulated = false
-                    )
-                }
-                else -> {
-                    // 其他工具状态，默认显示
-                    CustomToolDisplay(
-                            toolName = toolName,
-                            isProcessing = false,
-                            isError = false,
-                            result = statusContent,
-                            params = "",
-                            onShowResult = {},
-                            onCopyResult = {},
-                            isSimulated = false
-                    )
-                }
-            }
-        } else {
-            // 非工具相关的状态信息
-            val bgColor =
-                    when (statusType) {
-                        "completion", "complete" ->
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                        "wait_for_user_need" ->
-                                MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
-                        "warning" -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
-                        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
-                    }
-
-            val borderColor =
-                    when (statusType) {
-                        "completion", "complete" ->
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-                        "wait_for_user_need" ->
-                                MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f)
-                        "warning" -> MaterialTheme.colorScheme.error.copy(alpha = 0.3f)
-                        else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                    }
-
-            // 使用硬编码的文本，不管标签内有无内容
-            val statusText =
-                    when (statusType) {
-                        "completion", "complete" -> "✓ Task completed"
-                        "wait_for_user_need" -> "✓ Ready for further assistance"
-                        "warning" -> "警告：发现潜在问题，请检查配置文件"
-                        else -> statusContent
-                    }
-
-            Card(
-                    modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                    colors = CardDefaults.cardColors(containerColor = bgColor),
-                    border = BorderStroke(width = 1.dp, color = borderColor),
-                    shape = RoundedCornerShape(8.dp)
-            ) {
-                Text(
-                        text = statusText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color =
-                                when (statusType) {
-                                    "completion", "complete" -> MaterialTheme.colorScheme.primary
-                                    "wait_for_user_need" -> MaterialTheme.colorScheme.tertiary
-                                    "warning" -> MaterialTheme.colorScheme.error
-                                    else -> textColor
-                                },
-                        modifier = Modifier.padding(12.dp)
-                )
-            }
+                    modifier = Modifier.padding(12.dp)
+            )
         }
     }
 
