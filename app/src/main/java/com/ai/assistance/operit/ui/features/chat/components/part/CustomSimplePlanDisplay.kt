@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.common.markdown
+package com.ai.assistance.operit.ui.features.chat.components.part
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape

@@ -161,6 +161,11 @@ fun EnhancedCodeBlock(code: String, language: String = "", modifier: Modifier = 
                                 color = Color(0xFF6A737D),
                                 modifier = Modifier.padding(end = 4.dp)
                         )
+                        
+                        // 添加与代码内容相同的间距
+                        if (index < codeLines.size - 1) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                        }
                     }
                 }
 

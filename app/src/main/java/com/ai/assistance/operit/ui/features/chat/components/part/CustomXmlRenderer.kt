@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.common.markdown
+package com.ai.assistance.operit.ui.features.chat.components.part
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -19,10 +19,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.R
+import com.ai.assistance.operit.ui.common.markdown.DefaultXmlRenderer
+import com.ai.assistance.operit.ui.common.markdown.XmlContentRenderer
 
 /** 支持多种 XML 标签的自定义渲染器 包含高效的前缀检测，直接解析标签类型 */
 class CustomXmlRenderer(private val fallback: XmlContentRenderer = DefaultXmlRenderer()) :
-        XmlContentRenderer {
+    XmlContentRenderer {
     // 定义渲染器能够处理的内置标签集合
     private val builtInTags =
             setOf("think", "tool", "status", "plan_item", "plan_update", "tool_result")
