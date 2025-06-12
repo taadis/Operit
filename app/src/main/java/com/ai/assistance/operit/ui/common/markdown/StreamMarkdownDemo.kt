@@ -73,6 +73,10 @@ fun StreamMarkdownDemoScreen(onBackClick: () -> Unit = {}) {
                 ch to stream
             }
 
+    // 缓存渲染器和事件处理器，防止不必要的重组
+    val customXmlRenderer = remember { CustomXmlRenderer() }
+    val linkClickHandler = remember<(String) -> Unit> { { /* 处理链接点击 */ } }
+
     // 在Composable销毁或streamKey改变时关闭通道以防泄漏
     DisposableEffect(streamKey) {
         onDispose {
@@ -379,8 +383,8 @@ fun StreamMarkdownDemoScreen(onBackClick: () -> Unit = {}) {
                 StreamMarkdownRenderer(
                         markdownStream = markdownStream,
                         modifier = Modifier.fillMaxWidth(),
-                        xmlRenderer = CustomXmlRenderer(),
-                        onLinkClick = { url -> /* 处理链接点击 */ }
+                        xmlRenderer = customXmlRenderer,
+                        onLinkClick = linkClickHandler
                 )
             }
         }

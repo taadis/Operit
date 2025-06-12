@@ -67,7 +67,7 @@ fun CompactToolDisplay(
     }
 }
 
-/** 卡片式工具显示组件 用于显示较长内容的工具调用 */
+/** 卡片式工具显示组件 用于显示较长内容的工具调用，支持流式渲染 */
 @Composable
 fun DetailedToolDisplay(
         toolName: String,
@@ -76,7 +76,7 @@ fun DetailedToolDisplay(
         modifier: Modifier = Modifier
 ) {
     Card(
-            modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            modifier = modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
             colors =
                     CardDefaults.cardColors(
                             containerColor =
@@ -95,7 +95,7 @@ fun DetailedToolDisplay(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
             ) {
-                // 工具图标
+                // 工具图标 - 与CompactToolDisplay保持一致的大小和位置
                 Icon(
                         imageVector = getToolIcon(toolName),
                         contentDescription = "工具调用",
@@ -114,14 +114,28 @@ fun DetailedToolDisplay(
                 )
             }
 
-            // 参数内容
+            // 参数内容 - 使用键控列表渲染，优化流式体验
             if (params.isNotBlank()) {
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                        text = params,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = textColor.copy(alpha = 0.8f)
-                )
+
+                // 按行拆分参数文本
+                val lines = params.lines()
+
+                // 使用Column进行流式渲染
+                Column {
+                    lines.forEachIndexed { index, line ->
+                        key(index) { // 为每行添加key，优化重组
+                            if (line.isNotBlank()) {
+                                Text(
+                                        text = line,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = textColor.copy(alpha = 0.8f),
+                                        modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -131,30 +145,26 @@ fun DetailedToolDisplay(
 private fun getToolIcon(toolName: String): ImageVector {
     return when {
         // 文件工具
-        toolName.contains("file") || 
-        toolName.contains("read") || 
-        toolName.contains("write") -> Icons.Default.FileOpen
-        
+        toolName.contains("file") || toolName.contains("read") || toolName.contains("write") ->
+                Icons.Default.FileOpen
+
         // 搜索工具
-        toolName.contains("search") || 
-        toolName.contains("find") || 
-        toolName.contains("query") -> Icons.Default.Search
-        
+        toolName.contains("search") || toolName.contains("find") || toolName.contains("query") ->
+                Icons.Default.Search
+
         // 命令行工具
-        toolName.contains("terminal") || 
-        toolName.contains("exec") || 
-        toolName.contains("command") || 
-        toolName.contains("shell") -> Icons.Default.Terminal
-        
+        toolName.contains("terminal") ||
+                toolName.contains("exec") ||
+                toolName.contains("command") ||
+                toolName.contains("shell") -> Icons.Default.Terminal
+
         // 代码工具
-        toolName.contains("code") || 
-        toolName.contains("ffmpeg") -> Icons.Default.Code
-        
+        toolName.contains("code") || toolName.contains("ffmpeg") -> Icons.Default.Code
+
         // 网络工具
-        toolName.contains("http") || 
-        toolName.contains("web") || 
-        toolName.contains("visit") -> Icons.Default.Web
-        
+        toolName.contains("http") || toolName.contains("web") || toolName.contains("visit") ->
+                Icons.Default.Web
+
         // 默认图标
         else -> Icons.Default.ArrowForward
     }

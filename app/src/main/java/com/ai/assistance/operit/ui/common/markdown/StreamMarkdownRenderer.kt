@@ -31,6 +31,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
@@ -61,6 +62,7 @@ import com.ai.assistance.operit.util.stream.Stream
 import com.ai.assistance.operit.util.stream.splitBy as streamSplitBy
 import com.ai.assistance.operit.util.stream.stream
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import ru.noties.jlatexmath.JLatexMathDrawable
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -146,6 +148,8 @@ fun StreamMarkdownRenderer(
     val isCollecting = remember { mutableStateOf(false) }
     // 用于防止流完成后操作
     val streamActive = remember { mutableStateOf(true) }
+    // 用于在`finally`块中启动协程
+    val scope = rememberCoroutineScope()
 
     // 当流实例变化时，获得一个稳定的渲染器ID
     val rendererId = remember(markdownStream) { "renderer-${System.identityHashCode(markdownStream)}" }
@@ -166,30 +170,111 @@ fun StreamMarkdownRenderer(
                 markdownStream.lock()
                 delay(RENDER_INTERVAL_MS)
                 
-                // 锁定后，`nodes` 列表是稳定的，可以安全地更新UI列表
-                if (nodes.size > renderNodes.size) {
-                    // 对新添加的节点应用淡入动画
-                    for (i in renderNodes.size until nodes.size) {
-                        val nodeKey = "node-$rendererId-$i-${nodes[i].type}"
-                        nodeAnimationStates[nodeKey] = false // 标记为新节点，需要播放动画
-                        
-                        // 延迟一小段时间后启动淡入动画
-                        renderNodes.add(nodes[i])
+                // 对节点列表执行diff操作，处理新增、删除和更新的情况
+                if (nodes.size != renderNodes.size) {
+                    Log.d(TAG, "【渲染性能】节点数量变化: nodes=${nodes.size}, renderNodes=${renderNodes.size}")
+                    
+                    // 检测新增节点或替换节点的情况
+                    val maxCommonIndex = minOf(nodes.size, renderNodes.size)
+                    
+                    // 首先处理共有的节点，检查是否有发生替换
+                    for (i in 0 until maxCommonIndex) {
+                        if (nodes[i] !== renderNodes[i]) {  // 使用引用比较检查是否同一对象
+                            // 节点被替换，更新渲染节点并标记为需要动画
+                            val nodeKey = "node-$rendererId-$i-${nodes[i].type}"
+                            nodeAnimationStates[nodeKey] = false
+                            renderNodes[i] = nodes[i]
+                            Log.d(TAG, "【渲染性能】替换节点: 索引=$i, 类型=${nodes[i].type}")
+                        }
+                    }
+                    
+                    // 处理新增节点
+                    if (nodes.size > renderNodes.size) {
+                        for (i in renderNodes.size until nodes.size) {
+                            val nodeKey = "node-$rendererId-$i-${nodes[i].type}"
+                            nodeAnimationStates[nodeKey] = false
+                            renderNodes.add(nodes[i])
+                            Log.d(TAG, "【渲染性能】添加新节点: 索引=$i, 类型=${nodes[i].type}")
+                        }
+                    }
+                    // 处理删除节点
+                    else if (nodes.size < renderNodes.size) {
+                        val removeCount = renderNodes.size - nodes.size
+                        repeat(removeCount) {
+                            renderNodes.removeLast()
+                        }
+                        Log.d(TAG, "【渲染性能】删除多余节点: 数量=$removeCount")
                     }
                 }
                 
-                // 这将允许在锁定期间缓存的数据被处理并添加到`nodes`列表中。
+                // 更新所有需要动画的节点，确保淡入动画能被触发
                 for (i in 0 until renderNodes.size) {
                     val nodeKey = "node-$rendererId-$i-${renderNodes[i].type}"
                     if (nodeAnimationStates.containsKey(nodeKey) && !nodeAnimationStates[nodeKey]!!) {
+                        // 设置延迟，让节点在一帧后才开始动画
+                        delay(16.milliseconds)
                         nodeAnimationStates[nodeKey] = true
+                        Log.d(TAG, "【渲染性能】启动节点动画: 索引=$i, 类型=${renderNodes[i].type}")
                     }
                 }
             }
-
-
         } catch (e: Exception) {
             Log.e(TAG, "【渲染性能】定时渲染协程异常: ${e.message}", e)
+        } finally {
+            streamActive.value = false
+            isCollecting.value = false
+
+            Log.d(TAG, "【渲染性能】执行最终节点同步...")
+
+            val keysToAnimate = mutableListOf<String>()
+
+            // 智能同步：只处理新增或被替换的节点，避免全局重绘
+            val maxCommonIndex = minOf(nodes.size, renderNodes.size)
+
+            // 1. 检查并处理被替换的节点（例如LaTeX块）
+            for (i in 0 until maxCommonIndex) {
+                if (nodes[i] !== renderNodes[i]) { // 使用引用比较
+                    val nodeKey = "node-$rendererId-$i-${nodes[i].type}"
+                    nodeAnimationStates[nodeKey] = false // 准备播放动画
+                    keysToAnimate.add(nodeKey)
+                    renderNodes[i] = nodes[i]
+                    Log.d(TAG, "【渲染性能】最终同步：替换节点 at index $i")
+                }
+            }
+
+            // 2. 添加在最后一次定时渲染后产生的新节点
+            if (nodes.size > renderNodes.size) {
+                for (i in renderNodes.size until nodes.size) {
+                    val nodeKey = "node-$rendererId-$i-${nodes[i].type}"
+                    nodeAnimationStates[nodeKey] = false // 准备播放动画
+                    keysToAnimate.add(nodeKey)
+                    renderNodes.add(nodes[i])
+                    Log.d(TAG, "【渲染性能】最终同步：添加新节点 at index $i")
+                }
+            }
+            // 3. (安全校验) 如果源节点变少，则同步删除
+            else if (nodes.size < renderNodes.size) {
+                val removeCount = renderNodes.size - nodes.size
+                repeat(removeCount) {
+                    renderNodes.removeLast()
+                }
+                Log.w(TAG, "【渲染性能】最终同步：移除了 $removeCount 个多余节点")
+            }
+
+            // 启动所有新标记节点的动画
+            if (keysToAnimate.isNotEmpty()) {
+                scope.launch {
+                    // 等待下一帧，让 isVisible = false 的状态先生效
+                    delay(16.milliseconds)
+                    keysToAnimate.forEach { key ->
+                        // 检查以防万一节点在此期间被移除
+                        if (nodeAnimationStates.containsKey(key)) {
+                            nodeAnimationStates[key] = true
+                        }
+                    }
+                    Log.d(TAG, "【渲染性能】最终同步：启动了 ${keysToAnimate.size} 个节点的动画")
+                }
+            }
         }
     }
 
@@ -289,13 +374,12 @@ fun StreamMarkdownRenderer(
                 // 如果原始类型是LaTeX块，现在收集完毕，将其转换回LaTeX节点
                 if (isLatexBlock) {
                     val latexContent = newNode.content.value
-                    // 删除当前文本节点
-                    nodes.removeAt(nodeIndex)
                     // 创建新的LaTeX节点
                     val latexNode = MarkdownNode(type = MarkdownProcessorType.BLOCK_LATEX)
                     latexNode.content.value = latexContent
-                    nodes.add(latexNode)
-                    Log.d(TAG, "【渲染性能】转换为LaTeX节点")
+                    // 原地替换节点，以保持索引的稳定性，避免不必要的重组
+                    nodes[nodeIndex] = latexNode
+                    Log.d(TAG, "【渲染性能】转换为LaTeX节点 (原地替换)")
                 }
             }
             
@@ -307,13 +391,6 @@ fun StreamMarkdownRenderer(
             // 标记流不再活跃，防止后续操作
             streamActive.value = false
             isCollecting.value = false
-
-            // 执行最终的渲染，确保所有节点都被显示
-            if (nodes.size != renderNodes.size) {
-                renderNodes.clear()
-                renderNodes.addAll(nodes)
-                Log.d(TAG, "【渲染性能】执行最终渲染，节点数: ${renderNodes.size}")
-            }
         }
     }
 
@@ -365,9 +442,9 @@ fun StableMarkdownNodeRenderer(
     // 使用remember创建每个渲染器的唯一ID，用于调试
     val rendererId = remember { "node-${node.type}-$index-${System.identityHashCode(node)}" }
 
-    // 通过观察state的方式获取内容和子节点，避免引起不必要的重组
-    val content by remember { node.content }
-    val children = remember { node.children }
+    // 直接从node读取状态，确保在节点被替换时能获取到最新状态
+    val content by node.content
+    val children = node.children
 
     when (node.type) {
         // 块级元素
@@ -644,7 +721,7 @@ fun StableMarkdownNodeRenderer(
                                                                                     .density
                                                             )
                                                             .padding(4)
-                                                            .background(0x10000000)
+                                                            .background(0x00000000)
                                                             .align(JLatexMathDrawable.ALIGN_CENTER)
                                                             .color(textColor.toArgb())
                                             )
@@ -840,6 +917,7 @@ private fun AnnotatedString.Builder.appendStyledText(
                                             .textSize(with(density) { textSize.toPx() })
                                             .padding(4)
                                             .color(color)
+                                            .background(0x00000000)
                                             .align(JLatexMathDrawable.ALIGN_LEFT)
                             )
                         }

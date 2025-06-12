@@ -23,67 +23,67 @@ import com.ai.assistance.operit.R
 /** 支持多种 XML 标签的自定义渲染器 包含高效的前缀检测，直接解析标签类型 */
 class CustomXmlRenderer(private val fallback: XmlContentRenderer = DefaultXmlRenderer()) :
         XmlContentRenderer {
+    // 定义渲染器能够处理的内置标签集合
+    private val builtInTags = setOf("think", "tool", "status", "plan_item", "plan_update")
+
     @Composable
     override fun RenderXmlContent(xmlContent: String, modifier: Modifier, textColor: Color) {
-        // 快速检测标签类型，避免使用正则表达式进行初步检测
         val trimmedContent = xmlContent.trim()
+        val tagName = extractTagName(trimmedContent)
 
-        // 检查XML是否完全闭合
-        if (!isXmlFullyClosed(trimmedContent)) {
-            // XML标签未闭合，作为纯文本显示
+        // 如果无法识别为有效的XML标签，则交由默认渲染器处理
+        if (tagName == null) {
             fallback.RenderXmlContent(xmlContent, modifier, textColor)
             return
         }
 
-        when {
-            // 思考内容标签
-            trimmedContent.startsWith("<think>") -> {
-                renderThinkContent(trimmedContent, modifier, textColor)
+        // 根据新规则处理未闭合的标签
+        if (!isXmlFullyClosed(trimmedContent)) {
+            if (tagName in builtInTags && tagName != "tool") {
+                // 是内置标签但未闭合，则不显示任何内容，等待其闭合
+                return
+            } else if (!(tagName in builtInTags)) {
+                // 是未知标签且未闭合，则交由默认渲染器处理
+                fallback.RenderXmlContent(xmlContent, modifier, textColor)
+                return
             }
+        }
 
-            // 标准工具标签 - 更新格式匹配
-            trimmedContent.startsWith("<tool") && trimmedContent.contains("name=") -> {
-                renderToolRequest(trimmedContent, modifier, textColor)
-            }
-
-            // 状态信息标签
-            trimmedContent.startsWith("<status") -> {
-                renderStatus(trimmedContent, modifier, textColor)
-            }
-
-            // 计划项标签
-            trimmedContent.startsWith("<plan_item") -> {
-                renderPlanItem(trimmedContent, modifier, textColor)
-            }
-
-            // 计划更新标签
-            trimmedContent.startsWith("<plan_update") -> {
-                renderPlanUpdate(trimmedContent, modifier, textColor)
-            }
-
-            // 默认情况：交给默认渲染器
+        // 标签已正确闭合，根据标签名分发到对应的渲染函数
+        when (tagName) {
+            "think" -> renderThinkContent(trimmedContent, modifier, textColor)
+            "tool" -> renderToolRequest(trimmedContent, modifier, textColor)
+            "status" -> renderStatus(trimmedContent, modifier, textColor)
+            "plan_item" -> renderPlanItem(trimmedContent, modifier, textColor)
+            "plan_update" -> renderPlanUpdate(trimmedContent, modifier, textColor)
             else -> fallback.RenderXmlContent(xmlContent, modifier, textColor)
         }
     }
 
-    /** 检查XML标签是否完全闭合 简单检测开标签和闭标签的数量是否匹配 */
-    private fun isXmlFullyClosed(content: String): Boolean {
-        // 提取第一个标签名称
+    /**
+     * 从XML字符串中提取第一个标签的名称。
+     * 例如: "<think>...</think>" -> "think"
+     */
+    private fun extractTagName(content: String): String? {
         val openTagRegex = "<([a-zA-Z_][a-zA-Z0-9_]*)".toRegex()
-        val openTagMatch = openTagRegex.find(content) ?: return false
-        val tagName = openTagMatch.groupValues[1]
+        return openTagRegex.find(content)?.groupValues?.getOrNull(1)
+    }
 
-        // 检查开闭标签
-        val openTag = "<$tagName"
-        val closeTag = "</$tagName>"
+    /**
+     * 检查XML标签是否完全闭合。
+     * 支持标准配对标签 (<tag>...</tag>) 和自闭合标签 (<tag/>)。
+     */
+    private fun isXmlFullyClosed(content: String): Boolean {
+        val tagName = extractTagName(content) ?: return false
 
-        // 特殊处理think标签，即使没有关闭也显示为思考内容
-        if (tagName == "think" || tagName == "tool") {
+        // 处理自闭合标签，例如 <status type="completion"/>
+        if (content.endsWith("/>")) {
             return true
         }
 
-        return content.contains(closeTag) &&
-                content.lastIndexOf(closeTag) > content.indexOf(openTag)
+        // 处理标准配对标签
+        val closeTag = "</$tagName>"
+        return content.contains(closeTag)
     }
 
     /** 从XML内容中提取纯文本内容 */
