@@ -289,41 +289,39 @@ class EnhancedAIService(private val context: Context) {
             val serviceForFunction = multiServiceManager.getServiceForFunction(functionType)
 
             withContext(Dispatchers.IO) {
-                serviceForFunction.sendMessage(
+                // 使用新的Stream API
+                val stream = serviceForFunction.sendMessage(
                         message = processedInput,
-                        onPartialResponse = { content, thinking ->
-                            // First response received, update to receiving state
-                            if (streamBuffer.isEmpty()) {
-                                _inputProcessingState.value =
-                                        InputProcessingState.Receiving("Receiving AI response...")
-                            }
-
-                            processContent(
-                                    content,
-                                    thinking,
-                                    onPartialResponse,
-                                    preparedHistory,
-                                    isFollowUp = false
-                            )
-                        },
                         chatHistory = preparedHistory,
-                        onComplete = { handleStreamingComplete(onComplete, functionType) },
-                        onConnectionStatus = { status ->
-                            // Update connection status in UI
-                            when {
-                                status.contains("准备连接") || status.contains("正在建立连接") ->
-                                        _inputProcessingState.value =
-                                                InputProcessingState.Connecting(status)
-                                status.contains("连接成功") ->
-                                        _inputProcessingState.value =
-                                                InputProcessingState.Receiving(status)
-                                status.contains("超时") || status.contains("失败") ->
-                                        _inputProcessingState.value =
-                                                InputProcessingState.Processing(status)
-                            }
-                        },
                         modelParameters = modelParameters
                 )
+                
+                // 收到第一个响应，更新状态
+                var isFirstChunk = true
+                
+                // 使用collect处理流
+                stream.collect { content ->
+                    // 第一次收到响应，更新状态
+                    if (isFirstChunk) {
+                        _inputProcessingState.value = 
+                                InputProcessingState.Receiving("Receiving AI response...")
+                        isFirstChunk = false
+                    }
+
+                    // 处理收到的内容
+                    processContent(
+                            // 更新streamBuffer，保持与原有逻辑一致
+                            streamBuffer.append(content).toString(),
+                            // 新API不再支持thinking，传null
+                            null,
+                            onPartialResponse,
+                            preparedHistory,
+                            isFollowUp = false
+                    )
+                }
+                
+                // 流处理完成，调用handleStreamingComplete
+                handleStreamingComplete(onComplete, functionType)
             }
         } catch (e: Exception) {
             // Handle any exceptions
@@ -1059,56 +1057,53 @@ class EnhancedAIService(private val context: Context) {
         // 获取对应功能类型的AIService实例
         val serviceForFunction = multiServiceManager.getServiceForFunction(functionType)
 
-        // Direct request AI response in current flow, keeping in complete main loop
+        // 使用新的Stream API处理工具执行结果
         withContext(Dispatchers.IO) {
-            serviceForFunction.sendMessage(
-                    message = toolResultMessage,
-                    onPartialResponse = { content, thinking ->
-                        // Only handle display, not any tool logic
-                        // Use new processing approach to ensure this is a new message
-                        if (responseCallback != null) {
-                            processContent(
-                                    content,
-                                    thinking,
-                                    responseCallback,
-                                    currentChatHistory,
-                                    isFollowUp = true
-                            )
-                        }
-                    },
-                    chatHistory = currentChatHistory,
-                    onComplete = {
-                        handleStreamingComplete(
-                                {
-                                    if (!isConversationActive.get()) {
-                                        currentCompleteCallback?.invoke()
-                                    }
-                                },
-                                functionType
+            try {
+                // 发送消息并获取响应流
+                val stream = serviceForFunction.sendMessage(
+                        message = toolResultMessage,
+                        chatHistory = currentChatHistory,
+                        modelParameters = modelParameters
+                )
+                
+                // 更新状态为接收中
+                _inputProcessingState.value = InputProcessingState.Receiving("Receiving AI response after tool execution...")
+                
+                // 处理流
+                stream.collect { content ->
+                    // 只处理显示，不处理任何工具逻辑
+                    if (responseCallback != null) {
+                        // 更新streamBuffer
+                        val currentContent = streamBuffer.append(content).toString()
+                        
+                        // 使用新的处理方法确保这是一个新消息
+                        processContent(
+                                currentContent,
+                                null, // 不再有thinking
+                                responseCallback,
+                                currentChatHistory,
+                                isFollowUp = true
                         )
-                    },
-                    onConnectionStatus = { status ->
-                        // Update connection status for post-tool execution request
-                        when {
-                            status.contains("准备连接") || status.contains("正在建立连接") ->
-                                    _inputProcessingState.value =
-                                            InputProcessingState.Connecting(
-                                                    status + " (after tool execution)"
-                                            )
-                            status.contains("连接成功") ->
-                                    _inputProcessingState.value =
-                                            InputProcessingState.Receiving(
-                                                    status + " (after tool execution)"
-                                            )
-                            status.contains("超时") || status.contains("失败") ->
-                                    _inputProcessingState.value =
-                                            InputProcessingState.Processing(
-                                                    status + " (after tool execution)"
-                                            )
-                        }
-                    },
-                    modelParameters = modelParameters
-            )
+                    }
+                }
+                
+                // 流处理完成，处理完成逻辑
+                handleStreamingComplete(
+                        {
+                            if (!isConversationActive.get()) {
+                                currentCompleteCallback?.invoke()
+                            }
+                        },
+                        functionType
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "处理工具执行结果时出错", e)
+                _inputProcessingState.value = InputProcessingState.Error("处理工具执行结果失败: ${e.message}")
+                if (!isConversationActive.get()) {
+                    currentCompleteCallback?.invoke()
+                }
+            }
         }
     }
 
@@ -1266,21 +1261,27 @@ class EnhancedAIService(private val context: Context) {
             // 获取SUMMARY功能类型的AIService实例
             val summaryService = multiServiceManager.getServiceForFunction(FunctionType.SUMMARY)
 
-            // 使用summaryService发送直接请求
-            var summaryContent = ""
-
-            summaryService.sendMessage(
+            // 使用summaryService发送请求，收集完整响应
+            val contentBuilder = StringBuilder()
+            
+            // 使用新的Stream API
+            val stream = summaryService.sendMessage(
                     message = "请按照要求总结对话内容",
-                    onPartialResponse = { content, _ -> summaryContent = content },
                     chatHistory = finalMessages,
-                    onComplete = {},
-                    onConnectionStatus = {},
                     modelParameters = modelParameters
             )
+            
+            // 收集流中的所有内容
+            stream.collect { content ->
+                contentBuilder.append(content)
+            }
+            
+            // 获取完整的总结内容
+            val summaryContent = contentBuilder.toString().trim()
 
-            // 如果没有内容，等待短暂时间让内容填充
+            // 如果内容为空，返回默认消息
             if (summaryContent.isBlank()) {
-                delay(2000) // 等待2秒，给AI一些时间生成总结
+                return "对话摘要：未能生成有效摘要。"
             }
 
             // 获取本次总结生成的token统计
@@ -1296,7 +1297,7 @@ class EnhancedAIService(private val context: Context) {
                 Log.e(TAG, "更新token统计失败", e)
             }
 
-            return summaryContent.trim().takeIf { it.isNotBlank() } ?: "对话摘要：未能生成有效摘要。"
+            return summaryContent
         } catch (e: Exception) {
             Log.e(TAG, "生成总结时出错", e)
             return "对话摘要：生成摘要时出错，但对话仍在继续。"

@@ -59,10 +59,13 @@ import com.ai.assistance.operit.util.markdown.MarkdownNode
 import com.ai.assistance.operit.util.markdown.MarkdownProcessorType
 import com.ai.assistance.operit.util.markdown.NestedMarkdownProcessor
 import com.ai.assistance.operit.util.stream.Stream
+import com.ai.assistance.operit.util.stream.StreamInterceptor
 import com.ai.assistance.operit.util.stream.splitBy as streamSplitBy
 import com.ai.assistance.operit.util.stream.stream
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import ru.noties.jlatexmath.JLatexMathDrawable
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -144,152 +147,48 @@ fun StreamMarkdownRenderer(
     val renderNodes = remember { mutableStateListOf<MarkdownNode>() }
     // 节点动画状态映射表
     val nodeAnimationStates = remember { mutableStateMapOf<String, Boolean>() }
-    // 跟踪流是否正在收集数据
-    val isCollecting = remember { mutableStateOf(false) }
-    // 用于防止流完成后操作
-    val streamActive = remember { mutableStateOf(true) }
     // 用于在`finally`块中启动协程
     val scope = rememberCoroutineScope()
 
     // 当流实例变化时，获得一个稳定的渲染器ID
     val rendererId = remember(markdownStream) { "renderer-${System.identityHashCode(markdownStream)}" }
-
-    // 定时渲染的副作用：仅在流收集中运行时启动
-    LaunchedEffect(isCollecting.value, streamActive.value) {
-        // 当流不再活跃或不再收集数据时，退出
-        if (!isCollecting.value || !streamActive.value) {
-            Log.d(TAG, "【渲染性能】定时渲染协程退出: isCollecting=${isCollecting.value}, streamActive=${streamActive.value}")
-            return@LaunchedEffect
+    
+    // 创建一个中间流，用于拦截和批处理渲染更新
+    val interceptedStream = remember(markdownStream) {
+        // 先创建拦截器
+        val processor = StreamInterceptor<Char, Char>(
+            sourceStream = markdownStream,
+            onEach = { it } // 先使用简单的转发函数，后面再设置
+        )
+        
+        // 然后创建批处理更新器
+        val batchUpdater = BatchNodeUpdater(
+            nodes = nodes,
+            renderNodes = renderNodes,
+            nodeAnimationStates = nodeAnimationStates,
+            rendererId = rendererId,
+            isInterceptedStream = processor.interceptedStream,
+            scope = scope
+        )
+        
+        // 最后设置拦截器的onEach函数
+        processor.setOnEach {
+            batchUpdater.startBatchUpdates()
+            it
         }
-
-        try {
-            // 当isCollecting变为false时，此协程会被自动取消
-            markdownStream.lock()
-            while (streamActive.value) {
-                markdownStream.unlock()
-                markdownStream.lock()
-                delay(RENDER_INTERVAL_MS)
-                
-                // 对节点列表执行diff操作，处理新增、删除和更新的情况
-                if (nodes.size != renderNodes.size) {
-                    Log.d(TAG, "【渲染性能】节点数量变化: nodes=${nodes.size}, renderNodes=${renderNodes.size}")
-                    
-                    // 检测新增节点或替换节点的情况
-                    val maxCommonIndex = minOf(nodes.size, renderNodes.size)
-                    
-                    // 首先处理共有的节点，检查是否有发生替换
-                    for (i in 0 until maxCommonIndex) {
-                        if (nodes[i] !== renderNodes[i]) {  // 使用引用比较检查是否同一对象
-                            // 节点被替换，更新渲染节点并标记为需要动画
-                            val nodeKey = "node-$rendererId-$i-${nodes[i].type}"
-                            nodeAnimationStates[nodeKey] = false
-                            renderNodes[i] = nodes[i]
-                            Log.d(TAG, "【渲染性能】替换节点: 索引=$i, 类型=${nodes[i].type}")
-                        }
-                    }
-                    
-                    // 处理新增节点
-                    if (nodes.size > renderNodes.size) {
-                        for (i in renderNodes.size until nodes.size) {
-                            val nodeKey = "node-$rendererId-$i-${nodes[i].type}"
-                            nodeAnimationStates[nodeKey] = false
-                            renderNodes.add(nodes[i])
-                            Log.d(TAG, "【渲染性能】添加新节点: 索引=$i, 类型=${nodes[i].type}")
-                        }
-                    }
-                    // 处理删除节点
-                    else if (nodes.size < renderNodes.size) {
-                        val removeCount = renderNodes.size - nodes.size
-                        repeat(removeCount) {
-                            renderNodes.removeLast()
-                        }
-                        Log.d(TAG, "【渲染性能】删除多余节点: 数量=$removeCount")
-                    }
-                }
-                
-                // 更新所有需要动画的节点，确保淡入动画能被触发
-                for (i in 0 until renderNodes.size) {
-                    val nodeKey = "node-$rendererId-$i-${renderNodes[i].type}"
-                    if (nodeAnimationStates.containsKey(nodeKey) && !nodeAnimationStates[nodeKey]!!) {
-                        // 设置延迟，让节点在一帧后才开始动画
-                        delay(16.milliseconds)
-                        nodeAnimationStates[nodeKey] = true
-                        Log.d(TAG, "【渲染性能】启动节点动画: 索引=$i, 类型=${renderNodes[i].type}")
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "【渲染性能】定时渲染协程异常: ${e.message}", e)
-        } finally {
-            streamActive.value = false
-            isCollecting.value = false
-
-            Log.d(TAG, "【渲染性能】执行最终节点同步...")
-
-            val keysToAnimate = mutableListOf<String>()
-
-            // 智能同步：只处理新增或被替换的节点，避免全局重绘
-            val maxCommonIndex = minOf(nodes.size, renderNodes.size)
-
-            // 1. 检查并处理被替换的节点（例如LaTeX块）
-            for (i in 0 until maxCommonIndex) {
-                if (nodes[i] !== renderNodes[i]) { // 使用引用比较
-                    val nodeKey = "node-$rendererId-$i-${nodes[i].type}"
-                    nodeAnimationStates[nodeKey] = false // 准备播放动画
-                    keysToAnimate.add(nodeKey)
-                    renderNodes[i] = nodes[i]
-                    Log.d(TAG, "【渲染性能】最终同步：替换节点 at index $i")
-                }
-            }
-
-            // 2. 添加在最后一次定时渲染后产生的新节点
-            if (nodes.size > renderNodes.size) {
-                for (i in renderNodes.size until nodes.size) {
-                    val nodeKey = "node-$rendererId-$i-${nodes[i].type}"
-                    nodeAnimationStates[nodeKey] = false // 准备播放动画
-                    keysToAnimate.add(nodeKey)
-                    renderNodes.add(nodes[i])
-                    Log.d(TAG, "【渲染性能】最终同步：添加新节点 at index $i")
-                }
-            }
-            // 3. (安全校验) 如果源节点变少，则同步删除
-            else if (nodes.size < renderNodes.size) {
-                val removeCount = renderNodes.size - nodes.size
-                repeat(removeCount) {
-                    renderNodes.removeLast()
-                }
-                Log.w(TAG, "【渲染性能】最终同步：移除了 $removeCount 个多余节点")
-            }
-
-            // 启动所有新标记节点的动画
-            if (keysToAnimate.isNotEmpty()) {
-                scope.launch {
-                    // 等待下一帧，让 isVisible = false 的状态先生效
-                    delay(16.milliseconds)
-                    keysToAnimate.forEach { key ->
-                        // 检查以防万一节点在此期间被移除
-                        if (nodeAnimationStates.containsKey(key)) {
-                            nodeAnimationStates[key] = true
-                        }
-                    }
-                    Log.d(TAG, "【渲染性能】最终同步：启动了 ${keysToAnimate.size} 个节点的动画")
-                }
-            }
-        }
+        
+        processor.interceptedStream
     }
 
     // 处理Markdown流的变化
-    LaunchedEffect(markdownStream) {
+    LaunchedEffect(interceptedStream) {
         Log.d(TAG, "【渲染性能】处理新的Markdown流: id=$rendererId")
         // 重置状态
         nodes.clear()
         renderNodes.clear()
-        isCollecting.value = true
-        streamActive.value = true
 
         try {
-            markdownStream.streamSplitBy(NestedMarkdownProcessor.getBlockPlugins()).collect { blockGroup
-                ->
+            interceptedStream.streamSplitBy(NestedMarkdownProcessor.getBlockPlugins()).collect { blockGroup ->
                 val blockType = NestedMarkdownProcessor.getTypeForPlugin(blockGroup.tag)
 
                 // 对于水平分割线，内容无关紧要，直接添加节点
@@ -312,8 +211,6 @@ fun StreamMarkdownRenderer(
                 val newNode = MarkdownNode(type = tempBlockType)
                 nodes.add(newNode)
                 val nodeIndex = nodes.lastIndex
-                Log.d(TAG, "【渲染性能】添加新节点: 类型=${newNode.type}, 索引=$nodeIndex")
-
                 if (isInlineContainer) {
                     // Stream-parse the block stream for inline elements
                     blockGroup.stream.streamSplitBy(NestedMarkdownProcessor.getInlinePlugins())
@@ -336,7 +233,6 @@ fun StreamMarkdownRenderer(
                                     if (childNode == null) {
                                         childNode = MarkdownNode(type = inlineType)
                                         newNode.children.add(childNode!!)
-                                        Log.d(TAG, "【渲染性能】添加内联子节点: 类型=${childNode!!.type}")
                                     }
 
                                     if (lastCharWasNewline) {
@@ -367,7 +263,6 @@ fun StreamMarkdownRenderer(
                             }
                 } else {
                     // 对于没有内联格式的代码块，直接流式传输内容。
-                    Log.d(TAG, "【渲染性能】处理无内联格式块: 类型=${tempBlockType}")
                     blockGroup.stream.collect { contentChunk -> newNode.content.value += contentChunk }
                 }
 
@@ -379,7 +274,6 @@ fun StreamMarkdownRenderer(
                     latexNode.content.value = latexContent
                     // 原地替换节点，以保持索引的稳定性，避免不必要的重组
                     nodes[nodeIndex] = latexNode
-                    Log.d(TAG, "【渲染性能】转换为LaTeX节点 (原地替换)")
                 }
             }
             
@@ -388,11 +282,11 @@ fun StreamMarkdownRenderer(
         } catch (e: Exception) {
             Log.e(TAG, "【渲染性能】Markdown流处理异常: ${e.message}", e)
         } finally {
-            // 标记流不再活跃，防止后续操作
-            streamActive.value = false
-            isCollecting.value = false
+            // 最终同步，确保所有节点都被渲染
+            synchronizeRenderNodes(nodes, renderNodes, nodeAnimationStates, rendererId, scope)
         }
     }
+
 
     // 渲染Markdown内容
     Surface(modifier = modifier, color = Color.Transparent, shape = RoundedCornerShape(4.dp)) {
@@ -423,6 +317,103 @@ fun StreamMarkdownRenderer(
                             )
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+
+
+/**
+ * 批量节点更新器 - 负责将原始节点列表的更新批量应用到渲染节点列表
+ */
+private class BatchNodeUpdater(
+    private val nodes: SnapshotStateList<MarkdownNode>,
+    private val renderNodes: SnapshotStateList<MarkdownNode>,
+    private val nodeAnimationStates: MutableMap<String, Boolean>,
+    private val rendererId: String,
+    private val isInterceptedStream: Stream<Char>,
+    private val scope: CoroutineScope
+) {
+    private var updateJob: Job? = null
+    
+    fun startBatchUpdates() {
+        if (updateJob?.isActive == true) {
+            return
+        }
+        
+        // 创建新的更新任务
+        updateJob = scope.launch {
+                isInterceptedStream.lock()
+                delay(RENDER_INTERVAL_MS)
+                isInterceptedStream.unlock()
+
+                performBatchUpdate()
+                updateJob = null
+        }
+    }
+    
+    private fun performBatchUpdate() {
+        // 使用synchronizeRenderNodes函数进行节点同步
+        synchronizeRenderNodes(nodes, renderNodes, nodeAnimationStates, rendererId, scope)
+    }
+}
+
+/**
+ * 同步渲染节点 - 确保所有节点都被渲染
+ * 在流处理完成或出现异常时调用，确保最终状态一致
+ */
+private fun synchronizeRenderNodes(
+    nodes: SnapshotStateList<MarkdownNode>,
+    renderNodes: SnapshotStateList<MarkdownNode>,
+    nodeAnimationStates: MutableMap<String, Boolean>,
+    rendererId: String,
+    scope: CoroutineScope
+) {
+
+    val keysToAnimate = mutableListOf<String>()
+
+    // 智能同步：只处理新增或被替换的节点，避免全局重绘
+    val maxCommonIndex = minOf(nodes.size, renderNodes.size)
+
+    // 1. 检查并处理被替换的节点（例如LaTeX块）
+    for (i in 0 until maxCommonIndex) {
+        if (nodes[i] !== renderNodes[i]) { // 使用引用比较
+            val nodeKey = "node-$rendererId-$i-${nodes[i].type}"
+            nodeAnimationStates[nodeKey] = false // 准备播放动画
+            keysToAnimate.add(nodeKey)
+            renderNodes[i] = nodes[i]
+            Log.d(TAG, "【渲染性能】最终同步：替换节点 at index $i")
+        }
+    }
+
+    // 2. 添加在最后一次定时渲染后产生的新节点
+    if (nodes.size > renderNodes.size) {
+        for (i in renderNodes.size until nodes.size) {
+            val nodeKey = "node-$rendererId-$i-${nodes[i].type}"
+            nodeAnimationStates[nodeKey] = false // 准备播放动画
+            keysToAnimate.add(nodeKey)
+            renderNodes.add(nodes[i])
+        }
+    }
+    // 3. (安全校验) 如果源节点变少，则同步删除
+    else if (nodes.size < renderNodes.size) {
+        val removeCount = renderNodes.size - nodes.size
+        repeat(removeCount) {
+            renderNodes.removeLast()
+        }
+    }
+
+    // 启动所有新标记节点的动画
+    if (keysToAnimate.isNotEmpty()) {
+        scope.launch {
+            // 等待下一帧，让 isVisible = false 的状态先生效
+            delay(16.milliseconds)
+            keysToAnimate.forEach { key ->
+                // 检查以防万一节点在此期间被移除
+                if (nodeAnimationStates.containsKey(key)) {
+                    nodeAnimationStates[key] = true
                 }
             }
         }

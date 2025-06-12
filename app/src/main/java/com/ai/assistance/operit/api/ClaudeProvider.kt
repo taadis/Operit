@@ -5,6 +5,8 @@ import com.ai.assistance.operit.data.model.ApiProviderType
 import com.ai.assistance.operit.data.model.ModelOption
 import com.ai.assistance.operit.data.model.ModelParameter
 import com.ai.assistance.operit.util.ChatUtils
+import com.ai.assistance.operit.util.stream.Stream
+import com.ai.assistance.operit.util.stream.stream
 import java.io.IOException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
@@ -71,27 +73,6 @@ class ClaudeProvider(
             }
         }
         activeCall = null
-    }
-
-    // 解析服务器返回的内容，处理<think>标签
-    private fun parseResponse(content: String): Pair<String, String?> {
-        val thinkStartTag = "<think>"
-        val thinkEndTag = "</think>"
-
-        val startIndex = content.indexOf(thinkStartTag)
-        val endIndex = content.lastIndexOf(thinkEndTag)
-
-        return if (startIndex != -1 && endIndex != -1 && startIndex < endIndex) {
-            // 提取思考内容和主要内容
-            val thinkContent = content.substring(startIndex + thinkStartTag.length, endIndex).trim()
-            val mainContent = content.substring(endIndex + thinkEndTag.length).trim()
-            Pair(mainContent, thinkContent)
-        } else if (startIndex != -1 && endIndex == -1) {
-            Pair("", content.substring(startIndex + thinkStartTag.length).trim())
-        } else {
-            // 没有思考内容，返回原始内容
-            Pair(content, null)
-        }
     }
 
     // 创建Claude API请求体
@@ -285,173 +266,116 @@ class ClaudeProvider(
         return builder.build()
     }
 
-    // 处理响应
-    private suspend fun processResponse(
-            response: Response,
-            onPartialResponse: (content: String, thinking: String?) -> Unit,
-            onComplete: () -> Unit
-    ) {
-        if (!response.isSuccessful) {
-            val errorBody = response.body?.string() ?: "No error details"
-            throw IOException("API请求失败，状态码: ${response.code}，错误信息: $errorBody")
-        }
-
-        val responseBody = response.body ?: throw IOException("API响应为空")
-        val reader = responseBody.charStream().buffered()
-        var currentContent = StringBuilder()
-        var currentThinking = StringBuilder()
-        var isFirstResponse = true
-        var wasCancelled = false // 添加取消标志
-
-        try {
-            reader.useLines { lines ->
-                lines.forEach { line ->
-                    // 如果call已被取消，提前退出
-                    if (activeCall?.isCanceled() == true) {
-                        Log.d("AIService", "流式传输已被取消，提前退出处理")
-                        wasCancelled = true // 设置取消标志
-                        return@forEach
-                    }
-
-                    if (line.startsWith("data: ")) {
-                        val data = line.substring(6).trim()
-                        if (data == "[DONE]") {
-                            return@forEach
-                        }
-
-                        try {
-                            val jsonResponse = JSONObject(data)
-
-                            // Claude API在响应中包含content和/或extended_thinking
-                            val type = jsonResponse.optString("type", "")
-                            val content = jsonResponse.optString("content", "")
-                            val extendedThinking = jsonResponse.optJSONObject("extended_thinking")
-
-                            if (content.isNotEmpty()) {
-                                currentContent.append(content)
-                                _outputTokenCount += estimateTokenCount(content)
-                            }
-
-                            // 处理extended thinking
-                            if (extendedThinking != null) {
-                                val thinking = extendedThinking.optString("text", "")
-                                if (thinking.isNotEmpty()) {
-                                    currentThinking.append(thinking)
-                                }
-                            }
-
-                            // 检查是否需要解析<think>标签
-                            val (mainContent, thinkContent) =
-                                    parseResponse(currentContent.toString())
-
-                            // 确定最终输出内容
-                            val finalContent =
-                                    if (mainContent.isNotEmpty()) mainContent
-                                    else currentContent.toString()
-
-                            // 确定思考内容，优先使用Claude的extended_thinking
-                            val finalThinking =
-                                    if (currentThinking.isNotEmpty()) currentThinking.toString()
-                                    else thinkContent
-
-                            if (content.isNotEmpty() || extendedThinking != null) {
-                                onPartialResponse(finalContent, finalThinking)
-
-                                // 当收到第一个有效内容时，标记不再是首次响应
-                                if (isFirstResponse) {
-                                    isFirstResponse = false
-                                }
-                            }
-                        } catch (e: Exception) {
-                            // 忽略解析错误，继续处理下一行
-                            Log.d("AIService", "JSON解析错误: ${e.message}")
-                        }
-                    }
-                }
-            }
-        } catch (e: IOException) {
-            // 捕获IO异常，可能是由于取消Call导致的
-            if (activeCall?.isCanceled() == true) {
-                Log.d("AIService", "流式传输已被取消，处理IO异常")
-                wasCancelled = true // 设置取消标志
-            } else {
-                throw e
-            }
-        }
-
-        // 只有在未被取消时才调用完成回调
-        if (!wasCancelled && activeCall?.isCanceled() != true) {
-            Log.d("AIService", "处理完成，调用完成回调")
-            onComplete()
-        } else {
-            Log.d("AIService", "流被取消，跳过完成回调")
-        }
-
-        // 清理活跃Call引用
-        activeCall = null
-    }
-
     override suspend fun sendMessage(
             message: String,
-            onPartialResponse: (content: String, thinking: String?) -> Unit,
             chatHistory: List<Pair<String, String>>,
-            onComplete: () -> Unit,
-            onConnectionStatus: ((status: String) -> Unit)?,
             modelParameters: List<ModelParameter<*>>
-    ) =
-            withContext(Dispatchers.IO) {
-                // 重置token计数
-                _inputTokenCount = 0
-                _outputTokenCount = 0
+    ): Stream<String> = stream {
+        // 重置token计数
+        _inputTokenCount = 0
+        _outputTokenCount = 0
 
-                val maxRetries = 3
-                var retryCount = 0
-                var lastException: Exception? = null
+        val maxRetries = 3
+        var retryCount = 0
+        var lastException: Exception? = null
 
-                val requestBody = createRequestBody(message, chatHistory, modelParameters)
-                val request = createRequest(requestBody)
+        val requestBody = createRequestBody(message, chatHistory, modelParameters)
+        val request = createRequest(requestBody)
 
-                onConnectionStatus?.invoke("准备连接到Claude AI服务...")
-                while (retryCount < maxRetries) {
-                    try {
-                        // 创建Call对象并保存到activeCall中，以便可以取消
-                        val call = client.newCall(request)
-                        activeCall = call
+        Log.d("AIService", "准备连接到Claude AI服务...")
+        while (retryCount < maxRetries) {
+            try {
+                // 创建Call对象并保存到activeCall中，以便可以取消
+                val call = client.newCall(request)
+                activeCall = call
 
-                        onConnectionStatus?.invoke("正在建立连接...")
-                        call.execute().use { response ->
-                            onConnectionStatus?.invoke("连接成功，等待响应...")
-                            processResponse(response, onPartialResponse, onComplete)
-                        }
-
-                        // 成功处理后，清空activeCall
-                        activeCall = null
-
-                        // 成功处理，返回
-                        return@withContext
-                    } catch (e: SocketTimeoutException) {
-                        lastException = e
-                        retryCount++
-                        // 通知正在重试
-                        onConnectionStatus?.invoke("连接超时，正在进行第 $retryCount 次重试...")
-                        onPartialResponse("", "连接超时，正在进行第 $retryCount 次重试...")
-                        // 指数退避重试
-                        delay(1000L * retryCount)
-                    } catch (e: UnknownHostException) {
-                        onConnectionStatus?.invoke("无法连接到服务器，请检查网络")
-                        throw IOException("无法连接到服务器，请检查网络连接或API地址是否正确")
-                    } catch (e: Exception) {
-                        onConnectionStatus?.invoke("连接失败: ${e.message}")
-                        throw IOException(
-                                "AI响应获取失败: ${e.message} ${e.stackTrace.joinToString("\n")}"
-                        )
+                Log.d("AIService", "正在建立连接...")
+                call.execute().use { response ->
+                    if (!response.isSuccessful) {
+                        val errorBody = response.body?.string() ?: "No error details"
+                        throw IOException("API请求失败，状态码: ${response.code}，错误信息: $errorBody")
                     }
+
+                    Log.d("AIService", "连接成功，等待响应...")
+                    val responseBody = response.body ?: throw IOException("API响应为空")
+                    val reader = responseBody.charStream().buffered()
+                    var wasCancelled = false
+
+                    try {
+                        reader.useLines { lines ->
+                            lines.forEach { line ->
+                                // 如果call已被取消，提前退出
+                                if (activeCall?.isCanceled() == true) {
+                                    Log.d("AIService", "流式传输已被取消，提前退出处理")
+                                    wasCancelled = true
+                                    return@forEach
+                                }
+
+                                if (line.startsWith("data: ")) {
+                                    val data = line.substring(6).trim()
+                                    if (data == "[DONE]") {
+                                        return@forEach
+                                    }
+
+                                    try {
+                                        val jsonResponse = JSONObject(data)
+
+                                        // Claude API在响应中包含content
+                                        val type = jsonResponse.optString("type", "")
+                                        val content = jsonResponse.optString("content", "")
+
+                                        if (content.isNotEmpty()) {
+                                            _outputTokenCount += estimateTokenCount(content)
+                                            emit(content)
+                                        }
+                                    } catch (e: Exception) {
+                                        // 忽略解析错误，继续处理下一行
+                                        Log.d("AIService", "JSON解析错误: ${e.message}")
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e: IOException) {
+                        // 捕获IO异常，可能是由于取消Call导致的
+                        if (activeCall?.isCanceled() == true) {
+                            Log.d("AIService", "流式传输已被取消，处理IO异常")
+                            wasCancelled = true
+                        } else {
+                            throw e
+                        }
+                    }
+
+                    // 清理活跃Call引用
+                    activeCall = null
                 }
 
-                onConnectionStatus?.invoke("重试失败，请检查网络连接")
-                // 所有重试都失败
-                throw IOException("连接超时，已重试 $maxRetries 次: ${lastException?.message}")
+                // 成功处理后，返回
+                return@stream
+            } catch (e: SocketTimeoutException) {
+                lastException = e
+                retryCount++
+                Log.d("AIService", "连接超时，正在进行第 $retryCount 次重试...")
+                emit("【连接超时，正在进行第 $retryCount 次重试...】")
+                // 指数退避重试
+                delay(1000L * retryCount)
+            } catch (e: UnknownHostException) {
+                Log.d("AIService", "无法连接到服务器，请检查网络")
+                emit("【无法连接到服务器，请检查网络】")
+                throw IOException("无法连接到服务器，请检查网络连接或API地址是否正确")
+            } catch (e: Exception) {
+                Log.d("AIService", "连接失败: ${e.message}")
+                emit("【连接失败: ${e.message}】")
+                throw IOException(
+                        "AI响应获取失败: ${e.message} ${e.stackTrace.joinToString("\n")}"
+                )
             }
+        }
+
+        Log.d("AIService", "重试失败，请检查网络连接")
+        emit("【重试失败，请检查网络连接】")
+        // 所有重试都失败
+        throw IOException("连接超时，已重试 $maxRetries 次: ${lastException?.message}")
+    }
 
     /**
      * 获取模型列表

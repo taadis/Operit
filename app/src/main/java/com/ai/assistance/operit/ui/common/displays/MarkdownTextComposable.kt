@@ -1,6 +1,7 @@
 package com.ai.assistance.operit.ui.common.displays
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
@@ -20,9 +21,12 @@ fun MarkdownTextComposable(
         isSelectable: Boolean = true, // 保留参数，暂不处理
         onLinkClicked: ((String) -> Unit)? = null
 ) {
+        // 记住流，仅当文本更改时才重新创建
+        val markdownStream = remember(text) { text.stream() }
+
         // 直接用流式渲染器替换
         StreamMarkdownRenderer(
-                markdownStream = text.stream(),
+                markdownStream = markdownStream,
                 modifier = modifier,
                 textColor = textColor,
                 // 其它参数可扩展

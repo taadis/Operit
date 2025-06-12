@@ -190,3 +190,21 @@ fun <TAG> Stream<String>.asNestedGroup(
 fun <TAG> Pair<TAG, Stream<String>>.asStreamGroup(
         processor: StreamProcessor<String, *>? = null
 ): StreamGroup<TAG> = StreamGroup(first, second, processor)
+
+
+class StreamInterceptor<T, R>(
+    sourceStream: Stream<T>,
+    private var onEach: (T) ->  R
+) {
+    // 下游流，用于向外部提供数据
+    val interceptedStream: Stream<R> = stream { 
+        // 收集上游流的数据并转发
+        sourceStream.collect { value ->
+            emit(onEach(value))
+        }
+    }
+
+    fun setOnEach(onEach: (T) -> R) {
+        this.onEach = onEach
+    }
+}

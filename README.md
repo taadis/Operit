@@ -18,55 +18,72 @@
 
 **Operit AI** 是移动端首个功能完备的 AI 智能助手应用，它**完全独立运行**（除了外部api调用）于您的 Android 设备上，拥有强大的**工具调用能力**。它不仅仅是一个聊天界面，更是一个和安卓权限和各种工具深度融合的**全能助手**。
 
+## 🛠️ 丰富的内置工具
 
-### ✨ 软件特点
+Operit内置超过40种强大工具，使AI助手能够与您的设备深度交互：
 
-通过 Operit AI，您可以文字对话完成以往需要多次点击才能实现的复杂任务。它可以帮您管理文件、搜索网页、自动操作屏幕，甚至执行系统级命令。这是真正意义上的**移动端 AI 助手革命**，将您的手机变成一个智能、自动化的工作平台。
+- **文件系统工具**：读写文件、搜索文件、解压缩、文件转换等
+- **HTTP工具**：网络请求、网页访问、文件上传下载等
+- **系统操作工具**：管理系统设置、安装应用、控制应用运行等
+- **UI自动化工具**：屏幕点击、滑动、元素查找、表单填写等
+- **媒体处理工具**：视频转换、编解码、帧提取等
 
-软件同时具备低门槛和高上限：你可以开局后上手直接使用，也可以研究如何获取更高的权限来获取更高的体验感受。
+这些内置工具结合丰富的插件系统，让Operit可以完成从简单到复杂的各类任务，真正实现手机智能助手的全能体验。
 
+## 🚀 核心功能展示
 
-## 🚀 核心功能
+### 🎮 游戏制作功能
 
-
-### 🌐 WebDev 功能
-
-Operit AI 现已支持 WebDev 功能，让您在移动端也能享受到丰富的 Web 开发和互动体验。同时可以通过软件把生成的网页导出到apk和exe，在手机或者电脑上独立运行。
+Operit AI 让您直接在手机上创建和玩游戏，从构思到实现一气呵成。
 
 <div align="center">
-  <div style="margin: 30px 0;">
-    <!-- 桌面端截图 -->
-    <div style="margin-bottom: 30px;">
-      <img src="docx/assets/webdev/c851e530a258bbbbf41f87dcb907b14.png" width="85%" alt="WebDev功能-导出平台" style="border-radius: 6px; box-shadow: 0 5px 15px rgba(0,0,0,0.2);">
-    </div>
-    <!-- 移动端截图 -->
-    <div>
-      <img src="docx/assets/webdev/6b0f3650dd4c5709069d2e4201d3cb9.jpg" width="26%" alt="WebDev功能-五子棋" style="border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); margin: 0 5px; display: inline-block; vertical-align: middle;">
-      <img src="docx/assets/webdev/519137715fc99270d97fd42086119b5.jpg" width="26%" alt="WebDev功能-介绍页" style="border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); margin: 0 5px; display: inline-block; vertical-align: middle;">
-      <img src="docx/assets/webdev/9e43331c5f055b1bd82cd0f7d74704d.jpg" width="26%" alt="WebDev功能-音游" style="border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); margin: 0 5px; display: inline-block; vertical-align: middle;">
-    </div>
+  <div style="margin: 20px 0;">
+    <img src="docx/assets/game_maker_chat.jpg" style="height: 300px; width: auto; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); margin: 0 5px; display: inline-block;">
+    <img src="docx/assets/game_maker_show.jpg" style="height: 300px; width: auto; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); margin: 0 5px; display: inline-block;">
+    <img src="docx/assets/game_maker_packer.jpg" style="height: 300px; width: auto; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); margin: 0 5px; display: inline-block;">
   </div>
+  <p>👆 只需描述您的游戏创意，AI就能帮您设计、实现并打包成可分享的游戏</p>
 </div>
 
-### 🔌插件系统
+### 🌐 Web开发功能
 
-作为第一款支持 **Model Context Protocol** 的 **移动应用**，提供 完整的 MCP 服务**一键部署、启动**和监控功能。考虑到mcp生态的复杂性，我们同时开发了一套更适合安卓体质的包管理和原生工具插件系统。
+在手机上设计网页并导出为独立应用，既可用于个人展示页面，也可以创建实用工具。
 
+<div align="center">
+  <div style="margin: 20px 0;">
+    <!-- 桌面端截图 -->
+    <img src="docx/assets/webdev/c851e530a258bbbbf41f87dcb907b14.png" style="max-width: 90%; height: auto; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); margin-bottom: 15px;">
+    <!-- 移动端截图 -->
+    <div>
+      <img src="docx/assets/webdev/6b0f3650dd4c5709069d2e4201d3cb9.jpg" style="height: 300px; width: auto; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); margin: 0 5px; display: inline-block;">
+      <img src="docx/assets/webdev/9e43331c5f055b1bd82cd0f7d74704d.jpg" style="height: 300px; width: auto; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); margin: 0 5px; display: inline-block;">
+    </div>
+  </div>
+  <p>👆 网页应用开发，支持导出为独立应用和多种交互体验</p>
+</div>
 
-### 🧠 增强 AI 能力
+### 📱 悬浮窗与附件功能
 
-我们同样拥有向量索引的持久化数据库，专注于解决问题能力的积累，也拥有增强上下文记忆能力，实现更精细的任务处理。同时还有可以自动修正的根据用户偏好系统。
+Operit AI 支持悬浮窗模式和便捷的附件上传，随时调用AI功能和共享各类文件。
 
-与其同时，高度的自由度使得用户可以自行查看、修改、配置问题库、偏好配置，甚至可以建立多个提示词和多个配置来达成用户想要的高度自定义场合和问答。
+<div align="center">
+  <div style="margin: 20px 0;">
+    <img src="docx/assets/floating_and_attach.jpg" style="height: 350px; width: auto; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); margin: 0 10px;">
+  </div>
+  <p>👆 悬浮窗随时调用，附件功能便捷共享</p>
+</div>
 
-### 🔒 权限控制
+### 🔌 强大的插件系统
 
-我们对权限进行了很好的兼容，用户可以根据自己情况选择多个不同层级的权限，从apk集成能力到shizuku，再到root。同时，对于工具的执行，我们还有另外一套权限控制，正如其他电脑端agent的那样。
+Operit AI 提供丰富的插件生态，配合内置工具可实现从日常生活工具到代码运行、地图查询、系统管理等多种功能。通过自然语言一句话，即可完成以往需要多步操作的复杂任务。
 
-### 🧰 独立工具箱
-
-考虑到我们的工具比较强大，我们单独推出了一套工具箱可以快速进行工具操作。
-
+<div align="center">
+  <div style="margin: 20px 0;">
+    <img src="docx/assets/package_list.jpg" style="height: 350px; width: auto; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); margin: 0 10px; display: inline-block;">
+    <img src="docx/assets/set_alarm_and_date.jpg" style="height: 350px; width: auto; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); margin: 0 10px; display: inline-block;">
+  </div>
+  <p>👆 丰富的插件生态系统和内置工具，各种功能一触即发</p>
+</div>
 
 ## 🚀 快速开始
 

@@ -238,27 +238,24 @@ object ProblemLibrary {
             // 构建分析消息
             val analysisMessage = buildAnalysisMessage(query, solution, conversationHistory)
 
-            // AIService会自动计算和累计token，不需要手动预估
-
             // 准备消息
             val messages = listOf(Pair("system", systemPrompt), Pair("user", analysisMessage))
 
-            // 收集结果
+            // 用于收集结果的StringBuilder
             val result = StringBuilder()
-            var outputTokens = 0
 
-            // 调用AI服务
+            // 调用AI服务，使用新的Stream API
             withContext(Dispatchers.IO) {
-                aiService.sendMessage(
-                        message = analysisMessage,
-                        onPartialResponse = { content, _ ->
-                            result.clear()
-                            result.append(content)
-                            outputTokens = aiService.outputTokenCount
-                        },
-                        chatHistory = messages,
-                        onComplete = {}
+                // 发送消息并获取响应流
+                val stream = aiService.sendMessage(
+                    message = analysisMessage,
+                    chatHistory = messages
                 )
+                
+                // 收集流中的所有响应内容
+                stream.collect { content ->
+                    result.append(content)
+                }
             }
 
             // 更新token统计
