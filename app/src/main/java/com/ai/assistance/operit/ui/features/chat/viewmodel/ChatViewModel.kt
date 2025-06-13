@@ -17,9 +17,11 @@ import com.ai.assistance.operit.ui.features.chat.attachments.AttachmentManager
 import com.ai.assistance.operit.ui.features.chat.webview.LocalWebServer
 import com.ai.assistance.operit.ui.permissions.PermissionLevel
 import com.ai.assistance.operit.ui.permissions.ToolPermissionSystem
+import kotlinx.coroutines.Dispatchers
 import java.io.IOException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -104,6 +106,10 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     }
     val inputProcessingMessage: StateFlow<String> by lazy {
         messageProcessingDelegate.inputProcessingMessage
+    }
+
+    val scrollToBottomEvent: SharedFlow<Unit> by lazy {
+        messageProcessingDelegate.scrollToBottomEvent
     }
 
     // UI状态相关
@@ -282,7 +288,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                     ) {
                         try {
                             Log.d(TAG, "设置输入处理状态收集，尝试 ${retryCount + 1}/${maxRetries}")
-                            
+
                             inputProcessingSetupComplete = true
                             Log.d(TAG, "输入处理状态收集设置成功")
                         } catch (e: Exception) {
@@ -537,6 +543,13 @@ class ChatViewModel(private val context: Context) : ViewModel() {
 
         // 调用messageProcessingDelegate发送消息，并传递附件信息
         messageProcessingDelegate.sendUserMessage(currentAttachments, chatId)
+
+        if (chatHistoryDelegate.shouldGenerateSummary(chatHistoryDelegate.chatHistory.value)) {
+            // 触发总结
+            viewModelScope.launch(Dispatchers.IO) {
+                chatHistoryDelegate.summarizeMemory(chatHistoryDelegate.chatHistory.value)
+            }
+        }
 
         // 发送后清空附件列表
         if (currentAttachments.isNotEmpty()) {

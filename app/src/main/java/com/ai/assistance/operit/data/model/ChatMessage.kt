@@ -9,7 +9,7 @@ import kotlinx.serialization.Transient
 @Serializable
 data class ChatMessage(
         val sender: String, // "user" or "ai"
-        val content: String = "",
+        var content: String = "",
         val timestamp: Long = System.currentTimeMillis(),
         @Transient
         var contentStream: Stream<String>? =

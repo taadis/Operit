@@ -165,35 +165,52 @@ class ChatHistoryManager private constructor(private val context: Context) {
     }
 
     // 添加单条消息
-    suspend fun addMessage(chatId: String, message: ChatMessage) {
+    suspend fun addMessage(chatId: String, message: ChatMessage, position: Int? = null) {
         mutex.withLock {
             try {
-                // 获取当前最大序号
-                val maxOrderIndex = messageDao.getMaxOrderIndex(chatId) ?: -1
+                val messageToPersist = if (position != null) {
+                    val messages = messageDao.getMessagesForChat(chatId) // Already ordered by timestamp
+                    if (messages.isEmpty()) {
+                        message
+                    } else {
+                        val validPosition = position.coerceIn(0, messages.size)
+                        val newTimestamp = when {
+                            validPosition == 0 -> messages.first().timestamp - 1
+                            validPosition >= messages.size -> messages.last().timestamp + 1
+                            else -> {
+                                val before = messages[validPosition - 1].timestamp
+                                val after = messages[validPosition].timestamp
+                                // Take the average to find a point in between.
+                                // This assumes timestamps have enough space.
+                                before + (after - before) / 2
+                            }
+                        }
+                        message.copy(timestamp = newTimestamp)
+                    }
+                } else {
+                    message
+                }
 
-                // 创建消息实体
-                val messageEntity =
-                        MessageEntity.fromChatMessage(
-                                chatId = chatId,
-                                message = message,
-                                orderIndex = maxOrderIndex + 1
-                        )
-
-                // 保存消息
+                // Create message entity, orderIndex is no longer used for ordering.
+                val messageEntity = MessageEntity.fromChatMessage(
+                    chatId = chatId,
+                    message = messageToPersist,
+                    orderIndex = 0 
+                )
                 messageDao.insertMessage(messageEntity)
 
-                // 更新聊天元数据
-                val chat = chatDao.getChatById(chatId)
-                if (chat != null) {
+                // Update chat metadata
+                chatDao.getChatById(chatId)?.let { chat ->
                     chatDao.updateChatMetadata(
-                            chatId = chatId,
-                            title = chat.title,
-                            timestamp = System.currentTimeMillis(),
-                            inputTokens = chat.inputTokens,
-                            outputTokens = chat.outputTokens
+                        chatId = chatId,
+                        title = chat.title,
+                        timestamp = System.currentTimeMillis(),
+                        inputTokens = chat.inputTokens,
+                        outputTokens = chat.outputTokens
                     )
                 }
             } catch (e: Exception) {
+                Log.e(TAG, "Failed to add message for chat $chatId", e)
                 throw e
             }
         }

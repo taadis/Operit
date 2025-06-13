@@ -12,8 +12,10 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -47,6 +49,9 @@ class MessageProcessingDelegate(
     private val _inputProcessingMessage = MutableStateFlow("")
     val inputProcessingMessage: StateFlow<String> = _inputProcessingMessage.asStateFlow()
 
+    private val _scrollToBottomEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val scrollToBottomEvent = _scrollToBottomEvent.asSharedFlow()
+
     fun updateUserMessage(message: String) {
         _userMessage.value = message
     }
@@ -68,11 +73,12 @@ class MessageProcessingDelegate(
         // 检查这是否是聊天中的第一条用户消息
         val isFirstMessage = getChatHistory().none { it.sender == "user" || it.sender == "ai" }
         if (isFirstMessage) {
-            val newTitle = when {
-                messageText.isNotBlank() -> messageText
-                attachments.isNotEmpty() -> attachments.first().fileName
-                else -> "新对话"
-            }
+            val newTitle =
+                    when {
+                        messageText.isNotBlank() -> messageText
+                        attachments.isNotEmpty() -> attachments.first().fileName
+                        else -> "新对话"
+                    }
             updateChatTitle(newTitle)
         }
 
@@ -142,11 +148,12 @@ class MessageProcessingDelegate(
                     val contentBuilder = StringBuilder()
                     sharedCharStream.collect { chunk ->
                         contentBuilder.append(chunk)
-                        // 创建一个更新后的消息对象，包含目前为止的所有内容
-                        // 我们传递一个新的contentStream，但它不会被使用，因为UI已经持有了原始的流
-                        val updatedMessage = aiMessage.copy(content = contentBuilder.toString())
-                        // 调用addMessageToChat来更新UI和数据库
+                        val content = contentBuilder.toString()
+                        val updatedMessage = aiMessage.copy(content = content)
+                        //防止后续读取不到
+                        aiMessage.content = content
                         addMessageToChat(updatedMessage)
+                        _scrollToBottomEvent.tryEmit(Unit)
                     }
                     Log.d(TAG, "【消息处理-持久化】流式保存协程收集完成 (timestamp: ${aiMessage.timestamp})")
                 }
@@ -166,9 +173,7 @@ class MessageProcessingDelegate(
             } finally {
                 // 添加一个短暂的延迟，以确保UI有足够的时间来渲染最后一个数据块
                 // 这有助于解决因竞态条件导致的UI内容（如状态标签）有时无法显示的问题
-                withContext(Dispatchers.IO) {
-                    delay(100)
-                }
+                withContext(Dispatchers.IO) { delay(100) }
                 withContext(Dispatchers.Main) {
                     Log.d(TAG, "【消息处理】重置处理状态标志")
                     _isLoading.value = false

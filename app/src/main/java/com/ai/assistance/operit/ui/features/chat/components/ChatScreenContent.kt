@@ -17,7 +17,7 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -49,7 +49,6 @@ fun ChatScreenContent(
         actualViewModel: ChatViewModel,
         showChatHistorySelector: Boolean,
         chatHistory: List<ChatMessage>,
-        listState: LazyListState,
         planItems: List<PlanItem>,
         enableAiPlanning: Boolean,
         toolProgress: ToolExecutionProgress,
@@ -99,6 +98,7 @@ fun ChatScreenContent(
     var exportFilePath by remember { mutableStateOf<String?>(null) }
     var exportErrorMessage by remember { mutableStateOf<String?>(null) }
     var webContentDir by remember { mutableStateOf<File?>(null) }
+    val scrollState = rememberScrollState()
 
     Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
         // 主聊天区域（包括顶部工具栏），确保它一直可见
@@ -219,7 +219,7 @@ fun ChatScreenContent(
                     if (!showWebView) {
                         ChatArea(
                                 chatHistory = chatHistory,
-                                listState = listState,
+                                scrollState = scrollState,
                                 planItems = planItems,
                                 enablePlanning = enableAiPlanning,
                                 toolProgress = toolProgress,
@@ -413,7 +413,9 @@ fun ChatScreenContent(
                                                 try {
                                                     // 不关心index，直接尝试滚动到底部
                                                     // 使用最大可能的滚动量
-                                                    listState.dispatchRawDelta(100000f)
+                                                    scrollState.animateScrollTo(
+                                                            scrollState.maxValue
+                                                    )
                                                 } catch (e: Exception) {
                                                     Log.e("ChatScreenContent", "滚动到底部失败", e)
                                                 }

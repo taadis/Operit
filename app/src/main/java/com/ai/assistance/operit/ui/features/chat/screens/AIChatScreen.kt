@@ -5,7 +5,7 @@ import android.provider.Settings
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
@@ -76,6 +76,8 @@ fun AIChatScreen(
         val attachments by actualViewModel.attachments.collectAsState()
         // 收集附件面板状态
         val attachmentPanelState by actualViewModel.attachmentPanelState.collectAsState()
+        // 收集滚动事件
+        val scrollToBottomEvent = actualViewModel.scrollToBottomEvent
 
         // 添加WebView刷新相关状态
         val webViewNeedsRefresh by actualViewModel.webViewNeedsRefresh.collectAsState()
@@ -85,7 +87,7 @@ fun AIChatScreen(
         val canDrawOverlays = remember { mutableStateOf(Settings.canDrawOverlays(context)) }
 
         // UI state
-        val listState = rememberLazyListState()
+        val scrollState = rememberScrollState()
         val focusManager = LocalFocusManager.current
         val coroutineScope = rememberCoroutineScope()
 
@@ -130,33 +132,32 @@ fun AIChatScreen(
 
         // 更简单直接的滚动状态监听 - 只监听用户主动向上滚动
         LaunchedEffect(Unit) {
-                snapshotFlow {
-                        Pair(listState.firstVisibleItemScrollOffset, listState.isScrollInProgress)
-                }
-                        .collect { (currentOffset, isScrolling) ->
-                                // 只在用户主动滚动时判断
-                                if (isScrolling && !isScrollStateChanging) {
-                                        // 检测是否是向上滚动(手指向下滑)
-                                        val isScrollingUp = currentOffset < lastScrollOffset
+                snapshotFlow { Pair(scrollState.value, scrollState.isScrollInProgress) }.collect {
+                        (currentOffset, isScrolling) ->
+                        // 只在用户主动滚动时判断
+                        if (isScrolling && !isScrollStateChanging) {
+                                // 检测是否是向上滚动(手指向下滑)
+                                val isScrollingUp = currentOffset < lastScrollOffset
 
-                                        // 更新上次滚动位置
-                                        lastScrollOffset = currentOffset
+                                // 更新上次滚动位置
+                                lastScrollOffset = currentOffset
 
-                                        // 如果用户向上滚动，禁用自动滚动并显示按钮
-                                        if (!isScrollingUp) {
-                                                if (!showScrollButton) {
-                                                        isScrollStateChanging = true
-                                                        showScrollButton = true
-                                                        autoScrollToBottom = false
-                                                }
+                                // 如果用户向上滚动，禁用自动滚动并显示按钮
+                                if (!isScrollingUp) {
+                                        if (!showScrollButton) {
+                                                isScrollStateChanging = true
+                                                showScrollButton = true
+                                                autoScrollToBottom = false
                                         }
                                 }
                         }
+                }
         }
 
         // 监听用户滚动到底部的情况
         LaunchedEffect(Unit) {
-                snapshotFlow { !listState.canScrollForward }.collect { isAtBottom ->
+                snapshotFlow { scrollState.value >= scrollState.maxValue - 100 }.collect {
+                        isAtBottom ->
                         if (isAtBottom && !isScrollStateChanging && showScrollButton) {
                                 // 用户手动滚动到底部时，重新启用自动滚动并隐藏按钮
                                 isScrollStateChanging = true
@@ -166,28 +167,26 @@ fun AIChatScreen(
                 }
         }
 
-        // 内容变化时的自动滚动 - 不使用size或index
-        LaunchedEffect(chatHistory) {
+        // 内容变化时的自动滚动 - 仅在添加新消息时触发
+        LaunchedEffect(chatHistory.size) {
                 if (autoScrollToBottom && chatHistory.isNotEmpty()) {
                         delay(50) // 短暂延迟确保布局完成
+                        Log.d("AIChatScreen", "自动滚动到最底部")
                         try {
-                                // 直接使用极大值滚动，不关心具体位置
-                                listState.dispatchRawDelta(100000f)
+                                // 直接滚动到最底部
+                                scrollState.animateScrollTo(scrollState.maxValue)
                         } catch (e: Exception) {
                                 Log.e("AIChatScreen", "自动滚动失败", e)
                         }
                 }
         }
 
-        // 内容追加的自动滚动 - 不依赖于index或size
-        LaunchedEffect(chatHistory.lastOrNull()?.content) {
-                if (autoScrollToBottom && chatHistory.isNotEmpty()) {
-                        delay(10)
-                        try {
-                                // 直接使用极大值滚动，不关心具体位置
-                                listState.dispatchRawDelta(100000f)
-                        } catch (e: Exception) {
-                                Log.e("AIChatScreen", "内容追加滚动失败", e)
+        // 响应来自ViewModel的精确滚动事件，用于流式输出
+        LaunchedEffect(Unit) {
+                scrollToBottomEvent.collect {
+                        if (autoScrollToBottom) {
+                                // 这里不需要延迟，因为事件是在状态更新后立即发出的
+                                scrollState.animateScrollTo(scrollState.maxValue)
                         }
                 }
         }
@@ -262,8 +261,7 @@ fun AIChatScreen(
                 }
         }
         // 判断是否有默认配置可用
-        val hasDefaultConfig =
-                apiKey.isNotBlank()
+        val hasDefaultConfig = apiKey.isNotBlank()
 
         // 判断是否正在使用默认配置
         val isUsingDefaultConfig = actualViewModel.isUsingDefaultConfig()
@@ -389,9 +387,9 @@ fun AIChatScreen(
                                 apiEndpoint = "",
                                 apiKey = apiKey,
                                 modelName = "",
-                                onApiEndpointChange = { },
+                                onApiEndpointChange = {},
                                 onApiKeyChange = { actualViewModel.updateApiKey(it) },
-                                onModelNameChange = { },
+                                onModelNameChange = {},
                                 onSaveConfig = {
                                         actualViewModel.saveApiSettings()
                                         // 保存配置后导航到聊天界面
@@ -426,7 +424,6 @@ fun AIChatScreen(
                                 actualViewModel = actualViewModel,
                                 showChatHistorySelector = showChatHistorySelector,
                                 chatHistory = chatHistory,
-                                listState = listState,
                                 planItems = planItems,
                                 enableAiPlanning = enableAiPlanning,
                                 toolProgress = toolProgress,

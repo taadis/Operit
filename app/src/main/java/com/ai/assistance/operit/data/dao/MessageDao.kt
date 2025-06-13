@@ -9,8 +9,8 @@ import com.ai.assistance.operit.data.model.MessageEntity
 /** 消息DAO接口，定义对消息表的数据访问方法 */
 @Dao
 interface MessageDao {
-    /** 获取指定聊天的所有消息，按序号排序 */
-    @Query("SELECT * FROM messages WHERE chatId = :chatId ORDER BY orderIndex ASC")
+    /** 获取指定聊天的所有消息，按时间戳排序 */
+    @Query("SELECT * FROM messages WHERE chatId = :chatId ORDER BY timestamp ASC")
     suspend fun getMessagesForChat(chatId: String): List<MessageEntity>
 
     /** 插入单条消息并返回消息ID */
