@@ -85,7 +85,6 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     // API配置相关
     val apiKey: StateFlow<String> by lazy { apiConfigDelegate.apiKey }
     val isConfigured: StateFlow<Boolean> by lazy { apiConfigDelegate.isConfigured }
-    val showThinking: StateFlow<Boolean> by lazy { apiConfigDelegate.showThinking }
     val enableAiPlanning: StateFlow<Boolean> by lazy { apiConfigDelegate.enableAiPlanning }
     val memoryOptimization: StateFlow<Boolean> by lazy { apiConfigDelegate.memoryOptimization }
 
@@ -179,7 +178,6 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                         context = context,
                         viewModelScope = viewModelScope,
                         getEnhancedAiService = { enhancedAiService },
-                        getShowThinking = { apiConfigDelegate.showThinking.value },
                         getChatHistory = { chatHistoryDelegate.chatHistory.value },
                         getMemory = { includePlanInfo ->
                             chatHistoryDelegate.getMemory(includePlanInfo)
@@ -197,7 +195,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                                     tokenStatsDelegate.getCurrentTokenCounts()
                             chatHistoryDelegate.saveCurrentChat(inputTokens, outputTokens)
                         },
-                        showErrorMessage = { message -> uiStateDelegate.showErrorMessage(message) }
+                        showErrorMessage = { message -> uiStateDelegate.showErrorMessage(message) },
+                        updateChatTitle = { title -> chatHistoryDelegate.updateChatTitle(title) }
                 )
 
         // Finally initialize floating window delegate
@@ -283,7 +282,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                     ) {
                         try {
                             Log.d(TAG, "设置输入处理状态收集，尝试 ${retryCount + 1}/${maxRetries}")
-                            messageProcessingDelegate.setupInputProcessingStateCollection()
+                            
                             inputProcessingSetupComplete = true
                             Log.d(TAG, "输入处理状态收集设置成功")
                         } catch (e: Exception) {
@@ -356,10 +355,6 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     fun toggleAiPlanning() {
         apiConfigDelegate.toggleAiPlanning()
         uiStateDelegate.showToast(if (enableAiPlanning.value) "AI计划模式已开启" else "AI计划模式已关闭")
-    }
-    fun toggleShowThinking() {
-        apiConfigDelegate.toggleShowThinking()
-        uiStateDelegate.showToast(if (showThinking.value) "思考过程显示已开启" else "思考过程显示已关闭")
     }
     fun toggleMemoryOptimization() {
         apiConfigDelegate.toggleMemoryOptimization()

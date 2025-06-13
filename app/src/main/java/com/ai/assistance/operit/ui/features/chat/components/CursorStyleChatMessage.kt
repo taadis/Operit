@@ -37,14 +37,6 @@ fun CursorStyleChatMessage(
                     textColor = aiTextColor,
             )
         }
-        "think" -> {
-            ThinkingMessageComposable(
-                    message = message,
-                    backgroundColor = thinkingBackgroundColor,
-                    textColor = thinkingTextColor,
-                    initialExpanded = initialThinkingExpanded
-            )
-        }
         "system" -> {
             SystemMessageComposable(
                     message = message,

@@ -101,31 +101,26 @@ fun ChatArea(
                                 // 修改键生成逻辑，使其更稳定
                                 key = { (index, message) ->
                                         if (message.sender == "think") "$chatContentKey-think-$index"  // 对思考消息使用稳定的key
-                                        else "${message.timestamp}-${message.content.hashCode()}"      // 对其他消息保持原有逻辑
+                                        else message.timestamp      // 对其他消息保持原有逻辑
                                 }
                         ) { (index, message) ->
                                 // 使用key包装每个消息项，以便在特定消息变化时只重组该项
-                                key(
-                                    if (message.sender == "think") "$chatContentKey-think-$index"  // 对思考消息使用稳定的key
-                                    else "${message.timestamp}-${message.content.hashCode()}"      // 对其他消息保持原有逻辑
-                                ) {
-                                        MessageItem(
-                                                index = index,
-                                                message = message,
-                                                chatHistory = chatHistory,
-                                                activePlanCache = activePlanCache,
-                                                userMessageColor = userMessageColor,
-                                                aiMessageColor = aiMessageColor,
-                                                userTextColor = userTextColor,
-                                                aiTextColor = aiTextColor,
-                                                systemMessageColor = systemMessageColor,
-                                                systemTextColor = systemTextColor,
-                                                thinkingBackgroundColor = thinkingBackgroundColor,
-                                                thinkingTextColor = thinkingTextColor,
-                                                isEditMode = isEditMode,
-                                                onSelectMessageToEdit = onSelectMessageToEdit
-                                        )
-                                }
+                                MessageItem(
+                                        index = index,
+                                        message = message,
+                                        chatHistory = chatHistory,
+                                        activePlanCache = activePlanCache,
+                                        userMessageColor = userMessageColor,
+                                        aiMessageColor = aiMessageColor,
+                                        userTextColor = userTextColor,
+                                        aiTextColor = aiTextColor,
+                                        systemMessageColor = systemMessageColor,
+                                        systemTextColor = systemTextColor,
+                                        thinkingBackgroundColor = thinkingBackgroundColor,
+                                        thinkingTextColor = thinkingTextColor,
+                                        isEditMode = isEditMode,
+                                        onSelectMessageToEdit = onSelectMessageToEdit
+                                )
 
                                 Spacer(modifier = Modifier.height(8.dp))
                         }

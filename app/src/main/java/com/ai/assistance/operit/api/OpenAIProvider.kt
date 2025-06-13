@@ -232,126 +232,166 @@ class OpenAIProvider(
         // 重置token计数
         _inputTokenCount = 0
         _outputTokenCount = 0
+        
+        Log.d("AIService", "【发送消息】开始处理sendMessage请求，消息长度: ${message.length}，历史记录数量: ${chatHistory.size}")
 
         val maxRetries = 3
         var retryCount = 0
         var lastException: Exception? = null
 
+        Log.d("AIService", "【发送消息】标准化聊天历史记录，原始大小: ${chatHistory.size}")
         val standardizedHistory = ChatUtils.mapChatHistoryToStandardRoles(chatHistory)
+        Log.d("AIService", "【发送消息】历史记录标准化完成，标准化后大小: ${standardizedHistory.size}")
+        
+        Log.d("AIService", "【发送消息】准备构建请求体，模型参数数量: ${modelParameters.size}，已启用参数: ${modelParameters.count { it.isEnabled }}")
         val requestBody = createRequestBody(message, standardizedHistory, modelParameters)
         val request = createRequest(requestBody)
+        Log.d("AIService", "【发送消息】请求体构建完成，目标模型: $modelName，API端点: $apiEndpoint")
 
-        Log.d("AIService", "准备连接到AI服务...")
+        Log.d("AIService", "【发送消息】准备连接到AI服务...")
         while (retryCount < maxRetries) {
             try {
                 // 创建Call对象并保存到activeCall中，以便可以取消
                 val call = client.newCall(request)
                 activeCall = call
 
-                Log.d("AIService", "正在建立连接...")
-                call.execute().use { response ->
+                Log.d("AIService", "【发送消息】正在建立连接到服务器...")
+                
+                // 确保在IO线程执行网络请求
+                Log.d("AIService", "【发送消息】切换到IO线程执行网络请求")
+                val response = withContext(Dispatchers.IO) {
+                    call.execute()
+                }
+                
+                try {
                     if (!response.isSuccessful) {
                         val errorBody = response.body?.string() ?: "No error details"
+                        Log.e("AIService", "【发送消息】API请求失败，状态码: ${response.code}，错误信息: $errorBody")
                         throw IOException("API请求失败，状态码: ${response.code}，错误信息: $errorBody")
                     }
 
-                    Log.d("AIService", "连接成功，等待响应...")
+                    Log.d("AIService", "【发送消息】连接成功(状态码: ${response.code})，准备处理流式响应...")
                     val responseBody = response.body ?: throw IOException("API响应为空")
-                    val reader = responseBody.charStream().buffered()
-                    var currentContent = StringBuilder()
-                    var isFirstResponse = true
-                    var wasCancelled = false
+                    
+                    // 在IO线程中读取响应
+                    withContext(Dispatchers.IO) {
+                        Log.d("AIService", "【发送消息】开始读取流式响应")
+                        val reader = responseBody.charStream().buffered()
+                        var currentContent = StringBuilder()
+                        var isFirstResponse = true
+                        var wasCancelled = false
+                        var chunkCount = 0
+                        var lastLogTime = System.currentTimeMillis()
 
-                    try {
-                        reader.useLines { lines ->
-                            lines.forEach { line ->
-                                // 如果call已被取消，提前退出
-                                if (activeCall?.isCanceled() == true) {
-                                    Log.d("AIService", "流式传输已被取消，提前退出处理")
-                                    wasCancelled = true
-                                    return@forEach
-                                }
+                        try {
+                            reader.useLines { lines ->
+                                lines.forEach { line ->
+                                    // 如果call已被取消，提前退出
+                                    if (activeCall?.isCanceled() == true) {
+                                        Log.d("AIService", "【发送消息】流式传输已被取消，提前退出处理")
+                                        wasCancelled = true
+                                        return@forEach
+                                    }
 
-                                if (line.startsWith("data: ")) {
-                                    val data = line.substring(6).trim()
-                                    if (data != "[DONE]") {
-                                        try {
-                                            val jsonResponse = JSONObject(data)
-                                            val choices = jsonResponse.getJSONArray("choices")
-
-                                            if (choices.length() > 0) {
-                                                val choice = choices.getJSONObject(0)
-
-                                                var content = ""
-
-                                                // 处理delta格式（流式响应）
-                                                val delta = choice.optJSONObject("delta")
-                                                if (delta != null) {
-                                                    // 尝试获取常规内容
-                                                    content = delta.optString("content", "")
-                                                }
-                                                // 处理message格式（非流式响应）
-                                                else {
-                                                    val message = choice.optJSONObject("message")
-                                                    if (message != null) {
-                                                        content = message.optString("content", "")
-                                                    }
-                                                }
-
-                                                // 处理收到的内容
-                                                if (content.isNotEmpty() && content != "null") {
-                                                    // 当收到第一个有效内容时，标记不再是首次响应
-                                                    if (isFirstResponse) {
-                                                        isFirstResponse = false
-                                                    }
-
-                                                    // 更新内容
-                                                    currentContent.append(content)
-
-                                                    // 计算输出tokens
-                                                    _outputTokenCount += estimateTokenCount(content)
-
-                                                    // 发射内容
-                                                    emit(content)
-                                                }
+                                    if (line.startsWith("data: ")) {
+                                        val data = line.substring(6).trim()
+                                        if (data != "[DONE]") {
+                                            chunkCount++
+                                            // 每10个块或500ms记录一次日志
+                                            val currentTime = System.currentTimeMillis()
+                                            if (chunkCount % 10 == 0 || currentTime - lastLogTime > 500) {
+                                                Log.d("AIService", "【发送消息】已处理数据块: $chunkCount")
+                                                lastLogTime = currentTime
                                             }
-                                        } catch (e: Exception) {
-                                            // 忽略解析错误，继续处理下一行
-                                            Log.d("AIService", "JSON解析错误: ${e.message}")
+                                            
+                                            try {
+                                                val jsonResponse = JSONObject(data)
+                                                val choices = jsonResponse.getJSONArray("choices")
+
+                                                if (choices.length() > 0) {
+                                                    val choice = choices.getJSONObject(0)
+
+                                                    var content = ""
+
+                                                    // 处理delta格式（流式响应）
+                                                    val delta = choice.optJSONObject("delta")
+                                                    if (delta != null) {
+                                                        // 尝试获取常规内容
+                                                        content = delta.optString("content", "")
+                                                    }
+                                                    // 处理message格式（非流式响应）
+                                                    else {
+                                                        val message = choice.optJSONObject("message")
+                                                        if (message != null) {
+                                                            content = message.optString("content", "")
+                                                        }
+                                                    }
+
+                                                    // 处理收到的内容
+                                                    if (content.isNotEmpty() && content != "null") {
+                                                        // 当收到第一个有效内容时，标记不再是首次响应
+                                                        if (isFirstResponse) {
+                                                            isFirstResponse = false
+                                                            Log.d("AIService", "【发送消息】收到首个有效内容片段")
+                                                        }
+
+                                                        // 更新内容
+                                                        currentContent.append(content)
+
+                                                        // 计算输出tokens
+                                                        _outputTokenCount += estimateTokenCount(content)
+
+                                                        // 发射内容
+                                                        emit(content)
+                                                    }
+                                                }
+                                            } catch (e: Exception) {
+                                                // 忽略解析错误，继续处理下一行
+                                                Log.w("AIService", "【发送消息】JSON解析错误: ${e.message}")
+                                            }
+                                        } else {
+                                            Log.d("AIService", "【发送消息】收到流结束标记[DONE]")
                                         }
                                     }
                                 }
                             }
-                        }
-                    } catch (e: IOException) {
-                        // 捕获IO异常，可能是由于取消Call导致的
-                        if (activeCall?.isCanceled() == true) {
-                            Log.d("AIService", "流式传输已被取消，处理IO异常")
-                            wasCancelled = true
-                        } else {
-                            throw e
+                            Log.d("AIService", "【发送消息】响应流处理完成，总块数: $chunkCount，输出token: $_outputTokenCount")
+                        } catch (e: IOException) {
+                            // 捕获IO异常，可能是由于取消Call导致的
+                            if (activeCall?.isCanceled() == true) {
+                                Log.d("AIService", "【发送消息】流式传输已被取消，处理IO异常")
+                                wasCancelled = true
+                            } else {
+                                Log.e("AIService", "【发送消息】流式读取时发生IO异常", e)
+                                throw e
+                            }
                         }
                     }
 
                     // 清理活跃Call引用
                     activeCall = null
+                    Log.d("AIService", "【发送消息】响应处理完成，已清理活跃Call引用")
+                } finally {
+                    response.close()
+                    Log.d("AIService", "【发送消息】关闭响应连接")
                 }
 
                 // 成功处理后返回
+                Log.d("AIService", "【发送消息】请求成功完成，输入token: $_inputTokenCount，输出token: $_outputTokenCount")
                 return@stream
             } catch (e: SocketTimeoutException) {
                 lastException = e
                 retryCount++
-                Log.d("AIService", "连接超时，正在进行第 $retryCount 次重试...")
+                Log.w("AIService", "【发送消息】连接超时，正在进行第 $retryCount 次重试...", e)
                 emit("【连接超时，正在进行第 $retryCount 次重试...】")
                 // 指数退避重试
                 delay(1000L * retryCount)
             } catch (e: UnknownHostException) {
-                Log.d("AIService", "无法连接到服务器，请检查网络")
+                Log.e("AIService", "【发送消息】无法连接到服务器，请检查网络", e)
                 emit("【无法连接到服务器，请检查网络】")
                 throw IOException("无法连接到服务器，请检查网络连接或API地址是否正确")
             } catch (e: Exception) {
-                Log.d("AIService", "连接失败: ${e.message}")
+                Log.e("AIService", "【发送消息】连接失败", e)
                 emit("【连接失败: ${e.message}】")
                 throw IOException(
                         "AI响应获取失败: ${e.message} ${e.stackTrace.joinToString("\n")}"
@@ -360,7 +400,7 @@ class OpenAIProvider(
         }
 
         // 所有重试都失败
-        Log.d("AIService", "重试失败，请检查网络连接")
+        Log.e("AIService", "【发送消息】重试失败，请检查网络连接，最大重试次数: $maxRetries", lastException)
         emit("【重试失败，请检查网络连接】")
         throw IOException("连接超时，已重试 $maxRetries 次: ${lastException?.message}")
     }

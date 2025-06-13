@@ -252,170 +252,140 @@ fun StreamMarkdownDemoScreen(onBackClick: () -> Unit = {}) {
     // 设置总字符数
     LaunchedEffect(fullMarkdownContent) { totalChars = fullMarkdownContent.length }
 
-    // 模拟流式发送文本 (打字机效果)
-    LaunchedEffect(isStreaming, speedFactor, streamKey) {
-        if (isStreaming && processedChars < totalChars) {
+    // 启动流的协程
+    LaunchedEffect(isStreaming, streamKey) {
+        if (isStreaming) {
             hasStarted = true
-            var index = processedChars
-            val chars = fullMarkdownContent.toCharArray()
-
-            while (index < chars.size && isStreaming) {
-                try {
-                    val char = chars[index]
-                    channel.send(char) // 发送到通道
-                    processedChars = index + 1
-                    Log.v(
-                            TAG,
-                            "发送字符: '${char}' (ASCII: ${char.code}), 进度: $processedChars/$totalChars"
-                    )
-
-                    // 根据字符类型调整延迟时间，模拟真实打字效果
-                    val baseDelay = (50 / speedFactor).toLong()
-                    val charDelay =
-                            when {
-                                char == '\n' -> baseDelay * 3
-                                char in " .,!?;:\"'" -> baseDelay * 2
-                                else -> baseDelay
-                            }
-
-                    delay(charDelay)
-                    index++
-
-                    // 自动滚动到底部
-                    if (autoScroll) {
-                        scrollState.scrollTo(scrollState.maxValue)
-                    }
-                } catch (e: CancellationException) {
-                    Log.w(TAG, "打字机协程被取消")
-                    throw e // 必须重新抛出CancellationException
-                } catch (e: Exception) {
-                    Log.e(TAG, "发送字符时出错: ${e.message}")
-                    break // 在其他异常时退出循环
+            processedChars = 0
+            totalChars = fullMarkdownContent.length
+            try {
+                for (char in fullMarkdownContent) {
+                    if (!isStreaming) break // 检查暂停状态
+                    channel.send(char)
+                    processedChars++
+                    val delayMillis = (10 / speedFactor).toLong()
+                    delay(delayMillis)
                 }
-            }
-
-            // 流式传输完成
-            if (processedChars >= totalChars) {
+            } catch (e: CancellationException) {
+                Log.d(TAG, "流传输被取消")
+            } catch (e: Exception) {
+                Log.e(TAG, "流传输异常", e)
+            } finally {
+                if (!channel.isClosedForSend) {
+                    Log.d(TAG, "流传输完成，关闭Channel")
+                    channel.close()
+                }
                 isStreaming = false
-                channel.close()
             }
         }
     }
 
-    Scaffold() { paddingValues ->
-        Column(modifier = Modifier.fillMaxSize().padding(paddingValues).padding(16.dp)) {
+    Scaffold(
+            topBar = {
+                // ... TopAppBar can be added here if needed
+            }
+    ) { padding ->
+        Column(
+                modifier =
+                Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(scrollState)
+        ) {
             // 控制面板
+            ControlPanel(
+                    isStreaming = isStreaming,
+                    hasStarted = hasStarted,
+                    onStreamToggle = { isStreaming = !isStreaming },
+                    onReset = {
+                        isStreaming = false
+                        hasStarted = false
+                        streamKey++ // 改变key以重置流
+                    },
+                    speedFactor = speedFactor,
+                    onSpeedChange = { speedFactor = it }
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 流式渲染区域
             Card(
                     modifier = Modifier.fillMaxWidth(),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                            text = "控制面板",
+                            text = "流式渲染 (Streaming)",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                     )
-
                     Spacer(modifier = Modifier.height(8.dp))
-
-                    // 播放控制
-                    Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Button(onClick = { isStreaming = !isStreaming }) {
-                            Icon(
-                                    if (isStreaming) Icons.Default.Pause
-                                    else Icons.Default.PlayArrow,
-                                    contentDescription = if (isStreaming) "暂停" else "开始"
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(if (isStreaming) "暂停" else if (hasStarted) "继续" else "开始")
-                        }
-
-                        Spacer(modifier = Modifier.width(16.dp))
-
-                        Button(
-                                onClick = {
-                                    isStreaming = false
-                                    processedChars = 0
-                                    hasStarted = false
-                                    streamKey++ // 强制重建流
-                                },
-                                enabled = hasStarted
-                        ) {
-                            Icon(Icons.Default.Refresh, contentDescription = "重置")
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("重置")
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // 速度控制
-                    Text(
-                            "速度: ${String.format("%.1f", speedFactor)}x",
-                            style = MaterialTheme.typography.bodyMedium
-                    )
-                    Slider(
-                            value = speedFactor,
-                            onValueChange = { speedFactor = it },
-                            valueRange = 0.1f..20f,
-                            steps = 48
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // 自动滚动开关
-                    Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                                "自动滚动",
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.weight(1f)
-                        )
-                        Switch(checked = autoScroll, onCheckedChange = { autoScroll = it })
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // 进度指示器
-                    Text(
-                            "进度: ${processedChars}/${totalChars} 字符 (${(processedChars.toFloat() / totalChars.toFloat() * 100).toInt()}%)",
-                            style = MaterialTheme.typography.bodyMedium
+                    StreamMarkdownRenderer(
+                            markdownStream = markdownStream,
+                            textColor = MaterialTheme.colorScheme.onSurface,
+                            onLinkClick = linkClickHandler,
+                            xmlRenderer = customXmlRenderer
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // 状态指示器
-            Text(
-                    text =
-                            "状态: ${if (isStreaming) "流式传输中 (${String.format("%.1f", speedFactor)}x速度)" else if (processedChars >= totalChars) "传输完成" else if (hasStarted) "已暂停" else "准备就绪"}",
-                    color =
-                            when {
-                                isStreaming -> MaterialTheme.colorScheme.primary
-                                processedChars >= totalChars -> Color(0xFF388E3C) // Green
-                                else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            },
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 14.sp
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // 主内容
-            Box(modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(scrollState)) {
-                StreamMarkdownRenderer(
-                        markdownStream = markdownStream,
-                        modifier = Modifier.fillMaxWidth(),
-                        xmlRenderer = customXmlRenderer,
-                        onLinkClick = linkClickHandler
-                )
+            // 新增：静态渲染区域
+            Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                            text = "静态渲染 (Static String)",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    // 使用新的基于字符串的渲染器
+                    StreamMarkdownRenderer(
+                            content = fullMarkdownContent,
+                            textColor = MaterialTheme.colorScheme.onSurface,
+                            onLinkClick = linkClickHandler,
+                            xmlRenderer = customXmlRenderer
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun ControlPanel(
+    isStreaming: Boolean,
+    hasStarted: Boolean,
+    onStreamToggle: () -> Unit,
+    onReset: () -> Unit,
+    speedFactor: Float,
+    onSpeedChange: (Float) -> Unit
+) {
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Button(onClick = onStreamToggle) {
+                Icon(
+                        if (isStreaming) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = if (isStreaming) "Pause" else "Play"
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(if (isStreaming) "暂停" else if (hasStarted) "继续" else "开始")
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Button(onClick = onReset) {
+                Icon(Icons.Default.Refresh, contentDescription = "Reset")
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("重置")
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text("速度 (x${String.format("%.1f", speedFactor)})", fontSize = 14.sp)
+        Slider(
+                value = speedFactor,
+                onValueChange = onSpeedChange,
+                valueRange = 0.5f..10f,
+                steps = 18
+        )
     }
 }

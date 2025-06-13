@@ -32,9 +32,6 @@ class ApiConfigDelegate(
     private val _isConfigured = MutableStateFlow(true) // 默认已配置
     val isConfigured: StateFlow<Boolean> = _isConfigured.asStateFlow()
 
-    private val _showThinking = MutableStateFlow(ApiPreferences.DEFAULT_SHOW_THINKING)
-    val showThinking: StateFlow<Boolean> = _showThinking.asStateFlow()
-
     private val _enableAiPlanning = MutableStateFlow(ApiPreferences.DEFAULT_ENABLE_AI_PLANNING)
     val enableAiPlanning: StateFlow<Boolean> = _enableAiPlanning.asStateFlow()
 
@@ -70,13 +67,6 @@ class ApiConfigDelegate(
     }
 
     private fun initializeSettingsCollection() {
-        // Collect show thinking preference
-        viewModelScope.launch {
-            apiPreferences.showThinkingFlow.collect { showThinkingValue ->
-                _showThinking.value = showThinkingValue
-            }
-        }
-
         // Collect AI planning setting
         viewModelScope.launch {
             apiPreferences.enableAiPlanningFlow.collect { enableAiPlanningValue ->
@@ -149,15 +139,6 @@ class ApiConfigDelegate(
             val newValue = !_enableAiPlanning.value
             apiPreferences.saveEnableAiPlanning(newValue)
             _enableAiPlanning.value = newValue
-        }
-    }
-
-    /** 切换显示思考过程 */
-    fun toggleShowThinking() {
-        viewModelScope.launch {
-            val newValue = !_showThinking.value
-            apiPreferences.saveShowThinking(newValue)
-            _showThinking.value = newValue
         }
     }
 

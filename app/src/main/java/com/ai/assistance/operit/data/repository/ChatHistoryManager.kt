@@ -231,6 +231,27 @@ class ChatHistoryManager private constructor(private val context: Context) {
         }
     }
 
+    // 更新聊天标题
+    suspend fun updateChatTitle(chatId: String, title: String) {
+        mutex.withLock {
+            try {
+                val chat = chatDao.getChatById(chatId)
+                if (chat != null) {
+                    chatDao.updateChatMetadata(
+                            chatId = chatId,
+                            title = title,
+                            timestamp = System.currentTimeMillis(),
+                            inputTokens = chat.inputTokens,
+                            outputTokens = chat.outputTokens
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to update chat title for chat $chatId", e)
+                throw e
+            }
+        }
+    }
+
     // 更新聊天的token计数
     suspend fun updateChatTokenCounts(chatId: String, inputTokens: Int, outputTokens: Int) {
         mutex.withLock {
@@ -313,29 +334,6 @@ class ChatHistoryManager private constructor(private val context: Context) {
             } catch (e: Exception) {
                 Log.e(TAG, "加载聊天消息失败", e)
                 emptyList()
-            }
-        }
-    }
-
-    // 更新聊天标题
-    suspend fun updateChatTitle(chatId: String, title: String) {
-        mutex.withLock {
-            try {
-                val chat = chatDao.getChatById(chatId)
-                if (chat != null) {
-                    Log.d(TAG, "更新聊天[$chatId]的标题为: $title")
-                    chatDao.updateChatMetadata(
-                            chatId = chatId,
-                            title = title,
-                            timestamp = System.currentTimeMillis(),
-                            inputTokens = chat.inputTokens,
-                            outputTokens = chat.outputTokens
-                    )
-                } else {
-                    Log.e(TAG, "更新标题失败: 未找到聊天[$chatId]")
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "更新聊天标题失败", e)
             }
         }
     }

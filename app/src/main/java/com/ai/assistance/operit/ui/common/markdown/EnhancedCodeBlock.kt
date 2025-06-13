@@ -3,7 +3,9 @@ package com.ai.assistance.operit.ui.common.markdown
 import android.util.Log
 import android.webkit.WebView
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
@@ -19,6 +21,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -169,32 +172,39 @@ fun EnhancedCodeBlock(code: String, language: String = "", modifier: Modifier = 
                     }
                 }
 
-                // 代码内容
-                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp, top = 8.dp)) {
-                    // 使用key为每行建立记忆
-                    // Compose会高效地只更新变化的行
-                    codeLines.forEachIndexed { index, line ->
-                        val lineHash = line.hashCode()
-                        val lineKey = "$index:$lineHash"
-                        
-                        key(lineKey) {
-                                // 删除渲染代码行的日志，减少噪音
-                            if (index > 0) {
-                                Spacer(modifier = Modifier.height(4.dp))
-                            }
+                // 代码内容 - 添加水平滚动
+                Box(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .horizontalScroll(rememberScrollState())
+                            .padding(end = 8.dp, top = 8.dp)
+                    ) {
+                        // 使用key为每行建立记忆
+                        // Compose会高效地只更新变化的行
+                        codeLines.forEachIndexed { index, line ->
+                            val lineHash = line.hashCode()
+                            val lineKey = "$index:$lineHash"
                             
-                            // 渲染单行代码，利用行缓存机制
-                            CachedCodeLine(
-                                line = line, 
-                                language = language, 
-                                index = index,
-                                lineCache = lineCache
-                            )
+                            key(lineKey) {
+                                // 删除渲染代码行的日志，减少噪音
+                                if (index > 0) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                }
+                                
+                                // 渲染单行代码，利用行缓存机制
+                                CachedCodeLine(
+                                    line = line, 
+                                    language = language, 
+                                    index = index,
+                                    lineCache = lineCache
+                                )
                             }
                         }
                     }
-                        }
-                    }
+                }
+            }
                     
                     // 显示复制成功提示
                     if (showCopiedToast) {
@@ -214,6 +224,7 @@ fun EnhancedCodeBlock(code: String, language: String = "", modifier: Modifier = 
                 }
             }
         }
+    }
 
 /** Mermaid图表渲染组件 */
 @Composable
@@ -517,7 +528,10 @@ private fun CachedCodeLine(
         fontFamily = FontFamily.Monospace,
         fontSize = 12.sp,
         lineHeight = 16.sp,
-        color = Color.White
+        color = Color.White,
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Visible
     )
 }
 

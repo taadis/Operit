@@ -18,15 +18,6 @@ class ConversationMarkupManager {
         private const val TAG = "ConversationMarkupManager"
         
         /**
-         * Creates a 'thinking' status markup element.
-         * 
-         * @return The formatted status element
-         */
-        fun createThinkingStatus(): String {
-            return "<status type=\"thinking\"></status>"
-        }
-        
-        /**
          * Creates a 'complete' status markup element.
          * 
          * @return The formatted status element
@@ -46,28 +37,6 @@ class ConversationMarkupManager {
         }
         
         /**
-         * Creates an 'executing' status markup element for a tool.
-         * 
-         * @param toolName The name of the tool being executed
-         * @return The formatted status element
-         */
-        fun createExecutingToolStatus(toolName: String): String {
-            return "<status type=\"executing\" tool=\"$toolName\"></status>"
-        }
-        
-        /**
-         * Creates a 'result' status markup element for a tool.
-         * 
-         * @param toolName The name of the tool that produced the result
-         * @param success Whether the tool execution was successful
-         * @param resultText The result content
-         * @return The formatted status element
-         */
-        fun createToolResultStatus(toolName: String, success: Boolean, resultText: String): String {
-            return "<status type=\"result\" tool=\"$toolName\" success=\"$success\">$resultText</status>"
-        }
-        
-        /**
          * Creates an 'error' status markup element for a tool.
          * 
          * @param toolName The name of the tool that produced the error
@@ -75,7 +44,13 @@ class ConversationMarkupManager {
          * @return The formatted status element
          */
         fun createToolErrorStatus(toolName: String, errorMessage: String): String {
-            return "<status type=\"error\" tool=\"$toolName\">$errorMessage</status>"
+            return """
+            <tool_result name="${toolName}" status="error">
+            <content>
+            <error>${errorMessage}</error>
+            </content>
+            </tool_result>
+            """.trimIndent()
         }
         
         /**
@@ -158,16 +133,6 @@ class ConversationMarkupManager {
             return content
                 .replace("<status type=\"wait_for_user_need\"></status>", "")
                 .trim() + "\n" + createWaitForUserNeedStatus()
-        }
-        
-        /**
-         * Creates a thinking status appended to existing content.
-         * 
-         * @param currentContent The current conversation content
-         * @return The content with thinking status appended
-         */
-        fun appendThinkingStatus(currentContent: String): String {
-            return "$currentContent\n" + createThinkingStatus()
         }
         
         /**

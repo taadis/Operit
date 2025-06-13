@@ -4,39 +4,37 @@ import android.content.Context
 import android.util.Log
 import androidx.lifecycle.viewModelScope
 import com.ai.assistance.operit.api.EnhancedAIService
-import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatMessage
-import com.ai.assistance.operit.data.model.InputProcessingState
-import com.ai.assistance.operit.data.model.ToolExecutionState
 import com.ai.assistance.operit.util.NetworkUtils
+import com.ai.assistance.operit.util.stream.share
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** 委托类，负责处理消息处理相关功能 */
 class MessageProcessingDelegate(
         private val context: Context,
         private val viewModelScope: CoroutineScope,
         private val getEnhancedAiService: () -> EnhancedAIService?,
-        private val getShowThinking: () -> Boolean,
         private val getChatHistory: () -> List<ChatMessage>,
         private val getMemory: (Boolean) -> List<Pair<String, String>>,
         private val addMessageToChat: (ChatMessage) -> Unit,
         private val updateChatStatistics: () -> Unit,
         private val saveCurrentChat: () -> Unit,
-        private val showErrorMessage: (String) -> Unit
+        private val showErrorMessage: (String) -> Unit,
+        private val updateChatTitle: (String) -> Unit
 ) {
     companion object {
         private const val TAG = "MessageProcessingDelegate"
-        private const val UI_UPDATE_INTERVAL = 500L // 0.5 seconds in milliseconds
     }
 
-    // State flows
     private val _userMessage = MutableStateFlow("")
     val userMessage: StateFlow<String> = _userMessage.asStateFlow()
 
@@ -49,365 +47,183 @@ class MessageProcessingDelegate(
     private val _inputProcessingMessage = MutableStateFlow("")
     val inputProcessingMessage: StateFlow<String> = _inputProcessingMessage.asStateFlow()
 
-    // 用于批处理UI更新的变量
-    private var batchedAiContent: String = ""
-    private var lastAiUpdateTime: Long = 0
-    private var updateJob: Job? = null
-
-    // 上一条AI消息的引用，用于直接修改而不是创建新对象
-    private var lastAiMessage: ChatMessage? = null
-
-    /** 更新用户消息 */
     fun updateUserMessage(message: String) {
         _userMessage.value = message
     }
 
-    /** 向AI发送用户消息(无附件版本) 为了保持向后兼容性 */
     fun sendUserMessage(chatId: String? = null) {
         sendUserMessage(emptyList(), chatId)
     }
 
-    /**
-     * 向AI发送用户消息(带附件版本)
-     * @param attachments 要发送的附件列表
-     * @param chatId 当前聊天ID，用于Web工作区
-     */
     fun sendUserMessage(attachments: List<AttachmentInfo> = emptyList(), chatId: String? = null) {
-        if (_userMessage.value.isBlank() && attachments.isEmpty()) {
-            return
-        }
+        if (_userMessage.value.isBlank() && attachments.isEmpty()) return
+        if (_isLoading.value) return
 
-        if (_isLoading.value) {
-            return
-        }
-
-        // 获取消息文本
         val messageText = _userMessage.value.trim()
-
-        // 清空输入并设置加载状态
         _userMessage.value = ""
         _isLoading.value = true
-
-        // 确保输入处理状态可见 - 修复进度条不显示问题
         _isProcessingInput.value = true
         _inputProcessingMessage.value = "正在处理消息..."
 
-        // 如果有附件，将其添加到消息中
-        val finalMessage =
-                if (attachments.isNotEmpty()) {
-                    val attachmentTexts =
-                            attachments.joinToString(" ") { attachment ->
-                                val attachmentRef = StringBuilder("<attachment ")
-                                attachmentRef.append("id=\"${attachment.filePath}\" ")
-                                attachmentRef.append("filename=\"${attachment.fileName}\" ")
-                                attachmentRef.append("type=\"${attachment.mimeType}\" ")
+        // 检查这是否是聊天中的第一条用户消息
+        val isFirstMessage = getChatHistory().none { it.sender == "user" || it.sender == "ai" }
+        if (isFirstMessage) {
+            val newTitle = when {
+                messageText.isNotBlank() -> messageText
+                attachments.isNotEmpty() -> attachments.first().fileName
+                else -> "新对话"
+            }
+            updateChatTitle(newTitle)
+        }
 
-                                // 添加大小属性
-                                if (attachment.fileSize > 0) {
-                                    attachmentRef.append("size=\"${attachment.fileSize}\" ")
-                                }
+        Log.d(
+                TAG,
+                "【消息处理】开始处理用户消息：文本长度=${messageText.length}，附件数量=${attachments.size}，聊天ID=${chatId ?: "无"}"
+        )
 
-                                // 添加内容属性（如果存在）
-                                if (attachment.content.isNotEmpty()) {
-                                    attachmentRef.append("content=\"${attachment.content}\" ")
-                                }
-
-                                attachmentRef.append("/>")
-                                attachmentRef.toString()
-                            }
-
-                    // 根据用户消息是否为空，决定如何组合最终消息
-                    if (messageText.isBlank()) {
-                        // 如果用户没有输入消息，直接使用附件引用
-                        attachmentTexts
-                    } else {
-                        // 否则，将用户消息和附件引用组合在一起
-                        "$messageText $attachmentTexts"
-                    }
-                } else {
-                    messageText
-                }
-
-        // 添加用户消息到聊天历史
+        val finalMessage = buildFinalMessage(messageText, attachments)
+        Log.d(TAG, "【消息处理】构建最终消息完成, 长度=${finalMessage.length}, 添加到聊天界面")
         addMessageToChat(ChatMessage(sender = "user", content = finalMessage))
 
-        // 使用viewModelScope启动协程
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             try {
-                // 检查网络连接
+                Log.d(TAG, "【消息处理】检查网络连接状态")
                 if (!NetworkUtils.isNetworkAvailable(context)) {
-                    showErrorMessage("网络连接不可用，请检查网络设置")
-                    _isLoading.value = false
+                    Log.e(TAG, "【消息处理】网络连接不可用，中止处理")
+                    withContext(Dispatchers.Main) { showErrorMessage("网络连接不可用") }
                     return@launch
                 }
+                Log.d(TAG, "【消息处理】网络连接正常，继续处理")
 
-                // 获取聊天历史记录
-                val history = getMemory(true)
-
-                // 获取AI服务
+                Log.d(TAG, "【消息处理】获取增强AI服务实例")
                 val service =
                         getEnhancedAiService()
                                 ?: run {
-                                    showErrorMessage("AI服务未初始化")
-                                    _isLoading.value = false
+                                    Log.e(TAG, "【消息处理】AI服务未初始化，中止处理")
+                                    withContext(Dispatchers.Main) { showErrorMessage("AI服务未初始化") }
                                     return@launch
                                 }
+                Log.d(TAG, "【消息处理】成功获取AI服务实例")
 
-                // 发送消息到AI服务
-                service.sendMessage(
-                        message = finalMessage,
-                        onPartialResponse = { content, thinking ->
-                            handlePartialResponse(content, thinking)
-                        },
-                        chatHistory = history,
-                        onComplete = { handleResponseComplete() },
-                        chatId = chatId // 传递chatId参数
-                )
-            } catch (e: Exception) {
-                Log.e(TAG, "发送消息时出错", e)
-                showErrorMessage("发送消息失败: ${e.message}")
-                _isLoading.value = false
-            }
-        }
-    }
-    var lastThinking: String? = null
+                Log.d(TAG, "【消息处理】准备获取聊天历史记录")
+                val history = getMemory(true)
+                Log.d(TAG, "【消息处理】已获取聊天历史记录，条目数: ${history.size}")
 
-    /** 处理AI部分响应 */
-    private fun handlePartialResponse(content: String, thinking: String?) {
-        try {
-            // 如果不再加载状态，跳过响应处理
-            if (!_isLoading.value) {
-                Log.d(TAG, "已取消加载，跳过响应处理")
-                return
-            }
+                Log.d(TAG, "【消息处理】开始调用AI服务的sendMessage方法")
+                val startTime = System.currentTimeMillis()
 
-            if (thinking != null && getShowThinking() && thinking != lastThinking) {
-                lastThinking = thinking
-                // 更新或添加思考消息
-                val chatHistory = getChatHistory()
-                val lastUserIndex = chatHistory.indexOfLast { it.sender == "user" }
-                val thinkIndex = chatHistory.indexOfLast { it.sender == "think" }
+                val deferred = CompletableDeferred<Unit>()
+                val responseStream = service.sendMessage(finalMessage, history, chatId)
 
-                if (thinkIndex >= 0 && thinkIndex > lastUserIndex) {
-                    // 已有思考消息，更新它
-                    val updatedThinkMessage = ChatMessage("think", thinking)
-                    addMessageToChat(updatedThinkMessage)
-                } else {
-                    // 添加新的思考消息
-                    addMessageToChat(ChatMessage("think", thinking))
-                }
-            }
+                Log.d(TAG, "【消息处理】已获得响应流，准备处理")
 
-            // 处理AI响应内容（现在content是完整内容而非增量内容）
-            if (content.isNotEmpty()) {
-                // 输出消息日志
-                Log.d(TAG, "收到消息: 长度=${content.length}")
-
-                // 获取当前时间
-                val currentTime = System.currentTimeMillis()
-
-                // 如果没有活跃的更新任务或者距离上次更新已经超过了间隔时间，则创建新的更新任务
-                if (updateJob == null || currentTime - lastAiUpdateTime >= UI_UPDATE_INTERVAL) {
-                    // 取消现有的更新任务（如果有）
-                    updateJob?.cancel()
-
-                    // 创建新的更新任务
-                    updateJob =
-                            viewModelScope.launch {
-                                // 更新最后更新时间
-                                lastAiUpdateTime = System.currentTimeMillis()
-
-                                // 处理新内容(非增量)
-                                appendAiContent(content)
-
-                                // 等待下一个更新间隔
-                                delay(UI_UPDATE_INTERVAL)
-
-                                // 任务完成
-                                updateJob = null
-                            }
-                } else {
-                    // 保存最新内容到批处理缓冲区(非增量模式下直接替换而不是追加)
-                    batchedAiContent = content // 直接替换为最新内容
-                    Log.d(TAG, "批处理缓冲区更新: 内容长度=${batchedAiContent.length}")
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "处理AI响应时发生未处理错误", e)
-            showErrorMessage("处理AI响应时发生错误: ${e.message}")
-        }
-    }
-
-    /** 追加AI内容到消息 */
-    private fun appendAiContent(newContent: String) {
-        // 如果没有内容，直接返回
-        if (newContent.isEmpty()) return
-
-        // 获取当前聊天历史
-        val chatHistory = getChatHistory()
-        val lastUserIndex = chatHistory.indexOfLast { it.sender == "user" }
-
-        val contentToUse =
-                if (batchedAiContent.isNotEmpty()) {
-                    batchedAiContent = ""
-                    newContent
-                } else {
-                    newContent
-                }
-
-        if (lastAiMessage != null) {
-            val newMessage =
-                    ChatMessage(
-                            sender = "ai",
-                            content = contentToUse,
-                            timestamp = lastAiMessage?.timestamp ?: System.currentTimeMillis()
-                    )
-            lastAiMessage = newMessage
-            addMessageToChat(newMessage)
-        } else {
-            val lastAiIndex = chatHistory.indexOfLast { it.sender == "ai" }
-            if (lastAiIndex > lastUserIndex && lastAiIndex >= 0) {
-                val existingMessage = chatHistory[lastAiIndex]
-                val newMessage =
-                        ChatMessage(
-                                sender = "ai",
-                                content = contentToUse,
-                                timestamp = existingMessage.timestamp
+                // 将字符串流共享，以便多个收集器可以使用
+                Log.d(TAG, "【消息处理】创建共享流，并设置完成回调")
+                val sharedCharStream =
+                        responseStream.share(
+                                scope = viewModelScope,
+                                onComplete = {
+                                    deferred.complete(Unit)
+                                    Log.d(TAG, "【消息处理】共享流 onComplete 回调被触发")
+                                }
                         )
-                lastAiMessage = newMessage
-                addMessageToChat(newMessage)
-            } else {
-                val newMessage = ChatMessage("ai", contentToUse)
-                lastAiMessage = newMessage
-                addMessageToChat(newMessage)
+
+                val aiMessage = ChatMessage(sender = "ai", contentStream = sharedCharStream)
+                Log.d(TAG, "【消息处理】创建AI消息对象 (timestamp: ${aiMessage.timestamp})，准备添加到UI")
+
+                withContext(Dispatchers.Main) {
+                    Log.d(TAG, "【消息处理】添加初始AI消息到聊天界面")
+                    addMessageToChat(aiMessage)
+                }
+
+                // 启动一个独立的协程来收集流内容并持续更新数据库
+                viewModelScope.launch(Dispatchers.IO) {
+                    Log.d(TAG, "【消息处理-持久化】启动流式保存协程 (timestamp: ${aiMessage.timestamp})")
+                    val contentBuilder = StringBuilder()
+                    sharedCharStream.collect { chunk ->
+                        contentBuilder.append(chunk)
+                        // 创建一个更新后的消息对象，包含目前为止的所有内容
+                        // 我们传递一个新的contentStream，但它不会被使用，因为UI已经持有了原始的流
+                        val updatedMessage = aiMessage.copy(content = contentBuilder.toString())
+                        // 调用addMessageToChat来更新UI和数据库
+                        addMessageToChat(updatedMessage)
+                    }
+                    Log.d(TAG, "【消息处理-持久化】流式保存协程收集完成 (timestamp: ${aiMessage.timestamp})")
+                }
+
+                // 等待流完成，以便finally块可以正确执行来更新UI状态
+                Log.d(TAG, "【消息处理】等待AI响应流处理完成...")
+                deferred.await()
+
+                Log.d(TAG, "【消息处理】AI响应流处理完成")
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) {
+                    Log.d(TAG, "【消息处理】消息发送被取消")
+                    throw e
+                }
+                Log.e(TAG, "【消息处理】发送消息时出错", e)
+                withContext(Dispatchers.Main) { showErrorMessage("发送消息失败: ${e.message}") }
+            } finally {
+                // 添加一个短暂的延迟，以确保UI有足够的时间来渲染最后一个数据块
+                // 这有助于解决因竞态条件导致的UI内容（如状态标签）有时无法显示的问题
+                withContext(Dispatchers.IO) {
+                    delay(100)
+                }
+                withContext(Dispatchers.Main) {
+                    Log.d(TAG, "【消息处理】重置处理状态标志")
+                    _isLoading.value = false
+                    _isProcessingInput.value = false
+
+                    // 即使流处理完成，也需要保存一次聊天记录
+                    Log.d(TAG, "【消息处理】更新聊天统计信息并保存当前聊天")
+                    updateChatStatistics()
+                    saveCurrentChat()
+                }
             }
         }
     }
 
-    /** 处理AI响应完成 */
-    private fun handleResponseComplete() {
-        // 取消任何待处理的更新任务
-        updateJob?.cancel()
-        updateJob = null
+    private fun buildFinalMessage(messageText: String, attachments: List<AttachmentInfo>): String {
+        if (attachments.isEmpty()) return messageText
 
-        try {
-            // 确保最终内容被更新到UI
-            if (batchedAiContent.isNotBlank()) {
-                appendAiContent(batchedAiContent)
-                batchedAiContent = "" // 清空批处理缓冲区
-            }
-
-            // 重置变量前，先更新聊天统计和保存
-            _isLoading.value = false
-
-            // 更新统计数据并保存
-            updateChatStatistics()
-            saveCurrentChat() // 恢复保存，因为我们现在不会重复创建消息
-        } catch (e: Exception) {
-            Log.e(TAG, "处理响应完成时发生错误", e)
-        } finally {
-            // 无论如何都要重置状态变量
-            lastAiUpdateTime = 0
-            lastAiMessage = null // 重置消息引用
-        }
+        Log.d(TAG, "【消息处理】构建带附件的消息，文本长度=${messageText.length}，附件数量=${attachments.size}")
+        val attachmentTexts =
+                attachments.joinToString(" ") { attachment ->
+                    Log.d(
+                            TAG,
+                            "【消息处理】处理附件: ${attachment.fileName}, 类型: ${attachment.mimeType}, 大小: ${attachment.fileSize}"
+                    )
+                    "<attachment " +
+                            "id=\"${attachment.filePath}\" " +
+                            "filename=\"${attachment.fileName}\" " +
+                            "type=\"${attachment.mimeType}\" " +
+                            (if (attachment.fileSize > 0) "size=\"${attachment.fileSize}\" "
+                            else "") +
+                            (if (attachment.content.isNotEmpty())
+                                    "content=\"${attachment.content}\" "
+                            else "") +
+                            "/>"
+                }
+        val result = if (messageText.isBlank()) attachmentTexts else "$messageText $attachmentTexts"
+        Log.d(TAG, "【消息处理】最终消息构建完成，总长度=${result.length}")
+        return result
     }
 
-    /** 取消当前对话 */
     fun cancelCurrentMessage() {
         viewModelScope.launch {
-            // 取消任何待处理的更新任务
-            updateJob?.cancel()
-            updateJob = null
-
-            // 重置批处理变量
-            batchedAiContent = ""
-            lastAiUpdateTime = 0
-            lastAiMessage = null // 重置消息引用
-
-            // 首先设置标志，避免其他操作继续处理
             _isLoading.value = false
             _isProcessingInput.value = false
             _inputProcessingMessage.value = ""
 
-            // 取消当前的AI响应
-            try {
+            withContext(Dispatchers.IO) {
                 getEnhancedAiService()?.cancelConversation()
-                Log.d(TAG, "成功取消AI对话")
-            } catch (e: Exception) {
-                Log.e(TAG, "取消对话时发生错误", e)
-                showErrorMessage("取消对话时发生错误: ${e.message}")
-            }
-
-            // 保存当前对话
-            saveCurrentChat()
-
-            Log.d(TAG, "取消流程完成")
-        }
-    }
-
-    /** 收集输入处理状态 */
-    fun setupInputProcessingStateCollection() {
-        viewModelScope.launch {
-            getEnhancedAiService()?.inputProcessingState?.collect { state ->
-                when (state) {
-                    InputProcessingState.Idle -> {
-                        _isProcessingInput.value = false
-                        _inputProcessingMessage.value = ""
-                    }
-                    is InputProcessingState.Processing -> {
-                        _isProcessingInput.value = true
-                        _inputProcessingMessage.value = state.message
-                    }
-                    is InputProcessingState.Connecting -> {
-                        _isProcessingInput.value = true
-                        _inputProcessingMessage.value = state.message
-                    }
-                    is InputProcessingState.Receiving -> {
-                        _isProcessingInput.value = true
-                        _inputProcessingMessage.value = state.message
-                    }
-                    InputProcessingState.Completed -> {
-                        _isProcessingInput.value = false
-                    }
-                    is InputProcessingState.Error -> {
-                        _isProcessingInput.value = false
-                        _inputProcessingMessage.value = "错误: ${state.message}"
-
-                        // 关键修复: 将服务层错误传递到错误弹窗
-                        showErrorMessage(state.message)
-                    }
-                }
+                saveCurrentChat()
             }
         }
     }
 
-    /** 手动设置输入处理状态 用于在附件处理等操作过程中显示进度条 */
-    fun setInputProcessingState(isProcessing: Boolean, message: String = "") {
+    fun setInputProcessingState(isProcessing: Boolean, message: String) {
         _isProcessingInput.value = isProcessing
         _inputProcessingMessage.value = message
-    }
-
-    /** 设置输入处理状态（新版本） 接受ToolExecutionState和AITool类型的参数，用于与工具执行状态集成 */
-    fun setInputProcessingState(state: ToolExecutionState, tool: AITool? = null) {
-        when (state) {
-            ToolExecutionState.IDLE -> {
-                _isProcessingInput.value = false
-                _inputProcessingMessage.value = ""
-            }
-            ToolExecutionState.COMPLETED -> {
-                _isProcessingInput.value = false
-                _inputProcessingMessage.value = "已完成"
-            }
-            else -> {
-                _isProcessingInput.value = true
-                _inputProcessingMessage.value =
-                        when (state) {
-                            ToolExecutionState.EXTRACTING -> "正在解析工具..."
-                            ToolExecutionState.EXECUTING -> "正在执行工具: ${tool?.name ?: ""}"
-                            ToolExecutionState.FAILED -> "工具执行失败"
-                            else -> "处理中..."
-                        }
-            }
-        }
     }
 }

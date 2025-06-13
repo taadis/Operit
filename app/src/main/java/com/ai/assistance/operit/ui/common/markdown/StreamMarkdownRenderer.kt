@@ -66,8 +66,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.withContext
 import ru.noties.jlatexmath.JLatexMathDrawable
 import kotlin.time.Duration.Companion.milliseconds
+import androidx.collection.LruCache
+import kotlinx.coroutines.Dispatchers
 
 private const val TAG = "MarkdownRenderer"
 private const val RENDER_INTERVAL_MS = 100L // 渲染间隔 0.1 秒
@@ -323,7 +326,221 @@ fun StreamMarkdownRenderer(
     }
 }
 
+/**
+ * A cache for parsed markdown nodes to improve performance.
+ */
+private object MarkdownNodeCache {
+    // Cache up to 100 parsed messages
+    private val cache = LruCache<String, List<MarkdownNode>>(100)
 
+    fun get(key: String): List<MarkdownNode>? {
+        return cache.get(key)
+    }
+
+    fun put(key: String, value: List<MarkdownNode>) {
+        cache.put(key, value)
+    }
+}
+
+/**
+ * 高性能静态Markdown渲染组件
+ * 接受一个完整的字符串，一次性解析和渲染，适用于静态内容显示。
+ */
+@Composable
+fun StreamMarkdownRenderer(
+    content: String,
+    modifier: Modifier = Modifier,
+    textColor: Color = LocalContentColor.current,
+    backgroundColor: Color = MaterialTheme.colorScheme.surface,
+    onLinkClick: ((String) -> Unit)? = null,
+    xmlRenderer: XmlContentRenderer = remember { DefaultXmlRenderer() }
+) {
+    // 使用流式版本相同的渲染器ID生成逻辑
+    val rendererId = remember(content) { "static-renderer-${content.hashCode()}" }
+
+    // 使用与流式版本相同的节点列表结构
+    val nodes = remember(content) { mutableStateListOf<MarkdownNode>() }
+    // 添加节点动画状态映射表，与流式版本保持一致
+    val nodeAnimationStates = remember { mutableStateMapOf<String, Boolean>() }
+    val scope = rememberCoroutineScope()
+
+    // 当content字符串变化时，一次性完成解析
+    LaunchedEffect(content) {
+        val cachedNodes = MarkdownNodeCache.get(content)
+        if (cachedNodes != null) {
+            nodes.clear()
+            nodes.addAll(cachedNodes)
+            // 确保动画状态也被设置
+            val newStates = mutableMapOf<String, Boolean>()
+            cachedNodes.forEachIndexed { index, node ->
+                val nodeKey = "static-node-$rendererId-$index-${node.type}"
+                newStates[nodeKey] = true
+            }
+            nodeAnimationStates.putAll(newStates)
+            return@LaunchedEffect
+        }
+
+        // 在后台线程解析Markdown
+        launch(Dispatchers.IO) {
+            try {
+                val parsedNodes = mutableListOf<MarkdownNode>()
+                content.stream().streamSplitBy(NestedMarkdownProcessor.getBlockPlugins()).collect { blockGroup ->
+                    val blockType = NestedMarkdownProcessor.getTypeForPlugin(blockGroup.tag)
+
+                    // 对于水平分割线，内容无关紧要，直接添加节点
+                    if (blockType == MarkdownProcessorType.HORIZONTAL_RULE) {
+                        parsedNodes.add(MarkdownNode(type = blockType, initialContent = "---"))
+                        return@collect
+                    }
+
+                    // 判断是否为LaTeX块，如果是，先作为文本节点处理
+                    val isLatexBlock = blockType == MarkdownProcessorType.BLOCK_LATEX
+                    // 临时类型：如果是LaTeX块，先作为纯文本处理
+                    val tempBlockType = if (isLatexBlock) MarkdownProcessorType.PLAIN_TEXT else blockType
+
+                    val isInlineContainer =
+                            tempBlockType != MarkdownProcessorType.CODE_BLOCK &&
+                                    tempBlockType != MarkdownProcessorType.BLOCK_LATEX &&
+                                    tempBlockType != MarkdownProcessorType.XML_BLOCK
+
+                    // 为新块创建并添加节点
+                    val newNode = MarkdownNode(type = tempBlockType)
+                    parsedNodes.add(newNode)
+                    val nodeIndex = parsedNodes.lastIndex
+                    if (isInlineContainer) {
+                        // Stream-parse the block stream for inline elements
+                        blockGroup.stream.streamSplitBy(NestedMarkdownProcessor.getInlinePlugins())
+                                .collect { inlineGroup ->
+                                    val inlineType =
+                                            NestedMarkdownProcessor.getTypeForPlugin(inlineGroup.tag)
+                                    var childNode: MarkdownNode? = null
+                                    var lastCharWasNewline = false // 跟踪上一个字符是否为换行符
+
+                                    inlineGroup.stream.collect { str ->
+                                        // 检查是否为空白内容
+                                        val isCurrentCharNewline = str == "\n" || str == "\r\n"
+
+                                        // 处理连续换行符逻辑
+                                        if (isCurrentCharNewline) {
+                                            lastCharWasNewline = true
+                                            return@collect
+                                        }
+
+                                        if (childNode == null) {
+                                            childNode = MarkdownNode(type = inlineType)
+                                            newNode.children.add(childNode!!)
+                                        }
+
+                                        if (lastCharWasNewline) {
+                                            // 更新父节点和子节点内容
+                                            newNode.content.value += "\n" + str
+                                            childNode!!.content.value += "\n" + str
+                                            lastCharWasNewline = false
+                                        } else {
+                                            newNode.content.value += str
+                                            childNode!!.content.value += str
+                                        }
+
+                                        // 更新lastCharWasNewline状态
+                                        lastCharWasNewline = isCurrentCharNewline
+                                    }
+
+                                    // 优化：如果子节点内容经过trim后为空，则移除该子节点
+                                    if (childNode != null &&
+                                                    childNode!!.content.value.trimAll().isEmpty() &&
+                                                    inlineType == MarkdownProcessorType.PLAIN_TEXT
+                                    ) {
+                                        val lastIndex = newNode.children.lastIndex
+                                        if (lastIndex >= 0 && newNode.children[lastIndex] == childNode) {
+                                            newNode.children.removeAt(lastIndex)
+                                            Log.d(TAG, "【渲染性能】移除空内联节点")
+                                        }
+                                    }
+                                }
+                    } else {
+                        // 对于没有内联格式的代码块，直接流式传输内容。
+                        blockGroup.stream.collect { contentChunk -> newNode.content.value += contentChunk }
+                    }
+
+                    // 如果原始类型是LaTeX块，现在收集完毕，将其转换回LaTeX节点
+                    if (isLatexBlock) {
+                        val latexContent = newNode.content.value
+                        // 创建新的LaTeX节点
+                        val latexNode = MarkdownNode(type = MarkdownProcessorType.BLOCK_LATEX)
+                        latexNode.content.value = latexContent
+                        // 原地替换节点，以保持索引的稳定性，避免不必要的重组
+                        parsedNodes[nodeIndex] = latexNode
+                    }
+                }
+
+                // 切换回主线程更新UI状态
+                withContext(Dispatchers.Main) {
+                    MarkdownNodeCache.put(content, parsedNodes)
+                    nodes.clear()
+                    nodes.addAll(parsedNodes)
+
+                    // 更新动画状态
+                    val newStates = mutableMapOf<String, Boolean>()
+                    parsedNodes.forEachIndexed { index, node ->
+                        val nodeKey = "static-node-$rendererId-$index-${node.type}"
+                        newStates[nodeKey] = true
+                    }
+                    nodeAnimationStates.putAll(newStates)
+                }
+
+            } catch (e: Exception) {
+                Log.e(TAG, "【渲染性能】静态Markdown内容解析异常: ${e.message}", e)
+            }
+        }
+    }
+
+    // 渲染Markdown内容 - 使用与流式版本相同的渲染逻辑
+    Surface(modifier = modifier, color = Color.Transparent, shape = RoundedCornerShape(4.dp)) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            nodes.forEachIndexed { index, node ->
+                val nodeKey = "static-node-$rendererId-$index-${node.type}"
+                key(nodeKey) {
+                    // 添加淡入动画效果，与流式版本保持一致
+                    val isVisible = nodeAnimationStates[nodeKey] ?: true
+                    val alpha by animateFloatAsState(
+                        targetValue = if (isVisible) 1f else 0f,
+                        animationSpec = tween(durationMillis = FADE_IN_DURATION_MS),
+                        label = "fadeIn"
+                    )
+                    
+                    Box(modifier = Modifier.alpha(alpha)) {
+                        StableMarkdownNodeRenderer(
+                            node = node,
+                            textColor = textColor,
+                            modifier = Modifier,
+                            onLinkClick = onLinkClick,
+                            index = index,
+                            xmlRenderer = xmlRenderer
+                        )
+                    }
+                }
+            }
+        }
+    }
+    
+    // 设置初始可见状态
+    LaunchedEffect(nodes) {
+        if (nodeAnimationStates.isEmpty() && nodes.isNotEmpty()) {
+            scope.launch {
+                val newStates = mutableMapOf<String, Boolean>()
+                nodes.forEachIndexed { index, node ->
+                    val nodeKey = "static-node-$rendererId-$index-${node.type}"
+                    newStates[nodeKey] = false
+                }
+                nodeAnimationStates.putAll(newStates)
+                delay(16) // 等待一帧
+                newStates.keys.forEach { key ->
+                    nodeAnimationStates[key] = true
+                }
+            }
+        }
+    }
+}
 
 /**
  * 批量节点更新器 - 负责将原始节点列表的更新批量应用到渲染节点列表

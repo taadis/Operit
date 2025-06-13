@@ -261,25 +261,6 @@ fun AIChatScreen(
                         // This is handled by the ViewModel
                 }
         }
-
-        // Add overflow menu items
-        val overflowMenuItems =
-                listOf(
-                        Triple("切换思考显示", "toggle_thinking") {
-                                actualViewModel.toggleShowThinking()
-                        },
-                        Triple("切换记忆优化", "toggle_memory_optimization") {
-                                actualViewModel.toggleMemoryOptimization()
-                        },
-                        Triple("切换AI计划模式", "toggle_ai_planning") {
-                                actualViewModel.toggleAiPlanning()
-                        },
-                        Triple("清空聊天记录", "clear_chat") { actualViewModel.clearCurrentChat() },
-                        Triple("管理历史记录", "manage_history") {
-                                actualViewModel.showChatHistorySelector(true)
-                        }
-                )
-
         // 判断是否有默认配置可用
         val hasDefaultConfig =
                 apiKey.isNotBlank()

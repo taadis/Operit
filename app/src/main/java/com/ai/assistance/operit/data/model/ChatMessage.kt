@@ -2,24 +2,28 @@ package com.ai.assistance.operit.data.model
 
 import android.os.Parcel
 import android.os.Parcelable
+import com.ai.assistance.operit.util.stream.Stream
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
 @Serializable
 data class ChatMessage(
-    val sender: String, // "user" or "ai"
-    val content: String,
-    val timestamp: Long = System.currentTimeMillis()
+        val sender: String, // "user" or "ai"
+        val content: String = "",
+        val timestamp: Long = System.currentTimeMillis(),
+        @Transient
+        var contentStream: Stream<String>? =
+                null // 修改为Stream<String>类型，与EnhancedAIService.sendMessage返回类型匹配
 ) : Parcelable {
-    constructor(parcel: Parcel) : this(
-        parcel.readString() ?: "",
-        parcel.readString() ?: "",
-        parcel.readLong()
-    )
+    constructor(
+            parcel: Parcel
+    ) : this(parcel.readString() ?: "", parcel.readString() ?: "", parcel.readLong())
 
     override fun writeToParcel(parcel: Parcel, flags: Int) {
         parcel.writeString(sender)
         parcel.writeString(content)
         parcel.writeLong(timestamp)
+        // 不需要序列化contentStream，因为它是暂时性的
     }
 
     override fun describeContents(): Int {
@@ -35,4 +39,4 @@ data class ChatMessage(
             return arrayOfNulls(size)
         }
     }
-} 
+}

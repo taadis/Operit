@@ -61,6 +61,17 @@ fun String.toCharStream(): Stream<Char> {
     }
 }
 
+/** 将字符串流转换为字符流 */
+fun Stream<String>.toCharStream(): Stream<Char> {
+    return stream {
+        this@toCharStream.collect { str ->
+            for (c in str) {
+                emit(c)
+            }
+        }
+    }
+}
+
 /** Markdown结果处理器 - 生成MarkdownNode模型 */
 class MarkdownNodeProcessor(private val type: MarkdownProcessorType) :
         StreamProcessor<String, MarkdownNode> {

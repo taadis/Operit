@@ -21,15 +21,11 @@ fun MarkdownTextComposable(
         isSelectable: Boolean = true, // 保留参数，暂不处理
         onLinkClicked: ((String) -> Unit)? = null
 ) {
-        // 记住流，仅当文本更改时才重新创建
-        val markdownStream = remember(text) { text.stream() }
-
-        // 直接用流式渲染器替换
+        // 直接使用新的、基于字符串的渲染器，以获得更好的性能
         StreamMarkdownRenderer(
-                markdownStream = markdownStream,
+                content = text,
                 modifier = modifier,
                 textColor = textColor,
-                // 其它参数可扩展
                 onLinkClick = onLinkClicked
         )
 }

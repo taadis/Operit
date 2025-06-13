@@ -3,6 +3,7 @@ package com.ai.assistance.operit.ui.features.chat.components.part
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -250,26 +251,34 @@ private fun CodeContentWithLineNumbers(
             }
         }
 
-        // 代码内容列
-        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-            lines.forEachIndexed { index, line ->
-                key(index) {
-                    if (isXml) {
-                        // XML内容使用语法高亮显示
-                        FormattedXmlText(text = line, modifier = Modifier.padding(vertical = 2.dp))
-                    } else {
-                        // 普通文本
-                        Text(
-                                text = line,
-                                style =
-                                        MaterialTheme.typography.bodySmall.copy(
-                                                fontFamily = FontFamily.Monospace,
-                                                fontSize = 11.sp
-                                        ),
-                                color = textColor.copy(alpha = 0.8f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                        )
+        // 代码内容列 - 添加水平滚动
+        Box(modifier = Modifier.weight(1f)) {
+            Column(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()).padding(end = 8.dp)
+            ) {
+                lines.forEachIndexed { index, line ->
+                    key(index) {
+                        if (isXml) {
+                            // XML内容使用语法高亮显示
+                            FormattedXmlText(
+                                    text = line,
+                                    modifier = Modifier.padding(vertical = 2.dp)
+                            )
+                        } else {
+                            // 普通文本
+                            Text(
+                                    text = line,
+                                    style =
+                                            MaterialTheme.typography.bodySmall.copy(
+                                                    fontFamily = FontFamily.Monospace,
+                                                    fontSize = 11.sp
+                                            ),
+                                    color = textColor.copy(alpha = 0.8f),
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Visible
+                            )
+                        }
                     }
                 }
             }
@@ -353,7 +362,8 @@ private fun FormattedXmlText(text: String, modifier: Modifier = Modifier) {
                             fontSize = 11.sp
                     ),
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+            softWrap = false,
+            overflow = TextOverflow.Visible,
             modifier = modifier
     )
 }
@@ -435,11 +445,14 @@ private fun ToolParamsDetailDialog(
                     // 按行拆分参数文本
                     val lines = remember(params) { params.lines() }
 
+                    // 创建垂直滚动状态
+                    val verticalScrollState = rememberScrollState()
+
                     // 显示带行号的代码内容
                     CodeContentWithLineNumbers(
                             lines = lines,
                             textColor = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+                            modifier = Modifier.fillMaxWidth().verticalScroll(verticalScrollState)
                     )
                 }
 
