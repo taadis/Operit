@@ -158,6 +158,7 @@ fun StreamMarkdownRenderer(
     
     // 创建一个中间流，用于拦截和批处理渲染更新
     val interceptedStream = remember(markdownStream) {
+        // 移除时间计算变量和日志
         // 先创建拦截器
         val processor = StreamInterceptor<Char, Char>(
             sourceStream = markdownStream,
@@ -185,13 +186,15 @@ fun StreamMarkdownRenderer(
 
     // 处理Markdown流的变化
     LaunchedEffect(interceptedStream) {
-        Log.d(TAG, "【渲染性能】处理新的Markdown流: id=$rendererId")
+        // 移除时间计算变量和日志
+        
         // 重置状态
         nodes.clear()
         renderNodes.clear()
 
         try {
             interceptedStream.streamSplitBy(NestedMarkdownProcessor.getBlockPlugins()).collect { blockGroup ->
+                // 移除时间计算变量和日志
                 val blockType = NestedMarkdownProcessor.getTypeForPlugin(blockGroup.tag)
 
                 // 对于水平分割线，内容无关紧要，直接添加节点
@@ -260,7 +263,6 @@ fun StreamMarkdownRenderer(
                                     val lastIndex = newNode.children.lastIndex
                                     if (lastIndex >= 0 && newNode.children[lastIndex] == childNode) {
                                         newNode.children.removeAt(lastIndex)
-                                        Log.d(TAG, "【渲染性能】移除空内联节点")
                                     }
                                 }
                             }
@@ -278,18 +280,19 @@ fun StreamMarkdownRenderer(
                     // 原地替换节点，以保持索引的稳定性，避免不必要的重组
                     nodes[nodeIndex] = latexNode
                 }
+                
+                // 移除块处理时间日志
             }
             
-            // 收集完成
-            Log.d(TAG, "【渲染性能】Markdown流处理完成，共生成 ${nodes.size} 个节点")
+            // 移除收集完成时间日志
         } catch (e: Exception) {
-            Log.e(TAG, "【渲染性能】Markdown流处理异常: ${e.message}", e)
+            Log.e(TAG, "【流渲染】Markdown流处理异常: ${e.message}", e)
         } finally {
-            // 最终同步，确保所有节点都被渲染
+            // 移除时间计算变量和日志
             synchronizeRenderNodes(nodes, renderNodes, nodeAnimationStates, rendererId, scope)
+            // 移除最终同步耗时日志
         }
     }
-
 
     // 渲染Markdown内容
     Surface(modifier = modifier, color = Color.Transparent, shape = RoundedCornerShape(4.dp)) {
@@ -355,6 +358,8 @@ fun StreamMarkdownRenderer(
     onLinkClick: ((String) -> Unit)? = null,
     xmlRenderer: XmlContentRenderer = remember { DefaultXmlRenderer() }
 ) {
+    // 移除渲染时间相关的变量和日志
+
     // 使用流式版本相同的渲染器ID生成逻辑
     val rendererId = remember(content) { "static-renderer-${content.hashCode()}" }
 
@@ -366,8 +371,12 @@ fun StreamMarkdownRenderer(
 
     // 当content字符串变化时，一次性完成解析
     LaunchedEffect(content) {
+        // 移除时间计算相关变量
         val cachedNodes = MarkdownNodeCache.get(content)
+        
         if (cachedNodes != null) {
+            // 移除时间计算相关的日志
+            // 移除时间计算变量
             nodes.clear()
             nodes.addAll(cachedNodes)
             // 确保动画状态也被设置
@@ -377,10 +386,10 @@ fun StreamMarkdownRenderer(
                 newStates[nodeKey] = true
             }
             nodeAnimationStates.putAll(newStates)
+            // 移除应用缓存节点相关时间日志
             return@LaunchedEffect
         }
-
-        // 在后台线程解析Markdown
+        
         launch(Dispatchers.IO) {
             try {
                 val parsedNodes = mutableListOf<MarkdownNode>()
@@ -407,6 +416,9 @@ fun StreamMarkdownRenderer(
                     val newNode = MarkdownNode(type = tempBlockType)
                     parsedNodes.add(newNode)
                     val nodeIndex = parsedNodes.lastIndex
+                    
+                    // 移除内联处理的时间相关变量
+                    
                     if (isInlineContainer) {
                         // Stream-parse the block stream for inline elements
                         blockGroup.stream.streamSplitBy(NestedMarkdownProcessor.getInlinePlugins())
@@ -453,10 +465,11 @@ fun StreamMarkdownRenderer(
                                         val lastIndex = newNode.children.lastIndex
                                         if (lastIndex >= 0 && newNode.children[lastIndex] == childNode) {
                                             newNode.children.removeAt(lastIndex)
-                                            Log.d(TAG, "【渲染性能】移除空内联节点")
                                         }
                                     }
                                 }
+                        
+                        // 移除内联处理耗时相关日志
                     } else {
                         // 对于没有内联格式的代码块，直接流式传输内容。
                         blockGroup.stream.collect { contentChunk -> newNode.content.value += contentChunk }
@@ -473,69 +486,60 @@ fun StreamMarkdownRenderer(
                     }
                 }
 
-                // 切换回主线程更新UI状态
-                withContext(Dispatchers.Main) {
-                    MarkdownNodeCache.put(content, parsedNodes)
-                    nodes.clear()
-                    nodes.addAll(parsedNodes)
+                // 移除解析耗时相关日志
 
-                    // 更新动画状态
+                // 将解析完成的节点添加到节点列表，并更新动画状态
+                withContext(Dispatchers.Main) {
+                    // 保存到缓存，这样下次渲染同样内容时可以直接使用
+                    MarkdownNodeCache.put(content, parsedNodes)
+                    
+                    // 更新UI状态
+                    // 清除现有节点
+                    nodes.clear()
+                    // 批量添加所有节点以减少UI重组次数
+                    nodes.addAll(parsedNodes)
+                    
+                    // 更新所有节点的动画状态为可见
                     val newStates = mutableMapOf<String, Boolean>()
                     parsedNodes.forEachIndexed { index, node ->
                         val nodeKey = "static-node-$rendererId-$index-${node.type}"
                         newStates[nodeKey] = true
                     }
                     nodeAnimationStates.putAll(newStates)
+                    
+                    // 移除UI更新时间相关日志
                 }
-
             } catch (e: Exception) {
-                Log.e(TAG, "【渲染性能】静态Markdown内容解析异常: ${e.message}", e)
+                Log.e(TAG, "【静态渲染】解析Markdown内容出错: ${e.message}", e)
             }
         }
     }
 
-    // 渲染Markdown内容 - 使用与流式版本相同的渲染逻辑
+    // 渲染Markdown内容 - 这里保持原样，与流式渲染使用相同的组件结构
     Surface(modifier = modifier, color = Color.Transparent, shape = RoundedCornerShape(4.dp)) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            nodes.forEachIndexed { index, node ->
-                val nodeKey = "static-node-$rendererId-$index-${node.type}"
-                key(nodeKey) {
-                    // 添加淡入动画效果，与流式版本保持一致
-                    val isVisible = nodeAnimationStates[nodeKey] ?: true
-                    val alpha by animateFloatAsState(
-                        targetValue = if (isVisible) 1f else 0f,
-                        animationSpec = tween(durationMillis = FADE_IN_DURATION_MS),
-                        label = "fadeIn"
-                    )
-                    
-                    Box(modifier = Modifier.alpha(alpha)) {
-                        StableMarkdownNodeRenderer(
-                            node = node,
-                            textColor = textColor,
-                            modifier = Modifier,
-                            onLinkClick = onLinkClick,
-                            index = index,
-                            xmlRenderer = xmlRenderer
-                        )
-                    }
-                }
-            }
-        }
-    }
-    
-    // 设置初始可见状态
-    LaunchedEffect(nodes) {
-        if (nodeAnimationStates.isEmpty() && nodes.isNotEmpty()) {
-            scope.launch {
-                val newStates = mutableMapOf<String, Boolean>()
+            key(rendererId) {
                 nodes.forEachIndexed { index, node ->
                     val nodeKey = "static-node-$rendererId-$index-${node.type}"
-                    newStates[nodeKey] = false
-                }
-                nodeAnimationStates.putAll(newStates)
-                delay(16) // 等待一帧
-                newStates.keys.forEach { key ->
-                    nodeAnimationStates[key] = true
+                    key(nodeKey) {
+                        val isVisible = nodeAnimationStates[nodeKey] ?: true
+                        val alpha by animateFloatAsState(
+                            targetValue = if (isVisible) 1f else 0f,
+                            animationSpec = tween(durationMillis = FADE_IN_DURATION_MS),
+                            label = "fadeIn"
+                        )
+                        
+                        Box(modifier = Modifier.alpha(alpha)) {
+                            StableMarkdownNodeRenderer(
+                                node = node,
+                                textColor = textColor,
+                                modifier = Modifier,
+                                onLinkClick = onLinkClick,
+                                index = index,
+                                xmlRenderer = xmlRenderer
+                            )
+                        }
+                    }
                 }
             }
         }

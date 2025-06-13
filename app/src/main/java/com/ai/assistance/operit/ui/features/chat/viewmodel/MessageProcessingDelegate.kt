@@ -51,6 +51,10 @@ class MessageProcessingDelegate(
 
     private val _scrollToBottomEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val scrollToBottomEvent = _scrollToBottomEvent.asSharedFlow()
+    
+    init {
+        Log.d(TAG, "MessageProcessingDelegate初始化: 创建滚动事件流")
+    }
 
     fun updateUserMessage(message: String) {
         _userMessage.value = message
@@ -82,69 +86,50 @@ class MessageProcessingDelegate(
             updateChatTitle(newTitle)
         }
 
-        Log.d(
-                TAG,
-                "【消息处理】开始处理用户消息：文本长度=${messageText.length}，附件数量=${attachments.size}，聊天ID=${chatId ?: "无"}"
-        )
+        Log.d(TAG, "开始处理用户消息：附件数量=${attachments.size}")
 
         val finalMessage = buildFinalMessage(messageText, attachments)
-        Log.d(TAG, "【消息处理】构建最终消息完成, 长度=${finalMessage.length}, 添加到聊天界面")
         addMessageToChat(ChatMessage(sender = "user", content = finalMessage))
 
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                Log.d(TAG, "【消息处理】检查网络连接状态")
                 if (!NetworkUtils.isNetworkAvailable(context)) {
-                    Log.e(TAG, "【消息处理】网络连接不可用，中止处理")
                     withContext(Dispatchers.Main) { showErrorMessage("网络连接不可用") }
                     return@launch
                 }
-                Log.d(TAG, "【消息处理】网络连接正常，继续处理")
 
-                Log.d(TAG, "【消息处理】获取增强AI服务实例")
                 val service =
                         getEnhancedAiService()
                                 ?: run {
-                                    Log.e(TAG, "【消息处理】AI服务未初始化，中止处理")
                                     withContext(Dispatchers.Main) { showErrorMessage("AI服务未初始化") }
                                     return@launch
                                 }
-                Log.d(TAG, "【消息处理】成功获取AI服务实例")
 
-                Log.d(TAG, "【消息处理】准备获取聊天历史记录")
                 val history = getMemory(true)
-                Log.d(TAG, "【消息处理】已获取聊天历史记录，条目数: ${history.size}")
-
-                Log.d(TAG, "【消息处理】开始调用AI服务的sendMessage方法")
+                
                 val startTime = System.currentTimeMillis()
 
                 val deferred = CompletableDeferred<Unit>()
                 val responseStream = service.sendMessage(finalMessage, history, chatId)
 
-                Log.d(TAG, "【消息处理】已获得响应流，准备处理")
-
                 // 将字符串流共享，以便多个收集器可以使用
-                Log.d(TAG, "【消息处理】创建共享流，并设置完成回调")
                 val sharedCharStream =
                         responseStream.share(
                                 scope = viewModelScope,
                                 onComplete = {
                                     deferred.complete(Unit)
-                                    Log.d(TAG, "【消息处理】共享流 onComplete 回调被触发")
+                                    Log.d(TAG, "共享流完成，耗时: ${System.currentTimeMillis() - startTime}ms")
                                 }
                         )
 
                 val aiMessage = ChatMessage(sender = "ai", contentStream = sharedCharStream)
-                Log.d(TAG, "【消息处理】创建AI消息对象 (timestamp: ${aiMessage.timestamp})，准备添加到UI")
 
                 withContext(Dispatchers.Main) {
-                    Log.d(TAG, "【消息处理】添加初始AI消息到聊天界面")
                     addMessageToChat(aiMessage)
                 }
 
                 // 启动一个独立的协程来收集流内容并持续更新数据库
                 viewModelScope.launch(Dispatchers.IO) {
-                    Log.d(TAG, "【消息处理-持久化】启动流式保存协程 (timestamp: ${aiMessage.timestamp})")
                     val contentBuilder = StringBuilder()
                     sharedCharStream.collect { chunk ->
                         contentBuilder.append(chunk)
@@ -155,32 +140,28 @@ class MessageProcessingDelegate(
                         addMessageToChat(updatedMessage)
                         _scrollToBottomEvent.tryEmit(Unit)
                     }
-                    Log.d(TAG, "【消息处理-持久化】流式保存协程收集完成 (timestamp: ${aiMessage.timestamp})")
                 }
 
                 // 等待流完成，以便finally块可以正确执行来更新UI状态
-                Log.d(TAG, "【消息处理】等待AI响应流处理完成...")
                 deferred.await()
 
-                Log.d(TAG, "【消息处理】AI响应流处理完成")
+                Log.d(TAG, "AI响应处理完成，总耗时: ${System.currentTimeMillis() - startTime}ms")
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) {
-                    Log.d(TAG, "【消息处理】消息发送被取消")
+                    Log.d(TAG, "消息发送被取消")
                     throw e
                 }
-                Log.e(TAG, "【消息处理】发送消息时出错", e)
+                Log.e(TAG, "发送消息时出错", e)
                 withContext(Dispatchers.Main) { showErrorMessage("发送消息失败: ${e.message}") }
             } finally {
                 // 添加一个短暂的延迟，以确保UI有足够的时间来渲染最后一个数据块
                 // 这有助于解决因竞态条件导致的UI内容（如状态标签）有时无法显示的问题
                 withContext(Dispatchers.IO) { delay(100) }
                 withContext(Dispatchers.Main) {
-                    Log.d(TAG, "【消息处理】重置处理状态标志")
                     _isLoading.value = false
                     _isProcessingInput.value = false
 
                     // 即使流处理完成，也需要保存一次聊天记录
-                    Log.d(TAG, "【消息处理】更新聊天统计信息并保存当前聊天")
                     updateChatStatistics()
                     saveCurrentChat()
                 }
@@ -191,13 +172,8 @@ class MessageProcessingDelegate(
     private fun buildFinalMessage(messageText: String, attachments: List<AttachmentInfo>): String {
         if (attachments.isEmpty()) return messageText
 
-        Log.d(TAG, "【消息处理】构建带附件的消息，文本长度=${messageText.length}，附件数量=${attachments.size}")
         val attachmentTexts =
                 attachments.joinToString(" ") { attachment ->
-                    Log.d(
-                            TAG,
-                            "【消息处理】处理附件: ${attachment.fileName}, 类型: ${attachment.mimeType}, 大小: ${attachment.fileSize}"
-                    )
                     "<attachment " +
                             "id=\"${attachment.filePath}\" " +
                             "filename=\"${attachment.fileName}\" " +
@@ -210,7 +186,6 @@ class MessageProcessingDelegate(
                             "/>"
                 }
         val result = if (messageText.isBlank()) attachmentTexts else "$messageText $attachmentTexts"
-        Log.d(TAG, "【消息处理】最终消息构建完成，总长度=${result.length}")
         return result
     }
 

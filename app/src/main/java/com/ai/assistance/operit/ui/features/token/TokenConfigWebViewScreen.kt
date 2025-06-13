@@ -205,15 +205,44 @@ fun TokenConfigWebViewScreen(onNavigateBack: () -> Unit) {
                 }
                 return false
             }
-
-            // 允许所有SSL证书 - 用于开发环境
+            
             override fun onReceivedSslError(
                     view: WebView?,
                     handler: android.webkit.SslErrorHandler?,
                     error: android.net.http.SslError?
             ) {
-                // 在生产环境中应该移除此处理或根据需要处理SSL错误
-                handler?.proceed() // 忽略SSL错误，继续加载
+                // 创建一个对话框让用户决定是否继续访问
+                val builder = android.app.AlertDialog.Builder(context)
+                var message = "SSL证书验证失败，存在安全风险"
+                
+                // 显示更详细的错误信息
+                error?.let {
+                    when (it.primaryError) {
+                        android.net.http.SslError.SSL_UNTRUSTED -> message += "\n证书颁发机构不受信任"
+                        android.net.http.SslError.SSL_EXPIRED -> message += "\n证书已过期"
+                        android.net.http.SslError.SSL_IDMISMATCH -> message += "\n主机名与证书不匹配"
+                        android.net.http.SslError.SSL_NOTYETVALID -> message += "\n证书尚未生效"
+                        android.net.http.SslError.SSL_DATE_INVALID -> message += "\n证书日期无效"
+                        else -> message += "\n未知SSL错误"
+                    }
+                    message += "\n\n访问: ${it.url}"
+                }
+                
+                builder.setTitle("安全警告")
+                    .setMessage(message)
+                    .setPositiveButton("继续访问") { _, _ ->
+                        handler?.proceed()
+                    }
+                    .setNegativeButton("取消访问") { _, _ ->
+                        handler?.cancel()
+                    }
+                    .setIcon(android.R.drawable.ic_dialog_alert)
+                
+                // 在UI线程上显示对话框
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    val dialog = builder.create()
+                    dialog.show()
+                }
             }
 
             // 允许混合内容（HTTP和HTTPS同时存在）

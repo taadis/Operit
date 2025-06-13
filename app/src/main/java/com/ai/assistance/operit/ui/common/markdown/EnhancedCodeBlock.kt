@@ -46,8 +46,6 @@ private const val TAG = "CodeBlock"
  */
 @Composable
 fun EnhancedCodeBlock(code: String, language: String = "", modifier: Modifier = Modifier) {
-    Log.d(TAG, "【渲染性能】EnhancedCodeBlock重组: 代码长度=${code.length}, 语言=$language")
-    
     val clipboardManager = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
     var showCopiedToast by remember { mutableStateOf(false) }
@@ -517,7 +515,6 @@ private fun CachedCodeLine(
         lineCache[cacheKey]!!
     } else {
         val lineStart = if (line.length > 15) line.substring(0, 15) + "..." else line
-                Log.d(TAG, "【渲染性能】计算新行高亮 #${index+1}: 语言=$language, 内容=\"$lineStart\"")
         val result = highlightSyntaxLine(line, language)
         lineCache[cacheKey] = result
         result

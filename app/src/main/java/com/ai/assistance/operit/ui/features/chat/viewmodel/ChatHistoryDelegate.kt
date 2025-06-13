@@ -392,14 +392,17 @@ class ChatHistoryDelegate(
             lastSummaryIndex = 0
         }
             var userAiCount = 0
-            for (i in messages.indices) {
+            // 从上一个摘要之后开始计数
+            for (i in lastSummaryIndex until messages.size) {
                 if (messages[i].sender == "ai") {
                     userAiCount++
+                    // 在 SUMMARY_CHUNK_SIZE 条消息之后插入
                     if (userAiCount == SUMMARY_CHUNK_SIZE) {
                         return i + 1
                     }
                 }
             }
+            // 如果遍历完都没有达到数量，则插入到末尾
             return messages.size
         
     }
@@ -414,9 +417,16 @@ class ChatHistoryDelegate(
         _showChatHistorySelector.value = show
     }
 
-    /** 获取当前聊天历史的内存记录 只包含user和ai消息，不包含系统消息和思考消息 */
+    /** 获取当前聊天历史的内存记录 只包含user和ai消息，并且自动截止到上次总结 */
     fun getMemory(includePlanInfo: Boolean = true): List<Pair<String, String>> {
-        return _chatHistory.value.filter { it.sender == "user" || it.sender == "ai" }.map {
+        val messages = _chatHistory.value
+        val summaryMessageIndex = messages.indexOfLast { it.sender == "summary" }
+        val messagesToSummarize = if (summaryMessageIndex != -1) {
+            messages.subList(summaryMessageIndex, messages.size)
+        } else {
+            messages
+        }
+        return messagesToSummarize.filter { it.sender == "user" || it.sender == "ai" || it.sender == "summary" }.map {
             val role = if (it.sender == "ai") "assistant" else "user"
             Pair(role, it.content)
         }

@@ -23,6 +23,7 @@ import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModelFactory
 import com.ai.assistance.operit.ui.main.screens.GestureStateHolder
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -114,79 +115,74 @@ fun AIChatScreen(
         val thinkingBackgroundColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
         val thinkingTextColor = MaterialTheme.colorScheme.onSurfaceVariant
 
-        // 只保留两个简单状态
-        var autoScrollToBottom by remember { mutableStateOf(true) } // 是否自动滚动到底部
-        var showScrollButton by remember { mutableStateOf(false) } // 是否显示滚动按钮
-        // 添加一个防抖动标记，防止按钮频繁闪烁
-        var isScrollStateChanging by remember { mutableStateOf(false) }
-        // 跟踪上一次的滚动位置
-        var lastScrollOffset by remember { mutableStateOf(0) }
+        // 滚动状态
+        var autoScrollToBottom by remember { mutableStateOf(true) }
+        var showScrollButton by remember { mutableStateOf(false) }
 
-        // 防抖动效果
-        LaunchedEffect(isScrollStateChanging) {
-                if (isScrollStateChanging) {
-                        delay(300) // 短暂延迟后重置状态
-                        isScrollStateChanging = false
-                }
-        }
-
-        // 更简单直接的滚动状态监听 - 只监听用户主动向上滚动
-        LaunchedEffect(Unit) {
-                snapshotFlow { Pair(scrollState.value, scrollState.isScrollInProgress) }.collect {
-                        (currentOffset, isScrolling) ->
-                        // 只在用户主动滚动时判断
-                        if (isScrolling && !isScrollStateChanging) {
-                                // 检测是否是向上滚动(手指向下滑)
-                                val isScrollingUp = currentOffset < lastScrollOffset
-
-                                // 更新上次滚动位置
-                                lastScrollOffset = currentOffset
-
-                                // 如果用户向上滚动，禁用自动滚动并显示按钮
-                                if (!isScrollingUp) {
-                                        if (!showScrollButton) {
-                                                isScrollStateChanging = true
-                                                showScrollButton = true
+        // 核心滚动逻辑
+        // 使用 LaunchedEffect(scrollState) 确保监听器在组件的整个生命周期内持续运行，
+        // 避免因 chatHistory.size 变化而频繁重启，从而解决了 lastPosition 被意外重置的问题。
+        LaunchedEffect(scrollState) {
+                var lastPosition = scrollState.value
+                snapshotFlow { scrollState.value }.collect { currentPosition ->
+                        // isScrollInProgress 只在用户手动滚动或程序化动画期间为 true。
+                        // 这可以有效过滤掉因内容变化导致的滚动位置"跳变"。
+                        if (scrollState.isScrollInProgress) {
+                                val scrolledUp = currentPosition < lastPosition
+                                if (scrolledUp) {
+                                        // 用户向上滚动，禁用自动滚动并显示按钮
+                                        if (autoScrollToBottom) {
+                                                Log.d("AIChatScreen", "用户向上滚动，禁用自动滚动")
                                                 autoScrollToBottom = false
+                                                showScrollButton = true
+                                        }
+                                } else {
+                                        // 用户向下滚动，检查是否接近底部
+                                        val isNearBottom =
+                                                scrollState.maxValue - currentPosition < 200
+                                        if (isNearBottom && !autoScrollToBottom) {
+                                                Log.d(
+                                                        "AIChatScreen",
+                                                        "用户滚动到底部，启用自动滚动"
+                                                )
+                                                autoScrollToBottom = true
+                                                showScrollButton = false
                                         }
                                 }
                         }
+                        // 持续更新 lastPosition，为下一次滚动事件做准备
+                        lastPosition = currentPosition
                 }
         }
 
-        // 监听用户滚动到底部的情况
+        // 处理来自ViewModel的滚动事件（流式输出时）
         LaunchedEffect(Unit) {
-                snapshotFlow { scrollState.value >= scrollState.maxValue - 100 }.collect {
-                        isAtBottom ->
-                        if (isAtBottom && !isScrollStateChanging && showScrollButton) {
-                                // 用户手动滚动到底部时，重新启用自动滚动并隐藏按钮
-                                isScrollStateChanging = true
-                                showScrollButton = false
-                                autoScrollToBottom = true
-                        }
+            // 直接收集事件流，不需要转换为状态
+            scrollToBottomEvent.collect {
+                Log.d("AIChatScreen", "收到滚动事件")
+                if (autoScrollToBottom) {
+                    try {
+                        Log.d("AIChatScreen", "执行来自事件流的自动滚动")
+                        scrollState.animateScrollTo(scrollState.maxValue)
+                    } catch (e: Exception) {
+                        Log.e("AIChatScreen", "自动滚动失败", e)
+                    }
                 }
+            }
         }
 
-        // 内容变化时的自动滚动 - 仅在添加新消息时触发
+        // 自动滚动处理 - 仅在消息数量变化时触发
         LaunchedEffect(chatHistory.size) {
-                if (autoScrollToBottom && chatHistory.isNotEmpty()) {
-                        delay(50) // 短暂延迟确保布局完成
-                        Log.d("AIChatScreen", "自动滚动到最底部")
+                Log.d("AIChatScreen", "消息数量变化：${chatHistory.size}")
+                if (autoScrollToBottom) {
                         try {
-                                // 直接滚动到最底部
+                                Log.d(
+                                        "AIChatScreen",
+                                        "执行自动滚动到最底部 (因消息数量变化)"
+                                )
                                 scrollState.animateScrollTo(scrollState.maxValue)
                         } catch (e: Exception) {
                                 Log.e("AIChatScreen", "自动滚动失败", e)
-                        }
-                }
-        }
-
-        // 响应来自ViewModel的精确滚动事件，用于流式输出
-        LaunchedEffect(Unit) {
-                scrollToBottomEvent.collect {
-                        if (autoScrollToBottom) {
-                                // 这里不需要延迟，因为事件是在状态更新后立即发出的
-                                scrollState.animateScrollTo(scrollState.maxValue)
                         }
                 }
         }
@@ -447,6 +443,7 @@ fun AIChatScreen(
                                 verticalDrag = verticalDrag,
                                 onVerticalDragChange = { verticalDrag = it },
                                 dragThreshold = dragThreshold,
+                                scrollState = scrollState,
                                 showScrollButton = showScrollButton,
                                 onShowScrollButtonChange = { showScrollButton = it },
                                 autoScrollToBottom = autoScrollToBottom,

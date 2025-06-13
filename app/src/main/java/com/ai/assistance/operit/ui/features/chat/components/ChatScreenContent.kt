@@ -12,6 +12,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -45,42 +46,43 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun ChatScreenContent(
-        paddingValues: PaddingValues,
-        actualViewModel: ChatViewModel,
-        showChatHistorySelector: Boolean,
-        chatHistory: List<ChatMessage>,
-        planItems: List<PlanItem>,
-        enableAiPlanning: Boolean,
-        toolProgress: ToolExecutionProgress,
-        isLoading: Boolean,
-        userMessageColor: Color,
-        aiMessageColor: Color,
-        userTextColor: Color,
-        aiTextColor: Color,
-        systemMessageColor: Color,
-        systemTextColor: Color,
-        thinkingBackgroundColor: Color,
-        thinkingTextColor: Color,
-        hasBackgroundImage: Boolean,
-        isEditMode: MutableState<Boolean>,
-        editingMessageIndex: MutableState<Int?>,
-        editingMessageContent: MutableState<String>,
-        chatScreenGestureConsumed: Boolean,
-        onChatScreenGestureConsumed: (Boolean) -> Unit,
-        currentDrag: Float,
-        onCurrentDragChange: (Float) -> Unit,
-        verticalDrag: Float,
-        onVerticalDragChange: (Float) -> Unit,
-        dragThreshold: Float,
-        showScrollButton: Boolean,
-        onShowScrollButtonChange: (Boolean) -> Unit,
-        autoScrollToBottom: Boolean,
-        onAutoScrollToBottomChange: (Boolean) -> Unit,
-        coroutineScope: CoroutineScope,
-        chatHistories: List<ChatHistory>,
-        currentChatId: String,
-        webViewNeedsRefresh: Boolean = false,
-        onWebViewRefreshed: () -> Unit = {}
+    paddingValues: PaddingValues,
+    actualViewModel: ChatViewModel,
+    showChatHistorySelector: Boolean,
+    chatHistory: List<ChatMessage>,
+    planItems: List<PlanItem>,
+    enableAiPlanning: Boolean,
+    toolProgress: ToolExecutionProgress,
+    isLoading: Boolean,
+    userMessageColor: Color,
+    aiMessageColor: Color,
+    userTextColor: Color,
+    aiTextColor: Color,
+    systemMessageColor: Color,
+    systemTextColor: Color,
+    thinkingBackgroundColor: Color,
+    thinkingTextColor: Color,
+    hasBackgroundImage: Boolean,
+    isEditMode: MutableState<Boolean>,
+    editingMessageIndex: MutableState<Int?>,
+    editingMessageContent: MutableState<String>,
+    chatScreenGestureConsumed: Boolean,
+    onChatScreenGestureConsumed: (Boolean) -> Unit,
+    currentDrag: Float,
+    onCurrentDragChange: (Float) -> Unit,
+    verticalDrag: Float,
+    onVerticalDragChange: (Float) -> Unit,
+    dragThreshold: Float,
+    scrollState: ScrollState,
+    showScrollButton: Boolean,
+    onShowScrollButtonChange: (Boolean) -> Unit,
+    autoScrollToBottom: Boolean,
+    onAutoScrollToBottomChange: (Boolean) -> Unit,
+    coroutineScope: CoroutineScope,
+    chatHistories: List<ChatHistory>,
+    currentChatId: String,
+    webViewNeedsRefresh: Boolean = false,
+    onWebViewRefreshed: () -> Unit = {}
 ) {
     // 获取WebView状态
     val showWebView = actualViewModel.showWebView.collectAsState().value
@@ -98,7 +100,6 @@ fun ChatScreenContent(
     var exportFilePath by remember { mutableStateOf<String?>(null) }
     var exportErrorMessage by remember { mutableStateOf<String?>(null) }
     var webContentDir by remember { mutableStateOf<File?>(null) }
-    val scrollState = rememberScrollState()
 
     Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
         // 主聊天区域（包括顶部工具栏），确保它一直可见

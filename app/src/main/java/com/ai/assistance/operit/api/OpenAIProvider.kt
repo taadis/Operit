@@ -300,7 +300,7 @@ class OpenAIProvider(
                                             // 每10个块或500ms记录一次日志
                                             val currentTime = System.currentTimeMillis()
                                             if (chunkCount % 10 == 0 || currentTime - lastLogTime > 500) {
-                                                Log.d("AIService", "【发送消息】已处理数据块: $chunkCount")
+                                                // Log.d("AIService", "【发送消息】已处理数据块: $chunkCount")
                                                 lastLogTime = currentTime
                                             }
                                             

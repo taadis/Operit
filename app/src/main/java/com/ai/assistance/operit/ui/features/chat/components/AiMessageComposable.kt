@@ -1,9 +1,11 @@
 package com.ai.assistance.operit.ui.features.chat.components
 
+import android.util.Log
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -13,6 +15,8 @@ import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.ui.common.markdown.StreamMarkdownRenderer
 import com.ai.assistance.operit.ui.features.chat.components.part.CustomXmlRenderer
 import com.ai.assistance.operit.util.markdown.toCharStream
+
+private const val TAG = "AiMessageComposable"
 
 /**
  * A composable function for rendering AI response messages in a Cursor IDE style. Supports text
@@ -29,6 +33,8 @@ fun AiMessageComposable(
 ) {
         // 创建自定义XML渲染器
         val xmlRenderer = remember { CustomXmlRenderer() }
+        
+        // 移除记录开始渲染时间和LaunchedEffect
 
         // 移除Card背景，使用直接的Column布局
         Column(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
@@ -50,6 +56,7 @@ fun AiMessageComposable(
                                 val charStream = remember(contentStream) {
                                         contentStream!!.toCharStream()
                                 }
+                                
                                 StreamMarkdownRenderer(
                                         markdownStream = charStream,
                                         textColor = textColor,
@@ -71,4 +78,6 @@ fun AiMessageComposable(
                         }
                 }
         }
+        
+        // 移除记录结束渲染时间的LaunchedEffect
 }

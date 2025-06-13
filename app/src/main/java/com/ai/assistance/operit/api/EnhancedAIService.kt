@@ -252,72 +252,50 @@ class EnhancedAIService(private val context: Context) {
             chatId: String? = null,
             functionType: FunctionType = FunctionType.CHAT
     ): Stream<String> {
-        Log.d(
-                TAG,
-                "【增强服务】sendMessage调用开始: 消息长度=${message.length}, 历史记录数量=${chatHistory.size}, 聊天ID=${chatId ?: "无"}, 功能类型=$functionType"
-        )
+        Log.d(TAG, "sendMessage调用开始: 功能类型=$functionType")
         return stream {
             try {
                 // 确保所有操作都在IO线程上执行
                 withContext(Dispatchers.IO) {
                     // Store the chat ID for web workspace
                     currentChatId = chatId
-                    Log.d(TAG, "【增强服务】设置当前聊天ID: ${chatId ?: "无"}")
-
+                    
                     // Mark conversation as active
                     isConversationActive.set(true)
-                    Log.d(TAG, "【增强服务】标记会话为活跃状态")
-
+                    
                     // Process the input message for any conversation markup (e.g., for AI planning)
-                    Log.d(TAG, "【增强服务】开始处理输入消息(检查标记语言)")
+                    val startTime = System.currentTimeMillis()
                     val processedInput = InputProcessor.processUserInput(message)
-                    Log.d(TAG, "【增强服务】输入处理完成，原始长度=${message.length}，处理后长度=${processedInput.length}")
-
+                    
                     // Update state to show we're processing
                     withContext(Dispatchers.Main) {
                         _inputProcessingState.value =
                                 InputProcessingState.Processing("Processing message...")
-                        Log.d(TAG, "【增强服务】更新状态: 处理消息中...")
                     }
 
                     // Prepare conversation history with system prompt
-                    Log.d(TAG, "【增强服务】准备会话历史记录，添加系统提示词")
                     val preparedHistory = prepareConversationHistory(chatHistory, processedInput)
-                    Log.d(TAG, "【增强服务】会话历史准备完成，项目数量: ${preparedHistory.size}")
-
+                    
                     // Update UI state to connecting
                     withContext(Dispatchers.Main) {
                         _inputProcessingState.value =
                                 InputProcessingState.Connecting("Connecting to AI service...")
-                        Log.d(TAG, "【增强服务】更新状态: 连接AI服务中...")
                     }
-
-                    Log.d(
-                            TAG,
-                            "【增强服务】准备发送消息到AI服务，历史项目数: ${preparedHistory.size}，功能类型: $functionType"
-                    )
 
                     // Get all model parameters from preferences (with enabled state)
                     val modelParameters = runBlocking { apiPreferences.getAllModelParameters() }
-                    Log.d(
-                            TAG,
-                            "【增强服务】已获取${modelParameters.size}个模型参数，已启用: ${modelParameters.count { it.isEnabled }}"
-                    )
-
+                    
                     // 获取对应功能类型的AIService实例
-                    Log.d(TAG, "【增强服务】获取功能类型${functionType}的AIService实例")
                     val serviceForFunction = multiServiceManager.getServiceForFunction(functionType)
-                    Log.d(TAG, "【增强服务】成功获取AIService实例")
-
+                    
                     // 使用新的Stream API
-                    Log.d(TAG, "【增强服务】开始调用底层AI服务的sendMessage方法")
+                    Log.d(TAG, "调用AI服务，处理时间: ${System.currentTimeMillis() - startTime}ms")
                     val stream =
                             serviceForFunction.sendMessage(
                                     message = processedInput,
                                     chatHistory = preparedHistory,
                                     modelParameters = modelParameters
                             )
-                    Log.d(TAG, "【增强服务】成功创建响应流，开始处理")
 
                     // 收到第一个响应，更新状态
                     var isFirstChunk = true
@@ -325,14 +303,13 @@ class EnhancedAIService(private val context: Context) {
                     // 创建一个新的轮次来管理内容
                     roundManager.startNewRound()
                     streamBuffer.clear()
-                    Log.d(TAG, "【增强服务】已创建新轮次并清除缓冲区")
 
                     // 从原始stream收集内容并处理
                     var chunkCount = 0
                     var totalChars = 0
                     var lastLogTime = System.currentTimeMillis()
+                    val streamStartTime = System.currentTimeMillis()
 
-                    Log.d(TAG, "【增强服务】开始收集流内容...")
                     stream.collect { content ->
                         // 第一次收到响应，更新状态
                         if (isFirstChunk) {
@@ -341,7 +318,7 @@ class EnhancedAIService(private val context: Context) {
                                         InputProcessingState.Receiving("Receiving AI response...")
                             }
                             isFirstChunk = false
-                            Log.d(TAG, "【增强服务】收到首个响应，更新UI状态为接收中")
+                            Log.d(TAG, "首次响应耗时: ${System.currentTimeMillis() - streamStartTime}ms")
                         }
 
                         // 累计统计
@@ -350,8 +327,8 @@ class EnhancedAIService(private val context: Context) {
 
                         // 周期性日志
                         val currentTime = System.currentTimeMillis()
-                        if (chunkCount % 10 == 0 || currentTime - lastLogTime > 1000) {
-                            Log.d(TAG, "【增强服务】已接收 $chunkCount 个内容块，总计 $totalChars 个字符")
+                        if (currentTime - lastLogTime > 5000) { // 每5秒记录一次
+                            Log.d(TAG, "已接收 $chunkCount 个内容块，总计 $totalChars 个字符")
                             lastLogTime = currentTime
                         }
 
@@ -364,16 +341,16 @@ class EnhancedAIService(private val context: Context) {
                         // 发射当前内容片段
                         emit(content)
                     }
-                    Log.d(TAG, "【增强服务】流内容收集完成，总计 $chunkCount 个块，$totalChars 个字符")
+                    Log.d(TAG, "流收集完成，总计 $totalChars 字符，耗时: ${System.currentTimeMillis() - streamStartTime}ms")
                 }
             } catch (e: Exception) {
                 // 对于协程取消异常，这是正常流程，应当向上抛出以停止流
                 if (e is kotlinx.coroutines.CancellationException) {
-                    Log.d(TAG, "【增强服务】sendMessage流被取消")
+                    Log.d(TAG, "sendMessage流被取消")
                     throw e
                 }
                 // Handle any exceptions
-                Log.e(TAG, "【增强服务】发送消息时发生错误: ${e.message}", e)
+                Log.e(TAG, "发送消息时发生错误: ${e.message}", e)
                 withContext(Dispatchers.Main) {
                     _inputProcessingState.value =
                             InputProcessingState.Error(message = "Error: ${e.message}")
@@ -382,9 +359,7 @@ class EnhancedAIService(private val context: Context) {
                 // 确保流处理完成后调用
                 val collector = this
                 withContext(Dispatchers.IO) {
-                    Log.d(TAG, "【增强服务】开始处理流完成逻辑")
                     processStreamCompletion(functionType, collector)
-                    Log.d(TAG, "【增强服务】流完成处理结束")
                 }
             }
         }
@@ -488,91 +463,73 @@ class EnhancedAIService(private val context: Context) {
             collector: StreamCollector<String>
     ) {
         try {
-            Log.d(TAG, "【流完成】开始处理流完成事件，功能类型: $functionType")
+            val startTime = System.currentTimeMillis()
             // If conversation is no longer active, return immediately
             if (!isConversationActive.get()) {
-                Log.d(TAG, "【流完成】会话已取消，跳过处理")
                 return
             }
 
             // Get response content
             val content = streamBuffer.toString().trim()
-            Log.d(TAG, "【流完成】获取响应内容，长度: ${content.length}")
 
             // If content is empty, finish immediately
             if (content.isEmpty()) {
-                Log.d(TAG, "【流完成】响应内容为空，跳过处理")
                 return
             }
 
             // 使用增强的工具检测功能处理内容
-            Log.d(TAG, "【流完成】开始增强工具检测")
             val enhancedContent = enhanceToolDetection(content)
             // 如果内容被增强修改了，更新到streamBuffer
             if (enhancedContent != content) {
-                Log.d(TAG, "【流完成】内容被增强工具检测修改，更新缓冲区")
                 streamBuffer.setLength(0)
                 streamBuffer.append(enhancedContent)
                 // 更新轮次管理器显示内容
                 roundManager.updateContent(enhancedContent)
-            } else {
-                Log.d(TAG, "【流完成】增强工具检测未修改内容")
             }
 
-            // 不再提取引用，只提取计划项
-            Log.d(TAG, "【流完成】准备提取计划项")
+            // 提取计划项
             extractPlanItems(enhancedContent)
 
             // Handle task completion marker
-            Log.d(TAG, "【流完成】检查是否包含任务完成标记")
             if (ConversationMarkupManager.containsTaskCompletion(enhancedContent)) {
-                Log.d(TAG, "【流完成】检测到任务完成标记，处理任务完成")
                 handleTaskCompletion(enhancedContent)
                 return
             }
 
             // Handle wait for user need marker
-            Log.d(TAG, "【流完成】检查是否包含等待用户输入标记")
             if (ConversationMarkupManager.containsWaitForUserNeed(enhancedContent)) {
-                Log.d(TAG, "【流完成】检测到等待用户输入标记，处理等待用户输入")
                 handleWaitForUserNeed(enhancedContent)
                 return
             }
 
             // Check again if conversation is active
             if (!isConversationActive.get()) {
-                Log.d(TAG, "【流完成】提取内容后会话已取消，停止后续处理")
                 return
             }
 
             // Add current assistant message to conversation history
             try {
-                Log.d(TAG, "【流完成】添加当前助手消息到会话历史")
                 conversationMutex.withLock {
                     conversationHistory.add(
                             Pair("assistant", roundManager.getCurrentRoundContent())
                     )
                 }
-                Log.d(TAG, "【流完成】会话历史更新完成，当前长度: ${conversationHistory.size}")
             } catch (e: Exception) {
-                Log.e(TAG, "【流完成】添加助手消息到历史记录失败", e)
+                Log.e(TAG, "添加助手消息到历史记录失败", e)
                 return
             }
 
             // Check again if conversation is active
             if (!isConversationActive.get()) {
-                Log.d(TAG, "【流完成】处理历史记录后会话已取消")
                 return
             }
 
             // Main flow: Detect and process tool invocations
-            Log.d(TAG, "【流完成】开始检测工具调用")
-
             // Try to detect tool invocations
             val toolInvocations = toolHandler.extractToolInvocations(enhancedContent)
 
             if (toolInvocations.isNotEmpty()) {
-                Log.d(TAG, "【流完成】检测到 ${toolInvocations.size} 个工具调用")
+                Log.d(TAG, "检测到 ${toolInvocations.size} 个工具调用，处理时间: ${System.currentTimeMillis() - startTime}ms")
                 handleToolInvocation(
                         toolInvocations,
                         roundManager.getDisplayContent(),
@@ -582,11 +539,8 @@ class EnhancedAIService(private val context: Context) {
                 return
             }
 
-            Log.d(TAG, "【流完成】未检测到工具调用")
-
             // 修改默认行为：如果没有特殊标记或工具调用，默认等待用户输入
             // 而不是直接标记为完成
-            Log.d(TAG, "【流完成】未检测到特殊标记或工具调用，默认使用等待用户输入模式")
 
             // 创建等待用户输入的内容
             val userNeedContent =
@@ -595,11 +549,11 @@ class EnhancedAIService(private val context: Context) {
                     )
 
             // 处理为等待用户输入模式
-            Log.d(TAG, "【流完成】转为等待用户输入模式")
             handleWaitForUserNeed(userNeedContent)
+            Log.d(TAG, "流完成处理耗时: ${System.currentTimeMillis() - startTime}ms")
         } catch (e: Exception) {
             // Catch any exceptions in the processing flow
-            Log.e(TAG, "【流完成】处理流完成时发生错误", e)
+            Log.e(TAG, "处理流完成时发生错误", e)
             withContext(Dispatchers.Main) {
                 _inputProcessingState.value = InputProcessingState.Idle
             }
@@ -654,42 +608,34 @@ class EnhancedAIService(private val context: Context) {
             functionType: FunctionType = FunctionType.CHAT,
             collector: StreamCollector<String>
     ) {
-        Log.d(TAG, "【工具处理】开始处理工具调用，工具数量: ${toolInvocations.size}，功能类型: $functionType")
-
+        val startTime = System.currentTimeMillis()
         // Only process the first tool invocation, show warning if there are multiple
         val invocation = toolInvocations.first()
-        Log.d(TAG, "【工具处理】当前处理工具: ${invocation.tool.name}")
 
         if (toolInvocations.size > 1) {
-            Log.w(TAG, "【工具处理】发现多个工具调用(${toolInvocations.size})，但只处理第一个: ${invocation.tool.name}")
+            Log.w(TAG, "发现多个工具调用(${toolInvocations.size})，但只处理第一个: ${invocation.tool.name}")
             val warningContent =
                     ConversationMarkupManager.createMultipleToolsWarning(invocation.tool.name)
             roundManager.appendContent(warningContent)
             collector.emit(warningContent)
-            Log.d(TAG, "【工具处理】已添加多工具警告到内容")
         }
 
         // Start executing the tool
         withContext(Dispatchers.Main) {
             _inputProcessingState.value =
                     InputProcessingState.Processing("Executing tool: ${invocation.tool.name}")
-            Log.d(TAG, "【工具处理】更新UI状态为正在执行工具: ${invocation.tool.name}")
         }
 
         // Get tool executor and execute
-        Log.d(TAG, "【工具处理】获取工具执行器: ${invocation.tool.name}")
         val executor = toolHandler.getToolExecutor(invocation.tool.name)
         val result: ToolResult
 
         if (executor == null) {
             // Tool not available handling
-            Log.w(TAG, "【工具处理】工具不可用: ${invocation.tool.name}")
-
             val notAvailableContent =
                     ConversationMarkupManager.createToolNotAvailableError(invocation.tool.name)
             roundManager.appendContent(notAvailableContent)
             collector.emit(notAvailableContent)
-            Log.d(TAG, "【工具处理】添加工具不可用错误到内容")
 
             // Create error result
             result =
@@ -699,17 +645,13 @@ class EnhancedAIService(private val context: Context) {
                             result = StringResultData(""),
                             error = "Tool '${invocation.tool.name}' not available"
                     )
-            Log.d(TAG, "【工具处理】创建工具不可用错误结果")
         } else {
             // Check permissions before execution
-            Log.d(TAG, "【工具处理】检查工具执行权限")
             val (hasPermission, errorResult) =
                     ToolExecutionManager.checkToolPermission(toolHandler, invocation)
-            Log.d(TAG, "【工具处理】权限检查结果: $hasPermission")
 
             // If permission denied, add result and exit function
             if (!hasPermission) {
-                Log.w(TAG, "【工具处理】权限检查失败，无权执行此工具")
                 // Add both error status and a tool result status to ensure the UI shows the error
                 // properly
                 val errorStatusContent =
@@ -719,7 +661,6 @@ class EnhancedAIService(private val context: Context) {
                         )
                 roundManager.appendContent(errorStatusContent)
                 collector.emit(errorStatusContent)
-                Log.d(TAG, "【工具处理】添加权限错误状态到内容")
 
                 // Also add a proper tool result status with error=true to ensure it shows up
                 // correctly in the UI
@@ -734,30 +675,23 @@ class EnhancedAIService(private val context: Context) {
                         )
                 roundManager.appendContent(toolResultStatusContent)
                 collector.emit(toolResultStatusContent)
-                Log.d(TAG, "【工具处理】添加权限错误结果状态到内容")
 
                 // Process error result and exit
                 if (errorResult != null) {
-                    Log.d(TAG, "【工具处理】处理权限错误结果")
                     processToolResult(errorResult, functionType, collector)
                 }
                 return
             }
 
             // Execute the tool
-            Log.d(TAG, "【工具处理】开始执行工具: ${invocation.tool.name}")
-            val startTime = System.currentTimeMillis()
+            val toolStartTime = System.currentTimeMillis()
             result = ToolExecutionManager.executeToolSafely(invocation, executor)
-            val executionTime = System.currentTimeMillis() - startTime
-            Log.d(
-                    TAG,
-                    "【工具处理】工具执行完成，耗时: ${executionTime}ms，结果: ${if (result.success) "成功" else "失败"}"
-            )
+            val executionTime = System.currentTimeMillis() - toolStartTime
+            Log.d(TAG, "工具执行完成，耗时: ${executionTime}ms，结果: ${if (result.success) "成功" else "失败"}")
 
             // Display tool execution result
             val toolResultString =
                     if (result.success) result.result.toString() else "${result.error}"
-            Log.d(TAG, "【工具处理】添加工具执行结果到内容，结果长度: ${toolResultString.length}")
             val toolResultStatusContent =
                     ConversationMarkupManager.formatToolResultForMessage(result)
             roundManager.appendContent(toolResultStatusContent)
@@ -765,7 +699,7 @@ class EnhancedAIService(private val context: Context) {
         }
 
         // Process the tool result
-        Log.d(TAG, "【工具处理】开始处理工具结果")
+        Log.d(TAG, "工具调用处理耗时: ${System.currentTimeMillis() - startTime}ms")
         processToolResult(result, functionType, collector)
     }
 
@@ -775,86 +709,64 @@ class EnhancedAIService(private val context: Context) {
             functionType: FunctionType = FunctionType.CHAT,
             collector: StreamCollector<String>
     ) {
-        Log.d(
-                TAG,
-                "【工具结果】开始处理工具执行结果: ${result.toolName}, 成功: ${result.success}, 结果类型: ${result.result::class.java.simpleName}"
-        )
+        val startTime = System.currentTimeMillis()
+        Log.d(TAG, "开始处理工具结果: ${result.toolName}, 成功: ${result.success}")
+        
         // Add transition state
         withContext(Dispatchers.Main) {
             _inputProcessingState.value =
                     InputProcessingState.Processing(
                             "Tool execution completed, preparing further processing..."
                     )
-            Log.d(TAG, "【工具结果】更新UI状态: 工具执行完成，准备进一步处理")
         }
 
         // Check if conversation is still active
         if (!isConversationActive.get()) {
-            Log.d(TAG, "【工具结果】会话不再活跃，不处理工具结果")
             return
         }
 
         // Tool result processing and subsequent AI request
-        Log.d(TAG, "【工具结果】格式化工具结果用于消息发送")
         val toolResultMessage = ConversationMarkupManager.formatToolResultForMessage(result)
-        Log.d(TAG, "【工具结果】工具结果消息格式化完成，长度: ${toolResultMessage.length}")
 
         // Add tool result to conversation history
-        Log.d(TAG, "【工具结果】添加工具结果到会话历史")
         conversationMutex.withLock { conversationHistory.add(Pair("tool", toolResultMessage)) }
-        Log.d(TAG, "【工具结果】会话历史更新完成，当前条目数: ${conversationHistory.size}")
 
         // Get current conversation history
-        Log.d(TAG, "【工具结果】获取当前会话历史记录")
         val currentChatHistory = conversationMutex.withLock { conversationHistory }
 
         // Append tool result to current round
-        Log.d(TAG, "【工具结果】将工具结果添加到当前轮次")
         roundManager.appendContent(toolResultMessage)
 
         // Start new round - ensure tool execution response will be shown in a new message
-        Log.d(TAG, "【工具结果】开始新轮次，准备接收AI对工具结果的响应")
         roundManager.startNewRound()
         streamBuffer.clear() // Clear buffer to ensure a new message will be created
-        Log.d(TAG, "【工具结果】已清除缓冲区，确保新消息创建")
 
         // Clearly show we're preparing to send tool result to AI
         withContext(Dispatchers.Main) {
             _inputProcessingState.value =
                     InputProcessingState.Processing("Preparing to process tool execution result...")
-            Log.d(TAG, "【工具结果】更新UI状态: 准备处理工具执行结果")
         }
 
         // Add short delay to make state change more visible
-        Log.d(TAG, "【工具结果】添加短暂延迟以增强UI状态可见性")
         delay(300)
 
         // Get all model parameters from preferences (with enabled state)
-        Log.d(TAG, "【工具结果】获取模型参数")
         val modelParameters = runBlocking { apiPreferences.getAllModelParameters() }
-        Log.d(
-                TAG,
-                "【工具结果】已获取${modelParameters.size}个模型参数，启用的参数: ${modelParameters.count { it.isEnabled }}"
-        )
 
         // 获取对应功能类型的AIService实例
-        Log.d(TAG, "【工具结果】获取功能类型${functionType}的AIService实例")
         val serviceForFunction = multiServiceManager.getServiceForFunction(functionType)
-        Log.d(TAG, "【工具结果】成功获取AIService实例")
 
         // 使用新的Stream API处理工具执行结果
         withContext(Dispatchers.IO) {
             try {
-                Log.d(TAG, "【工具结果】开始向AI服务发送工具结果消息")
                 // 发送消息并获取响应流
-                val startTime = System.currentTimeMillis()
+                val aiStartTime = System.currentTimeMillis()
                 val stream =
                         serviceForFunction.sendMessage(
                                 message = toolResultMessage,
                                 chatHistory = currentChatHistory,
                                 modelParameters = modelParameters
                         )
-                Log.d(TAG, "【工具结果】成功获取响应流")
 
                 // 更新状态为接收中
                 withContext(Dispatchers.Main) {
@@ -862,7 +774,6 @@ class EnhancedAIService(private val context: Context) {
                             InputProcessingState.Receiving(
                                     "Receiving AI response after tool execution..."
                             )
-                    Log.d(TAG, "【工具结果】更新UI状态: 接收工具执行后的AI响应")
                 }
 
                 // 处理流
@@ -870,7 +781,6 @@ class EnhancedAIService(private val context: Context) {
                 var totalChars = 0
                 var lastLogTime = System.currentTimeMillis()
 
-                Log.d(TAG, "【工具结果】开始收集AI响应流")
                 stream.collect { content ->
                     // 更新streamBuffer
                     streamBuffer.append(content)
@@ -884,8 +794,7 @@ class EnhancedAIService(private val context: Context) {
 
                     // 定期记录日志
                     val currentTime = System.currentTimeMillis()
-                    if (chunkCount % 10 == 0 || currentTime - lastLogTime > 1000) {
-                        Log.d(TAG, "【工具结果】已接收 $chunkCount 个内容块，共 $totalChars 个字符")
+                    if (currentTime - lastLogTime > 5000) { // 每5秒记录一次
                         lastLogTime = currentTime
                     }
 
@@ -893,20 +802,20 @@ class EnhancedAIService(private val context: Context) {
                     collector.emit(content)
                 }
 
-                val processingTime = System.currentTimeMillis() - startTime
-                Log.d(TAG, "【工具结果】响应流收集完成，共 $chunkCount 个块，$totalChars 个字符，耗时: ${processingTime}ms")
+                val processingTime = System.currentTimeMillis() - aiStartTime
+                Log.d(TAG, "工具结果AI处理完成，收到 $totalChars 字符，耗时: ${processingTime}ms")
 
                 // 流处理完成，处理完成逻辑
-                Log.d(TAG, "【工具结果】处理流完成逻辑")
                 processStreamCompletion(functionType, collector)
             } catch (e: Exception) {
-                Log.e(TAG, "【工具结果】处理工具执行结果时出错", e)
+                Log.e(TAG, "处理工具执行结果时出错", e)
                 withContext(Dispatchers.Main) {
                     _inputProcessingState.value =
                             InputProcessingState.Error("处理工具执行结果失败: ${e.message}")
                 }
             }
         }
+        Log.d(TAG, "工具结果处理总耗时: ${System.currentTimeMillis() - startTime}ms")
     }
 
     // Expose base AIService for token counting
