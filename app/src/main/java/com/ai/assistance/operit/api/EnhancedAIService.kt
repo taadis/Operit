@@ -94,6 +94,9 @@ class EnhancedAIService(private val context: Context) {
     private val conversationHistory = mutableListOf<Pair<String, String>>()
     private val conversationMutex = Mutex()
 
+    private var accumulatedInputTokenCount = 0
+    private var accumulatedOutputTokenCount = 0
+
     // Callbacks
     private var currentResponseCallback: ((content: String, thinking: String?) -> Unit)? = null
     private var currentCompleteCallback: (() -> Unit)? = null
@@ -253,20 +256,22 @@ class EnhancedAIService(private val context: Context) {
             functionType: FunctionType = FunctionType.CHAT
     ): Stream<String> {
         Log.d(TAG, "sendMessage调用开始: 功能类型=$functionType")
+        accumulatedInputTokenCount = 0
+        accumulatedOutputTokenCount = 0
         return stream {
             try {
                 // 确保所有操作都在IO线程上执行
                 withContext(Dispatchers.IO) {
                     // Store the chat ID for web workspace
                     currentChatId = chatId
-                    
+
                     // Mark conversation as active
                     isConversationActive.set(true)
-                    
+
                     // Process the input message for any conversation markup (e.g., for AI planning)
                     val startTime = System.currentTimeMillis()
                     val processedInput = InputProcessor.processUserInput(message)
-                    
+
                     // Update state to show we're processing
                     withContext(Dispatchers.Main) {
                         _inputProcessingState.value =
@@ -275,7 +280,7 @@ class EnhancedAIService(private val context: Context) {
 
                     // Prepare conversation history with system prompt
                     val preparedHistory = prepareConversationHistory(chatHistory, processedInput)
-                    
+
                     // Update UI state to connecting
                     withContext(Dispatchers.Main) {
                         _inputProcessingState.value =
@@ -284,10 +289,10 @@ class EnhancedAIService(private val context: Context) {
 
                     // Get all model parameters from preferences (with enabled state)
                     val modelParameters = runBlocking { apiPreferences.getAllModelParameters() }
-                    
+
                     // 获取对应功能类型的AIService实例
                     val serviceForFunction = multiServiceManager.getServiceForFunction(functionType)
-                    
+
                     // 使用新的Stream API
                     Log.d(TAG, "调用AI服务，处理时间: ${System.currentTimeMillis() - startTime}ms")
                     val stream =
@@ -341,7 +346,17 @@ class EnhancedAIService(private val context: Context) {
                         // 发射当前内容片段
                         emit(content)
                     }
-                    Log.d(TAG, "流收集完成，总计 $totalChars 字符，耗时: ${System.currentTimeMillis() - streamStartTime}ms")
+                    // Update accumulated token counts
+                    accumulatedInputTokenCount += serviceForFunction.inputTokenCount
+                    accumulatedOutputTokenCount += serviceForFunction.outputTokenCount
+                    Log.d(
+                            TAG,
+                            "Token count updated. Input: ${serviceForFunction.inputTokenCount}, Output: ${serviceForFunction.outputTokenCount}. Accumulated: $accumulatedInputTokenCount, $accumulatedOutputTokenCount"
+                    )
+                    Log.d(
+                            TAG,
+                            "流收集完成，总计 $totalChars 字符，耗时: ${System.currentTimeMillis() - streamStartTime}ms"
+                    )
                 }
             } catch (e: Exception) {
                 // 对于协程取消异常，这是正常流程，应当向上抛出以停止流
@@ -358,9 +373,7 @@ class EnhancedAIService(private val context: Context) {
             } finally {
                 // 确保流处理完成后调用
                 val collector = this
-                withContext(Dispatchers.IO) {
-                    processStreamCompletion(functionType, collector)
-                }
+                withContext(Dispatchers.IO) { processStreamCompletion(functionType, collector) }
             }
         }
     }
@@ -529,7 +542,10 @@ class EnhancedAIService(private val context: Context) {
             val toolInvocations = toolHandler.extractToolInvocations(enhancedContent)
 
             if (toolInvocations.isNotEmpty()) {
-                Log.d(TAG, "检测到 ${toolInvocations.size} 个工具调用，处理时间: ${System.currentTimeMillis() - startTime}ms")
+                Log.d(
+                        TAG,
+                        "检测到 ${toolInvocations.size} 个工具调用，处理时间: ${System.currentTimeMillis() - startTime}ms"
+                )
                 handleToolInvocation(
                         toolInvocations,
                         roundManager.getDisplayContent(),
@@ -670,7 +686,8 @@ class EnhancedAIService(private val context: Context) {
                                         toolName = invocation.tool.name,
                                         success = false,
                                         result = StringResultData(""),
-                                        error = "Permission denied: Operation '${invocation.tool.name}' was not authorized"
+                                        error =
+                                                "Permission denied: Operation '${invocation.tool.name}' was not authorized"
                                 )
                         )
                 roundManager.appendContent(toolResultStatusContent)
@@ -711,7 +728,7 @@ class EnhancedAIService(private val context: Context) {
     ) {
         val startTime = System.currentTimeMillis()
         Log.d(TAG, "开始处理工具结果: ${result.toolName}, 成功: ${result.success}")
-        
+
         // Add transition state
         withContext(Dispatchers.Main) {
             _inputProcessingState.value =
@@ -802,6 +819,14 @@ class EnhancedAIService(private val context: Context) {
                     collector.emit(content)
                 }
 
+                // Update accumulated token counts
+                accumulatedInputTokenCount += serviceForFunction.inputTokenCount
+                accumulatedOutputTokenCount += serviceForFunction.outputTokenCount
+                Log.d(
+                        TAG,
+                        "Token count updated after tool result. Input: ${serviceForFunction.inputTokenCount}, Output: ${serviceForFunction.outputTokenCount}. Accumulated: $accumulatedInputTokenCount, $accumulatedOutputTokenCount"
+                )
+
                 val processingTime = System.currentTimeMillis() - aiStartTime
                 Log.d(TAG, "工具结果AI处理完成，收到 $totalChars 字符，耗时: ${processingTime}ms")
 
@@ -826,7 +851,7 @@ class EnhancedAIService(private val context: Context) {
      * @return The number of input tokens used in the most recent request
      */
     fun getCurrentInputTokenCount(): Int {
-        return aiService.inputTokenCount
+        return accumulatedInputTokenCount
     }
 
     /**
@@ -834,12 +859,14 @@ class EnhancedAIService(private val context: Context) {
      * @return The number of output tokens generated in the most recent response
      */
     fun getCurrentOutputTokenCount(): Int {
-        return aiService.outputTokenCount
+        return accumulatedOutputTokenCount
     }
 
     /** Reset token counters to zero Use this when starting a new conversation */
     fun resetTokenCounters() {
         aiService.resetTokenCounts()
+        accumulatedInputTokenCount = 0
+        accumulatedOutputTokenCount = 0
     }
 
     /**
@@ -1112,9 +1139,7 @@ class EnhancedAIService(private val context: Context) {
         return conversationHistory
     }
 
-    /**
-     * Extract tool results from message content using xmlToolResultPattern
-     */
+    /** Extract tool results from message content using xmlToolResultPattern */
     private fun extractToolResults(content: String): List<Triple<String, String, IntRange>> {
         val results = mutableListOf<Triple<String, String, IntRange>>()
 

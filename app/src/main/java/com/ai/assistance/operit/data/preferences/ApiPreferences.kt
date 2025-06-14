@@ -10,10 +10,10 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.ai.assistance.operit.data.model.ApiProviderType
 import com.ai.assistance.operit.data.model.ModelParameter
 import com.ai.assistance.operit.data.model.ParameterCategory
 import com.ai.assistance.operit.data.model.ParameterValueType
-import com.ai.assistance.operit.data.model.ApiProviderType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -33,7 +33,6 @@ class ApiPreferences(private val context: Context) {
         val API_ENDPOINT = stringPreferencesKey("api_endpoint")
         val MODEL_NAME = stringPreferencesKey("model_name")
         val API_PROVIDER_TYPE = stringPreferencesKey("api_provider_type")
-        val SHOW_THINKING = booleanPreferencesKey("show_thinking")
         val MEMORY_OPTIMIZATION = booleanPreferencesKey("memory_optimization")
         val PREFERENCE_ANALYSIS_INPUT_TOKENS = intPreferencesKey("preference_analysis_input_tokens")
         val PREFERENCE_ANALYSIS_OUTPUT_TOKENS =
@@ -69,7 +68,6 @@ class ApiPreferences(private val context: Context) {
         const val DEFAULT_MODEL_NAME = "deepseek-chat"
         const val DEFAULT_API_KEY = "sk-e565390c164c4cfa8820624ef47d68bf"
         const val DEFAULT_API_PROVIDER_TYPE = "DEEPSEEK"
-        const val DEFAULT_SHOW_THINKING = true
         const val DEFAULT_MEMORY_OPTIMIZATION = true
         const val DEFAULT_SHOW_FPS_COUNTER = false
         const val DEFAULT_ENABLE_AI_PLANNING = false
@@ -118,16 +116,12 @@ class ApiPreferences(private val context: Context) {
     val apiProviderTypeFlow: Flow<ApiProviderType> =
             context.apiDataStore.data.map { preferences ->
                 try {
-                    ApiProviderType.valueOf(preferences[API_PROVIDER_TYPE] ?: DEFAULT_API_PROVIDER_TYPE)
+                    ApiProviderType.valueOf(
+                            preferences[API_PROVIDER_TYPE] ?: DEFAULT_API_PROVIDER_TYPE
+                    )
                 } catch (e: Exception) {
                     ApiProviderType.DEEPSEEK
                 }
-            }
-
-    // Get Show Thinking as Flow
-    val showThinkingFlow: Flow<Boolean> =
-            context.apiDataStore.data.map { preferences ->
-                preferences[SHOW_THINKING] ?: DEFAULT_SHOW_THINKING
             }
 
     // DeepSeek Model Parameter Flows - Values
@@ -267,11 +261,6 @@ class ApiPreferences(private val context: Context) {
         }
     }
 
-    // Save Show Thinking setting
-    suspend fun saveShowThinking(showThinking: Boolean) {
-        context.apiDataStore.edit { preferences -> preferences[SHOW_THINKING] = showThinking }
-    }
-
     // Save DeepSeek Model Parameters - Value and enabled state
     suspend fun saveMaxTokens(maxTokens: Int, isEnabled: Boolean) {
         context.apiDataStore.edit { preferences ->
@@ -358,7 +347,12 @@ class ApiPreferences(private val context: Context) {
     }
 
     // 添加包含ApiProviderType参数的新saveApiSettings方法
-    suspend fun saveApiSettings(apiKey: String, endpoint: String, modelName: String, apiProviderType: ApiProviderType) {
+    suspend fun saveApiSettings(
+            apiKey: String,
+            endpoint: String,
+            modelName: String,
+            apiProviderType: ApiProviderType
+    ) {
         context.apiDataStore.edit { preferences ->
             preferences[API_KEY] = apiKey
             preferences[API_ENDPOINT] = endpoint
@@ -369,13 +363,11 @@ class ApiPreferences(private val context: Context) {
 
     // 添加保存显示和行为设置的方法，不会影响模型参数
     suspend fun saveDisplaySettings(
-            showThinking: Boolean,
             memoryOptimization: Boolean,
             showFpsCounter: Boolean,
             autoGrantAccessibility: Boolean
     ) {
         context.apiDataStore.edit { preferences ->
-            preferences[SHOW_THINKING] = showThinking
             preferences[MEMORY_OPTIMIZATION] = memoryOptimization
             preferences[SHOW_FPS_COUNTER] = showFpsCounter
             preferences[AUTO_GRANT_ACCESSIBILITY] = autoGrantAccessibility
@@ -387,7 +379,6 @@ class ApiPreferences(private val context: Context) {
             apiKey: String,
             endpoint: String,
             modelName: String,
-            showThinking: Boolean,
             memoryOptimization: Boolean,
             showFpsCounter: Boolean,
             enableAiPlanning: Boolean,
@@ -398,7 +389,6 @@ class ApiPreferences(private val context: Context) {
             preferences[API_KEY] = apiKey
             preferences[API_ENDPOINT] = endpoint
             preferences[MODEL_NAME] = modelName
-            preferences[SHOW_THINKING] = showThinking
             preferences[MEMORY_OPTIMIZATION] = memoryOptimization
             preferences[SHOW_FPS_COUNTER] = showFpsCounter
             preferences[ENABLE_AI_PLANNING] = enableAiPlanning
@@ -446,7 +436,7 @@ class ApiPreferences(private val context: Context) {
         // 分离标准参数和自定义参数
         val standardParams = parameters.filter { !it.isCustom }
         val customParams = parameters.filter { it.isCustom }
-        
+
         context.apiDataStore.edit { preferences ->
             // 保存标准参数
             for (param in standardParams) {
@@ -481,69 +471,72 @@ class ApiPreferences(private val context: Context) {
                     }
                 }
             }
-            
+
             // 保存自定义参数为JSON字符串
             if (customParams.isNotEmpty()) {
-                val customParamsList = customParams.map { param ->
-                    when (param.valueType) {
-                        ParameterValueType.INT -> {
-                            CustomParameterData(
-                                id = param.id,
-                                name = param.name,
-                                apiName = param.apiName,
-                                description = param.description,
-                                defaultValue = (param.defaultValue as Int).toString(),
-                                currentValue = (param.currentValue as Int).toString(),
-                                isEnabled = param.isEnabled,
-                                valueType = param.valueType.name,
-                                minValue = (param.minValue as? Int)?.toString(),
-                                maxValue = (param.maxValue as? Int)?.toString(),
-                                category = param.category.name
-                            )
+                val customParamsList =
+                        customParams.map { param ->
+                            when (param.valueType) {
+                                ParameterValueType.INT -> {
+                                    CustomParameterData(
+                                            id = param.id,
+                                            name = param.name,
+                                            apiName = param.apiName,
+                                            description = param.description,
+                                            defaultValue = (param.defaultValue as Int).toString(),
+                                            currentValue = (param.currentValue as Int).toString(),
+                                            isEnabled = param.isEnabled,
+                                            valueType = param.valueType.name,
+                                            minValue = (param.minValue as? Int)?.toString(),
+                                            maxValue = (param.maxValue as? Int)?.toString(),
+                                            category = param.category.name
+                                    )
+                                }
+                                ParameterValueType.FLOAT -> {
+                                    CustomParameterData(
+                                            id = param.id,
+                                            name = param.name,
+                                            apiName = param.apiName,
+                                            description = param.description,
+                                            defaultValue = (param.defaultValue as Float).toString(),
+                                            currentValue = (param.currentValue as Float).toString(),
+                                            isEnabled = param.isEnabled,
+                                            valueType = param.valueType.name,
+                                            minValue = (param.minValue as? Float)?.toString(),
+                                            maxValue = (param.maxValue as? Float)?.toString(),
+                                            category = param.category.name
+                                    )
+                                }
+                                ParameterValueType.STRING -> {
+                                    CustomParameterData(
+                                            id = param.id,
+                                            name = param.name,
+                                            apiName = param.apiName,
+                                            description = param.description,
+                                            defaultValue = param.defaultValue as String,
+                                            currentValue = param.currentValue as String,
+                                            isEnabled = param.isEnabled,
+                                            valueType = param.valueType.name,
+                                            category = param.category.name
+                                    )
+                                }
+                                ParameterValueType.BOOLEAN -> {
+                                    CustomParameterData(
+                                            id = param.id,
+                                            name = param.name,
+                                            apiName = param.apiName,
+                                            description = param.description,
+                                            defaultValue =
+                                                    (param.defaultValue as Boolean).toString(),
+                                            currentValue =
+                                                    (param.currentValue as Boolean).toString(),
+                                            isEnabled = param.isEnabled,
+                                            valueType = param.valueType.name,
+                                            category = param.category.name
+                                    )
+                                }
+                            }
                         }
-                        ParameterValueType.FLOAT -> {
-                            CustomParameterData(
-                                id = param.id,
-                                name = param.name,
-                                apiName = param.apiName,
-                                description = param.description,
-                                defaultValue = (param.defaultValue as Float).toString(),
-                                currentValue = (param.currentValue as Float).toString(),
-                                isEnabled = param.isEnabled,
-                                valueType = param.valueType.name,
-                                minValue = (param.minValue as? Float)?.toString(),
-                                maxValue = (param.maxValue as? Float)?.toString(),
-                                category = param.category.name
-                            )
-                        }
-                        ParameterValueType.STRING -> {
-                            CustomParameterData(
-                                id = param.id,
-                                name = param.name,
-                                apiName = param.apiName,
-                                description = param.description,
-                                defaultValue = param.defaultValue as String,
-                                currentValue = param.currentValue as String,
-                                isEnabled = param.isEnabled,
-                                valueType = param.valueType.name,
-                                category = param.category.name
-                            )
-                        }
-                        ParameterValueType.BOOLEAN -> {
-                            CustomParameterData(
-                                id = param.id,
-                                name = param.name,
-                                apiName = param.apiName,
-                                description = param.description,
-                                defaultValue = (param.defaultValue as Boolean).toString(),
-                                currentValue = (param.currentValue as Boolean).toString(),
-                                isEnabled = param.isEnabled,
-                                valueType = param.valueType.name,
-                                category = param.category.name
-                            )
-                        }
-                    }
-                }
                 preferences[CUSTOM_PARAMETERS] = Json.encodeToString(customParamsList)
             } else {
                 // 如果没有自定义参数，保存空列表
@@ -683,70 +676,76 @@ class ApiPreferences(private val context: Context) {
         val customParamsJson = preferences[CUSTOM_PARAMETERS] ?: DEFAULT_CUSTOM_PARAMETERS
         if (customParamsJson != DEFAULT_CUSTOM_PARAMETERS) {
             try {
-                val customParamsList = Json.decodeFromString<List<CustomParameterData>>(customParamsJson)
+                val customParamsList =
+                        Json.decodeFromString<List<CustomParameterData>>(customParamsJson)
                 for (customParam in customParamsList) {
-                    val param = when (ParameterValueType.valueOf(customParam.valueType)) {
-                        ParameterValueType.INT -> {
-                            ModelParameter(
-                                id = customParam.id,
-                                name = customParam.name,
-                                apiName = customParam.apiName,
-                                description = customParam.description,
-                                defaultValue = customParam.defaultValue.toInt(),
-                                currentValue = customParam.currentValue.toInt(),
-                                isEnabled = customParam.isEnabled,
-                                valueType = ParameterValueType.INT,
-                                minValue = customParam.minValue?.toInt(),
-                                maxValue = customParam.maxValue?.toInt(),
-                                category = ParameterCategory.valueOf(customParam.category),
-                                isCustom = true
-                            )
-                        }
-                        ParameterValueType.FLOAT -> {
-                            ModelParameter(
-                                id = customParam.id,
-                                name = customParam.name,
-                                apiName = customParam.apiName,
-                                description = customParam.description,
-                                defaultValue = customParam.defaultValue.toFloat(),
-                                currentValue = customParam.currentValue.toFloat(),
-                                isEnabled = customParam.isEnabled,
-                                valueType = ParameterValueType.FLOAT,
-                                minValue = customParam.minValue?.toFloat(),
-                                maxValue = customParam.maxValue?.toFloat(),
-                                category = ParameterCategory.valueOf(customParam.category),
-                                isCustom = true
-                            )
-                        }
-                        ParameterValueType.STRING -> {
-                            ModelParameter(
-                                id = customParam.id,
-                                name = customParam.name,
-                                apiName = customParam.apiName,
-                                description = customParam.description,
-                                defaultValue = customParam.defaultValue,
-                                currentValue = customParam.currentValue,
-                                isEnabled = customParam.isEnabled,
-                                valueType = ParameterValueType.STRING,
-                                category = ParameterCategory.valueOf(customParam.category),
-                                isCustom = true
-                            )
-                        }
-                        ParameterValueType.BOOLEAN -> {
-                            ModelParameter(
-                                id = customParam.id,
-                                name = customParam.name,
-                                apiName = customParam.apiName,
-                                description = customParam.description,
-                                defaultValue = customParam.defaultValue.toBoolean(),
-                                currentValue = customParam.currentValue.toBoolean(),
-                                isEnabled = customParam.isEnabled,
-                                valueType = ParameterValueType.BOOLEAN,
-                                category = ParameterCategory.valueOf(customParam.category),
-                                isCustom = true
-                            )
-                        }
-                    }
+                    val param =
+                            when (ParameterValueType.valueOf(customParam.valueType)) {
+                                ParameterValueType.INT -> {
+                                    ModelParameter(
+                                            id = customParam.id,
+                                            name = customParam.name,
+                                            apiName = customParam.apiName,
+                                            description = customParam.description,
+                                            defaultValue = customParam.defaultValue.toInt(),
+                                            currentValue = customParam.currentValue.toInt(),
+                                            isEnabled = customParam.isEnabled,
+                                            valueType = ParameterValueType.INT,
+                                            minValue = customParam.minValue?.toInt(),
+                                            maxValue = customParam.maxValue?.toInt(),
+                                            category =
+                                                    ParameterCategory.valueOf(customParam.category),
+                                            isCustom = true
+                                    )
+                                }
+                                ParameterValueType.FLOAT -> {
+                                    ModelParameter(
+                                            id = customParam.id,
+                                            name = customParam.name,
+                                            apiName = customParam.apiName,
+                                            description = customParam.description,
+                                            defaultValue = customParam.defaultValue.toFloat(),
+                                            currentValue = customParam.currentValue.toFloat(),
+                                            isEnabled = customParam.isEnabled,
+                                            valueType = ParameterValueType.FLOAT,
+                                            minValue = customParam.minValue?.toFloat(),
+                                            maxValue = customParam.maxValue?.toFloat(),
+                                            category =
+                                                    ParameterCategory.valueOf(customParam.category),
+                                            isCustom = true
+                                    )
+                                }
+                                ParameterValueType.STRING -> {
+                                    ModelParameter(
+                                            id = customParam.id,
+                                            name = customParam.name,
+                                            apiName = customParam.apiName,
+                                            description = customParam.description,
+                                            defaultValue = customParam.defaultValue,
+                                            currentValue = customParam.currentValue,
+                                            isEnabled = customParam.isEnabled,
+                                            valueType = ParameterValueType.STRING,
+                                            category =
+                                                    ParameterCategory.valueOf(customParam.category),
+                                            isCustom = true
+                                    )
+                                }
+                                ParameterValueType.BOOLEAN -> {
+                                    ModelParameter(
+                                            id = customParam.id,
+                                            name = customParam.name,
+                                            apiName = customParam.apiName,
+                                            description = customParam.description,
+                                            defaultValue = customParam.defaultValue.toBoolean(),
+                                            currentValue = customParam.currentValue.toBoolean(),
+                                            isEnabled = customParam.isEnabled,
+                                            valueType = ParameterValueType.BOOLEAN,
+                                            category =
+                                                    ParameterCategory.valueOf(customParam.category),
+                                            isCustom = true
+                                    )
+                                }
+                            }
                     parameters.add(param)
                 }
             } catch (e: Exception) {
@@ -805,20 +804,18 @@ class ApiPreferences(private val context: Context) {
     }
 }
 
-/**
- * 用于序列化存储自定义参数的数据类
- */
+/** 用于序列化存储自定义参数的数据类 */
 @Serializable
 data class CustomParameterData(
-    val id: String,
-    val name: String,
-    val apiName: String,
-    val description: String,
-    val defaultValue: String,
-    val currentValue: String,
-    val isEnabled: Boolean = false,
-    val valueType: String,
-    val minValue: String? = null,
-    val maxValue: String? = null,
-    val category: String
+        val id: String,
+        val name: String,
+        val apiName: String,
+        val description: String,
+        val defaultValue: String,
+        val currentValue: String,
+        val isEnabled: Boolean = false,
+        val valueType: String,
+        val minValue: String? = null,
+        val maxValue: String? = null,
+        val category: String
 )

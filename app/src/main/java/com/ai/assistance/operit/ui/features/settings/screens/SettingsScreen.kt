@@ -18,6 +18,9 @@ import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.repository.ChatHistoryManager
 import kotlinx.coroutines.launch
 
+// 保存滑动状态变量，使其跨重组保持
+private val SettingsScreenScrollPosition = mutableStateOf(0)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -34,6 +37,16 @@ fun SettingsScreen(
         val apiPreferences = remember { ApiPreferences(context) }
         val scope = rememberCoroutineScope()
 
+        // 创建和记住滚动状态，设置为上次保存的位置
+        val scrollState = rememberScrollState(SettingsScreenScrollPosition.value)
+
+        // 当滚动状态改变时更新保存的位置
+        LaunchedEffect(scrollState) {
+                snapshotFlow { scrollState.value }.collect { position ->
+                        SettingsScreenScrollPosition.value = position
+                }
+        }
+
         // Collect API settings as state
         val apiKey = apiPreferences.apiKeyFlow.collectAsState(initial = "").value
         val apiEndpoint =
@@ -44,11 +57,6 @@ fun SettingsScreen(
         val modelName =
                 apiPreferences.modelNameFlow.collectAsState(
                                 initial = ApiPreferences.DEFAULT_MODEL_NAME
-                        )
-                        .value
-        val showThinking =
-                apiPreferences.showThinkingFlow.collectAsState(
-                                initial = ApiPreferences.DEFAULT_SHOW_THINKING
                         )
                         .value
         val memoryOptimization =
@@ -71,7 +79,6 @@ fun SettingsScreen(
         var apiKeyInput by remember { mutableStateOf(apiKey) }
         var apiEndpointInput by remember { mutableStateOf(apiEndpoint) }
         var modelNameInput by remember { mutableStateOf(modelName) }
-        var showThinkingInput by remember { mutableStateOf(showThinking) }
         var memoryOptimizationInput by remember { mutableStateOf(memoryOptimization) }
         var showFpsCounterInput by remember { mutableStateOf(showFpsCounter) }
         var autoGrantAccessibilityInput by remember { mutableStateOf(autoGrantAccessibility) }
@@ -100,7 +107,6 @@ fun SettingsScreen(
                 apiKey,
                 apiEndpoint,
                 modelName,
-                showThinking,
                 memoryOptimization,
                 showFpsCounter,
                 autoGrantAccessibility
@@ -108,7 +114,6 @@ fun SettingsScreen(
                 apiKeyInput = apiKey
                 apiEndpointInput = apiEndpoint
                 modelNameInput = modelName
-                showThinkingInput = showThinking
                 memoryOptimizationInput = memoryOptimization
                 showFpsCounterInput = showFpsCounter
                 autoGrantAccessibilityInput = autoGrantAccessibility
@@ -116,7 +121,9 @@ fun SettingsScreen(
 
         Column(
                 modifier =
-                        Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())
+                        Modifier.fillMaxSize()
+                                .padding(16.dp)
+                                .verticalScroll(scrollState) // 使用保存的滚动状态
         ) {
                 // ======= SECTION 1: PERSONALIZATION =======
                 SettingsSectionTitle(title = "个性化", icon = Icons.Default.Person)
@@ -159,10 +166,10 @@ fun SettingsScreen(
 
                 // 聊天记录管理
                 SettingsCard(
-                        title = "聊天记录管理",
-                        description = "导入、导出或删除聊天记录，方便备份和恢复重要对话",
+                        title = "数据备份与恢复",
+                        description = "导入、导出或删除聊天记录和问题库数据，方便备份和恢复重要信息",
                         onClick = navigateToChatHistorySettings,
-                        buttonText = "管理聊天记录",
+                        buttonText = "管理备份",
                         icon = Icons.Default.History
                 )
 
@@ -210,20 +217,6 @@ fun SettingsScreen(
                                                 style = MaterialTheme.typography.titleMedium
                                         )
                                 }
-
-                                // 显示思考过程设置
-                                SettingsToggle(
-                                        title = "显示思考过程",
-                                        description = "启用或禁用在生成回应时显示思考过程，增强透明度与可信度",
-                                        checked = showThinkingInput,
-                                        onCheckedChange = {
-                                                showThinkingInput = it
-                                                scope.launch {
-                                                        apiPreferences.saveShowThinking(it)
-                                                        showSaveSuccessMessage = true
-                                                }
-                                        }
-                                )
 
                                 // 记忆优化开关
                                 SettingsToggle(
