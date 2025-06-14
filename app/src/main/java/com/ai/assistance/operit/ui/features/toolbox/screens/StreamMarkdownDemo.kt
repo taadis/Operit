@@ -327,28 +327,6 @@ fun StreamMarkdownDemoScreen(onBackClick: () -> Unit = {}) {
             }
 
             Spacer(modifier = Modifier.height(24.dp))
-
-            // 新增：静态渲染区域
-            Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                            text = "静态渲染 (Static String)",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    // 使用新的基于字符串的渲染器
-                    StreamMarkdownRenderer(
-                            content = fullMarkdownContent,
-                            textColor = MaterialTheme.colorScheme.onSurface,
-                            onLinkClick = linkClickHandler,
-                            xmlRenderer = customXmlRenderer
-                    )
-                }
-            }
         }
     }
 }

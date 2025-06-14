@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ai.assistance.operit.core.tools.system.AndroidPermissionLevel
 import com.ai.assistance.operit.core.tools.system.ShizukuAuthorizer
@@ -32,7 +33,6 @@ import com.ai.assistance.operit.ui.features.demo.wizards.TermuxWizardCard
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import androidx.core.content.FileProvider
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -263,24 +263,28 @@ fun ShizukuDemoScreen(
                                 !viewModel.isTermuxFullyConfigured.value)
 
         // 检查Shizuku版本状态 - 使用remember缓存结果，避免每次重组时重复调用
-        val (installedVersion, bundledVersion, isUpdateNeeded) = remember {
-            val installed = ShizukuInstaller.getInstalledShizukuVersion(context)
-            val bundled = ShizukuInstaller.getBundledShizukuVersion(context)
-            val needsUpdate = ShizukuInstaller.isShizukuUpdateNeeded(context)
-            Log.d("ShizukuDemo", "缓存Shizuku版本状态 - 已安装: $installed, 内置: $bundled, 需要更新: $needsUpdate")
-            Triple(installed, bundled, needsUpdate)
-        }
+        val (installedVersion, bundledVersion, isUpdateNeeded) =
+                remember {
+                    val installed = ShizukuInstaller.getInstalledShizukuVersion(context)
+                    val bundled = ShizukuInstaller.getBundledShizukuVersion(context)
+                    val needsUpdate = ShizukuInstaller.isShizukuUpdateNeeded(context)
+                    Log.d(
+                            "ShizukuDemo",
+                            "缓存Shizuku版本状态 - 已安装: $installed, 内置: $bundled, 需要更新: $needsUpdate"
+                    )
+                    Triple(installed, bundled, needsUpdate)
+                }
 
         val needShizukuSetupGuide =
                 currentDisplayedPermissionLevel == AndroidPermissionLevel.DEBUGGER &&
                         ((!uiState.isShizukuInstalled.value ||
                                 !uiState.isShizukuRunning.value ||
                                 !uiState.hasShizukuPermission.value) ||
-                        // 如果Shizuku已完全设置但有更新可用，也显示向导
-                        (uiState.isShizukuInstalled.value && 
-                         uiState.isShizukuRunning.value && 
-                         uiState.hasShizukuPermission.value && 
-                         isUpdateNeeded))
+                                // 如果Shizuku已完全设置但有更新可用，也显示向导
+                                (uiState.isShizukuInstalled.value &&
+                                        uiState.isShizukuRunning.value &&
+                                        uiState.hasShizukuPermission.value &&
+                                        isUpdateNeeded))
 
         val needRootSetupGuide =
                 currentDisplayedPermissionLevel == AndroidPermissionLevel.ROOT &&
@@ -373,48 +377,59 @@ fun ShizukuDemoScreen(
                                         Log.e("ShizukuDemo", "提取APK失败")
                                         withContext(Dispatchers.Main) {
                                             Toast.makeText(
-                                                context,
-                                                "提取APK失败，请稍后再试",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
+                                                            context,
+                                                            "提取APK失败，请稍后再试",
+                                                            Toast.LENGTH_SHORT
+                                                    )
+                                                    .show()
                                         }
                                         return@launch
                                     }
-                                    
-                                    Log.d("ShizukuDemo", "APK提取成功: ${apkFile.absolutePath}, 大小: ${apkFile.length()} 字节")
-                                    
+
+                                    Log.d(
+                                            "ShizukuDemo",
+                                            "APK提取成功: ${apkFile.absolutePath}, 大小: ${apkFile.length()} 字节"
+                                    )
+
                                     // 生成APK的URI
-                                    val apkUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                                        FileProvider.getUriForFile(
-                                            context,
-                                            "${context.packageName}.fileprovider",
-                                            apkFile
-                                        )
-                                    } else {
-                                        Uri.fromFile(apkFile)
-                                    }
-                                    
+                                    val apkUri =
+                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                                                FileProvider.getUriForFile(
+                                                        context,
+                                                        "${context.packageName}.fileprovider",
+                                                        apkFile
+                                                )
+                                            } else {
+                                                Uri.fromFile(apkFile)
+                                            }
+
                                     Log.d("ShizukuDemo", "生成APK URI: $apkUri")
-                                    
+
                                     // 创建安装意图
-                                    val installIntent = Intent(Intent.ACTION_VIEW).apply {
-                                        setDataAndType(apkUri, "application/vnd.android.package-archive")
-                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                        }
-                                    }
-                                    
+                                    val installIntent =
+                                            Intent(Intent.ACTION_VIEW).apply {
+                                                setDataAndType(
+                                                        apkUri,
+                                                        "application/vnd.android.package-archive"
+                                                )
+                                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N
+                                                ) {
+                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                }
+                                            }
+
                                     Log.d("ShizukuDemo", "启动安装界面")
-                                    
+
                                     // 启动安装界面
                                     withContext(Dispatchers.Main) {
                                         context.startActivity(installIntent)
                                         Toast.makeText(
-                                            context,
-                                            "已启动Shizuku安装，请按照系统提示完成安装",
-                                            Toast.LENGTH_LONG
-                                        ).show()
+                                                        context,
+                                                        "已启动Shizuku安装，请按照系统提示完成安装",
+                                                        Toast.LENGTH_LONG
+                                                )
+                                                .show()
                                     }
                                 } catch (e: Exception) {
                                     Log.e("ShizukuDemo", "安装内置Shizuku时出错", e)
@@ -497,57 +512,69 @@ fun ShizukuDemoScreen(
                                         Log.e("ShizukuDemo", "提取APK失败")
                                         withContext(Dispatchers.Main) {
                                             Toast.makeText(
-                                                context,
-                                                "提取APK失败，请稍后再试",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
+                                                            context,
+                                                            "提取APK失败，请稍后再试",
+                                                            Toast.LENGTH_SHORT
+                                                    )
+                                                    .show()
                                         }
                                         return@launch
                                     }
-                                    
-                                    Log.d("ShizukuDemo", "APK提取成功: ${apkFile.absolutePath}, 大小: ${apkFile.length()} 字节")
-                                    
+
+                                    Log.d(
+                                            "ShizukuDemo",
+                                            "APK提取成功: ${apkFile.absolutePath}, 大小: ${apkFile.length()} 字节"
+                                    )
+
                                     // 生成APK的URI
-                                    val apkUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                                        FileProvider.getUriForFile(
-                                            context,
-                                            "${context.packageName}.fileprovider",
-                                            apkFile
-                                        )
-                                    } else {
-                                        Uri.fromFile(apkFile)
-                                    }
-                                    
+                                    val apkUri =
+                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                                                FileProvider.getUriForFile(
+                                                        context,
+                                                        "${context.packageName}.fileprovider",
+                                                        apkFile
+                                                )
+                                            } else {
+                                                Uri.fromFile(apkFile)
+                                            }
+
                                     Log.d("ShizukuDemo", "生成APK URI: $apkUri")
-                                    
+
                                     // 创建安装意图
-                                    val installIntent = Intent(Intent.ACTION_VIEW).apply {
-                                        setDataAndType(apkUri, "application/vnd.android.package-archive")
-                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                        }
-                                    }
-                                    
+                                    val installIntent =
+                                            Intent(Intent.ACTION_VIEW).apply {
+                                                setDataAndType(
+                                                        apkUri,
+                                                        "application/vnd.android.package-archive"
+                                                )
+                                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N
+                                                ) {
+                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                }
+                                            }
+
                                     Log.d("ShizukuDemo", "启动更新界面")
-                                    
+
                                     // 启动安装界面
                                     withContext(Dispatchers.Main) {
                                         context.startActivity(installIntent)
                                         Toast.makeText(
-                                            context,
-                                            "已启动Shizuku更新，请按照系统提示完成安装",
-                                            Toast.LENGTH_LONG
-                                        ).show()
+                                                        context,
+                                                        "已启动Shizuku更新，请按照系统提示完成安装",
+                                                        Toast.LENGTH_LONG
+                                                )
+                                                .show()
                                     }
                                 } catch (e: Exception) {
                                     Log.e("ShizukuDemo", "更新Shizuku时出错", e)
                                     withContext(Dispatchers.Main) {
                                         Toast.makeText(
-                                            context,
-                                            "更新失败: ${e.message}",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
+                                                        context,
+                                                        "更新失败: ${e.message}",
+                                                        Toast.LENGTH_SHORT
+                                                )
+                                                .show()
                                     }
                                 }
                             }
@@ -621,10 +648,12 @@ fun ShizukuDemoScreen(
                             }
                         },
                         onOpenTermux = {
-                                scope.launch(Dispatchers.IO) { viewModel.startTermux(context) }
+                            scope.launch(Dispatchers.IO) { viewModel.startTermux(context) }
                         },
                         onAuthorizeTermux = {
-                            scope.launch(Dispatchers.IO) { viewModel.ensureTermuxRunningAndAuthorize(context) }
+                            scope.launch(Dispatchers.IO) {
+                                viewModel.ensureTermuxRunningAndAuthorize(context)
+                            }
                         },
                         isTunaSourceEnabled = viewModel.isTunaSourceEnabled.value,
                         isPythonInstalled = viewModel.isPythonInstalled.value,
@@ -640,6 +669,20 @@ fun ShizukuDemoScreen(
                         },
                         onConfigureTunaSource = {
                             scope.launch(Dispatchers.IO) { viewModel.configureTunaSource(context) }
+                        },
+                        onSkipTunaSource = {
+                            scope.launch(Dispatchers.IO) {
+                                // 显示提示对话框并标记清华源为已跳过
+                                withContext(Dispatchers.Main) {
+                                    Toast.makeText(
+                                                    context,
+                                                    "已跳过清华源配置，您可以稍后在Termux中自行配置源",
+                                                    Toast.LENGTH_LONG
+                                            )
+                                            .show()
+                                }
+                                viewModel.skipTunaSource(context)
+                            }
                         },
                         onInstallPythonEnv = {
                             scope.launch(Dispatchers.IO) { viewModel.installPython(context) }

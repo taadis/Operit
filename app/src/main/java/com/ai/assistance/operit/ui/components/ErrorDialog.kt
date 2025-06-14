@@ -1,8 +1,11 @@
 package com.ai.assistance.operit.ui.components
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -25,12 +28,19 @@ fun ErrorDialog(
 ) {
     // 处理错误消息：移除堆栈跟踪信息，只保留主要错误信息
     val cleanErrorMessage = errorMessage.cleanErrorMessage()
+    // 创建滚动状态
+    val scrollState = rememberScrollState()
 
     AlertDialog(
             onDismissRequest = onDismiss,
             title = { Text(stringResource(R.string.request_failed)) },
             text = {
-                Box(modifier = Modifier.padding(vertical = 8.dp)) {
+                Box(
+                        modifier =
+                                Modifier.padding(vertical = 8.dp)
+                                        .heightIn(max = 300.dp) // 设置最大高度
+                                        .verticalScroll(scrollState) // 添加垂直滚动功能
+                ) {
                     Text(
                             text = cleanErrorMessage,
                             style = MaterialTheme.typography.bodyMedium,
@@ -39,7 +49,9 @@ fun ErrorDialog(
                     )
                 }
             },
-            confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.confirm)) } },
+            confirmButton = {
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.confirm)) }
+            },
             containerColor = MaterialTheme.colorScheme.surface,
             titleContentColor = MaterialTheme.colorScheme.onSurface,
             shape = RoundedCornerShape(16.dp),
@@ -135,10 +147,14 @@ private fun String.cleanErrorMessage(): String {
 
             // 特殊处理网络相关异常类型
             when {
-                simpleName.contains("SocketTimeout") -> return stringResource(R.string.connection_check_network)
-                simpleName.contains("UnknownHost") -> return stringResource(R.string.cannot_resolve_host)
-                simpleName.contains("Connect") -> return stringResource(R.string.cannot_connect_to_server)
-                simpleName.contains("SSL") || simpleName.contains("TLS") -> return stringResource(R.string.secure_connection_failed)
+                simpleName.contains("SocketTimeout") ->
+                        return stringResource(R.string.connection_check_network)
+                simpleName.contains("UnknownHost") ->
+                        return stringResource(R.string.cannot_resolve_host)
+                simpleName.contains("Connect") ->
+                        return stringResource(R.string.cannot_connect_to_server)
+                simpleName.contains("SSL") || simpleName.contains("TLS") ->
+                        return stringResource(R.string.secure_connection_failed)
                 simpleName.contains("Timeout") -> return stringResource(R.string.request_timeout)
                 simpleName.contains("IO") -> return stringResource(R.string.network_transfer_failed)
             }

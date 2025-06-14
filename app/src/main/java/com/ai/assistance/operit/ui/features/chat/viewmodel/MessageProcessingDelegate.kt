@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.ai.assistance.operit.api.EnhancedAIService
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatMessage
+import com.ai.assistance.operit.data.model.InputProcessingState as EnhancedInputProcessingState
 import com.ai.assistance.operit.util.NetworkUtils
 import com.ai.assistance.operit.util.stream.share
 import kotlinx.coroutines.CompletableDeferred
@@ -99,6 +100,8 @@ class MessageProcessingDelegate(
             try {
                 if (!NetworkUtils.isNetworkAvailable(context)) {
                     withContext(Dispatchers.Main) { showErrorMessage("网络连接不可用") }
+                    _isLoading.value = false
+                    _isProcessingInput.value = false
                     return@launch
                 }
 
@@ -106,6 +109,8 @@ class MessageProcessingDelegate(
                         getEnhancedAiService()
                                 ?: run {
                                     withContext(Dispatchers.Main) { showErrorMessage("AI服务未初始化") }
+                                    _isLoading.value = false
+                                    _isProcessingInput.value = false
                                     return@launch
                                 }
 
@@ -163,8 +168,9 @@ class MessageProcessingDelegate(
                 // 这有助于解决因竞态条件导致的UI内容（如状态标签）有时无法显示的问题
                 withContext(Dispatchers.IO) { delay(100) }
                 withContext(Dispatchers.Main) {
-                    _isLoading.value = false
-                    _isProcessingInput.value = false
+                    // 状态现在由 EnhancedAIService 的 inputProcessingState 控制，这里不再重置
+                    // _isLoading.value = false
+                    // _isProcessingInput.value = false
 
                     // 即使流处理完成，也需要保存一次聊天记录
                     updateChatStatistics()
@@ -210,5 +216,47 @@ class MessageProcessingDelegate(
     fun setInputProcessingState(isProcessing: Boolean, message: String) {
         _isProcessingInput.value = isProcessing
         _inputProcessingMessage.value = message
+    }
+
+    /**
+     * 处理来自 EnhancedAIService 的输入处理状态
+     * @param state 输入处理状态
+     */
+    fun handleInputProcessingState(state: EnhancedInputProcessingState) {
+        viewModelScope.launch(Dispatchers.Main) {
+            when (state) {
+                is EnhancedInputProcessingState.Idle -> {
+                    _isLoading.value = false
+                    _isProcessingInput.value = false
+                    _inputProcessingMessage.value = ""
+                }
+                is EnhancedInputProcessingState.Processing -> {
+                    _isLoading.value = true
+                    _isProcessingInput.value = true
+                    _inputProcessingMessage.value = state.message
+                }
+                is EnhancedInputProcessingState.Connecting -> {
+                    _isLoading.value = true
+                    _isProcessingInput.value = true
+                    _inputProcessingMessage.value = state.message
+                }
+                is EnhancedInputProcessingState.Receiving -> {
+                    _isLoading.value = true
+                    _isProcessingInput.value = true
+                    _inputProcessingMessage.value = state.message
+                }
+                is EnhancedInputProcessingState.Completed -> {
+                    _isLoading.value = false
+                    _isProcessingInput.value = false
+                    _inputProcessingMessage.value = ""
+                }
+                is EnhancedInputProcessingState.Error -> {
+                    showErrorMessage(state.message)
+                    _isLoading.value = false
+                    _isProcessingInput.value = false
+                    _inputProcessingMessage.value = ""
+                }
+            }
+        }
     }
 }

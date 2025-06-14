@@ -153,7 +153,6 @@ fun AIChatScreen(
         // 处理来自ViewModel的滚动事件（流式输出时）
         LaunchedEffect(Unit) {
                 scrollToBottomEvent.collect {
-                        Log.d("AIChatScreen", "收到滚动事件")
                         if (autoScrollToBottom) {
                                 try {
                                         scrollState.animateScrollTo(scrollState.maxValue)

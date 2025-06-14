@@ -1,59 +1,38 @@
 package com.ai.assistance.operit.util
 
-import com.ai.assistance.operit.data.model.ChatMessage
-
-/**
- * Utility functions for chat message handling
- */
+/** Utility functions for chat message handling */
 object ChatUtils {
     fun mapToStandardRole(role: String): String {
         return when (role) {
             "ai" -> "assistant"
             "tool" -> "user" // AI, assistant and tool messages map to assistant
-            "user" -> "user"  // User messages remain as user
+            "user" -> "user" // User messages remain as user
             "system" -> "system" // System messages remain as system
             "summary" -> "user" // Summary messages are treated as user messages
             else -> role // Default to user for any other role
         }
     }
-    
-    fun mapToStandardRoleForToolServer(role: String): String {
-        return when (role) {
-            "ai" -> "assistant"
-            "tool" -> "tool" // AI, assistant and tool messages map to assistant
-            "user" -> "user"  // User messages remain as user
-            "system" -> "system" // System messages remain as system
-            "summary" -> "user" // Summary messages are treated as user messages
-            else -> "user" // Default to user for any other role
-        }
-    }
-    
-    fun mapChatHistoryToStandardRoles(chatHistory: List<Pair<String, String>>): List<Pair<String, String>> {
-        return chatHistory.map { (role, content) -> 
-            Pair(mapToStandardRole(role), content)
-        }
-    }
-    fun mapChatHistoryToStandardRolesForToolServer(chatHistory: List<Pair<String, String>>): List<Pair<String, String>> {
-        return chatHistory.map { (role, content) -> 
-            Pair(mapToStandardRoleForToolServer(role), content)
-        }
-    }
-    
-    fun prepareMessagesForApi(
-        messages: List<ChatMessage>,
-        includeRoles: Set<String> = setOf("user", "ai", "system", "summary")
-    ): List<Pair<String, String>> {
-        return messages
-            .filter { it.sender in includeRoles }
-            .map { Pair(mapToStandardRole(it.sender), it.content) }
+
+    /** 过滤掉内容中的思考部分 移除<think></think>标签及其中的内容 */
+    fun removeThinkingContent(content: String): String {
+        // 使用正则表达式匹配<think>标签及其内容
+        val thinkPattern = "<think>.*?</think>".toRegex(RegexOption.DOT_MATCHES_ALL)
+        return content.replace(thinkPattern, "").trim()
     }
 
-    fun prepareMessagesForToolServer(
-        messages: List<ChatMessage>,
-        includeRoles: Set<String> = setOf("user", "ai", "system", "tool")
+    fun mapChatHistoryToStandardRoles(
+            chatHistory: List<Pair<String, String>>
     ): List<Pair<String, String>> {
-        return messages
-            .filter { it.sender in includeRoles }
-            .map { Pair(mapToStandardRoleForToolServer(it.sender), it.content) }
+        return chatHistory.map { (role, content) ->
+            val standardRole = mapToStandardRole(role)
+            // 对于assistant角色的消息，移除思考内容
+            val processedContent =
+                    if (standardRole == "assistant" || role == "ai") {
+                        removeThinkingContent(content)
+                    } else {
+                        content
+                    }
+            Pair(standardRole, processedContent)
+        }
     }
-} 
+}

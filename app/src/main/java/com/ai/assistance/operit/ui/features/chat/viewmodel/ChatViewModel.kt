@@ -272,35 +272,29 @@ class ChatViewModel(private val context: Context) : ViewModel() {
             }
         }
 
+        // 设置输入处理状态收集
+        viewModelScope.launch {
+            try {
+                enhancedAiService?.inputProcessingState?.collect { state ->
+                    if (::messageProcessingDelegate.isInitialized) {
+                        messageProcessingDelegate.handleInputProcessingState(state)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "输入处理状态收集出错: ${e.message}", e)
+                uiStateDelegate.showErrorMessage("输入处理状态收集失败: ${e.message}")
+            }
+        }
+
         // 设置输入处理状态收集和计划项收集
         viewModelScope.launch {
             try {
-                var inputProcessingSetupComplete = false
                 var planItemsSetupComplete = false
                 var retryCount = 0
                 val maxRetries = 3
 
-                while ((!inputProcessingSetupComplete || !planItemsSetupComplete) &&
-                        retryCount < maxRetries) {
-
-                    // 先设置输入处理状态收集
-                    if (::messageProcessingDelegate.isInitialized && !inputProcessingSetupComplete
-                    ) {
-                        try {
-                            Log.d(TAG, "设置输入处理状态收集，尝试 ${retryCount + 1}/${maxRetries}")
-
-                            inputProcessingSetupComplete = true
-                            Log.d(TAG, "输入处理状态收集设置成功")
-                        } catch (e: Exception) {
-                            Log.e(TAG, "设置输入处理状态收集时出错: ${e.message}", e)
-                            // 修改：对于重要的初始化错误，使用错误弹窗而不是仅记录日志
-                            if (retryCount == maxRetries - 1) {
-                                uiStateDelegate.showErrorMessage("无法初始化消息处理: ${e.message}")
-                            }
-                        }
-                    }
-
-                    // 再设置计划项收集
+                while (!planItemsSetupComplete && retryCount < maxRetries) {
+                    // 设置计划项收集
                     if (!planItemsSetupComplete) {
                         try {
                             Log.d(TAG, "设置计划项收集，尝试 ${retryCount + 1}/${maxRetries}")
@@ -317,7 +311,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                     }
 
                     // 如果都已完成，直接退出循环
-                    if (inputProcessingSetupComplete && planItemsSetupComplete) {
+                    if (planItemsSetupComplete) {
                         break
                     }
 
@@ -329,15 +323,12 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 }
 
                 // 记录最终设置状态
-                if (!inputProcessingSetupComplete) {
-                    Log.e(TAG, "无法设置输入处理状态收集，已达到最大重试次数")
-                }
                 if (!planItemsSetupComplete) {
                     Log.e(TAG, "无法设置计划项收集，已达到最大重试次数")
                 }
 
                 // 只要有一项设置成功，就标记整体服务收集器设置为已完成
-                if (inputProcessingSetupComplete || planItemsSetupComplete) {
+                if (planItemsSetupComplete) {
                     serviceCollectorSetupComplete = true
                     Log.d(TAG, "服务收集器设置已标记为完成")
                 }

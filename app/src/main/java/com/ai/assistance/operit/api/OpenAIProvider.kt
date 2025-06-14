@@ -99,16 +99,15 @@ class OpenAIProvider(
     }
 
     /**
-     * 获取模型列表
-     * 注意：此方法直接调用ModelListFetcher获取模型列表
+     * 获取模型列表 注意：此方法直接调用ModelListFetcher获取模型列表
      * @return 模型列表结果
      */
     override suspend fun getModelsList(): Result<List<ModelOption>> {
         // 调用ModelListFetcher获取模型列表
         return ModelListFetcher.getModelsList(
-            apiKey = apiKey,
-            apiEndpoint = apiEndpoint,
-            apiProviderType = ApiProviderType.OPENAI // 默认为OpenAI类型
+                apiKey = apiKey,
+                apiEndpoint = apiEndpoint,
+                apiProviderType = ApiProviderType.OPENAI // 默认为OpenAI类型
         )
     }
 
@@ -232,8 +231,11 @@ class OpenAIProvider(
         // 重置token计数
         _inputTokenCount = 0
         _outputTokenCount = 0
-        
-        Log.d("AIService", "【发送消息】开始处理sendMessage请求，消息长度: ${message.length}，历史记录数量: ${chatHistory.size}")
+
+        Log.d(
+                "AIService",
+                "【发送消息】开始处理sendMessage请求，消息长度: ${message.length}，历史记录数量: ${chatHistory.size}"
+        )
 
         val maxRetries = 3
         var retryCount = 0
@@ -242,8 +244,11 @@ class OpenAIProvider(
         Log.d("AIService", "【发送消息】标准化聊天历史记录，原始大小: ${chatHistory.size}")
         val standardizedHistory = ChatUtils.mapChatHistoryToStandardRoles(chatHistory)
         Log.d("AIService", "【发送消息】历史记录标准化完成，标准化后大小: ${standardizedHistory.size}")
-        
-        Log.d("AIService", "【发送消息】准备构建请求体，模型参数数量: ${modelParameters.size}，已启用参数: ${modelParameters.count { it.isEnabled }}")
+
+        Log.d(
+                "AIService",
+                "【发送消息】准备构建请求体，模型参数数量: ${modelParameters.size}，已启用参数: ${modelParameters.count { it.isEnabled }}"
+        )
         val requestBody = createRequestBody(message, standardizedHistory, modelParameters)
         val request = createRequest(requestBody)
         Log.d("AIService", "【发送消息】请求体构建完成，目标模型: $modelName，API端点: $apiEndpoint")
@@ -256,13 +261,11 @@ class OpenAIProvider(
                 activeCall = call
 
                 Log.d("AIService", "【发送消息】正在建立连接到服务器...")
-                
+
                 // 确保在IO线程执行网络请求
                 Log.d("AIService", "【发送消息】切换到IO线程执行网络请求")
-                val response = withContext(Dispatchers.IO) {
-                    call.execute()
-                }
-                
+                val response = withContext(Dispatchers.IO) { call.execute() }
+
                 try {
                     if (!response.isSuccessful) {
                         val errorBody = response.body?.string() ?: "No error details"
@@ -272,7 +275,7 @@ class OpenAIProvider(
 
                     Log.d("AIService", "【发送消息】连接成功(状态码: ${response.code})，准备处理流式响应...")
                     val responseBody = response.body ?: throw IOException("API响应为空")
-                    
+
                     // 在IO线程中读取响应
                     withContext(Dispatchers.IO) {
                         Log.d("AIService", "【发送消息】开始读取流式响应")
@@ -282,6 +285,10 @@ class OpenAIProvider(
                         var wasCancelled = false
                         var chunkCount = 0
                         var lastLogTime = System.currentTimeMillis()
+
+                        // 跟踪思考内容的状态
+                        var isInReasoningMode = false
+                        var hasEmittedThinkStart = false
 
                         try {
                             reader.useLines { lines ->
@@ -299,11 +306,13 @@ class OpenAIProvider(
                                             chunkCount++
                                             // 每10个块或500ms记录一次日志
                                             val currentTime = System.currentTimeMillis()
-                                            if (chunkCount % 10 == 0 || currentTime - lastLogTime > 500) {
+                                            if (chunkCount % 10 == 0 ||
+                                                            currentTime - lastLogTime > 500
+                                            ) {
                                                 // Log.d("AIService", "【发送消息】已处理数据块: $chunkCount")
                                                 lastLogTime = currentTime
                                             }
-                                            
+
                                             try {
                                                 val jsonResponse = JSONObject(data)
                                                 val choices = jsonResponse.getJSONArray("choices")
@@ -311,38 +320,109 @@ class OpenAIProvider(
                                                 if (choices.length() > 0) {
                                                     val choice = choices.getJSONObject(0)
 
-                                                    var content = ""
-
                                                     // 处理delta格式（流式响应）
                                                     val delta = choice.optJSONObject("delta")
                                                     if (delta != null) {
-                                                        // 尝试获取常规内容
-                                                        content = delta.optString("content", "")
+                                                        // 检查是否有思考内容
+                                                        val reasoningContent =
+                                                                delta.optString(
+                                                                        "reasoning_content",
+                                                                        ""
+                                                                )
+                                                        val regularContent =
+                                                                delta.optString("content", "")
+
+                                                        // 处理思考内容
+                                                        if (reasoningContent.isNotEmpty() &&
+                                                                        reasoningContent != "null"
+                                                        ) {
+                                                            if (!isInReasoningMode) {
+                                                                isInReasoningMode = true
+                                                                // 第一次发现思考内容，发射<think>开始标签
+                                                                if (!hasEmittedThinkStart) {
+                                                                    emit("<think>")
+                                                                    hasEmittedThinkStart = true
+                                                                }
+                                                            }
+                                                            // 发射思考内容
+                                                            emit(reasoningContent)
+                                                            _outputTokenCount +=
+                                                                    estimateTokenCount(
+                                                                            reasoningContent
+                                                                    )
+                                                        }
+                                                        // 处理常规内容
+                                                        else if (regularContent.isNotEmpty() &&
+                                                                        regularContent != "null"
+                                                        ) {
+                                                            // 如果之前在思考模式，现在切换到了常规内容，需要关闭思考标签
+                                                            if (isInReasoningMode) {
+                                                                isInReasoningMode = false
+                                                                emit("</think>")
+                                                            }
+
+                                                            // 当收到第一个有效内容时，标记不再是首次响应
+                                                            if (isFirstResponse) {
+                                                                isFirstResponse = false
+                                                                Log.d(
+                                                                        "AIService",
+                                                                        "【发送消息】收到首个有效内容片段"
+                                                                )
+                                                            }
+
+                                                            // 更新内容
+                                                            currentContent.append(regularContent)
+
+                                                            // 计算输出tokens
+                                                            _outputTokenCount +=
+                                                                    estimateTokenCount(
+                                                                            regularContent
+                                                                    )
+
+                                                            // 发射内容
+                                                            emit(regularContent)
+                                                        }
                                                     }
                                                     // 处理message格式（非流式响应）
                                                     else {
-                                                        val message = choice.optJSONObject("message")
+                                                        val message =
+                                                                choice.optJSONObject("message")
                                                         if (message != null) {
-                                                            content = message.optString("content", "")
+                                                            val reasoningContent =
+                                                                    message.optString(
+                                                                            "reasoning_content",
+                                                                            ""
+                                                                    )
+                                                            val regularContent =
+                                                                    message.optString("content", "")
+
+                                                            // 先处理思考内容（如果有）
+                                                            if (reasoningContent.isNotEmpty() &&
+                                                                            reasoningContent !=
+                                                                                    "null"
+                                                            ) {
+                                                                emit(
+                                                                        "<think>" +
+                                                                                reasoningContent +
+                                                                                "</think>"
+                                                                )
+                                                                _outputTokenCount +=
+                                                                        estimateTokenCount(
+                                                                                reasoningContent
+                                                                        )
+                                                            }
+
+                                                            // 然后处理常规内容
+                                                            if (regularContent.isNotEmpty() &&
+                                                                            regularContent != "null"
+                                                            ) {
+                                                                emit(regularContent)
+                                                                _outputTokenCount +=
+                                                                        estimateTokenCount(
+                                                                                regularContent
+                                                                        )
+                                                            }
                                                         }
-                                                    }
-
-                                                    // 处理收到的内容
-                                                    if (content.isNotEmpty() && content != "null") {
-                                                        // 当收到第一个有效内容时，标记不再是首次响应
-                                                        if (isFirstResponse) {
-                                                            isFirstResponse = false
-                                                            Log.d("AIService", "【发送消息】收到首个有效内容片段")
-                                                        }
-
-                                                        // 更新内容
-                                                        currentContent.append(content)
-
-                                                        // 计算输出tokens
-                                                        _outputTokenCount += estimateTokenCount(content)
-
-                                                        // 发射内容
-                                                        emit(content)
                                                     }
                                                 }
                                             } catch (e: Exception) {
@@ -350,12 +430,20 @@ class OpenAIProvider(
                                                 Log.w("AIService", "【发送消息】JSON解析错误: ${e.message}")
                                             }
                                         } else {
+                                            // 收到流结束标记，如果还在思考模式，确保关闭思考标签
+                                            if (isInReasoningMode) {
+                                                isInReasoningMode = false
+                                                emit("</think>")
+                                            }
                                             Log.d("AIService", "【发送消息】收到流结束标记[DONE]")
                                         }
                                     }
                                 }
                             }
-                            Log.d("AIService", "【发送消息】响应流处理完成，总块数: $chunkCount，输出token: $_outputTokenCount")
+                            Log.d(
+                                    "AIService",
+                                    "【发送消息】响应流处理完成，总块数: $chunkCount，输出token: $_outputTokenCount"
+                            )
                         } catch (e: IOException) {
                             // 捕获IO异常，可能是由于取消Call导致的
                             if (activeCall?.isCanceled() == true) {
@@ -377,7 +465,10 @@ class OpenAIProvider(
                 }
 
                 // 成功处理后返回
-                Log.d("AIService", "【发送消息】请求成功完成，输入token: $_inputTokenCount，输出token: $_outputTokenCount")
+                Log.d(
+                        "AIService",
+                        "【发送消息】请求成功完成，输入token: $_inputTokenCount，输出token: $_outputTokenCount"
+                )
                 return@stream
             } catch (e: SocketTimeoutException) {
                 lastException = e
@@ -393,9 +484,7 @@ class OpenAIProvider(
             } catch (e: Exception) {
                 Log.e("AIService", "【发送消息】连接失败", e)
                 emit("【连接失败: ${e.message}】")
-                throw IOException(
-                        "AI响应获取失败: ${e.message} ${e.stackTrace.joinToString("\n")}"
-                )
+                throw IOException("AI响应获取失败: ${e.message} ${e.stackTrace.joinToString("\n")}")
             }
         }
 

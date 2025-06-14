@@ -514,14 +514,14 @@ class ShizukuDemoViewModel(application: Application) : AndroidViewModel(applicat
     fun deleteTermuxConfigAndStart(context: Context) {
         viewModelScope.launch {
             startConfiguration("删除Termux配置并启动")
-            
+
             try {
                 // 首先删除Termux配置
                 updateOutputText("${outputText.value}\n正在删除Termux配置...")
                 val deleteResult = TermuxAuthorizer.deleteTermuxConfig(context)
-                
+
                 updateOutputText("${outputText.value}\n配置已删除，正在启动Termux...")
-                
+
                 // 然后启动Termux
                 val intent = context.packageManager.getLaunchIntentForPackage("com.termux")
                 if (intent != null) {
@@ -542,11 +542,11 @@ class ShizukuDemoViewModel(application: Application) : AndroidViewModel(applicat
             }
         }
     }
-    
+
     fun ensureTermuxRunningAndAuthorize(context: Context) {
         viewModelScope.launch {
             startConfiguration("确保Termux运行并授权")
-            
+
             try {
                 // 首先检查Termux是否运行
                 if (!isTermuxRunning.value) {
@@ -555,10 +555,10 @@ class ShizukuDemoViewModel(application: Application) : AndroidViewModel(applicat
                     endConfiguration()
                     return@launch
                 }
-                
+
                 // 然后进行授权
                 updateOutputText("${outputText.value}\nTermux已运行，开始授权...")
-                
+
                 // 调用实际的授权逻辑
                 val result =
                         TermuxDemoUtil.authorizeTermux(
@@ -633,6 +633,34 @@ class ShizukuDemoViewModel(application: Application) : AndroidViewModel(applicat
     override fun onCleared() {
         super.onCleared()
         stateManager.cleanup()
+    }
+
+    /** 跳过清华源配置 */
+    fun skipTunaSource(context: Context) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // 显示配置对话框
+                showResultDialog(
+                        "跳过清华源配置",
+                        "您已选择跳过清华源配置。如需后续手动配置，请在Termux中执行以下命令：\n\ntermux-change-repo\n\n然后从列表中选择清华源或其他源。"
+                )
+
+                // 直接将状态标记为已启用，跳过配置步骤
+                updateSourceStatus(true)
+
+                // 延迟一下，模拟配置过程
+                delay(1500)
+
+                // 设置完成后隐藏对话框
+                hideResultDialog()
+            } catch (e: Exception) {
+                Log.e("ShizukuDemoViewModel", "跳过清华源时出错: ${e.message}", e)
+
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "操作失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
     }
 
     /** ViewModelFactory for creating ShizukuDemoViewModel with dependencies */

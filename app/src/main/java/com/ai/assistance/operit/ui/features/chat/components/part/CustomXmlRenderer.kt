@@ -1,19 +1,19 @@
 package com.ai.assistance.operit.ui.features.chat.components.part
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -24,7 +24,7 @@ import com.ai.assistance.operit.ui.common.markdown.XmlContentRenderer
 
 /** 支持多种 XML 标签的自定义渲染器 包含高效的前缀检测，直接解析标签类型 */
 class CustomXmlRenderer(private val fallback: XmlContentRenderer = DefaultXmlRenderer()) :
-    XmlContentRenderer {
+        XmlContentRenderer {
     // 定义渲染器能够处理的内置标签集合
     private val builtInTags =
             setOf("think", "tool", "status", "plan_item", "plan_update", "tool_result")
@@ -42,7 +42,7 @@ class CustomXmlRenderer(private val fallback: XmlContentRenderer = DefaultXmlRen
 
         // 根据新规则处理未闭合的标签
         if (!isXmlFullyClosed(trimmedContent)) {
-            if (tagName in builtInTags && tagName != "tool") {
+            if (tagName in builtInTags && tagName != "tool" && tagName != "think") {
                 // 是内置标签但未闭合，则不显示任何内容，等待其闭合
                 return
             } else if (!(tagName in builtInTags)) {
@@ -144,13 +144,18 @@ class CustomXmlRenderer(private val fallback: XmlContentRenderer = DefaultXmlRen
                     horizontalArrangement = Arrangement.Start,
                     verticalAlignment = Alignment.CenterVertically
             ) {
+                val rotation by
+                        animateFloatAsState(
+                                targetValue = if (expanded) 90f else 0f,
+                                animationSpec = tween(durationMillis = 300),
+                                label = "arrowRotation"
+                        )
+
                 Icon(
-                        imageVector =
-                                if (expanded) Icons.Default.KeyboardArrowDown
-                                else Icons.Default.KeyboardArrowRight,
+                        imageVector = Icons.Default.KeyboardArrowRight,
                         contentDescription = if (expanded) "收起" else "展开",
                         tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(20.dp).graphicsLayer { rotationZ = rotation }
                 )
 
                 Spacer(modifier = Modifier.width(4.dp))
@@ -168,12 +173,18 @@ class CustomXmlRenderer(private val fallback: XmlContentRenderer = DefaultXmlRen
                     exit = androidx.compose.animation.fadeOut(animationSpec = tween(200))
             ) {
                 if (thinkText.isNotBlank()) {
-                    Text(
-                            text = thinkText,
-                            color = textColor.copy(alpha = 0.6f),
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(top = 4.dp, bottom = 8.dp, start = 24.dp)
-                    )
+                    Box(
+                            modifier =
+                                    Modifier.fillMaxWidth()
+                                            .clickable { expanded = false }
+                                            .padding(top = 4.dp, bottom = 8.dp, start = 24.dp)
+                    ) {
+                        Text(
+                                text = thinkText,
+                                color = textColor.copy(alpha = 0.6f),
+                                style = MaterialTheme.typography.bodySmall
+                        )
+                    }
                 }
             }
         }
