@@ -22,8 +22,6 @@ import com.ai.assistance.operit.ui.features.chat.util.ConfigurationStateHolder
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModelFactory
 import com.ai.assistance.operit.ui.main.screens.GestureStateHolder
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -141,10 +139,7 @@ fun AIChatScreen(
                                         val isNearBottom =
                                                 scrollState.maxValue - currentPosition < 200
                                         if (isNearBottom && !autoScrollToBottom) {
-                                                Log.d(
-                                                        "AIChatScreen",
-                                                        "用户滚动到底部，启用自动滚动"
-                                                )
+                                                Log.d("AIChatScreen", "用户滚动到底部，启用自动滚动")
                                                 autoScrollToBottom = true
                                                 showScrollButton = false
                                         }
@@ -157,29 +152,22 @@ fun AIChatScreen(
 
         // 处理来自ViewModel的滚动事件（流式输出时）
         LaunchedEffect(Unit) {
-            // 直接收集事件流，不需要转换为状态
-            scrollToBottomEvent.collect {
-                Log.d("AIChatScreen", "收到滚动事件")
-                if (autoScrollToBottom) {
-                    try {
-                        Log.d("AIChatScreen", "执行来自事件流的自动滚动")
-                        scrollState.animateScrollTo(scrollState.maxValue)
-                    } catch (e: Exception) {
-                        Log.e("AIChatScreen", "自动滚动失败", e)
-                    }
+                scrollToBottomEvent.collect {
+                        Log.d("AIChatScreen", "收到滚动事件")
+                        if (autoScrollToBottom) {
+                                try {
+                                        scrollState.animateScrollTo(scrollState.maxValue)
+                                } catch (e: Exception) {
+                                        Log.e("AIChatScreen", "自动滚动失败", e)
+                                }
+                        }
                 }
-            }
         }
 
         // 自动滚动处理 - 仅在消息数量变化时触发
         LaunchedEffect(chatHistory.size) {
-                Log.d("AIChatScreen", "消息数量变化：${chatHistory.size}")
                 if (autoScrollToBottom) {
                         try {
-                                Log.d(
-                                        "AIChatScreen",
-                                        "执行自动滚动到最底部 (因消息数量变化)"
-                                )
                                 scrollState.animateScrollTo(scrollState.maxValue)
                         } catch (e: Exception) {
                                 Log.e("AIChatScreen", "自动滚动失败", e)

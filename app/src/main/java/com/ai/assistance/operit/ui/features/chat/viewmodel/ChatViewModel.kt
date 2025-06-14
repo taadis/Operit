@@ -17,8 +17,8 @@ import com.ai.assistance.operit.ui.features.chat.attachments.AttachmentManager
 import com.ai.assistance.operit.ui.features.chat.webview.LocalWebServer
 import com.ai.assistance.operit.ui.permissions.PermissionLevel
 import com.ai.assistance.operit.ui.permissions.ToolPermissionSystem
-import kotlinx.coroutines.Dispatchers
 import java.io.IOException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -154,7 +154,6 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         // Setup additional components
         setupPermissionSystemCollection()
         setupAttachmentManagerToastCollection()
-        checkIfShouldCreateNewChat()
     }
 
     private fun initializeDelegates() {
@@ -175,7 +174,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                         resetPlanItems = { planItemsDelegate.clearPlanItems() },
                         getEnhancedAiService = { enhancedAiService },
                         ensureAiServiceAvailable = { ensureAiServiceAvailable() },
-                        getTokenCounts = { tokenStatsDelegate.getCurrentTokenCounts() }
+                        getTokenCounts = { tokenStatsDelegate.getCurrentTokenCounts() },
+                        onScrollToBottom = { messageProcessingDelegate.scrollToBottom() }
                 )
 
         // Then initialize message processing delegate

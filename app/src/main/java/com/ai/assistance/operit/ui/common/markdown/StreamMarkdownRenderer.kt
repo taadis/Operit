@@ -3,6 +3,7 @@ package com.ai.assistance.operit.ui.common.markdown
 import android.util.Log
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.collection.LruCache
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -29,7 +30,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -62,15 +62,14 @@ import com.ai.assistance.operit.util.stream.Stream
 import com.ai.assistance.operit.util.stream.StreamInterceptor
 import com.ai.assistance.operit.util.stream.splitBy as streamSplitBy
 import com.ai.assistance.operit.util.stream.stream
+import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 import ru.noties.jlatexmath.JLatexMathDrawable
-import kotlin.time.Duration.Companion.milliseconds
-import androidx.collection.LruCache
-import kotlinx.coroutines.Dispatchers
 
 private const val TAG = "MarkdownRenderer"
 private const val RENDER_INTERVAL_MS = 100L // 渲染间隔 0.1 秒
@@ -78,51 +77,47 @@ private const val FADE_IN_DURATION_MS = 800 // 淡入动画持续时间
 
 // XML内容渲染器接口，用于自定义XML渲染
 interface XmlContentRenderer {
-    @Composable
-    fun RenderXmlContent(
-        xmlContent: String,
-        modifier: Modifier,
-        textColor: Color
-    )
+    @Composable fun RenderXmlContent(xmlContent: String, modifier: Modifier, textColor: Color)
 }
 
 // 默认XML渲染器
 class DefaultXmlRenderer : XmlContentRenderer {
     @Composable
-    override fun RenderXmlContent(
-        xmlContent: String, 
-        modifier: Modifier, 
-        textColor: Color
-    ) {
+    override fun RenderXmlContent(xmlContent: String, modifier: Modifier, textColor: Color) {
         Surface(
-            modifier = modifier.fillMaxWidth().padding(vertical = 4.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f),
-            shape = RoundedCornerShape(4.dp)
+                modifier = modifier.fillMaxWidth().padding(vertical = 4.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f),
+                shape = RoundedCornerShape(4.dp)
         ) {
             Column(
-                modifier = Modifier.fillMaxWidth()
-                    .padding(2.dp)
-                    .border(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                        shape = RoundedCornerShape(2.dp)
-                    )
-                    .padding(8.dp)
+                    modifier =
+                            Modifier.fillMaxWidth()
+                                    .padding(2.dp)
+                                    .border(
+                                            width = 1.dp,
+                                            color =
+                                                    MaterialTheme.colorScheme.outline.copy(
+                                                            alpha = 0.5f
+                                                    ),
+                                            shape = RoundedCornerShape(2.dp)
+                                    )
+                                    .padding(8.dp)
             ) {
                 Text(
-                    text = "XML内容",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = textColor,
-                    fontWeight = FontWeight.Bold
+                        text = "XML内容",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = textColor,
+                        fontWeight = FontWeight.Bold
                 )
-                
+
                 Text(
-                    text = xmlContent,
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontFamily = FontFamily.Monospace
-                    ),
-                    color = textColor,
-                    modifier = Modifier.padding(top = 4.dp)
+                        text = xmlContent,
+                        style =
+                                MaterialTheme.typography.bodyMedium.copy(
+                                        fontFamily = FontFamily.Monospace
+                                ),
+                        color = textColor,
+                        modifier = Modifier.padding(top = 4.dp)
                 )
             }
         }
@@ -154,46 +149,51 @@ fun StreamMarkdownRenderer(
     val scope = rememberCoroutineScope()
 
     // 当流实例变化时，获得一个稳定的渲染器ID
-    val rendererId = remember(markdownStream) { "renderer-${System.identityHashCode(markdownStream)}" }
-    
+    val rendererId =
+            remember(markdownStream) { "renderer-${System.identityHashCode(markdownStream)}" }
+
     // 创建一个中间流，用于拦截和批处理渲染更新
-    val interceptedStream = remember(markdownStream) {
-        // 移除时间计算变量和日志
-        // 先创建拦截器
-        val processor = StreamInterceptor<Char, Char>(
-            sourceStream = markdownStream,
-            onEach = { it } // 先使用简单的转发函数，后面再设置
-        )
-        
-        // 然后创建批处理更新器
-        val batchUpdater = BatchNodeUpdater(
-            nodes = nodes,
-            renderNodes = renderNodes,
-            nodeAnimationStates = nodeAnimationStates,
-            rendererId = rendererId,
-            isInterceptedStream = processor.interceptedStream,
-            scope = scope
-        )
-        
-        // 最后设置拦截器的onEach函数
-        processor.setOnEach {
-            batchUpdater.startBatchUpdates()
-            it
-        }
-        
-        processor.interceptedStream
-    }
+    val interceptedStream =
+            remember(markdownStream) {
+                // 移除时间计算变量和日志
+                // 先创建拦截器
+                val processor =
+                        StreamInterceptor<Char, Char>(
+                                sourceStream = markdownStream,
+                                onEach = { it } // 先使用简单的转发函数，后面再设置
+                        )
+
+                // 然后创建批处理更新器
+                val batchUpdater =
+                        BatchNodeUpdater(
+                                nodes = nodes,
+                                renderNodes = renderNodes,
+                                nodeAnimationStates = nodeAnimationStates,
+                                rendererId = rendererId,
+                                isInterceptedStream = processor.interceptedStream,
+                                scope = scope
+                        )
+
+                // 最后设置拦截器的onEach函数
+                processor.setOnEach {
+                    batchUpdater.startBatchUpdates()
+                    it
+                }
+
+                processor.interceptedStream
+            }
 
     // 处理Markdown流的变化
     LaunchedEffect(interceptedStream) {
         // 移除时间计算变量和日志
-        
+
         // 重置状态
         nodes.clear()
         renderNodes.clear()
 
         try {
-            interceptedStream.streamSplitBy(NestedMarkdownProcessor.getBlockPlugins()).collect { blockGroup ->
+            interceptedStream.streamSplitBy(NestedMarkdownProcessor.getBlockPlugins()).collect {
+                    blockGroup ->
                 // 移除时间计算变量和日志
                 val blockType = NestedMarkdownProcessor.getTypeForPlugin(blockGroup.tag)
 
@@ -206,7 +206,8 @@ fun StreamMarkdownRenderer(
                 // 判断是否为LaTeX块，如果是，先作为文本节点处理
                 val isLatexBlock = blockType == MarkdownProcessorType.BLOCK_LATEX
                 // 临时类型：如果是LaTeX块，先作为纯文本处理
-                val tempBlockType = if (isLatexBlock) MarkdownProcessorType.PLAIN_TEXT else blockType
+                val tempBlockType =
+                        if (isLatexBlock) MarkdownProcessorType.PLAIN_TEXT else blockType
 
                 val isInlineContainer =
                         tempBlockType != MarkdownProcessorType.CODE_BLOCK &&
@@ -261,14 +262,17 @@ fun StreamMarkdownRenderer(
                                                 inlineType == MarkdownProcessorType.PLAIN_TEXT
                                 ) {
                                     val lastIndex = newNode.children.lastIndex
-                                    if (lastIndex >= 0 && newNode.children[lastIndex] == childNode) {
+                                    if (lastIndex >= 0 && newNode.children[lastIndex] == childNode
+                                    ) {
                                         newNode.children.removeAt(lastIndex)
                                     }
                                 }
                             }
                 } else {
                     // 对于没有内联格式的代码块，直接流式传输内容。
-                    blockGroup.stream.collect { contentChunk -> newNode.content.value += contentChunk }
+                    blockGroup.stream.collect { contentChunk ->
+                        newNode.content.value += contentChunk
+                    }
                 }
 
                 // 如果原始类型是LaTeX块，现在收集完毕，将其转换回LaTeX节点
@@ -280,10 +284,10 @@ fun StreamMarkdownRenderer(
                     // 原地替换节点，以保持索引的稳定性，避免不必要的重组
                     nodes[nodeIndex] = latexNode
                 }
-                
+
                 // 移除块处理时间日志
             }
-            
+
             // 移除收集完成时间日志
         } catch (e: Exception) {
             Log.e(TAG, "【流渲染】Markdown流处理异常: ${e.message}", e)
@@ -306,20 +310,21 @@ fun StreamMarkdownRenderer(
                         // 获取节点动画状态，默认为显示状态
                         val isVisible = nodeAnimationStates[nodeKey] ?: true
                         // 创建淡入动画
-                        val alpha by animateFloatAsState(
-                            targetValue = if (isVisible) 1f else 0f,
-                            animationSpec = tween(durationMillis = FADE_IN_DURATION_MS),
-                            label = "fadeIn"
-                        )
-                        
+                        val alpha by
+                                animateFloatAsState(
+                                        targetValue = if (isVisible) 1f else 0f,
+                                        animationSpec = tween(durationMillis = FADE_IN_DURATION_MS),
+                                        label = "fadeIn"
+                                )
+
                         Box(modifier = Modifier.alpha(alpha)) {
                             StableMarkdownNodeRenderer(
-                                node = node,
-                                textColor = textColor,
-                                modifier = Modifier,
-                                onLinkClick = onLinkClick,
-                                index = index,
-                                xmlRenderer = xmlRenderer
+                                    node = node,
+                                    textColor = textColor,
+                                    modifier = Modifier,
+                                    onLinkClick = onLinkClick,
+                                    index = index,
+                                    xmlRenderer = xmlRenderer
                             )
                         }
                     }
@@ -329,9 +334,7 @@ fun StreamMarkdownRenderer(
     }
 }
 
-/**
- * A cache for parsed markdown nodes to improve performance.
- */
+/** A cache for parsed markdown nodes to improve performance. */
 private object MarkdownNodeCache {
     // Cache up to 100 parsed messages
     private val cache = LruCache<String, List<MarkdownNode>>(100)
@@ -345,18 +348,15 @@ private object MarkdownNodeCache {
     }
 }
 
-/**
- * 高性能静态Markdown渲染组件
- * 接受一个完整的字符串，一次性解析和渲染，适用于静态内容显示。
- */
+/** 高性能静态Markdown渲染组件 接受一个完整的字符串，一次性解析和渲染，适用于静态内容显示。 */
 @Composable
 fun StreamMarkdownRenderer(
-    content: String,
-    modifier: Modifier = Modifier,
-    textColor: Color = LocalContentColor.current,
-    backgroundColor: Color = MaterialTheme.colorScheme.surface,
-    onLinkClick: ((String) -> Unit)? = null,
-    xmlRenderer: XmlContentRenderer = remember { DefaultXmlRenderer() }
+        content: String,
+        modifier: Modifier = Modifier,
+        textColor: Color = LocalContentColor.current,
+        backgroundColor: Color = MaterialTheme.colorScheme.surface,
+        onLinkClick: ((String) -> Unit)? = null,
+        xmlRenderer: XmlContentRenderer = remember { DefaultXmlRenderer() }
 ) {
     // 移除渲染时间相关的变量和日志
 
@@ -373,7 +373,7 @@ fun StreamMarkdownRenderer(
     LaunchedEffect(content) {
         // 移除时间计算相关变量
         val cachedNodes = MarkdownNodeCache.get(content)
-        
+
         if (cachedNodes != null) {
             // 移除时间计算相关的日志
             // 移除时间计算变量
@@ -389,11 +389,12 @@ fun StreamMarkdownRenderer(
             // 移除应用缓存节点相关时间日志
             return@LaunchedEffect
         }
-        
+
         launch(Dispatchers.IO) {
             try {
                 val parsedNodes = mutableListOf<MarkdownNode>()
-                content.stream().streamSplitBy(NestedMarkdownProcessor.getBlockPlugins()).collect { blockGroup ->
+                content.stream().streamSplitBy(NestedMarkdownProcessor.getBlockPlugins()).collect {
+                        blockGroup ->
                     val blockType = NestedMarkdownProcessor.getTypeForPlugin(blockGroup.tag)
 
                     // 对于水平分割线，内容无关紧要，直接添加节点
@@ -405,7 +406,8 @@ fun StreamMarkdownRenderer(
                     // 判断是否为LaTeX块，如果是，先作为文本节点处理
                     val isLatexBlock = blockType == MarkdownProcessorType.BLOCK_LATEX
                     // 临时类型：如果是LaTeX块，先作为纯文本处理
-                    val tempBlockType = if (isLatexBlock) MarkdownProcessorType.PLAIN_TEXT else blockType
+                    val tempBlockType =
+                            if (isLatexBlock) MarkdownProcessorType.PLAIN_TEXT else blockType
 
                     val isInlineContainer =
                             tempBlockType != MarkdownProcessorType.CODE_BLOCK &&
@@ -416,15 +418,17 @@ fun StreamMarkdownRenderer(
                     val newNode = MarkdownNode(type = tempBlockType)
                     parsedNodes.add(newNode)
                     val nodeIndex = parsedNodes.lastIndex
-                    
+
                     // 移除内联处理的时间相关变量
-                    
+
                     if (isInlineContainer) {
                         // Stream-parse the block stream for inline elements
                         blockGroup.stream.streamSplitBy(NestedMarkdownProcessor.getInlinePlugins())
                                 .collect { inlineGroup ->
                                     val inlineType =
-                                            NestedMarkdownProcessor.getTypeForPlugin(inlineGroup.tag)
+                                            NestedMarkdownProcessor.getTypeForPlugin(
+                                                    inlineGroup.tag
+                                            )
                                     var childNode: MarkdownNode? = null
                                     var lastCharWasNewline = false // 跟踪上一个字符是否为换行符
 
@@ -463,16 +467,20 @@ fun StreamMarkdownRenderer(
                                                     inlineType == MarkdownProcessorType.PLAIN_TEXT
                                     ) {
                                         val lastIndex = newNode.children.lastIndex
-                                        if (lastIndex >= 0 && newNode.children[lastIndex] == childNode) {
+                                        if (lastIndex >= 0 &&
+                                                        newNode.children[lastIndex] == childNode
+                                        ) {
                                             newNode.children.removeAt(lastIndex)
                                         }
                                     }
                                 }
-                        
+
                         // 移除内联处理耗时相关日志
                     } else {
                         // 对于没有内联格式的代码块，直接流式传输内容。
-                        blockGroup.stream.collect { contentChunk -> newNode.content.value += contentChunk }
+                        blockGroup.stream.collect { contentChunk ->
+                            newNode.content.value += contentChunk
+                        }
                     }
 
                     // 如果原始类型是LaTeX块，现在收集完毕，将其转换回LaTeX节点
@@ -492,13 +500,13 @@ fun StreamMarkdownRenderer(
                 withContext(Dispatchers.Main) {
                     // 保存到缓存，这样下次渲染同样内容时可以直接使用
                     MarkdownNodeCache.put(content, parsedNodes)
-                    
+
                     // 更新UI状态
                     // 清除现有节点
                     nodes.clear()
                     // 批量添加所有节点以减少UI重组次数
                     nodes.addAll(parsedNodes)
-                    
+
                     // 更新所有节点的动画状态为可见
                     val newStates = mutableMapOf<String, Boolean>()
                     parsedNodes.forEachIndexed { index, node ->
@@ -506,7 +514,7 @@ fun StreamMarkdownRenderer(
                         newStates[nodeKey] = true
                     }
                     nodeAnimationStates.putAll(newStates)
-                    
+
                     // 移除UI更新时间相关日志
                 }
             } catch (e: Exception) {
@@ -523,20 +531,21 @@ fun StreamMarkdownRenderer(
                     val nodeKey = "static-node-$rendererId-$index-${node.type}"
                     key(nodeKey) {
                         val isVisible = nodeAnimationStates[nodeKey] ?: true
-                        val alpha by animateFloatAsState(
-                            targetValue = if (isVisible) 1f else 0f,
-                            animationSpec = tween(durationMillis = FADE_IN_DURATION_MS),
-                            label = "fadeIn"
-                        )
-                        
+                        val alpha by
+                                animateFloatAsState(
+                                        targetValue = if (isVisible) 1f else 0f,
+                                        animationSpec = tween(durationMillis = FADE_IN_DURATION_MS),
+                                        label = "fadeIn"
+                                )
+
                         Box(modifier = Modifier.alpha(alpha)) {
                             StableMarkdownNodeRenderer(
-                                node = node,
-                                textColor = textColor,
-                                modifier = Modifier,
-                                onLinkClick = onLinkClick,
-                                index = index,
-                                xmlRenderer = xmlRenderer
+                                    node = node,
+                                    textColor = textColor,
+                                    modifier = Modifier,
+                                    onLinkClick = onLinkClick,
+                                    index = index,
+                                    xmlRenderer = xmlRenderer
                             )
                         }
                     }
@@ -546,51 +555,47 @@ fun StreamMarkdownRenderer(
     }
 }
 
-/**
- * 批量节点更新器 - 负责将原始节点列表的更新批量应用到渲染节点列表
- */
+/** 批量节点更新器 - 负责将原始节点列表的更新批量应用到渲染节点列表 */
 private class BatchNodeUpdater(
-    private val nodes: SnapshotStateList<MarkdownNode>,
-    private val renderNodes: SnapshotStateList<MarkdownNode>,
-    private val nodeAnimationStates: MutableMap<String, Boolean>,
-    private val rendererId: String,
-    private val isInterceptedStream: Stream<Char>,
-    private val scope: CoroutineScope
+        private val nodes: SnapshotStateList<MarkdownNode>,
+        private val renderNodes: SnapshotStateList<MarkdownNode>,
+        private val nodeAnimationStates: MutableMap<String, Boolean>,
+        private val rendererId: String,
+        private val isInterceptedStream: Stream<Char>,
+        private val scope: CoroutineScope
 ) {
     private var updateJob: Job? = null
-    
+
     fun startBatchUpdates() {
         if (updateJob?.isActive == true) {
             return
         }
-        
-        // 创建新的更新任务
-        updateJob = scope.launch {
-                isInterceptedStream.lock()
-                delay(RENDER_INTERVAL_MS)
-                isInterceptedStream.unlock()
 
-                performBatchUpdate()
-                updateJob = null
-        }
+        // 创建新的更新任务
+        updateJob =
+                scope.launch {
+                    isInterceptedStream.lock()
+                    delay(RENDER_INTERVAL_MS)
+                    isInterceptedStream.unlock()
+
+                    performBatchUpdate()
+                    updateJob = null
+                }
     }
-    
+
     private fun performBatchUpdate() {
         // 使用synchronizeRenderNodes函数进行节点同步
         synchronizeRenderNodes(nodes, renderNodes, nodeAnimationStates, rendererId, scope)
     }
 }
 
-/**
- * 同步渲染节点 - 确保所有节点都被渲染
- * 在流处理完成或出现异常时调用，确保最终状态一致
- */
+/** 同步渲染节点 - 确保所有节点都被渲染 在流处理完成或出现异常时调用，确保最终状态一致 */
 private fun synchronizeRenderNodes(
-    nodes: SnapshotStateList<MarkdownNode>,
-    renderNodes: SnapshotStateList<MarkdownNode>,
-    nodeAnimationStates: MutableMap<String, Boolean>,
-    rendererId: String,
-    scope: CoroutineScope
+        nodes: SnapshotStateList<MarkdownNode>,
+        renderNodes: SnapshotStateList<MarkdownNode>,
+        nodeAnimationStates: MutableMap<String, Boolean>,
+        rendererId: String,
+        scope: CoroutineScope
 ) {
 
     val keysToAnimate = mutableListOf<String>()
@@ -621,9 +626,7 @@ private fun synchronizeRenderNodes(
     // 3. (安全校验) 如果源节点变少，则同步删除
     else if (nodes.size < renderNodes.size) {
         val removeCount = renderNodes.size - nodes.size
-        repeat(removeCount) {
-            renderNodes.removeLast()
-        }
+        repeat(removeCount) { renderNodes.removeLast() }
     }
 
     // 启动所有新标记节点的动画
@@ -974,9 +977,9 @@ fun StableMarkdownNodeRenderer(
         MarkdownProcessorType.XML_BLOCK -> {
             Log.d(TAG, "【渲染性能】渲染XML块: id=$rendererId, 内容长度=${content.length}")
             xmlRenderer.RenderXmlContent(
-                xmlContent = content,
-                modifier = Modifier.fillMaxWidth(),
-                textColor = textColor
+                    xmlContent = content,
+                    modifier = Modifier.fillMaxWidth(),
+                    textColor = textColor
             )
         }
 

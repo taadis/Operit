@@ -84,7 +84,7 @@ fun ModelApiSettingsSection(
                     "https://open.bigmodel.cn/api/paas/v3/model-api/chatglm_pro/invoke"
             ApiProviderType.BAICHUAN -> "https://api.baichuan-ai.com/v1/chat/completions"
             ApiProviderType.MOONSHOT -> "https://api.moonshot.cn/v1/chat/completions"
-            ApiProviderType.SILICONFLOW -> "https://api.lingyiwanwu.com/v1/chat/completions"
+            ApiProviderType.SILICONFLOW -> "https://api.siliconflow.cn/v1/chat/completions"
             ApiProviderType.OPENROUTER -> "https://openrouter.ai/api/v1/chat/completions"
             ApiProviderType.OTHER -> ""
         }

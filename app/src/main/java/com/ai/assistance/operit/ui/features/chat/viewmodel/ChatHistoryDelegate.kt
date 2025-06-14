@@ -29,7 +29,8 @@ class ChatHistoryDelegate(
         private val resetPlanItems: () -> Unit,
         private val getEnhancedAiService: () -> EnhancedAIService?,
         private val ensureAiServiceAvailable: () -> Unit = {}, // 确保AI服务可用的回调
-        private val getTokenCounts: () -> Pair<Int, Int> = { Pair(0, 0) } // 获取当前token统计数据的回调
+        private val getTokenCounts: () -> Pair<Int, Int> = { Pair(0, 0) }, // 获取当前token统计数据的回调
+        private val onScrollToBottom: () -> Unit = {} // 滚动到底部事件回调
 ) {
     companion object {
         private const val TAG = "ChatHistoryDelegate"
@@ -80,8 +81,6 @@ class ChatHistoryDelegate(
             if (initialChatId != null) {
                 _currentChatId.value = initialChatId
                 loadChatMessages(initialChatId)
-            } else {
-                createNewChat()
             }
         }
     }
@@ -144,6 +143,9 @@ class ChatHistoryDelegate(
             _currentChatId.value = chatId
 
             loadChatMessages(chatId)
+
+            delay(200)
+            onScrollToBottom()
         }
     }
 
@@ -186,13 +188,14 @@ class ChatHistoryDelegate(
                 chatHistoryManager.updateChatTitle(chatId, title)
 
                 // 更新UI状态
-                val updatedHistories = _chatHistories.value.map {
-                    if (it.id == chatId) {
-                        it.copy(title = title, updatedAt = LocalDateTime.now())
-                    } else {
-                        it
-                    }
-                }
+                val updatedHistories =
+                        _chatHistories.value.map {
+                            if (it.id == chatId) {
+                                it.copy(title = title, updatedAt = LocalDateTime.now())
+                            } else {
+                                it
+                            }
+                        }
                 _chatHistories.value = updatedHistories
             }
         }
@@ -220,11 +223,11 @@ class ChatHistoryDelegate(
                 val chatId = _currentChatId.value ?: return@withLock
 
                 val currentMessages = _chatHistory.value
-                val existingMessageIndex = currentMessages.indexOfFirst { it.timestamp == message.timestamp }
+                val existingMessageIndex =
+                        currentMessages.indexOfFirst { it.timestamp == message.timestamp }
 
                 if (existingMessageIndex != -1) {
                     chatHistoryManager.updateMessage(chatId, message)
-                    
                 } else {
                     val newMessages = currentMessages + message
                     _chatHistory.value = newMessages
@@ -283,13 +286,13 @@ class ChatHistoryDelegate(
                     }
             val messagesToSummarize =
                     if (lastSummaryIndex == -1) {
-                        messagesForSummary.take(SUMMARY_CHUNK_SIZE*2)
+                        messagesForSummary.take(SUMMARY_CHUNK_SIZE * 2)
                     } else {
                         val messagesAfterLastSummary = mutableListOf<ChatMessage>()
                         for (i in (lastSummaryIndex + 1) until messages.size) {
                             if (messages[i].sender == "user" || messages[i].sender == "ai") {
                                 messagesAfterLastSummary.add(messages[i])
-                                if (messagesAfterLastSummary.size >= SUMMARY_CHUNK_SIZE*2) {
+                                if (messagesAfterLastSummary.size >= SUMMARY_CHUNK_SIZE * 2) {
                                     break
                                 }
                             }
@@ -391,20 +394,19 @@ class ChatHistoryDelegate(
         if (lastSummaryIndex == -1) {
             lastSummaryIndex = 0
         }
-            var userAiCount = 0
-            // 从上一个摘要之后开始计数
-            for (i in lastSummaryIndex until messages.size) {
-                if (messages[i].sender == "ai") {
-                    userAiCount++
-                    // 在 SUMMARY_CHUNK_SIZE 条消息之后插入
-                    if (userAiCount == SUMMARY_CHUNK_SIZE) {
-                        return i + 1
-                    }
+        var userAiCount = 0
+        // 从上一个摘要之后开始计数
+        for (i in lastSummaryIndex until messages.size) {
+            if (messages[i].sender == "ai") {
+                userAiCount++
+                // 在 SUMMARY_CHUNK_SIZE 条消息之后插入
+                if (userAiCount == SUMMARY_CHUNK_SIZE) {
+                    return i + 1
                 }
             }
-            // 如果遍历完都没有达到数量，则插入到末尾
-            return messages.size
-        
+        }
+        // 如果遍历完都没有达到数量，则插入到末尾
+        return messages.size
     }
 
     /** 切换是否显示聊天历史选择器 */
@@ -421,15 +423,18 @@ class ChatHistoryDelegate(
     fun getMemory(includePlanInfo: Boolean = true): List<Pair<String, String>> {
         val messages = _chatHistory.value
         val summaryMessageIndex = messages.indexOfLast { it.sender == "summary" }
-        val messagesToSummarize = if (summaryMessageIndex != -1) {
-            messages.subList(summaryMessageIndex, messages.size)
-        } else {
-            messages
-        }
-        return messagesToSummarize.filter { it.sender == "user" || it.sender == "ai" || it.sender == "summary" }.map {
-            val role = if (it.sender == "ai") "assistant" else "user"
-            Pair(role, it.content)
-        }
+        val messagesToSummarize =
+                if (summaryMessageIndex != -1) {
+                    messages.subList(summaryMessageIndex, messages.size)
+                } else {
+                    messages
+                }
+        return messagesToSummarize
+                .filter { it.sender == "user" || it.sender == "ai" || it.sender == "summary" }
+                .map {
+                    val role = if (it.sender == "ai") "assistant" else "user"
+                    Pair(role, it.content)
+                }
     }
 
     /** 获取EnhancedAIService实例 */

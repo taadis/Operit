@@ -51,7 +51,7 @@ class MessageProcessingDelegate(
 
     private val _scrollToBottomEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val scrollToBottomEvent = _scrollToBottomEvent.asSharedFlow()
-    
+
     init {
         Log.d(TAG, "MessageProcessingDelegate初始化: 创建滚动事件流")
     }
@@ -62,6 +62,10 @@ class MessageProcessingDelegate(
 
     fun sendUserMessage(chatId: String? = null) {
         sendUserMessage(emptyList(), chatId)
+    }
+
+    fun scrollToBottom() {
+        _scrollToBottomEvent.tryEmit(Unit)
     }
 
     fun sendUserMessage(attachments: List<AttachmentInfo> = emptyList(), chatId: String? = null) {
@@ -106,7 +110,7 @@ class MessageProcessingDelegate(
                                 }
 
                 val history = getMemory(true)
-                
+
                 val startTime = System.currentTimeMillis()
 
                 val deferred = CompletableDeferred<Unit>()
@@ -118,15 +122,16 @@ class MessageProcessingDelegate(
                                 scope = viewModelScope,
                                 onComplete = {
                                     deferred.complete(Unit)
-                                    Log.d(TAG, "共享流完成，耗时: ${System.currentTimeMillis() - startTime}ms")
+                                    Log.d(
+                                            TAG,
+                                            "共享流完成，耗时: ${System.currentTimeMillis() - startTime}ms"
+                                    )
                                 }
                         )
 
                 val aiMessage = ChatMessage(sender = "ai", contentStream = sharedCharStream)
 
-                withContext(Dispatchers.Main) {
-                    addMessageToChat(aiMessage)
-                }
+                withContext(Dispatchers.Main) { addMessageToChat(aiMessage) }
 
                 // 启动一个独立的协程来收集流内容并持续更新数据库
                 viewModelScope.launch(Dispatchers.IO) {
@@ -135,7 +140,7 @@ class MessageProcessingDelegate(
                         contentBuilder.append(chunk)
                         val content = contentBuilder.toString()
                         val updatedMessage = aiMessage.copy(content = content)
-                        //防止后续读取不到
+                        // 防止后续读取不到
                         aiMessage.content = content
                         addMessageToChat(updatedMessage)
                         _scrollToBottomEvent.tryEmit(Unit)

@@ -18,7 +18,6 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -46,43 +45,43 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun ChatScreenContent(
-    paddingValues: PaddingValues,
-    actualViewModel: ChatViewModel,
-    showChatHistorySelector: Boolean,
-    chatHistory: List<ChatMessage>,
-    planItems: List<PlanItem>,
-    enableAiPlanning: Boolean,
-    toolProgress: ToolExecutionProgress,
-    isLoading: Boolean,
-    userMessageColor: Color,
-    aiMessageColor: Color,
-    userTextColor: Color,
-    aiTextColor: Color,
-    systemMessageColor: Color,
-    systemTextColor: Color,
-    thinkingBackgroundColor: Color,
-    thinkingTextColor: Color,
-    hasBackgroundImage: Boolean,
-    isEditMode: MutableState<Boolean>,
-    editingMessageIndex: MutableState<Int?>,
-    editingMessageContent: MutableState<String>,
-    chatScreenGestureConsumed: Boolean,
-    onChatScreenGestureConsumed: (Boolean) -> Unit,
-    currentDrag: Float,
-    onCurrentDragChange: (Float) -> Unit,
-    verticalDrag: Float,
-    onVerticalDragChange: (Float) -> Unit,
-    dragThreshold: Float,
-    scrollState: ScrollState,
-    showScrollButton: Boolean,
-    onShowScrollButtonChange: (Boolean) -> Unit,
-    autoScrollToBottom: Boolean,
-    onAutoScrollToBottomChange: (Boolean) -> Unit,
-    coroutineScope: CoroutineScope,
-    chatHistories: List<ChatHistory>,
-    currentChatId: String,
-    webViewNeedsRefresh: Boolean = false,
-    onWebViewRefreshed: () -> Unit = {}
+        paddingValues: PaddingValues,
+        actualViewModel: ChatViewModel,
+        showChatHistorySelector: Boolean,
+        chatHistory: List<ChatMessage>,
+        planItems: List<PlanItem>,
+        enableAiPlanning: Boolean,
+        toolProgress: ToolExecutionProgress,
+        isLoading: Boolean,
+        userMessageColor: Color,
+        aiMessageColor: Color,
+        userTextColor: Color,
+        aiTextColor: Color,
+        systemMessageColor: Color,
+        systemTextColor: Color,
+        thinkingBackgroundColor: Color,
+        thinkingTextColor: Color,
+        hasBackgroundImage: Boolean,
+        isEditMode: MutableState<Boolean>,
+        editingMessageIndex: MutableState<Int?>,
+        editingMessageContent: MutableState<String>,
+        chatScreenGestureConsumed: Boolean,
+        onChatScreenGestureConsumed: (Boolean) -> Unit,
+        currentDrag: Float,
+        onCurrentDragChange: (Float) -> Unit,
+        verticalDrag: Float,
+        onVerticalDragChange: (Float) -> Unit,
+        dragThreshold: Float,
+        scrollState: ScrollState,
+        showScrollButton: Boolean,
+        onShowScrollButtonChange: (Boolean) -> Unit,
+        autoScrollToBottom: Boolean,
+        onAutoScrollToBottomChange: (Boolean) -> Unit,
+        coroutineScope: CoroutineScope,
+        chatHistories: List<ChatHistory>,
+        currentChatId: String,
+        webViewNeedsRefresh: Boolean = false,
+        onWebViewRefreshed: () -> Unit = {}
 ) {
     // 获取WebView状态
     val showWebView = actualViewModel.showWebView.collectAsState().value
@@ -208,80 +207,74 @@ fun ChatScreenContent(
                 )
 
                 // 聊天对话区域
-                Box(
-                        modifier =
-                                Modifier.fillMaxSize()
-                                        .background(
-                                                if (hasBackgroundImage) Color.Transparent
-                                                else MaterialTheme.colorScheme.background
-                                        )
-                ) {
-                    // 只有在不显示WebView时才显示聊天区域
-                    if (!showWebView) {
-                        ChatArea(
-                                chatHistory = chatHistory,
-                                scrollState = scrollState,
-                                planItems = planItems,
-                                enablePlanning = enableAiPlanning,
-                                toolProgress = toolProgress,
-                                isLoading = isLoading,
-                                userMessageColor = userMessageColor,
-                                aiMessageColor = aiMessageColor,
-                                userTextColor = userTextColor,
-                                aiTextColor = aiTextColor,
-                                systemMessageColor = systemMessageColor,
-                                systemTextColor = systemTextColor,
-                                thinkingBackgroundColor = thinkingBackgroundColor,
-                                thinkingTextColor = thinkingTextColor,
-                                hasBackgroundImage = hasBackgroundImage,
-                                modifier = Modifier.fillMaxSize(),
-                                isEditMode = isEditMode.value,
-                                onSelectMessageToEdit = { index, message ->
-                                    editingMessageIndex.value = index
-                                    editingMessageContent.value = message.content
-                                }
-                        )
+                Box(modifier = Modifier.fillMaxSize().background(Color.Transparent)) {
+                    // 始终显示聊天区域，不再使用if条件判断
+                    ChatArea(
+                            chatHistory = chatHistory,
+                            scrollState = scrollState,
+                            planItems = planItems,
+                            enablePlanning = enableAiPlanning,
+                            toolProgress = toolProgress,
+                            isLoading = isLoading,
+                            userMessageColor = userMessageColor,
+                            aiMessageColor = aiMessageColor,
+                            userTextColor = userTextColor,
+                            aiTextColor = aiTextColor,
+                            systemMessageColor = systemMessageColor,
+                            systemTextColor = systemTextColor,
+                            thinkingBackgroundColor = thinkingBackgroundColor,
+                            thinkingTextColor = thinkingTextColor,
+                            hasBackgroundImage = hasBackgroundImage,
+                            modifier = Modifier.fillMaxSize(),
+                            isEditMode = isEditMode.value,
+                            onSelectMessageToEdit = { index, message ->
+                                editingMessageIndex.value = index
+                                editingMessageContent.value = message.content
+                            }
+                    )
 
-                        // 编辑模式下的操作面板
-                        if (isEditMode.value && editingMessageIndex.value != null) {
-                            MessageEditPanel(
-                                    editingMessageContent = editingMessageContent,
-                                    onCancel = {
+                    // 编辑模式下的操作面板
+                    if (isEditMode.value && editingMessageIndex.value != null) {
+                        MessageEditPanel(
+                                editingMessageContent = editingMessageContent,
+                                onCancel = {
+                                    editingMessageIndex.value = null
+                                    editingMessageContent.value = ""
+                                },
+                                onSave = {
+                                    val index = editingMessageIndex.value
+                                    if (index != null && index < chatHistory.size) {
+                                        val editedMessage =
+                                                chatHistory[index].copy(
+                                                        content = editingMessageContent.value
+                                                )
+                                        actualViewModel.updateMessage(index, editedMessage)
+
+                                        // 重置编辑状态
                                         editingMessageIndex.value = null
                                         editingMessageContent.value = ""
-                                    },
-                                    onSave = {
-                                        val index = editingMessageIndex.value
-                                        if (index != null && index < chatHistory.size) {
-                                            val editedMessage =
-                                                    chatHistory[index].copy(
-                                                            content = editingMessageContent.value
-                                                    )
-                                            actualViewModel.updateMessage(index, editedMessage)
-
-                                            // 重置编辑状态
-                                            editingMessageIndex.value = null
-                                            editingMessageContent.value = ""
-                                            isEditMode.value = false
-                                        }
-                                    },
-                                    onResend = {
-                                        val index = editingMessageIndex.value
-                                        if (index != null && index < chatHistory.size) {
-                                            actualViewModel.rewindAndResendMessage(
-                                                    index,
-                                                    editingMessageContent.value
-                                            )
-
-                                            // 重置编辑状态
-                                            editingMessageIndex.value = null
-                                            editingMessageContent.value = ""
-                                            isEditMode.value = false
-                                        }
+                                        isEditMode.value = false
                                     }
-                            )
-                        }
-                    } else {
+                                },
+                                onResend = {
+                                    val index = editingMessageIndex.value
+                                    if (index != null && index < chatHistory.size) {
+                                        actualViewModel.rewindAndResendMessage(
+                                                index,
+                                                editingMessageContent.value
+                                        )
+
+                                        // 重置编辑状态
+                                        editingMessageIndex.value = null
+                                        editingMessageContent.value = ""
+                                        isEditMode.value = false
+                                    }
+                                }
+                        )
+                    }
+
+                    // 仅当showWebView为true时才显示WebView，将其覆盖在ChatArea上方
+                    if (showWebView) {
                         // 显示WebView
                         var webView by remember { mutableStateOf<WebView?>(null) }
 
@@ -397,8 +390,8 @@ fun ChatScreenContent(
                         }
                     }
 
-                    // 滚动到底部按钮 - 仅在聊天区域显示时显示
-                    if (showScrollButton && !showWebView) {
+                    // 滚动到底部按钮 - 仅在可见区域需要时显示，不再受WebView显示状态影响
+                    if (showScrollButton) {
                         Box(
                                 modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.BottomEnd
