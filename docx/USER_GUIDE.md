@@ -46,53 +46,69 @@
     <tr>
       <td style="vertical-align: top;"><strong>步骤一：阅读我们的协议</strong></td>
       <td style="vertical-align: top;">
-        <div style="float: right; margin-left: 15px;">
-          <a href="assets/user_step/step_for_frist_1.jpg" target="_blank" rel="noopener noreferrer">
-            <img src="assets/user_step/step_for_frist_1.jpg" alt="用户协议及隐私政策" height="280">
-          </a>
-        </div>
-        <em>在此声明，数据只在本地和您所提供的API平台之间流动，我们并没有任何服务器</em>
+        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
+          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
+            <em>在此声明，数据只在本地和您所提供的API平台之间流动，我们并没有任何服务器</em>
+          </td>
+          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
+            <a href="assets/user_step/step_for_frist_1.jpg" target="_blank" rel="noopener noreferrer">
+              <img src="assets/user_step/step_for_frist_1.jpg" alt="用户协议及隐私政策" height="280">
+            </a>
+          </td>
+        </tr></tbody></table>
       </td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><strong>步骤二：在系统设置中找到并启用 Operit AI</strong></td>
       <td style="vertical-align: top;">
-        <div style="float: right; margin-left: 15px;">
-          <a href="assets/user_step/step_for_frist_2.jpg" target="_blank" rel="noopener noreferrer">
-            <img src="assets/user_step/step_for_frist_2.jpg" alt="权限引导" height="280">
-          </a>
-        </div>
-        您可以直接跳转至设置相关页面，也可能需要在"已安装的应用"列表中，找到 Operit AI 并点击进入。<br>
-        <em>在设置列表中找到"Operit AI"，点击以进行下一步配置。</em>
-        <blockquote><code>1.1.6</code>以后的版本可以跳过引导</blockquote>
-        <blockquote>如果你卡在这里无法授权某些权限，请退出软件并熄屏重试，来跳过引导。因为这个引导仅在第一次进入时有效。</blockquote>
+        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
+          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
+            您可以直接跳转至设置相关页面，也可能需要在"已安装的应用"列表中，找到 Operit AI 并点击进入。<br>
+            <em>在设置列表中找到"Operit AI"，点击以进行下一步配置。</em>
+            <blockquote><code>1.1.6</code>以后的版本可以跳过引导</blockquote>
+            <blockquote>如果你卡在这里无法授权某些权限，请退出软件并熄屏重试，来跳过引导。因为这个引导仅在第一次进入时有效。</blockquote>
+          </td>
+          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
+            <a href="assets/user_step/step_for_frist_2.jpg" target="_blank" rel="noopener noreferrer">
+              <img src="assets/user_step/step_for_frist_2.jpg" alt="权限引导" height="280">
+            </a>
+          </td>
+        </tr></tbody></table>
       </td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><strong>步骤三：设置用户偏好</strong></td>
       <td style="vertical-align: top;">
-        <div style="float: right; margin-left: 15px;">
-          <a href="assets/user_step/step_for_frist_3.jpg" target="_blank" rel="noopener noreferrer">
-            <img src="assets/user_step/step_for_frist_3.jpg" alt="偏好配置" height="280">
-          </a>
-        </div>
-        在第一次我们会建议您去设置，这将会决定AI眼中的你是什么样的。
-        <blockquote>后续可通过<code>设置>用户偏好设置</code>进行更改，支持自定义</blockquote>
-        <em>打开"使用 Operit AI"的开关，并在系统弹出的确认窗口中点击"允许"。这是安全警告，Operit AI 会妥善使用此权限。</em>
+        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
+          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
+            在第一次我们会建议您去设置，这将会决定AI眼中的你是什么样的。
+            <blockquote>后续可通过<code>设置>用户偏好设置</code>进行更改，支持自定义</blockquote>
+            <em>打开"使用 Operit AI"的开关，并在系统弹出的确认窗口中点击"允许"。这是安全警告，Operit AI 会妥善使用此权限。</em>
+          </td>
+          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
+            <a href="assets/user_step/step_for_frist_3.jpg" target="_blank" rel="noopener noreferrer">
+              <img src="assets/user_step/step_for_frist_3.jpg" alt="偏好配置" height="280">
+            </a>
+          </td>
+        </tr></tbody></table>
       </td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><strong>步骤四：配置自己的API</strong></td>
       <td style="vertical-align: top;">
-        <div style="float: right; margin-left: 15px;">
-          <a href="assets/user_step/step_for_frist_4.jpg" target="_blank" rel="noopener noreferrer">
-            <img src="assets/user_step/step_for_frist_4.jpg" alt="配置API后开始使用" height="280">
-          </a>
-        </div>
-        完成配置后，您就可以返回 Operit AI，开始您的智能助手之旅了！当然您也可以通过使用作者默认API来获得一次完整的体验（每天）。<br>
-        <em>配置API后开始使用即可。</em>
-        <blockquote>AI的API和模型可在<code>设置>AI模型配置>模型与参数配置/功能模型配置</code>中更改</blockquote>
-        <blockquote>模型提示词可在<code>设置>个性化>模型提示词设置</code>处更改，一些模型参数的设置也在这</blockquote>
+        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
+          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
+            完成配置后，您就可以返回 Operit AI，开始您的智能助手之旅了！当然您也可以通过使用作者默认API来获得一次完整的体验（每天）。<br>
+            <em>配置API后开始使用即可。</em>
+            <blockquote>AI的API和模型可在<code>设置>AI模型配置>模型与参数配置/功能模型配置</code>中更改</blockquote>
+            <blockquote>模型提示词可在<code>设置>个性化>模型提示词设置</code>处更改，一些模型参数的设置也在这</blockquote>
+          </td>
+          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
+            <a href="assets/user_step/step_for_frist_4.jpg" target="_blank" rel="noopener noreferrer">
+              <img src="assets/user_step/step_for_frist_4.jpg" alt="配置API后开始使用" height="280">
+            </a>
+          </td>
+        </tr></tbody></table>
       </td>
     </tr>
   </tbody>
@@ -120,54 +136,70 @@
     <tr>
       <td style="vertical-align: top;"><strong>写一个2D弹幕游戏</strong></td>
       <td style="vertical-align: top;">
-        <div style="float: right; margin-left: 15px;">
-          <a href="assets/game_maker_chat.jpg" target="_blank" rel="noopener noreferrer">
-            <img src="assets/game_maker_chat.jpg" alt="2D弹幕游戏聊天" height="280">
-          </a>
-          <a href="assets/game_maker_show.jpg" target="_blank" rel="noopener noreferrer">
-            <img src="assets/game_maker_show.jpg" alt="2D弹幕游戏展示" height="280">
-          </a>
-        </div>
-        通过简单的对话，让AI为您构思并实现一个经典的2D弹幕射击游戏。Operit AI能够调用其基础代码能力，仅使用HTML和JavaScript，从零开始构建出完整的游戏逻辑与动态画面。
+        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
+          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
+            通过简单的对话，让AI为您构思并实现一个经典的2D弹幕射击游戏。Operit AI能够调用其基础代码能力，仅使用HTML和JavaScript，从零开始构建出完整的游戏逻辑与动态画面。
+          </td>
+          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
+            <a href="assets/game_maker_chat.jpg" target="_blank" rel="noopener noreferrer">
+              <img src="assets/game_maker_chat.jpg" alt="2D弹幕游戏聊天" height="280">
+            </a>
+            <a href="assets/game_maker_show.jpg" target="_blank" rel="noopener noreferrer">
+              <img src="assets/game_maker_show.jpg" alt="2D弹幕游戏展示" height="280">
+            </a>
+          </td>
+        </tr></tbody></table>
       </td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><strong>用HTML代码写一个3D游戏</strong></td>
       <td style="vertical-align: top;">
-        <div style="float: right; margin-left: 15px;">
-          <a href="assets/expamle/3ddebdde4958ac152eeca436e39c0f6.jpg" target="_blank" rel="noopener noreferrer">
-            <img src="assets/expamle/3ddebdde4958ac152eeca436e39c0f6.jpg" alt="3D游戏示例1" height="280">
-          </a>
-          <a href="assets/expamle/759d86a7d74351675b32acb6464585d.jpg" target="_blank" rel="noopener noreferrer">
-            <img src="assets/expamle/759d86a7d74351675b32acb6464585d.jpg" alt="3D游戏示例2" height="280">
-          </a>
-        </div>
-        无需任何拓展包，Operit AI 仅通过内置的核心工具，就可以直接用HTML和JavaScript代码，为您呈现一个动态的3D游戏场景。
+        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
+          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
+            无需任何拓展包，Operit AI 仅通过内置的核心工具，就可以直接用HTML和JavaScript代码，为您呈现一个动态的3D游戏场景。
+          </td>
+          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
+            <a href="assets/expamle/3ddebdde4958ac152eeca436e39c0f6.jpg" target="_blank" rel="noopener noreferrer">
+              <img src="assets/expamle/3ddebdde4958ac152eeca436e39c0f6.jpg" alt="3D游戏示例1" height="280">
+            </a>
+            <a href="assets/expamle/759d86a7d74351675b32acb6464585d.jpg" target="_blank" rel="noopener noreferrer">
+              <img src="assets/expamle/759d86a7d74351675b32acb6464585d.jpg" alt="3D游戏示例2" height="280">
+            </a>
+          </td>
+        </tr></tbody></table>
       </td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><strong>简单的视频处理</strong></td>
       <td style="vertical-align: top;">
-        <div style="float: right; margin-left: 15px;">
-          <a href="assets/d7580a42ae03c723121bd172e1f9e7d.jpg" target="_blank" rel="noopener noreferrer">
-            <img src="./assets/d7580a42ae03c723121bd172e1f9e7d.jpg" alt="简单的视频处理示例" height="280">
-          </a>
-        </div>
-        同样地，应用内置了强大的FFmpeg工具，无需额外安装，即可让AI帮您完成视频格式转换、截取、合并等多种处理任务。
+        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
+          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
+            同样地，应用内置了强大的FFmpeg工具，无需额外安装，即可让AI帮您完成视频格式转换、截取、合并等多种处理任务。
+          </td>
+          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
+            <a href="assets/d7580a42ae03c723121bd172e1f9e7d.jpg" target="_blank" rel="noopener noreferrer">
+              <img src="./assets/d7580a42ae03c723121bd172e1f9e7d.jpg" alt="简单的视频处理示例" height="280">
+            </a>
+          </td>
+        </tr></tbody></table>
       </td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><strong>软件打包与部署</strong></td>
       <td style="vertical-align: top;">
-        <div style="float: right; margin-left: 15px;">
-          <a href="assets/web_developer.jpg" target="_blank" rel="noopener noreferrer">
-            <img src="./assets/web_developer.jpg" alt="软件打包示例1" height="280">
-          </a>
-          <a href="assets/game_maker_packer.jpg" target="_blank" rel="noopener noreferrer">
-            <img src="./assets/game_maker_packer.jpg" alt="软件打包示例2" height="280">
-          </a>
-        </div>
-        从编写代码到最终发布，Operit AI 可以进一步调用平台工具，将完成的软件打包成适用于安卓（APK）或Windows（EXE）的可执行文件，实现端到端的自动化开发流程。
+        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
+          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
+            从编写代码到最终发布，Operit AI 可以进一步调用平台工具，将完成的软件打包成适用于安卓（APK）或Windows（EXE）的可执行文件，实现端到端的自动化开发流程。
+          </td>
+          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
+            <a href="assets/web_developer.jpg" target="_blank" rel="noopener noreferrer">
+              <img src="./assets/web_developer.jpg" alt="软件打包示例1" height="280">
+            </a>
+            <a href="assets/game_maker_packer.jpg" target="_blank" rel="noopener noreferrer">
+              <img src="./assets/game_maker_packer.jpg" alt="软件打包示例2" height="280">
+            </a>
+          </td>
+        </tr></tbody></table>
       </td>
     </tr>
   </tbody>
@@ -188,51 +220,67 @@
     <tr>
       <td style="vertical-align: top;"><code>writer</code></td>
       <td style="vertical-align: top;">
-        <div style="float: right; margin-left: 15px;">
-          <a href="assets/expamle/065e5ca8a8036c51a7905d206bbb56c.jpg" target="_blank" rel="noopener noreferrer">
-            <img src="assets/expamle/065e5ca8a8036c51a7905d206bbb56c.jpg" alt="writer示例" height="280">
-          </a>
-        </div>
-        高级文件编辑和读取功能，支持分段编辑、差异编辑、行号编辑以及高级文件读取操作
+        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
+          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
+            高级文件编辑和读取功能，支持分段编辑、差异编辑、行号编辑以及高级文件读取操作
+          </td>
+          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
+            <a href="assets/expamle/065e5ca8a8036c51a7905d206bbb56c.jpg" target="_blank" rel="noopener noreferrer">
+              <img src="assets/expamle/065e5ca8a8036c51a7905d206bbb56c.jpg" alt="writer示例" height="280">
+            </a>
+          </td>
+        </tr></tbody></table>
       </td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><code>various_search</code></td>
       <td style="vertical-align: top;">
-        <div style="float: right; margin-left: 15px;">
-          <a href="assets/expamle/90a1778510df485d788b80d4bc349f9.jpg" target="_blank" rel="noopener noreferrer">
-            <img src="assets/expamle/90a1778510df485d788b80d4bc349f9.jpg" alt="多平台搜索示例1" height="280">
-          </a>
-          <a href="assets/expamle/f9b8aeba4878775d1252ad8d5d8620a.jpg" target="_blank" rel="noopener noreferrer">
-            <img src="assets/expamle/f9b8aeba4878775d1252ad8d5d8620a.jpg" alt="多平台搜索示例2" height="280">
-          </a>
-        </div>
-        多平台搜索功能，支持从必应、百度、搜狗、夸克等平台获取搜索结果
+        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
+          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
+            多平台搜索功能，支持从必应、百度、搜狗、夸克等平台获取搜索结果
+          </td>
+          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
+            <a href="assets/expamle/90a1778510df485d788b80d4bc349f9.jpg" target="_blank" rel="noopener noreferrer">
+              <img src="assets/expamle/90a1778510df485d788b80d4bc349f9.jpg" alt="多平台搜索示例1" height="280">
+            </a>
+            <a href="assets/expamle/f9b8aeba4878775d1252ad8d5d8620a.jpg" target="_blank" rel="noopener noreferrer">
+              <img src="assets/expamle/f9b8aeba4878775d1252ad8d5d8620a.jpg" alt="多平台搜索示例2" height="280">
+            </a>
+          </td>
+        </tr></tbody></table>
       </td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><code>daily_life</code></td>
       <td style="vertical-align: top;">
-        <div style="float: right; margin-left: 15px;">
-          <a href="assets/expamle/615cf7a99e421356b6d22bb0b9cc87b.jpg" target="_blank" rel="noopener noreferrer">
-            <img src="assets/expamle/615cf7a99e421356b6d22bb0b9cc87b.jpg" alt="日常生活示例" height="280">
-          </a>
-        </div>
-        日常生活工具集合，包括日期时间查询、设备状态监测、天气搜索、提醒闹钟设置、短信电话通讯等
+        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
+          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
+            日常生活工具集合，包括日期时间查询、设备状态监测、天气搜索、提醒闹钟设置、短信电话通讯等
+          </td>
+          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
+            <a href="assets/expamle/615cf7a99e421356b6d22bb0b9cc87b.jpg" target="_blank" rel="noopener noreferrer">
+              <img src="assets/expamle/615cf7a99e421356b6d22bb0b9cc87b.jpg" alt="日常生活示例" height="280">
+            </a>
+          </td>
+        </tr></tbody></table>
       </td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><code>super_admin</code></td>
       <td style="vertical-align: top;">
-        <div style="float: right; margin-left: 15px;">
-          <a href="assets/expamle/731f67e3d7494886c1c1f8639216bf2.jpg" target="_blank" rel="noopener noreferrer">
-            <img src="assets/expamle/731f67e3d7494886c1c1f8639216bf2.jpg" alt="超级管理员示例1" height="280">
-          </a>
-          <a href="assets/expamle/6f81901ae47f5a3584167148017d132.jpg" target="_blank" rel="noopener noreferrer">
-            <img src="assets/expamle/6f81901ae47f5a3584167148017d132.jpg" alt="超级管理员示例2" height="280">
-          </a>
-        </div>
-        超级管理员工具集，提供终端命令和Shell操作的高级功能
+        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
+          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
+            超级管理员工具集，提供终端命令和Shell操作的高级功能
+          </td>
+          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
+            <a href="assets/expamle/731f67e3d7494886c1c1f8639216bf2.jpg" target="_blank" rel="noopener noreferrer">
+              <img src="assets/expamle/731f67e3d7494886c1c1f8639216bf2.jpg" alt="超级管理员示例1" height="280">
+            </a>
+            <a href="assets/expamle/6f81901ae47f5a3584167148017d132.jpg" target="_blank" rel="noopener noreferrer">
+              <img src="assets/expamle/6f81901ae47f5a3584167148017d132.jpg" alt="超级管理员示例2" height="280">
+            </a>
+          </td>
+        </tr></tbody></table>
       </td>
     </tr>
     <tr>
@@ -242,12 +290,16 @@
     <tr>
       <td style="vertical-align: top;"><code>baidu_map</code></td>
       <td style="vertical-align: top;">
-        <div style="float: right; margin-left: 15px;">
-          <a href="assets/expamle/71fd917c5310c1cebaa1abb19882a6d.jpg" target="_blank" rel="noopener noreferrer">
-            <img src="assets/expamle/71fd917c5310c1cebaa1abb19882a6d.jpg" alt="百度地图示例" height="280">
-          </a>
-        </div>
-        百度地图相关功能
+        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
+          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
+            百度地图相关功能
+          </td>
+          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
+            <a href="assets/expamle/71fd917c5310c1cebaa1abb19882a6d.jpg" target="_blank" rel="noopener noreferrer">
+              <img src="assets/expamle/71fd917c5310c1cebaa1abb19882a6d.jpg" alt="百度地图示例" height="280">
+            </a>
+          </td>
+        </tr></tbody></table>
       </td>
     </tr>
     <tr>
@@ -261,12 +313,16 @@
     <tr>
       <td style="vertical-align: top;"><code>various_output</code></td>
       <td style="vertical-align: top;">
-        <div style="float: right; margin-left: 15px;">
-          <a href="assets/expamle/5fff4b49db78ec01e189658de8ea997.jpg" target="_blank" rel="noopener noreferrer">
-            <img src="assets/expamle/5fff4b49db78ec01e189658de8ea997.jpg" alt="图片输出示例" height="280">
-          </a>
-        </div>
-        提供图片输出功能
+        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
+          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
+            提供图片输出功能
+          </td>
+          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
+            <a href="assets/expamle/5fff4b49db78ec01e189658de8ea997.jpg" target="_blank" rel="noopener noreferrer">
+              <img src="assets/expamle/5fff4b49db78ec01e189658de8ea997.jpg" alt="图片输出示例" height="280">
+            </a>
+          </td>
+        </tr></tbody></table>
       </td>
     </tr>
   </tbody>
@@ -336,12 +392,16 @@
     <tr>
       <td style="vertical-align: top;"><code>tavily</code></td>
       <td style="vertical-align: top;">
-        <div style="float: right; margin-left: 15px;">
-          <a href="assets/ee852df3c187771fba0aa92b36a57f8.jpg" target="_blank" rel="noopener noreferrer">
-            <img src="assets/ee852df3c187771fba0aa92b36a57f8.jpg" alt="Tavily搜索示例" height="280">
-          </a>
-        </div>
-        Tavily 搜索工具，提供强大的网络搜索能力，可用于研究和信息获取。
+        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
+          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
+            Tavily 搜索工具，提供强大的网络搜索能力，可用于研究和信息获取。
+          </td>
+          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
+            <a href="assets/ee852df3c187771fba0aa92b36a57f8.jpg" target="_blank" rel="noopener noreferrer">
+              <img src="assets/ee852df3c187771fba0aa92b36a57f8.jpg" alt="Tavily搜索示例" height="280">
+            </a>
+          </td>
+        </tr></tbody></table>
       </td>
     </tr>
     <tr>
@@ -385,62 +445,11 @@
 
 **欢迎加入我们的用户QQ群！**
 
-<style>
-  .qq-card {
-    background-color: #f8f9fa;
-    border: 1px solid #dee2e6;
-    border-radius: 12px;
-    padding: 16px;
-    margin-top: 1.5em;
-    max-width: 400px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.05);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  }
-  .qq-card-header {
-    font-size: 1.1em;
-    font-weight: 600;
-    color: #495057;
-    margin-bottom: 12px;
-  }
-  .qq-card-body {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 15px;
-  }
-  .qq-number {
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 1.6em;
-    font-weight: bold;
-    color: #007bff;
-    letter-spacing: 1px;
-    word-break: break-all;
-  }
-  .copy-btn {
-    background-color: #28a745;
-    color: white;
-    border: none;
-    padding: 8px 15px;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 1em;
-    font-weight: 500;
-    transition: background-color 0.2s ease-in-out, transform 0.1s ease;
-    white-space: nowrap;
-  }
-  .copy-btn:hover {
-    background-color: #218838;
-  }
-  .copy-btn:active {
-    transform: scale(0.96);
-  }
-</style>
-
-<div class="qq-card">
-  <div class="qq-card-header">Operit AI 用户交流群</div>
-  <div class="qq-card-body">
-    <span class="qq-number">458862019</span>
-    <button class="copy-btn" onclick="navigator.clipboard.writeText('458862019'); const originalText = this.innerText; this.innerText='已复制!'; setTimeout(() => this.innerText=originalText, 2000);">复制</button>
+<div style="background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 12px; padding: 16px; margin-top: 1.5em; max-width: 400px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <div style="font-size: 1.1em; font-weight: 600; color: #495057; margin-bottom: 12px;">Operit AI 用户交流群</div>
+  <div style="display: flex; justify-content: space-between; align-items: center; gap: 15px;">
+    <span style="font-family: 'Courier New', Courier, monospace; font-size: 1.6em; font-weight: bold; color: #007bff; letter-spacing: 1px; word-break: break-all;">458862019</span>
+    <button style="background-color: #28a745; color: white; border: none; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-size: 1em; font-weight: 500; white-space: nowrap;" onclick="navigator.clipboard.writeText('458862019'); const originalText = this.innerText; this.innerText='已复制!'; setTimeout(() => this.innerText=originalText, 2000);">复制</button>
   </div>
 </div>
 
@@ -448,9 +457,21 @@
 
 ## 💡 许愿池
 
-有好的想法或功能建议？欢迎在QQ群中向我们提出！
+有好的想法或功能建议？除了在QQ群中向我们提出，您也可以关注我们未来的更新计划，也许您期待的功能已经在路上！
 
-**QQ群** ```458862019```
+### 🚀 未来更新计划
+
+以下是我们正在计划或正在开发中的功能：
+
+- **核心功能增强**:
+  - 加入TTS（文字转语音）和语音识别模型，并进一步实现更自然的对话系统。
+  - 实现全新的 `任务模式` 来替代现有的 `计划模式`，让AI可以主动、智能地执行和跟进长期任务。
+- **用户体验优化**:
+  - 实现一个更美观、更现代、更友好的交互界面。
+  - 支持多语言，让全球用户都能无障碍使用。
+- **社区与生态**:
+  - 我们会认真对待社区（如Issue、QQ群）中提出的每一个建议，并努力将它们变为现实。
+  - 推广！推广！推广！让更多人认识并使用Operit AI。
 
 <div STYLE="page-break-after: always;"></div>
 
