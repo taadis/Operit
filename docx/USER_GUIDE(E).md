@@ -337,7 +337,7 @@ When you ask the AI to write software, the performance of the software depends o
 
 ### 🛒 MCP Market
 
-> Considering the specifics of the mobile environment, it is quite challenging to fully and stably configure the environments required for all MCPs (Meta-Call-Packages). Therefore, calling MCPs directly may encounter many difficulties.
+> Considering the specifics of the mobile environment, it is quite challenging to fully and stably configure the environments required for all MCPs (Model context protocol). Therefore, calling MCPs directly may encounter many difficulties.
 >
 > Currently, the MCPs confirmed to be available in the app are mainly `12306` and `fetch`. However, it should be noted that the search effectiveness and stability of `fetch` are not as good as our deeply optimized `various_search` extension package.
 >
