@@ -67,7 +67,7 @@ Design web pages on your phone and export them as standalone apps, useful for pe
     <!-- Desktop Screenshot -->
     <figure style="margin-bottom: 15px;">
       <img src="docx/assets/webdev/c851e530a258bbbbf41f87dcb907b14.png" style="max-width: 90%; height: auto; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.15);" alt="Web Dev Desktop">
-      <figcaption style="font-size:0.8em; text-align:center; color:#555; margin-top: 5px;">A portfolio website created by the AI, viewed on a desktop.</figcaption>
+      <figcaption style="font-size:0.8em; text-align:center; color:#555; margin-top: 5px;">I used AI to create a music game with a built-in fast-paced background music</figcaption>
     </figure>
     <!-- Mobile Screenshots -->
     <div>
@@ -124,7 +124,7 @@ Operit AI offers a rich plugin ecosystem. Combined with built-in tools, it can h
   2. Install and launch the app, then follow the in-app guide to complete the setup.
   3. Start enjoying the convenience of an AI assistant!
 
-For detailed instructions, please see our [User Guide](docx/USER_GUIDE.md).
+For detailed instructions, please see our [User Guide](docx/USER_GUIDE(E).md).
 
 ## 👨‍💻 Open Source & Collaboration
 
