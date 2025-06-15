@@ -751,7 +751,7 @@ fun StableMarkdownNodeRenderer(
             }
         }
         MarkdownProcessorType.CODE_BLOCK -> {
-            Log.d(TAG, "【渲染性能】渲染代码块: id=$rendererId, 内容长度=${content.length}")
+            // Log.d(TAG, "【渲染性能】渲染代码块: id=$rendererId, 内容长度=${content.length}")
 
             // 提取代码内容和语言
             val codeLines = content.trimAll().lines()

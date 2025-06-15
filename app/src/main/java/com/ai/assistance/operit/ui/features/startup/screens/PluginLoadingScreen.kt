@@ -36,11 +36,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.mcp.MCPConfigPreferences
 import com.ai.assistance.operit.data.mcp.MCPInstaller
 import com.ai.assistance.operit.data.mcp.MCPLocalServer
@@ -107,7 +109,7 @@ fun PluginLoadingScreen(
             Box(modifier = Modifier.fillMaxSize()) {
                 // 跳过加载文本 - 放在右上角
                 Text(
-                        text = "跳过",
+                        text = stringResource(id = R.string.plugin_skip),
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary,
                         modifier =
@@ -124,7 +126,7 @@ fun PluginLoadingScreen(
                 ) {
                     // 应用名称/Logo
                     Text(
-                            text = "OPERIT",
+                            text = stringResource(id = R.string.plugin_app_name),
                             style = MaterialTheme.typography.headlineLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary,
@@ -135,13 +137,13 @@ fun PluginLoadingScreen(
 
                     // 使用平滑过渡的进度条组件
                     SmoothLinearProgressIndicator(
-                        progress = progress,
-                        modifier = Modifier.fillMaxWidth(),
-                        height = 8.dp,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                        progressColor = MaterialTheme.colorScheme.primary,
-                        intermediateSteps = 20,  // 增加中间步骤数量，使过渡更加平滑
-                        stepDuration = 50        // 减少每步时长，保持总体流畅感
+                            progress = progress,
+                            modifier = Modifier.fillMaxWidth(),
+                            height = 8.dp,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                            progressColor = MaterialTheme.colorScheme.primary,
+                            intermediateSteps = 20, // 增加中间步骤数量，使过渡更加平滑
+                            stepDuration = 50 // 减少每步时长，保持总体流畅感
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -158,7 +160,12 @@ fun PluginLoadingScreen(
 
                     // 总插件统计
                     Text(
-                            text = "已启动: $pluginsStarted / $pluginsTotal",
+                            text =
+                                    stringResource(
+                                            id = R.string.plugin_status,
+                                            pluginsStarted,
+                                            pluginsTotal
+                                    ),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
@@ -170,7 +177,7 @@ fun PluginLoadingScreen(
                     // 插件列表
                     if (pluginsList.isNotEmpty()) {
                         Text(
-                                text = "插件加载状态",
+                                text = stringResource(id = R.string.plugin_loading_status_title),
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 fontWeight = FontWeight.Bold
@@ -198,7 +205,7 @@ fun PluginLoadingScreen(
 
                     // 底部版权信息
                     Text(
-                            text = "© 2023 AI Assistance",
+                            text = stringResource(id = R.string.plugin_copyright),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -208,9 +215,7 @@ fun PluginLoadingScreen(
     }
 }
 
-/**
- * 单个插件状态项
- */
+/** 单个插件状态项 */
 @Composable
 fun PluginStatusItem(plugin: PluginInfo, modifier: Modifier = Modifier) {
     val animatedProgress by
@@ -244,7 +249,8 @@ fun PluginStatusItem(plugin: PluginInfo, modifier: Modifier = Modifier) {
                 PluginStatus.SUCCESS -> {
                     Icon(
                             imageVector = Icons.Default.CheckCircle,
-                            contentDescription = "加载成功",
+                            contentDescription =
+                                    stringResource(id = R.string.plugin_loading_success),
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(24.dp)
                     )
@@ -252,7 +258,8 @@ fun PluginStatusItem(plugin: PluginInfo, modifier: Modifier = Modifier) {
                 PluginStatus.FAILED -> {
                     Icon(
                             imageVector = Icons.Default.Error,
-                            contentDescription = "加载失败",
+                            contentDescription =
+                                    stringResource(id = R.string.plugin_loading_failed),
                             tint = MaterialTheme.colorScheme.error,
                             modifier = Modifier.size(24.dp)
                     )
@@ -344,16 +351,12 @@ class PluginLoadingState {
 
     /** 更新进度信息 */
     fun updateProgress(progress: Float) {
-        kotlinx.coroutines.runBlocking(Dispatchers.Main) {
-            _progress.value = progress
-        }
+        kotlinx.coroutines.runBlocking(Dispatchers.Main) { _progress.value = progress }
     }
 
     /** 更新状态消息 */
     fun updateMessage(message: String) {
-        kotlinx.coroutines.runBlocking(Dispatchers.Main) {
-            _message.value = message
-        }
+        kotlinx.coroutines.runBlocking(Dispatchers.Main) { _message.value = message }
     }
 
     /** 更新插件统计 */
@@ -408,17 +411,29 @@ class PluginLoadingState {
 
     /** 开始加载指定插件 */
     fun startLoadingPlugin(pluginId: String) {
-        updatePluginStatus(pluginId, PluginStatus.LOADING, "正在加载...")
+        updatePluginStatus(
+                pluginId,
+                PluginStatus.LOADING,
+                appContext?.getString(R.string.plugin_loading) ?: "正在加载..."
+        )
     }
 
     /** 标记插件加载成功 */
-    fun setPluginSuccess(pluginId: String, message: String = "加载成功") {
-        updatePluginStatus(pluginId, PluginStatus.SUCCESS, message)
+    fun setPluginSuccess(pluginId: String, message: String = "") {
+        updatePluginStatus(
+                pluginId,
+                PluginStatus.SUCCESS,
+                message.ifEmpty { appContext?.getString(R.string.plugin_loading_success) ?: "加载成功" }
+        )
     }
 
     /** 标记插件加载失败 */
-    fun setPluginFailed(pluginId: String, message: String = "加载失败") {
-        updatePluginStatus(pluginId, PluginStatus.FAILED, message)
+    fun setPluginFailed(pluginId: String, message: String = "") {
+        updatePluginStatus(
+                pluginId,
+                PluginStatus.FAILED,
+                message.ifEmpty { appContext?.getString(R.string.plugin_loading_failed) ?: "加载失败" }
+        )
     }
 
     // 设置跳过回调
@@ -440,7 +455,10 @@ class PluginLoadingState {
                 scope.launch {
                     delay(timeoutMillis)
                     _hasTimedOut.value = true
-                    updateMessage("加载超时，您可以点击右上角的\"跳过\"继续")
+                    updateMessage(
+                            appContext?.getString(R.string.plugin_loading_timeout)
+                                    ?: "加载超时，您可以点击右上角的\"跳过\"继续"
+                    )
                 }
     }
 
@@ -473,18 +491,18 @@ class PluginLoadingState {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 // 更新初始状态
-                updateMessage("正在初始化...")
+                updateMessage(context.getString(R.string.plugin_initializing))
                 updateProgress(0.05f)
 
                 // 获取MCPLocalServer实例
                 val mcpLocalServer = MCPLocalServer.getInstance(context)
 
                 // 更新状态
-                updateMessage("正在启动MCP服务器...")
+                updateMessage(context.getString(R.string.plugin_starting_server))
                 updateProgress(0.1f)
 
                 // 服务器配置阶段
-                updateMessage("配置MCP服务器...")
+                updateMessage(context.getString(R.string.plugin_configuring_server))
                 updateProgress(0.15f)
 
                 // 启动MCP服务器
@@ -492,7 +510,7 @@ class PluginLoadingState {
 
                 if (!serverStartSuccess) {
                     // 服务器启动失败
-                    updateMessage("MCP服务器启动失败，您可以点击右上角的\"跳过\"继续")
+                    updateMessage(context.getString(R.string.plugin_server_failed))
                     updateProgress(1.0f)
 
                     // 延迟一会儿后如果用户未跳过，则自动隐藏进度条
@@ -506,11 +524,11 @@ class PluginLoadingState {
                 }
 
                 // 服务器启动成功，更新状态
-                updateMessage("MCP服务器启动成功")
+                updateMessage(context.getString(R.string.plugin_server_success))
                 updateProgress(0.2f)
 
                 // 服务器初始化中
-                updateMessage("MCP服务器初始化中...")
+                updateMessage(context.getString(R.string.plugin_server_initializing))
                 updateProgress(0.25f)
 
                 try {
@@ -518,7 +536,7 @@ class PluginLoadingState {
                     val mcpRepository = MCPRepository(context)
 
                     // 获取已安装的插件列表 (这是一个Set<String>)
-                    updateMessage("正在加载插件列表...")
+                    updateMessage(context.getString(R.string.plugin_loading_list))
                     updateProgress(0.28f)
                     val installedPluginsSet = mcpRepository.installedPluginIds.first()
 
@@ -528,7 +546,7 @@ class PluginLoadingState {
                     if (installedPluginsSet.isEmpty()) {
                         // 没有安装的插件，直接进入主界面
                         Log.d("PluginLoadingState", "没有检测到已安装的插件，直接进入主界面")
-                        updateMessage("没有检测到已安装的插件")
+                        updateMessage(context.getString(R.string.plugin_no_plugins))
                         updateProgress(1.0f)
 
                         // 立即隐藏插件加载界面
@@ -537,25 +555,28 @@ class PluginLoadingState {
                     }
 
                     // 设置插件列表，传入List<String>
-                    updateMessage("正在准备 ${installedPluginsList.size} 个插件...")
+                    updateMessage(
+                            context.getString(R.string.plugin_preparing, installedPluginsList.size)
+                    )
                     updateProgress(0.32f)
                     setPlugins(installedPluginsList)
 
                     // 有安装的插件，使用MCPStarter启动
-                    updateMessage("正在检查环境...")
+                    updateMessage(context.getString(R.string.plugin_checking_env))
                     updateProgress(0.35f)
 
                     val mcpStarter = MCPStarter(context)
                     val mcpConfigPreferences = MCPConfigPreferences(context)
 
                     // 创建一个适配器匿名类实现插件启动监听器
-                    updateMessage("正在准备启动插件...")
+                    updateMessage(context.getString(R.string.plugin_starting_plugins))
                     updateProgress(0.38f)
-                    
+
                     val progressListener =
                             createPluginStartProgressListener(
                                     mcpConfigPreferences,
-                                    lifecycleScope
+                                    lifecycleScope,
+                                    context
                             )
 
                     // 启动所有插件 - MCPStarter会处理各种检查逻辑
@@ -563,7 +584,7 @@ class PluginLoadingState {
                 } catch (e: Exception) {
                     // 处理插件加载过程中的异常
                     Log.e("PluginLoadingState", "加载插件过程中出错", e)
-                    updateMessage("加载插件出错: ${e.message}")
+                    updateMessage(e.message ?: context.getString(R.string.plugin_loading_failed))
                     updateProgress(1.0f)
 
                     // 延迟后隐藏
@@ -576,7 +597,7 @@ class PluginLoadingState {
                 }
             } catch (e: Exception) {
                 Log.e("PluginLoadingState", "启动MCP服务器和插件时出错", e)
-                updateMessage("启动过程中出错: ${e.message}")
+                updateMessage(e.message ?: context.getString(R.string.plugin_other_error))
                 updateProgress(1.0f)
 
                 // 延迟一会儿后如果用户未跳过，则自动隐藏进度条
@@ -593,7 +614,8 @@ class PluginLoadingState {
     // 创建插件启动进度监听器
     private fun createPluginStartProgressListener(
             mcpConfigPreferences: MCPConfigPreferences,
-            lifecycleScope: kotlinx.coroutines.CoroutineScope
+            lifecycleScope: kotlinx.coroutines.CoroutineScope,
+            context: Context
     ): MCPStarter.PluginStartProgressListener {
         return object : MCPStarter.PluginStartProgressListener {
             override fun onPluginStarting(pluginId: String, index: Int, total: Int) {
@@ -603,7 +625,16 @@ class PluginLoadingState {
                 }
 
                 // 更新总体状态
-                updateMessage("正在启动插件 ($index/$total)${if (!isEnabled) " (插件已禁用)" else ""}...")
+                val disabledSuffix =
+                        if (!isEnabled) context.getString(R.string.plugin_disabled_suffix) else ""
+                updateMessage(
+                        context.getString(
+                                R.string.plugin_starting_number,
+                                index,
+                                total,
+                                disabledSuffix
+                        )
+                )
                 updateProgress(0.4f + 0.6f * (index.toFloat() / total))
 
                 // 更新特定插件状态
@@ -618,9 +649,9 @@ class PluginLoadingState {
             ) {
                 // 记录插件加载结果
                 if (success) {
-                    setPluginSuccess(pluginId, "加载成功")
+                    setPluginSuccess(pluginId)
                 } else {
-                    setPluginFailed(pluginId, "加载失败")
+                    setPluginFailed(pluginId)
                 }
 
                 // 更新总体进度
@@ -628,26 +659,26 @@ class PluginLoadingState {
             }
 
             override fun onAllPluginsStarted(
-                successCount: Int, 
-                totalCount: Int,
-                status: MCPStarter.PluginInitStatus
+                    successCount: Int,
+                    totalCount: Int,
+                    status: MCPStarter.PluginInitStatus
             ) {
                 // 根据初始化状态显示不同的消息
                 when (status) {
                     MCPStarter.PluginInitStatus.TERMUX_NOT_RUNNING -> {
-                        updateMessage("Termux未运行，无法启动插件")
+                        updateMessage(context.getString(R.string.plugin_termux_not_running))
                     }
                     MCPStarter.PluginInitStatus.TERMUX_NOT_AUTHORIZED -> {
-                        updateMessage("Termux未授权，请先授权Termux再使用插件")
+                        updateMessage(context.getString(R.string.plugin_termux_not_authorized))
                     }
                     MCPStarter.PluginInitStatus.NODEJS_MISSING -> {
-                        updateMessage("Termux中未安装Node.js，请先安装Node.js再使用插件")
+                        updateMessage(context.getString(R.string.plugin_nodejs_missing))
                     }
                     MCPStarter.PluginInitStatus.BRIDGE_FAILED -> {
-                        updateMessage("桥接器初始化失败，无法启动插件")
+                        updateMessage(context.getString(R.string.plugin_bridge_failed))
                     }
                     MCPStarter.PluginInitStatus.OTHER_ERROR -> {
-                        updateMessage("启动插件时发生错误，您可以点击右上角的\"跳过\"继续")
+                        updateMessage(context.getString(R.string.plugin_other_error))
                     }
                     else -> {
                         // 所有插件加载完成
@@ -660,11 +691,18 @@ class PluginLoadingState {
 
                         // 如果有插件加载失败，则特别提示可以跳过
                         if (successCount < totalCount && totalCount > 0) {
-                            updateMessage("已完成启动，成功率: $successRate%。部分插件加载失败")
+                            updateMessage(
+                                    context.getString(
+                                            R.string.plugin_complete_with_failures,
+                                            successRate
+                                    )
+                            )
                         } else if (totalCount > 0) {
-                            updateMessage("已完成启动，成功率: $successRate%")
+                            updateMessage(
+                                    context.getString(R.string.plugin_complete_success, successRate)
+                            )
                         } else {
-                            updateMessage("没有需要启动的插件")
+                            updateMessage(context.getString(R.string.plugin_no_plugins_to_start))
                         }
                     }
                 }
@@ -673,7 +711,7 @@ class PluginLoadingState {
 
                 // 对于错误状态，延长显示时间让用户看清消息
                 val delayTime = if (status != MCPStarter.PluginInitStatus.SUCCESS) 5000L else 3000L
-                
+
                 // 延迟一会儿后隐藏进度条
                 lifecycleScope.launch {
                     delay(delayTime)
@@ -683,8 +721,10 @@ class PluginLoadingState {
                     }
                 }
             }
-            
-            override fun onAllPluginsVerified(verificationResults: List<MCPStarter.VerificationResult>) {
+
+            override fun onAllPluginsVerified(
+                    verificationResults: List<MCPStarter.VerificationResult>
+            ) {
                 // 不需要修改这部分
             }
         }

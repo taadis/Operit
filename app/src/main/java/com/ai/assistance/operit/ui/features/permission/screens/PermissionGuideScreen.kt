@@ -69,10 +69,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.core.tools.system.AndroidPermissionLevel
 import com.ai.assistance.operit.ui.features.permission.viewmodel.PermissionGuideViewModel
 import kotlinx.coroutines.delay
@@ -154,10 +156,15 @@ fun PermissionGuideScreen(
                             tint = MaterialTheme.colorScheme.error
                     )
                 },
-                title = { Text(text = "权限授予不完整", style = MaterialTheme.typography.titleMedium) },
+                title = {
+                    Text(
+                            text = stringResource(R.string.permission_guide_warning_title),
+                            style = MaterialTheme.typography.titleMedium
+                    )
+                },
                 text = {
                     Text(
-                            text = "您尚未授予所有必要权限，这可能导致应用功能不完整或异常退出。确定要继续吗？",
+                            text = stringResource(R.string.permission_guide_warning_message),
                             style = MaterialTheme.typography.bodyMedium
                     )
                 },
@@ -167,10 +174,12 @@ fun PermissionGuideScreen(
                                 showPermissionWarning = false
                                 scope.launch { pagerState.animateScrollToPage(2) }
                             }
-                    ) { Text("继续") }
+                    ) { Text(stringResource(R.string.permission_guide_warning_continue)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showPermissionWarning = false }) { Text("返回授权") }
+                    TextButton(onClick = { showPermissionWarning = false }) {
+                        Text(stringResource(R.string.permission_guide_warning_return))
+                    }
                 }
         )
     }
@@ -236,7 +245,10 @@ fun PermissionGuideScreen(
                                             } catch (e2: Exception) {
                                                 Toast.makeText(
                                                                 context,
-                                                                "无法打开存储权限设置，请手动授权",
+                                                                context.getString(
+                                                                        R.string
+                                                                                .permission_guide_storage_setting_failed
+                                                                ),
                                                                 Toast.LENGTH_SHORT
                                                         )
                                                         .show()
@@ -264,7 +276,10 @@ fun PermissionGuideScreen(
                                     } catch (e: Exception) {
                                         Toast.makeText(
                                                         context,
-                                                        "无法打开悬浮窗设置，请手动授权",
+                                                        context.getString(
+                                                                R.string
+                                                                        .permission_guide_overlay_setting_failed
+                                                        ),
                                                         Toast.LENGTH_SHORT
                                                 )
                                                 .show()
@@ -295,14 +310,20 @@ fun PermissionGuideScreen(
                                             context.startActivity(intent)
                                             Toast.makeText(
                                                             context,
-                                                            "请在列表中找到应用并设置为\"不优化\"",
+                                                            context.getString(
+                                                                    R.string
+                                                                            .permission_guide_battery_hint
+                                                            ),
                                                             Toast.LENGTH_LONG
                                                     )
                                                     .show()
                                         } catch (e2: Exception) {
                                             Toast.makeText(
                                                             context,
-                                                            "无法打开电池优化设置，请手动设置",
+                                                            context.getString(
+                                                                    R.string
+                                                                            .permission_guide_battery_setting_failed
+                                                            ),
                                                             Toast.LENGTH_SHORT
                                                     )
                                                     .show()
@@ -351,7 +372,7 @@ fun PermissionGuideScreen(
                 ) {
                     Icon(
                             imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "上一步",
+                            contentDescription = stringResource(R.string.permission_guide_previous),
                             tint =
                                     if (pagerState.currentPage > 0)
                                             MaterialTheme.colorScheme.primary
@@ -364,9 +385,9 @@ fun PermissionGuideScreen(
             Text(
                     text =
                             when (pagerState.currentPage) {
-                                0 -> "欢迎"
-                                1 -> "基础权限设置"
-                                2 -> "权限级别选择"
+                                0 -> stringResource(R.string.permission_guide_welcome)
+                                1 -> stringResource(R.string.permission_guide_basic_permissions)
+                                2 -> stringResource(R.string.permission_guide_permission_level)
                                 else -> ""
                             },
                     style = MaterialTheme.typography.bodyMedium,
@@ -410,7 +431,10 @@ fun PermissionGuideScreen(
                             imageVector =
                                     if (pagerState.currentPage == 2) Icons.Default.Check
                                     else Icons.Default.ArrowForward,
-                            contentDescription = if (pagerState.currentPage == 2) "完成" else "下一步",
+                            contentDescription =
+                                    if (pagerState.currentPage == 2)
+                                            stringResource(R.string.permission_guide_complete)
+                                    else stringResource(R.string.permission_guide_next),
                             tint =
                                     when {
                                         pagerState.currentPage == 0 ->
@@ -440,7 +464,7 @@ private fun WelcomePage() {
             verticalArrangement = Arrangement.Center
     ) {
         Text(
-                text = "欢迎使用",
+                text = stringResource(R.string.permission_guide_welcome_title),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
@@ -449,7 +473,7 @@ private fun WelcomePage() {
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-                text = "在开始使用应用前，我们需要设置一些基本权限并选择您偏好的权限级别。",
+                text = stringResource(R.string.permission_guide_welcome_desc),
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurface
@@ -458,7 +482,7 @@ private fun WelcomePage() {
         Spacer(modifier = Modifier.height(32.dp))
 
         Text(
-                text = "这个过程只需要几分钟，将帮助应用更好地为您服务。",
+                text = stringResource(R.string.permission_guide_welcome_hint),
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
@@ -467,7 +491,7 @@ private fun WelcomePage() {
         Spacer(modifier = Modifier.height(48.dp))
 
         Text(
-                text = "点击右下角按钮开始设置",
+                text = stringResource(R.string.permission_guide_welcome_start),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Medium
@@ -500,7 +524,7 @@ private fun BasicPermissionsPage(
             horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-                text = "基础权限设置",
+                text = stringResource(R.string.permission_guide_basic_title),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
@@ -509,7 +533,7 @@ private fun BasicPermissionsPage(
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-                text = "请授予以下基础权限，以确保应用正常运行",
+                text = stringResource(R.string.permission_guide_basic_desc),
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
@@ -530,8 +554,8 @@ private fun BasicPermissionsPage(
             ) {
                 // 存储权限
                 PermissionItem(
-                        title = "存储权限",
-                        description = "允许应用读写文件",
+                        title = stringResource(R.string.permission_guide_storage_title),
+                        description = stringResource(R.string.permission_guide_storage_desc),
                         isGranted = hasStoragePermission,
                         onClick = onStoragePermissionClick
                 )
@@ -540,8 +564,8 @@ private fun BasicPermissionsPage(
 
                 // 悬浮窗权限
                 PermissionItem(
-                        title = "悬浮窗权限",
-                        description = "允许应用显示悬浮窗",
+                        title = stringResource(R.string.permission_guide_overlay_title),
+                        description = stringResource(R.string.permission_guide_overlay_desc),
                         isGranted = hasOverlayPermission,
                         onClick = onOverlayPermissionClick
                 )
@@ -550,8 +574,8 @@ private fun BasicPermissionsPage(
 
                 // 电池优化豁免
                 PermissionItem(
-                        title = "电池优化豁免",
-                        description = "允许应用在后台运行",
+                        title = stringResource(R.string.permission_guide_battery_title),
+                        description = stringResource(R.string.permission_guide_battery_desc),
                         isGranted = hasBatteryOptimizationExemption,
                         onClick = onBatteryOptimizationClick
                 )
@@ -560,8 +584,8 @@ private fun BasicPermissionsPage(
 
                 // 位置权限
                 PermissionItem(
-                        title = "位置权限",
-                        description = "允许应用获取位置信息",
+                        title = stringResource(R.string.permission_guide_location_title),
+                        description = stringResource(R.string.permission_guide_location_desc),
                         isGranted = hasLocationPermission,
                         onClick = onLocationPermissionClick
                 )
@@ -580,11 +604,12 @@ private fun BasicPermissionsPage(
         ) {
             Icon(
                     imageVector = Icons.Default.Check,
-                    contentDescription = "刷新权限状态",
+                    contentDescription =
+                            stringResource(R.string.permission_guide_check_permissions),
                     modifier = Modifier.size(16.dp).graphicsLayer { rotationZ = rotationAngle }
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text("检查权限状态")
+            Text(stringResource(R.string.permission_guide_check_permissions))
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -620,7 +645,7 @@ private fun BasicPermissionsPage(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                        text = "所有基础权限已授予，可以继续下一步",
+                        text = stringResource(R.string.permission_guide_all_granted),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.primary
                 )
@@ -683,14 +708,14 @@ private fun PermissionItem(
             if (isGranted) {
                 Icon(
                         imageVector = Icons.Default.Check,
-                        contentDescription = "已授权",
+                        contentDescription = stringResource(R.string.permission_guide_granted),
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(16.dp)
                 )
             } else {
                 Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = "未授权",
+                        contentDescription = stringResource(R.string.permission_guide_not_granted),
                         tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(16.dp)
                 )
@@ -710,7 +735,7 @@ private fun PermissionLevelPage(
             horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-                text = "选择权限级别",
+                text = stringResource(R.string.permission_guide_level_title),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
@@ -719,7 +744,7 @@ private fun PermissionLevelPage(
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-                text = "请选择您偏好的权限级别，这将决定应用可以使用的功能范围",
+                text = stringResource(R.string.permission_guide_level_desc),
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
@@ -735,8 +760,8 @@ private fun PermissionLevelPage(
             // 标准权限
             PermissionLevelItem(
                     level = AndroidPermissionLevel.STANDARD,
-                    title = "标准权限",
-                    description = "基本的应用运行权限，无需特殊权限",
+                    title = stringResource(R.string.permission_guide_standard_title),
+                    description = stringResource(R.string.permission_guide_standard_desc),
                     isSelected = selectedLevel == AndroidPermissionLevel.STANDARD,
                     onClick = { onLevelSelected(AndroidPermissionLevel.STANDARD) }
             )
@@ -744,8 +769,8 @@ private fun PermissionLevelPage(
             // 调试权限
             PermissionLevelItem(
                     level = AndroidPermissionLevel.DEBUGGER,
-                    title = "调试权限",
-                    description = "通过Shizuku提供ADB级别的系统访问",
+                    title = stringResource(R.string.permission_guide_debugger_title),
+                    description = stringResource(R.string.permission_guide_debugger_desc),
                     isSelected = selectedLevel == AndroidPermissionLevel.DEBUGGER,
                     onClick = { onLevelSelected(AndroidPermissionLevel.DEBUGGER) }
             )
@@ -753,8 +778,8 @@ private fun PermissionLevelPage(
             // Root权限
             PermissionLevelItem(
                     level = AndroidPermissionLevel.ROOT,
-                    title = "Root权限",
-                    description = "超级用户权限，可执行任意系统操作",
+                    title = stringResource(R.string.permission_guide_root_title),
+                    description = stringResource(R.string.permission_guide_root_desc),
                     isSelected = selectedLevel == AndroidPermissionLevel.ROOT,
                     onClick = { onLevelSelected(AndroidPermissionLevel.ROOT) }
             )
@@ -778,7 +803,7 @@ private fun PermissionLevelPage(
                         )
         ) {
             Text(
-                    text = "确认选择",
+                    text = stringResource(R.string.permission_guide_confirm),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium
             )
@@ -788,7 +813,7 @@ private fun PermissionLevelPage(
 
         // 提示文本
         Text(
-                text = "您随时可以在设置中更改权限级别",
+                text = stringResource(R.string.permission_guide_change_anytime),
                 style = MaterialTheme.typography.bodySmall,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
@@ -848,7 +873,7 @@ private fun PermissionLevelItem(
                 if (isSelected) {
                     Icon(
                             imageVector = Icons.Default.Check,
-                            contentDescription = "已选择",
+                            contentDescription = stringResource(R.string.permission_guide_selected),
                             tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(12.dp)
                     )

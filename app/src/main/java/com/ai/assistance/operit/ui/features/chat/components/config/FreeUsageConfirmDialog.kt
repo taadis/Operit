@@ -5,12 +5,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.ai.assistance.operit.R
 
 /**
  * Dialog that confirms free API usage and shows cute messages to users
@@ -27,16 +30,17 @@ fun FreeUsageConfirmDialog(
         remainingUsages: Int,
         maxDailyUsage: Int
 ) {
-        // Generate a random cute message
-        val cuteMessages =
+        // Generate a random cute message from resources
+        val context = LocalContext.current
+        val cuteMessageIds =
                 listOf(
-                        "少薅点，再薅真破产了qwq",
-                        "别老薅作者的哇，作者也不容易呜呜",
-                        "作者的资源真的不多了，求放过>_<",
-                        "薅一次少一次，请珍惜每一次使用机会~",
-                        "作者的钱包在哭泣，请温柔一点qaq"
+                        R.string.free_usage_message_1,
+                        R.string.free_usage_message_2,
+                        R.string.free_usage_message_3,
+                        R.string.free_usage_message_4,
+                        R.string.free_usage_message_5
                 )
-        val randomMessage = cuteMessages.random()
+        val randomMessageId = cuteMessageIds.random()
 
         Dialog(
                 onDismissRequest = onDismiss,
@@ -55,7 +59,7 @@ fun FreeUsageConfirmDialog(
                         ) {
                                 // Title
                                 Text(
-                                        text = "确认使用免费资源",
+                                        text = stringResource(id = R.string.free_usage_title),
                                         style = MaterialTheme.typography.titleLarge,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.primary
@@ -65,7 +69,7 @@ fun FreeUsageConfirmDialog(
 
                                 // Cute message
                                 Text(
-                                        text = randomMessage,
+                                        text = stringResource(id = randomMessageId),
                                         style = MaterialTheme.typography.bodyLarge,
                                         textAlign = TextAlign.Center,
                                         color = MaterialTheme.colorScheme.error.copy(alpha = 0.9f)
@@ -74,10 +78,14 @@ fun FreeUsageConfirmDialog(
                                 Spacer(modifier = Modifier.height(12.dp))
 
                                 // Usage counter
-                                val usageText =
-                                        "今日免费次数：已用${maxDailyUsage - remainingUsages}次，剩余${remainingUsages}次\n单次免费状态将会持续到软件退出"
+                                val usedCount = maxDailyUsage - remainingUsages
                                 Text(
-                                        text = usageText,
+                                        text =
+                                                stringResource(
+                                                        id = R.string.free_usage_counter,
+                                                        usedCount,
+                                                        remainingUsages
+                                                ),
                                         style = MaterialTheme.typography.bodyMedium,
                                         textAlign = TextAlign.Center,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -93,20 +101,35 @@ fun FreeUsageConfirmDialog(
                                         TextButton(
                                                 onClick = onDismiss,
                                                 modifier = Modifier.weight(1f)
-                                        ) { Text("取消") }
+                                        ) { Text(stringResource(id = R.string.free_usage_cancel)) }
 
                                         Button(
                                                 onClick = onConfirm,
                                                 modifier = Modifier.weight(1f),
                                                 enabled = remainingUsages > 0
-                                        ) { Text(if (remainingUsages > 0) "确认使用" else "今日已用完") }
+                                        ) {
+                                                Text(
+                                                        if (remainingUsages > 0)
+                                                                stringResource(
+                                                                        id =
+                                                                                R.string
+                                                                                        .free_usage_confirm
+                                                                )
+                                                        else
+                                                                stringResource(
+                                                                        id =
+                                                                                R.string
+                                                                                        .free_usage_depleted
+                                                                )
+                                                )
+                                        }
                                 }
 
                                 // Show tip if no usages left
                                 if (remainingUsages <= 0) {
                                         Spacer(modifier = Modifier.height(12.dp))
                                         Text(
-                                                text = "明天再来吧，或者使用您自己的API密钥",
+                                                text = stringResource(id = R.string.free_usage_tip),
                                                 style = MaterialTheme.typography.bodySmall,
                                                 textAlign = TextAlign.Center,
                                                 color = MaterialTheme.colorScheme.error,

@@ -234,7 +234,7 @@ The following utility namespaces are available in all package scripts:
 ### Tools.Net
 - `httpGet(url)` - Perform HTTP GET request
 - `httpPost(url, data)` - Perform HTTP POST request
-- `search(query)` - Perform web search
+- `visit(query)` - Perform web search
 
 ### Tools.System
 - `exec(command)` - Execute a system command

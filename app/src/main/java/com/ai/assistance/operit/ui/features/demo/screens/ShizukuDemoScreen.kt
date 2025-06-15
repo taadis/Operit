@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.core.tools.system.AndroidPermissionLevel
 import com.ai.assistance.operit.core.tools.system.ShizukuAuthorizer
 import com.ai.assistance.operit.core.tools.system.ShizukuInstaller
@@ -364,7 +365,14 @@ fun ShizukuDemoScreen(
                                         Uri.parse("https://shizuku.rikka.app/zh-hans/download/")
                                 context.startActivity(intent)
                             } catch (e: Exception) {
-                                Toast.makeText(context, "无法打开下载链接", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                                context,
+                                                context.getString(
+                                                        R.string.toast_download_link_failed
+                                                ),
+                                                Toast.LENGTH_SHORT
+                                        )
+                                        .show()
                             }
                         },
                         onInstallBundled = {
@@ -378,7 +386,10 @@ fun ShizukuDemoScreen(
                                         withContext(Dispatchers.Main) {
                                             Toast.makeText(
                                                             context,
-                                                            "提取APK失败，请稍后再试",
+                                                            context.getString(
+                                                                    R.string
+                                                                            .toast_apk_extract_failed
+                                                            ),
                                                             Toast.LENGTH_SHORT
                                                     )
                                                     .show()
@@ -426,7 +437,9 @@ fun ShizukuDemoScreen(
                                         context.startActivity(installIntent)
                                         Toast.makeText(
                                                         context,
-                                                        "已启动Shizuku安装，请按照系统提示完成安装",
+                                                        context.getString(
+                                                                R.string.shizuku_demo_install_notify
+                                                        ),
                                                         Toast.LENGTH_LONG
                                                 )
                                                 .show()
@@ -436,7 +449,10 @@ fun ShizukuDemoScreen(
                                     withContext(Dispatchers.Main) {
                                         Toast.makeText(
                                                         context,
-                                                        "安装失败: ${e.message}",
+                                                        context.getString(
+                                                                R.string.toast_operation_failed,
+                                                                e.message ?: ""
+                                                        ),
                                                         Toast.LENGTH_SHORT
                                                 )
                                                 .show()
@@ -481,14 +497,20 @@ fun ShizukuDemoScreen(
                                         if (granted) {
                                             Toast.makeText(
                                                             context,
-                                                            "Shizuku权限已授予",
+                                                            context.getString(
+                                                                    R.string
+                                                                            .shizuku_demo_shizuku_permission_granted
+                                                            ),
                                                             Toast.LENGTH_SHORT
                                                     )
                                                     .show()
                                         } else {
                                             Toast.makeText(
                                                             context,
-                                                            "Shizuku权限请求被拒绝",
+                                                            context.getString(
+                                                                    R.string
+                                                                            .shizuku_demo_shizuku_permission_denied
+                                                            ),
                                                             Toast.LENGTH_SHORT
                                                     )
                                                     .show()
@@ -513,7 +535,10 @@ fun ShizukuDemoScreen(
                                         withContext(Dispatchers.Main) {
                                             Toast.makeText(
                                                             context,
-                                                            "提取APK失败，请稍后再试",
+                                                            context.getString(
+                                                                    R.string
+                                                                            .toast_apk_extract_failed
+                                                            ),
                                                             Toast.LENGTH_SHORT
                                                     )
                                                     .show()
@@ -561,7 +586,9 @@ fun ShizukuDemoScreen(
                                         context.startActivity(installIntent)
                                         Toast.makeText(
                                                         context,
-                                                        "已启动Shizuku更新，请按照系统提示完成安装",
+                                                        context.getString(
+                                                                R.string.shizuku_demo_update_notify
+                                                        ),
                                                         Toast.LENGTH_LONG
                                                 )
                                                 .show()
@@ -571,7 +598,10 @@ fun ShizukuDemoScreen(
                                     withContext(Dispatchers.Main) {
                                         Toast.makeText(
                                                         context,
-                                                        "更新失败: ${e.message}",
+                                                        context.getString(
+                                                                R.string.toast_operation_failed,
+                                                                e.message ?: ""
+                                                        ),
                                                         Toast.LENGTH_SHORT
                                                 )
                                                 .show()
@@ -605,7 +635,10 @@ fun ShizukuDemoScreen(
                                         if (success) {
                                             Toast.makeText(
                                                             context,
-                                                            "已启动Termux安装，请按照系统提示完成安装",
+                                                            context.getString(
+                                                                    R.string
+                                                                            .shizuku_demo_termux_install_success
+                                                            ),
                                                             Toast.LENGTH_LONG
                                                     )
                                                     .show()
@@ -613,7 +646,10 @@ fun ShizukuDemoScreen(
                                             // 如果无法通过内置安装，尝试跳转到下载页面
                                             Toast.makeText(
                                                             context,
-                                                            "内置APK安装失败，正在打开下载页面",
+                                                            context.getString(
+                                                                    R.string
+                                                                            .shizuku_demo_termux_install_failed_store
+                                                            ),
                                                             Toast.LENGTH_SHORT
                                                     )
                                                     .show()
@@ -627,7 +663,10 @@ fun ShizukuDemoScreen(
                                             } catch (e: Exception) {
                                                 Toast.makeText(
                                                                 context,
-                                                                "无法打开下载链接，请手动下载安装Termux",
+                                                                context.getString(
+                                                                        R.string
+                                                                                .shizuku_demo_termux_download_failed
+                                                                ),
                                                                 Toast.LENGTH_SHORT
                                                         )
                                                         .show()
@@ -639,7 +678,10 @@ fun ShizukuDemoScreen(
                                     withContext(Dispatchers.Main) {
                                         Toast.makeText(
                                                         context,
-                                                        "安装失败: ${e.message}",
+                                                        context.getString(
+                                                                R.string.toast_operation_failed,
+                                                                e.message ?: ""
+                                                        ),
                                                         Toast.LENGTH_SHORT
                                                 )
                                                 .show()
@@ -672,16 +714,33 @@ fun ShizukuDemoScreen(
                         },
                         onSkipTunaSource = {
                             scope.launch(Dispatchers.IO) {
-                                // 显示提示对话框并标记清华源为已跳过
-                                withContext(Dispatchers.Main) {
-                                    Toast.makeText(
-                                                    context,
-                                                    "已跳过清华源配置，您可以稍后在Termux中自行配置源",
-                                                    Toast.LENGTH_LONG
-                                            )
-                                            .show()
+                                try {
+                                    // 显示提示对话框并标记清华源为已跳过
+                                    withContext(Dispatchers.Main) {
+                                        Toast.makeText(
+                                                        context,
+                                                        context.getString(
+                                                                R.string.toast_skip_tuna_source
+                                                        ),
+                                                        Toast.LENGTH_LONG
+                                                )
+                                                .show()
+                                    }
+                                    viewModel.skipTunaSource(context)
+                                } catch (e: Exception) {
+                                    Log.e("ShizukuDemo", "跳过清华源时出错: ${e.message}", e)
+
+                                    withContext(Dispatchers.Main) {
+                                        Toast.makeText(
+                                                        context,
+                                                        context.getString(
+                                                                R.string.toast_skip_tuna_source
+                                                        ),
+                                                        Toast.LENGTH_SHORT
+                                                )
+                                                .show()
+                                    }
                                 }
-                                viewModel.skipTunaSource(context)
                             }
                         },
                         onInstallPythonEnv = {

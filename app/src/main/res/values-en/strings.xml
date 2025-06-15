@@ -58,7 +58,6 @@
     <string name="install_termux_failed">Termux Installation Failed</string>
     <string name="open_termux">Open Termux</string>
     <string name="termux_setup_guide">Termux Setup Guide</string>
-    <string name="termux_wizard_title">Termux Setup Wizard</string>
     
     <!-- About Screen -->
     <string name="about_title">About Operit AI</string>
@@ -82,6 +81,118 @@
     <string name="ai_response_placeholder">This is a simulated AI response. In the actual application, real AI API calls will be integrated here.</string>
     <string name="network_unavailable">Network connection unavailable, please check your network settings</string>
     <string name="network_status">Network Status: %1$s</string>
+    
+    <!-- Configuration Screen -->
+    <string name="config_title">Operit AI Assistant</string>
+    <string name="config_description">We use DeepSeek API by default. For alternatives, click the custom option below</string>
+    <string name="config_api_key_label">API Key</string>
+    <string name="config_api_key_placeholder">DeepSeek API Key</string>
+    <string name="config_save_button">Confirm and Save</string>
+    <string name="config_get_token">Get Token</string>
+    <string name="config_use_free">Use Free Tier</string>
+    <string name="config_custom">Custom</string>
+    <string name="config_tip">Your own token is more stable. Excessive use of free tier may lead to service limitations</string>
+    <string name="config_free_usage_exceeded">Free daily usage limit reached</string>
+    
+    <!-- Token Info Dialog -->
+    <string name="token_info_title">Get DeepSeek API Token</string>
+    <string name="token_info_content">You will be directed to the DeepSeek API website. We integrate DeepSeek access because we consider it the most cost-effective API with powerful performance, various discounts, and disk caching to reduce usage costs.\n\nAPI access and token configuration are not related to the app developers, and we do not provide any services in this regard or earn any fees.\n\nFor your first token usage, we recommend starting with a small amount as it\'s usually sufficient.</string>
+    <string name="token_info_cancel">Cancel</string>
+    <string name="token_info_confirm">Get Token</string>
+    
+    <!-- Free Usage Dialog -->
+    <string name="free_usage_title">Confirm Free Resource Usage</string>
+    <string name="free_usage_message_1">Please use sparingly, our resources are limited</string>
+    <string name="free_usage_message_2">Don\'t overuse the free tier, developers have costs too</string>
+    <string name="free_usage_message_3">Our resources are limited, please be considerate</string>
+    <string name="free_usage_message_4">Each free use counts, please value every opportunity</string>
+    <string name="free_usage_message_5">Our budget is crying, please be gentle</string>
+    <string name="free_usage_counter">Daily free usage: Used %1$d times, %2$d remaining\nFree status will last until app exit</string>
+    <string name="free_usage_cancel">Cancel</string>
+    <string name="free_usage_confirm">Confirm Use</string>
+    <string name="free_usage_depleted">Limit Reached</string>
+    <string name="free_usage_tip">Please try again tomorrow or use your own API key</string>
+    
+    <!-- Plugin Loading Screen -->
+    <string name="plugin_skip">Skip</string>
+    <string name="plugin_app_name">OPERIT</string>
+    <string name="plugin_status">Started: %1$d / %2$d</string>
+    <string name="plugin_loading_status_title">Plugin Loading Status</string>
+    <string name="plugin_loading_success">Loading successful</string>
+    <string name="plugin_loading_failed">Loading failed</string>
+    <string name="plugin_loading">Loading...</string>
+    <string name="plugin_loading_timeout">Loading timeout, you can click \"Skip\" in the top right corner to continue</string>
+    <string name="plugin_initializing">Initializing...</string>
+    <string name="plugin_starting_server">Starting MCP server...</string>
+    <string name="plugin_configuring_server">Configuring MCP server...</string>
+    <string name="plugin_server_failed">MCP server failed to start, you can click \"Skip\" in the top right corner to continue</string>
+    <string name="plugin_server_success">MCP server started successfully</string>
+    <string name="plugin_server_initializing">MCP server initializing...</string>
+    <string name="plugin_loading_list">Loading plugin list...</string>
+    <string name="plugin_no_plugins">No installed plugins detected</string>
+    <string name="plugin_preparing">Preparing %1$d plugins...</string>
+    <string name="plugin_checking_env">Checking environment...</string>
+    <string name="plugin_starting_plugins">Preparing to start plugins...</string>
+    <string name="plugin_starting_number">Starting plugin (%1$d/%2$d)%3$s...</string>
+    <string name="plugin_disabled_suffix"> (plugin disabled)</string>
+    <string name="plugin_termux_not_running">Termux is not running, unable to start plugins</string>
+    <string name="plugin_termux_not_authorized">Termux is not authorized, please authorize Termux before using plugins</string>
+    <string name="plugin_nodejs_missing">Node.js not installed in Termux, please install Node.js before using plugins</string>
+    <string name="plugin_bridge_failed">Bridge initialization failed, unable to start plugins</string>
+    <string name="plugin_other_error">Error occurred while starting plugins, you can click \"Skip\" in the top right corner to continue</string>
+    <string name="plugin_complete_with_failures">Startup completed, success rate: %1$d%%. Some plugins failed to load</string>
+    <string name="plugin_complete_success">Startup completed, success rate: %1$d%%</string>
+    <string name="plugin_no_plugins_to_start">No plugins to start</string>
+    <string name="plugin_copyright">© 2023 AI Assistance</string>
+    
+    <!-- Theme Settings Screen -->
+    <string name="theme_title_mode">Theme Mode</string>
+    <string name="theme_system_title">System Theme</string>
+    <string name="theme_follow_system">Follow System Theme</string>
+    <string name="theme_follow_system_desc">When enabled, theme will automatically switch based on system dark mode</string>
+    <string name="theme_select">Select Theme</string>
+    <string name="theme_light">Light Theme</string>
+    <string name="theme_dark">Dark Theme</string>
+    <string name="theme_title_color">Color Customization</string>
+    <string name="theme_custom_color">Custom Colors</string>
+    <string name="theme_use_custom_color">Use Custom Colors</string>
+    <string name="theme_custom_color_desc">When enabled, you can customize the app\'s main colors</string>
+    <string name="theme_select_color">Select Colors</string>
+    <string name="theme_primary_color">Primary</string>
+    <string name="theme_secondary_color">Secondary</string>
+    <string name="theme_preview">Color Preview</string>
+    <string name="theme_primary_button">Main Button</string>
+    <string name="theme_secondary_button">Secondary Button</string>
+    <string name="theme_contrast_tip">Tip: High contrast color combinations work best</string>
+    <string name="theme_save_colors">Save Color Settings</string>
+    <string name="theme_title_background">Background Customization</string>
+    <string name="theme_bg_media">Background Media Settings</string>
+    <string name="theme_use_custom_bg">Use Custom Background</string>
+    <string name="theme_custom_bg_desc">When enabled, you can select a custom background image or video</string>
+    <string name="theme_media_type">Media Type</string>
+    <string name="theme_media_image">Image</string>
+    <string name="theme_media_video">Video</string>
+    <string name="theme_no_bg_selected">Click select button to add background</string>
+    <string name="theme_select_video">Select Video</string>
+    <string name="theme_select_image">Select Image</string>
+    <string name="theme_bg_opacity">Background opacity: %1$d%%</string>
+    <string name="theme_reset">Reset to Default Theme</string>
+    <string name="theme_saved">Settings saved</string>
+    <string name="theme_video_too_large">Video file is too large and may cause lag or crashes. Please select videos less than 30MB.</string>
+    <string name="theme_video_saved">Background video saved</string>
+    <string name="theme_image_saved">Background image saved</string>
+    <string name="theme_copy_failed">Cannot copy video, please select another video</string>
+    <string name="theme_image_crop_failed">Failed to crop image: %1$s</string>
+    <string name="theme_image_migrated">Background image migrated to internal storage</string>
+    <string name="theme_old_image_failed">Unable to access old background image, background image feature has been disabled</string>
+    <string name="theme_crop_image">Crop Image</string>
+    <string name="theme_crop_done">Done</string>
+    <string name="theme_unmute">Unmute</string>
+    <string name="theme_mute">Mute</string>
+    <string name="theme_loop_off">Enable loop</string>
+    <string name="theme_loop_on">Disable loop</string>
+    <string name="theme_loop_enabled">Loop playback enabled</string>
+    <string name="theme_loop_disabled">Loop playback disabled</string>
     
     <!-- Floating Window -->
     <string name="floating_chat_window">Floating Chat Window</string>
@@ -115,6 +226,51 @@
     <string name="show_thinking">Show Thinking Process</string>
     <string name="show_fps_counter">Show FPS Counter</string>
     <string name="fps_counter_description">Display real-time FPS in the upper right corner</string>
+    
+    <!-- Settings Screen Sections -->
+    <string name="settings_section_personalization">Personalization</string>
+    <string name="settings_user_preferences">User Preferences</string>
+    <string name="settings_user_preferences_desc">Configure personal information and preferences to help AI better understand you, including age, personality, identity, occupation, and expected AI style</string>
+    <string name="settings_configure_preferences">Configure Preferences</string>
+    <string name="settings_model_prompts">Model Prompt Settings</string>
+    <string name="settings_model_prompts_desc">Customize AI assistant\'s system prompts, including self-introduction and tone style, to better meet your expectations</string>
+    <string name="settings_configure_prompts">Configure Prompts</string>
+    <string name="settings_theme_appearance">Theme and Appearance</string>
+    <string name="settings_theme_appearance_desc">Personalize app appearance, including dark/light mode and custom color schemes</string>
+    <string name="settings_customize_theme">Customize Theme</string>
+    <string name="settings_data_backup">Data Backup and Recovery</string>
+    <string name="settings_data_backup_desc">Import, export, or delete chat history and problem library data for easy backup and recovery of important information</string>
+    <string name="settings_manage_backup">Manage Backup</string>
+    
+    <string name="settings_section_ai_model">AI Model Configuration</string>
+    <string name="settings_model_parameters">Model and Parameter Configuration</string>
+    <string name="settings_model_parameters_desc">Configure API settings, model names and parameters, with support for multiple configuration management</string>
+    <string name="settings_configure_model">Configure Model</string>
+    <string name="settings_functional_model">Functional Model Configuration</string>
+    <string name="settings_functional_model_desc">Configure specialized models and API settings for different functions (such as chat, summarization, problem library, etc.)</string>
+    <string name="settings_configure_function">Configure Function</string>
+    
+    <string name="settings_section_display">Display and Behavior</string>
+    <string name="settings_memory_optimization">Memory Optimization</string>
+    <string name="settings_memory_optimization_desc">When enabled, AI will have certain forgetting capabilities</string>
+    <string name="settings_auto_accessibility">Auto-grant Accessibility Permission</string>
+    <string name="settings_auto_accessibility_desc">When disabled, manual authorization is required each time the app is opened</string>
+    
+    <string name="settings_section_permissions">Permissions and Security</string>
+    <string name="settings_tool_permissions">Tool Permission Settings</string>
+    <string name="settings_tool_permissions_desc">Configure permission levels for AI assistant tools, can be set to auto-allow, ask, or deny</string>
+    <string name="settings_configure_permissions">Configure Permissions</string>
+    
+    <string name="settings_section_usage">Usage Statistics</string>
+    <string name="settings_token_statistics">Token Statistics</string>
+    <string name="settings_reset_analysis_count">Reset Preference Analysis Counter</string>
+    <string name="settings_why_token_stats">Why Should I Care About Token Statistics?</string>
+    <string name="settings_token_stats_explanation">Because it\'s like a restaurant bill, except the \'food\' is AI thinking and the \'money\' is calculated in RMB! Preference analysis is the AI observing your tastes to customize your next \'menu\'. Don\'t worry, even if you chat until your fingers cramp, these costs might not be enough to buy a bubble tea~</string>
+    <string name="settings_chat_input_token">Chat Input Tokens</string>
+    <string name="settings_chat_output_token">Chat Output Tokens</string>
+    <string name="settings_preference_input_token">Preference Analysis Input Tokens</string>
+    <string name="settings_preference_output_token">Preference Analysis Output Tokens</string>
+    <string name="settings_total">Total</string>
     
     <!-- Shizuku Command Screen -->
     <string name="shizuku_command_executor">Shizuku ADB Command Executor</string>
@@ -257,26 +413,30 @@
     <string name="agreement_privacy_content">Regarding your privacy, please understand the following important information:\n\n1. No Data Collection\n   We do not actively collect any of your personal information or usage data. The design philosophy of this application is to respect user privacy and not engage in any form of data collection.\n\n2. Local Processing\n   All data processing is completed locally on your device and will not be uploaded to our servers or any third-party servers. Therefore, your private data security is entirely under your control.\n\n3. Third-Party Services\n   If this application integrates any third-party services or libraries, their data processing behavior is beyond our control. Please refer to the privacy policies of relevant third parties.\n\n4. Permission Statement\n   This application may require certain system permissions to function properly. These permissions are only used for implementing application features and not for collecting your personal information.\n\n5. Open Source Transparency\n   As an open source project, our code is publicly transparent to everyone. You can view the source code on GitHub to verify our privacy statement.\n\n6. No Liability Statement\n   Since we do not collect or store user data, we are not responsible for any user data leakage, loss, or misuse.\n\n7. Policy Updates\n   We may update this privacy policy, and updated policies will be published on GitHub and updated in the application.\n\n8. Contact Us\n   If you have any questions about the privacy policy, please contact us through the GitHub project page.</string>
     
     <!-- File Manager -->
-    <string name="new_folder">New Folder</string>
-    <string name="file_count">%1$d items</string>
     <string name="files_selected">%1$d files selected</string>
+    <string name="file_count">%1$d items</string>
     <string name="exit_multi_select">Exit multi-select</string>
-    <string name="loading_files">Loading files...</string>
-    <string name="searching">Searching...</string>
+    
+    <!-- Search Dialog -->
     <string name="search_files">Search Files</string>
+    <string name="searching">Searching...</string>
     <string name="case_sensitive">Case sensitive</string>
     <string name="use_wildcard">Use wildcard</string>
     <string name="search">Search</string>
+    
+    <!-- File Operations -->
+    <string name="new_folder">New Folder</string>
     <string name="folder_name">Folder name</string>
     <string name="create_folder">Create folder</string>
-    <!-- Context Menu -->
     <string name="open">Open</string>
     <string name="copy">Copy</string>
     <string name="cut">Cut</string>
     <string name="paste">Paste</string>
-    <string name="delete">Delete</string>
-    <string name="rename">Rename</string>
     <string name="share">Share</string>
+    <string name="rename">Rename</string>
+    <string name="delete">Delete</string>
+    <string name="loading_files">Loading files...</string>
+
     <!-- ErrorDialog -->
     <string name="request_failed">Request Failed</string>
     <string name="confirm">OK</string>
@@ -292,4 +452,228 @@
     <string name="network_transfer_failed">Network transfer failed, please check your connection</string>
     <string name="error_occurred">Error occurred: %1$s</string>
     <string name="try_again_later">Request failed, please try again later</string>
+
+    <!-- Permission Guide Screen -->
+    <string name="permission_guide_previous">Previous</string>
+    <string name="permission_guide_next">Next</string>
+    <string name="permission_guide_complete">Complete</string>
+    <string name="permission_guide_welcome">Welcome</string>
+    <string name="permission_guide_basic_permissions">Basic Permissions</string>
+    <string name="permission_guide_permission_level">Permission Level</string>
+    
+    <string name="permission_guide_welcome_title">Welcome</string>
+    <string name="permission_guide_welcome_desc">Before using the app, we need to set up some basic permissions and select your preferred permission level.</string>
+    <string name="permission_guide_welcome_hint">This process takes just a few minutes and will help the app serve you better.</string>
+    <string name="permission_guide_welcome_start">Click the button in the lower right corner to start setup</string>
+    
+    <string name="permission_guide_basic_title">Basic Permissions</string>
+    <string name="permission_guide_basic_desc">Please grant the following basic permissions to ensure the app functions properly</string>
+    <string name="permission_guide_storage_title">Storage Permission</string>
+    <string name="permission_guide_storage_desc">Allow the app to read and write files</string>
+    <string name="permission_guide_overlay_title">Overlay Permission</string>
+    <string name="permission_guide_overlay_desc">Allow the app to display floating windows</string>
+    <string name="permission_guide_battery_title">Battery Optimization Exemption</string>
+    <string name="permission_guide_battery_desc">Allow the app to run in the background</string>
+    <string name="permission_guide_location_title">Location Permission</string>
+    <string name="permission_guide_location_desc">Allow the app to access location information</string>
+    <string name="permission_guide_check_permissions">Check Permission Status</string>
+    <string name="permission_guide_all_granted">All basic permissions granted, you can continue to the next step</string>
+    
+    <string name="permission_guide_warning_title">Incomplete Permissions</string>
+    <string name="permission_guide_warning_message">You have not granted all necessary permissions, which may result in incomplete functionality or abnormal app behavior. Are you sure you want to continue?</string>
+    <string name="permission_guide_warning_continue">Continue</string>
+    <string name="permission_guide_warning_return">Return to Permissions</string>
+    
+    <string name="permission_guide_level_title">Select Permission Level</string>
+    <string name="permission_guide_level_desc">Please select your preferred permission level, which will determine the range of features the app can use</string>
+    <string name="permission_guide_standard_title">Standard Permissions</string>
+    <string name="permission_guide_standard_desc">Basic app operation permissions, no special permissions required</string>
+    <string name="permission_guide_debugger_title">Debug Permissions</string>
+    <string name="permission_guide_debugger_desc">Provides ADB-level system access through Shizuku</string>
+    <string name="permission_guide_root_title">Root Permissions</string>
+    <string name="permission_guide_root_desc">Superuser permissions, can perform any system operations</string>
+    <string name="permission_guide_confirm">Confirm Selection</string>
+    <string name="permission_guide_change_anytime">You can change the permission level in settings at any time</string>
+    
+    <!-- Permission Guide Toast Messages -->
+    <string name="permission_guide_storage_setting_failed">Cannot open storage permission settings, please authorize manually</string>
+    <string name="permission_guide_overlay_setting_failed">Cannot open overlay settings, please authorize manually</string>
+    <string name="permission_guide_battery_hint">Please find the app in the list and set it to \"Not optimized\"</string>
+    <string name="permission_guide_battery_setting_failed">Cannot open battery optimization settings, please set manually</string>
+    
+    <!-- Permission Status Description -->
+    <string name="permission_guide_granted">Granted</string>
+    <string name="permission_guide_not_granted">Not granted</string>
+    <string name="permission_guide_selected">Selected</string>
+    
+    <!-- Wizard Cards Common -->
+    <string name="wizard_collapse">Collapse</string>
+    <string name="wizard_expand">Expand</string>
+    <string name="wizard_open_docs">Official Docs</string>
+    
+    <!-- RootWizardCard -->
+    <string name="root_wizard_title">Root Permission Setup Wizard</string>
+    <string name="root_wizard_step1">Step 1: Root Device</string>
+    <string name="root_wizard_step2">Step 2: Grant Root Permission</string>
+    <string name="root_wizard_completed">Root Permission Setup Complete</string>
+    <string name="root_wizard_success_message">Congratulations! Root permission has been granted. You can now perform privileged operations.</string>
+    <string name="root_wizard_test_command">Test Root Command</string>
+    <string name="root_wizard_device_rooted_message">Your device is rooted, but the app hasn\'t been granted root permission. Please click the button below to request permission from your ROOT manager (like Magisk, SuperSU, etc.).</string>
+    <string name="root_wizard_how_to_get_root">How to get Root permission:</string>
+    <string name="root_wizard_how_to_get_root_steps">1. Click the \"Request Root Permission\" button below\n2. Select \"Allow\" in the ROOT manager popup\n3. If you don\'t see a popup, check your ROOT manager settings</string>
+    <string name="root_wizard_request_permission">Request Root Permission</string>
+    <string name="root_wizard_view_tutorial">View Root Tutorial</string>
+    <string name="root_wizard_device_not_rooted">Your device is not rooted. ROOT requires specific system modifications and may void your warranty. If you need to use ROOT features, please complete the device ROOT process first.</string>
+    <string name="root_wizard_risk_notice">Note: Root Operation Risk Warning</string>
+    <string name="root_wizard_risk_details">1. ROOT operations carry risk and may void your warranty\n2. Some apps may refuse to run on rooted devices\n3. Improper ROOT operations may cause system instability</string>
+    
+    <!-- ShizukuWizardCard -->
+    <string name="shizuku_wizard_title">Shizuku Setup Wizard</string>
+    <string name="shizuku_wizard_update_title">Shizuku Update Wizard</string>
+    <string name="shizuku_wizard_step1">Step 1: Install Shizuku App</string>
+    <string name="shizuku_wizard_step2">Step 2: Start Shizuku Service</string>
+    <string name="shizuku_wizard_step3">Step 3: Grant Shizuku Permission</string>
+    <string name="shizuku_wizard_completed">Shizuku Setup Complete</string>
+    <string name="shizuku_wizard_install_message">Shizuku is a tool that grants apps advanced permissions without requiring root. We need to install this app first.</string>
+    <string name="shizuku_wizard_install_bundled">Install Bundled Version</string>
+    <string name="shizuku_wizard_start_message">Shizuku is installed. Now you need to start the Shizuku service. Please follow one of the methods below:</string>
+    <string name="shizuku_wizard_method1_title">Method 1: In-App Start (Recommended)</string>
+    <string name="shizuku_wizard_method1_steps">1. Click the \"Open Shizuku\" button below\n2. In the Shizuku app, select \"Start via Wireless Debugging\"\n3. Follow the prompts to enable \"Developer Options\" and \"Wireless Debugging\"\n4. Allow Shizuku to get wireless debugging permissions</string>
+    <string name="shizuku_wizard_method2_title">Method 2: Start via USB</string>
+    <string name="shizuku_wizard_method2_steps">1. Install ADB tools on your computer\n2. Connect your phone to your computer via USB\n3. Execute in computer command line:\n   adb shell sh /sdcard/Android/data/moe.shizuku.privileged.api/files/start.sh</string>
+    <string name="shizuku_wizard_open_shizuku">Open Shizuku</string>
+    <string name="shizuku_wizard_permission_message">Shizuku service is running. Now you need to grant permission to this app. Click the button below and select \"Allow\" in the dialog that appears.</string>
+    <string name="shizuku_wizard_permission_notice">Note: If you don\'t see the authorization dialog, check:</string>
+    <string name="shizuku_wizard_permission_notice_details">1. Whether the Shizuku service is running\n2. Try restarting the Shizuku service\n3. Confirm you\'ve allowed overlay display permission</string>
+    <string name="shizuku_wizard_grant_permission">Grant Shizuku Permission</string>
+    <string name="shizuku_wizard_success_message">Congratulations! Shizuku is fully set up. You can now use debugging permission features.</string>
+    <string name="shizuku_wizard_update_available">New Version Available</string>
+    <string name="shizuku_wizard_update_message">The app has a newer version of Shizuku built in. We recommend updating for better compatibility and features.</string>
+    <string name="shizuku_wizard_current_version">Current version: %1$s</string>
+    <string name="shizuku_wizard_latest_version">Latest version: %1$s</string>
+    <string name="shizuku_wizard_update">Update Shizuku</string>
+    
+    <!-- TermuxWizardCard -->
+    <string name="termux_wizard_title">Termux Setup Wizard</string>
+    <string name="termux_wizard_step1">Step 1: Install Termux</string>
+    <string name="termux_wizard_step2">Step 2: Authorize Termux</string>
+    <string name="termux_wizard_step3">Step 3: Launch Termux</string>
+    <string name="termux_wizard_step4">Step 4: Set Battery Optimization Exemption</string>
+    <string name="termux_wizard_step5">Step 5: Configure Tuna Mirror</string>
+    <string name="termux_wizard_step6">Step 6: Install Python Environment</string>
+    <string name="termux_wizard_step7">Step 7: Install UV Package Manager</string>
+    <string name="termux_wizard_step8">Step 8: Install Node.js Environment</string>
+    <string name="termux_wizard_completed">Termux Setup Complete</string>
+    <string name="termux_wizard_reinstall_auth">Re-authorize</string>
+    <string name="termux_wizard_install_message">Termux is a powerful terminal emulator that allows you to use various command line tools. We need to install this app first.</string>
+    <string name="termux_wizard_install_note">After installation, please open Termux for the first time and wait for initialization to complete, then return to this app to complete the authorization step.</string>
+    <string name="termux_wizard_install">Install Termux</string>
+    <string name="termux_wizard_auth_message">Termux is installed. Now you need to grant Termux the necessary permissions so we can execute commands.</string>
+    <string name="termux_wizard_auth_note">Before authorizing, make sure:</string>
+    <string name="termux_wizard_auth_note_details">1. Termux is installed and has been opened at least once\n2. Click the \"Check and Authorize\" button to complete authorization</string>
+    <string name="termux_wizard_start">Launch</string>
+    <string name="termux_wizard_check_auth">Check and Authorize</string>
+    <string name="termux_wizard_start_message">Termux is installed and authorized but not currently running. Configuration operations require Termux to be running in the background.</string>
+    <string name="termux_wizard_start_note">Note:</string>
+    <string name="termux_wizard_start_note_details">Termux is authorized but not running. Please launch Termux to continue with the next setup steps.</string>
+    <string name="termux_wizard_start_termux">Launch Termux</string>
+    <string name="termux_wizard_battery_title">Set Battery Optimization Exemption</string>
+    <string name="termux_wizard_battery_message">Termux is running. Now you need to exempt Termux from battery optimization so it can run stably in the background for extended periods. Android\'s battery optimization feature may close Termux in the background, affecting scripts and services.</string>
+    <string name="termux_wizard_battery_optimize">Set Battery Optimization Exemption</string>
+    <string name="termux_wizard_tuna_title">Configure Tuna Mirror</string>
+    <string name="termux_wizard_tuna_message">Termux is exempt from battery optimization. Now you need to configure the Tuna mirror to speed up package downloads. Tuna mirror is a Chinese mirror that can significantly increase Termux package download speeds.</string>
+    <string name="termux_wizard_tuna_config">Configure Tuna Mirror</string>
+    <string name="termux_wizard_tuna_skip">Skip this step</string>
+    <string name="termux_wizard_python_title">Install Python Environment</string>
+    <string name="termux_wizard_python_message">Tuna mirror is configured. Now you need to install the Python environment. Python is a popular programming language that many AI tools and automation scripts require.</string>
+    <string name="termux_wizard_python_install">Install Python</string>
+    <string name="termux_wizard_uv_title">Install UV Package Manager</string>
+    <string name="termux_wizard_uv_message">Python is installed. Now you need to install the UV package manager. UV is a fast Python package manager and resolver that can replace pip and provide better dependency management.</string>
+    <string name="termux_wizard_uv_install">Install UV</string>
+    <string name="termux_wizard_node_title">Install Node.js Environment</string>
+    <string name="termux_wizard_node_message">UV is installed. Now you need to install the Node.js environment. Node.js is a JavaScript runtime environment used for running JavaScript code and web applications.</string>
+    <string name="termux_wizard_node_install">Install Node.js</string>
+    <string name="termux_wizard_success_title">Congratulations! Termux environment is fully configured</string>
+    <string name="termux_wizard_success_message">You can now use Termux for various command line operations</string>
+    <string name="termux_wizard_open">Open Termux</string>
+    
+    <!-- ShizukuDemoScreen -->
+    <string name="shizuku_demo_loading">Loading application status...</string>
+    <string name="shizuku_demo_permission_failed">Cannot open permission settings</string>
+    <string name="shizuku_demo_overlay_failed">Cannot open overlay settings</string>
+    <string name="shizuku_demo_battery_failed">Cannot open battery optimization settings</string>
+    <string name="shizuku_demo_accessibility_failed">Cannot open accessibility service settings</string>
+    <string name="shizuku_demo_title">Setup Wizard</string>
+    <string name="shizuku_demo_download_failed">Cannot open download link</string>
+    <string name="shizuku_demo_extract_failed">Failed to extract APK, please try again later</string>
+    <string name="shizuku_demo_install_notify">Shizuku installation started, please follow system prompts to complete installation</string>
+    <string name="shizuku_demo_update_notify">Shizuku update started, please follow system prompts to complete installation</string>
+    <string name="shizuku_demo_install_failed">Installation failed: %1$s</string>
+    <string name="shizuku_demo_update_failed">Update failed: %1$s</string>
+    <string name="shizuku_demo_shizuku_not_found">Cannot find Shizuku app</string>
+    <string name="shizuku_demo_shizuku_launch_failed">Cannot launch Shizuku app</string>
+    <string name="shizuku_demo_root_tutorial_failed">Cannot open Root tutorial link</string>
+    <string name="shizuku_demo_shizuku_permission_granted">Shizuku permission granted</string>
+    <string name="shizuku_demo_shizuku_permission_denied">Shizuku permission request denied</string>
+    <string name="shizuku_demo_termux_install_success">Termux installation started, please follow system prompts to complete installation</string>
+    <string name="shizuku_demo_termux_install_failed_store">Built-in APK installation failed, opening download page</string>
+    <string name="shizuku_demo_termux_download_failed">Cannot open download link, please download and install Termux manually</string>
+    <string name="shizuku_demo_termux_tuna_skipped">Skipped Tuna mirror configuration, you can configure the mirror in Termux later</string>
+
+    <!-- 权限级别卡片 -->
+    <string name="permission_level">Permission Level</string>
+    <string name="permission_level_icon">Permission Level Icon</string>
+    <string name="set_as_current_level">Set as Current Level</string>
+    <string name="current_level_in_use">Currently in Use</string>
+    <string name="refresh_permission_status">Refresh Permission Status</string>
+    <string name="refreshing">Refreshing</string>
+    <string name="basic_permissions">Basic Permissions</string>
+    <string name="version_not_supported">Not Supported in Current Version</string>
+    <string name="status_granted">Granted</string>
+    <string name="status_not_granted">Not Granted</string>
+    <string name="accessibility_permission">Accessibility Permission</string>
+    <string name="accessibility_service">Accessibility Service</string>
+    <string name="admin_permission">Admin Permission</string>
+    <string name="debug_permission">Debug Permission</string>
+    <string name="shizuku_service">Shizuku Service</string>
+    <string name="root_permission">Root Permission</string>
+    <string name="root_access_permission">Root Access Permission</string>
+    <string name="status_not_installed">Not Installed</string>
+    <string name="status_not_running">Not Running</string>
+    <string name="status_update_needed">Update Needed</string>
+    <string name="storage_permission">Storage Permission</string>
+    <string name="overlay_permission">Overlay Permission</string>
+    <string name="battery_optimization">Battery Optimization Exemption</string>
+    <string name="location_permission">Location Permission</string>
+    <string name="termux_terminal">Termux Terminal</string>
+    
+    <!-- Permission Level Descriptions -->
+    <string name="permission_level_standard">Standard Permission</string>
+    <string name="permission_level_accessibility">Accessibility Permission</string>
+    <string name="permission_level_admin">Admin Permission</string>
+    <string name="permission_level_debugger">Debug Permission</string>
+    <string name="permission_level_root">Root Permission</string>
+    <string name="permission_level_standard_desc">Basic application permissions, no special system authorization required</string>
+    <string name="permission_level_accessibility_desc">Added accessibility service support, can simulate screen operations</string>
+    <string name="permission_level_admin_desc">Added device administrator permissions, can access more system functions</string>
+    <string name="permission_level_debugger_desc">Provides ADB-level system access through Shizuku</string>
+    <string name="permission_level_root_desc">Superuser permissions, can execute any system operations</string>
+    <string name="permission_level_standard_full_desc">Standard Permissions: Basic application permissions, no special privileges required</string>
+    <string name="permission_level_accessibility_full_desc">Accessibility Permissions: Allows the app to simulate user operations, requires enabling accessibility services</string>
+    <string name="permission_level_admin_full_desc">Admin Permissions: Allows the app to access more system functions, such as location services</string>
+    <string name="permission_level_debugger_full_desc">Debug Permissions: Allows advanced operations through ADB debugging functions, requires Shizuku service</string>
+    <string name="permission_level_root_full_desc">Root Permissions: Allows the app to run as superuser, requires a rooted device</string>
+    
+    <!-- Root Status Information -->
+    <string name="root_access_granted">App has gained Root access, can execute privileged commands</string>
+    <string name="device_rooted_request_permission">Device is rooted, click to request app permissions</string>
+    <string name="device_not_rooted">Device is not rooted, unable to obtain Root permissions</string>
+    
+    <!-- Toast Messages -->
+    <string name="toast_download_link_failed">Unable to open download link</string>
+    <string name="toast_apk_extract_failed">Failed to extract APK, please try again later</string>
+    <string name="toast_open_termux_first">Please start Termux first</string>
+    <string name="toast_operation_failed">Operation failed: %1$s</string>
+    <string name="toast_skip_tuna_source">Skipped Tuna mirror configuration, you can configure the mirror in Termux later</string>
+    <string name="toast_skip_tuna_source_dialog">You have chosen to skip Tuna mirror configuration. For manual configuration later, run the following command in Termux:\n\ntermux-change-repo\n\nThen select Tuna or another mirror from the list.</string>
 </resources> 

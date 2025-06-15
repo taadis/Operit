@@ -8,6 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
 import com.ai.assistance.operit.core.tools.system.RootAuthorizer
@@ -641,8 +642,8 @@ class ShizukuDemoViewModel(application: Application) : AndroidViewModel(applicat
             try {
                 // 显示配置对话框
                 showResultDialog(
-                        "跳过清华源配置",
-                        "您已选择跳过清华源配置。如需后续手动配置，请在Termux中执行以下命令：\n\ntermux-change-repo\n\n然后从列表中选择清华源或其他源。"
+                        context.getString(R.string.toast_skip_tuna_source),
+                        context.getString(R.string.toast_skip_tuna_source_dialog)
                 )
 
                 // 直接将状态标记为已启用，跳过配置步骤
@@ -657,7 +658,15 @@ class ShizukuDemoViewModel(application: Application) : AndroidViewModel(applicat
                 Log.e("ShizukuDemoViewModel", "跳过清华源时出错: ${e.message}", e)
 
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "操作失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                                    context,
+                                    context.getString(
+                                            R.string.toast_operation_failed,
+                                            e.message ?: ""
+                                    ),
+                                    Toast.LENGTH_SHORT
+                            )
+                            .show()
                 }
             }
         }
