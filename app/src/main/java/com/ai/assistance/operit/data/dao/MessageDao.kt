@@ -32,8 +32,12 @@ interface MessageDao {
     /** 删除指定聊天的所有消息 */
     @Query("DELETE FROM messages WHERE chatId = :chatId")
     suspend fun deleteAllMessagesForChat(chatId: String)
-    
+
     /** 根据时间戳查找消息 */
     @Query("SELECT * FROM messages WHERE chatId = :chatId AND timestamp = :timestamp LIMIT 1")
     suspend fun getMessageByTimestamp(chatId: String, timestamp: Long): MessageEntity?
+
+    /** 删除指定聊天中从某个时间戳开始的所有消息 */
+    @Query("DELETE FROM messages WHERE chatId = :chatId AND timestamp >= :timestamp")
+    suspend fun deleteMessagesFrom(chatId: String, timestamp: Long)
 }

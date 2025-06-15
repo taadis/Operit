@@ -238,6 +238,35 @@ class ChatHistoryDelegate(
         }
     }
 
+    /**
+     * 截断聊天记录，会同步删除数据库中指定时间戳之后的消息，并更新内存中的消息列表。
+     *
+     * @param newHistory 截断后保留的消息列表。
+     * @param timestampOfFirstDeletedMessage 用于删除数据库记录的起始时间戳。如果为null，则清空所有消息。
+     */
+    fun truncateChatHistory(newHistory: List<ChatMessage>, timestampOfFirstDeletedMessage: Long?) {
+        viewModelScope.launch {
+            historyUpdateMutex.withLock {
+                _currentChatId.value?.let { chatId ->
+                    if (timestampOfFirstDeletedMessage != null) {
+                        // 从数据库中删除指定时间戳之后的消息
+                        chatHistoryManager.deleteMessagesFrom(
+                                chatId,
+                                timestampOfFirstDeletedMessage
+                        )
+                    } else {
+                        // 如果时间戳为空，则清除该聊天的所有消息
+                        chatHistoryManager.clearChatMessages(chatId)
+                    }
+
+                    // 更新内存中的聊天记录
+                    _chatHistory.value = newHistory
+                    onChatHistoryLoaded(newHistory)
+                }
+            }
+        }
+    }
+
     /** 更新整个聊天历史 用于编辑或回档等操作 */
     fun updateChatHistory(newHistory: List<ChatMessage>) {
         _chatHistory.value = newHistory.toList()

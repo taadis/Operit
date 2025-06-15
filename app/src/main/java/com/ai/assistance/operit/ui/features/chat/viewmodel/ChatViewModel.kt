@@ -406,7 +406,11 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 currentHistory[index] = editedMessage
 
                 // 将更新后的历史记录保存到ChatHistoryDelegate
+                // 注意：这里仅更新内存，因为此方法只用于单个消息内容的修改，不涉及历史截断
                 chatHistoryDelegate.updateChatHistory(currentHistory)
+
+                // 直接在数据库中更新该条消息
+                chatHistoryDelegate.addMessageToChat(editedMessage)
 
                 // 更新统计信息并保存
                 val (inputTokens, outputTokens) = tokenStatsDelegate.updateChatStatistics()
@@ -465,16 +469,29 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                     finalMessage = currentHistory[userMessageIndex].copy(content = editedContent)
                 }
 
-                // 截取到指定消息的历史记录（包含该消息）
+                // 截取到指定消息的历史记录（不包含该消息本身）
                 val rewindHistory = currentHistory.subList(0, finalIndex)
+                // 获取要删除的第一条消息的时间戳
+                val timestampOfFirstDeletedMessage =
+                        if (finalIndex < currentHistory.size) {
+                            currentHistory[finalIndex].timestamp
+                        } else {
+                            // 如果finalIndex是列表末尾，则没有消息需要删除
+                            null
+                        }
 
-                // 更新ChatHistoryDelegate中的历史记录
-                chatHistoryDelegate.updateChatHistory(rewindHistory)
+                // **核心修复**：调用新的委托方法，原子性地更新数据库和内存
+                chatHistoryDelegate.truncateChatHistory(
+                        rewindHistory,
+                        timestampOfFirstDeletedMessage
+                )
 
                 // 显示重新发送的消息准备状态
                 uiStateDelegate.showToast("正在准备重新发送消息")
 
                 // 使用修改后的消息内容来发送
+                chatHistoryDelegate.updateChatHistory(rewindHistory)
+
                 messageProcessingDelegate.updateUserMessage(finalMessage.content)
                 messageProcessingDelegate.sendUserMessage(emptyList())
             } catch (e: Exception) {

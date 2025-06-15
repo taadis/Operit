@@ -4,11 +4,11 @@ import android.content.Context
 import android.util.Log
 import com.ai.assistance.operit.api.enhance.ConversationMarkupManager
 import com.ai.assistance.operit.api.enhance.ConversationRoundManager
+import com.ai.assistance.operit.api.enhance.ConversationService
 import com.ai.assistance.operit.api.enhance.InputProcessor
 import com.ai.assistance.operit.api.enhance.MultiServiceManager
 import com.ai.assistance.operit.api.enhance.ToolExecutionManager
 import com.ai.assistance.operit.api.library.ProblemLibrary
-import com.ai.assistance.operit.core.config.SystemPromptConfig
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.core.tools.StringResultData
 import com.ai.assistance.operit.core.tools.packTool.PackageManager
@@ -19,14 +19,11 @@ import com.ai.assistance.operit.data.model.ToolExecutionProgress
 import com.ai.assistance.operit.data.model.ToolInvocation
 import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.data.preferences.ApiPreferences
-import com.ai.assistance.operit.data.preferences.preferencesManager
-import com.ai.assistance.operit.ui.common.displays.MessageContentParser
 import com.ai.assistance.operit.util.stream.Stream
 import com.ai.assistance.operit.util.stream.StreamCollector
 import com.ai.assistance.operit.util.stream.plugins.StreamXmlPlugin
 import com.ai.assistance.operit.util.stream.splitBy
 import com.ai.assistance.operit.util.stream.stream
-import java.util.Calendar
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
@@ -55,6 +52,9 @@ class EnhancedAIService(private val context: Context) {
 
     // MultiServiceManager 管理不同功能的 AIService 实例
     private val multiServiceManager = MultiServiceManager(context)
+
+    // 添加ConversationService实例
+    private val conversationService = ConversationService(context)
 
     // AIService 实例 - 保留为兼容现有代码，但实际使用 MultiServiceManager
     private val aiService: AIService by lazy {
@@ -509,12 +509,6 @@ class EnhancedAIService(private val context: Context) {
                 return
             }
 
-            // Handle wait for user need marker
-            if (ConversationMarkupManager.containsWaitForUserNeed(enhancedContent)) {
-                handleWaitForUserNeed(enhancedContent)
-                return
-            }
-
             // Check again if conversation is active
             if (!isConversationActive.get()) {
                 return
@@ -542,6 +536,25 @@ class EnhancedAIService(private val context: Context) {
             val toolInvocations = toolHandler.extractToolInvocations(enhancedContent)
 
             if (toolInvocations.isNotEmpty()) {
+                // Handle wait for user need marker
+                if (ConversationMarkupManager.containsWaitForUserNeed(enhancedContent)) {
+                    val userNeedContent =
+                            ConversationMarkupManager.createWarningStatus(
+                                    "警告：工具调用和等待用户响应不能同时存在。工具调用被处理了，但这是极具危险性的。",
+                            )
+                    roundManager.appendContent(userNeedContent)
+                    collector.emit(userNeedContent)
+                    try {
+                        conversationMutex.withLock {
+                            conversationHistory.add(Pair("tool", userNeedContent))
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "添加工具调用警告到历史记录失败", e)
+                    }
+                }
+
+                // Add current assistant message to conversation history
+
                 Log.d(
                         TAG,
                         "检测到 ${toolInvocations.size} 个工具调用，处理时间: ${System.currentTimeMillis() - startTime}ms"
@@ -628,12 +641,22 @@ class EnhancedAIService(private val context: Context) {
         // Only process the first tool invocation, show warning if there are multiple
         val invocation = toolInvocations.first()
 
+        // 创建工具结果变量
+        var result: ToolResult
+
         if (toolInvocations.size > 1) {
             Log.w(TAG, "发现多个工具调用(${toolInvocations.size})，但只处理第一个: ${invocation.tool.name}")
             val warningContent =
                     ConversationMarkupManager.createMultipleToolsWarning(invocation.tool.name)
+
+            // 显示警告内容给用户
             roundManager.appendContent(warningContent)
             collector.emit(warningContent)
+
+            // 创建一个特殊的工具警告信息
+            val warningMessage =
+                    "警告：检测到${toolInvocations.size}个工具调用，但只处理第一个: ${invocation.tool.name}。其他工具调用将被忽略。"
+            conversationMutex.withLock { conversationHistory.add(Pair("tool", warningMessage)) }
         }
 
         // Start executing the tool
@@ -644,7 +667,6 @@ class EnhancedAIService(private val context: Context) {
 
         // Get tool executor and execute
         val executor = toolHandler.getToolExecutor(invocation.tool.name)
-        val result: ToolResult
 
         if (executor == null) {
             // Tool not available handling
@@ -964,81 +986,8 @@ class EnhancedAIService(private val context: Context) {
             messages: List<Pair<String, String>>,
             previousSummary: String?
     ): String {
-        try {
-            // 使用更结构化、更详细的提示词
-            var systemPrompt =
-                    """
-            请对以下对话内容进行简洁但全面的总结。遵循以下格式：
-            
-            1. 以"对话摘要"作为标题
-            2. 用1-2个简短段落概述主要内容和交互
-            3. 明确列出对理解后续对话至关重要的关键信息点（如用户提到的具体问题、需求、限制条件等）
-            4. 特别标注用户明确表达的意图或情感，如有
-            5. 避免使用复杂的标题结构和Markdown格式，使用简单段落
-            
-            总结应该尽量保留对后续对话有价值的上下文信息，但不要包含无关细节。内容应该简洁明了，便于AI快速理解历史对话的要点。
-            """
-
-            // 如果存在上一次的摘要，将其添加到系统提示中
-            if (previousSummary != null && previousSummary.isNotBlank()) {
-                systemPrompt +=
-                        """
-                
-                以下是之前对话的摘要，请参考它来生成新的总结，确保新总结融合之前的要点，并包含新的信息：
-                
-                ${previousSummary.trim()}
-                """
-                Log.d(TAG, "添加上一条摘要内容到系统提示")
-            }
-
-            val finalMessages = listOf(Pair("system", systemPrompt)) + messages
-
-            // Get all model parameters from preferences (with enabled state)
-            val modelParameters = runBlocking { apiPreferences.getAllModelParameters() }
-
-            // 获取SUMMARY功能类型的AIService实例
-            val summaryService = multiServiceManager.getServiceForFunction(FunctionType.SUMMARY)
-
-            // 使用summaryService发送请求，收集完整响应
-            val contentBuilder = StringBuilder()
-
-            // 使用新的Stream API
-            val stream =
-                    summaryService.sendMessage(
-                            message = "请按照要求总结对话内容",
-                            chatHistory = finalMessages,
-                            modelParameters = modelParameters
-                    )
-
-            // 收集流中的所有内容
-            stream.collect { content -> contentBuilder.append(content) }
-
-            // 获取完整的总结内容
-            val summaryContent = contentBuilder.toString().trim()
-
-            // 如果内容为空，返回默认消息
-            if (summaryContent.isBlank()) {
-                return "对话摘要：未能生成有效摘要。"
-            }
-
-            // 获取本次总结生成的token统计
-            val inputTokens = summaryService.inputTokenCount
-            val outputTokens = summaryService.outputTokenCount
-
-            // 将总结token计数添加到用户偏好分析的token统计中
-            try {
-                Log.d(TAG, "总结生成使用了输入token: $inputTokens, 输出token: $outputTokens")
-                apiPreferences.updatePreferenceAnalysisTokens(inputTokens, outputTokens)
-                Log.d(TAG, "已将总结token统计添加到用户偏好分析token计数中")
-            } catch (e: Exception) {
-                Log.e(TAG, "更新token统计失败", e)
-            }
-
-            return summaryContent
-        } catch (e: Exception) {
-            Log.e(TAG, "生成总结时出错", e)
-            return "对话摘要：生成摘要时出错，但对话仍在继续。"
-        }
+        // 调用ConversationService中的方法
+        return conversationService.generateSummary(messages, previousSummary, multiServiceManager)
     }
 
     /**
@@ -1064,248 +1013,13 @@ class EnhancedAIService(private val context: Context) {
             chatHistory: List<Pair<String, String>>,
             processedInput: String
     ): MutableList<Pair<String, String>> {
-        conversationMutex.withLock {
-            conversationHistory.clear()
-
-            // Add system prompt if not already present
-            if (!chatHistory.any { it.first == "system" }) {
-                val activeProfile = preferencesManager.getUserPreferencesFlow().first()
-                val preferencesText = buildPreferencesText(activeProfile)
-
-                // Check if planning is enabled
-                val planningEnabled = apiPreferences.enableAiPlanningFlow.first()
-
-                // Get custom prompts if available
-                val customIntroPrompt = apiPreferences.customIntroPromptFlow.first()
-                val customTonePrompt = apiPreferences.customTonePromptFlow.first()
-
-                // 获取系统提示词，并替换{CHAT_ID}为当前聊天ID
-                var systemPrompt =
-                        if (customIntroPrompt.isNotEmpty() || customTonePrompt.isNotEmpty()) {
-                            // Use custom prompts if they are set
-                            SystemPromptConfig.getSystemPromptWithCustomPrompts(
-                                    packageManager,
-                                    planningEnabled,
-                                    customIntroPrompt,
-                                    customTonePrompt
-                            )
-                        } else {
-                            // Use default system prompt
-                            SystemPromptConfig.getSystemPrompt(packageManager, planningEnabled)
-                        }
-
-                // 替换{CHAT_ID}为当前聊天ID
-                if (currentChatId != null) {
-                    systemPrompt = systemPrompt.replace("{CHAT_ID}", currentChatId!!)
-                } else {
-                    // 如果没有聊天ID，使用一个默认值
-                    systemPrompt = systemPrompt.replace("{CHAT_ID}", "default")
-                }
-
-                if (preferencesText.isNotEmpty()) {
-                    conversationHistory.add(
-                            0,
-                            Pair(
-                                    "system",
-                                    "$systemPrompt\n\nUser preference description: $preferencesText"
-                            )
-                    )
-                } else {
-                    conversationHistory.add(0, Pair("system", systemPrompt))
-                }
-            }
-
-            // Process each message in chat history
-            for (message in chatHistory) {
-                val role = message.first
-                val content = message.second
-
-                // If it's an assistant message, check for tool results
-                if (role == "assistant") {
-                    val toolResults = extractToolResults(content)
-                    if (toolResults.isNotEmpty()) {
-                        // Process the message with tool results
-                        processChatMessageWithTools(content, toolResults)
-                    } else {
-                        // Add the message as is
-                        conversationHistory.add(message)
-                    }
-                } else {
-                    // Add user or system messages as is
-                    conversationHistory.add(message)
-                }
-            }
-        }
-        return conversationHistory
-    }
-
-    /** Extract tool results from message content using xmlToolResultPattern */
-    private fun extractToolResults(content: String): List<Triple<String, String, IntRange>> {
-        val results = mutableListOf<Triple<String, String, IntRange>>()
-
-        // Extract using tool_result pattern
-        val xmlToolResultPattern = MessageContentParser.Companion.xmlToolResultPattern
-        xmlToolResultPattern.findAll(content).forEach { match ->
-            val toolName = match.groupValues[1]
-            val toolResult = match.groupValues[0]
-            results.add(Triple(toolName, toolResult, match.range))
-        }
-
-        return results
-    }
-
-    /**
-     * Process a chat message that contains tool results, splitting it into assistant message
-     * segments and tool result segments
-     */
-    private suspend fun processChatMessageWithTools(
-            content: String,
-            toolResults: List<Triple<String, String, IntRange>>
-    ) {
-        var lastEnd = 0
-        val sortedResults = toolResults.sortedBy { it.third.first }
-
-        // Check memory optimization setting once for all tool results
-        val memoryOptimizationEnabled = apiPreferences.memoryOptimizationFlow.first()
-
-        for (result in sortedResults) {
-            val toolName = result.first
-            var toolResult = result.second
-            val range = result.third
-
-            // Add assistant message before the tool result (if any)
-            if (range.first > lastEnd) {
-                val assistantContent = content.substring(lastEnd, range.first)
-                if (assistantContent.isNotBlank()) {
-                    conversationHistory.add(Pair("assistant", assistantContent))
-                }
-            }
-
-            // Apply memory optimization for long tool results if enabled
-            if (memoryOptimizationEnabled && toolResult.length > 1000) {
-                // Optimize tool result by extracting the most important parts
-                toolResult = optimizeToolResult(toolName, toolResult)
-                Log.d(
-                        TAG,
-                        "Memory optimization applied to tool result for $toolName, reduced length from ${result.second.length} to ${toolResult.length}"
-                )
-            }
-
-            if (conversationHistory.last().first == "tool") {
-                conversationHistory[conversationHistory.size - 1] = Pair("tool", toolResult)
-            } else {
-                conversationHistory.add(Pair("tool", toolResult))
-            }
-
-            // Update lastEnd
-            lastEnd = range.last + 1
-        }
-
-        // Add any remaining assistant content after the last tool result
-        if (lastEnd < content.length) {
-            val assistantContent = content.substring(lastEnd)
-            if (assistantContent.isNotBlank()) {
-                conversationHistory.add(Pair("assistant", assistantContent))
-            }
-        }
-    }
-
-    /**
-     * Optimize tool result by selecting the most important parts This helps with memory management
-     * for long tool outputs
-     */
-    private fun optimizeToolResult(toolName: String, toolResult: String): String {
-        // For excessive long tool results, keep only essential parts
-        if (toolName == "use_package") {
-            return toolResult
-        }
-        if (toolResult.length <= 1000) return toolResult
-
-        // Extract content within XML tags
-        val tagContent =
-                Regex("<[^>]*>(.*?)</[^>]*>", RegexOption.DOT_MATCHES_ALL)
-                        .find(toolResult)
-                        ?.groupValues
-                        ?.getOrNull(1)
-
-        val sb = StringBuilder()
-
-        // Add prefix based on tool name
-        sb.append("<tool_result name=\"$toolName\">")
-
-        // If xml content was extracted, use it, otherwise use the first 300 and last 300 chars
-        if (!tagContent.isNullOrEmpty()) {
-            // For XML content, take up to 800 chars
-            val maxContentLength = 800
-            val content =
-                    if (tagContent.length > maxContentLength) {
-                        tagContent.substring(0, 400) +
-                                "\n... [content truncated for memory optimization] ...\n" +
-                                tagContent.substring(tagContent.length - 400)
-                    } else {
-                        tagContent
-                    }
-            sb.append(content)
-        } else {
-            // For non-XML content, take important parts from beginning and end
-            sb.append(toolResult.substring(0, 400))
-            sb.append("\n... [content truncated for memory optimization] ...\n")
-            sb.append(toolResult.substring(toolResult.length - 400))
-        }
-
-        // Add closing tag
-        sb.append("</tool_result>")
-
-        return sb.toString()
-    }
-
-    /** Build a formatted preferences text string from a PreferenceProfile */
-    private fun buildPreferencesText(
-            profile: com.ai.assistance.operit.data.model.PreferenceProfile
-    ): String {
-        val parts = mutableListOf<String>()
-
-        if (profile.gender.isNotEmpty()) {
-            parts.add("性别: ${profile.gender}")
-        }
-
-        if (profile.birthDate > 0) {
-            // Convert timestamp to age and format as text
-            val today = Calendar.getInstance()
-            val birthCal = Calendar.getInstance().apply { timeInMillis = profile.birthDate }
-            var age = today.get(Calendar.YEAR) - birthCal.get(Calendar.YEAR)
-            // Adjust age if birthday hasn't occurred yet this year
-            if (today.get(Calendar.MONTH) < birthCal.get(Calendar.MONTH) ||
-                            (today.get(Calendar.MONTH) == birthCal.get(Calendar.MONTH) &&
-                                    today.get(Calendar.DAY_OF_MONTH) <
-                                            birthCal.get(Calendar.DAY_OF_MONTH))
-            ) {
-                age--
-            }
-            parts.add("年龄: ${age}岁")
-
-            // Also add birth date for more precise information
-            val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
-            parts.add("出生日期: ${dateFormat.format(java.util.Date(profile.birthDate))}")
-        }
-
-        if (profile.personality.isNotEmpty()) {
-            parts.add("性格特点: ${profile.personality}")
-        }
-
-        if (profile.identity.isNotEmpty()) {
-            parts.add("身份认同: ${profile.identity}")
-        }
-
-        if (profile.occupation.isNotEmpty()) {
-            parts.add("职业: ${profile.occupation}")
-        }
-
-        if (profile.aiStyle.isNotEmpty()) {
-            parts.add("期待的AI风格: ${profile.aiStyle}")
-        }
-
-        return parts.joinToString("; ")
+        return conversationService.prepareConversationHistory(
+                chatHistory,
+                processedInput,
+                currentChatId,
+                conversationHistory,
+                packageManager
+        )
     }
 
     /** Cancel the current conversation */

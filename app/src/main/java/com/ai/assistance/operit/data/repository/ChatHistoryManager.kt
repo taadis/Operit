@@ -168,45 +168,52 @@ class ChatHistoryManager private constructor(private val context: Context) {
     suspend fun addMessage(chatId: String, message: ChatMessage, position: Int? = null) {
         mutex.withLock {
             try {
-                val messageToPersist = if (position != null) {
-                    val messages = messageDao.getMessagesForChat(chatId) // Already ordered by timestamp
-                    if (messages.isEmpty()) {
-                        message
-                    } else {
-                        val validPosition = position.coerceIn(0, messages.size)
-                        val newTimestamp = when {
-                            validPosition == 0 -> messages.first().timestamp - 1
-                            validPosition >= messages.size -> messages.last().timestamp + 1
-                            else -> {
-                                val before = messages[validPosition - 1].timestamp
-                                val after = messages[validPosition].timestamp
-                                // Take the average to find a point in between.
-                                // This assumes timestamps have enough space.
-                                before + (after - before) / 2
+                val messageToPersist =
+                        if (position != null) {
+                            val messages =
+                                    messageDao.getMessagesForChat(
+                                            chatId
+                                    ) // Already ordered by timestamp
+                            if (messages.isEmpty()) {
+                                message
+                            } else {
+                                val validPosition = position.coerceIn(0, messages.size)
+                                val newTimestamp =
+                                        when {
+                                            validPosition == 0 -> messages.first().timestamp - 1
+                                            validPosition >= messages.size ->
+                                                    messages.last().timestamp + 1
+                                            else -> {
+                                                val before = messages[validPosition - 1].timestamp
+                                                val after = messages[validPosition].timestamp
+                                                // Take the average to find a point in between.
+                                                // This assumes timestamps have enough space.
+                                                before + (after - before) / 2
+                                            }
+                                        }
+                                message.copy(timestamp = newTimestamp)
                             }
+                        } else {
+                            message
                         }
-                        message.copy(timestamp = newTimestamp)
-                    }
-                } else {
-                    message
-                }
 
                 // Create message entity, orderIndex is no longer used for ordering.
-                val messageEntity = MessageEntity.fromChatMessage(
-                    chatId = chatId,
-                    message = messageToPersist,
-                    orderIndex = 0 
-                )
+                val messageEntity =
+                        MessageEntity.fromChatMessage(
+                                chatId = chatId,
+                                message = messageToPersist,
+                                orderIndex = 0
+                        )
                 messageDao.insertMessage(messageEntity)
 
                 // Update chat metadata
                 chatDao.getChatById(chatId)?.let { chat ->
                     chatDao.updateChatMetadata(
-                        chatId = chatId,
-                        title = chat.title,
-                        timestamp = System.currentTimeMillis(),
-                        inputTokens = chat.inputTokens,
-                        outputTokens = chat.outputTokens
+                            chatId = chatId,
+                            title = chat.title,
+                            timestamp = System.currentTimeMillis(),
+                            inputTokens = chat.inputTokens,
+                            outputTokens = chat.outputTokens
                     )
                 }
             } catch (e: Exception) {
@@ -243,6 +250,66 @@ class ChatHistoryManager private constructor(private val context: Context) {
                     addMessage(chatId, message)
                 }
             } catch (e: Exception) {
+                throw e
+            }
+        }
+    }
+
+    /**
+     * 从数据库中删除指定时间戳之后的所有消息。 这需要您在MessageDao中添加相应的@Query。
+     *
+     * 示例:
+     * ```
+     * @Query("DELETE FROM messages WHERE chatId = :chatId AND timestamp >= :timestamp")
+     * suspend fun deleteMessagesFrom(chatId: String, timestamp: Long)
+     * ```
+     */
+    suspend fun deleteMessagesFrom(chatId: String, timestamp: Long) {
+        mutex.withLock {
+            try {
+                messageDao.deleteMessagesFrom(chatId, timestamp)
+                // 更新聊天元数据时间戳
+                chatDao.getChatById(chatId)?.let { chat ->
+                    chatDao.updateChatMetadata(
+                            chatId = chatId,
+                            title = chat.title,
+                            timestamp = System.currentTimeMillis(),
+                            inputTokens = chat.inputTokens,
+                            outputTokens = chat.outputTokens
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "从 $timestamp 开始为聊天 $chatId 删除消息失败", e)
+                throw e
+            }
+        }
+    }
+
+    /**
+     * 清除一个聊天中的所有消息，但保留聊天本身。
+     *
+     * 这需要您在MessageDao中添加相应的@Query。
+     * ```
+     * @Query("DELETE FROM messages WHERE chatId = :chatId")
+     * suspend fun deleteAllMessagesForChat(chatId: String)
+     * ```
+     */
+    suspend fun clearChatMessages(chatId: String) {
+        mutex.withLock {
+            try {
+                messageDao.deleteAllMessagesForChat(chatId)
+                // 更新聊天元数据
+                chatDao.getChatById(chatId)?.let { chat ->
+                    chatDao.updateChatMetadata(
+                            chatId = chatId,
+                            title = chat.title,
+                            timestamp = System.currentTimeMillis(),
+                            inputTokens = 0,
+                            outputTokens = 0
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "为聊天 $chatId 清除消息失败", e)
                 throw e
             }
         }

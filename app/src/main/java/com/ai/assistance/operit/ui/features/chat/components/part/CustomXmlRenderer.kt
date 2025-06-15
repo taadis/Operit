@@ -317,7 +317,7 @@ class CustomXmlRenderer(private val fallback: XmlContentRenderer = DefaultXmlRen
                 when (statusType) {
                     "completion", "complete" -> "✓ Task completed"
                     "wait_for_user_need" -> "✓ Ready for further assistance"
-                    "warning" -> "警告：发现潜在问题，请检查配置文件"
+                    "warning" -> "Warning: AI made a mistake"
                     else -> statusContent
                 }
 

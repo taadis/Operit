@@ -88,10 +88,7 @@ fun ChatArea(
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp)
                                 .verticalScroll(scrollState) // 使用从外部传入的scrollState
-                                .background(
-                                        if (hasBackgroundImage) Color.Transparent
-                                        else MaterialTheme.colorScheme.surface
-                                )
+                                .background(Color.Transparent)
         ) {
             val messagesCount = chatHistory.size
             val maxVisibleIndex = messagesCount - 1
@@ -155,36 +152,6 @@ fun ChatArea(
                 }
             }
         }
-
-        // Loading indicator
-        /* if (isLoading) {
-                        Box(
-                                modifier =
-                                        Modifier.align(Alignment.CenterHorizontally)
-                                                .padding(vertical = 8.dp)
-                        ) {
-                                Card(
-                                        colors =
-                                                CardDefaults.cardColors(
-                                                        containerColor =
-                                                                MaterialTheme.colorScheme.surface
-                                                                        .copy(alpha = 0.8f)
-                                                ),
-                                        elevation =
-                                                CardDefaults.cardElevation(defaultElevation = 2.dp)
-                                ) {
-                                        Text(
-                                                text = "正在处理...",
-                                                modifier =
-                                                        Modifier.padding(
-                                                                horizontal = 16.dp,
-                                                                vertical = 8.dp
-                                                        ),
-                                                style = MaterialTheme.typography.bodyMedium
-                                        )
-                                }
-                        }
-        } */
     }
 }
 

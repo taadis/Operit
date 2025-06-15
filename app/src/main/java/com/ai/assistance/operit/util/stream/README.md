@@ -90,6 +90,36 @@ counterStream.launchIn(viewModelScope) { count ->
 }
 ```
 
+### 3. 字符串到字符流的转换
+
+Stream 库提供了将字符串转换为字符流的便捷扩展函数：
+
+```kotlin
+// 将字符串转换为字符流
+val text = "Hello, Stream!"
+val charStream = text.stream()
+
+// 收集字符流
+charStream.collect { c ->
+    print(c)  // 逐字符输出: Hello, Stream!
+}
+```
+
+这个转换非常适合处理需要逐字符分析的文本，尤其在实现 Markdown 解析器、模式匹配或文本处理工作流时非常有用。
+
+```kotlin
+// 字符流转换的实现方式
+fun String.stream(): Stream<Char> {
+    return stream {
+        for (c in this@stream) {
+            emit(c)
+        }
+    }
+}
+```
+
+> **注意**：在 MarkdownProcessor 相关的代码中，可能会看到 `toCharStream()` 方法，它与 `stream()` 方法功能相同，只是命名不同。
+
 ---
 
 ## 操作符 (Operators)
@@ -467,7 +497,7 @@ markdownStream.splitBy(blockPlugins).collect { blockGroup ->
         val inlineChildren = mutableListOf<MarkdownNode>()
         
         // 将块内容转换为字符流以供再次分割
-        val charStream = blockContent.toCharStream()
+        val charStream = blockContent.toCharStream()  // 使用 String.toCharStream() 扩展函数，等同于 String.stream()
 
         charStream.splitBy(inlinePlugins).collect { inlineGroup ->
             val inlineType = NestedMarkdownProcessor.getTypeForPlugin(inlineGroup.tag)
