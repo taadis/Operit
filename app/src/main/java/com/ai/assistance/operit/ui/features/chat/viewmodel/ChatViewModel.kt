@@ -1,6 +1,7 @@
 package com.ai.assistance.operit.ui.features.chat.viewmodel
 
 import android.content.Context
+import android.content.Intent
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -49,7 +50,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     private val attachmentManager = AttachmentManager(context, toolHandler)
 
     // 委托类
-    private val uiStateDelegate = UiStateDelegate()
+    val uiStateDelegate = UiStateDelegate()
     private val tokenStatsDelegate =
             TokenStatisticsDelegate(
                     getEnhancedAiService = { enhancedAiService },
@@ -146,6 +147,9 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     // 添加WebView刷新控制流
     private val _webViewNeedsRefresh = MutableStateFlow(false)
     val webViewNeedsRefresh: StateFlow<Boolean> = _webViewNeedsRefresh
+
+    // 文件选择相关回调
+    private var fileChooserCallback: ((Int, Intent?) -> Unit)? = null
 
     init {
         // Initialize delegates in correct order to avoid circular references
@@ -963,6 +967,19 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         }
 
         return hasDefaultKey
+    }
+
+    // 用于启动文件选择器并处理结果
+    fun startFileChooserForResult(intent: Intent, callback: (Int, Intent?) -> Unit) {
+        fileChooserCallback = callback
+        // 通过UIStateDelegate广播一个请求，让Activity处理文件选择
+        uiStateDelegate.requestFileChooser(intent)
+    }
+    
+    // 供Activity调用，处理文件选择结果
+    fun handleFileChooserResult(resultCode: Int, data: Intent?) {
+        fileChooserCallback?.invoke(resultCode, data)
+        fileChooserCallback = null
     }
 
     override fun onCleared() {

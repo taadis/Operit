@@ -1,5 +1,6 @@
 package com.ai.assistance.operit.ui.features.chat.viewmodel
 
+import android.content.Intent
 import com.ai.assistance.operit.data.model.AiReference
 import com.ai.assistance.operit.data.model.ToolExecutionProgress
 import com.ai.assistance.operit.data.model.ToolExecutionState
@@ -36,6 +37,10 @@ class UiStateDelegate {
 
     private val _outputTokenCount = MutableStateFlow(0)
     val outputTokenCount: StateFlow<Int> = _outputTokenCount.asStateFlow()
+
+    // 文件选择器请求
+    private val _fileChooserRequest = MutableStateFlow<Intent?>(null)
+    val fileChooserRequest: StateFlow<Intent?> = _fileChooserRequest.asStateFlow()
 
     /** 显示错误消息 */
     fun showErrorMessage(message: String) {
@@ -82,5 +87,15 @@ class UiStateDelegate {
         _contextWindowSize.value = contextSize
         _inputTokenCount.value = inputTokens
         _outputTokenCount.value = outputTokens
+    }
+
+    /** 请求文件选择器 */
+    fun requestFileChooser(intent: Intent) {
+        _fileChooserRequest.value = intent
+    }
+
+    /** 清除文件选择器请求 */
+    fun clearFileChooserRequest() {
+        _fileChooserRequest.value = null
     }
 }

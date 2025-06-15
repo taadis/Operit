@@ -293,8 +293,70 @@ fun ChatScreenContent(
                                                     }
                                                 }
 
-                                        // 添加WebChromeClient以支持更现代的Web功能
-                                        // webChromeClient = android.webkit.WebChromeClient()
+                                        // 添加WebChromeClient以支持H5文件选择
+                                        webChromeClient = object : android.webkit.WebChromeClient() {
+                                            // 文件选择回调的结果
+                                            private var filePathCallback: android.webkit.ValueCallback<Array<android.net.Uri>>? = null
+                                            
+                                            // 处理文件选择
+                                            override fun onShowFileChooser(
+                                                webView: android.webkit.WebView?,
+                                                filePathCallback: android.webkit.ValueCallback<Array<android.net.Uri>>?,
+                                                fileChooserParams: android.webkit.WebChromeClient.FileChooserParams?
+                                            ): Boolean {
+                                                // 保存回调引用
+                                                this.filePathCallback?.onReceiveValue(null)
+                                                this.filePathCallback = filePathCallback
+                                                
+                                                try {
+                                                    // 创建文件选择Intent
+                                                    val intent = fileChooserParams?.createIntent()
+                                                        ?: Intent(Intent.ACTION_GET_CONTENT).apply {
+                                                            addCategory(Intent.CATEGORY_OPENABLE)
+                                                            type = "*/*"
+                                                        }
+                                                    
+                                                    // 如果需要多选
+                                                    if (fileChooserParams?.mode == android.webkit.WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE) {
+                                                        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+                                                    }
+                                                    
+                                                    // 启动文件选择器
+                                                    val chooserIntent = Intent.createChooser(intent, "选择文件")
+                                                    actualViewModel.startFileChooserForResult(chooserIntent) { resultCode, data ->
+                                                        // 处理文件选择结果
+                                                        if (resultCode == android.app.Activity.RESULT_OK && data != null) {
+                                                            val results = when {
+                                                                // 多选文件
+                                                                data.clipData != null -> {
+                                                                    val clipData = data.clipData!!
+                                                                    Array(clipData.itemCount) { i ->
+                                                                        clipData.getItemAt(i).uri
+                                                                    }
+                                                                }
+                                                                // 单选文件
+                                                                data.data != null -> arrayOf(data.data!!)
+                                                                // 没有选择文件
+                                                                else -> arrayOf()
+                                                            }
+                                                            filePathCallback?.onReceiveValue(results)
+                                                        } else {
+                                                            // 用户取消了选择
+                                                            filePathCallback?.onReceiveValue(null)
+                                                        }
+                                                        // 重置回调
+                                                        this.filePathCallback = null
+                                                    }
+                                                    
+                                                    return true
+                                                } catch (e: Exception) {
+                                                    Log.e("WebView", "无法打开文件选择器", e)
+                                                    filePathCallback?.onReceiveValue(null)
+                                                    this.filePathCallback = null
+                                                    return false
+                                                }
+                                            }
+                                        }
 
                                         // 设置WebView的各种配置
                                         settings.apply {

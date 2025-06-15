@@ -3,6 +3,8 @@ package com.ai.assistance.operit.ui.features.chat.screens
 import android.content.Intent
 import android.provider.Settings
 import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -271,6 +273,24 @@ fun AIChatScreen(
                 // 同时更新全局状态持有者，确保PhoneLayout能够访问到状态
                 GestureStateHolder.isChatScreenGestureConsumed = finalGestureState
                 onGestureConsumed(finalGestureState)
+        }
+
+        // 处理文件选择器请求
+        val fileChooserRequest by actualViewModel.uiStateDelegate.fileChooserRequest.collectAsState()
+        val fileChooserLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+                // 处理文件选择结果
+                actualViewModel.handleFileChooserResult(result.resultCode, result.data)
+                // 清除请求
+                actualViewModel.uiStateDelegate.clearFileChooserRequest()
+        }
+        
+        // 启动文件选择器
+        LaunchedEffect(fileChooserRequest) {
+                fileChooserRequest?.let {
+                        fileChooserLauncher.launch(it)
+                }
         }
 
         Scaffold(
