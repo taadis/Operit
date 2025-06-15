@@ -1,5 +1,9 @@
 # Operit AI 用户指南
 
+<div align="center">
+  <strong>简体中文</strong> | <a href="./USER_GUIDE(E).md">English</a>
+</div>
+
 <p align="center">
   <img src="../app/src/main/res/playstore-icon.png" width="120" height="120" alt="Operit Logo">
 </p>
@@ -10,7 +14,7 @@
 
 ---
 
-## 📖 目录
+<h2 id="table-of-contents">📖 目录</h2>
 
 - [简介](#简介)
 - [基本流程讲解](#基本流程讲解)
@@ -22,7 +26,7 @@
 
 ---
 
-## ✨ 简介
+<h2 id="简介" style="display: flex; justify-content: space-between; align-items: center;"><span>✨ 简介</span><a href="#table-of-contents" style="text-decoration: none; font-size: 0.8em;" title="返回目录">🔝</a></h2>
 
 欢迎使用 **Operit AI**！本指南旨在帮助您快速上手，并充分利用 Operit AI 的强大功能，将您的手机变成一个真正的智能助手。
 
@@ -30,7 +34,7 @@
 
 <div STYLE="page-break-after: always;"></div>
 
-## 🗺️ 基本流程讲解
+<h2 id="基本流程讲解" style="display: flex; justify-content: space-between; align-items: center;"><span>🗺️ 基本流程讲解</span><a href="#table-of-contents" style="text-decoration: none; font-size: 0.8em;" title="返回目录">🔝</a></h2>
 
 初次使用 Operit AI 时，您需要进行简单的设置以授予应用必要权限，从而解锁全部功能。以下是详细步骤：
  >演示版本`1.1.5`，之后的版本将在右上角加入 '跳过'
@@ -116,7 +120,7 @@
 
 <div STYLE="page-break-after: always;"></div>
 
-## 🚀 拓展用法实操
+<h2 id="拓展用法实操" style="display: flex; justify-content: space-between; align-items: center;"><span>🚀 拓展用法实操</span><a href="#table-of-contents" style="text-decoration: none; font-size: 0.8em;" title="返回目录">🔝</a></h2>
 
 *(本部分将通过实际案例，向您展示如何利用拓展包、计划模式等高级功能，完成更复杂的任务。)*
 
@@ -430,7 +434,7 @@
 
 <div STYLE="page-break-after: always;"></div>
 
-## ❔ 常见问题解答
+<h2 id="常见问题解答" style="display: flex; justify-content: space-between; align-items: center;"><span>❔ 常见问题解答</span><a href="#table-of-contents" style="text-decoration: none; font-size: 0.8em;" title="返回目录">🔝</a></h2>
 
 这里收录了**最新版本 `1.1.6`** 用户群和 issue 的全部问题。
 如果您使用的是旧版本，可以来<a href="#朝花夕拾-旧版本问题解答">这里找找</a>。
@@ -439,7 +443,7 @@
 
 <div STYLE="page-break-after: always;"></div>
 
-## 🎉 加入我们
+<h2 id="加入我们" style="display: flex; justify-content: space-between; align-items: center;"><span>🎉 加入我们</span><a href="#table-of-contents" style="text-decoration: none; font-size: 0.8em;" title="返回目录">🔝</a></h2>
 
 我们诚挚地邀请您加入我们的社区，与其他用户交流心得，分享您的创意，或向我们提出宝贵的建议。
 
@@ -449,17 +453,13 @@
   <div style="font-size: 1.1em; font-weight: 600; color: #495057; margin-bottom: 12px;">Operit AI 用户交流群</div>
   <div style="display: flex; justify-content: space-between; align-items: center; gap: 15px;">
     <span style="font-family: 'Courier New', Courier, monospace; font-size: 1.6em; font-weight: bold; color: #007bff; letter-spacing: 1px; word-break: break-all;">458862019</span>
-    <button style="background-color: #28a745; color: white; border: none; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-size: 1em; font-weight: 500; white-space: nowrap;" onclick="navigator.clipboard.writeText('458862019'); const originalText = this.innerText; this.innerText='已复制!'; setTimeout(() => this.innerText=originalText, 2000);">复制</button>
+    <button style="background-color: #28a745; color: white; border: none; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-size: 1em; font-weight: 500; white-space: nowrap;" onclick="try { var btn = this; var originalText = btn.innerText; navigator.clipboard.writeText('458862019').then(function() { btn.innerText = '已复制!'; setTimeout(function() { btn.innerText = originalText; }, 2000); }); } catch (err) { alert('复制失败, 请手动复制。'); }">复制</button>
   </div>
 </div>
 
 <div STYLE="page-break-after: always;"></div>
 
-## 💡 许愿池
-
-有好的想法或功能建议？除了在QQ群中向我们提出，您也可以关注我们未来的更新计划，也许您期待的功能已经在路上！
-
-### 🚀 未来更新计划
+<h2 id="许愿池" style="display: flex; justify-content: space-between; align-items: center;"><span>💡 许愿池</span><a href="#table-of-contents" style="text-decoration: none; font-size: 0.8em;" title="返回目录">🔝</a></h2>
 
 以下是我们正在计划或正在开发中的功能：
 
@@ -473,9 +473,13 @@
   - 我们会认真对待社区（如Issue、QQ群）中提出的每一个建议，并努力将它们变为现实。
   - 推广！推广！推广！让更多人认识并使用Operit AI。
 
+
+有好的想法或功能建议？除了在QQ群中向我们提出，您也可以关注我们未来的更新计划，也许您期待的功能已经在路上！
+
+
 <div STYLE="page-break-after: always;"></div>
 
-## 📜 朝花夕拾 *(旧版本问题解答)*
+<h2 id="朝花夕拾-旧版本问题解答" style="display: flex; justify-content: space-between; align-items: center;"><span>📜 朝花夕拾 *(旧版本问题解答)*</span><a href="#table-of-contents" style="text-decoration: none; font-size: 0.8em;" title="返回目录">🔝</a></h2>
 
 #### `1.1.5`版本
 *(相关问题)*
