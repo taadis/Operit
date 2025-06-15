@@ -3,6 +3,16 @@
 </div>
 
 <div align="center">
+  <img src="https://img.shields.io/github/last-commit/AAswordman/Operit" alt="Last Commit">
+  <img src="https://img.shields.io/badge/Platform-Android_8.0%2B-brightgreen.svg" alt="Platform">
+  <a href="https://github.com/AAswordman/Operit/releases/latest"><img src="https://img.shields.io/github/v/release/AAswordman/Operit" alt="Latest Release"></a>
+  <br>
+  <a href="https://github.com/AAswordman/Operit/stargazers"><img src="https://img.shields.io/github/stars/AAswordman/Operit" alt="GitHub Stars"></a>
+  <a href="docx/USER_GUIDE(E).md"><img src="https://img.shields.io/badge/📖-User_Guide-blue.svg" alt="User Guide"></a>
+  <a href="docx/CONTRIBUTING.md"><img src="https://img.shields.io/badge/contributions-welcome-brightgreen.svg" alt="Contributions Welcome"></a>
+</div>
+
+<div align="center">
   <img src="app/src/main/res/playstore-icon.png" width="120" height="120" alt="Operit Logo">
   <h1>Operit AI - Your Intelligent Assistant</h1>
   <p>📱 <b>The first fully functional, standalone AI assistant for mobile devices with powerful tool-calling capabilities.</b> 📱</p>
@@ -118,13 +128,13 @@ Operit AI offers a rich plugin ecosystem. Combined with built-in tools, it can h
 
 ## 🚀 Quick Start
 
+> **For a detailed installation guide and rich usage examples, please check out our 👉 [User Guide](docx/USER_GUIDE(E).md)**
+
 - **System Requirements**: Android 8.0+ (API 26+), 4GB+ RAM recommended, 200MB+ storage space.
 - **Installation Steps**:
   1. Download the latest APK from the [Release Page](https://github.com/AAswordman/Operit/releases).
   2. Install and launch the app, then follow the in-app guide to complete the setup.
   3. Start enjoying the convenience of an AI assistant!
-
-For detailed instructions, please see our [User Guide](docx/USER_GUIDE(E).md).
 
 ## 👨‍💻 Open Source & Collaboration
 
