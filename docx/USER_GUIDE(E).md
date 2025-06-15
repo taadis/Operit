@@ -133,77 +133,62 @@ When you ask the AI to write software, the performance of the software depends o
   <thead>
     <tr>
       <th style="width: 25%; text-align: left;">Example</th>
-      <th style="width: 75%; text-align: left;">Description</th>
+      <th style="width: 50%; text-align: left;">Description</th>
+      <th style="width: 25%; text-align: left;">Preview</th>
     </tr>
   </thead>
   <tbody>
     <tr>
       <td style="vertical-align: top;"><strong>Create a 2D bullet hell game</strong></td>
       <td style="vertical-align: top;">
-        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
-          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
-            Through simple conversation, let the AI design and implement a classic 2D bullet hell shooter game for you. Operit AI can use its basic coding abilities to build the complete game logic and dynamic graphics from scratch using only HTML and JavaScript.
-          </td>
-          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
-            <a href="assets/game_maker_chat.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="assets/game_maker_chat.jpg" alt="2D bullet hell game chat" height="280">
-            </a>
-            <a href="assets/game_maker_show.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="assets/game_maker_show.jpg" alt="2D bullet hell game show" height="280">
-            </a>
-          </td>
-        </tr></tbody></table>
+        Through simple conversation, let the AI design and implement a classic 2D bullet hell shooter game for you. Operit AI can use its basic coding abilities to build the complete game logic and dynamic graphics from scratch using only HTML and JavaScript.
+      </td>
+      <td style="vertical-align: top; text-align: right;">
+        <a href="assets/game_maker_chat.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/game_maker_chat.jpg" alt="2D bullet hell game chat" height="280">
+        </a>
+        <a href="assets/game_maker_show.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/game_maker_show.jpg" alt="2D bullet hell game show" height="280">
+        </a>
       </td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><strong>Create a 3D game with HTML</strong></td>
       <td style="vertical-align: top;">
-        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
-          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
-            Without any extension packages, Operit AI can create a dynamic 3D game scene for you using only its built-in core tools with HTML and JavaScript code.
-          </td>
-          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
-            <a href="assets/expamle/3ddebdde4958ac152eeca436e39c0f6.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="assets/expamle/3ddebdde4958ac152eeca436e39c0f6.jpg" alt="3D Game Example 1" height="280">
-            </a>
-            <a href="assets/expamle/759d86a7d74351675b32acb6464585d.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="assets/expamle/759d86a7d74351675b32acb6464585d.jpg" alt="3D Game Example 2" height="280">
-            </a>
-          </td>
-        </tr></tbody></table>
+        Without any extension packages, Operit AI can create a dynamic 3D game scene for you using only its built-in core tools with HTML and JavaScript code.
+      </td>
+      <td style="vertical-align: top; text-align: right;">
+        <a href="assets/expamle/3ddebdde4958ac152eeca436e39c0f6.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/expamle/3ddebdde4958ac152eeca436e39c0f6.jpg" alt="3D Game Example 1" height="280">
+        </a>
+        <a href="assets/expamle/759d86a7d74351675b32acb6464585d.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/expamle/759d86a7d74351675b32acb6464585d.jpg" alt="3D Game Example 2" height="280">
+        </a>
       </td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><strong>Simple video processing</strong></td>
       <td style="vertical-align: top;">
-        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
-          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
-            Similarly, the application has a powerful FFmpeg tool built-in. No additional installation is required to let the AI help you with various video processing tasks such as format conversion, trimming, and merging.
-          </td>
-          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
-            <a href="assets/d7580a42ae03c723121bd172e1f9e7d.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="./assets/d7580a42ae03c723121bd172e1f9e7d.jpg" alt="Simple video processing example" height="280">
-            </a>
-          </td>
-        </tr></tbody></table>
+        Similarly, the application has a powerful FFmpeg tool built-in. No additional installation is required to let the AI help you with various video processing tasks such as format conversion, trimming, and merging.
+      </td>
+      <td style="vertical-align: top; text-align: right;">
+        <a href="assets/d7580a42ae03c723121bd172e1f9e7d.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="./assets/d7580a42ae03c723121bd172e1f9e7d.jpg" alt="Simple video processing example" height="280">
+        </a>
       </td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><strong>Software packaging and deployment</strong></td>
       <td style="vertical-align: top;">
-        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
-          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
-            From writing code to final release, Operit AI can further call upon platform tools to package the completed software into executable files for Android (APK) or Windows (EXE), achieving an end-to-end automated development process.
-          </td>
-          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
-            <a href="assets/web_developer.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="./assets/web_developer.jpg" alt="Software packaging example 1" height="280">
-            </a>
-            <a href="assets/game_maker_packer.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="./assets/game_maker_packer.jpg" alt="Software packaging example 2" height="280">
-            </a>
-          </td>
-        </tr></tbody></table>
+        From writing code to final release, Operit AI can further call upon platform tools to package the completed software into executable files for Android (APK) or Windows (EXE), achieving an end-to-end automated development process.
+      </td>
+      <td style="vertical-align: top; text-align: right;">
+        <a href="assets/web_developer.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="./assets/web_developer.jpg" alt="Software packaging example 1" height="280">
+        </a>
+        <a href="assets/game_maker_packer.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="./assets/game_maker_packer.jpg" alt="Software packaging example 2" height="280">
+        </a>
       </td>
     </tr>
   </tbody>
@@ -217,116 +202,93 @@ When you ask the AI to write software, the performance of the software depends o
   <thead>
     <tr>
       <th style="width: 25%; text-align: left;">Package</th>
-      <th style="width: 75%; text-align: left;">Description</th>
+      <th style="width: 50%; text-align: left;">Description</th>
+      <th style="width: 25%; text-align: left;">Preview</th>
     </tr>
   </thead>
   <tbody>
     <tr>
       <td style="vertical-align: top;"><code>writer</code></td>
       <td style="vertical-align: top;">
-        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
-          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
-            Advanced file editing and reading functions, supporting segmented editing, diff editing, line number editing, and advanced file reading operations.
-          </td>
-          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
-            <a href="assets/expamle/065e5ca8a8036c51a7905d206bbb56c.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="assets/expamle/065e5ca8a8036c51a7905d206bbb56c.jpg" alt="writer example" height="280">
-            </a>
-          </td>
-        </tr></tbody></table>
+        Advanced file editing and reading functions, supporting segmented editing, diff editing, line number editing, and advanced file reading operations.
+      </td>
+      <td style="vertical-align: top; text-align: right;">
+        <a href="assets/expamle/065e5ca8a8036c51a7905d206bbb56c.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/expamle/065e5ca8a8036c51a7905d206bbb56c.jpg" alt="writer example" height="280">
+        </a>
       </td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><code>various_search</code></td>
       <td style="vertical-align: top;">
-        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
-          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
-            Multi-platform search function, supporting search results from platforms like Bing, Baidu, Sogou, Quark, etc.
-          </td>
-          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
-            <a href="assets/expamle/90a1778510df485d788b80d4bc349f9.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="assets/expamle/90a1778510df485d788b80d4bc349f9.jpg" alt="Multi-platform search example 1" height="280">
-            </a>
-            <a href="assets/expamle/f9b8aeba4878775d1252ad8d5d8620a.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="assets/expamle/f9b8aeba4878775d1252ad8d5d8620a.jpg" alt="Multi-platform search example 2" height="280">
-            </a>
-          </td>
-        </tr></tbody></table>
+        Multi-platform search function, supporting search results from platforms like Bing, Baidu, Sogou, Quark, etc.
+      </td>
+      <td style="vertical-align: top; text-align: right;">
+        <a href="assets/expamle/90a1778510df485d788b80d4bc349f9.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/expamle/90a1778510df485d788b80d4bc349f9.jpg" alt="Multi-platform search example 1" height="280">
+        </a>
+        <a href="assets/expamle/f9b8aeba4878775d1252ad8d5d8620a.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/expamle/f9b8aeba4878775d1252ad8d5d8620a.jpg" alt="Multi-platform search example 2" height="280">
+        </a>
       </td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><code>daily_life</code></td>
       <td style="vertical-align: top;">
-        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
-          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
-            A collection of daily life tools, including date and time query, device status monitoring, weather search, alarm setting, SMS and phone communication, etc.
-          </td>
-          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
-            <a href="assets/expamle/615cf7a99e421356b6d22bb0b9cc87b.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="assets/expamle/615cf7a99e421356b6d22bb0b9cc87b.jpg" alt="Daily life example" height="280">
-            </a>
-          </td>
-        </tr></tbody></table>
+        A collection of daily life tools, including date and time query, device status monitoring, weather search, alarm setting, SMS and phone communication, etc.
+      </td>
+      <td style="vertical-align: top; text-align: right;">
+        <a href="assets/expamle/615cf7a99e421356b6d22bb0b9cc87b.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/expamle/615cf7a99e421356b6d22bb0b9cc87b.jpg" alt="Daily life example" height="280">
+        </a>
       </td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><code>super_admin</code></td>
       <td style="vertical-align: top;">
-        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
-          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
-            Super administrator toolset, providing advanced functions for terminal commands and Shell operations.
-          </td>
-          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
-            <a href="assets/expamle/731f67e3d7494886c1c1f8639216bf2.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="assets/expamle/731f67e3d7494886c1c1f8639216bf2.jpg" alt="Super admin example 1" height="280">
-            </a>
-            <a href="assets/expamle/6f81901ae47f5a3584167148017d132.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="assets/expamle/6f81901ae47f5a3584167148017d132.jpg" alt="Super admin example 2" height="280">
-            </a>
-          </td>
-        </tr></tbody></table>
+        Super administrator toolset, providing advanced functions for terminal commands and Shell operations.
+      </td>
+      <td style="vertical-align: top; text-align: right;">
+        <a href="assets/expamle/731f67e3d7494886c1c1f8639216bf2.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/expamle/731f67e3d7494886c1c1f8639216bf2.jpg" alt="Super admin example 1" height="280">
+        </a>
+        <a href="assets/expamle/6f81901ae47f5a3584167148017d132.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/expamle/6f81901ae47f5a3584167148017d132.jpg" alt="Super admin example 2" height="280">
+        </a>
       </td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><code>code_runner</code></td>
-      <td style="vertical-align: top;">Multi-language code execution capability, supporting the execution of JavaScript, Python, Ruby, Go, and Rust scripts.<br><em>You can configure these environments in <code>Toolbox > Auto-configure Terminal</code>.</em></td>
+      <td style="vertical-align: top;" colspan="2">Multi-language code execution capability, supporting the execution of JavaScript, Python, Ruby, Go, and Rust scripts.<br><em>You can configure these environments in <code>Toolbox > Auto-configure Terminal</code>.</em></td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><code>baidu_map</code></td>
       <td style="vertical-align: top;">
-        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
-          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
-            Baidu Maps related functions.
-          </td>
-          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
-            <a href="assets/expamle/71fd917c5310c1cebaa1abb19882a6d.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="assets/expamle/71fd917c5310c1cebaa1abb19882a6d.jpg" alt="Baidu Maps example" height="280">
-            </a>
-          </td>
-        </tr></tbody></table>
+        Baidu Maps related functions.
+      </td>
+      <td style="vertical-align: top; text-align: right;">
+        <a href="assets/expamle/71fd917c5310c1cebaa1abb19882a6d.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/expamle/71fd917c5310c1cebaa1abb19882a6d.jpg" alt="Baidu Maps example" height="280">
+        </a>
       </td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><code>qq_intelligent</code></td>
-      <td style="vertical-align: top;">QQ intelligent assistant, enabling interaction with the QQ app through UI automation.</td>
+      <td style="vertical-align: top;" colspan="2">QQ intelligent assistant, enabling interaction with the QQ app through UI automation.</td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><code>time</code></td>
-      <td style="vertical-align: top;">Provides time-related functions.</td>
+      <td style="vertical-align: top;" colspan="2">Provides time-related functions.</td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><code>various_output</code></td>
       <td style="vertical-align: top;">
-        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
-          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
-            Provides image output functionality.
-          </td>
-          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
-            <a href="assets/expamle/5fff4b49db78ec01e189658de8ea997.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="assets/expamle/5fff4b49db78ec01e189658de8ea997.jpg" alt="Image output example" height="280">
-            </a>
-          </td>
-        </tr></tbody></table>
+        Provides image output functionality.
+      </td>
+      <td style="vertical-align: top; text-align: right;">
+        <a href="assets/expamle/5fff4b49db78ec01e189658de8ea997.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/expamle/5fff4b49db78ec01e189658de8ea997.jpg" alt="Image output example" height="280">
+        </a>
       </td>
     </tr>
   </tbody>
@@ -389,34 +351,31 @@ When you ask the AI to write software, the performance of the software depends o
   <thead>
     <tr>
       <th style="width: 25%; text-align: left;">MCP (Package)</th>
-      <th style="width: 75%; text-align: left;">Description</th>
+      <th style="width: 50%; text-align: left;">Description</th>
+      <th style="width: 25%; text-align: left;">Preview</th>
     </tr>
   </thead>
   <tbody>
     <tr>
       <td style="vertical-align: top;"><code>tavily</code></td>
       <td style="vertical-align: top;">
-        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
-          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
-            Tavily search tool, providing powerful web search capabilities for research and information gathering.
-          </td>
-          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
-            <a href="assets/ee852df3c187771fba0aa92b36a57f8.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="assets/ee852df3c187771fba0aa92b36a57f8.jpg" alt="Tavily search example" height="280">
-            </a>
-          </td>
-        </tr></tbody></table>
+        Tavily search tool, providing powerful web search capabilities for research and information gathering.
+      </td>
+      <td style="vertical-align: top; text-align: right;">
+        <a href="assets/ee852df3c187771fba0aa92b36a57f8.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/ee852df3c187771fba0aa92b36a57f8.jpg" alt="Tavily search example" height="280">
+        </a>
       </td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><code>12306</code></td>
-      <td style="vertical-align: top;">
+      <td style="vertical-align: top;" colspan="2">
         Used to query 12306 train ticket information.
       </td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><code>fetch</code></td>
-      <td style="vertical-align: top;">
+      <td style="vertical-align: top;" colspan="2">
         A general-purpose tool for fetching web content. <em>Note: Its search effectiveness and stability are inferior to the deeply optimized <code>various_search</code> extension package.</em>
       </td>
     </tr>

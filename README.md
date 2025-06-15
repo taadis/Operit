@@ -3,6 +3,16 @@
 </div>
 
 <div align="center">
+  <img src="https://img.shields.io/github/last-commit/AAswordman/Operit" alt="Last Commit">
+  <img src="https://img.shields.io/badge/Platform-Android_8.0%2B-brightgreen.svg" alt="Platform">
+  <a href="https://github.com/AAswordman/Operit/releases/latest"><img src="https://img.shields.io/github/v/release/AAswordman/Operit" alt="Latest Release"></a>
+  <br>
+  <a href="https://github.com/AAswordman/Operit/stargazers"><img src="https://img.shields.io/github/stars/AAswordman/Operit" alt="GitHub Stars"></a>
+  <a href="docx/USER_GUIDE.md"><img src="https://img.shields.io/badge/📖-用户指南-blue.svg" alt="User Guide"></a>
+  <a href="docx/CONTRIBUTING.md"><img src="https://img.shields.io/badge/contributions-welcome-brightgreen.svg" alt="Contributions Welcome"></a>
+</div>
+
+<div align="center">
   <img src="app/src/main/res/playstore-icon.png" width="120" height="120" alt="Operit Logo">
   <h1>Operit AI - 智能助手应用</h1>
   <p>📱 <b>移动端首个功能完备的AI智能助手应用，完全独立运行，拥有强大的工具调用能力</b> 📱</p>
@@ -91,13 +101,13 @@ Operit AI 提供丰富的插件生态，配合内置工具可实现从日常生�
 
 ## 🚀 快速开始
 
+> **详细的安装指南和丰富的使用示例，请查阅我们的 👉 [用户指南](docx/USER_GUIDE.md)**
+
 - **系统要求**: Android 8.0+ (API 26+)，建议4GB以上内存，存储空间200MB+
 - **安装步骤**: 
   1. 从[Release页面](https://github.com/AAswordman/Operit/releases)下载最新APK
   2. 安装后启动，按照软件内引导完成设置
   3. 开始享受AI智能助手带来的便捷体验！
-
-详细使用说明请查看我们的[用户指南](docx/USER_GUIDE.md)。
 
 ## 👨‍💻 开源共创
 

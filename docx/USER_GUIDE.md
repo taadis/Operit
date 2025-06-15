@@ -133,77 +133,62 @@
   <thead>
     <tr>
       <th style="width: 25%; text-align: left;">示例 (Example)</th>
-      <th style="width: 75%; text-align: left;">说明 (Description)</th>
+      <th style="width: 50%; text-align: left;">说明 (Description)</th>
+      <th style="width: 25%; text-align: left;">预览 (Preview)</th>
     </tr>
   </thead>
   <tbody>
     <tr>
       <td style="vertical-align: top;"><strong>写一个2D弹幕游戏</strong></td>
       <td style="vertical-align: top;">
-        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
-          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
-            通过简单的对话，让AI为您构思并实现一个经典的2D弹幕射击游戏。Operit AI能够调用其基础代码能力，仅使用HTML和JavaScript，从零开始构建出完整的游戏逻辑与动态画面。
-          </td>
-          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
-            <a href="assets/game_maker_chat.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="assets/game_maker_chat.jpg" alt="2D弹幕游戏聊天" height="280">
-            </a>
-            <a href="assets/game_maker_show.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="assets/game_maker_show.jpg" alt="2D弹幕游戏展示" height="280">
-            </a>
-          </td>
-        </tr></tbody></table>
+        通过简单的对话，让AI为您构思并实现一个经典的2D弹幕射击游戏。Operit AI能够调用其基础代码能力，仅使用HTML和JavaScript，从零开始构建出完整的游戏逻辑与动态画面。
+      </td>
+      <td style="vertical-align: top; text-align: right;">
+        <a href="assets/game_maker_chat.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/game_maker_chat.jpg" alt="2D弹幕游戏聊天" height="280">
+        </a>
+        <a href="assets/game_maker_show.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/game_maker_show.jpg" alt="2D弹幕游戏展示" height="280">
+        </a>
       </td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><strong>用HTML代码写一个3D游戏</strong></td>
       <td style="vertical-align: top;">
-        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
-          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
-            无需任何拓展包，Operit AI 仅通过内置的核心工具，就可以直接用HTML和JavaScript代码，为您呈现一个动态的3D游戏场景。
-          </td>
-          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
-            <a href="assets/expamle/3ddebdde4958ac152eeca436e39c0f6.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="assets/expamle/3ddebdde4958ac152eeca436e39c0f6.jpg" alt="3D游戏示例1" height="280">
-            </a>
-            <a href="assets/expamle/759d86a7d74351675b32acb6464585d.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="assets/expamle/759d86a7d74351675b32acb6464585d.jpg" alt="3D游戏示例2" height="280">
-            </a>
-          </td>
-        </tr></tbody></table>
+        无需任何拓展包，Operit AI 仅通过内置的核心工具，就可以直接用HTML和JavaScript代码，为您呈现一个动态的3D游戏场景。
+      </td>
+      <td style="vertical-align: top; text-align: right;">
+        <a href="assets/expamle/3ddebdde4958ac152eeca436e39c0f6.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/expamle/3ddebdde4958ac152eeca436e39c0f6.jpg" alt="3D游戏示例1" height="280">
+        </a>
+        <a href="assets/expamle/759d86a7d74351675b32acb6464585d.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/expamle/759d86a7d74351675b32acb6464585d.jpg" alt="3D游戏示例2" height="280">
+        </a>
       </td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><strong>简单的视频处理</strong></td>
       <td style="vertical-align: top;">
-        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
-          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
-            同样地，应用内置了强大的FFmpeg工具，无需额外安装，即可让AI帮您完成视频格式转换、截取、合并等多种处理任务。
-          </td>
-          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
-            <a href="assets/d7580a42ae03c723121bd172e1f9e7d.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="./assets/d7580a42ae03c723121bd172e1f9e7d.jpg" alt="简单的视频处理示例" height="280">
-            </a>
-          </td>
-        </tr></tbody></table>
+        同样地，应用内置了强大的FFmpeg工具，无需额外安装，即可让AI帮您完成视频格式转换、截取、合并等多种处理任务。
+      </td>
+      <td style="vertical-align: top; text-align: right;">
+        <a href="assets/d7580a42ae03c723121bd172e1f9e7d.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="./assets/d7580a42ae03c723121bd172e1f9e7d.jpg" alt="简单的视频处理示例" height="280">
+        </a>
       </td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><strong>软件打包与部署</strong></td>
       <td style="vertical-align: top;">
-        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
-          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
-            从编写代码到最终发布，Operit AI 可以进一步调用平台工具，将完成的软件打包成适用于安卓（APK）或Windows（EXE）的可执行文件，实现端到端的自动化开发流程。
-          </td>
-          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
-            <a href="assets/web_developer.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="./assets/web_developer.jpg" alt="软件打包示例1" height="280">
-            </a>
-            <a href="assets/game_maker_packer.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="./assets/game_maker_packer.jpg" alt="软件打包示例2" height="280">
-            </a>
-          </td>
-        </tr></tbody></table>
+        从编写代码到最终发布，Operit AI 可以进一步调用平台工具，将完成的软件打包成适用于安卓（APK）或Windows（EXE）的可执行文件，实现端到端的自动化开发流程。
+      </td>
+      <td style="vertical-align: top; text-align: right;">
+        <a href="assets/web_developer.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="./assets/web_developer.jpg" alt="软件打包示例1" height="280">
+        </a>
+        <a href="assets/game_maker_packer.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="./assets/game_maker_packer.jpg" alt="软件打包示例2" height="280">
+        </a>
       </td>
     </tr>
   </tbody>
@@ -217,116 +202,93 @@
   <thead>
     <tr>
       <th style="width: 25%; text-align: left;">拓展包 (Package)</th>
-      <th style="width: 75%; text-align: left;">功能说明 (Description)</th>
+      <th style="width: 50%; text-align: left;">功能说明 (Description)</th>
+      <th style="width: 25%; text-align: left;">预览 (Preview)</th>
     </tr>
   </thead>
   <tbody>
     <tr>
       <td style="vertical-align: top;"><code>writer</code></td>
       <td style="vertical-align: top;">
-        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
-          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
-            高级文件编辑和读取功能，支持分段编辑、差异编辑、行号编辑以及高级文件读取操作
-          </td>
-          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
-            <a href="assets/expamle/065e5ca8a8036c51a7905d206bbb56c.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="assets/expamle/065e5ca8a8036c51a7905d206bbb56c.jpg" alt="writer示例" height="280">
-            </a>
-          </td>
-        </tr></tbody></table>
+        高级文件编辑和读取功能，支持分段编辑、差异编辑、行号编辑以及高级文件读取操作
+      </td>
+      <td style="vertical-align: top; text-align: right;">
+        <a href="assets/expamle/065e5ca8a8036c51a7905d206bbb56c.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/expamle/065e5ca8a8036c51a7905d206bbb56c.jpg" alt="writer示例" height="280">
+        </a>
       </td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><code>various_search</code></td>
       <td style="vertical-align: top;">
-        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
-          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
-            多平台搜索功能，支持从必应、百度、搜狗、夸克等平台获取搜索结果
-          </td>
-          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
-            <a href="assets/expamle/90a1778510df485d788b80d4bc349f9.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="assets/expamle/90a1778510df485d788b80d4bc349f9.jpg" alt="多平台搜索示例1" height="280">
-            </a>
-            <a href="assets/expamle/f9b8aeba4878775d1252ad8d5d8620a.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="assets/expamle/f9b8aeba4878775d1252ad8d5d8620a.jpg" alt="多平台搜索示例2" height="280">
-            </a>
-          </td>
-        </tr></tbody></table>
+        多平台搜索功能，支持从必应、百度、搜狗、夸克等平台获取搜索结果
+      </td>
+      <td style="vertical-align: top; text-align: right;">
+        <a href="assets/expamle/90a1778510df485d788b80d4bc349f9.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/expamle/90a1778510df485d788b80d4bc349f9.jpg" alt="多平台搜索示例1" height="280">
+        </a>
+        <a href="assets/expamle/f9b8aeba4878775d1252ad8d5d8620a.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/expamle/f9b8aeba4878775d1252ad8d5d8620a.jpg" alt="多平台搜索示例2" height="280">
+        </a>
       </td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><code>daily_life</code></td>
       <td style="vertical-align: top;">
-        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
-          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
-            日常生活工具集合，包括日期时间查询、设备状态监测、天气搜索、提醒闹钟设置、短信电话通讯等
-          </td>
-          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
-            <a href="assets/expamle/615cf7a99e421356b6d22bb0b9cc87b.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="assets/expamle/615cf7a99e421356b6d22bb0b9cc87b.jpg" alt="日常生活示例" height="280">
-            </a>
-          </td>
-        </tr></tbody></table>
+        日常生活工具集合，包括日期时间查询、设备状态监测、天气搜索、提醒闹钟设置、短信电话通讯等
+      </td>
+      <td style="vertical-align: top; text-align: right;">
+        <a href="assets/expamle/615cf7a99e421356b6d22bb0b9cc87b.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/expamle/615cf7a99e421356b6d22bb0b9cc87b.jpg" alt="日常生活示例" height="280">
+        </a>
       </td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><code>super_admin</code></td>
       <td style="vertical-align: top;">
-        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
-          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
-            超级管理员工具集，提供终端命令和Shell操作的高级功能
-          </td>
-          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
-            <a href="assets/expamle/731f67e3d7494886c1c1f8639216bf2.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="assets/expamle/731f67e3d7494886c1c1f8639216bf2.jpg" alt="超级管理员示例1" height="280">
-            </a>
-            <a href="assets/expamle/6f81901ae47f5a3584167148017d132.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="assets/expamle/6f81901ae47f5a3584167148017d132.jpg" alt="超级管理员示例2" height="280">
-            </a>
-          </td>
-        </tr></tbody></table>
+        超级管理员工具集，提供终端命令和Shell操作的高级功能
+      </td>
+      <td style="vertical-align: top; text-align: right;">
+        <a href="assets/expamle/731f67e3d7494886c1c1f8639216bf2.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/expamle/731f67e3d7494886c1c1f8639216bf2.jpg" alt="超级管理员示例1" height="280">
+        </a>
+        <a href="assets/expamle/6f81901ae47f5a3584167148017d132.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/expamle/6f81901ae47f5a3584167148017d132.jpg" alt="超级管理员示例2" height="280">
+        </a>
       </td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><code>code_runner</code></td>
-      <td style="vertical-align: top;">多语言代码执行能力，支持JavaScript、Python、Ruby、Go和Rust脚本的运行<br><em>你可以在<code>工具箱>终端自动配置</code>中完成以上环境的配置</em></td>
+      <td style="vertical-align: top;" colspan="2">多语言代码执行能力，支持JavaScript、Python、Ruby、Go和Rust脚本的运行<br><em>你可以在<code>工具箱>终端自动配置</code>中完成以上环境的配置</em></td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><code>baidu_map</code></td>
       <td style="vertical-align: top;">
-        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
-          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
-            百度地图相关功能
-          </td>
-          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
-            <a href="assets/expamle/71fd917c5310c1cebaa1abb19882a6d.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="assets/expamle/71fd917c5310c1cebaa1abb19882a6d.jpg" alt="百度地图示例" height="280">
-            </a>
-          </td>
-        </tr></tbody></table>
+        百度地图相关功能
+      </td>
+      <td style="vertical-align: top; text-align: right;">
+        <a href="assets/expamle/71fd917c5310c1cebaa1abb19882a6d.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/expamle/71fd917c5310c1cebaa1abb19882a6d.jpg" alt="百度地图示例" height="280">
+        </a>
       </td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><code>qq_intelligent</code></td>
-      <td style="vertical-align: top;">QQ智能助手，通过UI自动化技术实现QQ应用交互</td>
+      <td style="vertical-align: top;" colspan="2">QQ智能助手，通过UI自动化技术实现QQ应用交互</td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><code>time</code></td>
-      <td style="vertical-align: top;">提供时间相关功能</td>
+      <td style="vertical-align: top;" colspan="2">提供时间相关功能</td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><code>various_output</code></td>
       <td style="vertical-align: top;">
-        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
-          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
-            提供图片输出功能
-          </td>
-          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
-            <a href="assets/expamle/5fff4b49db78ec01e189658de8ea997.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="assets/expamle/5fff4b49db78ec01e189658de8ea997.jpg" alt="图片输出示例" height="280">
-            </a>
-          </td>
-        </tr></tbody></table>
+        提供图片输出功能
+      </td>
+      <td style="vertical-align: top; text-align: right;">
+        <a href="assets/expamle/5fff4b49db78ec01e189658de8ea997.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/expamle/5fff4b49db78ec01e189658de8ea997.jpg" alt="图片输出示例" height="280">
+        </a>
       </td>
     </tr>
   </tbody>
@@ -389,34 +351,31 @@
   <thead>
     <tr>
       <th style="width: 25%; text-align: left;">MCP (Package)</th>
-      <th style="width: 75%; text-align: left;">功能说明 (Description)</th>
+      <th style="width: 50%; text-align: left;">功能说明 (Description)</th>
+      <th style="width: 25%; text-align: left;">预览 (Preview)</th>
     </tr>
   </thead>
   <tbody>
     <tr>
       <td style="vertical-align: top;"><code>tavily</code></td>
       <td style="vertical-align: top;">
-        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
-          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
-            Tavily 搜索工具，提供强大的网络搜索能力，可用于研究和信息获取。
-          </td>
-          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
-            <a href="assets/ee852df3c187771fba0aa92b36a57f8.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="assets/ee852df3c187771fba0aa92b36a57f8.jpg" alt="Tavily搜索示例" height="280">
-            </a>
-          </td>
-        </tr></tbody></table>
+        Tavily 搜索工具，提供强大的网络搜索能力，可用于研究和信息获取。
+      </td>
+      <td style="vertical-align: top; text-align: right;">
+        <a href="assets/ee852df3c187771fba0aa92b36a57f8.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/ee852df3c187771fba0aa92b36a57f8.jpg" alt="Tavily搜索示例" height="280">
+        </a>
       </td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><code>12306</code></td>
-      <td style="vertical-align: top;">
+      <td style="vertical-align: top;" colspan="2">
         用于查询12306火车票信息。
       </td>
     </tr>
     <tr>
       <td style="vertical-align: top;"><code>fetch</code></td>
-      <td style="vertical-align: top;">
+      <td style="vertical-align: top;" colspan="2">
         通用的网络内容获取工具。<em>注意：其搜索效果和稳定性均不如深度优化的 <code>various_search</code> 拓展包。</em>
       </td>
     </tr>
