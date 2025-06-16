@@ -45,7 +45,7 @@
 
 Welcome to **Operit AI**! This guide is designed to help you get started quickly and make the most of Operit AI's powerful features, turning your phone into a true smart assistant.
 
->*This document was last updated: 2025/6/15*
+>*This document was last updated: 2025/6/17*
 
 <div STYLE="page-break-after: always;"></div>
 
