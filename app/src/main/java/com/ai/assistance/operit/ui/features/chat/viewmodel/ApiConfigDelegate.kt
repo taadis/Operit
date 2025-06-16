@@ -7,11 +7,13 @@ import com.ai.assistance.operit.api.EnhancedAIService
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.ModelConfigManager
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** 委托类，负责管理用户偏好配置和API密钥 */
 class ApiConfigDelegate(
@@ -61,9 +63,15 @@ class ApiConfigDelegate(
         // 加载用户偏好设置
         initializeSettingsCollection()
 
-        // 创建新的AI服务实例并通知
-        val enhancedAiService = EnhancedAIService(context)
-        onConfigChanged(enhancedAiService)
+        // 异步创建AI服务实例，避免在主线程上执行阻塞操作
+        viewModelScope.launch(Dispatchers.IO) {
+            Log.d(TAG, "开始在后台线程创建EnhancedAIService")
+            val enhancedAiService = EnhancedAIService(context)
+            Log.d(TAG, "EnhancedAIService创建完成")
+            withContext(Dispatchers.Main) {
+                onConfigChanged(enhancedAiService)
+            }
+        }
     }
 
     private fun initializeSettingsCollection() {
@@ -87,12 +95,15 @@ class ApiConfigDelegate(
      * @return 总是返回true，因为无需特定配置
      */
     fun useDefaultConfig(): Boolean {
-        // 在多AI提供商架构下，总是可以使用默认配置
-        Log.d(TAG, "使用默认配置初始化服务")
-        val enhancedAiService = EnhancedAIService(context)
-
-        // 通知ViewModel配置已更改
-        onConfigChanged(enhancedAiService)
+        // 异步创建服务，避免阻塞
+        viewModelScope.launch(Dispatchers.IO) {
+            Log.d(TAG, "使用默认配置初始化服务")
+            val enhancedAiService = EnhancedAIService(context)
+            withContext(Dispatchers.Main) {
+                // 通知ViewModel配置已更改
+                onConfigChanged(enhancedAiService)
+            }
+        }
         return true
     }
 
@@ -119,8 +130,10 @@ class ApiConfigDelegate(
 
                 Log.d(TAG, "API密钥已保存到ModelConfigManager")
 
-                // 直接调用初始化服务
-                val enhancedAiService = EnhancedAIService(context)
+                // 在IO线程上创建服务，避免阻塞
+                val enhancedAiService = withContext(Dispatchers.IO) {
+                    EnhancedAIService(context)
+                }
 
                 // 通知ViewModel配置已更改
                 onConfigChanged(enhancedAiService)

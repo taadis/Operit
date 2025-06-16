@@ -257,7 +257,7 @@ class MainActivity : ComponentActivity() {
     }
 
     // ======== 初始化组件 ========
-    private fun initializeComponents() {
+    private fun initializeComponents() {        
         // 初始化工具处理器
         toolHandler = AIToolHandler.getInstance(this)
         toolHandler.registerDefaultTools()

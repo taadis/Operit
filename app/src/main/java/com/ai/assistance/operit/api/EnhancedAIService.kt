@@ -1,6 +1,8 @@
 package com.ai.assistance.operit.api
 
 import android.content.Context
+import android.content.Intent
+import android.os.Build
 import android.util.Log
 import com.ai.assistance.operit.api.enhance.ConversationMarkupManager
 import com.ai.assistance.operit.api.enhance.ConversationRoundManager
@@ -93,6 +95,9 @@ class EnhancedAIService(private val context: Context) {
     private val toolExecutionJobs = ConcurrentHashMap<String, Job>()
     private val conversationHistory = mutableListOf<Pair<String, String>>()
     private val conversationMutex = Mutex()
+
+    // 为服务管理创建独立的Intent实例，避免重复创建
+    private val serviceIntent by lazy { Intent(context, AIForegroundService::class.java) }
 
     private var accumulatedInputTokenCount = 0
     private var accumulatedOutputTokenCount = 0
@@ -258,10 +263,14 @@ class EnhancedAIService(private val context: Context) {
         Log.d(TAG, "sendMessage调用开始: 功能类型=$functionType")
         accumulatedInputTokenCount = 0
         accumulatedOutputTokenCount = 0
+
         return stream {
             try {
                 // 确保所有操作都在IO线程上执行
                 withContext(Dispatchers.IO) {
+                    // 仅当会话首次启动时开启服务
+                    startAiService()
+
                     // Store the chat ID for web workspace
                     currentChatId = chatId
 
@@ -370,6 +379,8 @@ class EnhancedAIService(private val context: Context) {
                     _inputProcessingState.value =
                             InputProcessingState.Error(message = "Error: ${e.message}")
                 }
+                // 发生无法处理的错误时，也应停止服务
+                stopAiService()
             } finally {
                 // 确保流处理完成后调用
                 val collector = this
@@ -612,6 +623,9 @@ class EnhancedAIService(private val context: Context) {
                     multiServiceManager.getServiceForFunction(FunctionType.PROBLEM_LIBRARY)
             )
         }
+
+        // 在会话结束后停止服务
+        stopAiService()
     }
 
     /** Handle wait for user need logic - simplified version without callbacks */
@@ -628,6 +642,9 @@ class EnhancedAIService(private val context: Context) {
         }
 
         Log.d(TAG, "Wait for user need - skipping problem library analysis")
+
+        // 在会话结束后停止服务
+        stopAiService()
     }
 
     /** Handle tool invocation processing - simplified version without callbacks */
@@ -1051,12 +1068,29 @@ class EnhancedAIService(private val context: Context) {
     private fun cancelAllToolExecutions() {
         toolProcessingScope.coroutineContext.cancelChildren()
     }
+    // --- Service Lifecycle Management ---
 
-    /** Mark conversation as completed */
-    private fun markConversationCompleted() {
-        isConversationActive.set(false)
-        roundManager.clearContent()
-        _inputProcessingState.value = InputProcessingState.Completed
-        Log.d(TAG, "Conversation marked as completed - content pool cleared")
+    /** 启动前台服务以保持应用活跃 */
+    private fun startAiService() {
+        if (!AIForegroundService.isRunning.get()) {
+            Log.d(TAG, "请求启动AI前台服务...")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(serviceIntent)
+            } else {
+                context.startService(serviceIntent)
+            }
+        } else {
+            Log.d(TAG, "AI前台服务已在运行，无需重复启动。")
+        }
+    }
+
+    /** 停止前台服务 */
+    private fun stopAiService() {
+        if (AIForegroundService.isRunning.get()) {
+            Log.d(TAG, "请求停止AI前台服务...")
+            context.stopService(serviceIntent)
+        } else {
+            Log.d(TAG, "AI前台服务未在运行，无需重复停止。")
+        }
     }
 }

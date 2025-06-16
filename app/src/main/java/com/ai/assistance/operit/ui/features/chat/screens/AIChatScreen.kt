@@ -159,7 +159,7 @@ fun AIChatScreen(
                                 try {
                                         scrollState.animateScrollTo(scrollState.maxValue)
                                 } catch (e: Exception) {
-                                        Log.e("AIChatScreen", "自动滚动失败", e)
+                                        // Log.e("AIChatScreen", "自动滚动失败", e)
                                 }
                         }
                 }
@@ -171,7 +171,7 @@ fun AIChatScreen(
                         try {
                                 scrollState.animateScrollTo(scrollState.maxValue)
                         } catch (e: Exception) {
-                                Log.e("AIChatScreen", "自动滚动失败", e)
+                                // Log.e("AIChatScreen", "自动滚动失败", e)
                         }
                 }
         }

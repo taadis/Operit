@@ -120,6 +120,13 @@
             android:exported="false"
             android:foregroundServiceType="dataSync|specialUse" />
 
+        <!-- AI 前台服务 - 保持网络连接稳定 -->
+        <service
+            android:name=".api.AIForegroundService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
         <!-- 无障碍服务 -->
         <!-- <service
             android:name=".services.UIAccessibilityService"

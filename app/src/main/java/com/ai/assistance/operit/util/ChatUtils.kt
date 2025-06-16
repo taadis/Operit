@@ -13,10 +13,14 @@ object ChatUtils {
         }
     }
 
-    /** 过滤掉内容中的思考部分 移除<think></think>标签及其中的内容 */
+    /** 过滤掉内容中的思考部分 移除<think></think>标签及其中的内容，并处理未闭合的情况 */
     fun removeThinkingContent(content: String): String {
         // 使用正则表达式匹配<think>标签及其内容
-        val thinkPattern = "<think>.*?</think>".toRegex(RegexOption.DOT_MATCHES_ALL)
+        // 这个正则表达式会匹配两种情况：
+        // 1. <think>...</think> (正常闭合的标签)
+        // 2. <think>... (未闭合，直到字符串末尾)
+        // \\z 匹配字符串的绝对末尾
+        val thinkPattern = "<think>.*?(</think>|\\z)".toRegex(RegexOption.DOT_MATCHES_ALL)
         return content.replace(thinkPattern, "").trim()
     }
 

@@ -70,7 +70,7 @@ fun UserMessageComposable(message: ChatMessage, backgroundColor: Color, textColo
         val selectedAttachmentName = remember { mutableStateOf("") }
 
         // Parse message content to separate text and attachments
-        val parseResult = parseMessageContent(message.content)
+        val parseResult = remember(message.content) { parseMessageContent(message.content) }
         val textContent = parseResult.processedText
         val trailingAttachments = parseResult.trailingAttachments
 
