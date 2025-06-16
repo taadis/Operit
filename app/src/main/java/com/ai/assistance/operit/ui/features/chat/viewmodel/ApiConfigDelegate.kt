@@ -141,13 +141,4 @@ class ApiConfigDelegate(
             _enableAiPlanning.value = newValue
         }
     }
-
-    /** 切换内存优化 */
-    fun toggleMemoryOptimization() {
-        viewModelScope.launch {
-            val newValue = !_memoryOptimization.value
-            apiPreferences.saveMemoryOptimization(newValue)
-            _memoryOptimization.value = newValue
-        }
-    }
 }

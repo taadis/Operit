@@ -355,13 +355,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     }
     fun toggleAiPlanning() {
         apiConfigDelegate.toggleAiPlanning()
-        uiStateDelegate.showToast(if (enableAiPlanning.value) "AI计划模式已开启" else "AI计划模式已关闭")
+        uiStateDelegate.showToast(if (enableAiPlanning.value) "AI计划模式已关闭" else "AI计划模式已开启")
     }
-    fun toggleMemoryOptimization() {
-        apiConfigDelegate.toggleMemoryOptimization()
-        uiStateDelegate.showToast(if (memoryOptimization.value) "记忆优化已开启" else "记忆优化已关闭")
-    }
-
     // 聊天历史相关方法
     fun createNewChat() {
         chatHistoryDelegate.createNewChat()

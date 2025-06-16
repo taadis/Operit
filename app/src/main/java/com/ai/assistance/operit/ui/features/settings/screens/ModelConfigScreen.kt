@@ -266,6 +266,34 @@ fun ModelConfigScreen() {
                                 }
                         }
 
+                        // 默认配置警告提示
+                        AnimatedVisibility(visible = selectedConfigId == "default") {
+                                Card(
+                                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                                        colors = CardDefaults.cardColors(
+                                                containerColor = MaterialTheme.colorScheme.errorContainer
+                                        ),
+                                        shape = RoundedCornerShape(8.dp)
+                                ) {
+                                        Row(
+                                                modifier = Modifier.padding(12.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                                Icon(
+                                                        imageVector = Icons.Default.Warning,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.error
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                        text = "请修改默认配置的API Key，否则将被判断为未使用自己的配置",
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                                )
+                                        }
+                                }
+                        }
+
                         // 配置下拉菜单
                         DropdownMenu(
                                 expanded = isDropdownExpanded,

@@ -6,19 +6,14 @@ import com.ai.assistance.operit.data.model.ModelOption
 import com.ai.assistance.operit.data.model.ModelParameter
 import com.ai.assistance.operit.util.ChatUtils
 import com.ai.assistance.operit.util.stream.Stream
-import com.ai.assistance.operit.util.stream.flatMap
-import com.ai.assistance.operit.util.stream.plugins.PluginState
-import com.ai.assistance.operit.util.stream.plugins.StreamPlugin
-import com.ai.assistance.operit.util.stream.splitBy
+import com.ai.assistance.operit.util.stream.StreamCollector
 import com.ai.assistance.operit.util.stream.stream
 import java.io.IOException
 import java.net.SocketTimeoutException
 import java.net.URL
 import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -126,66 +121,6 @@ class GeminiProvider(
         }
     }
 
-    /**
-     * JSON流解析插件，用于在字符流中识别和提取JSON对象/数组
-     * 可以实现增量解析，无需等待完整JSON块
-     */
-    private class JsonStreamPlugin : StreamPlugin {
-        private var depth = 0
-        private var inString = false
-        private var escaped = false
-        
-        override var state: PluginState = PluginState.IDLE
-            private set
-
-        override fun processChar(c: Char, atStartOfLine: Boolean): Boolean {
-            // 处理转义状态
-            if (escaped) {
-                escaped = false
-            } else if (c == '\\' && inString) {
-                escaped = true
-            } else if (c == '"') {
-                inString = !inString
-            } else if (!inString) {
-                // 只有不在字符串内时才处理括号
-                when (c) {
-                    '{', '[' -> {
-                        depth++
-                        if (state == PluginState.IDLE) {
-                            state = PluginState.PROCESSING
-                        }
-                    }
-                    '}', ']' -> {
-                        depth--
-                        if (depth == 0 && state == PluginState.PROCESSING) {
-                            // 一个完整的JSON对象或数组已处理完
-                            state = PluginState.IDLE
-                        }
-                    }
-                }
-            }
-
-            // 返回true表示这个字符应该被包含在输出中
-            return state == PluginState.PROCESSING || (depth == 0 && (c == '}' || c == ']'))
-        }
-
-        override fun initPlugin(): Boolean {
-            reset()
-            return true
-        }
-
-        override fun destroy() {
-            // 无需释放资源
-        }
-
-        override fun reset() {
-            depth = 0
-            inString = false
-            escaped = false
-            state = PluginState.IDLE
-        }
-    }
-
     /** 发送消息到Gemini API */
     override suspend fun sendMessage(
             message: String,
@@ -205,128 +140,59 @@ class GeminiProvider(
         val requestBody = createRequestBody(message, chatHistory, modelParameters)
         val request = createRequest(requestBody, true, requestId) // 使用流式请求
 
-        logDebug("连接到Gemini服务...")
+        // 状态更新函数 - 在Stream中我们使用emit来传递连接状态
+        val emitConnectionStatus: (String) -> Unit = { status ->
+            // 这里可以根据需要处理连接状态，例如记录日志
+            logDebug("连接状态: $status")
+        }
+
+        emitConnectionStatus("连接到Gemini服务...")
 
         while (retryCount < maxRetries) {
             try {
-                // 创建响应行流
-                val lineStream = stream<String> {
-                    try {
-                        val call = client.newCall(request)
-                        activeCall = call
+                val call = client.newCall(request)
+                activeCall = call
 
-                        logDebug("建立连接中...")
+                emitConnectionStatus("建立连接中...")
 
-                        val startTime = System.currentTimeMillis()
-                        call.execute().use { response ->
-                            val duration = System.currentTimeMillis() - startTime
-                            Log.d(TAG, "收到初始响应, 耗时: ${duration}ms, 状态码: ${response.code}")
+                val startTime = System.currentTimeMillis()
+                call.execute().use { response ->
+                    val duration = System.currentTimeMillis() - startTime
+                    Log.d(TAG, "收到初始响应, 耗时: ${duration}ms, 状态码: ${response.code}")
 
-                            logDebug("连接成功，处理响应...")
+                    emitConnectionStatus("连接成功，处理响应...")
 
-                            if (!response.isSuccessful) {
-                                val errorBody = response.body?.string() ?: "无错误详情"
-                                logError("API请求失败: ${response.code}, $errorBody")
-                                throw IOException("API请求失败: ${response.code}, $errorBody")
-                            }
-
-                            val responseBody = response.body ?: throw IOException("响应为空")
-                            val reader = responseBody.charStream().buffered()
-
-                            reader.useLines { lines ->
-                                for (line in lines) {
-                                    if (activeCall?.isCanceled() == true) break
-                                    emit(line)
-                                }
-                            }
-                        }
-                    } finally {
-                        activeCall = null
+                    if (!response.isSuccessful) {
+                        val errorBody = response.body?.string() ?: "无错误详情"
+                        logError("API请求失败: ${response.code}, $errorBody")
+                        throw IOException("API请求失败: ${response.code}, $errorBody")
                     }
+
+                    // 处理响应
+                    processStreamingResponse(response, this, requestId)
                 }
 
-                // 使用Stream处理响应行，过滤并转换为字符流
-                val charStream = lineStream.flatMap { line ->
-                    stream {
-                        if (line.startsWith("data: ")) {
-                            val data = line.substring(6).trim()
-                            if (data != "[DONE]") {
-                                for (c in data) {
-                                    emit(c)
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // 使用JsonStreamPlugin分割JSON
-                val jsonPlugin = JsonStreamPlugin()
-                var hasEmittedContent = false
-
-                charStream.splitBy(listOf(jsonPlugin)).collect { group ->
-                    if (group.tag is JsonStreamPlugin) {
-                        // 收集JSON块
-                        val jsonBuilder = StringBuilder()
-                        group.stream.collect { jsonBuilder.append(it) }
-                        
-                        try {
-                            val jsonStr = jsonBuilder.toString()
-                            logDebug("处理JSON块: ${jsonStr.take(100)}${if (jsonStr.length > 100) "..." else ""}")
-                            
-                            // 解析JSON
-                            val json = if (jsonStr.startsWith("{")) {
-                                JSONObject(jsonStr)
-                            } else if (jsonStr.startsWith("[")) {
-                                JSONArray(jsonStr)
-                                null  // 我们主要处理JSONObject
-                            } else {
-                                null
-                            }
-                            
-                            // 处理JSON对象
-                            if (json is JSONObject) {
-                                val content = extractContentFromJson(json, requestId)
-                                if (content.isNotEmpty()) {
-                                    _outputTokenCount += estimateTokenCount(content)
-                                    emit(content)
-                                    hasEmittedContent = true
-                                }
-                            }
-                        } catch (e: Exception) {
-                            // JSON可能不完整，这是正常的流式处理中间状态
-                            logDebug("JSON处理中: ${e.message}")
-                        }
-                    }
-                }
-
-                // 如果没有内容发射，发送一个空格
-                if (!hasEmittedContent) {
-                    logDebug("未检测到内容，发送空格")
-                    emit(" ")
-                }
-
-                // 成功处理后返回
+                activeCall = null
                 return@stream
             } catch (e: SocketTimeoutException) {
                 lastException = e
                 retryCount++
                 logError("连接超时，尝试重试 $retryCount/$maxRetries", e)
 
-                emit("【连接超时，正在重试 $retryCount...】")
+                emitConnectionStatus("连接超时，正在重试 $retryCount...")
                 delay(1000L * retryCount)
             } catch (e: UnknownHostException) {
                 logError("无法连接到服务器，可能是网络问题", e)
-                emit("【无法连接到服务器，请检查网络】")
+                emitConnectionStatus("无法连接到服务器，请检查网络")
                 throw IOException("无法连接到服务器，请检查网络连接")
             } catch (e: Exception) {
                 logError("发送消息时发生异常", e)
-                emit("【连接失败: ${e.message}】")
+                emitConnectionStatus("连接失败: ${e.message}")
                 throw IOException("AI响应获取失败: ${e.message}")
             }
         }
 
         logError("重试${maxRetries}次后仍然失败", lastException)
-        emit("【重试失败，请检查网络连接】")
         throw IOException("连接超时，已重试 $maxRetries 次")
     }
 
@@ -375,10 +241,10 @@ class GeminiProvider(
                 val systemInstruction = JSONObject()
                 val systemPartsArray = JSONArray()
                 val systemTextPart = JSONObject()
-                
+
                 systemTextPart.put("text", systemContent)
                 systemPartsArray.put(systemTextPart)
-                
+
                 systemInstruction.put("parts", systemPartsArray)
                 json.put("systemInstruction", systemInstruction)
             }
@@ -504,6 +370,210 @@ class GeminiProvider(
         } catch (e: Exception) {
             logError("解析API端点失败", e)
             "https://generativelanguage.googleapis.com"
+        }
+    }
+
+    /** 处理API流式响应 */
+    private suspend fun processStreamingResponse(
+            response: Response,
+            streamBuilder: StreamCollector<String>,
+            requestId: String
+    ) {
+        Log.d(TAG, "开始处理响应流")
+        val responseBody = response.body ?: throw IOException("响应为空")
+        val reader = responseBody.charStream().buffered()
+
+        // 注意：不再使用fullContent累积所有内容
+        var lineCount = 0
+        var dataCount = 0
+        var jsonCount = 0
+        var contentCount = 0
+
+        // 恢复JSON累积逻辑，用于处理分段JSON
+        val completeJsonBuilder = StringBuilder()
+        var isCollectingJson = false
+        var jsonDepth = 0
+        var jsonStartSymbol = ' ' // 记录JSON是以 { 还是 [ 开始的
+
+        try {
+            reader.useLines { lines ->
+                lines.forEach { line ->
+                    lineCount++
+                    // 检查是否已取消
+                    if (activeCall?.isCanceled() == true) {
+                        return@forEach
+                    }
+
+                    // 处理SSE数据
+                    if (line.startsWith("data: ")) {
+                        val data = line.substring(6).trim()
+                        dataCount++
+
+                        // 跳过结束标记
+                        if (data == "[DONE]") {
+                            logDebug("收到流结束标记 [DONE]")
+                            return@forEach
+                        }
+
+                        try {
+                            // 立即解析每个SSE数据行的JSON
+                            val json = JSONObject(data)
+                            jsonCount++
+                            
+                            val content = extractContentFromJson(json, requestId)
+                            if (content.isNotEmpty()) {
+                                contentCount++
+                                logDebug("提取SSE内容，长度: ${content.length}")
+                                
+                                // 只发送新增的内容
+                                streamBuilder.emit(content)
+                            }
+                        } catch (e: Exception) {
+                            logError("解析SSE响应数据失败: ${e.message}", e)
+                        }
+                    } else if (line.trim().isNotEmpty()) {
+                        // 处理可能分段的JSON数据
+                        val trimmedLine = line.trim()
+                        
+                        // 检查是否开始收集JSON
+                        if (!isCollectingJson && 
+                                (trimmedLine.startsWith("{") || trimmedLine.startsWith("["))) {
+                            isCollectingJson = true
+                            jsonDepth = 0
+                            completeJsonBuilder.clear()
+                            jsonStartSymbol = trimmedLine[0]
+                            logDebug("开始收集JSON，起始符号: $jsonStartSymbol")
+                        }
+                        
+                        if (isCollectingJson) {
+                            completeJsonBuilder.append(trimmedLine)
+                            
+                            // 更新JSON深度
+                            for (char in trimmedLine) {
+                                if (char == '{' || char == '[') jsonDepth++
+                                if (char == '}' || char == ']') jsonDepth--
+                            }
+                            
+                            // 尝试作为完整JSON解析
+                            val possibleComplete = completeJsonBuilder.toString()
+                            try {
+                                if (jsonDepth == 0) {
+                                    logDebug("尝试解析完整JSON: ${possibleComplete.take(50)}...")
+                                    val jsonContent = if (jsonStartSymbol == '[') {
+                                        JSONArray(possibleComplete)
+                                    } else {
+                                        JSONObject(possibleComplete)
+                                    }
+                                    
+                                    // 解析成功，处理内容
+                                    logDebug("成功解析完整JSON，长度: ${possibleComplete.length}")
+                                    
+                                    when (jsonContent) {
+                                        is JSONArray -> {
+                                            // 处理JSON数组
+                                            for (i in 0 until jsonContent.length()) {
+                                                val jsonObject = jsonContent.optJSONObject(i)
+                                                if (jsonObject != null) {
+                                                    jsonCount++
+                                                    val content = extractContentFromJson(jsonObject, requestId)
+                                                    if (content.isNotEmpty()) {
+                                                        contentCount++
+                                                        logDebug("从JSON数组[$i]提取内容，长度: ${content.length}")
+                                                        
+                                                        // 只发送这个单独对象产生的内容
+                                                        streamBuilder.emit(content)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        is JSONObject -> {
+                                            // 处理JSON对象
+                                            jsonCount++
+                                            val content = extractContentFromJson(jsonContent, requestId)
+                                            if (content.isNotEmpty()) {
+                                                contentCount++
+                                                logDebug("从JSON对象提取内容，长度: ${content.length}")
+                                                
+                                                // 只发送新提取的内容
+                                                streamBuilder.emit(content)
+                                            }
+                                        }
+                                    }
+                                    
+                                    // 解析成功后重置收集器
+                                    isCollectingJson = false
+                                    completeJsonBuilder.clear()
+                                }
+                            } catch (e: Exception) {
+                                // JSON尚未完整，继续收集
+                                if (jsonDepth > 0) {
+                                    // 仍在收集，这是预期的
+                                    logDebug("继续收集JSON，当前深度: $jsonDepth")
+                                } else {
+                                    // 深度为0但解析失败，可能是无效JSON
+                                    logError("JSON解析失败: ${e.message}", e)
+                                    isCollectingJson = false
+                                    completeJsonBuilder.clear()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Log.d(TAG, "响应处理完成: 共${lineCount}行, ${jsonCount}个JSON块, 提取${contentCount}个内容块")
+
+            // 检查是否还有未解析完的JSON
+            if (isCollectingJson && completeJsonBuilder.isNotEmpty()) {
+                try {
+                    val finalJson = completeJsonBuilder.toString()
+                    Log.d(TAG, "处理最终收集的JSON，长度: ${finalJson.length}")
+                    
+                    val jsonContent = if (jsonStartSymbol == '[') {
+                        JSONArray(finalJson)
+                    } else {
+                        JSONObject(finalJson)
+                    }
+                    
+                    // 处理内容
+                    when (jsonContent) {
+                        is JSONArray -> {
+                            for (i in 0 until jsonContent.length()) {
+                                val jsonObject = jsonContent.optJSONObject(i) ?: continue
+                                jsonCount++
+                                val content = extractContentFromJson(jsonObject, requestId)
+                                if (content.isNotEmpty()) {
+                                    contentCount++
+                                    logDebug("从最终JSON数组[$i]提取内容，长度: ${content.length}")
+                                    streamBuilder.emit(content)
+                                }
+                            }
+                        }
+                        is JSONObject -> {
+                            jsonCount++
+                            val content = extractContentFromJson(jsonContent, requestId)
+                            if (content.isNotEmpty()) {
+                                contentCount++
+                                logDebug("从最终JSON对象提取内容，长度: ${content.length}")
+                                streamBuilder.emit(content)
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    logError("解析最终收集的JSON失败: ${e.message}", e)
+                }
+            }
+
+            // 确保至少发送一次内容
+            if (contentCount == 0) {
+                logDebug("未检测到内容，发送空格")
+                streamBuilder.emit(" ")
+            }
+        } catch (e: Exception) {
+            logError("处理响应时发生异常: ${e.message}", e)
+            throw e
+        } finally {
+            activeCall = null
         }
     }
 

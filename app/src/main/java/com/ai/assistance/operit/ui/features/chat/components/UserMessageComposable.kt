@@ -135,7 +135,7 @@ fun UserMessageComposable(message: ChatMessage, backgroundColor: Color, textColo
                                 )
 
                                 // Display main text content with inline attachments
-                                MarkdownTextComposable(text = textContent, textColor = textColor)
+                                Text(text = textContent, color = textColor,style = MaterialTheme.typography.bodyMedium)
                         }
                 }
         }
