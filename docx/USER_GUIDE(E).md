@@ -16,8 +16,8 @@
 
 <h2 id="table-of-contents">📖 Table of Contents</h2>
 
-- [Introduction](#introduction)
-- [Basic Walkthrough](#basic-walkthrough)
+- [✨ Introduction](#introduction)
+- [🗺️ Basic Walkthrough](#basic-walkthrough)
   - [First Use/Trial](#first-use)
   - [How to Package a Web App Created by AI](#package-web-app)
   - [How to Configure Your Own API/Other Models](#api-configuration)
@@ -28,16 +28,19 @@
     - [Enabling Packages](#enabling-packages)
     - [One-Click Environment Configuration](#environment-configuration)
     - [MCP Configuration Flow](#mcp-configuration)
-- [Advanced Usage in Practice](#advanced-usage-in-practice)
-  - [Out-of-the-Box](#out-of-the-box)
-  - [Extension Packages](#extension-packages)
-  - [Core Tools](#core-tools)
-  - [MCP Market](#mcp-market)
-- [Frequently Asked Questions (FAQ)](#faq)
+- [🚀 Advanced Usage in Practice](#advanced-usage)
+  - [🧰 Out-of-the-Box](#out-of-the-box)
+  - [📦 Extension Packages](#extension-packages)
+  - [🛠️ Core Tools](#core-tools)
+  - [🛒 MCP Market](#mcp-market)
+    - [How MCPs Work](#mcp-work-mechanism)
+    - [MCP Download and Deployment](#mcp-deployment)
+    - [MCP Common Issues](#mcp-config-issues)
+- [❔ FAQ](#faq)
   - [MCP Troubleshooting](#mcp-troubleshooting)
-- [Join Us](#join-us)
-- [Wishlist](#wishlist)
-- [Reminiscence (Older Version FAQ)](#reminiscence)
+- [🎉 Join Us](#join-us)
+- [💡 Wishlist](#wishlist)
+- [📜 Reminiscence (Older Version FAQ)](#reminiscence)
 
 ---
 
@@ -51,10 +54,10 @@ Welcome to **Operit AI**! This guide is designed to help you get started quickly
 
 <h2 id="basic-walkthrough" style="display: flex; justify-content: space-between; align-items: center;"><span>🗺️ Basic Walkthrough</span><a href="#table-of-contents" style="text-decoration: none; font-size: 0.8em;" title="Back to Top">🔝</a></h2>
 
-<h3 id="first-use">First Use/Trial</h3>
+<h3 id="first-use" style="display: flex; justify-content: space-between; align-items: center;"><span>First Use/Trial</span><a href="#basic-walkthrough" style="text-decoration: none; font-size: 0.8em;" title="Back to Parent">↩️</a></h3>
 
 When using Operit AI for the first time, you'll need to perform a simple setup to grant the necessary permissions to unlock its full functionality. Here are the detailed steps:
->Demonstration version `1.1.5`. Later versions will have a 'Skip' button in the top right corner.
+ >Demonstration version `1.1.5`. Later versions will have a 'Skip' button in the top right corner.
 
 <table style="width: 100%;">
   <thead>
@@ -120,19 +123,15 @@ When using Operit AI for the first time, you'll need to perform a simple setup t
   </tbody>
 </table>
 
-<h3 id="package-web-app">How to Package a Web App Created by AI</h3>
+<h3 id="package-web-app" style="display: flex; justify-content: space-between; align-items: center;"><span>How to Package a Web App Created by AI</span><a href="#basic-walkthrough" style="text-decoration: none; font-size: 0.8em;" title="Back to Parent">↩️</a></h3>
 <em>The following steps demonstrate how to package a web application developed by the AI. (Click images to enlarge)</em>
 <br>
 <table style="width: 100%;">
-  <thead>
-    <tr>
-      <th style="text-align: center; padding: 8px;">Step 1: Go to the Packaging Page</th>
-      <th style="text-align: center; padding: 8px;">Step 2: Start Packaging</th>
-      <th style="text-align: center; padding: 8px;">Step 3: Set Application Information</th>
-      <th style="text-align: center; padding: 8px;">Step 4: Download or Share</th>
-    </tr>
-  </thead>
   <tbody>
+    <tr>
+      <td style="text-align: center; padding: 8px; width: 50%;">Step 1: Go to the Packaging Page</td>
+      <td style="text-align: center; padding: 8px; width: 50%;">Step 2: Start Packaging</td>
+    </tr>
     <tr>
       <td style="text-align: center; padding: 8px; vertical-align: top;">
         <a href="assets/teach_step/1-1.png" target="_blank" rel="noopener noreferrer">
@@ -144,6 +143,12 @@ When using Operit AI for the first time, you'll need to perform a simple setup t
           <img src="assets/teach_step/1-2.png" alt="Start Packaging" style="max-height: 280px; max-width: 100%; height: auto;">
         </a>
       </td>
+    </tr>
+    <tr>
+      <td style="text-align: center; padding: 8px;">Step 3: Set Application Information</td>
+      <td style="text-align: center; padding: 8px;">Step 4: Download or Share</td>
+    </tr>
+    <tr>
       <td style="text-align: center; padding: 8px; vertical-align: top;">
         <a href="assets/teach_step/1-3.jpg" target="_blank" rel="noopener noreferrer">
           <img src="assets/teach_step/1-3.jpg" alt="Set Information" style="max-height: 280px; max-width: 100%; height: auto;">
@@ -159,23 +164,25 @@ When using Operit AI for the first time, you'll need to perform a simple setup t
 </table>
 <br>
 
-<h3 id="api-configuration">How to Configure Your Own API/Other Models</h3>
+<h3 id="api-configuration" style="display: flex; justify-content: space-between; align-items: center;"><span>How to Configure Your Own API/Other Models</span><a href="#basic-walkthrough" style="text-decoration: none; font-size: 0.8em;" title="Back to Parent">↩️</a></h3>
 
-<h4 id="deepseek-api">Configure Your Own DeepSeek API</h4>
+<h4 id="deepseek-api" style="display: flex; justify-content: space-between; align-items: center;"><span>Configure Your Own DeepSeek API</span><a href="#api-configuration" style="text-decoration: none; font-size: 0.8em;" title="Back to Parent">⤴️</a></h4>
 <em>Follow these steps to easily configure the DeepSeek API for use in Operit AI.</em>
 <p>If you want to configure your own API (instead of using the default one provided in the app), you can follow this process:</p>
-<h5>Step 1: Log in/Register on the DeepSeek Open Platform</h5>
-<p>
-  First, you need to visit the DeepSeek Open Platform and log in to your account. We have embedded the DeepSeek open platform within the software. If this is your first time, you will need to register.
-</p>
-<div style="display: flex; justify-content: space-around; gap: 10px; flex-wrap: nowrap;">
-    <a href="assets/deepseek_API_step/1.png" target="_blank" rel="noopener noreferrer"><img src="assets/deepseek_API_step/1.png" alt="DeepSeek Website" style="width: 100%; height: auto; border: 1px solid #ddd; border-radius: 4px;"></a>
-    <a href="assets/deepseek_API_step/2.png" target="_blank" rel="noopener noreferrer"><img src="assets/deepseek_API_step/2.png" alt="Login Page" style="width: 100%; height: auto; border: 1px solid #ddd; border-radius: 4px;"></a>
-    <a href="assets/deepseek_API_step/3.png" target="_blank" rel="noopener noreferrer"><img src="assets/deepseek_API_step/3.png" alt="Console" style="width: 100%; height: auto; border: 1px solid #ddd; border-radius: 4px;"></a>
-</div>
 
 <table style="width: 100%;">
   <tbody>
+    <tr>
+      <td colspan="3" style="padding-bottom: 8px;">
+        <h5>Step 1: Log in/Register on the DeepSeek Open Platform</h5>
+        <p>First, you need to visit the DeepSeek Open Platform and log in to your account. We have embedded the DeepSeek open platform within the software. If this is your first time, you will need to register.</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="text-align: center; padding: 8px; vertical-align: top; width: 33%;"><a href="assets/deepseek_API_step/1.png" target="_blank" rel="noopener noreferrer"><img src="assets/deepseek_API_step/1.png" alt="DeepSeek Website" style="max-height: 200px; height: auto; border: 1px solid #ddd; border-radius: 4px;"></a></td>
+      <td style="text-align: center; padding: 8px; vertical-align: top; width: 33%;"><a href="assets/deepseek_API_step/2.png" target="_blank" rel="noopener noreferrer"><img src="assets/deepseek_API_step/2.png" alt="Login Page" style="max-height: 200px; height: auto; border: 1px solid #ddd; border-radius: 4px;"></a></td>
+      <td style="text-align: center; padding: 8px; vertical-align: top; width: 33%;"><a href="assets/deepseek_API_step/3.png" target="_blank" rel="noopener noreferrer"><img src="assets/deepseek_API_step/3.png" alt="Console" style="max-height: 200px; height: auto; border: 1px solid #ddd; border-radius: 4px;"></a></td>
+    </tr>
     <tr>
       <td style="vertical-align: top; padding: 8px; width: 33%;">
         <h5>Step 2: Add Credits</h5>
@@ -206,18 +213,14 @@ When using Operit AI for the first time, you'll need to perform a simple setup t
 
 <p>We support most models, including Gemini. If there are newer models we don't support yet, please let us know!</p>
 
-<h4 id="switch-models">Switch to Other AI Models</h4>
+<h4 id="switch-models" style="display: flex; justify-content: space-between; align-items: center;"><span>Switch to Other AI Models</span><a href="#api-configuration" style="text-decoration: none; font-size: 0.8em;" title="Back to Parent">⤴️</a></h4>
 <p>You can switch and configure your desired AI model by following these steps:</p>
 <table style="width: 100%;">
-  <thead>
-    <tr>
-      <th style="text-align: center; padding: 8px;">Step 1: Go to Settings</th>
-      <th style="text-align: center; padding: 8px;">Step 2: Select AI Model Configuration</th>
-      <th style="text-align: center; padding: 8px;">Step 3: Model & Parameter Configuration</th>
-      <th style="text-align: center; padding: 8px;">Step 4: Choose Your Model</th>
-    </tr>
-  </thead>
   <tbody>
+    <tr>
+      <td style="text-align: center; padding: 8px; width: 50%;">Step 1: Go to Settings</td>
+      <td style="text-align: center; padding: 8px; width: 50%;">Step 2: Select AI Model Configuration</td>
+    </tr>
     <tr>
       <td style="text-align: center; padding: 8px; vertical-align: top;">
         <a href="assets/model/1.jpg" target="_blank" rel="noopener noreferrer">
@@ -229,6 +232,12 @@ When using Operit AI for the first time, you'll need to perform a simple setup t
           <img src="assets/model/2.jpg" alt="Step 2" style="height: 280px; width: auto; max-width: 100%;">
         </a>
       </td>
+    </tr>
+    <tr>
+      <td style="text-align: center; padding: 8px;">Step 3: Model & Parameter Configuration</td>
+      <td style="text-align: center; padding: 8px;">Step 4: Choose Your Model</td>
+    </tr>
+    <tr>
       <td style="text-align: center; padding: 8px; vertical-align: top;">
         <a href="assets/model/3.jpg" target="_blank" rel="noopener noreferrer">
           <img src="assets/model/3.jpg" alt="Step 3" style="height: 280px; width: auto; max-width: 100%;">
@@ -243,14 +252,14 @@ When using Operit AI for the first time, you'll need to perform a simple setup t
   </tbody>
 </table>
 
-<h3 id="shizuku-authorization">Shizuku Authorization Flow</h3>
+<h3 id="shizuku-authorization" style="display: flex; justify-content: space-between; align-items: center;"><span>Shizuku Authorization Flow</span><a href="#basic-walkthrough" style="text-decoration: none; font-size: 0.8em;" title="Back to Parent">↩️</a></h3>
 <p>After completing the Shizuku configuration, all built-in packages (except <code>coderunner</code>) can be used.</p>
 
-<h3 id="package-management">Package Management and MCP Usage</h3>
+<h3 id="package-management" style="display: flex; justify-content: space-between; align-items: center;"><span>Package Management and MCP Usage</span><a href="#basic-walkthrough" style="text-decoration: none; font-size: 0.8em;" title="Back to Parent">↩️</a></h3>
 <p>Built-in packages (except <code>coderunner</code>) work out of the box. Other extension packages and MCPs depend on the Termux environment. Please ensure Termux is running in the background before use.</p>
 
-<h4 id="enabling-packages">Enabling Packages</h4>
-<table style="width: 100%;">
+<h4 id="enabling-packages" style="display: flex; justify-content: space-between; align-items: center;"><span>Enabling Packages</span><a href="#package-management" style="text-decoration: none; font-size: 0.8em;" title="Back to Parent">⤴️</a></h4>
+<table style="width: 100%; border-collapse: separate; border-spacing: 0 1em;">
     <thead>
       <tr>
        <th style="text-align: center; padding: 8px;">Step 1: Go to Package Management</th>
@@ -270,57 +279,48 @@ When using Operit AI for the first time, you'll need to perform a simple setup t
    </tbody>
 </table>
 
-<h4 id="environment-configuration">One-Click Environment Configuration</h4>
-<table style="width: 100%;">
-  <thead>
-    <tr>
-      <th style="width: 25%; text-align: left;">Step</th>
-      <th style="width: 25%; text-align: left;">Explanation & Action</th>
-      <th style="width: 50%; text-align: left;">Screenshot</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td style="vertical-align: top;"><strong>Step 1: Go to Toolbox</strong></td>
-      <td style="vertical-align: top; padding-right: 15px;">Find and tap the "Toolbox" entry on the main screen or in settings.</td>
-      <td style="vertical-align: top;">
-        <a href="assets/package_or_MCP/3.jpg" target="_blank" rel="noopener noreferrer">
-          <img src="assets/package_or_MCP/3.jpg" alt="Environment Config 1" style="width: 100%; height: auto;">
-        </a>
-      </td>
-    </tr>
-    <tr>
-      <td style="vertical-align: top;"><strong>Step 2: Select Auto-configure Terminal</strong></td>
-      <td style="vertical-align: top; padding-right: 15px;">In the Toolbox, find and select the "Auto-configure Terminal" feature to begin the automated setup.</td>
-      <td style="vertical-align: top;">
-        <a href="assets/package_or_MCP/4.jpg" target="_blank" rel="noopener noreferrer">
-          <img src="assets/package_or_MCP/4.jpg" alt="Environment Config 2" style="width: 100%; height: auto;">
-        </a>
-      </td>
-    </tr>
-    <tr>
-      <td style="vertical-align: top;"><strong>Step 3: Start Configuration</strong></td>
-      <td style="vertical-align: top; padding-right: 15px;">Click the "Start Configuration" button, and the system will automatically install and configure the required environment.</td>
-      <td style="vertical-align: top;">
-        <a href="assets/package_or_MCP/5.jpg" target="_blank" rel="noopener noreferrer">
-          <img src="assets/package_or_MCP/5.jpg" alt="Environment Config 3" style="width: 100%; height: auto;">
-        </a>
-      </td>
-    </tr>
-  </tbody>
+<h4 id="environment-configuration" style="display: flex; justify-content: space-between; align-items: center;"><span>One-Click Environment Configuration</span><a href="#package-management" style="text-decoration: none; font-size: 0.8em;" title="Back to Parent">⤴️</a></h4>
+<table border="0" style="width:100%; border-collapse: collapse; text-align: center;">
+  <tr style="vertical-align: top;">
+    <td style="padding: 5px; width: 33%;">
+      <strong>Step 1: Go to Toolbox</strong><br>
+      Find and tap the "Toolbox" entry on the main screen or in settings.
+    </td>
+    <td style="padding: 5px; width: 33%;">
+      <strong>Step 2: Select Auto-configure Terminal</strong><br>
+      In the Toolbox, find and select the "Auto-configure Terminal" feature to begin the automated setup.
+    </td>
+    <td style="padding: 5px; width: 33%;">
+      <strong>Step 3: Start Configuration</strong><br>
+      Click the "Start Configuration" button, and the system will automatically install and configure the required environment.
+    </td>
+  </tr>
+  <tr>
+    <td style="padding: 5px;">
+      <a href="assets/package_or_MCP/3.jpg" target="_blank" rel="noopener noreferrer">
+        <img src="assets/package_or_MCP/3.jpg" alt="Environment Config 1" style="width: 100%; max-width: 200px; height: auto;">
+      </a>
+    </td>
+    <td style="padding: 5px;">
+      <a href="assets/package_or_MCP/4.jpg" target="_blank" rel="noopener noreferrer">
+        <img src="assets/package_or_MCP/4.jpg" alt="Environment Config 2" style="width: 100%; max-width: 200px; height: auto;">
+      </a>
+    </td>
+    <td style="padding: 5px;">
+      <a href="assets/package_or_MCP/5.jpg" target="_blank" rel="noopener noreferrer">
+        <img src="assets/package_or_MCP/5.jpg" alt="Environment Config 3" style="width: 100%; max-width: 200px; height: auto;">
+      </a>
+    </td>
+  </tr>
 </table>
 
-<h4 id="mcp-configuration">MCP Configuration Flow</h4>
+<h4 id="mcp-configuration" style="display: flex; justify-content: space-between; align-items: center;"><span>MCP Configuration Flow</span><a href="#package-management" style="text-decoration: none; font-size: 0.8em;" title="Back to Parent">⤴️</a></h4>
 <table style="width: 100%;">
-  <thead>
-    <tr>
-      <th style="text-align: center; padding: 8px;">Step 1: Go to MCP Market</th>
-      <th style="text-align: center; padding: 8px;">Step 2: Click the Refresh Button</th>
-      <th style="text-align: center; padding: 8px;">Step 3: Wait for Loading to Complete</th>
-      <th style="text-align: center; padding: 8px;">Step 4: Select and Use an MCP</th>
-    </tr>
-  </thead>
   <tbody>
+    <tr>
+      <td style="text-align: center; padding: 8px; width: 50%;">Step 1: Go to MCP Market</td>
+      <td style="text-align: center; padding: 8px; width: 50%;">Step 2: Click the Refresh Button</td>
+    </tr>
     <tr>
       <td style="text-align: center; padding: 8px; vertical-align: top;">
         <a href="assets/package_or_MCP/7.jpg" target="_blank" rel="noopener noreferrer">
@@ -332,6 +332,12 @@ When using Operit AI for the first time, you'll need to perform a simple setup t
           <img src="assets/package_or_MCP/8.jpg" alt="MCP Config 2" style="height: 280px; width: auto; max-width: 100%;">
         </a>
       </td>
+    </tr>
+    <tr>
+      <td style="text-align: center; padding: 8px;">Step 3: Wait for Loading to Complete</td>
+      <td style="text-align: center; padding: 8px;">Step 4: Select and Use an MCP</td>
+    </tr>
+    <tr>
       <td style="text-align: center; padding: 8px; vertical-align: top;">
         <a href="assets/package_or_MCP/9.jpg" target="_blank" rel="noopener noreferrer">
           <img src="assets/package_or_MCP/9.jpg" alt="MCP Config 3" style="height: 280px; width: auto; max-width: 100%;">
@@ -346,13 +352,15 @@ When using Operit AI for the first time, you'll need to perform a simple setup t
   </tbody>
 </table>
 
+<p align="right"><i>Want to dive deeper into how MCPs work, including deployment and troubleshooting? <a href="#mcp-market">Read more about the MCP Market</a>...</i></p>
+
 <div STYLE="page-break-after: always;"></div>
 
-<h2 id="advanced-usage-in-practice" style="display: flex; justify-content: space-between; align-items: center;"><span>🚀 Advanced Usage in Practice</span><a href="#table-of-contents" style="text-decoration: none; font-size: 0.8em;" title="Back to Top">🔝</a></h2>
+<h2 id="advanced-usage" style="display: flex; justify-content: space-between; align-items: center;"><span>🚀 Advanced Usage in Practice</span><a href="#table-of-contents" style="text-decoration: none; font-size: 0.8em;" title="Back to Top">🔝</a></h2>
 
 *(This section will show you how to use advanced features like extension packages and plan mode to complete more complex tasks through practical examples.)*
 
-<h3 id="out-of-the-box">🧰 Out-of-the-Box</h3>
+<h3 id="out-of-the-box" style="display: flex; justify-content: space-between; align-items: center;"><span>🧰 Out-of-the-Box</span><a href="#advanced-usage" style="text-decoration: none; font-size: 0.8em;" title="Back to Parent">↩️</a></h3>
 <em>This part covers the <strong>built-in packages</strong>.</em>
 <br>
 When you ask the AI to write software, the performance of the software depends on the AI's capabilities. The model in the example is <code>Deepseel-R1</code>.
@@ -422,7 +430,8 @@ When you ask the AI to write software, the performance of the software depends o
   </tbody>
 </table>
 
-<h3 id="extension-packages">📦 Extension Packages</h3>
+<h3 id="extension-packages" style="display: flex; justify-content: space-between; align-items: center;"><span>📦 Extension Packages</span><a href="#advanced-usage" style="text-decoration: none; font-size: 0.8em;" title="Back to Parent">↩️</a></h3>
+
 >Demonstration version `1.1.6`
 (Click images to enlarge)
 
@@ -522,8 +531,7 @@ When you ask the AI to write software, the performance of the software depends o
   </tbody>
 </table>
 
-
-<h3 id="core-tools">🛠️ Core Tools</h3>
+<h3 id="core-tools" style="display: flex; justify-content: space-between; align-items: center;"><span>🛠️ Core Tools</span><a href="#advanced-usage" style="text-decoration: none; font-size: 0.8em;" title="Back to Parent">↩️</a></h3>
 
 | Tool | Description |
 |---|---|
@@ -563,15 +571,15 @@ When you ask the AI to write software, the performance of the software depends o
 | `ffmpeg_info` | Gets FFmpeg information. |
 | `ffmpeg_convert` | Converts a video file. |
 
-<h3 id="mcp-market">🛒 MCP Market</h3>
+<h3 id="mcp-market" style="display: flex; justify-content: space-between; align-items: center;"><span>🛒 MCP Market</span><a href="#advanced-usage" style="text-decoration: none; font-size: 0.8em;" title="Back to Parent">↩️</a></h3>
 
 > Considering the specifics of the mobile environment, it is quite challenging to fully and stably configure the environments required for all MCPs (Model context protocol). Therefore, calling MCPs directly may encounter many difficulties.
->
-> Currently, the MCPs confirmed to be available in the app are mainly `12306` and `fetch`. However, it should be noted that the search effectiveness and stability of `fetch` are not as good as our deeply optimized `various_search` extension package.
->
+> 
+> Currently, the main MCP confirmed to be available in the app is `12306`.
+> 
 > To provide a smoother and more reliable experience, we have remade and integrated the functionality of many core MCPs into the built-in tools and extension packages in a way that is more suitable for the Android system. We strongly recommend that you prioritize using these optimized features.
 
-> Below are some MCPs currently tested and available by the community:
+> Below are some MCPs currently tested and available by the community: (awaiting updates from testers)
 
 (Click images to enlarge)
 
@@ -601,16 +609,85 @@ When you ask the AI to write software, the performance of the software depends o
         Used to query 12306 train ticket information.
       </td>
     </tr>
+  </tbody>
+</table>
+
+<table style="width: 100%; margin-top: 1em;">
+  <thead>
     <tr>
-      <td style="vertical-align: top;"><code>fetch</code></td>
-      <td style="vertical-align: top;" colspan="2">
-        A general-purpose tool for fetching web content. <em>Note: Its search effectiveness and stability are inferior to the deeply optimized <code>various_search</code> extension package.</em>
+      <th colspan="2" style="text-align: left; padding: 12px;">
+        <h4 id="mcp-work-mechanism" style="margin: 0; display: flex; justify-content: space-between; align-items: center;">
+          <span>How MCPs Work</span>
+          <a href="#mcp-market" style="text-decoration: none; font-size: 0.8em;" title="Back to Parent">⤴️</a>
+        </h4>
+      </th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="width: 30%; padding: 12px; vertical-align: top;">
+        Our MCP server runs locally via Termux and interacts with the application. The MCP attempts to start when the software is opened, with the startup command determined by the <code>arg</code> parameter and <code>env</code> environment variables in each plugin's configuration.
+      </td>
+      <td style="width: 60%; padding: 12px; vertical-align: top; text-align: center;">
+        <img src="assets/41ebc2ec5278bd28e8361e3eb72128d.jpg" alt="MCP configuration example" style="width: 100%; max-width: 400px; height: auto; border-radius: 4px;">
       </td>
     </tr>
   </tbody>
 </table>
 
-### ⏳ Plan Mode
+<h4 id="mcp-deployment" style="display: flex; justify-content: space-between; align-items: center;"><span>MCP Download and Deployment</span><a href="#mcp-market" style="text-decoration: none; font-size: 0.8em;" title="Back to Parent">⤴️</a></h4>
+<p>Due to the specific environment and the often messy state of the MCP ecosystem with inconsistent README documentation, we have added a mechanism to automatically match package structures. We currently support recognizing packages written in both Node.js and Python.</p>
+<p>When downloading an MCP, the app directly fetches the repository's ZIP archive, saves it to the <code>Download/Operit/</code> directory, and modifies a JSON file to add its ID. If needed, you can also import custom MCPs within the app or manually place files into this directory.</p>
+<h5>Deployment Mechanism</h5>
+<p>We will automatically generate execution commands for both types of project structures during deployment.</p>
+<table style="width: 100%; margin-top: 1em;">
+  <thead>
+    <tr>
+      <th style="width: 50%; padding: 12px; text-align: left;">Python Packages</th>
+      <th style="width: 50%; padding: 12px; text-align: left;">Node.js Packages</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="padding: 12px; vertical-align: top;">
+        For Python packages, we first try to install dependencies using <code>pip</code> and then automatically generate a startup command configuration. You can view and modify this via "Custom Deploy Command" during deployment.
+      </td>
+      <td style="padding: 12px; vertical-align: top;">
+        For Node.js packages, we first try to switch the registry, then use <code>npm</code> or <code>pnpm</code> to download dependencies. If the project is written in TypeScript, we attempt to compile it; if it's JavaScript, we try to get the entry file directly. Finally, the system generates a configuration, and the startup command will point to the entry file or the compiled file.
+      </td>
+    </tr>
+  </tbody>
+</table>
+<blockquote>The two recognition modes above are generic for many packages. Of course, there will always be exceptions.</blockquote>
+<blockquote><b>Note:</b> Before deployment and startup, the package files are copied into Termux for operations. This means only the original downloaded ZIP archive is stored in the external <code>Download</code> path.</blockquote>
+
+<h4 id="mcp-config-issues" style="display: flex; justify-content: space-between; align-items: center;"><span>MCP Common Issues</span><a href="#mcp-market" style="text-decoration: none; font-size: 0.8em;" title="Back to Parent">⤴️</a></h4>
+<table style="width: 100%; border-collapse: separate; border-spacing: 0 1em;">
+  <tbody>
+    <tr>
+      <td style="width: 30%; vertical-align: middle; padding-right: 15px;">Some plugins require a key, which must be added manually. As shown, please add the key to the startup environment variables according to the README, or an error will occur.</td>
+      <td style="width: 60%; vertical-align: middle;"><img src="assets/package_or_MCP/7b8ec8ba567c3c670d6a063121614fe.jpg" alt="Configure key" style="width: 100%; height: auto; border-radius: 4px;"></td>
+    </tr>
+    <tr>
+      <td style="width: 30%; vertical-align: middle; padding-right: 15px;">The deployment status of a plugin can be checked by manually entering Termux as follows. Here, the build folder contains the auto-compiled results from deployment, including the file path needed for startup.</td>
+      <td style="width: 60%; vertical-align: middle;"><img src="assets/package_or_MCP/401cda27abf79b9d0311816947b1bdd.jpg" alt="Check deployment" style="width: 100%; height: auto; border-radius: 4px;"></td>
+    </tr>
+    <tr>
+      <td style="width: 30%; vertical-align: middle; padding-right: 15px;">You can try running it to correct your startup command (in the image, startup fails due to a missing key).</td>
+      <td style="width: 60%; vertical-align: middle;"><img src="assets/package_or_MCP/0946d845d9adad20bbd039a93d1196f.jpg" alt="Correct startup command" style="width: 100%; height: auto; border-radius: 4px;"></td>
+    </tr>
+  </tbody>
+</table>
+
+<div style="background-color: #fffbe6; border-left: 4px solid #ffc107; padding: 12px 16px; margin: 1em 0;">
+  <p style="margin: 0; padding: 0;"><strong>Note:</strong> Some packages include a Dockerfile, but we do not support Docker. Please ignore it.</p>
+</div>
+
+<div style="background-color: #fffbe6; border-left: 4px solid #ffc107; padding: 12px 16px; margin: 1em 0;">
+  <p style="margin: 0; padding: 0;"><strong>Note:</strong> Our Termux environment is Linux. Some Windows-only packages that require running an .exe, like Playwright, are not supported.</p>
+</div>
+
+<h3 id="plan-mode" style="display: flex; justify-content: space-between; align-items: center;"><span>⏳ Plan Mode</span><a href="#advanced-usage" style="text-decoration: none; font-size: 0.8em;" title="Back to Parent">↩️</a></h3>
 No longer exists in version `1.1.6` and later.
 
 Suitable for long-running AI tasks, but the difference from not using plan mode is not significant (and the effect might even be better without it). It will be removed in a future version and replaced with `Task Mode`.
@@ -621,12 +698,12 @@ Suitable for long-running AI tasks, but the difference from not using plan mode 
 
 <div STYLE="page-break-after: always;"></div>
 
-<h2 id="faq" style="display: flex; justify-content: space-between; align-items: center;"><span>❔ Frequently Asked Questions (FAQ)</span><a href="#table-of-contents" style="text-decoration: none; font-size: 0.8em;" title="Back to Top">🔝</a></h2>
+<h2 id="faq" style="display: flex; justify-content: space-between; align-items: center;"><span>❔ FAQ</span><a href="#table-of-contents" style="text-decoration: none; font-size: 0.8em;" title="Back to Top">🔝</a></h2>
 
 This section contains all the questions from the user group and issues for the **latest version `1.1.6`**.
 If you are using an older version, you can look for answers <a href="#reminiscence">here</a>.
 
-<h3 id="mcp-troubleshooting">MCP Troubleshooting</h3>
+<h3 id="mcp-troubleshooting" style="display: flex; justify-content: space-between; align-items: center;"><span>MCP Troubleshooting</span><a href="#faq" style="text-decoration: none; font-size: 0.8em;" title="Back to Parent">↩️</a></h3>
 
 **Possible Reasons for MCP Packages Not Loading**
 - **Shizuku not configured correctly**: Please refer to the <a href="#shizuku-authorization">Shizuku Authorization Flow</a> to complete the configuration.
@@ -634,7 +711,7 @@ If you are using an older version, you can look for answers <a href="#reminiscen
 - **Termux not running in the background**: Before starting the app, be sure to open Termux and keep it running in the background.
 
 **Reasons for MCP Execution Failure**
-- **Environment configuration issues**: Some MCP plugins have special requirements for the operating environment. You need to visit the respective plugin's GitHub repository and configure the environment according to its documentation.
+- **Environment configuration issues**: Some MCP plugins have special requirements for the operating environment. You need to visit the respective plugin's GitHub repository and configure the environment according to its documentation. For more information on configuration, please refer to the detailed explanation in the <a href="#mcp-market">MCP Market</a> section.
 - **Version compatibility issues**: Most problems from earlier versions have been resolved in subsequent updates. We strongly recommend downloading and installing the latest version for the best experience.
 
 You can download the latest APK from the [Release page](https://github.com/AAswordman/Operit/releases).
@@ -644,15 +721,19 @@ You can download the latest APK from the [Release page](https://github.com/AAswo
 
 We sincerely invite you to join our community to exchange ideas with other users, share your creativity, or give us valuable suggestions.
 
-Currently, we recommend interacting with the creator and other users in the <a href="https://github.com/AAswordman/Operit/discussions" target="_blank" rel="noopener noreferrer"><strong>GitHub Discussions</strong></a> section, as there is no single community group suitable for all regions. If you are a Chinese-speaking user, you are welcome to join our QQ group mentioned in the Chinese guide.
+**Welcome to our user QQ group!**
+
+<div style="background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 12px; padding: 16px; margin-top: 1.5em; max-width: 400px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <div style="font-size: 1.1em; font-weight: 600; color: #495057; margin-bottom: 12px;">Operit AI User Community</div>
+  <div style="display: flex; justify-content: space-between; align-items: center; gap: 15px;">
+    <span style="font-family: 'Courier New', Courier, monospace; font-size: 1.6em; font-weight: bold; color: #007bff; letter-spacing: 1px; word-break: break-all;">458862019</span>
+    <button style="background-color: #28a745; color: white; border: none; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-size: 1em; font-weight: 500; white-space: nowrap;" onclick="try { var btn = this; var originalText = btn.innerText; navigator.clipboard.writeText('458862019').then(function() { btn.innerText = 'Copied!'; setTimeout(function() { btn.innerText = originalText; }, 2000); }); } catch (err) { alert('Copy failed, please copy manually.'); }">Copy</button>
+  </div>
+</div>
 
 <div STYLE="page-break-after: always;"></div>
 
 <h2 id="wishlist" style="display: flex; justify-content: space-between; align-items: center;"><span>💡 Wishlist</span><a href="#table-of-contents" style="text-decoration: none; font-size: 0.8em;" title="Back to Top">🔝</a></h2>
-
-Have a great idea or feature suggestion? We encourage you to share it in our <a href="https://github.com/AAswordman/Operit/discussions" target="_blank" rel="noopener noreferrer"><strong>GitHub Discussions</strong></a>! You can also check out our future update plans—the feature you're hoping for might already be on its way!
-
-### 🚀 Future Update Plan
 
 Here are the features we are planning or currently developing:
 
@@ -663,25 +744,28 @@ Here are the features we are planning or currently developing:
   - Implement a more beautiful, modern, and friendly user interface.
   - Support for multiple languages to allow global users to use it without barriers.
 - **Community and Ecosystem**:
-  - We will take every suggestion from the community (like Issues and <a href="https://github.com/AAswordman/Operit/discussions" target="_blank" rel="noopener noreferrer">GitHub Discussions</a>) seriously and strive to make them a reality.
+  - We will take every suggestion from the community (like Issues, QQ group) seriously and strive to make them a reality.
   - Promote! Promote! Promote! Let more people know about and use Operit AI.
 
+Have a great idea or feature suggestion? Besides raising it in the QQ group, you can also follow our future update plans—the feature you're hoping for might already be on its way!
 
 <div STYLE="page-break-after: always;"></div>
 
 <h2 id="reminiscence" style="display: flex; justify-content: space-between; align-items: center;"><span>📜 Reminiscence (Older Version FAQ)</span><a href="#table-of-contents" style="text-decoration: none; font-size: 0.8em;" title="Back to Top">🔝</a></h2>
 
-#### Version `1.1.5`
+<h3 id="version-1-1-5" style="display: flex; justify-content: space-between; align-items: center;"><span>Version <code>1.1.5</code></span><a href="#reminiscence" style="text-decoration: none; font-size: 0.8em;" title="Back to Parent">↩️</a></h3>
+
 *(Related issues)*
 
+<h3 id="before-1-1-3" style="display: flex; justify-content: space-between; align-items: center;"><span>Before <code>1.1.3</code></span><a href="#reminiscence" style="text-decoration: none; font-size: 0.8em;" title="Back to Parent">↩️</a></h3>
 
-#### Before `1.1.3`
 *(Related issues)*
-##### Gemini format not adapted
+<h4 id="gemini-format-not-adapted" style="display: flex; justify-content: space-between; align-items: center;"><span>Gemini format not adapted</span><a href="#before-1-1-3" style="text-decoration: none; font-size: 0.8em;" title="Back to Parent">⤴️</a></h4>
 This has been resolved in the new version, with support for more models.
-##### Termux
-###### Type 1: Incorrect Termux version
-###### Type 2: MCP packages not loading
+<h4 id="termux" style="display: flex; justify-content: space-between; align-items: center;"><span>Termux</span><a href="#before-1-1-3" style="text-decoration: none; font-size: 0.8em;" title="Back to Parent">⤴️</a></h4>
+
+##### Type 1: Incorrect Termux version
+##### Type 2: MCP packages not loading
 It is recommended to keep Termux running in the background when the app is running.
 
-Future versions will address these issues by embedding Termux. 
+Future versions will address these issues by embedding Termux.
