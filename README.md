@@ -115,6 +115,14 @@ Operit AI 提供丰富的插件生态，配合内置工具可实现从日常生�
 
 **查看我们的 [开源共创指南](docx/CONTRIBUTING.md)** 了解如何参与项目开发。
 
+## 💖 贡献者
+
+感谢所有为 Operit AI 做出贡献的人！
+
+<a href="https://github.com/AAswordman/Operit/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=AAswordman/Operit" />
+</a>
+
 ## 📝 问题反馈 (Issues)
 
 如果您在使用过程中遇到问题或有新功能建议，我们欢迎您提交Issue！
