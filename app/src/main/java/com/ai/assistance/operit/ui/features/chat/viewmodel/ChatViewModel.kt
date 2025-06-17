@@ -167,8 +167,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                         context = context,
                         viewModelScope = viewModelScope,
                         onChatHistoryLoaded = { messages: List<ChatMessage> ->
-                            // We'll update floating window messages after it's initialized
-                            if (::floatingWindowDelegate.isInitialized) {
+                            if (::floatingWindowDelegate.isInitialized && floatingWindowDelegate.isFloatingMode.value) {
                                 floatingWindowDelegate.updateFloatingWindowMessages(messages)
                             }
                         },
@@ -206,7 +205,10 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                             chatHistoryDelegate.saveCurrentChat(inputTokens, outputTokens)
                         },
                         showErrorMessage = { message -> uiStateDelegate.showErrorMessage(message) },
-                        updateChatTitle = { title -> chatHistoryDelegate.updateChatTitle(title) }
+                        updateChatTitle = { title -> chatHistoryDelegate.updateChatTitle(title) },
+                        onStreamComplete = {
+                            // 流完成后不再需要特殊处理，UI会自动更新
+                        }
                 )
 
         // Finally initialize floating window delegate
@@ -970,7 +972,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         // 通过UIStateDelegate广播一个请求，让Activity处理文件选择
         uiStateDelegate.requestFileChooser(intent)
     }
-    
+
     // 供Activity调用，处理文件选择结果
     fun handleFileChooserResult(resultCode: Int, data: Intent?) {
         fileChooserCallback?.invoke(resultCode, data)

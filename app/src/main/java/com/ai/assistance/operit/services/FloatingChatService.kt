@@ -38,13 +38,18 @@ import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.ui.features.chat.attachments.AttachmentManager
 import com.ai.assistance.operit.ui.floating.FloatingChatWindow
+import com.ai.assistance.operit.util.stream.SharedStream
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 
 class FloatingChatService : Service() {
     private val TAG = "FloatingChatService"
@@ -169,7 +174,17 @@ class FloatingChatService : Service() {
     val attachmentRemoveRequest: SharedFlow<String> = _attachmentRemoveRequest
 
     inner class LocalBinder : Binder() {
+        private var closeCallback: (() -> Unit)? = null
+
         fun getService(): FloatingChatService = this@FloatingChatService
+
+        fun setCloseCallback(callback: () -> Unit) {
+            this.closeCallback = callback
+        }
+
+        fun notifyClose() {
+            closeCallback?.invoke()
+        }
     }
 
     override fun onBind(intent: Intent): IBinder {
@@ -457,37 +472,9 @@ class FloatingChatService : Service() {
                             initialWindowScale = windowScale.value,
                             onClose = {
                                 Log.d(TAG, "Close button clicked, stopping service")
-                                // 发送广播通知主界面更新悬浮窗状态
-                                val intent =
-                                        Intent("com.ai.assistance.operit.FLOATING_WINDOW_CLOSED")
-                                // 设置包名使Intent成为显式Intent
-                                intent.setPackage(packageName)
-                                sendBroadcast(intent)
-
-                                // 延迟200毫秒后关闭
-                                Handler(Looper.getMainLooper())
-                                        .postDelayed(
-                                                {
-                                                    // 先移除视图，再停止服务
-                                                    if (isViewAdded) {
-                                                        try {
-                                                            composeView?.let {
-                                                                windowManager.removeView(it)
-                                                            }
-                                                            isViewAdded = false
-                                                        } catch (e: Exception) {
-                                                            Log.e(
-                                                                    TAG,
-                                                                    "Error removing floating view",
-                                                                    e
-                                                            )
-                                                        }
-                                                    }
-                                                    // 停止服务 不了
-                                                    stopSelf()
-                                                },
-                                                200
-                                        )
+                                // 使用Binder回调来通知关闭
+                                binder.notifyClose()
+                                stopSelf() // 停止服务
                             },
                             onResize = { newWidth, newHeight ->
                                 windowWidth.value = newWidth
@@ -1074,7 +1061,10 @@ class FloatingChatService : Service() {
     }
 
     fun updateChatMessages(messages: List<ChatMessage>) {
-        serviceScope.launch { chatMessages.value = messages }
+        serviceScope.launch {
+            Log.d(TAG, "服务收到消息更新: ${messages.size} 条. 最后一条消息的 stream is null: ${messages.lastOrNull()?.contentStream == null}")
+            chatMessages.value = messages
+        }
     }
 
     // Add a function to send a message from the floating window

@@ -3,6 +3,7 @@ package com.ai.assistance.operit.ui.features.chat.components
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import com.ai.assistance.operit.data.model.ChatMessage
+import com.ai.assistance.operit.util.stream.Stream
 
 /**
  * A composable function that renders chat messages in a Cursor IDE style. Delegates to specialized
@@ -20,7 +21,8 @@ fun CursorStyleChatMessage(
         thinkingBackgroundColor: Color,
         thinkingTextColor: Color,
         supportToolMarkup: Boolean = true,
-        initialThinkingExpanded: Boolean = false
+        initialThinkingExpanded: Boolean = false,
+        overrideStream: Stream<String>? = null
 ) {
     when (message.sender) {
         "user" -> {
@@ -35,6 +37,7 @@ fun CursorStyleChatMessage(
                     message = message,
                     backgroundColor = aiMessageColor,
                     textColor = aiTextColor,
+                    overrideStream = overrideStream
             )
         }
         "system" -> {

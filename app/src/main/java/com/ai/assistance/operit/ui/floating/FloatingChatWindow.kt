@@ -1,28 +1,36 @@
 package com.ai.assistance.operit.ui.floating
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.DisposableEffect
@@ -49,6 +57,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.times
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatMessage
@@ -209,16 +218,14 @@ fun FloatingChatWindow(
                 coroutineScope.launch {
                     cornerRadius.animateTo(
                             100f,
-                                                animationSpec =
-                                                        tween(150, easing = FastOutSlowInEasing)
+                            animationSpec = tween(150, easing = FastOutSlowInEasing)
                     )
                 }
 
                 coroutineScope.launch {
                     ballToWindowTransition.animateTo(
                             0f,
-                                                animationSpec =
-                                                        tween(150, easing = FastOutSlowInEasing)
+                            animationSpec = tween(150, easing = FastOutSlowInEasing)
                     )
                 }
 
@@ -286,8 +293,7 @@ fun FloatingChatWindow(
     val transitionWindowHeight = with(density) { windowHeightState.toPx() }
 
     // 计算过渡中的尺寸
-        val currentWidth =
-                lerp(transitionBallSize, transitionWindowWidth, ballToWindowTransition.value)
+    val currentWidth = lerp(transitionBallSize, transitionWindowWidth, ballToWindowTransition.value)
     val currentHeight =
             lerp(transitionBallSize, transitionWindowHeight, ballToWindowTransition.value)
     // 修改圆角计算，从球模式到窗口模式时直接使用窗口圆角
@@ -385,10 +391,7 @@ fun FloatingChatWindow(
         LaunchedEffect(touchAnimationState.value) {
             if (touchAnimationState.value) {
                 touchAnimationValue.snapTo(0f)
-                                touchAnimationValue.animateTo(
-                                        1f,
-                                        animationSpec = tween(500, easing = EaseOutQuart)
-                                )
+                touchAnimationValue.animateTo(1f, animationSpec = tween(500, easing = EaseOutQuart))
                 touchAnimationState.value = false
             }
         }
@@ -400,8 +403,7 @@ fun FloatingChatWindow(
                         while (true) {
                             val event = awaitPointerEvent()
                             // 检测是否有触摸点在球上
-                                                ballHoverState.value =
-                                                        event.changes.any { it.pressed }
+                            ballHoverState.value = event.changes.any { it.pressed }
 
                             if (event.type == PointerEventType.Press) {
                                 touchAnimationState.value = true
@@ -414,14 +416,12 @@ fun FloatingChatWindow(
                 modifier =
                         Modifier.size(ballSize)
                                 .shadow(
-                                                elevation =
-                                                        if (ballHoverState.value) 6.dp else 4.dp,
+                                        elevation = if (ballHoverState.value) 6.dp else 4.dp,
                                         shape = CircleShape
                                 )
                                 .clip(CircleShape)
                                 .background(
-                                                if (ballHoverState.value)
-                                                        primaryColor.copy(alpha = 0.9f)
+                                        if (ballHoverState.value) primaryColor.copy(alpha = 0.9f)
                                         else primaryColor
                                 )
                                 .alpha(if (isAtEdge) 0.8f else 1f)
@@ -429,19 +429,16 @@ fun FloatingChatWindow(
                                 .graphicsLayer {
                                     // 确保球的缩放不会太小，最小保持0.8倍大小
                                     val effectiveScale = maxOf(windowScale, 0.8f)
-                                                val hoverEffect =
-                                                        if (ballHoverState.value) 1.05f else 1f
+                                    val hoverEffect = if (ballHoverState.value) 1.05f else 1f
                                     scaleX =
                                             effectiveScale *
                                                     (if (isAtEdge) 0.7f else 1f) *
-                                                                (if (!isAtEdge) pulseScale
-                                                                else 1f) *
+                                                    (if (!isAtEdge) pulseScale else 1f) *
                                                     hoverEffect
                                     scaleY =
                                             effectiveScale *
                                                     (if (isAtEdge) 0.7f else 1f) *
-                                                                (if (!isAtEdge) pulseScale
-                                                                else 1f) *
+                                                    (if (!isAtEdge) pulseScale else 1f) *
                                                     hoverEffect
                                     alpha = animatedAlpha.value
                                 }
@@ -451,28 +448,21 @@ fun FloatingChatWindow(
                                                 // 检查点击是否在圆内
                                                 val radius = size.width / 2f
                                                 val center = Offset(radius, radius)
-                                                                val distance =
-                                                                        (offset - center)
-                                                                                .getDistance()
+                                                val distance = (offset - center).getDistance()
 
                                                 // 只有当点击在圆内才处理事件
                                                 if (distance <= radius) {
-                                                                        if (isAtEdge)
-                                                                                snapToEdge(false)
+                                                    if (isAtEdge) snapToEdge(false)
                                                 }
                                             },
                                             onDragEnd = {
                                                 saveWindowState?.invoke()
 
                                                 // 靠边检测
-                                                                val edgeThresholdPx =
-                                                                        with(density) {
-                                                                                20.dp.toPx()
-                                                                        }
+                                                val edgeThresholdPx = with(density) { 20.dp.toPx() }
                                                 if (currentX < edgeThresholdPx ||
                                                                 currentX >
-                                                                                        screenWidth
-                                                                                                .toPx() -
+                                                                        screenWidth.toPx() -
                                                                                 edgeThresholdPx
                                                 ) {
                                                     snapToEdge(true)
@@ -480,10 +470,7 @@ fun FloatingChatWindow(
                                             },
                                             onDrag = { change, dragAmount ->
                                                 change.consume()
-                                                                handleDrag(
-                                                                        dragAmount.x,
-                                                                        dragAmount.y
-                                                                )
+                                                handleDrag(dragAmount.x, dragAmount.y)
                                             }
                                     )
                                 }
@@ -494,16 +481,9 @@ fun FloatingChatWindow(
                     drawCircle(
                             color =
                                     onPrimaryColor.copy(
-                                                                alpha =
-                                                                        0.15f *
-                                                                                (1f -
-                                                                                        transitionFeedback
-                                                                                                .value)
-                                                        ),
-                                                radius =
-                                                        size.minDimension *
-                                                                0.6f *
-                                                                transitionFeedback.value,
+                                            alpha = 0.15f * (1f - transitionFeedback.value)
+                                    ),
+                            radius = size.minDimension * 0.6f * transitionFeedback.value,
                             center = Offset(size.width / 2, size.height / 2)
                     )
                 }
@@ -515,16 +495,9 @@ fun FloatingChatWindow(
                     drawCircle(
                             color =
                                     onPrimaryColor.copy(
-                                                                alpha =
-                                                                        0.2f *
-                                                                                (1f -
-                                                                                        touchAnimationValue
-                                                                                                .value)
-                                                        ),
-                                                radius =
-                                                        size.minDimension *
-                                                                0.7f *
-                                                                touchAnimationValue.value,
+                                            alpha = 0.2f * (1f - touchAnimationValue.value)
+                                    ),
+                            radius = size.minDimension * 0.7f * touchAnimationValue.value,
                             center = Offset(size.width / 2, size.height / 2)
                     )
                 }
@@ -538,14 +511,11 @@ fun FloatingChatWindow(
                                             // 检查点击是否在圆内
                                             val radius = size.width / 2f
                                             val center = Offset(radius, radius)
-                                                                val distance =
-                                                                        (offset - center)
-                                                                                .getDistance()
+                                            val distance = (offset - center).getDistance()
 
                                             // 只有当点击在圆内才处理事件
                                             if (distance <= radius) {
-                                                                        touchAnimationState.value =
-                                                                                true
+                                                touchAnimationState.value = true
                                                 ballTapState.value = true
                                             }
                                         },
@@ -553,19 +523,13 @@ fun FloatingChatWindow(
                                             // 检查长按是否在圆内
                                             val radius = size.width / 2f
                                             val center = Offset(radius, radius)
-                                                                val distance =
-                                                                        (offset - center)
-                                                                                .getDistance()
+                                            val distance = (offset - center).getDistance()
 
                                             // 只有当长按在圆内才处理事件
                                             if (distance <= radius) {
                                                 // 长按重置位置到屏幕中心（安全恢复功能）
-                                                                        val centerX =
-                                                                                screenWidth.value /
-                                                                                        2
-                                                                        val centerY =
-                                                                                screenHeight.value /
-                                                                                        2
+                                                val centerX = screenWidth.value / 2
+                                                val centerY = screenHeight.value / 2
                                                 onMove(
                                                         centerX - currentX,
                                                         centerY - currentY,
@@ -609,35 +573,20 @@ fun FloatingChatWindow(
                 Box(
                         modifier =
                                 Modifier.fillMaxSize()
-                                                        .shadow(
-                                                                8.dp,
-                                                                RoundedCornerShape(
-                                                                        currentCornerRadius
-                                                                )
-                                                        )
+                                        .shadow(8.dp, RoundedCornerShape(currentCornerRadius))
                                         .border(
                                                 width = borderThickness,
                                                 color =
-                                                                        if (isEdgeResizing)
-                                                                                edgeHighlightColor
+                                                        if (isEdgeResizing) edgeHighlightColor
                                                         else Color.Transparent,
-                                                                shape =
-                                                                        RoundedCornerShape(
-                                                                                currentCornerRadius
-                                                                        )
-                                                        )
-                                                        .clip(
-                                                                RoundedCornerShape(
-                                                                        currentCornerRadius
-                                                                )
-                                                        )
+                                                shape = RoundedCornerShape(currentCornerRadius)
+                                        )
+                                        .clip(RoundedCornerShape(currentCornerRadius))
                                         .background(backgroundColor)
                                         .onSizeChanged { size ->
                                             // 更新实际窗口大小（像素值）
-                                                                initialWindowWidth =
-                                                                        size.width.toFloat()
-                                                                initialWindowHeight =
-                                                                        size.height.toFloat()
+                                            initialWindowWidth = size.width.toFloat()
+                                            initialWindowHeight = size.height.toFloat()
                                         }
                 ) {
                     // 过渡时的波纹效果
@@ -645,19 +594,12 @@ fun FloatingChatWindow(
                         Canvas(modifier = Modifier.fillMaxSize()) {
                             val centerX = size.width / 2
                             val centerY = size.height / 2
-                                                        val radius =
-                                                                size.minDimension *
-                                                                        0.6f *
-                                                                        transitionFeedback.value
+                            val radius = size.minDimension * 0.6f * transitionFeedback.value
 
                             drawCircle(
                                     color =
                                             primaryColor.copy(
-                                                                                alpha =
-                                                                                        0.1f *
-                                                                                                (1f -
-                                                                                                        transitionFeedback
-                                                                                                                .value)
+                                                    alpha = 0.1f * (1f - transitionFeedback.value)
                                             ),
                                     radius = radius,
                                     center = Offset(centerX, centerY)
@@ -667,27 +609,17 @@ fun FloatingChatWindow(
 
                     Column(modifier = Modifier.fillMaxSize()) {
                         // 窗口模式下的顶部工具栏
-                                                val titleBarHover = remember {
-                                                        mutableStateOf(false)
-                                                }
+                        val titleBarHover = remember { mutableStateOf(false) }
                         // 添加按钮事件状态
-                                                val closeButtonPressed = remember {
-                                                        mutableStateOf(false)
-                                                }
-                                                val minimizeButtonPressed = remember {
-                                                        mutableStateOf(false)
-                                                }
+                        val closeButtonPressed = remember { mutableStateOf(false) }
+                        val minimizeButtonPressed = remember { mutableStateOf(false) }
 
                         // 处理关闭按钮副作用
                         LaunchedEffect(closeButtonPressed.value) {
                             if (closeButtonPressed.value) {
-                                                                animatedAlpha.animateTo(
-                                                                        0f,
-                                                                        animationSpec = tween(200)
-                                                                )
+                                animatedAlpha.animateTo(0f, animationSpec = tween(200))
                                 onClose()
-                                                                closeButtonPressed.value =
-                                                                        false // 重置状态
+                                closeButtonPressed.value = false // 重置状态
                             }
                         }
 
@@ -695,8 +627,7 @@ fun FloatingChatWindow(
                         LaunchedEffect(minimizeButtonPressed.value) {
                             if (minimizeButtonPressed.value) {
                                 onToggleBallMode()
-                                                                minimizeButtonPressed.value =
-                                                                        false // 重置状态
+                                minimizeButtonPressed.value = false // 重置状态
                             }
                         }
 
@@ -705,53 +636,36 @@ fun FloatingChatWindow(
                                         Modifier.fillMaxWidth()
                                                 .height(48.dp)
                                                 .background(
-                                                                                MaterialTheme
-                                                                                        .colorScheme
-                                                                                        .surfaceVariant
+                                                        MaterialTheme.colorScheme.surfaceVariant
                                                                 .copy(
                                                                         alpha =
                                                                                 if (titleBarHover
                                                                                                 .value
                                                                                 )
                                                                                         0.3f
-                                                                                                        else
-                                                                                                                0.2f
+                                                                                else 0.2f
                                                                 )
                                                 )
-                                                                        .padding(
-                                                                                horizontal = 16.dp,
-                                                                                vertical = 8.dp
-                                                                        )
+                                                .padding(horizontal = 16.dp, vertical = 8.dp)
                                                 .pointerInput(Unit) {
                                                     awaitPointerEventScope {
                                                         while (true) {
-                                                                                                val event =
-                                                                                                        awaitPointerEvent()
-                                                                                                titleBarHover
-                                                                                                        .value =
-                                                                                                        event.changes
-                                                                                                                .any {
-                                                                                                                        it.pressed
-                                                                                                                }
+                                                            val event = awaitPointerEvent()
+                                                            titleBarHover.value =
+                                                                    event.changes.any { it.pressed }
                                                         }
                                                     }
                                                 }
                                                 .pointerInput(Unit) {
                                                     detectDragGestures(
                                                             onDragEnd = {
-                                                                                                saveWindowState
-                                                                                                        ?.invoke()
+                                                                saveWindowState?.invoke()
                                                             },
-                                                                                        onDrag = {
-                                                                                                change,
-                                                                                                dragAmount
-                                                                                                ->
+                                                            onDrag = { change, dragAmount ->
                                                                 change.consume()
                                                                 handleDrag(
-                                                                                                        dragAmount
-                                                                                                                .x,
-                                                                                                        dragAmount
-                                                                                                                .y
+                                                                        dragAmount.x,
+                                                                        dragAmount.y
                                                                 )
                                                             }
                                                     )
@@ -760,60 +674,30 @@ fun FloatingChatWindow(
                             // 显示内容（使用条件渲染而不是ContentWithFade）
                             if (contentVisible) {
                                 Row(
-                                                                        modifier =
-                                                                                Modifier.fillMaxWidth(),
-                                                                        horizontalArrangement =
-                                                                                Arrangement
-                                                                                        .SpaceBetween,
-                                                                        verticalAlignment =
-                                                                                Alignment
-                                                                                        .CenterVertically
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
                                             text = "AI助手",
                                             style =
-                                                                                        MaterialTheme
-                                                                                                .typography
-                                                                                                .titleMedium
-                                                                                                .copy(
-                                                                                                        fontWeight =
-                                                                                                                FontWeight
-                                                                                                                        .Medium
-                                                                                                ),
-                                                                                color =
-                                                                                        MaterialTheme
-                                                                                                .colorScheme
-                                                                                                .primary
+                                                    MaterialTheme.typography.titleMedium.copy(
+                                                            fontWeight = FontWeight.Medium
+                                                    ),
+                                            color = MaterialTheme.colorScheme.primary
                                     )
 
                                     Row(
-                                                                                horizontalArrangement =
-                                                                                        Arrangement
-                                                                                                .spacedBy(
-                                                                                                        8.dp
-                                                                                                ),
-                                                                                verticalAlignment =
-                                                                                        Alignment
-                                                                                                .CenterVertically
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         // 最小化按钮
-                                                                                val minimizeHover =
-                                                                                        remember {
-                                                                                                mutableStateOf(
-                                                                                                        false
-                                                                                                )
-                                                                                        }
+                                        val minimizeHover = remember { mutableStateOf(false) }
 
                                         IconButton(
-                                                                                        onClick = {
-                                                                                                minimizeButtonPressed
-                                                                                                        .value =
-                                                                                                        true
-                                                                                        },
+                                                onClick = { minimizeButtonPressed.value = true },
                                                 modifier =
-                                                                                                Modifier.size(
-                                                                                                                30.dp
-                                                                                                        )
+                                                        Modifier.size(30.dp)
                                                                 .background(
                                                                         color =
                                                                                 if (minimizeHover
@@ -826,18 +710,14 @@ fun FloatingChatWindow(
                                                                                                 )
                                                                                 else
                                                                                         Color.Transparent,
-                                                                                                                shape =
-                                                                                                                        CircleShape
+                                                                        shape = CircleShape
                                                                 )
-                                                                                                        .pointerInput(
-                                                                                                                Unit
-                                                                                                        ) {
+                                                                .pointerInput(Unit) {
                                                                     awaitPointerEventScope {
                                                                         while (true) {
                                                                             val event =
                                                                                     awaitPointerEvent()
-                                                                                                                                minimizeHover
-                                                                                                                                        .value =
+                                                                            minimizeHover.value =
                                                                                     event.changes
                                                                                             .any {
                                                                                                 it.pressed
@@ -847,44 +727,25 @@ fun FloatingChatWindow(
                                                                 }
                                         ) {
                                             Icon(
-                                                                                                imageVector =
-                                                                                                        Icons.Default
-                                                                                                                .KeyboardArrowDown,
-                                                                                                contentDescription =
-                                                                                                        "最小化",
+                                                    imageVector = Icons.Default.KeyboardArrowDown,
+                                                    contentDescription = "最小化",
                                                     tint =
-                                                                                                        MaterialTheme
-                                                                                                                .colorScheme
+                                                            MaterialTheme.colorScheme
                                                                     .onSurfaceVariant,
-                                                                                                modifier =
-                                                                                                        Modifier.size(
-                                                                                                                20.dp
-                                                                                                        )
+                                                    modifier = Modifier.size(20.dp)
                                             )
                                         }
 
                                         // 关闭按钮
-                                                                                val closeHover =
-                                                                                        remember {
-                                                                                                mutableStateOf(
-                                                                                                        false
-                                                                                                )
-                                                                                        }
+                                        val closeHover = remember { mutableStateOf(false) }
 
                                         IconButton(
-                                                                                        onClick = {
-                                                                                                closeButtonPressed
-                                                                                                        .value =
-                                                                                                        true
-                                                                                        },
+                                                onClick = { closeButtonPressed.value = true },
                                                 modifier =
-                                                                                                Modifier.size(
-                                                                                                                30.dp
-                                                                                                        )
+                                                        Modifier.size(30.dp)
                                                                 .background(
                                                                         color =
-                                                                                                                        if (closeHover
-                                                                                                                                        .value
+                                                                                if (closeHover.value
                                                                                 )
                                                                                         errorColor
                                                                                                 .copy(
@@ -893,18 +754,14 @@ fun FloatingChatWindow(
                                                                                                 )
                                                                                 else
                                                                                         Color.Transparent,
-                                                                                                                shape =
-                                                                                                                        CircleShape
+                                                                        shape = CircleShape
                                                                 )
-                                                                                                        .pointerInput(
-                                                                                                                Unit
-                                                                                                        ) {
+                                                                .pointerInput(Unit) {
                                                                     awaitPointerEventScope {
                                                                         while (true) {
                                                                             val event =
                                                                                     awaitPointerEvent()
-                                                                                                                                closeHover
-                                                                                                                                        .value =
+                                                                            closeHover.value =
                                                                                     event.changes
                                                                                             .any {
                                                                                                 it.pressed
@@ -914,22 +771,12 @@ fun FloatingChatWindow(
                                                                 }
                                         ) {
                                             Icon(
-                                                                                                imageVector =
-                                                                                                        Icons.Default
-                                                                                                                .Close,
-                                                                                                contentDescription =
-                                                                                                        "关闭",
+                                                    imageVector = Icons.Default.Close,
+                                                    contentDescription = "关闭",
                                                     tint =
-                                                                                                        if (closeHover
-                                                                                                                        .value
-                                                                                                        )
-                                                                                                                errorColor
-                                                                                                        else
-                                                                                                                onSurfaceVariantColor,
-                                                                                                modifier =
-                                                                                                        Modifier.size(
-                                                                                                                20.dp
-                                                                                                        )
+                                                            if (closeHover.value) errorColor
+                                                            else onSurfaceVariantColor,
+                                                    modifier = Modifier.size(20.dp)
                                             )
                                         }
                                     }
@@ -941,200 +788,139 @@ fun FloatingChatWindow(
                         Box(modifier = Modifier.fillMaxSize().weight(1f)) {
                             // 条件性显示聊天内容或输入框
                             if (!showInputDialog) {
-                                // 消息列表
-                                                                val listState =
-                                                                        rememberLazyListState()
+                                val scrollState = rememberScrollState()
 
                                 // Auto-scroll to bottom
                                 LaunchedEffect(messages.size) {
                                     if (messages.isNotEmpty()) {
-                                                                                listState
-                                                                                        .animateScrollToItem(
-                                                                                                messages.size -
-                                                                                                        1
-                                                                                        )
+                                        scrollState.animateScrollTo(scrollState.maxValue)
                                     }
                                 }
 
-                                LazyColumn(
-                                        state = listState,
-                                                                        contentPadding =
-                                                                                PaddingValues(
-                                                                                        16.dp
-                                                                                ),
-                                                                        verticalArrangement =
-                                                                                Arrangement
-                                                                                        .spacedBy(
-                                                                                                8.dp
-                                                                                        ),
-                                                                        modifier =
-                                                                                Modifier.fillMaxSize()
-                                                                ) {
-                                                                        items(updatedMessages) {
-                                                                                message ->
-                                        CursorStyleChatMessage(
-                                                                                        message =
-                                                                                                message,
-                                                                                        userMessageColor =
-                                                                                                userMessageColor,
-                                                                                        aiMessageColor =
-                                                                                                aiMessageColor,
-                                                                                        userTextColor =
-                                                                                                userTextColor,
-                                                                                        aiTextColor =
-                                                                                                aiTextColor,
-                                                                                        systemMessageColor =
-                                                                                                systemMessageColor,
-                                                                                        systemTextColor =
-                                                                                                systemTextColor,
-                                                                                        thinkingBackgroundColor =
-                                                                                                thinkingBackgroundColor,
-                                                                                        thinkingTextColor =
-                                                                                                thinkingTextColor,
-                                                                                        supportToolMarkup =
-                                                                                                true,
-                                                                                        initialThinkingExpanded =
-                                                                                                true
-                                        )
+                                val isLoading = messages.lastOrNull()?.sender == "think"
+
+                                Column(
+                                        modifier =
+                                                Modifier.fillMaxSize()
+                                                        .verticalScroll(scrollState)
+                                                        .padding(
+                                                                horizontal = 16.dp,
+                                                                vertical = 16.dp
+                                                        )
+                                ) {
+                                    messages.forEachIndexed { index, message ->
+                                        if (message.sender != "think") {
+                                            key(message.timestamp) {
+                                                MessageItem(
+                                                        index = index,
+                                                        message = message,
+                                                        allMessages = messages,
+                                                        userMessageColor = userMessageColor,
+                                                        aiMessageColor = aiMessageColor,
+                                                        userTextColor = userTextColor,
+                                                        aiTextColor = aiTextColor,
+                                                        systemMessageColor = systemMessageColor,
+                                                        systemTextColor = systemTextColor,
+                                                        thinkingBackgroundColor =
+                                                                thinkingBackgroundColor,
+                                                        thinkingTextColor = thinkingTextColor,
+                                                        isEditMode = false, // 悬浮窗不支持编辑模式
+                                                        onSelectMessageToEdit = null,
+                                                        onCopyMessage = null
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                        }
+                                    }
+
+                                    val lastMessage = messages.lastOrNull { it.sender != "think" }
+                                    if (isLoading &&
+                                                    (lastMessage?.sender == "user" ||
+                                                            (lastMessage?.sender == "ai" &&
+                                                                    lastMessage.content.isBlank()))
+                                    ) {
+                                        Column(
+                                                modifier =
+                                                        Modifier.fillMaxWidth()
+                                                                .padding(vertical = 0.dp)
+                                        ) {
+                                            Box(modifier = Modifier.padding(start = 16.dp)) {
+                                                LoadingDotsIndicator(aiTextColor)
+                                            }
+                                        }
                                     }
                                 }
                             } else {
                                 // 集成的输入区域
-                                                                Column(
-                                                                        modifier =
-                                                                                Modifier.fillMaxSize()
-                                                                                        .padding(
-                                                                                                16.dp
-                                                                                        )
-                                                                ) {
-                                                                        Row(
-                                                                                modifier =
-                                                                                        Modifier.fillMaxWidth(),
-                                                                                horizontalArrangement =
-                                                                                        Arrangement
-                                                                                                .SpaceBetween,
-                                                                                verticalAlignment =
-                                                                                        Alignment
-                                                                                                .CenterVertically
+                                Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                                    Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
-                                                                                        text =
-                                                                                                "发送消息",
-                                                                                        style =
-                                                                                                MaterialTheme
-                                                                                                        .typography
-                                                                                                        .titleMedium,
-                                                                                        color =
-                                                                                                MaterialTheme
-                                                                                                        .colorScheme
-                                                                                                        .onSurface
+                                                text = "发送消息",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                color = MaterialTheme.colorScheme.onSurface
                                         )
 
                                         IconButton(
                                                 onClick = {
-                                                                                                showInputDialog =
-                                                                                                        false
-                                                                                                showAttachmentPanel =
-                                                                                                        false // 确保关闭附件选择面板
+                                                    showInputDialog = false
+                                                    showAttachmentPanel = false // 确保关闭附件选择面板
                                                 }
                                         ) {
                                             Icon(
-                                                                                                imageVector =
-                                                                                                        Icons.Default
-                                                                                                                .Close,
-                                                                                                contentDescription =
-                                                                                                        "关闭",
+                                                    imageVector = Icons.Default.Close,
+                                                    contentDescription = "关闭",
                                                     tint =
-                                                                                                        MaterialTheme
-                                                                                                                .colorScheme
+                                                            MaterialTheme.colorScheme
                                                                     .onSurfaceVariant
                                             )
                                         }
                                     }
 
-                                                                        Spacer(
-                                                                                modifier =
-                                                                                        Modifier.height(
-                                                                                                8.dp
-                                                                                        )
-                                                                        )
+                                    Spacer(modifier = Modifier.height(8.dp))
 
                                     // 显示已添加的附件
-                                                                        if (attachments.isNotEmpty()
-                                                                        ) {
+                                    if (attachments.isNotEmpty()) {
                                         LazyRow(
                                                 modifier =
                                                         Modifier.fillMaxWidth()
-                                                                                                        .padding(
-                                                                                                                vertical =
-                                                                                                                        4.dp
-                                                                                                        ),
-                                                                                        horizontalArrangement =
-                                                                                                Arrangement
-                                                                                                        .spacedBy(
-                                                                                                                8.dp
-                                                                                                        )
-                                                                                ) {
-                                                                                        items(
-                                                                                                attachments
-                                                                                        ) {
-                                                                                                attachment
-                                                                                                ->
+                                                                .padding(vertical = 4.dp),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            items(attachments) { attachment ->
                                                 AttachmentChip(
-                                                                                                        attachmentInfo =
-                                                                                                                attachment,
+                                                        attachmentInfo = attachment,
                                                         onRemove = {
-                                                                                                                onRemoveAttachment
-                                                                                                                        ?.invoke(
-                                                                                                                                attachment
-                                                                                                                                        .filePath
-                                                                                                                        )
-                                                                                                        },
-                                                                                                        onInsert = { /* 在悬浮窗中不支持插入操作 */
-                                                                                                        }
-                                                                                                )
-                                                                                        }
-                                                                                }
-                                                                                Spacer(
-                                                                                        modifier =
-                                                                                                Modifier.height(
-                                                                                                        8.dp
-                                                                                                )
-                                                                                )
-                                                                        }
+                                                            onRemoveAttachment?.invoke(
+                                                                    attachment.filePath
+                                                            )
+                                                        },
+                                                        onInsert = { /* 在悬浮窗中不支持插入操作 */}
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                    }
 
-                                                                        val focusRequester =
-                                                                                remember {
-                                                                                        FocusRequester()
-                                                                                }
-                                                                        val keyboardController =
-                                                                                LocalSoftwareKeyboardController
-                                                                                        .current
-                                                                        val focusManager =
-                                                                                LocalFocusManager
-                                                                                        .current
+                                    val focusRequester = remember { FocusRequester() }
+                                    val keyboardController = LocalSoftwareKeyboardController.current
+                                    val focusManager = LocalFocusManager.current
 
                                     // 添加一个当输入区域显示时的DisposableEffect
-                                                                        DisposableEffect(
-                                                                                showInputDialog
-                                                                        ) {
-                                                                                if (showInputDialog
-                                                                                ) {
-                                                                                        coroutineScope
-                                                                                                .launch {
+                                    DisposableEffect(showInputDialog) {
+                                        if (showInputDialog) {
+                                            coroutineScope.launch {
                                                 // 增加延迟，确保视图完全渲染
-                                                                                                        delay(
-                                                                                                                300
-                                                                                                        )
+                                                delay(300)
 
                                                 // 请求焦点 - 但不主动显示键盘，让服务层处理键盘显示
                                                 try {
-                                                                                                                focusRequester
-                                                                                                                        .requestFocus()
+                                                    focusRequester.requestFocus()
                                                     // 移除直接显示键盘的代码，避免重复显示
-                                                                                                        } catch (
-                                                                                                                e:
-                                                                                                                        Exception) {
+                                                } catch (e: Exception) {
                                                     Log.e(
                                                             "FloatingChatWindow",
                                                             "Failed to request focus",
@@ -1151,129 +937,72 @@ fun FloatingChatWindow(
                                     }
 
                                     // 改成Box包装输入框，使其填充剩余空间
-                                                                        Box(
-                                                                                modifier =
-                                                                                        Modifier.fillMaxSize()
-                                                                                                .weight(
-                                                                                                        1f
-                                                                                                )
-                                                                        ) {
+                                    Box(modifier = Modifier.fillMaxSize().weight(1f)) {
                                         // 输入框 - 占满可用空间
                                         OutlinedTextField(
-                                                                                        value =
-                                                                                                userMessage,
-                                                                                        onValueChange = {
-                                                                                                userMessage =
-                                                                                                        it
-                                                                                        },
-                                                                                        placeholder = {
-                                                                                                Text(
-                                                                                                        "请输入您的问题..."
-                                                                                                )
-                                                                                        },
+                                                value = userMessage,
+                                                onValueChange = { userMessage = it },
+                                                placeholder = { Text("请输入您的问题...") },
                                                 modifier =
                                                         Modifier.fillMaxSize()
-                                                                                                        .focusRequester(
-                                                                                                                focusRequester
-                                                                                                        ),
-                                                                                        textStyle =
-                                                                                                TextStyle
-                                                                                                        .Default,
-                                                                                        maxLines =
-                                                                                                Int.MAX_VALUE, // 允许多行
+                                                                .focusRequester(focusRequester),
+                                                textStyle = TextStyle.Default,
+                                                maxLines = Int.MAX_VALUE, // 允许多行
                                                 keyboardOptions =
                                                         KeyboardOptions(
-                                                                                                        imeAction =
-                                                                                                                ImeAction
-                                                                                                                        .Send,
-                                                                                                        autoCorrect =
-                                                                                                                true
+                                                                imeAction = ImeAction.Send,
+                                                                autoCorrect = true
                                                         ),
                                                 keyboardActions =
                                                         KeyboardActions(
                                                                 onSend = {
-                                                                                                                if (userMessage
-                                                                                                                                .isNotBlank() ||
+                                                                    if (userMessage.isNotBlank() ||
                                                                                     attachments
                                                                                             .isNotEmpty()
                                                                     ) {
-                                                                                                                        onSendMessage
-                                                                                                                                ?.invoke(
+                                                                        onSendMessage?.invoke(
                                                                                 userMessage
                                                                         )
-                                                                                                                        userMessage =
-                                                                                                                                ""
-                                                                                                                        showInputDialog =
-                                                                                                                                false
-                                                                                                                        showAttachmentPanel =
-                                                                                                                                false
+                                                                        userMessage = ""
+                                                                        showInputDialog = false
+                                                                        showAttachmentPanel = false
                                                                     }
                                                                 }
                                                         ),
                                                 colors =
-                                                                                                OutlinedTextFieldDefaults
-                                                                                                        .colors(
+                                                        OutlinedTextFieldDefaults.colors(
                                                                 focusedBorderColor =
-                                                                                                                        MaterialTheme
-                                                                                                                                .colorScheme
+                                                                        MaterialTheme.colorScheme
                                                                                 .primary,
                                                                 unfocusedBorderColor =
-                                                                                                                        MaterialTheme
-                                                                                                                                .colorScheme
+                                                                        MaterialTheme.colorScheme
                                                                                 .outline
                                                         ),
-                                                                                        shape =
-                                                                                                RoundedCornerShape(
-                                                                                                        12.dp
-                                                                                                )
+                                                shape = RoundedCornerShape(12.dp)
                                         )
 
                                         // 发送按钮 - 放在右下角
                                         FloatingActionButton(
                                                 onClick = {
-                                                                                                if (userMessage
-                                                                                                                .isNotBlank() ||
-                                                                                                                attachments
-                                                                                                                        .isNotEmpty()
-                                                                                                ) {
-                                                                                                        onSendMessage
-                                                                                                                ?.invoke(
-                                                                                                                        userMessage
-                                                                                                                )
-                                                                                                        userMessage =
-                                                                                                                ""
-                                                                                                        showInputDialog =
-                                                                                                                false
-                                                                                                        showAttachmentPanel =
-                                                                                                                false
+                                                    if (userMessage.isNotBlank() ||
+                                                                    attachments.isNotEmpty()
+                                                    ) {
+                                                        onSendMessage?.invoke(userMessage)
+                                                        userMessage = ""
+                                                        showInputDialog = false
+                                                        showAttachmentPanel = false
                                                     }
                                                 },
                                                 modifier =
-                                                                                                Modifier.align(
-                                                                                                                Alignment
-                                                                                                                        .BottomEnd
-                                                                                                        )
-                                                                                                        .padding(
-                                                                                                                8.dp
-                                                                                                        )
-                                                                                                        .size(
-                                                                                                                46.dp
-                                                                                                        ),
-                                                                                        containerColor =
-                                                                                                MaterialTheme
-                                                                                                        .colorScheme
-                                                                                                        .primary
+                                                        Modifier.align(Alignment.BottomEnd)
+                                                                .padding(8.dp)
+                                                                .size(46.dp),
+                                                containerColor = MaterialTheme.colorScheme.primary
                                         ) {
                                             Icon(
-                                                                                                imageVector =
-                                                                                                        Icons.Default
-                                                                                                                .Send,
-                                                                                                contentDescription =
-                                                                                                        "发送",
-                                                                                                tint =
-                                                                                                        MaterialTheme
-                                                                                                                .colorScheme
-                                                                                                                .onPrimary
+                                                    imageVector = Icons.Default.Send,
+                                                    contentDescription = "发送",
+                                                    tint = MaterialTheme.colorScheme.onPrimary
                                             )
                                         }
                                     }
@@ -1283,72 +1012,43 @@ fun FloatingChatWindow(
                             // 缩放控制手柄 - 只在不显示输入框且处于窗口模式时显示
                             if (!showInputDialog && !isBallMode) {
                                 // 添加缩放按钮悬停状态
-                                                                val scaleButtonHover = remember {
-                                                                        mutableStateOf(false)
-                                                                }
+                                val scaleButtonHover = remember { mutableStateOf(false) }
 
                                 Box(
                                         modifier =
                                                 Modifier.size(48.dp)
-                                                                                        .padding(
-                                                                                                6.dp
-                                                                                        )
-                                                                                        .align(
-                                                                                                Alignment
-                                                                                                        .BottomEnd
-                                                                                        )
-                                                                                        .offset(
-                                                                                                x =
-                                                                                                        (-8).dp,
-                                                                                                y =
-                                                                                                        (-8).dp
-                                                                                        )
+                                                        .padding(6.dp)
+                                                        .align(Alignment.BottomEnd)
+                                                        .offset(x = (-8).dp, y = (-8).dp)
                                                         // 移除阴影和背景
                                                         // 添加点击涟漪效果的背景
                                                         .background(
                                                                 color =
-                                                                                                        if (scaleButtonHover
-                                                                                                                        .value
-                                                                                                        )
-                                                                                                                primaryColor
-                                                                                                                        .copy(
-                                                                                                                                alpha =
-                                                                                                                                        0.1f
-                                                                                                                        )
-                                                                                                        else
-                                                                                                                Color.Transparent,
-                                                                                                shape =
-                                                                                                        CircleShape
+                                                                        if (scaleButtonHover.value)
+                                                                                primaryColor.copy(
+                                                                                        alpha = 0.1f
+                                                                                )
+                                                                        else Color.Transparent,
+                                                                shape = CircleShape
                                                         )
                                                         // 移除边框
-                                                                                        .pointerInput(
-                                                                                                Unit
-                                                                                        ) {
+                                                        .pointerInput(Unit) {
                                                             awaitPointerEventScope {
                                                                 while (true) {
-                                                                                                                val event =
-                                                                                                                        awaitPointerEvent()
-                                                                                                                scaleButtonHover
-                                                                                                                        .value =
-                                                                                                                        event.changes
-                                                                                                                                .any {
+                                                                    val event = awaitPointerEvent()
+                                                                    scaleButtonHover.value =
+                                                                            event.changes.any {
                                                                                 it.pressed
                                                                             }
                                                                 }
                                                             }
                                                         }
-                                                                                        .pointerInput(
-                                                                                                Unit
-                                                                                        ) {
+                                                        .pointerInput(Unit) {
                                                             detectDragGestures(
-                                                                                                        onDrag = {
-                                                                                                                change,
-                                                                                                                dragAmount
-                                                                                                                ->
+                                                                    onDrag = { change, dragAmount ->
                                                                         change.consume()
                                                                         val scaleDelta =
-                                                                                                                        dragAmount
-                                                                                                                                .y *
+                                                                                dragAmount.y *
                                                                                         0.001f
                                                                         windowScale =
                                                                                 (windowScale +
@@ -1357,95 +1057,51 @@ fun FloatingChatWindow(
                                                                                                 0.5f,
                                                                                                 1.0f
                                                                                         )
-                                                                                                                saveWindowState
-                                                                                                                        ?.invoke()
+                                                                        saveWindowState?.invoke()
                                                                     }
                                                             )
                                                         }
-                                                                                        .pointerInput(
-                                                                                                Unit
-                                                                                        ) {
+                                                        .pointerInput(Unit) {
                                                             detectTapGestures {
                                                                 windowScale =
                                                                         when {
-                                                                                                                        windowScale >
-                                                                                                                                0.8f ->
+                                                                            windowScale > 0.8f ->
                                                                                     0.7f
-                                                                                                                        windowScale >
-                                                                                                                                0.7f ->
+                                                                            windowScale > 0.7f ->
                                                                                     0.9f
-                                                                                                                        else ->
-                                                                                                                                1.0f
+                                                                            else -> 1.0f
                                                                         }
-                                                                                                        saveWindowState
-                                                                                                                ?.invoke()
+                                                                saveWindowState?.invoke()
                                                             }
                                                         }
                                 ) {
                                     val lineColor =
-                                                                                if (scaleButtonHover
-                                                                                                .value
-                                                                                )
-                                                                                        primaryColor
-                                                                                                .copy(
-                                                                                                        alpha =
-                                                                                                                1.0f
-                                                                                                )
-                                                                                else
-                                                                                        primaryColor
-                                                                                                .copy(
-                                                                                                        alpha =
-                                                                                                                0.7f
-                                                                                                )
+                                            if (scaleButtonHover.value)
+                                                    primaryColor.copy(alpha = 1.0f)
+                                            else primaryColor.copy(alpha = 0.7f)
 
-                                                                        Canvas(
-                                                                                modifier =
-                                                                                        Modifier.fillMaxSize()
-                                                                                                .padding(
-                                                                                                        8.dp
-                                                                                                )
-                                                                        ) {
+                                    Canvas(modifier = Modifier.fillMaxSize().padding(8.dp)) {
                                         // 绘制缩放图标 -
                                         // 增加粗细使其在透明背景下更加明显
                                         drawLine(
-                                                                                        color =
-                                                                                                lineColor,
+                                                color = lineColor,
                                                 start =
                                                         Offset(
-                                                                                                        size.width *
-                                                                                                                0.2f,
-                                                                                                        size.height *
-                                                                                                                0.8f
-                                                                                                ),
-                                                                                        end =
-                                                                                                Offset(
-                                                                                                        size.width *
-                                                                                                                0.8f,
-                                                                                                        size.height *
-                                                                                                                0.2f
-                                                                                                ),
-                                                                                        strokeWidth =
-                                                                                                3.5f // 略微增加线条粗细
+                                                                size.width * 0.2f,
+                                                                size.height * 0.8f
+                                                        ),
+                                                end = Offset(size.width * 0.8f, size.height * 0.2f),
+                                                strokeWidth = 3.5f // 略微增加线条粗细
                                         )
                                         drawLine(
-                                                                                        color =
-                                                                                                lineColor,
+                                                color = lineColor,
                                                 start =
                                                         Offset(
-                                                                                                        size.width *
-                                                                                                                0.5f,
-                                                                                                        size.height *
-                                                                                                                0.8f
-                                                                                                ),
-                                                                                        end =
-                                                                                                Offset(
-                                                                                                        size.width *
-                                                                                                                0.8f,
-                                                                                                        size.height *
-                                                                                                                0.5f
-                                                                                                ),
-                                                                                        strokeWidth =
-                                                                                                3.5f // 略微增加线条粗细
+                                                                size.width * 0.5f,
+                                                                size.height * 0.8f
+                                                        ),
+                                                end = Offset(size.width * 0.8f, size.height * 0.5f),
+                                                strokeWidth = 3.5f // 略微增加线条粗细
                                         )
                                     }
                                 }
@@ -1463,50 +1119,28 @@ fun FloatingChatWindow(
                                         .pointerInput(Unit) {
                                             detectDragGestures(
                                                     onDragStart = {
-                                                                                isEdgeResizing =
-                                                                                        true
-                                                                                activeEdge =
-                                                                                        ResizeEdge
-                                                                                                .TOP
+                                                        isEdgeResizing = true
+                                                        activeEdge = ResizeEdge.TOP
                                                         initialWindowHeight =
-                                                                                        windowHeightState
-                                                                                                .value *
+                                                                windowHeightState.value *
                                                                         density.density
                                                     },
                                                     onDragEnd = {
-                                                                                isEdgeResizing =
-                                                                                        false
-                                                                                saveWindowState
-                                                                                        ?.invoke()
-                                                                        },
-                                                                        onDrag = {
-                                                                                change,
-                                                                                dragAmount ->
+                                                        isEdgeResizing = false
+                                                        saveWindowState?.invoke()
+                                                    },
+                                                    onDrag = { change, dragAmount ->
                                                         change.consume()
-                                                                                val heightChange =
-                                                                                        -dragAmount
-                                                                                                .y
+                                                        val heightChange = -dragAmount.y
                                                         val newHeight =
-                                                                                        (initialWindowHeight +
-                                                                                                        heightChange)
-                                                                                                .coerceAtLeast(
-                                                                                                        200f
-                                                                                                )
+                                                                (initialWindowHeight + heightChange)
+                                                                        .coerceAtLeast(200f)
                                                         windowHeightState =
-                                                                                        with(
-                                                                                                density
-                                                                                        ) {
-                                                                                                (newHeight /
-                                                                                                                density.density)
-                                                                                                        .dp
-                                                                                                        .coerceAtLeast(
-                                                                                                                200.dp
-                                                                                                        )
-                                                                                        }
-                                                                                handleDrag(
-                                                                                        0f,
-                                                                                        dragAmount.y
-                                                                                )
+                                                                with(density) {
+                                                                    (newHeight / density.density).dp
+                                                                            .coerceAtLeast(200.dp)
+                                                                }
+                                                        handleDrag(0f, dragAmount.y)
                                                         onResize(
                                                                 windowWidthState,
                                                                 windowHeightState
@@ -1525,43 +1159,25 @@ fun FloatingChatWindow(
                                         .pointerInput(Unit) {
                                             detectDragGestures(
                                                     onDragStart = {
-                                                                                isEdgeResizing =
-                                                                                        true
-                                                                                activeEdge =
-                                                                                        ResizeEdge
-                                                                                                .BOTTOM
+                                                        isEdgeResizing = true
+                                                        activeEdge = ResizeEdge.BOTTOM
                                                         initialWindowHeight =
-                                                                                        windowHeightState
-                                                                                                .value *
+                                                                windowHeightState.value *
                                                                         density.density
                                                     },
                                                     onDragEnd = {
-                                                                                isEdgeResizing =
-                                                                                        false
-                                                                                saveWindowState
-                                                                                        ?.invoke()
-                                                                        },
-                                                                        onDrag = {
-                                                                                change,
-                                                                                dragAmount ->
+                                                        isEdgeResizing = false
+                                                        saveWindowState?.invoke()
+                                                    },
+                                                    onDrag = { change, dragAmount ->
                                                         change.consume()
                                                         val newHeight =
-                                                                                        (initialWindowHeight +
-                                                                                                        dragAmount
-                                                                                                                .y)
-                                                                                                .coerceAtLeast(
-                                                                                                        200f
-                                                                                                )
+                                                                (initialWindowHeight + dragAmount.y)
+                                                                        .coerceAtLeast(200f)
                                                         windowHeightState =
-                                                                                        with(
-                                                                                                density
-                                                                                        ) {
-                                                                                                (newHeight /
-                                                                                                                density.density)
-                                                                                                        .dp
-                                                                                                        .coerceAtLeast(
-                                                                                                                200.dp
-                                                                                                        )
+                                                                with(density) {
+                                                                    (newHeight / density.density).dp
+                                                                            .coerceAtLeast(200.dp)
                                                                 }
                                                         onResize(
                                                                 windowWidthState,
@@ -1581,51 +1197,28 @@ fun FloatingChatWindow(
                                         .pointerInput(Unit) {
                                             detectDragGestures(
                                                     onDragStart = {
-                                                                                isEdgeResizing =
-                                                                                        true
-                                                                                activeEdge =
-                                                                                        ResizeEdge
-                                                                                                .LEFT
+                                                        isEdgeResizing = true
+                                                        activeEdge = ResizeEdge.LEFT
                                                         initialWindowWidth =
-                                                                                        windowWidthState
-                                                                                                .value *
+                                                                windowWidthState.value *
                                                                         density.density
                                                     },
                                                     onDragEnd = {
-                                                                                isEdgeResizing =
-                                                                                        false
-                                                                                saveWindowState
-                                                                                        ?.invoke()
-                                                                        },
-                                                                        onDrag = {
-                                                                                change,
-                                                                                dragAmount ->
+                                                        isEdgeResizing = false
+                                                        saveWindowState?.invoke()
+                                                    },
+                                                    onDrag = { change, dragAmount ->
                                                         change.consume()
-                                                                                val widthChange =
-                                                                                        -dragAmount
-                                                                                                .x
+                                                        val widthChange = -dragAmount.x
                                                         val newWidth =
-                                                                                        (initialWindowWidth +
-                                                                                                        widthChange)
-                                                                                                .coerceAtLeast(
-                                                                                                        150f
-                                                                                                )
+                                                                (initialWindowWidth + widthChange)
+                                                                        .coerceAtLeast(150f)
                                                         windowWidthState =
-                                                                                        with(
-                                                                                                density
-                                                                                        ) {
-                                                                                                (newWidth /
-                                                                                                                density.density)
-                                                                                                        .dp
-                                                                                                        .coerceAtLeast(
-                                                                                                                150.dp
-                                                                                                        )
-                                                                                        }
-                                                                                handleDrag(
-                                                                                        dragAmount
-                                                                                                .x,
-                                                                                        0f
-                                                                                )
+                                                                with(density) {
+                                                                    (newWidth / density.density).dp
+                                                                            .coerceAtLeast(150.dp)
+                                                                }
+                                                        handleDrag(dragAmount.x, 0f)
                                                         onResize(
                                                                 windowWidthState,
                                                                 windowHeightState
@@ -1644,43 +1237,25 @@ fun FloatingChatWindow(
                                         .pointerInput(Unit) {
                                             detectDragGestures(
                                                     onDragStart = {
-                                                                                isEdgeResizing =
-                                                                                        true
-                                                                                activeEdge =
-                                                                                        ResizeEdge
-                                                                                                .RIGHT
+                                                        isEdgeResizing = true
+                                                        activeEdge = ResizeEdge.RIGHT
                                                         initialWindowWidth =
-                                                                                        windowWidthState
-                                                                                                .value *
+                                                                windowWidthState.value *
                                                                         density.density
                                                     },
                                                     onDragEnd = {
-                                                                                isEdgeResizing =
-                                                                                        false
-                                                                                saveWindowState
-                                                                                        ?.invoke()
-                                                                        },
-                                                                        onDrag = {
-                                                                                change,
-                                                                                dragAmount ->
+                                                        isEdgeResizing = false
+                                                        saveWindowState?.invoke()
+                                                    },
+                                                    onDrag = { change, dragAmount ->
                                                         change.consume()
                                                         val newWidth =
-                                                                                        (initialWindowWidth +
-                                                                                                        dragAmount
-                                                                                                                .x)
-                                                                                                .coerceAtLeast(
-                                                                                                        150f
-                                                                                                )
+                                                                (initialWindowWidth + dragAmount.x)
+                                                                        .coerceAtLeast(150f)
                                                         windowWidthState =
-                                                                                        with(
-                                                                                                density
-                                                                                        ) {
-                                                                                                (newWidth /
-                                                                                                                density.density)
-                                                                                                        .dp
-                                                                                                        .coerceAtLeast(
-                                                                                                                150.dp
-                                                                                                        )
+                                                                with(density) {
+                                                                    (newWidth / density.density).dp
+                                                                            .coerceAtLeast(150.dp)
                                                                 }
                                                         onResize(
                                                                 windowWidthState,
@@ -1694,84 +1269,42 @@ fun FloatingChatWindow(
                 // 左上角 - 调整宽度和高度
                 Box(
                         modifier =
-                                                Modifier.size(25.dp)
-                                                        .align(Alignment.TopStart)
-                                                        .pointerInput(Unit) {
+                                Modifier.size(25.dp).align(Alignment.TopStart).pointerInput(Unit) {
                                     detectDragGestures(
                                             onDragStart = {
-                                                                                isEdgeResizing =
-                                                                                        true
-                                                                                activeEdge =
-                                                                                        ResizeEdge
-                                                                                                .TOP_LEFT
+                                                isEdgeResizing = true
+                                                activeEdge = ResizeEdge.TOP_LEFT
                                                 initialWindowWidth =
-                                                                                        windowWidthState
-                                                                                                .value *
-                                                                                                density.density
+                                                        windowWidthState.value * density.density
                                                 initialWindowHeight =
-                                                                                        windowHeightState
-                                                                                                .value *
-                                                                                                density.density
+                                                        windowHeightState.value * density.density
                                             },
                                             onDragEnd = {
-                                                                                isEdgeResizing =
-                                                                                        false
-                                                                                saveWindowState
-                                                                                        ?.invoke()
-                                                                        },
-                                                                        onDrag = {
-                                                                                change,
-                                                                                dragAmount ->
+                                                isEdgeResizing = false
+                                                saveWindowState?.invoke()
+                                            },
+                                            onDrag = { change, dragAmount ->
                                                 change.consume()
-                                                                                val widthChange =
-                                                                                        -dragAmount
-                                                                                                .x
-                                                                                val heightChange =
-                                                                                        -dragAmount
-                                                                                                .y
+                                                val widthChange = -dragAmount.x
+                                                val heightChange = -dragAmount.y
                                                 val newWidth =
-                                                                                        (initialWindowWidth +
-                                                                                                        widthChange)
-                                                                                                .coerceAtLeast(
-                                                                                                        150f
-                                                                                                )
+                                                        (initialWindowWidth + widthChange)
+                                                                .coerceAtLeast(150f)
                                                 val newHeight =
-                                                                                        (initialWindowHeight +
-                                                                                                        heightChange)
-                                                                                                .coerceAtLeast(
-                                                                                                        200f
-                                                                                                )
+                                                        (initialWindowHeight + heightChange)
+                                                                .coerceAtLeast(200f)
                                                 windowWidthState =
-                                                                                        with(
-                                                                                                density
-                                                                                        ) {
-                                                                                                (newWidth /
-                                                                                                                density.density)
-                                                                                                        .dp
-                                                                                                        .coerceAtLeast(
-                                                                                                                150.dp
-                                                                                                        )
+                                                        with(density) {
+                                                            (newWidth / density.density).dp
+                                                                    .coerceAtLeast(150.dp)
                                                         }
                                                 windowHeightState =
-                                                                                        with(
-                                                                                                density
-                                                                                        ) {
-                                                                                                (newHeight /
-                                                                                                                density.density)
-                                                                                                        .dp
-                                                                                                        .coerceAtLeast(
-                                                                                                                200.dp
-                                                                                                        )
-                                                                                        }
-                                                                                handleDrag(
-                                                                                        dragAmount
-                                                                                                .x,
-                                                                                        dragAmount.y
-                                                                                )
-                                                                                onResize(
-                                                                                        windowWidthState,
-                                                                                        windowHeightState
-                                                                                )
+                                                        with(density) {
+                                                            (newHeight / density.density).dp
+                                                                    .coerceAtLeast(200.dp)
+                                                        }
+                                                handleDrag(dragAmount.x, dragAmount.y)
+                                                onResize(windowWidthState, windowHeightState)
                                             }
                                     )
                                 }
@@ -1780,81 +1313,41 @@ fun FloatingChatWindow(
                 // 右上角 - 调整宽度和高度
                 Box(
                         modifier =
-                                                Modifier.size(25.dp)
-                                                        .align(Alignment.TopEnd)
-                                                        .pointerInput(Unit) {
+                                Modifier.size(25.dp).align(Alignment.TopEnd).pointerInput(Unit) {
                                     detectDragGestures(
                                             onDragStart = {
-                                                                                isEdgeResizing =
-                                                                                        true
-                                                                                activeEdge =
-                                                                                        ResizeEdge
-                                                                                                .TOP_RIGHT
+                                                isEdgeResizing = true
+                                                activeEdge = ResizeEdge.TOP_RIGHT
                                                 initialWindowWidth =
-                                                                                        windowWidthState
-                                                                                                .value *
-                                                                                                density.density
+                                                        windowWidthState.value * density.density
                                                 initialWindowHeight =
-                                                                                        windowHeightState
-                                                                                                .value *
-                                                                                                density.density
+                                                        windowHeightState.value * density.density
                                             },
                                             onDragEnd = {
-                                                                                isEdgeResizing =
-                                                                                        false
-                                                                                saveWindowState
-                                                                                        ?.invoke()
-                                                                        },
-                                                                        onDrag = {
-                                                                                change,
-                                                                                dragAmount ->
+                                                isEdgeResizing = false
+                                                saveWindowState?.invoke()
+                                            },
+                                            onDrag = { change, dragAmount ->
                                                 change.consume()
                                                 val newWidth =
-                                                                                        (initialWindowWidth +
-                                                                                                        dragAmount
-                                                                                                                .x)
-                                                                                                .coerceAtLeast(
-                                                                                                        150f
-                                                                                                )
-                                                                                val heightChange =
-                                                                                        -dragAmount
-                                                                                                .y
+                                                        (initialWindowWidth + dragAmount.x)
+                                                                .coerceAtLeast(150f)
+                                                val heightChange = -dragAmount.y
                                                 val newHeight =
-                                                                                        (initialWindowHeight +
-                                                                                                        heightChange)
-                                                                                                .coerceAtLeast(
-                                                                                                        200f
-                                                                                                )
+                                                        (initialWindowHeight + heightChange)
+                                                                .coerceAtLeast(200f)
                                                 windowWidthState =
-                                                                                        with(
-                                                                                                density
-                                                                                        ) {
-                                                                                                (newWidth /
-                                                                                                                density.density)
-                                                                                                        .dp
-                                                                                                        .coerceAtLeast(
-                                                                                                                150.dp
-                                                                                                        )
+                                                        with(density) {
+                                                            (newWidth / density.density).dp
+                                                                    .coerceAtLeast(150.dp)
                                                         }
                                                 windowHeightState =
-                                                                                        with(
-                                                                                                density
-                                                                                        ) {
-                                                                                                (newHeight /
-                                                                                                                density.density)
-                                                                                                        .dp
-                                                                                                        .coerceAtLeast(
-                                                                                                                200.dp
-                                                                                                        )
-                                                                                        }
-                                                                                handleDrag(
-                                                                                        0f,
-                                                                                        dragAmount.y
-                                                                                )
-                                                                                onResize(
-                                                                                        windowWidthState,
-                                                                                        windowHeightState
-                                                                                )
+                                                        with(density) {
+                                                            (newHeight / density.density).dp
+                                                                    .coerceAtLeast(200.dp)
+                                                        }
+                                                handleDrag(0f, dragAmount.y)
+                                                onResize(windowWidthState, windowHeightState)
                                             }
                                     )
                                 }
@@ -1863,82 +1356,43 @@ fun FloatingChatWindow(
                 // 左下角 - 调整宽度和高度
                 Box(
                         modifier =
-                                                Modifier.size(25.dp)
-                                                        .align(Alignment.BottomStart)
-                                                        .pointerInput(Unit) {
+                                Modifier.size(25.dp).align(Alignment.BottomStart).pointerInput(
+                                                Unit
+                                        ) {
                                     detectDragGestures(
                                             onDragStart = {
-                                                                                isEdgeResizing =
-                                                                                        true
-                                                                                activeEdge =
-                                                                                        ResizeEdge
-                                                                                                .BOTTOM_LEFT
+                                                isEdgeResizing = true
+                                                activeEdge = ResizeEdge.BOTTOM_LEFT
                                                 initialWindowWidth =
-                                                                                        windowWidthState
-                                                                                                .value *
-                                                                                                density.density
+                                                        windowWidthState.value * density.density
                                                 initialWindowHeight =
-                                                                                        windowHeightState
-                                                                                                .value *
-                                                                                                density.density
+                                                        windowHeightState.value * density.density
                                             },
                                             onDragEnd = {
-                                                                                isEdgeResizing =
-                                                                                        false
-                                                                                saveWindowState
-                                                                                        ?.invoke()
-                                                                        },
-                                                                        onDrag = {
-                                                                                change,
-                                                                                dragAmount ->
+                                                isEdgeResizing = false
+                                                saveWindowState?.invoke()
+                                            },
+                                            onDrag = { change, dragAmount ->
                                                 change.consume()
-                                                                                val widthChange =
-                                                                                        -dragAmount
-                                                                                                .x
+                                                val widthChange = -dragAmount.x
                                                 val newWidth =
-                                                                                        (initialWindowWidth +
-                                                                                                        widthChange)
-                                                                                                .coerceAtLeast(
-                                                                                                        150f
-                                                                                                )
+                                                        (initialWindowWidth + widthChange)
+                                                                .coerceAtLeast(150f)
                                                 val newHeight =
-                                                                                        (initialWindowHeight +
-                                                                                                        dragAmount
-                                                                                                                .y)
-                                                                                                .coerceAtLeast(
-                                                                                                        200f
-                                                                                                )
+                                                        (initialWindowHeight + dragAmount.y)
+                                                                .coerceAtLeast(200f)
                                                 windowWidthState =
-                                                                                        with(
-                                                                                                density
-                                                                                        ) {
-                                                                                                (newWidth /
-                                                                                                                density.density)
-                                                                                                        .dp
-                                                                                                        .coerceAtLeast(
-                                                                                                                150.dp
-                                                                                                        )
+                                                        with(density) {
+                                                            (newWidth / density.density).dp
+                                                                    .coerceAtLeast(150.dp)
                                                         }
                                                 windowHeightState =
-                                                                                        with(
-                                                                                                density
-                                                                                        ) {
-                                                                                                (newHeight /
-                                                                                                                density.density)
-                                                                                                        .dp
-                                                                                                        .coerceAtLeast(
-                                                                                                                200.dp
-                                                                                                        )
-                                                                                        }
-                                                                                handleDrag(
-                                                                                        dragAmount
-                                                                                                .x,
-                                                                                        0f
-                                                                                )
-                                                                                onResize(
-                                                                                        windowWidthState,
-                                                                                        windowHeightState
-                                                                                )
+                                                        with(density) {
+                                                            (newHeight / density.density).dp
+                                                                    .coerceAtLeast(200.dp)
+                                                        }
+                                                handleDrag(dragAmount.x, 0f)
+                                                onResize(windowWidthState, windowHeightState)
                                             }
                                     )
                                 }
@@ -1947,75 +1401,39 @@ fun FloatingChatWindow(
                 // 右下角 - 调整宽度和高度
                 Box(
                         modifier =
-                                                Modifier.size(25.dp)
-                                                        .align(Alignment.BottomEnd)
-                                                        .pointerInput(Unit) {
+                                Modifier.size(25.dp).align(Alignment.BottomEnd).pointerInput(Unit) {
                                     detectDragGestures(
                                             onDragStart = {
-                                                                                isEdgeResizing =
-                                                                                        true
-                                                                                activeEdge =
-                                                                                        ResizeEdge
-                                                                                                .BOTTOM_RIGHT
+                                                isEdgeResizing = true
+                                                activeEdge = ResizeEdge.BOTTOM_RIGHT
                                                 initialWindowWidth =
-                                                                                        windowWidthState
-                                                                                                .value *
-                                                                                                density.density
+                                                        windowWidthState.value * density.density
                                                 initialWindowHeight =
-                                                                                        windowHeightState
-                                                                                                .value *
-                                                                                                density.density
+                                                        windowHeightState.value * density.density
                                             },
                                             onDragEnd = {
-                                                                                isEdgeResizing =
-                                                                                        false
-                                                                                saveWindowState
-                                                                                        ?.invoke()
-                                                                        },
-                                                                        onDrag = {
-                                                                                change,
-                                                                                dragAmount ->
+                                                isEdgeResizing = false
+                                                saveWindowState?.invoke()
+                                            },
+                                            onDrag = { change, dragAmount ->
                                                 change.consume()
                                                 val newWidth =
-                                                                                        (initialWindowWidth +
-                                                                                                        dragAmount
-                                                                                                                .x)
-                                                                                                .coerceAtLeast(
-                                                                                                        150f
-                                                                                                )
+                                                        (initialWindowWidth + dragAmount.x)
+                                                                .coerceAtLeast(150f)
                                                 val newHeight =
-                                                                                        (initialWindowHeight +
-                                                                                                        dragAmount
-                                                                                                                .y)
-                                                                                                .coerceAtLeast(
-                                                                                                        200f
-                                                                                                )
+                                                        (initialWindowHeight + dragAmount.y)
+                                                                .coerceAtLeast(200f)
                                                 windowWidthState =
-                                                                                        with(
-                                                                                                density
-                                                                                        ) {
-                                                                                                (newWidth /
-                                                                                                                density.density)
-                                                                                                        .dp
-                                                                                                        .coerceAtLeast(
-                                                                                                                150.dp
-                                                                                                        )
+                                                        with(density) {
+                                                            (newWidth / density.density).dp
+                                                                    .coerceAtLeast(150.dp)
                                                         }
                                                 windowHeightState =
-                                                                                        with(
-                                                                                                density
-                                                                                        ) {
-                                                                                                (newHeight /
-                                                                                                                density.density)
-                                                                                                        .dp
-                                                                                                        .coerceAtLeast(
-                                                                                                                200.dp
-                                                                                                        )
-                                                                                        }
-                                                                                onResize(
-                                                                                        windowWidthState,
-                                                                                        windowHeightState
-                                                                                )
+                                                        with(density) {
+                                                            (newHeight / density.density).dp
+                                                                    .coerceAtLeast(200.dp)
+                                                        }
+                                                onResize(windowWidthState, windowHeightState)
                                             }
                                     )
                                 }
@@ -2032,23 +1450,14 @@ fun FloatingChatWindow(
                                             Modifier.fillMaxHeight()
                                                     .width(4.dp)
                                                     .background(
-                                                                                        color =
-                                                                                                edgeHighlightColor,
-                                                                                        shape =
-                                                                                                RoundedCornerShape(
-                                                                                                        2.dp
-                                                                                                )
+                                                            color = edgeHighlightColor,
+                                                            shape = RoundedCornerShape(2.dp)
                                                     )
                                                     .align(
-                                                                                        when (activeEdge
-                                                                                        ) {
-                                                                                                ResizeEdge
-                                                                                                        .LEFT ->
-                                                                                                        Alignment
-                                                                                                                .CenterStart
-                                                                                                else ->
-                                                                                                        Alignment
-                                                                                                                .CenterEnd
+                                                            when (activeEdge) {
+                                                                ResizeEdge.LEFT ->
+                                                                        Alignment.CenterStart
+                                                                else -> Alignment.CenterEnd
                                                             }
                                                     )
                             )
@@ -2060,23 +1469,14 @@ fun FloatingChatWindow(
                                             Modifier.fillMaxWidth()
                                                     .height(4.dp)
                                                     .background(
-                                                                                        color =
-                                                                                                edgeHighlightColor,
-                                                                                        shape =
-                                                                                                RoundedCornerShape(
-                                                                                                        2.dp
-                                                                                                )
+                                                            color = edgeHighlightColor,
+                                                            shape = RoundedCornerShape(2.dp)
                                                     )
                                                     .align(
-                                                                                        when (activeEdge
-                                                                                        ) {
-                                                                                                ResizeEdge
-                                                                                                        .TOP ->
-                                                                                                        Alignment
-                                                                                                                .TopCenter
-                                                                                                else ->
-                                                                                                        Alignment
-                                                                                                                .BottomCenter
+                                                            when (activeEdge) {
+                                                                ResizeEdge.TOP ->
+                                                                        Alignment.TopCenter
+                                                                else -> Alignment.BottomCenter
                                                             }
                                                     )
                             )
@@ -2090,29 +1490,18 @@ fun FloatingChatWindow(
                                     modifier =
                                             Modifier.size(8.dp)
                                                     .background(
-                                                                                        color =
-                                                                                                edgeHighlightColor,
-                                                                                        shape =
-                                                                                                CircleShape
+                                                            color = edgeHighlightColor,
+                                                            shape = CircleShape
                                                     )
                                                     .align(
-                                                                                        when (activeEdge
-                                                                                        ) {
-                                                                                                ResizeEdge
-                                                                                                        .TOP_LEFT ->
-                                                                                                        Alignment
-                                                                                                                .TopStart
-                                                                                                ResizeEdge
-                                                                                                        .TOP_RIGHT ->
-                                                                                                        Alignment
-                                                                                                                .TopEnd
-                                                                                                ResizeEdge
-                                                                                                        .BOTTOM_LEFT ->
-                                                                                                        Alignment
-                                                                                                                .BottomStart
-                                                                                                else ->
-                                                                                                        Alignment
-                                                                                                                .BottomEnd
+                                                            when (activeEdge) {
+                                                                ResizeEdge.TOP_LEFT ->
+                                                                        Alignment.TopStart
+                                                                ResizeEdge.TOP_RIGHT ->
+                                                                        Alignment.TopEnd
+                                                                ResizeEdge.BOTTOM_LEFT ->
+                                                                        Alignment.BottomStart
+                                                                else -> Alignment.BottomEnd
                                                             }
                                                     )
                             )
@@ -2129,9 +1518,7 @@ fun FloatingChatWindow(
         if (!showInputDialog && onSendMessage != null) {
             Box(
                     modifier =
-                                        Modifier.width(
-                                                        windowWidthState
-                                                ) // 使用窗口宽度而不是fillMaxSize，确保按钮在窗口内
+                            Modifier.width(windowWidthState) // 使用窗口宽度而不是fillMaxSize，确保按钮在窗口内
                                     .height(windowHeightState) // 使用窗口高度
                                     .graphicsLayer { // 应用与窗口相同的缩放
                                         scaleX = windowScale
@@ -2147,10 +1534,7 @@ fun FloatingChatWindow(
                         },
                         modifier =
                                 Modifier.align(Alignment.BottomStart)
-                                                        .padding(
-                                                                start = 12.dp,
-                                                                bottom = 60.dp
-                                                        ) // 减小间距，使按钮更靠近
+                                        .padding(start = 12.dp, bottom = 60.dp) // 减小间距，使按钮更靠近
                                         .size(34.dp), // 减小按钮尺寸
                         containerColor =
                                 if (showAttachmentPanel)
@@ -2158,18 +1542,16 @@ fun FloatingChatWindow(
                                                 alpha = 0.8f
                                         ) // 增加透明度
                                 else
-                                                        MaterialTheme.colorScheme.secondaryContainer
-                                                                .copy(alpha = 0.75f), // 增加透明度
+                                        MaterialTheme.colorScheme.secondaryContainer.copy(
+                                                alpha = 0.75f
+                                        ), // 增加透明度
                         contentColor =
-                                                if (showAttachmentPanel)
-                                                        MaterialTheme.colorScheme.onPrimary
+                                if (showAttachmentPanel) MaterialTheme.colorScheme.onPrimary
                                 else MaterialTheme.colorScheme.onSecondaryContainer,
                 ) {
                     Icon(
                             imageVector = Icons.Default.Add,
-                                                contentDescription =
-                                                        if (showAttachmentPanel) "关闭附件面板"
-                                                        else "添加附件",
+                            contentDescription = if (showAttachmentPanel) "关闭附件面板" else "添加附件",
                             modifier = Modifier.size(16.dp) // 减小图标尺寸
                     )
                 }
@@ -2223,33 +1605,23 @@ fun FloatingChatWindow(
                                     .pointerInput(Unit) {
                                         detectTapGestures { offset ->
                                             // 计算附件面板的大概位置（底部区域）
-                                                                val panelHeight =
-                                                                        220.dp.toPx() // 附件面板的大致高度
+                                            val panelHeight = 220.dp.toPx() // 附件面板的大致高度
                                             val screenHeight = size.height
 
                                             // 计算附件按钮的区域（左下角+按钮位置）- 使用与实际按钮一致的值
-                                                                val buttonSize =
-                                                                        34.dp.toPx() // 使用实际按钮尺寸34dp
-                                                                val buttonPaddingStart =
-                                                                        12.dp.toPx() // 使用实际的开始内边距12dp
-                                                                val buttonPaddingBottom =
-                                                                        60.dp.toPx() // 使用实际的底部内边距60dp
+                                            val buttonSize = 34.dp.toPx() // 使用实际按钮尺寸34dp
+                                            val buttonPaddingStart = 12.dp.toPx() // 使用实际的开始内边距12dp
+                                            val buttonPaddingBottom = 60.dp.toPx() // 使用实际的底部内边距60dp
                                             val buttonLeft = buttonPaddingStart
                                             val buttonTop =
-                                                                        screenHeight -
-                                                                                buttonPaddingBottom -
-                                                                                buttonSize
-                                                                val buttonRight =
-                                                                        buttonLeft + buttonSize
-                                                                val buttonBottom =
-                                                                        buttonTop + buttonSize
+                                                    screenHeight - buttonPaddingBottom - buttonSize
+                                            val buttonRight = buttonLeft + buttonSize
+                                            val buttonBottom = buttonTop + buttonSize
 
                                             // 增加一点点点击区域，使按钮更容易点到
                                             val expandedClickArea = 6.dp.toPx()
                                             val isButtonClicked =
-                                                                        offset.x >=
-                                                                                (buttonLeft -
-                                                                                        expandedClickArea) &&
+                                                    offset.x >= (buttonLeft - expandedClickArea) &&
                                                             offset.x <=
                                                                     (buttonRight +
                                                                             expandedClickArea) &&
@@ -2262,14 +1634,10 @@ fun FloatingChatWindow(
 
                                             if (isButtonClicked) {
                                                 // 点击了附件按钮，切换面板显示状态
-                                                                        showAttachmentPanel =
-                                                                                !showAttachmentPanel
+                                                showAttachmentPanel = !showAttachmentPanel
                                             }
                                             // 检查点击是否在面板外部区域
-                                                                else if (offset.y <
-                                                                                screenHeight -
-                                                                                        panelHeight
-                                                                ) {
+                                            else if (offset.y < screenHeight - panelHeight) {
                                                 // 点击面板外部区域，关闭面板
                                                 showAttachmentPanel = false
                                             }
@@ -2283,9 +1651,7 @@ fun FloatingChatWindow(
                         onAttachScreenContent = {
                             coroutineScope.launch {
                                 // 屏幕内容附件 - 在service层处理
-                                                        onAttachmentRequest?.invoke(
-                                                                "screen_capture"
-                                                        )
+                                onAttachmentRequest?.invoke("screen_capture")
                                 // 允许附件面板关闭，但稍后再刷新附件列表
                                 delay(500) // 给Service一点时间处理附件
                                 // 保持附件面板关闭状态，但内容已更新
@@ -2295,9 +1661,7 @@ fun FloatingChatWindow(
                         onAttachNotifications = {
                             coroutineScope.launch {
                                 // 通知附件 - 在service层处理
-                                                        onAttachmentRequest?.invoke(
-                                                                "notifications_capture"
-                                                        )
+                                onAttachmentRequest?.invoke("notifications_capture")
                                 // 允许附件面板关闭，但稍后再刷新附件列表
                                 delay(500) // 给Service一点时间处理附件
                                 // 保持附件面板关闭状态，但内容已更新
@@ -2307,9 +1671,7 @@ fun FloatingChatWindow(
                         onAttachLocation = {
                             coroutineScope.launch {
                                 // 位置附件 - 在service层处理
-                                                        onAttachmentRequest?.invoke(
-                                                                "location_capture"
-                                                        )
+                                onAttachmentRequest?.invoke("location_capture")
                                 // 允许附件面板关闭，但稍后再刷新附件列表
                                 delay(500) // 给Service一点时间处理附件
                                 // 保持附件面板关闭状态，但内容已更新
@@ -2319,9 +1681,7 @@ fun FloatingChatWindow(
                         onAttachProblemMemory = {
                             coroutineScope.launch {
                                 // 问题记忆附件 - 在service层处理
-                                                        onAttachmentRequest?.invoke(
-                                                                "problem_memory"
-                                                        )
+                                onAttachmentRequest?.invoke("problem_memory")
                                 // 允许附件面板关闭，但稍后再刷新附件列表
                                 delay(500) // 给Service一点时间处理附件
                                 // 保持附件面板关闭状态，但内容已更新
@@ -2331,6 +1691,187 @@ fun FloatingChatWindow(
                         onDismiss = { showAttachmentPanel = false }
                 )
             }
+        }
+    }
+}
+
+/** 单个消息项组件 将消息渲染逻辑提取到单独的组件，减少重组范围 */
+@Composable
+private fun MessageItem(
+        index: Int,
+        message: ChatMessage,
+        allMessages: List<ChatMessage>,
+        userMessageColor: Color,
+        aiMessageColor: Color,
+        userTextColor: Color,
+        aiTextColor: Color,
+        systemMessageColor: Color,
+        systemTextColor: Color,
+        thinkingBackgroundColor: Color,
+        thinkingTextColor: Color,
+        isEditMode: Boolean,
+        onSelectMessageToEdit: ((Int, ChatMessage) -> Unit)?,
+        onCopyMessage: ((ChatMessage) -> Unit)?
+) {
+    // 添加Context以访问剪贴板服务
+    val context = LocalContext.current
+
+    // 编辑模式下为消息添加点击功能
+    val messageModifier =
+            if (isEditMode && message.sender != "think") {
+                Modifier.clickable { onSelectMessageToEdit?.invoke(index, message) }
+            } else {
+                Modifier
+            }
+
+    Box(modifier = messageModifier) {
+        // 检查这是否是最后一条AI消息
+        val isLastAiMessage =
+                message.sender == "ai" && index == allMessages.indexOfLast { it.sender == "ai" }
+        val streamToRender = if (isLastAiMessage) message.contentStream else null
+
+        CursorStyleChatMessage(
+                message = message,
+                userMessageColor = userMessageColor,
+                aiMessageColor = aiMessageColor,
+                userTextColor = userTextColor,
+                aiTextColor = aiTextColor,
+                systemMessageColor = systemMessageColor,
+                systemTextColor = systemTextColor,
+                thinkingBackgroundColor = thinkingBackgroundColor,
+                thinkingTextColor = thinkingTextColor,
+                supportToolMarkup = true,
+                initialThinkingExpanded = true,
+                overrideStream = streamToRender
+        )
+
+        // 在编辑模式下显示编辑指示器
+        if (isEditMode && (message.sender == "user" || message.sender == "ai")) {
+            // 复制按钮
+            Box(
+                    modifier =
+                            Modifier.align(Alignment.TopEnd)
+                                    .padding(
+                                            end = 46.dp,
+                                            top = if (message.sender == "user") 6.dp else 0.dp
+                                    )
+                                    .size(32.dp)
+                                    .clickable(
+                                            interactionSource =
+                                                    remember { MutableInteractionSource() },
+                                            indication =
+                                                    rememberRipple(
+                                                            bounded = false,
+                                                            radius = 20.dp,
+                                                            color =
+                                                                    MaterialTheme.colorScheme
+                                                                            .primary
+                                                    )
+                                    ) {
+                                        // 实现复制功能
+                                        val clipboardManager =
+                                                context.getSystemService(
+                                                        Context.CLIPBOARD_SERVICE
+                                                ) as
+                                                        ClipboardManager
+                                        val clipData =
+                                                ClipData.newPlainText("聊天消息", message.content)
+                                        clipboardManager.setPrimaryClip(clipData)
+
+                                        // 显示复制成功的提示
+                                        Toast.makeText(context, "消息已复制到剪贴板", Toast.LENGTH_SHORT)
+                                                .show()
+
+                                        // 如果有外部回调，也调用它
+                                        onCopyMessage?.invoke(message)
+                                    }
+            ) {
+                Icon(
+                        imageVector = Icons.Default.ContentCopy,
+                        contentDescription = "复制此消息",
+                        modifier = Modifier.align(Alignment.Center).size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                )
+            }
+
+            // 编辑按钮
+            Box(
+                    modifier =
+                            Modifier.align(Alignment.TopEnd)
+                                    .padding(
+                                            end = 20.dp,
+                                            top = if (message.sender == "user") 6.dp else 0.dp
+                                    )
+                                    .size(32.dp)
+                                    .clickable(
+                                            interactionSource =
+                                                    remember { MutableInteractionSource() },
+                                            indication =
+                                                    rememberRipple(
+                                                            bounded = false,
+                                                            radius = 20.dp,
+                                                            color =
+                                                                    MaterialTheme.colorScheme
+                                                                            .primary
+                                                    )
+                                    ) { onSelectMessageToEdit?.invoke(index, message) }
+            ) {
+                Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "编辑此消息",
+                        modifier = Modifier.align(Alignment.Center).size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LoadingDotsIndicator(textColor: Color) {
+    val infiniteTransition = rememberInfiniteTransition(label = "dots")
+
+    Row(
+            modifier = Modifier.padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+    ) {
+        val jumpHeight = -5f
+        val animationDelay = 160
+
+        (0..2).forEach { index ->
+            val offsetY by
+                    infiniteTransition.animateFloat(
+                            initialValue = 0f,
+                            targetValue = jumpHeight,
+                            animationSpec =
+                                    infiniteRepeatable(
+                                            animation =
+                                                    keyframes {
+                                                        durationMillis = 600
+                                                        0f at 0
+                                                        jumpHeight * 0.4f at 100
+                                                        jumpHeight * 0.8f at 200
+                                                        jumpHeight at 300
+                                                        jumpHeight * 0.8f at 400
+                                                        jumpHeight * 0.4f at 500
+                                                        0f at 600
+                                                    },
+                                            repeatMode = RepeatMode.Restart,
+                                            initialStartOffset = StartOffset(index * animationDelay)
+                                    ),
+                            label = "offsetY_$index"
+                    )
+
+            Box(
+                    modifier =
+                            Modifier.size(6.dp)
+                                    .offset(y = offsetY.dp)
+                                    .background(
+                                            color = textColor.copy(alpha = 0.6f),
+                                            shape = CircleShape
+                                    )
+            )
         }
     }
 }

@@ -24,6 +24,8 @@ import com.ai.assistance.operit.ui.features.chat.util.ConfigurationStateHolder
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModelFactory
 import com.ai.assistance.operit.ui.main.screens.GestureStateHolder
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.sample
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -176,44 +178,38 @@ fun AIChatScreen(
                 }
         }
 
-        // Launch floating window service when floating mode is enabled
-        LaunchedEffect(isFloatingMode, chatHistory) {
-                if (isFloatingMode && canDrawOverlays.value) {
+        // 启动和停止悬浮窗服务
+        LaunchedEffect(isFloatingMode) {
+                if (isFloatingMode) {
                         try {
-                                // Start floating chat service
                                 val intent = Intent(context, FloatingChatService::class.java)
-
-                                // Filter out "think" messages which are not needed in the floating
-                                // window
-                                val filteredMessages = chatHistory.filter { it.sender != "think" }
-
-                                // Convert to array of parcelables if needed
-                                val chatMessagesArray = filteredMessages.toTypedArray()
-                                intent.putExtra("CHAT_MESSAGES", chatMessagesArray)
-
                                 context.startService(intent)
-                                Log.d(
-                                        "AIChatScreen",
-                                        "Started floating window service with ${filteredMessages.size} messages"
-                                )
-
-                                // Update the messages in the service when chatHistory changes
-                                actualViewModel.updateFloatingWindowMessages(filteredMessages)
-                        } catch (e: Exception) {
-                                Log.e("AIChatScreen", "Error starting floating service", e)
-                                actualViewModel
-                                        .toggleFloatingMode() // Turn off floating mode if it fails
-                                android.widget.Toast.makeText(
-                                                context,
-                                                "启动悬浮窗失败，请确保已授予悬浮窗权限",
-                                                android.widget.Toast.LENGTH_SHORT
-                                        )
-                                        .show()
+                                Log.d("AIChatScreen", "悬浮窗服务已启动")
+                        } catch (e: SecurityException) {
+                                Log.e("AIChatScreen", "启动悬浮窗服务失败：权限问题", e)
+                                actualViewModel.toggleFloatingMode()
                         }
-                } else if (!isFloatingMode) {
-                        // Stop floating chat service when floating mode is disabled
+                } else {
                         context.stopService(Intent(context, FloatingChatService::class.java))
+                        Log.d("AIChatScreen", "悬浮窗服务已停止")
                 }
+        }
+
+        // 当聊天记录变化时，更新悬浮窗内容（使用采样限流）
+        LaunchedEffect(Unit) {
+                snapshotFlow { chatHistory }
+                        .sample(300L) // 每300毫秒采样一次，比debounce更适合流式场景
+                        .distinctUntilChanged()
+                        .collect { history ->
+                                // 在收集器内部直接从StateFlow获取最新状态，避免竞态问题
+                                if (actualViewModel.isFloatingMode.value) {
+                                        val filteredMessages =
+                                                history.filter { it.sender != "think" }
+                                        actualViewModel.updateFloatingWindowMessages(
+                                                filteredMessages
+                                        )
+                                }
+                        }
         }
 
         // 移除原有的 snackbar 错误处理
@@ -276,21 +272,21 @@ fun AIChatScreen(
         }
 
         // 处理文件选择器请求
-        val fileChooserRequest by actualViewModel.uiStateDelegate.fileChooserRequest.collectAsState()
-        val fileChooserLauncher = rememberLauncherForActivityResult(
-                contract = ActivityResultContracts.StartActivityForResult()
-        ) { result ->
-                // 处理文件选择结果
-                actualViewModel.handleFileChooserResult(result.resultCode, result.data)
-                // 清除请求
-                actualViewModel.uiStateDelegate.clearFileChooserRequest()
-        }
-        
+        val fileChooserRequest by
+                actualViewModel.uiStateDelegate.fileChooserRequest.collectAsState()
+        val fileChooserLauncher =
+                rememberLauncherForActivityResult(
+                        contract = ActivityResultContracts.StartActivityForResult()
+                ) { result ->
+                        // 处理文件选择结果
+                        actualViewModel.handleFileChooserResult(result.resultCode, result.data)
+                        // 清除请求
+                        actualViewModel.uiStateDelegate.clearFileChooserRequest()
+                }
+
         // 启动文件选择器
         LaunchedEffect(fileChooserRequest) {
-                fileChooserRequest?.let {
-                        fileChooserLauncher.launch(it)
-                }
+                fileChooserRequest?.let { fileChooserLauncher.launch(it) }
         }
 
         Scaffold(

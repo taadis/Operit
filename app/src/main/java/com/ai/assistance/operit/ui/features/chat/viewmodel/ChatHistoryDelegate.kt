@@ -227,8 +227,20 @@ class ChatHistoryDelegate(
                         currentMessages.indexOfFirst { it.timestamp == message.timestamp }
 
                 if (existingMessageIndex != -1) {
+                    // val updatedMessages = currentMessages.toMutableList().apply {
+                    //     this[existingMessageIndex] = message
+                    // }
+                    // // 更新StateFlow以触发UI重组
+                    // _chatHistory.value = updatedMessages
+                    // // 通知监听者（包括悬浮窗）历史记录已更新
+                    // onChatHistoryLoaded(updatedMessages)
+                    // // 在后台更新数据库
                     chatHistoryManager.updateMessage(chatId, message)
                 } else {
+                    Log.d(
+                            TAG,
+                            "添加新消息, stream is null: ${message.contentStream == null}, timestamp: ${message.timestamp}"
+                    )
                     val newMessages = currentMessages + message
                     _chatHistory.value = newMessages
                     onChatHistoryLoaded(newMessages) // 通知UI更新

@@ -8,6 +8,7 @@ import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.model.InputProcessingState as EnhancedInputProcessingState
 import com.ai.assistance.operit.util.NetworkUtils
+import com.ai.assistance.operit.util.stream.SharedStream
 import com.ai.assistance.operit.util.stream.share
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -32,7 +33,8 @@ class MessageProcessingDelegate(
         private val updateChatStatistics: () -> Unit,
         private val saveCurrentChat: () -> Unit,
         private val showErrorMessage: (String) -> Unit,
-        private val updateChatTitle: (String) -> Unit
+        private val updateChatTitle: (String) -> Unit,
+        private val onStreamComplete: () -> Unit
 ) {
     companion object {
         private const val TAG = "MessageProcessingDelegate"
@@ -52,6 +54,12 @@ class MessageProcessingDelegate(
 
     private val _scrollToBottomEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val scrollToBottomEvent = _scrollToBottomEvent.asSharedFlow()
+
+    // 当前活跃的AI响应流
+    private var currentResponseStream: SharedStream<String>? = null
+
+    // 获取当前活跃的AI响应流
+    fun getCurrentResponseStream(): SharedStream<String>? = currentResponseStream
 
     init {
         Log.d(TAG, "MessageProcessingDelegate初始化: 创建滚动事件流")
@@ -97,6 +105,7 @@ class MessageProcessingDelegate(
         addMessageToChat(ChatMessage(sender = "user", content = finalMessage))
 
         viewModelScope.launch(Dispatchers.IO) {
+            lateinit var aiMessage: ChatMessage
             try {
                 if (!NetworkUtils.isNetworkAvailable(context)) {
                     withContext(Dispatchers.Main) { showErrorMessage("网络连接不可用") }
@@ -125,16 +134,26 @@ class MessageProcessingDelegate(
                 val sharedCharStream =
                         responseStream.share(
                                 scope = viewModelScope,
+                                replay = 0, // 不重放历史消息
                                 onComplete = {
                                     deferred.complete(Unit)
                                     Log.d(
                                             TAG,
                                             "共享流完成，耗时: ${System.currentTimeMillis() - startTime}ms"
                                     )
+                                    currentResponseStream = null // 清除本地引用
+                                    onStreamComplete() // 通知外部流已完成
                                 }
                         )
 
-                val aiMessage = ChatMessage(sender = "ai", contentStream = sharedCharStream)
+                // 更新当前响应流，使其可以被其他组件（如悬浮窗）访问
+                currentResponseStream = sharedCharStream
+
+                aiMessage = ChatMessage(sender = "ai", contentStream = sharedCharStream)
+                Log.d(
+                        TAG,
+                        "创建带流的AI消息, stream is null: ${aiMessage.contentStream == null}, timestamp: ${aiMessage.timestamp}"
+                )
 
                 withContext(Dispatchers.Main) { addMessageToChat(aiMessage) }
 
@@ -164,6 +183,17 @@ class MessageProcessingDelegate(
                 Log.e(TAG, "发送消息时出错", e)
                 withContext(Dispatchers.Main) { showErrorMessage("发送消息失败: ${e.message}") }
             } finally {
+                // 修改为使用 try-catch 来检查变量是否已初始化，而不是使用 ::var.isInitialized
+                try {
+                    // 尝试访问 aiMessage，如果未初始化会抛出 UninitializedPropertyAccessException
+                    val finalContent = aiMessage.content
+                    val finalMessage = aiMessage.copy(content = finalContent, contentStream = null)
+                    withContext(Dispatchers.Main) { addMessageToChat(finalMessage) }
+                } catch (e: UninitializedPropertyAccessException) {
+                    // aiMessage 未初始化，忽略清理步骤
+                    Log.d(TAG, "AI消息未初始化，跳过流清理步骤")
+                }
+
                 // 添加一个短暂的延迟，以确保UI有足够的时间来渲染最后一个数据块
                 // 这有助于解决因竞态条件导致的UI内容（如状态标签）有时无法显示的问题
                 withContext(Dispatchers.IO) { delay(100) }

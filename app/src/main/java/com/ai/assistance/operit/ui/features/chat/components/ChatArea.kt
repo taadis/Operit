@@ -117,7 +117,7 @@ fun ChatArea(
                     message ->
                 val actualIndex = minVisibleIndex + relativeIndex
                 // 使用key组合函数为每个消息项设置单独的重组作用域
-                key(message) {
+                key(message.timestamp) {
                     MessageItem(
                             index = actualIndex,
                             message = message,

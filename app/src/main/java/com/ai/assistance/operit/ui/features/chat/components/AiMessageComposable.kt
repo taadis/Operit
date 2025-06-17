@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.ui.common.markdown.StreamMarkdownRenderer
 import com.ai.assistance.operit.ui.features.chat.components.part.CustomXmlRenderer
+import com.ai.assistance.operit.util.stream.Stream
 import com.ai.assistance.operit.util.markdown.toCharStream
 
 private const val TAG = "AiMessageComposable"
@@ -27,7 +28,8 @@ fun AiMessageComposable(
         message: ChatMessage,
         backgroundColor: Color,
         textColor: Color,
-        onLinkClick: ((String) -> Unit)? = null
+        onLinkClick: ((String) -> Unit)? = null,
+        overrideStream: Stream<String>? = null
 ) {
     // 创建自定义XML渲染器
     val xmlRenderer = remember { CustomXmlRenderer() }
@@ -47,11 +49,11 @@ fun AiMessageComposable(
         // 只要是同一条消息，StreamMarkdownRenderer就不会被销毁和重建。
         // 这可以防止流被不必要地取消，保证了渲染的连续性。
         key(message.timestamp) {
-            if (message.contentStream != null) {
+            val streamToRender = overrideStream ?: message.contentStream
+            if (streamToRender != null) {
                 // 对于正在流式传输的消息，使用流式渲染器
                 // 将contentStream保存到本地变量以避免智能转换问题
-                val contentStream = message.contentStream
-                val charStream = remember(contentStream) { contentStream!!.toCharStream() }
+                val charStream = remember(streamToRender) { streamToRender.toCharStream() }
 
                 StreamMarkdownRenderer(
                         markdownStream = charStream,
