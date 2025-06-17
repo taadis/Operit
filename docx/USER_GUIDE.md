@@ -14,34 +14,37 @@
 
 ---
 
-<h2 id="table-of-contents">📖 目录</h2>
+<h2 id="toc">📖 目录</h2>
 
-- [简介](#简介)
-- [基本流程讲解](#基本流程讲解)
-  - [初次使用/试用](#初次使用)
-  - [如何打包AI写好的WEB应用](#打包web应用)
-  - [如何配置自己的API/其他模型](#api配置)
-    - [配置自己的DeepSeek API](#deepseek-api)
-    - [切换其他AI模型](#切换模型)
-  - [Shizuku授权流程](#shizuku授权)
-  - [包管理与MCP使用说明](#包管理)
-    - [包管理启用过程](#启用包)
-    - [一键快捷配置环境](#配置环境)
-    - [MCP配置流程](#mcp配置)
-- [拓展用法实操](#拓展用法实操)
-  - [开箱即用](#开箱即用)
-  - [拓展包](#拓展包)
-  - [核心工具](#核心工具)
-  - [MCP市场](#mcp市场)
-- [常见问题解答](#常见问题解答)
-  - [MCP包问题排查](#mcp-troubleshooting)
-- [加入我们](#加入我们)
-- [许愿池](#许愿池)
-- [朝花夕拾 (旧版本问题解答)](#朝花夕拾-旧版本问题解答)
+- [✨ 简介](#section-1)
+- [🗺️ 基本流程讲解](#section-2)
+  - [初次使用/试用](#section-2-1)
+  - [如何打包AI写好的WEB应用](#section-2-2)
+  - [如何配置自己的API/其他模型](#section-2-3)
+    - [配置自己的DeepSeek API](#section-2-3-1)
+    - [切换其他AI模型](#section-2-3-2)
+  - [Shizuku授权流程](#section-2-4)
+  - [包管理与MCP使用说明](#section-2-5)
+    - [包管理启用过程](#section-2-5-1)
+    - [一键快捷配置环境](#section-2-5-2)
+    - [MCP配置流程](#section-2-5-3)
+- [🚀 拓展用法实操](#section-3)
+  - [🧰 开箱即用](#section-3-1)
+  - [📦 拓展包](#section-3-2)
+  - [🛠️ 核心工具](#section-3-3)
+  - [🛒 MCP市场](#section-3-4)
+    - [MCP工作机制](#section-3-4-1)
+    - [MCP下载和部署机制](#section-3-4-2)
+    - [MCP常见问题](#section-3-4-3)
+- [❔ 常见问题解答](#section-4)
+  - [MCP包问题排查](#section-4-1)
+- [🎉 加入我们](#section-5)
+- [💡 许愿池](#section-6)
+- [📜 朝花夕拾 (旧版本问题解答)](#section-7)
 
 ---
 
-<h2 id="简介" style="display: flex; justify-content: space-between; align-items: center;"><span>✨ 简介</span><a href="#table-of-contents" style="text-decoration: none; font-size: 0.8em;" title="返回目录">🔝</a></h2>
+<h2 id="section-1" style="display: flex; justify-content: space-between; align-items: center;"><span>✨ 简介</span><a href="#toc" style="text-decoration: none; font-size: 0.8em;" title="返回目录">🔝</a></h2>
 
 欢迎使用 **Operit AI**！本指南旨在帮助您快速上手，并充分利用 Operit AI 的强大功能，将您的手机变成一个真正的智能助手。
 
@@ -49,9 +52,9 @@
 
 <div STYLE="page-break-after: always;"></div>
 
-<h2 id="基本流程讲解" style="display: flex; justify-content: space-between; align-items: center;"><span>🗺️ 基本流程讲解</span><a href="#table-of-contents" style="text-decoration: none; font-size: 0.8em;" title="返回目录">🔝</a></h2>
+<h2 id="section-2" style="display: flex; justify-content: space-between; align-items: center;"><span>🗺️ 基本流程讲解</span><a href="#toc" style="text-decoration: none; font-size: 0.8em;" title="返回目录">🔝</a></h2>
 
-<h3 id="初次使用">初次使用/试用</h3>
+<h3 id="section-2-1" style="display: flex; justify-content: space-between; align-items: center;"><span>初次使用/试用</span><a href="#section-2" style="text-decoration: none; font-size: 0.8em;" title="返回上一级">↩️</a></h3>
 
 初次使用 Operit AI 时，您需要进行简单的设置以授予应用必要权限，从而解锁全部功能。以下是详细步骤：
  >演示版本`1.1.5`，之后的版本将在右上角加入 '跳过'
@@ -120,19 +123,15 @@
   </tbody>
 </table>
 
-<h3 id="打包web应用">如何打包AI写好的WEB应用</h3>
+<h3 id="section-2-2" style="display: flex; justify-content: space-between; align-items: center;"><span>如何打包AI写好的WEB应用</span><a href="#section-2" style="text-decoration: none; font-size: 0.8em;" title="返回上一级">↩️</a></h3>
 <em>以下步骤将演示如何打包由AI完成开发的Web应用。（图片可点击放大）</em>
 <br>
 <table style="width: 100%;">
-  <thead>
-    <tr>
-      <th style="text-align: center; padding: 8px;">步骤一：进入打包页面</th>
-      <th style="text-align: center; padding: 8px;">步骤二：开始打包</th>
-      <th style="text-align: center; padding: 8px;">步骤三：设置应用信息</th>
-      <th style="text-align: center; padding: 8px;">步骤四：下载或分享</th>
-    </tr>
-  </thead>
   <tbody>
+    <tr>
+      <td style="text-align: center; padding: 8px; width: 50%;">步骤一：进入打包页面</td>
+      <td style="text-align: center; padding: 8px; width: 50%;">步骤二：开始打包</td>
+    </tr>
     <tr>
       <td style="text-align: center; padding: 8px; vertical-align: top;">
         <a href="assets/teach_step/1-1.png" target="_blank" rel="noopener noreferrer">
@@ -144,6 +143,12 @@
           <img src="assets/teach_step/1-2.png" alt="开始打包" style="max-height: 280px; max-width: 100%; height: auto;">
         </a>
       </td>
+    </tr>
+    <tr>
+      <td style="text-align: center; padding: 8px;">步骤三：设置应用信息</td>
+      <td style="text-align: center; padding: 8px;">步骤四：下载或分享</td>
+    </tr>
+    <tr>
       <td style="text-align: center; padding: 8px; vertical-align: top;">
         <a href="assets/teach_step/1-3.jpg" target="_blank" rel="noopener noreferrer">
           <img src="assets/teach_step/1-3.jpg" alt="设置信息" style="max-height: 280px; max-width: 100%; height: auto;">
@@ -159,23 +164,25 @@
 </table>
 <br>
 
-<h3 id="api配置">如何配置自己的API/其他模型</h3>
+<h3 id="section-2-3" style="display: flex; justify-content: space-between; align-items: center;"><span>如何配置自己的API/其他模型</span><a href="#section-2" style="text-decoration: none; font-size: 0.8em;" title="返回上一级">↩️</a></h3>
 
-<h4 id="deepseek-api">配置自己的DeepSeek API</h4>
+<h4 id="section-2-3-1" style="display: flex; justify-content: space-between; align-items: center;"><span>配置自己的DeepSeek API</span><a href="#section-2-3" style="text-decoration: none; font-size: 0.8em;" title="返回上一级">⤴️</a></h4>
 <em>按照以下步骤，您可以轻松配置好DeepSeek的API，以便在Operit AI中使用。</em>
 <p>如果您想配置自己的API（而非使用应用内提供的默认接口），可以参照以下流程：</p>
-<h5>步骤一：登录/注册 DeepSeek 开放平台</h5>
-<p>
-  首先，您需要访问 DeepSeek 开放平台 并登录您的账户。我们已在软件内部嵌入了deepseek开放平台。如果您是第一次使用，需要先完成注册。
-</p>
-<div style="display: flex; justify-content: space-around; gap: 10px; flex-wrap: nowrap;">
-    <a href="assets/deepseek_API_step/1.png" target="_blank" rel="noopener noreferrer"><img src="assets/deepseek_API_step/1.png" alt="DeepSeek 官网" style="width: 100%; height: auto; border: 1px solid #ddd; border-radius: 4px;"></a>
-    <a href="assets/deepseek_API_step/2.png" target="_blank" rel="noopener noreferrer"><img src="assets/deepseek_API_step/2.png" alt="登录页面" style="width: 100%; height: auto; border: 1px solid #ddd; border-radius: 4px;"></a>
-    <a href="assets/deepseek_API_step/3.png" target="_blank" rel="noopener noreferrer"><img src="assets/deepseek_API_step/3.png" alt="控制台" style="width: 100%; height: auto; border: 1px solid #ddd; border-radius: 4px;"></a>
-</div>
 
 <table style="width: 100%;">
   <tbody>
+    <tr>
+      <td colspan="3" style="padding-bottom: 8px;">
+        <h5>步骤一：登录/注册 DeepSeek 开放平台</h5>
+        <p>首先，您需要访问 DeepSeek 开放平台 并登录您的账户。我们已在软件内部嵌入了deepseek开放平台。如果您是第一次使用，需要先完成注册。</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="text-align: center; padding: 8px; vertical-align: top; width: 33%;"><a href="assets/deepseek_API_step/1.png" target="_blank" rel="noopener noreferrer"><img src="assets/deepseek_API_step/1.png" alt="DeepSeek 官网" style="max-height: 200px; height: auto; border: 1px solid #ddd; border-radius: 4px;"></a></td>
+      <td style="text-align: center; padding: 8px; vertical-align: top; width: 33%;"><a href="assets/deepseek_API_step/2.png" target="_blank" rel="noopener noreferrer"><img src="assets/deepseek_API_step/2.png" alt="登录页面" style="max-height: 200px; height: auto; border: 1px solid #ddd; border-radius: 4px;"></a></td>
+      <td style="text-align: center; padding: 8px; vertical-align: top; width: 33%;"><a href="assets/deepseek_API_step/3.png" target="_blank" rel="noopener noreferrer"><img src="assets/deepseek_API_step/3.png" alt="控制台" style="max-height: 200px; height: auto; border: 1px solid #ddd; border-radius: 4px;"></a></td>
+    </tr>
     <tr>
       <td style="vertical-align: top; padding: 8px; width: 33%;">
         <h5>步骤二：充值以获取额度</h5>
@@ -206,18 +213,14 @@
 
 <p>我们支持包括gemini在内的大多数模型。如果还有更新的模型我们没有支持，请提醒我们！</p>
 
-<h4 id="切换模型">切换其他AI模型</h4>
+<h4 id="section-2-3-2" style="display: flex; justify-content: space-between; align-items: center;"><span>切换其他AI模型</span><a href="#section-2-3" style="text-decoration: none; font-size: 0.8em;" title="返回上一级">⤴️</a></h4>
 <p>您可以按照以下步骤切换和配置您想使用的AI模型：</p>
 <table style="width: 100%;">
-  <thead>
-    <tr>
-      <th style="text-align: center; padding: 8px;">步骤一：进入设置</th>
-      <th style="text-align: center; padding: 8px;">步骤二：选择AI模型配置</th>
-      <th style="text-align: center; padding: 8px;">步骤三：模型与参数配置</th>
-      <th style="text-align: center; padding: 8px;">步骤四：选择你的模型</th>
-    </tr>
-  </thead>
   <tbody>
+    <tr>
+      <td style="text-align: center; padding: 8px; width: 50%;">步骤一：进入设置</td>
+      <td style="text-align: center; padding: 8px; width: 50%;">步骤二：选择AI模型配置</td>
+    </tr>
     <tr>
       <td style="text-align: center; padding: 8px; vertical-align: top;">
         <a href="assets/model/1.jpg" target="_blank" rel="noopener noreferrer">
@@ -229,6 +232,12 @@
           <img src="assets/model/2.jpg" alt="步骤二" style="height: 280px; width: auto; max-width: 100%;">
         </a>
       </td>
+    </tr>
+    <tr>
+      <td style="text-align: center; padding: 8px;">步骤三：模型与参数配置</td>
+      <td style="text-align: center; padding: 8px;">步骤四：选择你的模型</td>
+    </tr>
+    <tr>
       <td style="text-align: center; padding: 8px; vertical-align: top;">
         <a href="assets/model/3.jpg" target="_blank" rel="noopener noreferrer">
           <img src="assets/model/3.jpg" alt="步骤三" style="height: 280px; width: auto; max-width: 100%;">
@@ -243,14 +252,16 @@
   </tbody>
 </table>
 
-<h3 id="shizuku授权">Shizuku授权流程</h3>
+<h3 id="section-2-4" style="display: flex; justify-content: space-between; align-items: center;"><span>Shizuku授权流程</span><a href="#section-2" style="text-decoration: none; font-size: 0.8em;" title="返回上一级">↩️</a></h3>
+
 <p>完成shizuku的配置后，内置包（除<code>coderunner</code>）就都可以用了。</p>
 
-<h3 id="包管理">包管理与MCP使用说明</h3>
+<h3 id="section-2-5" style="display: flex; justify-content: space-between; align-items: center;"><span>包管理与MCP使用说明</span><a href="#section-2" style="text-decoration: none; font-size: 0.8em;" title="返回上一级">↩️</a></h3>
 <p>内置包（除<code>coderunner</code>外）开箱即用。其余拓展包与MCP依赖Termux环境，使用前请确保Termux已在后台运行。</p>
 
-<h4 id="启用包">包管理启用过程</h4>
-<table style="width: 100%;">
+<h4 id="section-2-5-1" style="display: flex; justify-content: space-between; align-items: center;"><span>包管理启用过程</span><a href="#section-2-5" style="text-decoration: none; font-size: 0.8em;" title="返回上一级">⤴️</a></h4>
+
+<table style="width: 100%; border-collapse: separate; border-spacing: 0 1em;">
     <thead>
       <tr>
        <th style="text-align: center; padding: 8px;">步骤一：进入包管理</th>
@@ -270,57 +281,48 @@
    </tbody>
 </table>
 
-<h4 id="配置环境">一键快捷配置环境</h4>
-<table style="width: 100%;">
-  <thead>
-    <tr>
-      <th style="width: 25%; text-align: left;">步骤</th>
-      <th style="width: 25%; text-align: left;">说明与操作</th>
-      <th style="width: 50%; text-align: left;">截图</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td style="vertical-align: top;"><strong>步骤一：进入工具箱</strong></td>
-      <td style="vertical-align: top; padding-right: 15px;">在主界面或设置中找到"工具箱"入口并点击进入。</td>
-      <td style="vertical-align: top;">
-        <a href="assets/package_or_MCP/3.jpg" target="_blank" rel="noopener noreferrer">
-          <img src="assets/package_or_MCP/3.jpg" alt="配置环境1" style="width: 100%; height: auto;">
-        </a>
-      </td>
-    </tr>
-    <tr>
-      <td style="vertical-align: top;"><strong>步骤二：选择终端自动配置</strong></td>
-      <td style="vertical-align: top; padding-right: 15px;">在工具箱中，找到并选择"终端自动配置"功能，以开始自动化环境设置。</td>
-      <td style="vertical-align: top;">
-        <a href="assets/package_or_MCP/4.jpg" target="_blank" rel="noopener noreferrer">
-          <img src="assets/package_or_MCP/4.jpg" alt="配置环境2" style="width: 100%; height: auto;">
-        </a>
-      </td>
-    </tr>
-    <tr>
-      <td style="vertical-align: top;"><strong>步骤三：开始配置</strong></td>
-      <td style="vertical-align: top; padding-right: 15px;">点击"开始配置"按钮，系统将自动完成所需环境的安装和配置。</td>
-      <td style="vertical-align: top;">
-        <a href="assets/package_or_MCP/5.jpg" target="_blank" rel="noopener noreferrer">
-          <img src="assets/package_or_MCP/5.jpg" alt="配置环境3" style="width: 100%; height: auto;">
-        </a>
-      </td>
-    </tr>
-  </tbody>
+<h4 id="section-2-5-2" style="display: flex; justify-content: space-between; align-items: center;"><span>一键快捷配置环境</span><a href="#section-2-5" style="text-decoration: none; font-size: 0.8em;" title="返回上一级">⤴️</a></h4>
+<table border="0" style="width:100%; border-collapse: collapse; text-align: center;">
+  <tr style="vertical-align: top;">
+    <td style="padding: 5px; width: 33%;">
+      <strong>步骤一：进入工具箱</strong><br>
+      在主界面或设置中找到"工具箱"入口并点击进入。
+    </td>
+    <td style="padding: 5px; width: 33%;">
+      <strong>步骤二：选择终端自动配置</strong><br>
+      在工具箱中，找到并选择"终端自动配置"功能，以开始自动化环境设置。
+    </td>
+    <td style="padding: 5px; width: 33%;">
+      <strong>步骤三：开始配置</strong><br>
+      点击"开始配置"按钮，系统将自动完成所需环境的安装和配置。
+    </td>
+  </tr>
+  <tr>
+    <td style="padding: 5px;">
+      <a href="assets/package_or_MCP/3.jpg" target="_blank" rel="noopener noreferrer">
+        <img src="assets/package_or_MCP/3.jpg" alt="配置环境1" style="width: 100%; max-width: 200px; height: auto;">
+      </a>
+    </td>
+    <td style="padding: 5px;">
+      <a href="assets/package_or_MCP/4.jpg" target="_blank" rel="noopener noreferrer">
+        <img src="assets/package_or_MCP/4.jpg" alt="配置环境2" style="width: 100%; max-width: 200px; height: auto;">
+      </a>
+    </td>
+    <td style="padding: 5px;">
+      <a href="assets/package_or_MCP/5.jpg" target="_blank" rel="noopener noreferrer">
+        <img src="assets/package_or_MCP/5.jpg" alt="配置环境3" style="width: 100%; max-width: 200px; height: auto;">
+      </a>
+    </td>
+  </tr>
 </table>
 
-<h4 id="mcp配置">MCP配置流程</h4>
+<h4 id="section-2-5-3" style="display: flex; justify-content: space-between; align-items: center;"><span>MCP配置流程</span><a href="#section-2-5" style="text-decoration: none; font-size: 0.8em;" title="返回上一级">⤴️</a></h4>
 <table style="width: 100%;">
-  <thead>
-    <tr>
-      <th style="text-align: center; padding: 8px;">步骤一：进入MCP市场</th>
-      <th style="text-align: center; padding: 8px;">步骤二：点击刷新按钮</th>
-      <th style="text-align: center; padding: 8px;">步骤三：等待加载完成</th>
-      <th style="text-align: center; padding: 8px;">步骤四：选择并使用MCP</th>
-    </tr>
-  </thead>
   <tbody>
+    <tr>
+      <td style="text-align: center; padding: 8px; width: 50%;">步骤一：进入MCP市场</td>
+      <td style="text-align: center; padding: 8px; width: 50%;">步骤二：点击刷新按钮</td>
+    </tr>
     <tr>
       <td style="text-align: center; padding: 8px; vertical-align: top;">
         <a href="assets/package_or_MCP/7.jpg" target="_blank" rel="noopener noreferrer">
@@ -332,6 +334,12 @@
           <img src="assets/package_or_MCP/8.jpg" alt="MCP配置2" style="height: 280px; width: auto; max-width: 100%;">
         </a>
       </td>
+    </tr>
+    <tr>
+      <td style="text-align: center; padding: 8px;">步骤三：等待加载完成</td>
+      <td style="text-align: center; padding: 8px;">步骤四：选择并使用MCP</td>
+    </tr>
+    <tr>
       <td style="text-align: center; padding: 8px; vertical-align: top;">
         <a href="assets/package_or_MCP/9.jpg" target="_blank" rel="noopener noreferrer">
           <img src="assets/package_or_MCP/9.jpg" alt="MCP配置3" style="height: 280px; width: auto; max-width: 100%;">
@@ -346,13 +354,15 @@
   </tbody>
 </table>
 
+<p align="right"><i>想深入了解MCP的工作机制、部署与排错？<a href="#section-3-4">查看更多关于MCP市场的说明</a>...</i></p>
+
 <div STYLE="page-break-after: always;"></div>
 
-<h2 id="拓展用法实操" style="display: flex; justify-content: space-between; align-items: center;"><span>🚀 拓展用法实操</span><a href="#table-of-contents" style="text-decoration: none; font-size: 0.8em;" title="返回目录">🔝</a></h2>
+<h2 id="section-3" style="display: flex; justify-content: space-between; align-items: center;"><span>🚀 拓展用法实操</span><a href="#toc" style="text-decoration: none; font-size: 0.8em;" title="返回目录">🔝</a></h2>
 
 *(本部分将通过实际案例，向您展示如何利用拓展包、计划模式等高级功能，完成更复杂的任务。)*
 
-<h3 id="开箱即用">🧰 开箱即用</h3>
+<h3 id="section-3-1" style="display: flex; justify-content: space-between; align-items: center;"><span>🧰 开箱即用</span><a href="#section-3" style="text-decoration: none; font-size: 0.8em;" title="返回上一级">↩️</a></h3>
 <em>这部分为<strong>内置包</strong></em>
 <br>
 当你让AI写软件，软件的性能取决于AI的能力。示例中的模型为<code>Deepseel-R1</code>模型
@@ -422,7 +432,8 @@
   </tbody>
 </table>
 
-<h3 id="拓展包">📦 拓展包</h3>
+<h3 id="section-3-2" style="display: flex; justify-content: space-between; align-items: center;"><span>📦 拓展包</span><a href="#section-3" style="text-decoration: none; font-size: 0.8em;" title="返回上一级">↩️</a></h3>
+
 >演示版本`1.1.6`
 （图片可点击放大）
 
@@ -523,7 +534,7 @@
 </table>
 
 
-<h3 id="核心工具">🛠️ 核心工具</h3>
+<h3 id="section-3-3" style="display: flex; justify-content: space-between; align-items: center;"><span>🛠️ 核心工具</span><a href="#section-3" style="text-decoration: none; font-size: 0.8em;" title="返回上一级">↩️</a></h3>
 
 | 工具 (Tool) | 功能说明 (Description) |
 |---|---|
@@ -563,15 +574,15 @@
 | `ffmpeg_info` | 获取FFmpeg信息 |
 | `ffmpeg_convert` | 转换视频文件 |
 
-<h3 id="mcp市场">🛒 MCP市场</h3>
+<h3 id="section-3-4" style="display: flex; justify-content: space-between; align-items: center;"><span>🛒 MCP市场</span><a href="#section-3" style="text-decoration: none; font-size: 0.8em;" title="返回上一级">↩️</a></h3>
 
 > 考虑到手机环境的特殊性，要完整、稳定地配置所有MCP（Model context protocol）所需的环境是相当有挑战性的。因此，直接调用MCP可能会遇到较多困难。
 > 
-> 目前，应用内确认可用的MCP主要有 `12306` 和 `fetch`。但需要注意的是，`fetch` 的搜索效果和稳定性均不如我们深度优化的 `various_search` 拓展包。
+> 目前，应用内确认可用的MCP主要有 `12306`。
 > 
 > 为了提供更流畅、更可靠的体验，我们已经用更适配安卓系统的方式，将许多核心MCP的功能重制并整合到了内置工具和拓展包中。我们强烈建议您优先使用这些经过优化的功能。
 
-> 下面是一些目前社区测试可用的MCP：
+> 下面是一些目前社区测试可用的MCP：(等待测试人员更新)
 
 （图片可点击放大）
 
@@ -601,16 +612,85 @@
         用于查询12306火车票信息。
       </td>
     </tr>
+  </tbody>
+</table>
+
+<table style="width: 100%; margin-top: 1em;">
+  <thead>
     <tr>
-      <td style="vertical-align: top;"><code>fetch</code></td>
-      <td style="vertical-align: top;" colspan="2">
-        通用的网络内容获取工具。<em>注意：其搜索效果和稳定性均不如深度优化的 <code>various_search</code> 拓展包。</em>
+      <th colspan="2" style="text-align: left; padding: 12px;">
+        <h4 id="section-3-4-1" style="margin: 0;">
+          <span>MCP工作机制</span>
+          <a href="#section-3-4" style="text-decoration: none; font-size: 0.8em;" title="返回上一级">⤴️</a>
+        </h4>
+      </th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="width: 30%; padding: 12px; vertical-align: top;">
+        我们的MCP服务器通过Termux运行在本地，并和软件进行交互。MCP会在软件打开的时候进行尝试启动，启动命令由每个插件配置中的<code>arg</code>参数以及<code>env</code>的环境变量决定。
+      </td>
+      <td style="width: 60%; padding: 12px; vertical-align: top; text-align: center;">
+        <img src="assets/41ebc2ec5278bd28e8361e3eb72128d.jpg" alt="MCP配置示例" style="width: 100%; max-width: 400px; height: auto; border-radius: 4px;">
       </td>
     </tr>
   </tbody>
 </table>
 
-### ⏳ 计划模式
+<h4 id="section-3-4-2" style="display: flex; justify-content: space-between; align-items: center;"><span>MCP下载和部署机制</span><a href="#section-3-4" style="text-decoration: none; font-size: 0.8em;" title="返回上一级">⤴️</a></h4>
+<p>由于环境特殊，并且MCP的生态本身就杂乱不堪，README文档质量参差不齐，所以我们加入了自动匹配包结构的机制。目前支持识别Node.js和Python两种语言编写的包。</p>
+<p>下载MCP时，应用会直接获取仓库的ZIP压缩包，下载到<code>Download/Operit/</code>目录下，并修改一个JSON文件加入ID。如有需要，您也可以在软件内导入自定义MCP或手动将文件放入该目录。</p>
+<h5>部署机制</h5>
+<p>我们将在部署时为两种项目结构自动生成执行命令。</p>
+<table style="width: 100%; margin-top: 1em;">
+  <thead>
+    <tr>
+      <th style="width: 50%; padding: 12px; text-align: left;">Python包</th>
+      <th style="width: 50%; padding: 12px; text-align: left;">Node.js包</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="padding: 12px; vertical-align: top;">
+        对于Python包，我们会先尝试使用<code>pip</code>安装依赖，然后自动生成一个启动命令的配置。您可以在部署时通过"自定义部署命令"来查看和修改。
+      </td>
+      <td style="padding: 12px; vertical-align: top;">
+        对于Node.js包，我们会先尝试进行换源，然后使用<code>npm</code>或<code>pnpm</code>下载依赖。如果项目是TypeScript编写的，我们会尝试编译项目；如果是JavaScript，则会尝试直接获取入口文件。最后，系统将生成一份配置代码，启动命令会指向入口文件或编译后的文件。
+      </td>
+    </tr>
+  </tbody>
+</table>
+<blockquote>以上的两种识别模式对于很多包而言都是通用的。当然，也总会有一些意外情况。</blockquote>
+<blockquote><b>注意：</b>部署和启动之前，包文件都会被复制到Termux内部进行操作。也就是说，只有下载的原始压缩包才会存放在外部的<code>Download</code>路径下。</blockquote>
+
+<h4 id="section-3-4-3" style="display: flex; justify-content: space-between; align-items: center;"><span>MCP常见问题</span><a href="#section-3-4" style="text-decoration: none; font-size: 0.8em;" title="返回上一级">⤴️</a></h4>
+<table style="width: 100%; border-collapse: separate; border-spacing: 0 1em;">
+  <tbody>
+    <tr>
+      <td style="width: 30%; vertical-align: middle; padding-right: 15px;">有的插件需要key，但是这部分需要手动加入。如图，请根据readme，把key写在启动环境变量，否则会报错。</td>
+      <td style="width: 60%; vertical-align: middle;"><img src="assets/package_or_MCP/7b8ec8ba567c3c670d6a063121614fe.jpg" alt="配置key" style="width: 100%; height: auto; border-radius: 4px;"></td>
+    </tr>
+    <tr>
+      <td style="width: 30%; vertical-align: middle; padding-right: 15px;">插件的部署情况可以手动进入termux进行查看，方式如下。在这里，build文件夹为部署中自动编译后的结果，里面有我们启动需要的文件路径。</td>
+      <td style="width: 60%; vertical-align: middle;"><img src="assets/package_or_MCP/401cda27abf79b9d0311816947b1bdd.jpg" alt="查看部署" style="width: 100%; height: auto; border-radius: 4px;"></td>
+    </tr>
+    <tr>
+      <td style="width: 30%; vertical-align: middle; padding-right: 15px;">你可以尝试运行它，以此修正你的启动命令(图中由于缺少key，启动失败)</td>
+      <td style="width: 60%; vertical-align: middle;"><img src="assets/package_or_MCP/0946d845d9adad20bbd039a93d1196f.jpg" alt="修正启动命令" style="width: 100%; height: auto; border-radius: 4px;"></td>
+    </tr>
+  </tbody>
+</table>
+
+<div style="background-color: #fffbe6; border-left: 4px solid #ffc107; padding: 12px 16px; margin: 1em 0;">
+  <p style="margin: 0; padding: 0;"><strong>注意:</strong> 有的包带了docker文件，但是我们是不支持docker的，请忽视它。</p>
+</div>
+
+<div style="background-color: #fffbe6; border-left: 4px solid #ffc107; padding: 12px 16px; margin: 1em 0;">
+  <p style="margin: 0; padding: 0;"><strong>注意:</strong> 我们的环境termux是linux，有一些win才能用的包要运行.exe，比如playwright，那当然是不支持的了。</p>
+</div>
+
+<h3 id="section-3-5" style="display: flex; justify-content: space-between; align-items: center;"><span>⏳ 计划模式</span><a href="#section-3" style="text-decoration: none; font-size: 0.8em;" title="返回上一级">↩️</a></h3>
 `1.1.6`及以后版本不复存在
 
 适用于AI长时间工作，但跟没开计划模式的区别不大（甚至没开的效果更好）。将在后续版本删除，并用`任务模式`替换
@@ -621,26 +701,26 @@
 
 <div STYLE="page-break-after: always;"></div>
 
-<h2 id="常见问题解答" style="display: flex; justify-content: space-between; align-items: center;"><span>❔ 常见问题解答</span><a href="#table-of-contents" style="text-decoration: none; font-size: 0.8em;" title="返回目录">🔝</a></h2>
+<h2 id="section-4" style="display: flex; justify-content: space-between; align-items: center;"><span>❔ 常见问题解答</span><a href="#toc" style="text-decoration: none; font-size: 0.8em;" title="返回目录">🔝</a></h2>
 
 这里收录了**最新版本 `1.1.6`** 用户群和 issue 的全部问题。
-如果您使用的是旧版本，可以来<a href="#朝花夕拾-旧版本问题解答">这里找找</a>。
+如果您使用的是旧版本，可以来<a href="#section-7">这里找找</a>。
 
-<h3 id="mcp-troubleshooting">MCP包问题排查</h3>
+<h3 id="section-4-1" style="display: flex; justify-content: space-between; align-items: center;"><span>MCP包问题排查</span><a href="#section-4" style="text-decoration: none; font-size: 0.8em;" title="返回上一级">↩️</a></h3>
 
 **MCP包不加载问题可能原因**
-- **Shizuku未正确配置**：请参照<a href="#shizuku授权">Shizuku授权流程</a>完成配置。
-- **Termux未正确配置**：请参照<a href="#包管理">包管理与MCP使用说明</a>完成配置。
+- **Shizuku未正确配置**：请参照<a href="#section-2-4">Shizuku授权流程</a>完成配置。
+- **Termux未正确配置**：请参照<a href="#section-2-5">包管理与MCP使用说明</a>完成配置。
 - **Termux未挂在后台**：在启动软件前，请务必先打开Termux并保持其在后台运行。
 
 **MCP运行失败原因**
-- **环境配置问题**：部分MCP插件对运行环境有特殊要求。您需要访问相应插件的GitHub开源地址，根据其文档完成环境配置。
+- **环境配置问题**：部分MCP插件对运行环境有特殊要求。您需要访问相应插件的GitHub开源地址，根据其文档完成环境配置。关于配置的更多信息，请参考<a href="#section-3-4">MCP市场</a>章节的详细说明。
 - **版本兼容性问题**：更早版本中存在的问题大多已在后续更新中得到解决。我们强烈建议您下载并安装最新版本以获取最佳体验。
 
 您可以从[Release页面](https://github.com/AAswordman/Operit/releases)下载最新APK。
 
 <div STYLE="page-break-after: always;"></div>
-<h2 id="加入我们" style="display: flex; justify-content: space-between; align-items: center;"><span>🎉 加入我们</span><a href="#table-of-contents" style="text-decoration: none; font-size: 0.8em;" title="返回目录">🔝</a></h2>
+<h2 id="section-5" style="display: flex; justify-content: space-between; align-items: center;"><span>🎉 加入我们</span><a href="#toc" style="text-decoration: none; font-size: 0.8em;" title="返回目录">🔝</a></h2>
 
 我们诚挚地邀请您加入我们的社区，与其他用户交流心得，分享您的创意，或向我们提出宝贵的建议。
 
@@ -656,7 +736,7 @@
 
 <div STYLE="page-break-after: always;"></div>
 
-<h2 id="许愿池" style="display: flex; justify-content: space-between; align-items: center;"><span>💡 许愿池</span><a href="#table-of-contents" style="text-decoration: none; font-size: 0.8em;" title="返回目录">🔝</a></h2>
+<h2 id="section-6" style="display: flex; justify-content: space-between; align-items: center;"><span>💡 许愿池</span><a href="#toc" style="text-decoration: none; font-size: 0.8em;" title="返回目录">🔝</a></h2>
 
 以下是我们正在计划或正在开发中的功能：
 
@@ -675,19 +755,22 @@
 
 <div STYLE="page-break-after: always;"></div>
 
-<h2 id="朝花夕拾-旧版本问题解答" style="display: flex; justify-content: space-between; align-items: center;"><span>📜 朝花夕拾 (旧版本问题解答)</span><a href="#table-of-contents" style="text-decoration: none; font-size: 0.8em;" title="返回目录">🔝</a></h2>
+<h2 id="section-7" style="display: flex; justify-content: space-between; align-items: center;"><span>📜 朝花夕拾 (旧版本问题解答)</span><a href="#toc" style="text-decoration: none; font-size: 0.8em;" title="返回目录">🔝</a></h2>
 
-### `1.1.5`版本
-*(相关问题)*
-
-
-### `1.1.3`以前
-
+<h3 id="1-1-5-版本" style="display: flex; justify-content: space-between; align-items: center;"><span><code>1.1.5</code>版本</span><a href="#section-7" style="text-decoration: none; font-size: 0.8em;" title="返回上一级">↩️</a></h3>
 
 *(相关问题)*
-#### Gemini格式未做适配
+
+
+<h3 id="1-1-3-以前" style="display: flex; justify-content: space-between; align-items: center;"><span><code>1.1.3</code>以前</span><a href="#section-7" style="text-decoration: none; font-size: 0.8em;" title="返回上一级">↩️</a></h3>
+
+
+*(相关问题)*
+<h4 id="gemini格式未做适配" style="display: flex; justify-content: space-between; align-items: center;"><span>Gemini格式未做适配</span><a href="#1-1-3-以前" style="text-decoration: none; font-size: 0.8em;" title="返回上一级">⤴️</a></h4>
 新版本已解决，支持了更多模型
-#### Termux
+<h4 id="termux" style="display: flex; justify-content: space-between; align-items: center;"><span>Termux</span><a href="#1-1-3-以前" style="text-decoration: none; font-size: 0.8em;" title="返回上一级">⤴️</a></h4>
+
+
 ##### 类型一 Termux版本不正确
 ##### 类型二 MCP包不加载
 软件运行时建议将Termux挂后台
