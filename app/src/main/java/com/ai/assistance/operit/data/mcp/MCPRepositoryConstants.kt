@@ -157,38 +157,6 @@ object MCPRepositoryConstants {
                                 // 核心服务器列表，根据用户要求添加
                                 addServer(
                                         servers,
-                                        "Word",
-                                        "微软 Word 文档处理工具，支持创建、编辑和格式化各类文档，提供丰富的文本处理功能",
-                                        "Microsoft Office",
-                                        true,
-                                        "https://github.com/GongRzhe/Office-Word-MCP-Server"
-                                )
-                                addServer(
-                                        servers,
-                                        "Excel",
-                                        "强大的电子表格处理工具，可进行数据分析、图表创建、公式计算，无需安装 Microsoft Excel 即可操作",
-                                        "Microsoft Office",
-                                        true,
-                                        "https://github.com/haris-musa/excel-mcp-server"
-                                )
-                                addServer(
-                                        servers,
-                                        "PowerPoint",
-                                        "幻灯片演示文稿创建工具，支持添加文本、图片、图表，以及丰富的动画效果和模板应用",
-                                        "Microsoft Office",
-                                        true,
-                                        "https://github.com/jenstangen1/pptx-xlsx-mcp"
-                                )
-                                addServer(
-                                        servers,
-                                        "Fetch",
-                                        "网络数据获取工具，用于从网页抓取信息并进行格式化处理，支持多种数据格式转换",
-                                        "网络工具",
-                                        false,
-                                        "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch"
-                                )
-                                addServer(
-                                        servers,
                                         "Tavily",
                                         "专为AI代理设计的搜索引擎，提供网页搜索、内容提取、网站地图和网站爬取等功能",
                                         "搜索引擎",
@@ -215,22 +183,6 @@ object MCPRepositoryConstants {
                                         "搜索工具",
                                         false,
                                         "https://github.com/nickclyde/duckduckgo-mcp-server"
-                                )
-                                addServer(
-                                        servers,
-                                        "Playwright",
-                                        "基于Microsoft Playwright的MCP服务器，提供浏览器自动化、网页交互、截图和内容抓取功能，支持多种浏览器引擎和无头模式",
-                                        "网页自动化",
-                                        false,
-                                        "https://github.com/microsoft/playwright-mcp"
-                                )
-                                addServer(
-                                        servers,
-                                        "MarkItDown",
-                                        "强大的文档转换MCP服务器，可将PDF、Word、Excel、PowerPoint、图像和网页内容转换为Markdown格式，支持文档结构保留和格式优化",
-                                        "文档工具",
-                                        false,
-                                        "https://github.com/microsoft/markitdown"
                                 )
                         }
 

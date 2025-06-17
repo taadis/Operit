@@ -8,6 +8,7 @@ import com.ai.assistance.operit.core.tools.FileContentData
 import com.ai.assistance.operit.core.tools.FileExistsData
 import com.ai.assistance.operit.core.tools.FileInfoData
 import com.ai.assistance.operit.core.tools.FileOperationData
+import com.ai.assistance.operit.core.tools.FilePartContentData
 import com.ai.assistance.operit.core.tools.FindFilesResultData
 import com.ai.assistance.operit.core.tools.StringResultData
 import com.ai.assistance.operit.data.model.AITool
@@ -38,6 +39,9 @@ open class StandardFileSystemTools(protected val context: Context) {
 
         // Maximum allowed file size for operations
         protected const val MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024 // 10MB
+
+        // 每个部分的行数
+        protected const val PART_SIZE = 200
     }
 
     /** List files in a directory */
@@ -242,6 +246,74 @@ open class StandardFileSystemTools(protected val context: Context) {
                     error = "Error reading file: ${e.message}"
             )
         }
+    }
+
+    /** 分段读取文件内容，每次读取指定部分（默认每部分200行） */
+    open suspend fun readFilePart(tool: AITool): ToolResult {
+        val path = tool.parameters.find { it.name == "path" }?.value ?: ""
+        val partIndex = tool.parameters.find { it.name == "partIndex" }?.value?.toIntOrNull() ?: 0
+
+        if (path.isBlank()) {
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Path parameter is required"
+            )
+        }
+
+        // 先调用readFile获取完整内容
+        val fileResult =
+                readFile(
+                        AITool(name = "read_file", parameters = listOf(ToolParameter("path", path)))
+                )
+
+        if (!fileResult.success) {
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = fileResult.error
+            )
+        }
+
+        // 获取文件内容并按行分割
+        val fileContent = (fileResult.result as? FileContentData)?.content ?: ""
+        val lines = fileContent.lines()
+
+        // 计算总部分数
+        val totalParts = (lines.size + PART_SIZE - 1) / PART_SIZE
+
+        // 确保partIndex在有效范围内
+        val validPartIndex = partIndex.coerceIn(0, totalParts - 1)
+
+        // 计算开始和结束行
+        val startLine = validPartIndex * PART_SIZE
+        val endLine = minOf(startLine + PART_SIZE, lines.size)
+
+        // 提取当前部分的行
+        val partContent =
+                if (lines.isNotEmpty()) {
+                    lines.subList(startLine, endLine).joinToString("\n")
+                } else {
+                    ""
+                }
+
+        return ToolResult(
+                toolName = tool.name,
+                success = true,
+                result =
+                        FilePartContentData(
+                                path = path,
+                                content = partContent,
+                                partIndex = validPartIndex,
+                                totalParts = totalParts,
+                                startLine = startLine,
+                                endLine = endLine,
+                                totalLines = lines.size
+                        ),
+                error = ""
+        )
     }
 
     /** Write content to a file */

@@ -35,8 +35,8 @@ class GeminiProvider(
     private val client =
             OkHttpClient.Builder()
                     .connectTimeout(30, TimeUnit.SECONDS)
-                    .readTimeout(30, TimeUnit.SECONDS)
-                    .writeTimeout(30, TimeUnit.SECONDS)
+                    .readTimeout(1000, TimeUnit.SECONDS)
+                    .writeTimeout(300, TimeUnit.SECONDS)
                     .addInterceptor { chain ->
                         val request = chain.request()
                         val requestId = System.currentTimeMillis().toString()
@@ -419,12 +419,12 @@ class GeminiProvider(
                             // 立即解析每个SSE数据行的JSON
                             val json = JSONObject(data)
                             jsonCount++
-                            
+
                             val content = extractContentFromJson(json, requestId)
                             if (content.isNotEmpty()) {
                                 contentCount++
                                 logDebug("提取SSE内容，长度: ${content.length}")
-                                
+
                                 // 只发送新增的内容
                                 streamBuilder.emit(content)
                             }
@@ -434,40 +434,42 @@ class GeminiProvider(
                     } else if (line.trim().isNotEmpty()) {
                         // 处理可能分段的JSON数据
                         val trimmedLine = line.trim()
-                        
+
                         // 检查是否开始收集JSON
-                        if (!isCollectingJson && 
-                                (trimmedLine.startsWith("{") || trimmedLine.startsWith("["))) {
+                        if (!isCollectingJson &&
+                                        (trimmedLine.startsWith("{") || trimmedLine.startsWith("["))
+                        ) {
                             isCollectingJson = true
                             jsonDepth = 0
                             completeJsonBuilder.clear()
                             jsonStartSymbol = trimmedLine[0]
                             logDebug("开始收集JSON，起始符号: $jsonStartSymbol")
                         }
-                        
+
                         if (isCollectingJson) {
                             completeJsonBuilder.append(trimmedLine)
-                            
+
                             // 更新JSON深度
                             for (char in trimmedLine) {
                                 if (char == '{' || char == '[') jsonDepth++
                                 if (char == '}' || char == ']') jsonDepth--
                             }
-                            
+
                             // 尝试作为完整JSON解析
                             val possibleComplete = completeJsonBuilder.toString()
                             try {
                                 if (jsonDepth == 0) {
                                     logDebug("尝试解析完整JSON: ${possibleComplete.take(50)}...")
-                                    val jsonContent = if (jsonStartSymbol == '[') {
-                                        JSONArray(possibleComplete)
-                                    } else {
-                                        JSONObject(possibleComplete)
-                                    }
-                                    
+                                    val jsonContent =
+                                            if (jsonStartSymbol == '[') {
+                                                JSONArray(possibleComplete)
+                                            } else {
+                                                JSONObject(possibleComplete)
+                                            }
+
                                     // 解析成功，处理内容
                                     logDebug("成功解析完整JSON，长度: ${possibleComplete.length}")
-                                    
+
                                     when (jsonContent) {
                                         is JSONArray -> {
                                             // 处理JSON数组
@@ -475,11 +477,17 @@ class GeminiProvider(
                                                 val jsonObject = jsonContent.optJSONObject(i)
                                                 if (jsonObject != null) {
                                                     jsonCount++
-                                                    val content = extractContentFromJson(jsonObject, requestId)
+                                                    val content =
+                                                            extractContentFromJson(
+                                                                    jsonObject,
+                                                                    requestId
+                                                            )
                                                     if (content.isNotEmpty()) {
                                                         contentCount++
-                                                        logDebug("从JSON数组[$i]提取内容，长度: ${content.length}")
-                                                        
+                                                        logDebug(
+                                                                "从JSON数组[$i]提取内容，长度: ${content.length}"
+                                                        )
+
                                                         // 只发送这个单独对象产生的内容
                                                         streamBuilder.emit(content)
                                                     }
@@ -489,17 +497,18 @@ class GeminiProvider(
                                         is JSONObject -> {
                                             // 处理JSON对象
                                             jsonCount++
-                                            val content = extractContentFromJson(jsonContent, requestId)
+                                            val content =
+                                                    extractContentFromJson(jsonContent, requestId)
                                             if (content.isNotEmpty()) {
                                                 contentCount++
                                                 logDebug("从JSON对象提取内容，长度: ${content.length}")
-                                                
+
                                                 // 只发送新提取的内容
                                                 streamBuilder.emit(content)
                                             }
                                         }
                                     }
-                                    
+
                                     // 解析成功后重置收集器
                                     isCollectingJson = false
                                     completeJsonBuilder.clear()
@@ -528,13 +537,14 @@ class GeminiProvider(
                 try {
                     val finalJson = completeJsonBuilder.toString()
                     Log.d(TAG, "处理最终收集的JSON，长度: ${finalJson.length}")
-                    
-                    val jsonContent = if (jsonStartSymbol == '[') {
-                        JSONArray(finalJson)
-                    } else {
-                        JSONObject(finalJson)
-                    }
-                    
+
+                    val jsonContent =
+                            if (jsonStartSymbol == '[') {
+                                JSONArray(finalJson)
+                            } else {
+                                JSONObject(finalJson)
+                            }
+
                     // 处理内容
                     when (jsonContent) {
                         is JSONArray -> {

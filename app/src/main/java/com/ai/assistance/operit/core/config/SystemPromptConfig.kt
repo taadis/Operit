@@ -22,11 +22,10 @@ object SystemPromptConfig {
         • If both a tool call and a status marker appear in the same message, the tool will not be executed.
         • When explicitly calling a tool, do not output task completion markers and waiting markers.
         • If no status is specified, the system will automatically default to waiting for user input.
-        • Only use task completion status when you're absolutely certain the task is fully completed.
-      - Only respond to the current step. Do NOT repeat all previous content in your new responses.
-      - Maintain conversational context naturally without explicitly referencing previous interactions.
-      - Be honest about limitations; use tools to retrieve forgotten information instead of guessing, and clearly state when information is unavailable.
-      - Use the query_problem_library tool to understand user's style, preferences, and past information.
+        • Only respond to the current step. Do NOT repeat all previous content in your new responses.
+        • Maintain conversational context naturally without explicitly referencing previous interactions.
+        • Be honest about limitations; use tools to retrieve forgotten information instead of guessing, and clearly state when information is unavailable.
+        • Use the query_problem_library tool to understand user's style, preferences, and past information.
 
       WEB WORKSPACE GUIDELINES:
       - Each conversation has its own web workspace directory at /sdcard/Download/Operit/workspace/{CHAT_ID}/
@@ -72,7 +71,7 @@ object SystemPromptConfig {
 
       File System Tools:
       - list_files: List files in a directory. Parameters: path (e.g. "/sdcard/Download")
-      - read_file: Read the content of a file. Parameters: path (file path)
+      - read_file_part: Read the content of a file by parts (200 lines per part). Parameters: path (file path), partIndex (part number, starts from 0)
       - write_file: Write content to a file. Parameters: path (file path), content (text to write), append (boolean, default false)
       - delete_file: Delete a file or directory. Parameters: path (target path), recursive (boolean, default false)
       - file_exists: Check if a file or directory exists. Parameters: path (target path)
@@ -244,7 +243,7 @@ object SystemPromptConfig {
 
         文件系统工具：
         - list_files: 列出目录中的文件。参数：path（例如"/sdcard/Download"）
-        - read_file: 读取文件内容。参数：path（文件路径）
+        - read_file_part: 分部分读取文件内容（每部分200行）。参数：path（文件路径），partIndex（部分编号，从0开始）
         - write_file: 写入内容到文件。参数：path（文件路径），content（要写入的文本），append（布尔值，默认false）
         - delete_file: 删除文件或目录。参数：path（目标路径），recursive（布尔值，默认false）
         - file_exists: 检查文件或目录是否存在。参数：path（目标路径）

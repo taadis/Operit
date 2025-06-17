@@ -11,9 +11,7 @@ import java.io.IOException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -29,8 +27,8 @@ class ClaudeProvider(
     private val client =
             OkHttpClient.Builder()
                     .connectTimeout(30, TimeUnit.SECONDS)
-                    .readTimeout(30, TimeUnit.SECONDS)
-                    .writeTimeout(30, TimeUnit.SECONDS)
+                    .readTimeout(300, TimeUnit.SECONDS)
+                    .writeTimeout(300, TimeUnit.SECONDS)
                     .build()
 
     private val JSON = "application/json; charset=utf-8".toMediaType()
@@ -365,9 +363,7 @@ class ClaudeProvider(
             } catch (e: Exception) {
                 Log.d("AIService", "连接失败: ${e.message}")
                 emit("【连接失败: ${e.message}】")
-                throw IOException(
-                        "AI响应获取失败: ${e.message} ${e.stackTrace.joinToString("\n")}"
-                )
+                throw IOException("AI响应获取失败: ${e.message} ${e.stackTrace.joinToString("\n")}")
             }
         }
 
@@ -378,16 +374,15 @@ class ClaudeProvider(
     }
 
     /**
-     * 获取模型列表
-     * 注意：此方法直接调用ModelListFetcher获取模型列表
+     * 获取模型列表 注意：此方法直接调用ModelListFetcher获取模型列表
      * @return 模型列表结果
      */
     override suspend fun getModelsList(): Result<List<ModelOption>> {
         // 调用ModelListFetcher获取模型列表
         return ModelListFetcher.getModelsList(
-            apiKey = apiKey,
-            apiEndpoint = apiEndpoint,
-            apiProviderType = ApiProviderType.ANTHROPIC
+                apiKey = apiKey,
+                apiEndpoint = apiEndpoint,
+                apiProviderType = ApiProviderType.ANTHROPIC
         )
     }
 }

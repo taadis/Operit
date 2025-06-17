@@ -1,9 +1,11 @@
 package com.ai.assistance.operit.ui.main
 
+import android.content.Context
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
+import android.os.LocaleList
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -28,12 +30,10 @@ import com.ai.assistance.operit.ui.features.permission.screens.PermissionGuideSc
 import com.ai.assistance.operit.ui.features.startup.screens.PluginLoadingScreenWithState
 import com.ai.assistance.operit.ui.features.startup.screens.PluginLoadingState
 import com.ai.assistance.operit.ui.theme.OperitTheme
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import android.content.Context
-import android.os.LocaleList
 import com.ai.assistance.operit.util.LocaleUtils
 import java.util.*
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val TAG = "MainActivity"
@@ -72,7 +72,7 @@ class MainActivity : ComponentActivity() {
         val code = LocaleUtils.getCurrentLanguage(newBase)
         val locale = Locale(code)
         val config = Configuration(newBase.resources.configuration)
-        
+
         // 设置语言配置
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             val localeList = LocaleList(locale)
@@ -82,7 +82,7 @@ class MainActivity : ComponentActivity() {
             config.locale = locale
             Locale.setDefault(locale)
         }
-        
+
         // 使用createConfigurationContext创建新的本地化上下文
         val context = newBase.createConfigurationContext(config)
         super.attachBaseContext(context)
@@ -257,7 +257,7 @@ class MainActivity : ComponentActivity() {
     }
 
     // ======== 初始化组件 ========
-    private fun initializeComponents() {        
+    private fun initializeComponents() {
         // 初始化工具处理器
         toolHandler = AIToolHandler.getInstance(this)
         toolHandler.registerDefaultTools()
@@ -305,23 +305,43 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // ======== 显示设置配置 ========
+    // ======== 显示与性能配置 ========
     private fun configureDisplaySettings() {
-        // 设置高刷新率
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.attributes.preferredDisplayModeId = getHighestRefreshRate()
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            window.attributes.preferredRefreshRate = getDeviceRefreshRate()
+        // 1. 请求持续的高性能模式 (API 31+)
+        // 这会提示系统为应用提供持续的高性能，避免CPU/GPU降频。
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                window.setSustainedPerformanceMode(true)
+                Log.d(TAG, "已成功请求持续高性能模式。")
+            } catch (e: Exception) {
+                // 在某些设备上，此模式可能不可用或不支持。
+                Log.w(TAG, "请求持续高性能模式失败。", e)
+            }
         }
 
-        // 硬件加速以获得更流畅的动画
+        // 2. 设置应用以最高刷新率运行
+        // 高刷新率优化：通过设置窗口属性确保流畅
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // 为Android 11+设备优化高刷新率
+            val highestMode = getHighestRefreshRate()
+            if (highestMode > 0) {
+                window.attributes.preferredDisplayModeId = highestMode
+                Log.d(TAG, "设置窗口首选显示模式ID: $highestMode")
+            }
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            // 为Android 6.0-10设备优化高刷新率
+            val refreshRate = getDeviceRefreshRate()
+            if (refreshRate > 60f) {
+                window.attributes.preferredRefreshRate = refreshRate
+                Log.d(TAG, "设置窗口首选刷新率: $refreshRate Hz")
+            }
+        }
+        
+        // 启用硬件加速以提高渲染性能
         window.setFlags(
-                android.view.WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
-                android.view.WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
+            android.view.WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
+            android.view.WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
         )
-
-        // Ensure solid background color
-        window.setBackgroundDrawableResource(android.R.color.black)
     }
 
     // ======== 设置应用内容 ========

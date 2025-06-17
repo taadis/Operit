@@ -124,9 +124,6 @@ fun MarkdownImageRenderer(
     // 全屏预览状态
     var showFullScreen by remember { mutableStateOf(false) }
 
-    // 是否为大图片
-    val isLarge = isLargeImage(imageUrl)
-
     Column(
             modifier = modifier.fillMaxWidth().padding(vertical = 2.dp) // 最小化垂直边距
     ) {
@@ -136,10 +133,7 @@ fun MarkdownImageRenderer(
                         Modifier.wrapContentHeight()
                             .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp)) // 增加圆角大小为12dp
-                                .then(
-                                        if (isLarge) Modifier.clickable { showFullScreen = true }
-                                        else Modifier
-                                )
+                                .clickable { showFullScreen = true }
         ) {
             SubcomposeAsyncImage(
                     model =
@@ -200,7 +194,7 @@ fun MarkdownImageRenderer(
     }
 
     // 全屏预览对话框
-    if (showFullScreen && isLarge) {
+    if (showFullScreen) {
         FullScreenImageDialog(
                 imageUrl = imageUrl,
                 imageAlt = imageAlt,

@@ -185,117 +185,169 @@ fun StreamMarkdownRenderer(
 
     // 处理Markdown流的变化
     LaunchedEffect(interceptedStream) {
-        // 移除时间计算变量和日志
-
         // 重置状态
         nodes.clear()
         renderNodes.clear()
 
-        try {
-            interceptedStream.streamSplitBy(NestedMarkdownProcessor.getBlockPlugins()).collect {
-                    blockGroup ->
-                // 移除时间计算变量和日志
-                val blockType = NestedMarkdownProcessor.getTypeForPlugin(blockGroup.tag)
+        // 启动一个后台协程来处理流解析，避免阻塞UI线程
+        val job =
+                scope.launch(Dispatchers.Default) {
+                    try {
+                        interceptedStream
+                                .streamSplitBy(NestedMarkdownProcessor.getBlockPlugins())
+                                .collect { blockGroup ->
+                                    // 在后台线程解析块
+                                    val blockType =
+                                            NestedMarkdownProcessor.getTypeForPlugin(
+                                                    blockGroup.tag
+                                            )
 
-                // 对于水平分割线，内容无关紧要，直接添加节点
-                if (blockType == MarkdownProcessorType.HORIZONTAL_RULE) {
-                    nodes.add(MarkdownNode(type = blockType, initialContent = "---"))
-                    return@collect
-                }
-
-                // 判断是否为LaTeX块，如果是，先作为文本节点处理
-                val isLatexBlock = blockType == MarkdownProcessorType.BLOCK_LATEX
-                // 临时类型：如果是LaTeX块，先作为纯文本处理
-                val tempBlockType =
-                        if (isLatexBlock) MarkdownProcessorType.PLAIN_TEXT else blockType
-
-                val isInlineContainer =
-                        tempBlockType != MarkdownProcessorType.CODE_BLOCK &&
-                                tempBlockType != MarkdownProcessorType.BLOCK_LATEX &&
-                                tempBlockType != MarkdownProcessorType.XML_BLOCK
-
-                // 为新块创建并添加节点
-                val newNode = MarkdownNode(type = tempBlockType)
-                nodes.add(newNode)
-                val nodeIndex = nodes.lastIndex
-                if (isInlineContainer) {
-                    // Stream-parse the block stream for inline elements
-                    blockGroup.stream.streamSplitBy(NestedMarkdownProcessor.getInlinePlugins())
-                            .collect { inlineGroup ->
-                                val inlineType =
-                                        NestedMarkdownProcessor.getTypeForPlugin(inlineGroup.tag)
-                                var childNode: MarkdownNode? = null
-                                var lastCharWasNewline = false // 跟踪上一个字符是否为换行符
-
-                                inlineGroup.stream.collect { str ->
-                                    // 检查是否为空白内容
-                                    val isCurrentCharNewline = str == "\n" || str == "\r\n"
-
-                                    // 处理连续换行符逻辑
-                                    if (isCurrentCharNewline) {
-                                        lastCharWasNewline = true
+                                    if (blockType ==
+                                                    MarkdownProcessorType.HORIZONTAL_RULE
+                                    ) {
+                                        val node =
+                                                MarkdownNode(
+                                                        type = blockType,
+                                                        initialContent = "---"
+                                                )
+                                        withContext(Dispatchers.Main) { nodes.add(node) }
                                         return@collect
                                     }
 
-                                    if (childNode == null) {
-                                        childNode = MarkdownNode(type = inlineType)
-                                        newNode.children.add(childNode!!)
-                                    }
+                                    val isLatexBlock =
+                                            blockType == MarkdownProcessorType.BLOCK_LATEX
+                                    val tempBlockType =
+                                            if (isLatexBlock)
+                                                    MarkdownProcessorType.PLAIN_TEXT
+                                            else blockType
+                                    val isInlineContainer =
+                                            tempBlockType != MarkdownProcessorType.CODE_BLOCK &&
+                                                    tempBlockType !=
+                                                            MarkdownProcessorType.BLOCK_LATEX &&
+                                                    tempBlockType !=
+                                                            MarkdownProcessorType.XML_BLOCK
 
-                                    if (lastCharWasNewline) {
-                                        // 更新父节点和子节点内容
-                                        newNode.content.value += "\n" + str
-                                        childNode!!.content.value += "\n" + str
-                                        lastCharWasNewline = false
+                                    val newNode = MarkdownNode(type = tempBlockType)
+                                    val nodeIndex =
+                                            withContext(Dispatchers.Main) {
+                                                nodes.add(newNode)
+                                                nodes.lastIndex
+                                            }
+
+                                    if (isInlineContainer) {
+                                        blockGroup.stream
+                                                .streamSplitBy(
+                                                        NestedMarkdownProcessor.getInlinePlugins()
+                                                )
+                                                .collect { inlineGroup ->
+                                                    val inlineType =
+                                                            NestedMarkdownProcessor
+                                                                    .getTypeForPlugin(
+                                                                            inlineGroup.tag
+                                                                    )
+                                                    var childNode: MarkdownNode? = null
+                                                    var lastCharWasNewline = false
+
+                                                    inlineGroup.stream.collect { str ->
+                                                        val isCurrentCharNewline =
+                                                                str == "\n" || str == "\r\n"
+                                                        if (isCurrentCharNewline) {
+                                                            lastCharWasNewline = true
+                                                            return@collect
+                                                        }
+
+                                                        withContext(Dispatchers.Main) {
+                                                            if (childNode == null) {
+                                                                childNode =
+                                                                        MarkdownNode(
+                                                                                type = inlineType
+                                                                        )
+                                                                newNode.children.add(
+                                                                        childNode!!
+                                                                )
+                                                            }
+                                                            if (lastCharWasNewline) {
+                                                                newNode.content.value +=
+                                                                        "\n" + str
+                                                                childNode!!.content.value +=
+                                                                        "\n" + str
+                                                                lastCharWasNewline = false
+                                                            } else {
+                                                                newNode.content.value += str
+                                                                childNode!!.content.value +=
+                                                                        str
+                                                            }
+                                                        }
+                                                        lastCharWasNewline =
+                                                                isCurrentCharNewline
+                                                    }
+
+                                                    withContext(Dispatchers.Main) {
+                                                        if (childNode != null &&
+                                                                        childNode!!
+                                                                                .content
+                                                                                .value
+                                                                                .trimAll()
+                                                                                .isEmpty() &&
+                                                                        inlineType ==
+                                                                                MarkdownProcessorType
+                                                                                        .PLAIN_TEXT
+                                                        ) {
+                                                            val lastIndex =
+                                                                    newNode.children.lastIndex
+                                                            if (lastIndex >= 0 &&
+                                                                            newNode.children[
+                                                                                    lastIndex] ==
+                                                                                    childNode
+                                                            ) {
+                                                                newNode.children.removeAt(
+                                                                        lastIndex
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
                                     } else {
-                                        newNode.content.value += str
-                                        childNode!!.content.value += str
+                                        blockGroup.stream.collect { contentChunk ->
+                                            withContext(Dispatchers.Main) {
+                                                newNode.content.value += contentChunk
+                                            }
+                                        }
                                     }
 
-                                    // 更新lastCharWasNewline状态
-                                    lastCharWasNewline = isCurrentCharNewline
-                                }
-
-                                // 优化：如果子节点内容经过trim后为空，则移除该子节点
-                                if (childNode != null &&
-                                                childNode!!.content.value.trimAll().isEmpty() &&
-                                                inlineType == MarkdownProcessorType.PLAIN_TEXT
-                                ) {
-                                    val lastIndex = newNode.children.lastIndex
-                                    if (lastIndex >= 0 && newNode.children[lastIndex] == childNode
-                                    ) {
-                                        newNode.children.removeAt(lastIndex)
+                                    if (isLatexBlock) {
+                                        withContext(Dispatchers.Main) {
+                                            val latexContent = newNode.content.value
+                                            val latexNode =
+                                                    MarkdownNode(
+                                                            type =
+                                                                    MarkdownProcessorType
+                                                                            .BLOCK_LATEX
+                                                    )
+                                            latexNode.content.value = latexContent
+                                            if (nodeIndex >= 0 &&
+                                                            nodeIndex < nodes.size &&
+                                                            nodes[nodeIndex] == newNode
+                                            ) {
+                                                nodes[nodeIndex] = latexNode
+                                            }
+                                        }
                                     }
                                 }
-                            }
-                } else {
-                    // 对于没有内联格式的代码块，直接流式传输内容。
-                    blockGroup.stream.collect { contentChunk ->
-                        newNode.content.value += contentChunk
+                    } catch (e: Exception) {
+                        Log.e(TAG, "【流渲染】Markdown流处理异常: ${e.message}", e)
+                    } finally {
+                        withContext(Dispatchers.Main) {
+                            synchronizeRenderNodes(
+                                    nodes,
+                                    renderNodes,
+                                    nodeAnimationStates,
+                                    rendererId,
+                                    scope
+                            )
+                        }
                     }
                 }
-
-                // 如果原始类型是LaTeX块，现在收集完毕，将其转换回LaTeX节点
-                if (isLatexBlock) {
-                    val latexContent = newNode.content.value
-                    // 创建新的LaTeX节点
-                    val latexNode = MarkdownNode(type = MarkdownProcessorType.BLOCK_LATEX)
-                    latexNode.content.value = latexContent
-                    // 原地替换节点，以保持索引的稳定性，避免不必要的重组
-                    nodes[nodeIndex] = latexNode
-                }
-
-                // 移除块处理时间日志
-            }
-
-            // 移除收集完成时间日志
-        } catch (e: Exception) {
-            Log.e(TAG, "【流渲染】Markdown流处理异常: ${e.message}", e)
-        } finally {
-            // 移除时间计算变量和日志
-            synchronizeRenderNodes(nodes, renderNodes, nodeAnimationStates, rendererId, scope)
-            // 移除最终同步耗时日志
-        }
     }
 
     // 渲染Markdown内容

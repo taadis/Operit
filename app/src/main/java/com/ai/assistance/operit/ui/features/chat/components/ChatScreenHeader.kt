@@ -6,6 +6,7 @@ import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -13,6 +14,8 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
@@ -21,10 +24,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.ChatHistory
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
 import com.ai.assistance.operit.ui.permissions.PermissionLevel
@@ -66,7 +68,7 @@ fun ChatScreenHeader(
                             // Show message to user
                             android.widget.Toast.makeText(
                                             context,
-                                            "需要悬浮窗权限。请前往设置授予权限",
+                                            context.getString(R.string.overlay_permission_required),
                                             android.widget.Toast.LENGTH_SHORT
                                     )
                                     .show()
@@ -84,7 +86,9 @@ fun ChatScreenHeader(
 
                             // 根据当前悬浮窗状态显示不同的提示
                             val isFloating = actualViewModel.isFloatingMode.value
-                            val message = if (isFloating) "悬浮窗已开启" else "悬浮窗已关闭"
+                            val message =
+                                    if (isFloating) context.getString(R.string.enable_floating_mode)
+                                    else context.getString(R.string.disable_floating_mode)
                             android.widget.Toast.makeText(
                                             context,
                                             message,
@@ -123,7 +127,9 @@ fun ChatScreenHeader(
                 ) {
                     Icon(
                             imageVector = Icons.Default.Edit,
-                            contentDescription = if (isEditMode.value) "退出编辑模式" else "进入编辑模式",
+                            contentDescription =
+                                    if (isEditMode.value) stringResource(R.string.exit_edit_mode)
+                                    else stringResource(R.string.enter_edit_mode),
                             tint =
                                     if (isEditMode.value) MaterialTheme.colorScheme.primary
                                     else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
@@ -158,14 +164,20 @@ fun ChatScreenHeader(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                StatItem(label = "总计", value = "$totalTokenCount", isHighlighted = true)
+                StatItem(
+                        label = stringResource(R.string.total),
+                        value = "$totalTokenCount",
+                        isHighlighted = true
+                )
 
                 // 添加一个小图标指示可展开
                 Icon(
                         imageVector =
                                 if (showDetailedStats) Icons.Filled.KeyboardArrowUp
                                 else Icons.Filled.KeyboardArrowDown,
-                        contentDescription = if (showDetailedStats) "收起详情" else "展开详情",
+                        contentDescription =
+                                if (showDetailedStats) stringResource(R.string.wizard_collapse)
+                                else stringResource(R.string.wizard_expand),
                         modifier = Modifier.size(16.dp),
                         tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
                 )
@@ -180,24 +192,24 @@ fun ChatScreenHeader(
                                     .background(MaterialTheme.colorScheme.surface)
             ) {
                 DropdownMenuItem(
-                        text = { Text("请求: $contextWindowSize") },
+                        text = { Text(stringResource(R.string.context_window, contextWindowSize)) },
                         onClick = {},
                         enabled = false
                 )
                 DropdownMenuItem(
-                        text = { Text("累计入: $inputTokenCount") },
+                        text = { Text(stringResource(R.string.input_tokens, inputTokenCount)) },
                         onClick = {},
                         enabled = false
                 )
                 DropdownMenuItem(
-                        text = { Text("累计出: $outputTokenCount") },
+                        text = { Text(stringResource(R.string.output_tokens, outputTokenCount)) },
                         onClick = {},
                         enabled = false
                 )
                 DropdownMenuItem(
                         text = {
                             Text(
-                                    "总计: $totalTokenCount",
+                                    stringResource(R.string.total_tokens, totalTokenCount),
                                     style =
                                             MaterialTheme.typography.bodyMedium.copy(
                                                     fontWeight =
@@ -280,12 +292,15 @@ fun ChatSettingsBar(
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Text(
-                    text = "自动批准:",
+                    text = stringResource(R.string.auto_approve),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
             )
             Text(
-                    text = if (masterPermissionLevel == PermissionLevel.ALLOW) "已开启" else "询问",
+                    text =
+                            if (masterPermissionLevel == PermissionLevel.ALLOW)
+                                    stringResource(R.string.enabled)
+                            else stringResource(R.string.ask),
                     style =
                             MaterialTheme.typography.labelSmall.copy(
                                     fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
@@ -317,12 +332,14 @@ fun ChatSettingsBar(
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Text(
-                    text = "AI计划模式:",
+                    text = stringResource(R.string.ai_planning_mode),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
             )
             Text(
-                    text = if (enableAiPlanning) "已开启" else "已关闭",
+                    text =
+                            if (enableAiPlanning) stringResource(R.string.enabled)
+                            else stringResource(R.string.disabled),
                     style =
                             MaterialTheme.typography.labelSmall.copy(
                                     fontWeight = androidx.compose.ui.text.font.FontWeight.Bold

@@ -13,7 +13,7 @@ class FreeUsagePreferences(context: Context) {
     private val PREFS_NAME = "free_usage_preferences"
     private val KEY_LAST_USAGE_DATE = "last_usage_date"
     private val KEY_DAILY_USAGE_COUNT = "daily_usage_count"
-    private val MAX_DAILY_USAGE = 100
+    private val MAX_DAILY_USAGE = 1
 
     private val prefs: SharedPreferences =
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)

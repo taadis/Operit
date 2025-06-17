@@ -676,4 +676,22 @@
     <string name="toast_operation_failed">操作失败: %1$s</string>
     <string name="toast_skip_tuna_source">已跳过清华源配置，您可以稍后在Termux中自行配置源</string>
     <string name="toast_skip_tuna_source_dialog">您已选择跳过清华源配置。如需后续手动配置，请在Termux中执行以下命令：\n\ntermux-change-repo\n\n然后从列表中选择清华源或其他源。</string>
+    
+    <!-- 聊天历史选择器 -->
+    <string name="chat_history">对话历史</string>
+    <string name="new_chat">新建对话</string>
+    
+    <!-- 聊天屏幕头部 -->
+    <string name="exit_edit_mode">退出编辑模式</string>
+    <string name="enter_edit_mode">进入编辑模式</string>
+    <string name="total">总计</string>
+    <string name="total_tokens">总计: %1$s</string>
+    <string name="input_tokens">累计入: %1$s</string>
+    <string name="output_tokens">累计出: %1$s</string>
+    <string name="context_window">请求: %1$s</string>
+    <string name="auto_approve">自动批准:</string>
+    <string name="enabled">已开启</string>
+    <string name="ask">询问</string>
+    <string name="ai_planning_mode">AI计划模式:</string>
+    <string name="disabled">已关闭</string>
 </resources>
