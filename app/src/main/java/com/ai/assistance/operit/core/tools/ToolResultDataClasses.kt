@@ -227,6 +227,21 @@ data class FileOperationData(
     }
 }
 
+/** Represents the result of an 'apply_file' operation, including the AI-generated diff */
+@Serializable
+data class FileApplyResultData(val operation: FileOperationData, val aiDiffInstructions: String) :
+        ToolResultData() {
+    override fun toString(): String {
+        val sb = StringBuilder()
+        sb.appendLine(operation.details)
+        if (aiDiffInstructions.isNotEmpty() && !aiDiffInstructions.startsWith("Error")) {
+            sb.appendLine("\n--- AI-Generated Diff ---")
+            sb.appendLine(aiDiffInstructions)
+        }
+        return sb.toString()
+    }
+}
+
 /** HTTP响应结果结构化数据 */
 @Serializable
 data class HttpResponseData(

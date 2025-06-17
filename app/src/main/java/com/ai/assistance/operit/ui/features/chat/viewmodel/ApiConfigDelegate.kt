@@ -66,7 +66,7 @@ class ApiConfigDelegate(
         // 异步创建AI服务实例，避免在主线程上执行阻塞操作
         viewModelScope.launch(Dispatchers.IO) {
             Log.d(TAG, "开始在后台线程创建EnhancedAIService")
-            val enhancedAiService = EnhancedAIService(context)
+            val enhancedAiService = EnhancedAIService.getInstance(context)
             Log.d(TAG, "EnhancedAIService创建完成")
             withContext(Dispatchers.Main) {
                 onConfigChanged(enhancedAiService)
@@ -98,7 +98,7 @@ class ApiConfigDelegate(
         // 异步创建服务，避免阻塞
         viewModelScope.launch(Dispatchers.IO) {
             Log.d(TAG, "使用默认配置初始化服务")
-            val enhancedAiService = EnhancedAIService(context)
+            val enhancedAiService = EnhancedAIService.getInstance(context)
             withContext(Dispatchers.Main) {
                 // 通知ViewModel配置已更改
                 onConfigChanged(enhancedAiService)
@@ -132,7 +132,7 @@ class ApiConfigDelegate(
 
                 // 在IO线程上创建服务，避免阻塞
                 val enhancedAiService = withContext(Dispatchers.IO) {
-                    EnhancedAIService(context)
+                    EnhancedAIService.getInstance(context)
                 }
 
                 // 通知ViewModel配置已更改

@@ -47,9 +47,149 @@ import kotlinx.coroutines.withContext
  * Enhanced AI service that provides advanced conversational capabilities by integrating various
  * components like tool execution, conversation management, user preferences, and problem library.
  */
-class EnhancedAIService(private val context: Context) {
+class EnhancedAIService private constructor(private val context: Context) {
     companion object {
         private const val TAG = "EnhancedAIService"
+
+        @Volatile private var INSTANCE: EnhancedAIService? = null
+
+        /**
+         * 获取EnhancedAIService实例
+         * @param context 应用上下文
+         * @return EnhancedAIService实例
+         */
+        fun getInstance(context: Context): EnhancedAIService {
+            return INSTANCE
+                    ?: synchronized(this) {
+                        INSTANCE
+                                ?: EnhancedAIService(context.applicationContext).also {
+                                    INSTANCE = it
+                                }
+                    }
+        }
+
+        /**
+         * 获取指定功能类型的 AIService 实例（非实例化方式）
+         * @param context 应用上下文
+         * @param functionType 功能类型
+         * @return AIService 实例
+         */
+        suspend fun getAIServiceForFunction(
+                context: Context,
+                functionType: FunctionType
+        ): AIService {
+            return getInstance(context).multiServiceManager.getServiceForFunction(functionType)
+        }
+
+        /**
+         * 刷新指定功能类型的 AIService 实例（非实例化方式）
+         * @param context 应用上下文
+         * @param functionType 功能类型
+         */
+        suspend fun refreshServiceForFunction(context: Context, functionType: FunctionType) {
+            getInstance(context).multiServiceManager.refreshServiceForFunction(functionType)
+        }
+
+        /**
+         * 刷新所有 AIService 实例（非实例化方式）
+         * @param context 应用上下文
+         */
+        suspend fun refreshAllServices(context: Context) {
+            getInstance(context).multiServiceManager.refreshAllServices()
+        }
+
+        /**
+         * 获取指定功能类型的当前输入token计数（非实例化方式）
+         * @param context 应用上下文
+         * @param functionType 功能类型
+         * @return 输入token计数
+         */
+        suspend fun getCurrentInputTokenCountForFunction(
+                context: Context,
+                functionType: FunctionType
+        ): Int {
+            return getInstance(context)
+                    .multiServiceManager
+                    .getServiceForFunction(functionType)
+                    .inputTokenCount
+        }
+
+        /**
+         * 获取指定功能类型的当前输出token计数（非实例化方式）
+         * @param context 应用上下文
+         * @param functionType 功能类型
+         * @return 输出token计数
+         */
+        suspend fun getCurrentOutputTokenCountForFunction(
+                context: Context,
+                functionType: FunctionType
+        ): Int {
+            return getInstance(context)
+                    .multiServiceManager
+                    .getServiceForFunction(functionType)
+                    .outputTokenCount
+        }
+
+        /**
+         * 重置指定功能类型或所有功能类型的token计数器（非实例化方式）
+         * @param context 应用上下文
+         * @param functionType 功能类型，如果为null则重置所有功能类型
+         */
+        suspend fun resetTokenCountersForFunction(
+                context: Context,
+                functionType: FunctionType? = null
+        ) {
+            val instance = getInstance(context)
+            if (functionType == null) {
+                // 重置所有服务实例的token计数
+                FunctionType.values().forEach { type ->
+                    try {
+                        val service = instance.multiServiceManager.getServiceForFunction(type)
+                        service.resetTokenCounts()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "重置${type}功能的token计数失败", e)
+                    }
+                }
+            } else {
+                // 只重置指定功能类型的token计数
+                val service = instance.multiServiceManager.getServiceForFunction(functionType)
+                service.resetTokenCounts()
+            }
+        }
+
+        /**
+         * 重置所有token计数器（非实例化方式）
+         * @param context 应用上下文
+         */
+        fun resetTokenCounters(context: Context) {
+            val instance = getInstance(context)
+            instance.aiService.resetTokenCounts()
+            instance.accumulatedInputTokenCount = 0
+            instance.accumulatedOutputTokenCount = 0
+        }
+
+        /**
+         * 处理文件绑定操作（非实例化方式）
+         * @param context 应用上下文
+         * @param originalContent 原始文件内容
+         * @param aiGeneratedCode AI生成的代码（包含"//existing code"标记）
+         * @return 混合后的文件内容
+         */
+        suspend fun applyFileBinding(
+                context: Context,
+                originalContent: String,
+                aiGeneratedCode: String
+        ): Pair<String, String> {
+            // 获取EnhancedAIService实例
+            val instance = getInstance(context)
+
+            // 委托给ConversationService处理
+            return instance.conversationService.processFileBinding(
+                    originalContent,
+                    aiGeneratedCode,
+                    instance.multiServiceManager
+            )
+        }
     }
 
     // MultiServiceManager 管理不同功能的 AIService 实例
@@ -122,7 +262,7 @@ class EnhancedAIService(private val context: Context) {
      * @return AIService 实例
      */
     suspend fun getAIServiceForFunction(functionType: FunctionType): AIService {
-        return multiServiceManager.getServiceForFunction(functionType)
+        return Companion.getAIServiceForFunction(context, functionType)
     }
 
     /**
@@ -130,12 +270,12 @@ class EnhancedAIService(private val context: Context) {
      * @param functionType 功能类型
      */
     suspend fun refreshServiceForFunction(functionType: FunctionType) {
-        multiServiceManager.refreshServiceForFunction(functionType)
+        Companion.refreshServiceForFunction(context, functionType)
     }
 
     /** 刷新所有 AIService 实例 当全局配置发生更改时调用 */
     suspend fun refreshAllServices() {
-        multiServiceManager.refreshAllServices()
+        Companion.refreshAllServices(context)
     }
 
     /** Get the tool progress flow for UI updates */
@@ -300,7 +440,7 @@ class EnhancedAIService(private val context: Context) {
                     val modelParameters = runBlocking { apiPreferences.getAllModelParameters() }
 
                     // 获取对应功能类型的AIService实例
-                    val serviceForFunction = multiServiceManager.getServiceForFunction(functionType)
+                    val serviceForFunction = getAIServiceForFunction(functionType)
 
                     // 使用新的Stream API
                     Log.d(TAG, "调用AI服务，处理时间: ${System.currentTimeMillis() - startTime}ms")
@@ -810,7 +950,7 @@ class EnhancedAIService(private val context: Context) {
         val modelParameters = runBlocking { apiPreferences.getAllModelParameters() }
 
         // 获取对应功能类型的AIService实例
-        val serviceForFunction = multiServiceManager.getServiceForFunction(functionType)
+        val serviceForFunction = getAIServiceForFunction(functionType)
 
         // 使用新的Stream API处理工具执行结果
         withContext(Dispatchers.IO) {
@@ -903,9 +1043,7 @@ class EnhancedAIService(private val context: Context) {
 
     /** Reset token counters to zero Use this when starting a new conversation */
     fun resetTokenCounters() {
-        aiService.resetTokenCounts()
-        accumulatedInputTokenCount = 0
-        accumulatedOutputTokenCount = 0
+        Companion.resetTokenCounters(context)
     }
 
     /**
@@ -913,21 +1051,7 @@ class EnhancedAIService(private val context: Context) {
      * @param functionType 功能类型，如果为null则重置所有功能类型
      */
     suspend fun resetTokenCountersForFunction(functionType: FunctionType? = null) {
-        if (functionType == null) {
-            // 重置所有服务实例的token计数
-            FunctionType.values().forEach { type ->
-                try {
-                    val service = multiServiceManager.getServiceForFunction(type)
-                    service.resetTokenCounts()
-                } catch (e: Exception) {
-                    Log.e(TAG, "重置${type}功能的token计数失败", e)
-                }
-            }
-        } else {
-            // 只重置指定功能类型的token计数
-            val service = multiServiceManager.getServiceForFunction(functionType)
-            service.resetTokenCounts()
-        }
+        Companion.resetTokenCountersForFunction(context, functionType)
     }
 
     /**
@@ -1013,7 +1137,7 @@ class EnhancedAIService(private val context: Context) {
      * @return 输入token计数
      */
     suspend fun getCurrentInputTokenCountForFunction(functionType: FunctionType): Int {
-        return multiServiceManager.getServiceForFunction(functionType).inputTokenCount
+        return Companion.getCurrentInputTokenCountForFunction(context, functionType)
     }
 
     /**
@@ -1022,7 +1146,7 @@ class EnhancedAIService(private val context: Context) {
      * @return 输出token计数
      */
     suspend fun getCurrentOutputTokenCountForFunction(functionType: FunctionType): Int {
-        return multiServiceManager.getServiceForFunction(functionType).outputTokenCount
+        return Companion.getCurrentOutputTokenCountForFunction(context, functionType)
     }
 
     /** Prepare the conversation history with system prompt */
@@ -1092,5 +1216,22 @@ class EnhancedAIService(private val context: Context) {
         } else {
             Log.d(TAG, "AI前台服务未在运行，无需重复停止。")
         }
+    }
+
+    /**
+     * 处理文件绑定操作（实例方法）
+     * @param originalContent 原始文件内容
+     * @param aiGeneratedCode AI生成的代码（包含"//existing code"标记）
+     * @return 混合后的文件内容
+     */
+    suspend fun applyFileBinding(
+            originalContent: String,
+            aiGeneratedCode: String
+    ): Pair<String, String> {
+        return conversationService.processFileBinding(
+                originalContent,
+                aiGeneratedCode,
+                multiServiceManager
+        )
     }
 }

@@ -193,18 +193,13 @@ fun StreamMarkdownRenderer(
         val job =
                 scope.launch(Dispatchers.Default) {
                     try {
-                        interceptedStream
-                                .streamSplitBy(NestedMarkdownProcessor.getBlockPlugins())
+                        interceptedStream.streamSplitBy(NestedMarkdownProcessor.getBlockPlugins())
                                 .collect { blockGroup ->
                                     // 在后台线程解析块
                                     val blockType =
-                                            NestedMarkdownProcessor.getTypeForPlugin(
-                                                    blockGroup.tag
-                                            )
+                                            NestedMarkdownProcessor.getTypeForPlugin(blockGroup.tag)
 
-                                    if (blockType ==
-                                                    MarkdownProcessorType.HORIZONTAL_RULE
-                                    ) {
+                                    if (blockType == MarkdownProcessorType.HORIZONTAL_RULE) {
                                         val node =
                                                 MarkdownNode(
                                                         type = blockType,
@@ -217,15 +212,13 @@ fun StreamMarkdownRenderer(
                                     val isLatexBlock =
                                             blockType == MarkdownProcessorType.BLOCK_LATEX
                                     val tempBlockType =
-                                            if (isLatexBlock)
-                                                    MarkdownProcessorType.PLAIN_TEXT
+                                            if (isLatexBlock) MarkdownProcessorType.PLAIN_TEXT
                                             else blockType
                                     val isInlineContainer =
                                             tempBlockType != MarkdownProcessorType.CODE_BLOCK &&
                                                     tempBlockType !=
                                                             MarkdownProcessorType.BLOCK_LATEX &&
-                                                    tempBlockType !=
-                                                            MarkdownProcessorType.XML_BLOCK
+                                                    tempBlockType != MarkdownProcessorType.XML_BLOCK
 
                                     val newNode = MarkdownNode(type = tempBlockType)
                                     val nodeIndex =
@@ -235,8 +228,7 @@ fun StreamMarkdownRenderer(
                                             }
 
                                     if (isInlineContainer) {
-                                        blockGroup.stream
-                                                .streamSplitBy(
+                                        blockGroup.stream.streamSplitBy(
                                                         NestedMarkdownProcessor.getInlinePlugins()
                                                 )
                                                 .collect { inlineGroup ->
@@ -262,24 +254,19 @@ fun StreamMarkdownRenderer(
                                                                         MarkdownNode(
                                                                                 type = inlineType
                                                                         )
-                                                                newNode.children.add(
-                                                                        childNode!!
-                                                                )
+                                                                newNode.children.add(childNode!!)
                                                             }
                                                             if (lastCharWasNewline) {
-                                                                newNode.content.value +=
-                                                                        "\n" + str
+                                                                newNode.content.value += "\n" + str
                                                                 childNode!!.content.value +=
                                                                         "\n" + str
                                                                 lastCharWasNewline = false
                                                             } else {
                                                                 newNode.content.value += str
-                                                                childNode!!.content.value +=
-                                                                        str
+                                                                childNode!!.content.value += str
                                                             }
                                                         }
-                                                        lastCharWasNewline =
-                                                                isCurrentCharNewline
+                                                        lastCharWasNewline = isCurrentCharNewline
                                                     }
 
                                                     withContext(Dispatchers.Main) {
@@ -300,9 +287,7 @@ fun StreamMarkdownRenderer(
                                                                                     lastIndex] ==
                                                                                     childNode
                                                             ) {
-                                                                newNode.children.removeAt(
-                                                                        lastIndex
-                                                                )
+                                                                newNode.children.removeAt(lastIndex)
                                                             }
                                                         }
                                                     }
@@ -320,9 +305,7 @@ fun StreamMarkdownRenderer(
                                             val latexContent = newNode.content.value
                                             val latexNode =
                                                     MarkdownNode(
-                                                            type =
-                                                                    MarkdownProcessorType
-                                                                            .BLOCK_LATEX
+                                                            type = MarkdownProcessorType.BLOCK_LATEX
                                                     )
                                             latexNode.content.value = latexContent
                                             if (nodeIndex >= 0 &&
@@ -1027,7 +1010,7 @@ fun StableMarkdownNodeRenderer(
 
         // 添加XML块渲染支持
         MarkdownProcessorType.XML_BLOCK -> {
-            Log.d(TAG, "【渲染性能】渲染XML块: id=$rendererId, 内容长度=${content.length}")
+            // Log.d(TAG, "【渲染性能】渲染XML块: id=$rendererId, 内容长度=${content.length}")
             xmlRenderer.RenderXmlContent(
                     xmlContent = content,
                     modifier = Modifier.fillMaxWidth(),

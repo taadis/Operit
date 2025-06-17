@@ -513,6 +513,7 @@ fun getFunctionDisplayName(functionType: FunctionType): String {
                 FunctionType.SUMMARY -> "对话总结"
                 FunctionType.PERSONA -> "性格配置处理"
                 FunctionType.PROBLEM_LIBRARY -> "问题库管理"
+                FunctionType.FILE_BINDING -> "文件绑定处理"
         }
 }
 
@@ -523,5 +524,6 @@ fun getFunctionDescription(functionType: FunctionType): String {
                 FunctionType.SUMMARY -> "生成对话总结，方便追踪重要信息"
                 FunctionType.PERSONA -> "处理用户提示词和性格设置的调整"
                 FunctionType.PROBLEM_LIBRARY -> "用于问题库的分析和管理"
+                FunctionType.FILE_BINDING -> "处理文件内容的智能绑定与混合，提供更精确的代码处理能力"
         }
 }

@@ -29,7 +29,7 @@ object SystemPromptConfig {
 
       WEB WORKSPACE GUIDELINES:
       - Each conversation has its own web workspace directory at /sdcard/Download/Operit/workspace/{CHAT_ID}/
-      - You can create HTML, CSS, JS files in this directory using the write_file tool
+      - You can create HTML, CSS, JS files in this directory using the apply_file tool
       - The main file should be named index.html at the root of this directory
       - When the user clicks the web button in the UI, the contents of index.html will be displayed
       - Users can further click an export button to export the web project as APK or EXE files
@@ -73,6 +73,7 @@ object SystemPromptConfig {
       - list_files: List files in a directory. Parameters: path (e.g. "/sdcard/Download")
       - read_file_part: Read the content of a file by parts (200 lines per part). Parameters: path (file path), partIndex (part number, starts from 0)
       - write_file: Write content to a file. Parameters: path (file path), content (text to write), append (boolean, default false)
+      - apply_file: Smart file editing that intelligently merges AI-generated code with existing file content. Use this tool for all code changes and file editing. Parameters: path (file path), content (code with "//existing code" comments)
       - delete_file: Delete a file or directory. Parameters: path (target path), recursive (boolean, default false)
       - file_exists: Check if a file or directory exists. Parameters: path (target path)
       - move_file: Move or rename a file or directory. Parameters: source (source path), destination (destination path)
@@ -201,7 +202,7 @@ object SystemPromptConfig {
 
         Web工作区指南：
         - 每个对话都有自己的Web工作区目录，位于/sdcard/Download/Operit/workspace/{CHAT_ID}/
-        - 你可以使用write_file工具在此目录中创建HTML、CSS、JS文件
+        - 你可以使用apply_file工具在此目录中创建HTML、CSS、JS文件
         - 主文件应命名为index.html并位于此目录的根目录
         - 当用户点击UI中的web按钮时，index.html的内容将被显示
         - 用户可以进而点击导出按钮将web项目导出为APK和EXE文件
@@ -245,6 +246,7 @@ object SystemPromptConfig {
         - list_files: 列出目录中的文件。参数：path（例如"/sdcard/Download"）
         - read_file_part: 分部分读取文件内容（每部分200行）。参数：path（文件路径），partIndex（部分编号，从0开始）
         - write_file: 写入内容到文件。参数：path（文件路径），content（要写入的文本），append（布尔值，默认false）
+        - apply_file: 智能文件编辑，自动将AI生成的代码与现有文件内容智能合并。用于所有代码更改和文件编辑。参数：path（文件路径），content（包含"//existing code"注释的代码）
         - delete_file: 删除文件或目录。参数：path（目标路径），recursive（布尔值，默认false）
         - file_exists: 检查文件或目录是否存在。参数：path（目标路径）
         - move_file: 移动或重命名文件或目录。参数：source（源路径），destination（目标路径）
