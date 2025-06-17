@@ -18,8 +18,23 @@
 
 - [简介](#简介)
 - [基本流程讲解](#基本流程讲解)
+  - [初次使用/试用](#初次使用)
+  - [如何打包AI写好的WEB应用](#打包web应用)
+  - [如何配置自己的API/其他模型](#api配置)
+    - [配置自己的DeepSeek API](#deepseek-api)
+    - [切换其他AI模型](#切换模型)
+  - [Shizuku授权流程](#shizuku授权)
+  - [包管理与MCP使用说明](#包管理)
+    - [包管理启用过程](#启用包)
+    - [一键快捷配置环境](#配置环境)
+    - [MCP配置流程](#mcp配置)
 - [拓展用法实操](#拓展用法实操)
+  - [开箱即用](#开箱即用)
+  - [拓展包](#拓展包)
+  - [核心工具](#核心工具)
+  - [MCP市场](#mcp市场)
 - [常见问题解答](#常见问题解答)
+  - [MCP包问题排查](#mcp-troubleshooting)
 - [加入我们](#加入我们)
 - [许愿池](#许愿池)
 - [朝花夕拾 (旧版本问题解答)](#朝花夕拾-旧版本问题解答)
@@ -30,11 +45,13 @@
 
 欢迎使用 **Operit AI**！本指南旨在帮助您快速上手，并充分利用 Operit AI 的强大功能，将您的手机变成一个真正的智能助手。
 
->*此文档最新更新：2025/6/15*
+>*此文档最新更新：2025/6/17*
 
 <div STYLE="page-break-after: always;"></div>
 
 <h2 id="基本流程讲解" style="display: flex; justify-content: space-between; align-items: center;"><span>🗺️ 基本流程讲解</span><a href="#table-of-contents" style="text-decoration: none; font-size: 0.8em;" title="返回目录">🔝</a></h2>
+
+<h3 id="初次使用">初次使用/试用</h3>
 
 初次使用 Operit AI 时，您需要进行简单的设置以授予应用必要权限，从而解锁全部功能。以下是详细步骤：
  >演示版本`1.1.5`，之后的版本将在右上角加入 '跳过'
@@ -42,77 +59,288 @@
 <table style="width: 100%;">
   <thead>
     <tr>
-      <th style="width: 30%; text-align: left;">步骤 (Step)</th>
-      <th style="width: 70%; text-align: left;">说明与操作 (Explanation & Action)</th>
+      <th style="width: 25%; text-align: left;">步骤 (Step)</th>
+      <th style="width: 45%; text-align: left;">说明与操作 (Explanation & Action)</th>
+      <th style="width: 30%; text-align: left;">截图 (Screenshot)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr id="step-1">
+      <td style="vertical-align: top;"><strong>步骤一：阅读我们的协议</strong></td>
+      <td style="vertical-align: top; padding-right: 15px;">
+        <em>在此声明，数据只在本地和您所提供的API平台之间流动，我们并没有任何服务器</em>
+      </td>
+      <td style="vertical-align: top;">
+        <a href="assets/user_step/step_for_frist_1.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/user_step/step_for_frist_1.jpg" alt="用户协议及隐私政策" height="280">
+        </a>
+      </td>
+    </tr>
+    <tr id="step-2">
+      <td style="vertical-align: top;"><strong>步骤二：在系统设置中找到并启用 Operit AI</strong></td>
+      <td style="vertical-align: top; padding-right: 15px;">
+        您可以直接跳转至设置相关页面，也可能需要在"已安装的应用"列表中，找到 Operit AI 并点击进入。<br>
+        <em>在设置列表中找到"Operit AI"，点击以进行下一步配置。</em>
+        <blockquote><code>1.1.6</code>以后的版本可以跳过引导</blockquote>
+        <blockquote>如果你卡在这里无法授权某些权限，请退出软件并熄屏重试，来跳过引导。因为这个引导仅在第一次进入时有效。</blockquote>
+      </td>
+      <td style="vertical-align: top;">
+        <a href="assets/user_step/step_for_frist_2.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/user_step/step_for_frist_2.jpg" alt="权限引导" height="280">
+        </a>
+      </td>
+    </tr>
+    <tr id="step-3">
+      <td style="vertical-align: top;"><strong>步骤三：设置用户偏好</strong></td>
+      <td style="vertical-align: top; padding-right: 15px;">
+        在第一次我们会建议您去设置，这将会决定AI眼中的你是什么样的。
+        <blockquote>后续可通过<code>设置>用户偏好设置</code>进行更改，支持自定义</blockquote>
+        <em>打开"使用 Operit AI"的开关，并在系统弹出的确认窗口中点击"允许"。这是安全警告，Operit AI 会妥善使用此权限。</em>
+      </td>
+      <td style="vertical-align: top;">
+        <a href="assets/user_step/step_for_frist_3.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/user_step/step_for_frist_3.jpg" alt="偏好配置" height="280">
+        </a>
+      </td>
+    </tr>
+    <tr id="step-4">
+      <td style="vertical-align: top;"><strong>步骤四：配置自己的API</strong></td>
+      <td style="vertical-align: top; padding-right: 15px;">
+        完成配置后，您就可以返回 Operit AI，开始您的智能助手之旅了！当然您也可以通过使用作者默认API来获得一次完整的体验（每天）。<br>
+        <em>配置API后开始使用即可。</em>
+        <blockquote>AI的API和模型可在<code>设置>AI模型配置>模型与参数配置/功能模型配置</code>中更改</blockquote>
+        <blockquote>模型提示词可在<code>设置>个性化>模型提示词设置</code>处更改，一些模型参数的设置也在这</blockquote>
+      </td>
+      <td style="vertical-align: top;">
+        <a href="assets/user_step/step_for_frist_4.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/user_step/step_for_frist_4.jpg" alt="配置API后开始使用" height="280">
+        </a>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="打包web应用">如何打包AI写好的WEB应用</h3>
+<em>以下步骤将演示如何打包由AI完成开发的Web应用。（图片可点击放大）</em>
+<br>
+<table style="width: 100%;">
+  <thead>
+    <tr>
+      <th style="text-align: center; padding: 8px;">步骤一：进入打包页面</th>
+      <th style="text-align: center; padding: 8px;">步骤二：开始打包</th>
+      <th style="text-align: center; padding: 8px;">步骤三：设置应用信息</th>
+      <th style="text-align: center; padding: 8px;">步骤四：下载或分享</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td style="vertical-align: top;"><strong>步骤一：阅读我们的协议</strong></td>
-      <td style="vertical-align: top;">
-        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
-          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
-            <em>在此声明，数据只在本地和您所提供的API平台之间流动，我们并没有任何服务器</em>
-          </td>
-          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
-            <a href="assets/user_step/step_for_frist_1.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="assets/user_step/step_for_frist_1.jpg" alt="用户协议及隐私政策" height="280">
-            </a>
-          </td>
-        </tr></tbody></table>
+      <td style="text-align: center; padding: 8px; vertical-align: top;">
+        <a href="assets/teach_step/1-1.png" target="_blank" rel="noopener noreferrer">
+          <img src="assets/teach_step/1-1.png" alt="进入打包" style="max-height: 280px; max-width: 100%; height: auto;">
+        </a>
+      </td>
+      <td style="text-align: center; padding: 8px; vertical-align: top;">
+        <a href="assets/teach_step/1-2.png" target="_blank" rel="noopener noreferrer">
+          <img src="assets/teach_step/1-2.png" alt="开始打包" style="max-height: 280px; max-width: 100%; height: auto;">
+        </a>
+      </td>
+      <td style="text-align: center; padding: 8px; vertical-align: top;">
+        <a href="assets/teach_step/1-3.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/teach_step/1-3.jpg" alt="设置信息" style="max-height: 280px; max-width: 100%; height: auto;">
+        </a>
+      </td>
+      <td style="text-align: center; padding: 8px; vertical-align: top;">
+        <a href="assets/teach_step/1-4.jpg" target="_blank" rel="noopener noreferrer">
+         <img src="assets/teach_step/1-4.jpg" alt="下载分享" style="max-height: 280px; max-width: 100%; height: auto;">
+        </a>
+      </td>
+    </tr>
+  </tbody>
+</table>
+<br>
+
+<h3 id="api配置">如何配置自己的API/其他模型</h3>
+
+<h4 id="deepseek-api">配置自己的DeepSeek API</h4>
+<em>按照以下步骤，您可以轻松配置好DeepSeek的API，以便在Operit AI中使用。</em>
+<p>如果您想配置自己的API（而非使用应用内提供的默认接口），可以参照以下流程：</p>
+<h5>步骤一：登录/注册 DeepSeek 开放平台</h5>
+<p>
+  首先，您需要访问 DeepSeek 开放平台 并登录您的账户。我们已在软件内部嵌入了deepseek开放平台。如果您是第一次使用，需要先完成注册。
+</p>
+<div style="display: flex; justify-content: space-around; gap: 10px; flex-wrap: nowrap;">
+    <a href="assets/deepseek_API_step/1.png" target="_blank" rel="noopener noreferrer"><img src="assets/deepseek_API_step/1.png" alt="DeepSeek 官网" style="width: 100%; height: auto; border: 1px solid #ddd; border-radius: 4px;"></a>
+    <a href="assets/deepseek_API_step/2.png" target="_blank" rel="noopener noreferrer"><img src="assets/deepseek_API_step/2.png" alt="登录页面" style="width: 100%; height: auto; border: 1px solid #ddd; border-radius: 4px;"></a>
+    <a href="assets/deepseek_API_step/3.png" target="_blank" rel="noopener noreferrer"><img src="assets/deepseek_API_step/3.png" alt="控制台" style="width: 100%; height: auto; border: 1px solid #ddd; border-radius: 4px;"></a>
+</div>
+
+<table style="width: 100%;">
+  <tbody>
+    <tr>
+      <td style="vertical-align: top; padding: 8px; width: 33%;">
+        <h5>步骤二：充值以获取额度</h5>
+        <p>API的调用需要消耗账户额度。您可以根据图五的指引完成充值。即便只是少量充值（例如1元），也足以让您长时间体验V3模型。</p>
+      </td>
+      <td style="vertical-align: top; padding: 8px; width: 33%;">
+        <h5>步骤三：创建并复制API密钥</h5>
+        <p>充值成功后，请点击左侧的"创建API"按钮。<strong>请注意：密钥仅在创建时完整显示一次，请务必立即复制并妥善保管。</strong></p>
+      </td>
+      <td style="vertical-align: top; padding: 8px; width: 33%;">
+        <h5>步骤四：在Operit AI中配置密钥</h5>
+        <p>创建并复制密钥后，返回Operit AI应用。您可以直接在配置页面输入您的API密钥。</p>
       </td>
     </tr>
     <tr>
-      <td style="vertical-align: top;"><strong>步骤二：在系统设置中找到并启用 Operit AI</strong></td>
+      <td style="text-align: center; padding: 8px; vertical-align: top;">
+        <a href="assets/deepseek_API_step/4.png" target="_blank" rel="noopener noreferrer"><img src="assets/deepseek_API_step/4.png" alt="API密钥页面" style="max-height: 200px; height: auto; border: 1px solid #ddd; border-radius: 4px;"></a>
+      </td>
+      <td style="text-align: center; padding: 8px; vertical-align: top;">
+        <a href="assets/deepseek_API_step/5.png" target="_blank" rel="noopener noreferrer"><img src="assets/deepseek_API_step/5.png" alt="创建密钥" style="max-height: 200px; height: auto; border: 1px solid #ddd; border-radius: 4px;"></a>
+      </td>
+      <td style="text-align: center; padding: 8px; vertical-align: top;">
+        <a href="assets/deepseek_API_step/9.png" target="_blank" rel="noopener noreferrer"><img src="assets/deepseek_API_step/9.png" alt="在App中配置" style="max-height: 200px; height: auto; border: 1px solid #ddd; border-radius: 4px;"></a>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<p>我们支持包括gemini在内的大多数模型。如果还有更新的模型我们没有支持，请提醒我们！</p>
+
+<h4 id="切换模型">切换其他AI模型</h4>
+<p>您可以按照以下步骤切换和配置您想使用的AI模型：</p>
+<table style="width: 100%;">
+  <thead>
+    <tr>
+      <th style="text-align: center; padding: 8px;">步骤一：进入设置</th>
+      <th style="text-align: center; padding: 8px;">步骤二：选择AI模型配置</th>
+      <th style="text-align: center; padding: 8px;">步骤三：模型与参数配置</th>
+      <th style="text-align: center; padding: 8px;">步骤四：选择你的模型</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: center; padding: 8px; vertical-align: top;">
+        <a href="assets/model/1.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/model/1.jpg" alt="步骤一" style="height: 280px; width: auto; max-width: 100%;">
+        </a>
+      </td>
+      <td style="text-align: center; padding: 8px; vertical-align: top;">
+        <a href="assets/model/2.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/model/2.jpg" alt="步骤二" style="height: 280px; width: auto; max-width: 100%;">
+        </a>
+      </td>
+      <td style="text-align: center; padding: 8px; vertical-align: top;">
+        <a href="assets/model/3.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/model/3.jpg" alt="步骤三" style="height: 280px; width: auto; max-width: 100%;">
+        </a>
+      </td>
+      <td style="text-align: center; padding: 8px; vertical-align: top;">
+         <a href="assets/model/4.jpg" target="_blank" rel="noopener noreferrer">
+           <img src="assets/model/4.jpg" alt="步骤四" style="height: 280px; width: auto; max-width: 100%;">
+         </a>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="shizuku授权">Shizuku授权流程</h3>
+<p>完成shizuku的配置后，内置包（除<code>coderunner</code>）就都可以用了。</p>
+
+<h3 id="包管理">包管理与MCP使用说明</h3>
+<p>内置包（除<code>coderunner</code>外）开箱即用。其余拓展包与MCP依赖Termux环境，使用前请确保Termux已在后台运行。</p>
+
+<h4 id="启用包">包管理启用过程</h4>
+<table style="width: 100%;">
+    <thead>
+      <tr>
+       <th style="text-align: center; padding: 8px;">步骤一：进入包管理</th>
+        <th style="text-align: center; padding: 8px;">步骤二：启用所需拓展包</th>
+      </tr>
+     <p>内置包（除<code>coderunner</code>外）开箱即用。其余拓展包与MCP依赖Termux环境，使用前请确保Termux已在后台运行。</p>
+    </thead>
+    <tbody>
+      <tr>
+       <td style="text-align: center; padding: 8px; vertical-align: top;">
+          <a href="assets/package_or_MCP/1.jpg" target="_blank" rel="noopener noreferrer"><img src="assets/package_or_MCP/1.jpg" alt="启用包管理1" style="height: 280px; width: auto; max-width: 100%;"></a>
+       </td>
+       <td style="text-align: center; padding: 8px; vertical-align: top;">
+          <a href="assets/package_or_MCP/2.jpg" target="_blank" rel="noopener noreferrer"><img src="assets/package_or_MCP/2.jpg" alt="启用包管理2" style="height: 280px; width: auto; max-width: 100%;"></a>
+       </td>
+     </tr>
+   </tbody>
+</table>
+
+<h4 id="配置环境">一键快捷配置环境</h4>
+<table style="width: 100%;">
+  <thead>
+    <tr>
+      <th style="width: 25%; text-align: left;">步骤</th>
+      <th style="width: 25%; text-align: left;">说明与操作</th>
+      <th style="width: 50%; text-align: left;">截图</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="vertical-align: top;"><strong>步骤一：进入工具箱</strong></td>
+      <td style="vertical-align: top; padding-right: 15px;">在主界面或设置中找到"工具箱"入口并点击进入。</td>
       <td style="vertical-align: top;">
-        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
-          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
-            您可以直接跳转至设置相关页面，也可能需要在"已安装的应用"列表中，找到 Operit AI 并点击进入。<br>
-            <em>在设置列表中找到"Operit AI"，点击以进行下一步配置。</em>
-            <blockquote><code>1.1.6</code>以后的版本可以跳过引导</blockquote>
-            <blockquote>如果你卡在这里无法授权某些权限，请退出软件并熄屏重试，来跳过引导。因为这个引导仅在第一次进入时有效。</blockquote>
-          </td>
-          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
-            <a href="assets/user_step/step_for_frist_2.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="assets/user_step/step_for_frist_2.jpg" alt="权限引导" height="280">
-            </a>
-          </td>
-        </tr></tbody></table>
+        <a href="assets/package_or_MCP/3.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/package_or_MCP/3.jpg" alt="配置环境1" style="width: 100%; height: auto;">
+        </a>
       </td>
     </tr>
     <tr>
-      <td style="vertical-align: top;"><strong>步骤三：设置用户偏好</strong></td>
+      <td style="vertical-align: top;"><strong>步骤二：选择终端自动配置</strong></td>
+      <td style="vertical-align: top; padding-right: 15px;">在工具箱中，找到并选择"终端自动配置"功能，以开始自动化环境设置。</td>
       <td style="vertical-align: top;">
-        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
-          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
-            在第一次我们会建议您去设置，这将会决定AI眼中的你是什么样的。
-            <blockquote>后续可通过<code>设置>用户偏好设置</code>进行更改，支持自定义</blockquote>
-            <em>打开"使用 Operit AI"的开关，并在系统弹出的确认窗口中点击"允许"。这是安全警告，Operit AI 会妥善使用此权限。</em>
-          </td>
-          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
-            <a href="assets/user_step/step_for_frist_3.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="assets/user_step/step_for_frist_3.jpg" alt="偏好配置" height="280">
-            </a>
-          </td>
-        </tr></tbody></table>
+        <a href="assets/package_or_MCP/4.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/package_or_MCP/4.jpg" alt="配置环境2" style="width: 100%; height: auto;">
+        </a>
       </td>
     </tr>
     <tr>
-      <td style="vertical-align: top;"><strong>步骤四：配置自己的API</strong></td>
+      <td style="vertical-align: top;"><strong>步骤三：开始配置</strong></td>
+      <td style="vertical-align: top; padding-right: 15px;">点击"开始配置"按钮，系统将自动完成所需环境的安装和配置。</td>
       <td style="vertical-align: top;">
-        <table style="width: 100%; border-collapse: collapse; border: none;"><tbody><tr>
-          <td style="vertical-align: top; padding: 0 15px 0 0; border: none;">
-            完成配置后，您就可以返回 Operit AI，开始您的智能助手之旅了！当然您也可以通过使用作者默认API来获得一次完整的体验（每天）。<br>
-            <em>配置API后开始使用即可。</em>
-            <blockquote>AI的API和模型可在<code>设置>AI模型配置>模型与参数配置/功能模型配置</code>中更改</blockquote>
-            <blockquote>模型提示词可在<code>设置>个性化>模型提示词设置</code>处更改，一些模型参数的设置也在这</blockquote>
-          </td>
-          <td style="width: 40%; text-align: right; vertical-align: top; padding: 0; border: none;">
-            <a href="assets/user_step/step_for_frist_4.jpg" target="_blank" rel="noopener noreferrer">
-              <img src="assets/user_step/step_for_frist_4.jpg" alt="配置API后开始使用" height="280">
-            </a>
-          </td>
-        </tr></tbody></table>
+        <a href="assets/package_or_MCP/5.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/package_or_MCP/5.jpg" alt="配置环境3" style="width: 100%; height: auto;">
+        </a>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<h4 id="mcp配置">MCP配置流程</h4>
+<table style="width: 100%;">
+  <thead>
+    <tr>
+      <th style="text-align: center; padding: 8px;">步骤一：进入MCP市场</th>
+      <th style="text-align: center; padding: 8px;">步骤二：点击刷新按钮</th>
+      <th style="text-align: center; padding: 8px;">步骤三：等待加载完成</th>
+      <th style="text-align: center; padding: 8px;">步骤四：选择并使用MCP</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: center; padding: 8px; vertical-align: top;">
+        <a href="assets/package_or_MCP/7.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/package_or_MCP/7.jpg" alt="MCP配置1" style="height: 280px; width: auto; max-width: 100%;">
+        </a>
+      </td>
+      <td style="text-align: center; padding: 8px; vertical-align: top;">
+        <a href="assets/package_or_MCP/8.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/package_or_MCP/8.jpg" alt="MCP配置2" style="height: 280px; width: auto; max-width: 100%;">
+        </a>
+      </td>
+      <td style="text-align: center; padding: 8px; vertical-align: top;">
+        <a href="assets/package_or_MCP/9.jpg" target="_blank" rel="noopener noreferrer">
+          <img src="assets/package_or_MCP/9.jpg" alt="MCP配置3" style="height: 280px; width: auto; max-width: 100%;">
+        </a>
+      </td>
+      <td style="text-align: center; padding: 8px; vertical-align: top;">
+         <a href="assets/package_or_MCP/10.jpg" target="_blank" rel="noopener noreferrer">
+           <img src="assets/package_or_MCP/10.jpg" alt="MCP配置4" style="height: 280px; width: auto; max-width: 100%;">
+         </a>
       </td>
     </tr>
   </tbody>
@@ -124,7 +352,7 @@
 
 *(本部分将通过实际案例，向您展示如何利用拓展包、计划模式等高级功能，完成更复杂的任务。)*
 
-### 🧰 开箱即用
+<h3 id="开箱即用">🧰 开箱即用</h3>
 <em>这部分为<strong>内置包</strong></em>
 <br>
 当你让AI写软件，软件的性能取决于AI的能力。示例中的模型为<code>Deepseel-R1</code>模型
@@ -132,9 +360,9 @@
 <table style="width: 100%;">
   <thead>
     <tr>
-      <th style="width: 25%; text-align: left;">示例 (Example)</th>
-      <th style="width: 50%; text-align: left;">说明 (Description)</th>
-      <th style="width: 25%; text-align: left;">预览 (Preview)</th>
+      <th style="width: 20%; text-align: left;">示例 (Example)</th>
+      <th style="width: 30%; text-align: left;">说明 (Description)</th>
+      <th style="width: 50%; text-align: left;">预览 (Preview)</th>
     </tr>
   </thead>
   <tbody>
@@ -143,12 +371,12 @@
       <td style="vertical-align: top;">
         通过简单的对话，让AI为您构思并实现一个经典的2D弹幕射击游戏。Operit AI能够调用其基础代码能力，仅使用HTML和JavaScript，从零开始构建出完整的游戏逻辑与动态画面。
       </td>
-      <td style="vertical-align: top; text-align: right;">
+      <td style="vertical-align: top; text-align: center;">
         <a href="assets/game_maker_chat.jpg" target="_blank" rel="noopener noreferrer">
-          <img src="assets/game_maker_chat.jpg" alt="2D弹幕游戏聊天" height="280">
+          <img src="assets/game_maker_chat.jpg" alt="2D弹幕游戏聊天" style="width: 100%; height: auto; margin-bottom: 5px;">
         </a>
         <a href="assets/game_maker_show.jpg" target="_blank" rel="noopener noreferrer">
-          <img src="assets/game_maker_show.jpg" alt="2D弹幕游戏展示" height="280">
+          <img src="assets/game_maker_show.jpg" alt="2D弹幕游戏展示" style="width: 100%; height: auto;">
         </a>
       </td>
     </tr>
@@ -157,12 +385,12 @@
       <td style="vertical-align: top;">
         无需任何拓展包，Operit AI 仅通过内置的核心工具，就可以直接用HTML和JavaScript代码，为您呈现一个动态的3D游戏场景。
       </td>
-      <td style="vertical-align: top; text-align: right;">
+      <td style="vertical-align: top; text-align: center;">
         <a href="assets/expamle/3ddebdde4958ac152eeca436e39c0f6.jpg" target="_blank" rel="noopener noreferrer">
-          <img src="assets/expamle/3ddebdde4958ac152eeca436e39c0f6.jpg" alt="3D游戏示例1" height="280">
+          <img src="assets/expamle/3ddebdde4958ac152eeca436e39c0f6.jpg" alt="3D游戏示例1" style="width: 100%; height: auto; margin-bottom: 5px;">
         </a>
         <a href="assets/expamle/759d86a7d74351675b32acb6464585d.jpg" target="_blank" rel="noopener noreferrer">
-          <img src="assets/expamle/759d86a7d74351675b32acb6464585d.jpg" alt="3D游戏示例2" height="280">
+          <img src="assets/expamle/759d86a7d74351675b32acb6464585d.jpg" alt="3D游戏示例2" style="width: 100%; height: auto;">
         </a>
       </td>
     </tr>
@@ -171,9 +399,9 @@
       <td style="vertical-align: top;">
         同样地，应用内置了强大的FFmpeg工具，无需额外安装，即可让AI帮您完成视频格式转换、截取、合并等多种处理任务。
       </td>
-      <td style="vertical-align: top; text-align: right;">
+      <td style="vertical-align: top; text-align: center;">
         <a href="assets/d7580a42ae03c723121bd172e1f9e7d.jpg" target="_blank" rel="noopener noreferrer">
-          <img src="./assets/d7580a42ae03c723121bd172e1f9e7d.jpg" alt="简单的视频处理示例" height="280">
+          <img src="./assets/d7580a42ae03c723121bd172e1f9e7d.jpg" alt="简单的视频处理示例" style="width: 100%; height: auto;">
         </a>
       </td>
     </tr>
@@ -182,28 +410,28 @@
       <td style="vertical-align: top;">
         从编写代码到最终发布，Operit AI 可以进一步调用平台工具，将完成的软件打包成适用于安卓（APK）或Windows（EXE）的可执行文件，实现端到端的自动化开发流程。
       </td>
-      <td style="vertical-align: top; text-align: right;">
+      <td style="vertical-align: top; text-align: center;">
         <a href="assets/web_developer.jpg" target="_blank" rel="noopener noreferrer">
-          <img src="./assets/web_developer.jpg" alt="软件打包示例1" height="280">
+          <img src="./assets/web_developer.jpg" alt="软件打包示例1" style="width: 100%; height: auto; margin-bottom: 5px;">
         </a>
         <a href="assets/game_maker_packer.jpg" target="_blank" rel="noopener noreferrer">
-          <img src="./assets/game_maker_packer.jpg" alt="软件打包示例2" height="280">
+          <img src="./assets/game_maker_packer.jpg" alt="软件打包示例2" style="width: 100%; height: auto;">
         </a>
       </td>
     </tr>
   </tbody>
 </table>
 
-### 📦 拓展包
+<h3 id="拓展包">📦 拓展包</h3>
 >演示版本`1.1.6`
 （图片可点击放大）
 
 <table style="width: 100%;">
   <thead>
     <tr>
-      <th style="width: 25%; text-align: left;">拓展包 (Package)</th>
-      <th style="width: 50%; text-align: left;">功能说明 (Description)</th>
-      <th style="width: 25%; text-align: left;">预览 (Preview)</th>
+      <th style="width: 20%; text-align: left;">拓展包 (Package)</th>
+      <th style="width: 30%; text-align: left;">功能说明 (Description)</th>
+      <th style="width: 50%; text-align: left;">预览 (Preview)</th>
     </tr>
   </thead>
   <tbody>
@@ -212,9 +440,9 @@
       <td style="vertical-align: top;">
         高级文件编辑和读取功能，支持分段编辑、差异编辑、行号编辑以及高级文件读取操作
       </td>
-      <td style="vertical-align: top; text-align: right;">
+      <td style="vertical-align: top; text-align: center;">
         <a href="assets/expamle/065e5ca8a8036c51a7905d206bbb56c.jpg" target="_blank" rel="noopener noreferrer">
-          <img src="assets/expamle/065e5ca8a8036c51a7905d206bbb56c.jpg" alt="writer示例" height="280">
+          <img src="assets/expamle/065e5ca8a8036c51a7905d206bbb56c.jpg" alt="writer示例" style="width: 100%; height: auto;">
         </a>
       </td>
     </tr>
@@ -223,12 +451,12 @@
       <td style="vertical-align: top;">
         多平台搜索功能，支持从必应、百度、搜狗、夸克等平台获取搜索结果
       </td>
-      <td style="vertical-align: top; text-align: right;">
+      <td style="vertical-align: top; text-align: center;">
         <a href="assets/expamle/90a1778510df485d788b80d4bc349f9.jpg" target="_blank" rel="noopener noreferrer">
-          <img src="assets/expamle/90a1778510df485d788b80d4bc349f9.jpg" alt="多平台搜索示例1" height="280">
+          <img src="assets/expamle/90a1778510df485d788b80d4bc349f9.jpg" alt="多平台搜索示例1" style="width: 100%; height: auto; margin-bottom: 5px;">
         </a>
         <a href="assets/expamle/f9b8aeba4878775d1252ad8d5d8620a.jpg" target="_blank" rel="noopener noreferrer">
-          <img src="assets/expamle/f9b8aeba4878775d1252ad8d5d8620a.jpg" alt="多平台搜索示例2" height="280">
+          <img src="assets/expamle/f9b8aeba4878775d1252ad8d5d8620a.jpg" alt="多平台搜索示例2" style="width: 100%; height: auto;">
         </a>
       </td>
     </tr>
@@ -237,9 +465,9 @@
       <td style="vertical-align: top;">
         日常生活工具集合，包括日期时间查询、设备状态监测、天气搜索、提醒闹钟设置、短信电话通讯等
       </td>
-      <td style="vertical-align: top; text-align: right;">
+      <td style="vertical-align: top; text-align: center;">
         <a href="assets/expamle/615cf7a99e421356b6d22bb0b9cc87b.jpg" target="_blank" rel="noopener noreferrer">
-          <img src="assets/expamle/615cf7a99e421356b6d22bb0b9cc87b.jpg" alt="日常生活示例" height="280">
+          <img src="assets/expamle/615cf7a99e421356b6d22bb0b9cc87b.jpg" alt="日常生活示例" style="width: 100%; height: auto;">
         </a>
       </td>
     </tr>
@@ -248,12 +476,12 @@
       <td style="vertical-align: top;">
         超级管理员工具集，提供终端命令和Shell操作的高级功能
       </td>
-      <td style="vertical-align: top; text-align: right;">
+      <td style="vertical-align: top; text-align: center;">
         <a href="assets/expamle/731f67e3d7494886c1c1f8639216bf2.jpg" target="_blank" rel="noopener noreferrer">
-          <img src="assets/expamle/731f67e3d7494886c1c1f8639216bf2.jpg" alt="超级管理员示例1" height="280">
+          <img src="assets/expamle/731f67e3d7494886c1c1f8639216bf2.jpg" alt="超级管理员示例1" style="width: 100%; height: auto; margin-bottom: 5px;">
         </a>
         <a href="assets/expamle/6f81901ae47f5a3584167148017d132.jpg" target="_blank" rel="noopener noreferrer">
-          <img src="assets/expamle/6f81901ae47f5a3584167148017d132.jpg" alt="超级管理员示例2" height="280">
+          <img src="assets/expamle/6f81901ae47f5a3584167148017d132.jpg" alt="超级管理员示例2" style="width: 100%; height: auto;">
         </a>
       </td>
     </tr>
@@ -266,9 +494,9 @@
       <td style="vertical-align: top;">
         百度地图相关功能
       </td>
-      <td style="vertical-align: top; text-align: right;">
+      <td style="vertical-align: top; text-align: center;">
         <a href="assets/expamle/71fd917c5310c1cebaa1abb19882a6d.jpg" target="_blank" rel="noopener noreferrer">
-          <img src="assets/expamle/71fd917c5310c1cebaa1abb19882a6d.jpg" alt="百度地图示例" height="280">
+          <img src="assets/expamle/71fd917c5310c1cebaa1abb19882a6d.jpg" alt="百度地图示例" style="width: 100%; height: auto;">
         </a>
       </td>
     </tr>
@@ -285,9 +513,9 @@
       <td style="vertical-align: top;">
         提供图片输出功能
       </td>
-      <td style="vertical-align: top; text-align: right;">
+      <td style="vertical-align: top; text-align: center;">
         <a href="assets/expamle/5fff4b49db78ec01e189658de8ea997.jpg" target="_blank" rel="noopener noreferrer">
-          <img src="assets/expamle/5fff4b49db78ec01e189658de8ea997.jpg" alt="图片输出示例" height="280">
+          <img src="assets/expamle/5fff4b49db78ec01e189658de8ea997.jpg" alt="图片输出示例" style="width: 100%; height: auto;">
         </a>
       </td>
     </tr>
@@ -295,7 +523,7 @@
 </table>
 
 
-### 🛠️ 核心工具
+<h3 id="核心工具">🛠️ 核心工具</h3>
 
 | 工具 (Tool) | 功能说明 (Description) |
 |---|---|
@@ -335,7 +563,7 @@
 | `ffmpeg_info` | 获取FFmpeg信息 |
 | `ffmpeg_convert` | 转换视频文件 |
 
-### 🛒 MCP市场
+<h3 id="mcp市场">🛒 MCP市场</h3>
 
 > 考虑到手机环境的特殊性，要完整、稳定地配置所有MCP（Model context protocol）所需的环境是相当有挑战性的。因此，直接调用MCP可能会遇到较多困难。
 > 
@@ -398,10 +626,20 @@
 这里收录了**最新版本 `1.1.6`** 用户群和 issue 的全部问题。
 如果您使用的是旧版本，可以来<a href="#朝花夕拾-旧版本问题解答">这里找找</a>。
 
-*(这里可以列出具体的 Q&A)*
+<h3 id="mcp-troubleshooting">MCP包问题排查</h3>
+
+**MCP包不加载问题可能原因**
+- **Shizuku未正确配置**：请参照<a href="#shizuku授权">Shizuku授权流程</a>完成配置。
+- **Termux未正确配置**：请参照<a href="#包管理">包管理与MCP使用说明</a>完成配置。
+- **Termux未挂在后台**：在启动软件前，请务必先打开Termux并保持其在后台运行。
+
+**MCP运行失败原因**
+- **环境配置问题**：部分MCP插件对运行环境有特殊要求。您需要访问相应插件的GitHub开源地址，根据其文档完成环境配置。
+- **版本兼容性问题**：更早版本中存在的问题大多已在后续更新中得到解决。我们强烈建议您下载并安装最新版本以获取最佳体验。
+
+您可以从[Release页面](https://github.com/AAswordman/Operit/releases)下载最新APK。
 
 <div STYLE="page-break-after: always;"></div>
-
 <h2 id="加入我们" style="display: flex; justify-content: space-between; align-items: center;"><span>🎉 加入我们</span><a href="#table-of-contents" style="text-decoration: none; font-size: 0.8em;" title="返回目录">🔝</a></h2>
 
 我们诚挚地邀请您加入我们的社区，与其他用户交流心得，分享您的创意，或向我们提出宝贵的建议。
@@ -437,21 +675,21 @@
 
 <div STYLE="page-break-after: always;"></div>
 
-<h2 id="朝花夕拾-旧版本问题解答" style="display: flex; justify-content: space-between; align-items: center;"><span>📜 朝花夕拾 *(旧版本问题解答)*</span><a href="#table-of-contents" style="text-decoration: none; font-size: 0.8em;" title="返回目录">🔝</a></h2>
+<h2 id="朝花夕拾-旧版本问题解答" style="display: flex; justify-content: space-between; align-items: center;"><span>📜 朝花夕拾 (旧版本问题解答)</span><a href="#table-of-contents" style="text-decoration: none; font-size: 0.8em;" title="返回目录">🔝</a></h2>
 
-#### `1.1.5`版本
+### `1.1.5`版本
 *(相关问题)*
 
 
-#### `1.1.3`以前
+### `1.1.3`以前
 
 
 *(相关问题)*
-##### Gemini格式未做适配
+#### Gemini格式未做适配
 新版本已解决，支持了更多模型
-##### Termux
-###### 类型一 Termux版本不正确
-###### 类型二 MCP包不加载
+#### Termux
+##### 类型一 Termux版本不正确
+##### 类型二 MCP包不加载
 软件运行时建议将Termux挂后台
 
 后续将通过内置Termux解决这类问题
