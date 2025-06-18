@@ -541,38 +541,69 @@
 | `sleep` | 短暂暂停执行 |
 | `device_info` | 获取设备详细信息 |
 | `use_package` | 激活扩展包 |
-| `query_problem_library` | 查询问题库 |
+| `query_problem_library` | 查询问题库，获取类似的过去解决方案、用户风格偏好和用户信息 |
+
+文件系统工具：
+
+| 工具 (Tool) | 功能说明 (Description) |
+|---|---|
 | `list_files` | 列出目录中的文件 |
-| `read_file` | 读取文件内容 |
-| `write_file` | 写入内容到文件 |
+| `read_file_part` | 分部分读取文件内容（每部分200行） |
+| `apply_file` | 智能地修改文件，使用占位符保留不变的部分 |
 | `delete_file` | 删除文件或目录 |
-| `file_exists` | 检查文件是否存在 |
-| `move_file` | 移动或重命名文件 |
+| `file_exists` | 检查文件或目录是否存在 |
+| `move_file` | 移动或重命名文件或目录 |
 | `copy_file` | 复制文件或目录 |
 | `make_directory` | 创建目录 |
-| `find_files` | 搜索匹配文件 |
+| `find_files` | 搜索匹配模式的文件 |
+| `file_info` | 获取文件或目录的详细信息 |
 | `zip_files/unzip_files` | 压缩/解压文件 |
+| `open_file` | 使用系统默认应用程序打开文件 |
+| `share_file` | 与其他应用程序共享文件 |
 | `download_file` | 从网络下载文件 |
+| `convert_file` | 将文件从一种格式转换为另一种格式 |
+| `get_supported_conversions` | 列出所有支持的文件格式转换 |
+
+HTTP工具：
+
+| 工具 (Tool) | 功能说明 (Description) |
+|---|---|
 | `http_request` | 发送HTTP请求 |
 | `multipart_request` | 上传文件 |
 | `manage_cookies` | 管理cookies |
-| `visit_web` | 访问并提取网页内容 |
-| `get_system_setting` | 获取系统设置 |
-| `modify_system_setting` | 修改系统设置 |
-| `install_app/uninstall_app`| 安装/卸载应用 |
-| `start_app/stop_app` | 启动/停止应用 |
+| `visit_web` | 访问网页并提取内容 |
+
+系统操作工具：
+
+| 工具 (Tool) | 功能说明 (Description) |
+|---|---|
+| `get_system_setting` | 获取系统设置的值 |
+| `modify_system_setting` | 修改系统设置的值 |
+| `install_app/uninstall_app`| 安装/卸载应用程序 |
+| `list_installed_apps` | 获取已安装应用程序列表 |
+| `start_app/stop_app` | 启动/停止应用程序 |
 | `get_notifications` | 获取设备通知 |
-| `get_device_location` | 获取设备位置 |
-| `get_page_info` | 获取UI屏幕信息 |
-| `tap` | 模拟点击坐标 |
-| `click_element` | 点击UI元素 |
-| `set_input_text` | 设置输入文本 |
+| `get_device_location` | 获取设备当前位置信息 |
+
+UI自动化工具：
+
+| 工具 (Tool) | 功能说明 (Description) |
+|---|---|
+| `get_page_info` | 获取当前UI屏幕的信息 |
+| `tap` | 在特定坐标模拟点击 |
+| `click_element` | 点击由资源ID或类名标识的元素 |
+| `set_input_text` | 在输入字段中设置文本 |
 | `press_key` | 模拟按键 |
 | `swipe` | 模拟滑动手势 |
-| `find_element` | 查找UI元素 |
-| `ffmpeg_execute` | 执行FFmpeg命令 |
-| `ffmpeg_info` | 获取FFmpeg信息 |
-| `ffmpeg_convert` | 转换视频文件 |
+| `find_element` | 查找符合特定条件的UI元素 |
+
+FFmpeg工具：
+
+| 工具 (Tool) | 功能说明 (Description) |
+|---|---|
+| `ffmpeg_execute` | 执行自定义FFmpeg命令 |
+| `ffmpeg_info` | 获取FFmpeg系统信息 |
+| `ffmpeg_convert` | 使用简化参数转换视频文件 |
 
 <h3 id="section-3-4" style="display: flex; justify-content: space-between; align-items: center;"><span>🛒 MCP市场</span><a href="#section-3" style="text-decoration: none; font-size: 0.8em;" title="返回上一级">↩️</a></h3>
 
