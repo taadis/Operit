@@ -1676,6 +1676,23 @@ open class StandardFileSystemTools(protected val context: Context) {
             val mergedContent = bindingResult.first
             val aiInstructions = bindingResult.second
 
+            // 检查文件绑定是否返回错误
+            if (aiInstructions.startsWith("Error", ignoreCase = true)) {
+                Log.e(TAG, "File binding failed: $aiInstructions")
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result =
+                                FileOperationData(
+                                        operation = "apply",
+                                        path = path,
+                                        successful = false,
+                                        details = "File binding failed: $aiInstructions"
+                                ),
+                        error = aiInstructions
+                )
+            }
+
             // 3. 将合并后的内容写回文件
             val writeResult =
                     writeFile(

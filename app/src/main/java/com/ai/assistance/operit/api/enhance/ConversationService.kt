@@ -511,12 +511,12 @@ class ConversationService(private val context: Context) {
                     """
                 **Original File Content:**
                 ```
-                $originalContent
+                ${originalContent.trim()}
                 ```
 
                 **AI-Generated Code (with placeholders):**
                 ```
-                $aiGeneratedCode
+                ${aiGeneratedCode.trim()}
                 ```
 
                 Now, generate ONLY the patch in the unified diff format.

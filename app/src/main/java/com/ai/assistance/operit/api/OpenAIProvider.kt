@@ -29,8 +29,8 @@ class OpenAIProvider(
     private val client =
             OkHttpClient.Builder()
                     .connectTimeout(30, TimeUnit.SECONDS)
-                    .readTimeout(300, TimeUnit.SECONDS)
-                    .writeTimeout(300, TimeUnit.SECONDS)
+                    .readTimeout(1000, TimeUnit.SECONDS)
+                    .writeTimeout(1000, TimeUnit.SECONDS)
                     .build()
 
     private val JSON = "application/json; charset=utf-8".toMediaType()

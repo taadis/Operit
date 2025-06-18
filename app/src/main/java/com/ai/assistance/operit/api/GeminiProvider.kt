@@ -36,7 +36,7 @@ class GeminiProvider(
             OkHttpClient.Builder()
                     .connectTimeout(30, TimeUnit.SECONDS)
                     .readTimeout(1000, TimeUnit.SECONDS)
-                    .writeTimeout(300, TimeUnit.SECONDS)
+                    .writeTimeout(1000, TimeUnit.SECONDS)
                     .addInterceptor { chain ->
                         val request = chain.request()
                         val requestId = System.currentTimeMillis().toString()
