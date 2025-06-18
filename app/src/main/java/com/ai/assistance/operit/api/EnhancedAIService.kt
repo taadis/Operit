@@ -56,7 +56,7 @@ class EnhancedAIService private constructor(private val context: Context) {
         /**
          * 获取EnhancedAIService实例
          * @param context 应用上下文
-         * @return EnhancedAIService实例
+         * @return EnhancedAIService实.
          */
         fun getInstance(context: Context): EnhancedAIService {
             return INSTANCE

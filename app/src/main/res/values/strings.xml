@@ -112,6 +112,12 @@
     <string name="free_usage_confirm">确认使用</string>
     <string name="free_usage_depleted">今日已用完</string>
     <string name="free_usage_tip">明天再来吧，或者使用您自己的API密钥</string>
+    <string name="free_usage_wait_days">需要等待 %1$d 天才能再次使用～</string>
+    <string name="free_usage_used_today">今日免费额度已用完QAQ</string>
+    <string name="free_usage_next_available">下次可用日期: %1$s (耐心等待哦～)</string>
+    <string name="free_usage_interval_tip">为了防止作者破产，每次使用后等待时间会翻倍哦～</string>
+    <string name="free_usage_first_tip">这是第一次使用，之后需要等1天才能再次使用喔～</string>
+    <string name="free_usage_later_tip">薅羊毛也要有度，需要再等 %1$d 天才能继续薅(๑•̀ㅂ•́)و✧</string>
     
     <!-- Plugin Loading Screen -->
     <string name="plugin_skip">跳过</string>

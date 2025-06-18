@@ -8,9 +8,13 @@ import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.model.PreferenceProfile
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.preferencesManager
+import com.ai.assistance.operit.util.ChatUtils
 import com.ai.assistance.operit.util.stream.plugins.StreamXmlPlugin
 import com.ai.assistance.operit.util.stream.splitBy
 import com.ai.assistance.operit.util.stream.stream
+import com.github.difflib.DiffUtils
+import com.github.difflib.UnifiedDiffUtils
+import com.github.difflib.patch.PatchFailedException
 import java.util.Calendar
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -100,7 +104,7 @@ class ConversationService(private val context: Context) {
             stream.collect { content -> contentBuilder.append(content) }
 
             // 获取完整的总结内容
-            val summaryContent = contentBuilder.toString().trim()
+            val summaryContent = ChatUtils.removeThinkingContent(contentBuilder.toString().trim())
 
             // 如果内容为空，返回默认消息
             if (summaryContent.isBlank()) {
@@ -475,7 +479,7 @@ class ConversationService(private val context: Context) {
     }
 
     /**
-     * 处理文件绑定操作，智能合并AI生成的代码和原始文件内容
+     * 处理文件绑定操作，通过生成和应用unified diff来智能合并AI生成的代码和原始文件内容
      * @param originalContent 原始文件内容
      * @param aiGeneratedCode AI生成的代码（包含"//existing code"标记）
      * @param multiServiceManager 服务管理器，用于获取文件绑定专用的服务
@@ -487,84 +491,63 @@ class ConversationService(private val context: Context) {
             multiServiceManager: MultiServiceManager
     ): Pair<String, String> {
         try {
-            // 创建结构化提示词，让AI返回差异指令而不是整个文件
-            val prompt =
+            Log.d(
+                    TAG,
+                    "开始处理文件绑定 (unified diff)：原始文件长度=${originalContent.length}，AI生成代码长度=${aiGeneratedCode.length}"
+            )
+            // System prompt defining the role and rules for the AI
+            val systemPrompt =
                     """
-                任务：分析原始文件和包含"//existing code"标记的AI生成代码，生成精确的差异修改指令。
-                
-                原始文件：
+                You are an expert file patching utility. Your task is to analyze the original file and the AI-generated code (which contains placeholders like "//existing code" or "// ... existing code ...") and produce a patch in the standard **unified diff format**.
+                **CRITICAL RULES:**
+                - Your output MUST be ONLY the unified diff patch. Do not add any explanations, introductory text, or markdown code blocks around the patch.
+                - The diff must compare the original file with the final intended version of the file.
+                - Use `--- a/file` for the original and `+++ b/file` for the new version. Do not change these path names.
+                - **To save tokens, reduce the number of context lines (lines not starting with `+` or `-`) to the absolute minimum necessary for the patch to be applied correctly, ideally 3 lines or less.**
+                """.trimIndent()
+
+            // User prompt providing the actual data
+            val userPrompt =
+                    """
+                **Original File Content:**
                 ```
                 $originalContent
                 ```
-                
-                AI生成的代码（包含"//existing code"注释）：
+
+                **AI-Generated Code (with placeholders):**
                 ```
                 $aiGeneratedCode
                 ```
-                
-                请以下面的结构化格式返回修改指令，而不是返回整个文件内容：
-                
-                1. 对于替换操作：
-                REPLACE:
-                ```[原文件中存在的上下文代码，足够确定位置的片段，约5-10行]```
-                替换为:
-                ```[新的代码]```
-                
-                2. 对于插入操作：
-                INSERT_AFTER:
-                ```[定位代码片段，确保这段代码在原文件中唯一或者可明确定位]```
-                插入:
-                ```[要插入的新代码]```
-                
-                3. 对于删除操作：
-                DELETE:
-                ```[要删除的代码片段，包含足够上下文以精确定位]```
-                
-                可以包含多个操作指令，每个指令之间用空行分隔。
-                确保上下文代码片段足够独特，能在原文件中精确定位。
-                对于包含"//existing code"的部分，应转换为REPLACE或保持原样。
-            """.trimIndent()
 
-            // 获取全部模型参数
+                Now, generate ONLY the patch in the unified diff format.
+                """.trimIndent()
+
             val modelParameters = runBlocking { apiPreferences.getAllModelParameters() }
-
-            // 获取文件绑定专用的AI服务
+            Log.d(TAG, "准备调用文件绑定服务生成 unified diff")
             val fileBindingService =
                     multiServiceManager.getServiceForFunction(FunctionType.FILE_BINDING)
-
-            // 使用Stream API处理响应
             val contentBuilder = StringBuilder()
-
-            // 发送消息并收集完整响应
             val stream =
                     fileBindingService.sendMessage(
-                            message = prompt,
-                            chatHistory = emptyList(), // 无需历史记录，这是单次处理
+                            message = userPrompt,
+                            chatHistory = listOf(Pair("system", systemPrompt)),
                             modelParameters = modelParameters
                     )
-
-            // 收集流中的所有内容
             stream.collect { content -> contentBuilder.append(content) }
+            val aiResponse = ChatUtils.removeThinkingContent(contentBuilder.toString().trim())
 
-            // 获取完整的AI返回内容
-            val aiResponse = contentBuilder.toString().trim()
-
-            // 如果内容为空，返回原始内容
             if (aiResponse.isBlank()) {
-                Log.w(TAG, "文件绑定处理返回空内容，保留原始内容")
+                Log.w(TAG, "文件绑定(unified diff)处理返回空内容，保留原始内容")
                 return Pair(originalContent, "")
             }
 
-            // 解析AI返回的差异指令
-            val mergedContent = applyFileBindingInstructions(originalContent, aiResponse)
+            Log.d(TAG, "成功生成 Unified Diff，准备应用补丁. Diff:\n$aiResponse")
+            val mergedContent = applyUnifiedDiff(originalContent, aiResponse)
 
-            // 获取本次处理生成的token统计
             val inputTokens = fileBindingService.inputTokenCount
             val outputTokens = fileBindingService.outputTokenCount
-
-            // 记录token统计
             try {
-                Log.d(TAG, "文件绑定处理使用了输入token: $inputTokens, 输出token: $outputTokens")
+                Log.d(TAG, "文件绑定处理(unified diff)使用了输入token: $inputTokens, 输出token: $outputTokens")
                 apiPreferences.updatePreferenceAnalysisTokens(inputTokens, outputTokens)
             } catch (e: Exception) {
                 Log.e(TAG, "更新token统计失败", e)
@@ -572,276 +555,33 @@ class ConversationService(private val context: Context) {
 
             return Pair(mergedContent, aiResponse)
         } catch (e: Exception) {
-            Log.e(TAG, "处理文件绑定时出错", e)
-            // 出错时返回原始内容，确保不会丢失数据
+            Log.e(TAG, "处理文件绑定时(unified diff)出错", e)
             return Pair(originalContent, "Error processing file binding: ${e.message}")
         }
     }
 
     /**
-     * 解析AI返回的差异指令并应用到原始文件
+     * 应用unified diff格式的补丁到原始内容
      * @param originalContent 原始文件内容
-     * @param aiInstructions AI返回的差异指令
-     * @return 应用指令后的文件内容
+     * @param patchStr unified diff格式的补丁字符串
+     * @return 应用补丁后的内容
      */
-    private fun applyFileBindingInstructions(
-            originalContent: String,
-            aiInstructions: String
-    ): String {
-        // 将原始内容分割成行，便于操作
-        val originalLines = originalContent.lines().toMutableList()
-
+    private fun applyUnifiedDiff(originalContent: String, patchStr: String): String {
         try {
-            // 分离出各个修改指令块
-            val instructionBlocks = extractInstructionBlocks(aiInstructions)
-
-            // 对每个指令块进行处理
-            for (block in instructionBlocks) {
-                when {
-                    block.startsWith("REPLACE:") -> {
-                        processReplaceInstruction(block, originalLines)
-                    }
-                    block.startsWith("INSERT_AFTER:") -> {
-                        processInsertInstruction(block, originalLines)
-                    }
-                    block.startsWith("DELETE:") -> {
-                        processDeleteInstruction(block, originalLines)
-                    }
-                }
-            }
-
-            // 将修改后的行重新组合成文件内容
-            return originalLines.joinToString("\n")
+            val originalLines = originalContent.lines()
+            // 清理AI可能添加的Markdown代码块
+            val cleanPatchStr =
+                    patchStr.removePrefix("```diff").removePrefix("```").removeSuffix("```").trim()
+            val patch = UnifiedDiffUtils.parseUnifiedDiff(cleanPatchStr.lines())
+            val resultLines = DiffUtils.patch(originalLines, patch)
+            Log.d(TAG, "Unified diff 补丁应用成功")
+            return resultLines.joinToString("\n")
+        } catch (e: PatchFailedException) {
+            Log.e(TAG, "应用 unified diff 补丁失败. Patch:\n$patchStr", e)
+            return originalContent
         } catch (e: Exception) {
-            Log.e(TAG, "应用文件绑定指令时出错: ${e.message}", e)
-            // 出现错误时返回原始内容
+            Log.e(TAG, "解析或应用 unified diff 时发生未知错误", e)
             return originalContent
         }
-    }
-
-    /**
-     * 从AI响应中提取指令块
-     * @param aiInstructions AI返回的完整指令文本
-     * @return 指令块列表
-     */
-    private fun extractInstructionBlocks(aiInstructions: String): List<String> {
-        // 使用正则表达式来分割指令块，每个块都以指令关键字开头
-        val instructionKeywords = listOf("REPLACE:", "INSERT_AFTER:", "DELETE:")
-        val pattern = instructionKeywords.joinToString("|", prefix = "(?=", postfix = ")").toRegex()
-
-        // 分割字符串，并过滤掉空字符串
-        val blocks = aiInstructions.split(pattern).map { it.trim() }.filter { it.isNotEmpty() }
-
-        return blocks
-    }
-
-    /**
-     * 处理替换指令
-     * @param instruction 替换指令块
-     * @param originalLines 原始文件行列表
-     */
-    private fun processReplaceInstruction(instruction: String, originalLines: MutableList<String>) {
-        // 解析替换指令
-        val parts = instruction.split("替换为:", limit = 2)
-        if (parts.size != 2) {
-            Log.e(TAG, "替换指令格式不正确: $instruction")
-            return
-        }
-
-        // 提取上下文代码和替换代码
-        val contextPart = parts[0].removePrefix("REPLACE:").trim()
-        val replacementPart = parts[1].trim()
-
-        // 从上下文部分提取代码片段
-        val contextCode = extractCodeFromMarkdown(contextPart)
-        val replacementCode = extractCodeFromMarkdown(replacementPart)
-
-        if (contextCode.isEmpty() || replacementCode.isEmpty()) {
-            Log.e(TAG, "上下文代码或替换代码为空: $instruction")
-            return
-        }
-
-        // 在原文件中查找上下文代码的位置
-        val (startIndex, endIndex) = findCodeRange(contextCode, originalLines)
-
-        if (startIndex == -1 || endIndex == -1) {
-            Log.e(TAG, "无法在原文件中找到上下文代码: $contextCode")
-            return
-        }
-
-        // 执行替换
-        originalLines.subList(startIndex, endIndex + 1).clear()
-        originalLines.addAll(startIndex, replacementCode.lines())
-    }
-
-    /**
-     * 处理插入指令
-     * @param instruction 插入指令块
-     * @param originalLines 原始文件行列表
-     */
-    private fun processInsertInstruction(instruction: String, originalLines: MutableList<String>) {
-        // 解析插入指令
-        val parts = instruction.split("插入:", limit = 2)
-        if (parts.size != 2) {
-            Log.e(TAG, "插入指令格式不正确: $instruction")
-            return
-        }
-
-        // 提取定位代码和插入代码
-        val locationPart = parts[0].removePrefix("INSERT_AFTER:").trim()
-        val insertPart = parts[1].trim()
-
-        // 从定位部分提取代码片段
-        val locationCode = extractCodeFromMarkdown(locationPart)
-        val insertCode = extractCodeFromMarkdown(insertPart)
-
-        if (locationCode.isEmpty() || insertCode.isEmpty()) {
-            Log.e(TAG, "定位代码或插入代码为空: $instruction")
-            return
-        }
-
-        // 在原文件中查找定位代码的位置
-        val (_, lineIndex) = findCodeRange(locationCode, originalLines)
-
-        if (lineIndex == -1) {
-            Log.e(TAG, "无法在原文件中找到定位代码: $locationCode")
-            return
-        }
-
-        // 在定位代码后插入新代码
-        originalLines.addAll(lineIndex + 1, insertCode.lines())
-    }
-
-    /**
-     * 处理删除指令
-     * @param instruction 删除指令块
-     * @param originalLines 原始文件行列表
-     */
-    private fun processDeleteInstruction(instruction: String, originalLines: MutableList<String>) {
-        // 提取要删除的代码
-        val deletePart = instruction.removePrefix("DELETE:").trim()
-        val deleteCode = extractCodeFromMarkdown(deletePart)
-
-        if (deleteCode.isEmpty()) {
-            Log.e(TAG, "删除代码为空: $instruction")
-            return
-        }
-
-        // 在原文件中查找要删除的代码位置
-        val (startIndex, endIndex) = findCodeRange(deleteCode, originalLines)
-
-        if (startIndex == -1 || endIndex == -1) {
-            Log.e(TAG, "无法在原文件中找到删除代码: $deleteCode")
-            return
-        }
-
-        // 执行删除
-        originalLines.subList(startIndex, endIndex + 1).clear()
-    }
-
-    /**
-     * 从Markdown代码块中提取代码
-     * @param markdownText 可能包含Markdown格式的代码文本
-     * @return 提取的代码
-     */
-    private fun extractCodeFromMarkdown(markdownText: String): String {
-        // 匹配 ```code``` 格式
-        val codePattern = Regex("```(.*?)```", RegexOption.DOT_MATCHES_ALL)
-        val match = codePattern.find(markdownText)
-
-        return if (match != null) {
-            // 提取代码块内容
-            match.groupValues[1].trim()
-        } else {
-            // 如果没有匹配到代码块，返回原文本
-            markdownText.trim()
-        }
-    }
-
-    /**
-     * 在原文件中查找代码片段的范围
-     * @param codeSnippet 要查找的代码片段
-     * @param fileLines 文件行列表
-     * @return 匹配的起始和结束行索引对，如果未找到则为(-1, -1)
-     */
-    private fun findCodeRange(codeSnippet: String, fileLines: List<String>): Pair<Int, Int> {
-        // 准备用于比较的片段行：过滤空行并去除前后空格
-        val snippetLines = codeSnippet.lines().filter { it.isNotBlank() }.map { it.trim() }
-
-        if (snippetLines.isEmpty()) {
-            return Pair(-1, -1)
-        }
-
-        // 准备用于比较的文件行
-        val trimmedFileLines = fileLines.map { it.trim() }
-
-        // 1. 尝试精确定位整个代码片段
-        for (i in 0..(trimmedFileLines.size - snippetLines.size)) {
-            // 取出与代码片段同样大小的窗口进行比较
-            var match = true
-            var snippetIndex = 0
-            var fileIndex = i
-            while (snippetIndex < snippetLines.size && fileIndex < trimmedFileLines.size) {
-                // 跳过文件中的空行
-                if (trimmedFileLines[fileIndex].isBlank()) {
-                    fileIndex++
-                    continue
-                }
-                // 比较非空行
-                if (trimmedFileLines[fileIndex] != snippetLines[snippetIndex]) {
-                    match = false
-                    break
-                }
-                fileIndex++
-                snippetIndex++
-            }
-
-            if (match) {
-                // 精确匹配成功，返回范围
-                val startIndex = i
-                // 这里的 endIndex 是我们扫描结束的位置（不含）
-                val endIndex = fileIndex - 1
-                Log.d(TAG, "findCodeRange: 精准匹配成功，范围: $startIndex - $endIndex")
-                return Pair(startIndex, endIndex)
-            }
-        }
-
-        // 2. 如果精确匹配失败，使用模糊匹配（基于第一行和最后一行）
-        if (snippetLines.size >= 2) {
-            val firstLine = snippetLines.first()
-            val lastLine = snippetLines.last()
-
-            val firstLineIndexes =
-                    trimmedFileLines.mapIndexedNotNull { index, line ->
-                        if (line == firstLine) index else null
-                    }
-            val lastLineIndexes =
-                    trimmedFileLines.mapIndexedNotNull { index, line ->
-                        if (line == lastLine) index else null
-                    }
-
-            // 寻找最合理的起止配对
-            for (startIndex in firstLineIndexes) {
-                // 从所有可能的结束行中，找到最接近且在起始行之后的那个
-                val bestEndIndex = lastLineIndexes.filter { it >= startIndex }.minOrNull()
-                if (bestEndIndex != null) {
-                    Log.w(TAG, "findCodeRange: 使用模糊匹配定位代码范围 $startIndex - $bestEndIndex. 这可能不精确。")
-                    return Pair(startIndex, bestEndIndex)
-                }
-            }
-        }
-
-        // 3. 终极备用方案：只匹配第一行
-        val firstLine = snippetLines.first()
-        val firstLineIndex = trimmedFileLines.indexOf(firstLine)
-        if (firstLineIndex != -1) {
-            Log.w(TAG, "findCodeRange: 模糊匹配失败, 使用单行匹配定位到行 $firstLineIndex. 风险较高。")
-            // 假设代码块就是这么多行，这当然可能不准
-            val endIndex = (firstLineIndex + snippetLines.size - 1).coerceAtMost(fileLines.size - 1)
-            return Pair(firstLineIndex, endIndex)
-        }
-
-        Log.e(TAG, "findCodeRange: 无法在文件中定位代码片段:\n$codeSnippet")
-        return Pair(-1, -1)
     }
 }

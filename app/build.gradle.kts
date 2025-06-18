@@ -13,8 +13,8 @@ android {
         applicationId = "com.ai.assistance.operit"
         minSdk = 26
         targetSdk = 34
-        versionCode = 7
-        versionName = "1.1.5"
+        versionCode = 8
+        versionName = "1.1.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -87,6 +87,9 @@ dependencies {
     implementation(files("libs\\arsc.jar"))
     // Desugaring support for modern Java APIs on older Android
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+
+    // diff
+    implementation("io.github.java-diff-utils:java-diff-utils:4.12")
     
     // APK解析和修改库
     implementation("com.android.tools.build:apksig:8.1.0") // APK签名工具

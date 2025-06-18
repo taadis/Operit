@@ -474,16 +474,13 @@ class OpenAIProvider(
                 lastException = e
                 retryCount++
                 Log.w("AIService", "【发送消息】连接超时，正在进行第 $retryCount 次重试...", e)
-                emit("【连接超时，正在进行第 $retryCount 次重试...】")
                 // 指数退避重试
                 delay(1000L * retryCount)
             } catch (e: UnknownHostException) {
                 Log.e("AIService", "【发送消息】无法连接到服务器，请检查网络", e)
-                emit("【无法连接到服务器，请检查网络】")
                 throw IOException("无法连接到服务器，请检查网络连接或API地址是否正确")
             } catch (e: Exception) {
                 Log.e("AIService", "【发送消息】连接失败", e)
-                emit("【连接失败: ${e.message}】")
                 throw IOException("AI响应获取失败: ${e.message} ${e.stackTrace.joinToString("\n")}")
             }
         }

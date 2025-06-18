@@ -3,7 +3,9 @@ package com.ai.assistance.operit.ui.features.chat.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
@@ -113,11 +115,13 @@ fun SummaryMessageComposable(message: ChatMessage, backgroundColor: Color, textC
                                                 modifier = Modifier.padding(bottom = 12.dp)
                                         )
 
-                                        // 在对话框中使用MarkdownTextComposable显示摘要内容
+                                        // 添加滚动功能到摘要内容
+                                        val scrollState = rememberScrollState()
                                         Box(
                                                 modifier =
                                                         Modifier.weight(1f, fill = false)
                                                                 .heightIn(max = 400.dp)
+                                                                .verticalScroll(scrollState)
                                         ) {
                                                 MarkdownTextComposable(
                                                         text = message.content,

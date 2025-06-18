@@ -6,6 +6,7 @@ import com.ai.assistance.operit.api.AIService
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.preferencesManager
+import com.ai.assistance.operit.util.ChatUtils
 import com.ai.assistance.operit.util.TextSegmenter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -247,15 +248,11 @@ object ProblemLibrary {
             // 调用AI服务，使用新的Stream API
             withContext(Dispatchers.IO) {
                 // 发送消息并获取响应流
-                val stream = aiService.sendMessage(
-                    message = analysisMessage,
-                    chatHistory = messages
-                )
-                
+                val stream =
+                        aiService.sendMessage(message = analysisMessage, chatHistory = messages)
+
                 // 收集流中的所有响应内容
-                stream.collect { content ->
-                    result.append(content)
-                }
+                stream.collect { content -> result.append(content) }
             }
 
             // 更新token统计
@@ -265,7 +262,7 @@ object ProblemLibrary {
             )
 
             // 解析结果
-            return parseAnalysisResult(result.toString())
+            return parseAnalysisResult(ChatUtils.removeThinkingContent(result.toString()))
         } catch (e: Exception) {
             Log.e(TAG, "生成分析失败", e)
             return AnalysisResults()

@@ -353,22 +353,18 @@ class ClaudeProvider(
                 lastException = e
                 retryCount++
                 Log.d("AIService", "连接超时，正在进行第 $retryCount 次重试...")
-                emit("【连接超时，正在进行第 $retryCount 次重试...】")
                 // 指数退避重试
                 delay(1000L * retryCount)
             } catch (e: UnknownHostException) {
                 Log.d("AIService", "无法连接到服务器，请检查网络")
-                emit("【无法连接到服务器，请检查网络】")
                 throw IOException("无法连接到服务器，请检查网络连接或API地址是否正确")
             } catch (e: Exception) {
                 Log.d("AIService", "连接失败: ${e.message}")
-                emit("【连接失败: ${e.message}】")
                 throw IOException("AI响应获取失败: ${e.message} ${e.stackTrace.joinToString("\n")}")
             }
         }
 
         Log.d("AIService", "重试失败，请检查网络连接")
-        emit("【重试失败，请检查网络连接】")
         // 所有重试都失败
         throw IOException("连接超时，已重试 $maxRetries 次: ${lastException?.message}")
     }

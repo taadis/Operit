@@ -112,6 +112,12 @@
     <string name="free_usage_confirm">Confirm Use</string>
     <string name="free_usage_depleted">Limit Reached</string>
     <string name="free_usage_tip">Please try again tomorrow or use your own API key</string>
+    <string name="free_usage_wait_days">Please wait %1$d days before using again~</string>
+    <string name="free_usage_used_today">Today\'s free quota all gone QAQ</string>
+    <string name="free_usage_next_available">Next available: %1$s (patience is a virtue~)</string>
+    <string name="free_usage_interval_tip">To prevent developer bankruptcy, waiting time doubles after each use~</string>
+    <string name="free_usage_first_tip">This is your first use, next time you\'ll need to wait 1 day~</string>
+    <string name="free_usage_later_tip">Free stuff comes with limits, please wait %1$d more days (๑•̀ㅂ•́)و✧</string>
     
     <!-- Plugin Loading Screen -->
     <string name="plugin_skip">Skip</string>
