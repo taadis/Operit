@@ -496,7 +496,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 chatHistoryDelegate.updateChatHistory(rewindHistory)
 
                 messageProcessingDelegate.updateUserMessage(finalMessage.content)
-                messageProcessingDelegate.sendUserMessage(emptyList())
+                messageProcessingDelegate.sendUserMessage(emptyList(), currentChatId.value)
             } catch (e: Exception) {
                 Log.e(TAG, "回档并重新发送消息失败", e)
                 uiStateDelegate.showErrorMessage("回档失败: ${e.message}")
