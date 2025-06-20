@@ -222,8 +222,14 @@ fun StreamMarkdownRenderer(
                     // Stream-parse the block stream for inline elements
                     blockGroup.stream.streamSplitBy(NestedMarkdownProcessor.getInlinePlugins())
                             .collect { inlineGroup ->
-                                val inlineType =
+                                val originalInlineType =
                                         NestedMarkdownProcessor.getTypeForPlugin(inlineGroup.tag)
+                                val isInlineLatex =
+                                        originalInlineType == MarkdownProcessorType.INLINE_LATEX
+                                val tempInlineType =
+                                        if (isInlineLatex) MarkdownProcessorType.PLAIN_TEXT
+                                        else originalInlineType
+
                                 var childNode: MarkdownNode? = null
                                 var lastCharWasNewline = false // 跟踪上一个字符是否为换行符
 
@@ -238,7 +244,7 @@ fun StreamMarkdownRenderer(
                                     }
 
                                     if (childNode == null) {
-                                        childNode = MarkdownNode(type = inlineType)
+                                        childNode = MarkdownNode(type = tempInlineType)
                                         newNode.children.add(childNode!!)
                                     }
 
@@ -256,10 +262,23 @@ fun StreamMarkdownRenderer(
                                     lastCharWasNewline = isCurrentCharNewline
                                 }
 
+                                // 如果是内联LaTeX，在收集完内容后，将节点替换为INLINE_LATEX类型
+                                if (isInlineLatex && childNode != null) {
+                                    val latexContent = childNode!!.content.value
+                                    val latexChildNode =
+                                            MarkdownNode(type = MarkdownProcessorType.INLINE_LATEX)
+                                    latexChildNode.content.value = latexContent
+                                    val childIndex = newNode.children.lastIndexOf(childNode)
+                                    if (childIndex != -1) {
+                                        newNode.children[childIndex] = latexChildNode
+                                    }
+                                }
+
                                 // 优化：如果子节点内容经过trim后为空，则移除该子节点
                                 if (childNode != null &&
                                                 childNode!!.content.value.trimAll().isEmpty() &&
-                                                inlineType == MarkdownProcessorType.PLAIN_TEXT
+                                                originalInlineType ==
+                                                        MarkdownProcessorType.PLAIN_TEXT
                                 ) {
                                     val lastIndex = newNode.children.lastIndex
                                     if (lastIndex >= 0 && newNode.children[lastIndex] == childNode
@@ -425,10 +444,17 @@ fun StreamMarkdownRenderer(
                         // Stream-parse the block stream for inline elements
                         blockGroup.stream.streamSplitBy(NestedMarkdownProcessor.getInlinePlugins())
                                 .collect { inlineGroup ->
-                                    val inlineType =
+                                    val originalInlineType =
                                             NestedMarkdownProcessor.getTypeForPlugin(
                                                     inlineGroup.tag
                                             )
+                                    val isInlineLatex =
+                                            originalInlineType ==
+                                                    MarkdownProcessorType.INLINE_LATEX
+                                    val tempInlineType =
+                                            if (isInlineLatex) MarkdownProcessorType.PLAIN_TEXT
+                                            else originalInlineType
+
                                     var childNode: MarkdownNode? = null
                                     var lastCharWasNewline = false // 跟踪上一个字符是否为换行符
 
@@ -443,7 +469,7 @@ fun StreamMarkdownRenderer(
                                         }
 
                                         if (childNode == null) {
-                                            childNode = MarkdownNode(type = inlineType)
+                                            childNode = MarkdownNode(type = tempInlineType)
                                             newNode.children.add(childNode!!)
                                         }
 
@@ -461,10 +487,25 @@ fun StreamMarkdownRenderer(
                                         lastCharWasNewline = isCurrentCharNewline
                                     }
 
+                                    // 如果是内联LaTeX，在收集完内容后，将节点替换为INLINE_LATEX类型
+                                    if (isInlineLatex && childNode != null) {
+                                        val latexContent = childNode!!.content.value
+                                        val latexChildNode =
+                                                MarkdownNode(
+                                                        type = MarkdownProcessorType.INLINE_LATEX
+                                                )
+                                        latexChildNode.content.value = latexContent
+                                        val childIndex = newNode.children.lastIndexOf(childNode)
+                                        if (childIndex != -1) {
+                                            newNode.children[childIndex] = latexChildNode
+                                        }
+                                    }
+
                                     // 优化：如果子节点内容经过trim后为空，则移除该子节点
                                     if (childNode != null &&
                                                     childNode!!.content.value.trimAll().isEmpty() &&
-                                                    inlineType == MarkdownProcessorType.PLAIN_TEXT
+                                                    originalInlineType ==
+                                                            MarkdownProcessorType.PLAIN_TEXT
                                     ) {
                                         val lastIndex = newNode.children.lastIndex
                                         if (lastIndex >= 0 &&
@@ -901,14 +942,14 @@ fun StableMarkdownNodeRenderer(
         MarkdownProcessorType.BLOCK_LATEX -> {
             // 块级LaTeX公式渲染
             Surface(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
                     color = Color.Transparent,
                     shape = RoundedCornerShape(4.dp)
             ) {
                 Box(
                         modifier =
                                 Modifier.fillMaxWidth()
-                                        .padding(vertical = 8.dp, horizontal = 16.dp),
+                                        .padding(vertical = 0.dp, horizontal = 8.dp), // 减少内边距
                         contentAlignment = Alignment.Center
                 ) {
                     // 提取LaTeX内容，移除$$分隔符
@@ -927,7 +968,7 @@ fun StableMarkdownNodeRenderer(
                                 try {
                                     val drawable =
                                             LatexCache.getDrawable(
-                                                    latexContent,
+                                                    latexContent.trim(),
                                                     JLatexMathDrawable.builder(latexContent)
                                                             .textSize(
                                                                     14f *
@@ -935,7 +976,7 @@ fun StableMarkdownNodeRenderer(
                                                                                     .displayMetrics
                                                                                     .density
                                                             )
-                                                            .padding(4)
+                                                            .padding(2) // 减少内边距
                                                             .background(0x00000000)
                                                             .align(JLatexMathDrawable.ALIGN_CENTER)
                                                             .color(textColor.toArgb())
@@ -1124,41 +1165,68 @@ private fun AnnotatedString.Builder.appendStyledText(
 
                 if (latexContent.isBlank()) return@forEach
 
-                val drawable =
-                        remember(latexContent, textColor, textSize) {
-                            LatexCache.getDrawable(
-                                    latexContent,
-                                    JLatexMathDrawable.builder(latexContent)
-                                            .textSize(with(density) { textSize.toPx() })
-                                            .padding(4)
-                                            .color(color)
-                                            .background(0x00000000)
-                                            .align(JLatexMathDrawable.ALIGN_LEFT)
+                // 在remember块内处理异常，而不是在Composable函数调用外部
+                val latexRenderResult = remember(latexContent, textColor, textSize) {
+                    try {
+                        val drawable = LatexCache.getDrawable(
+                                latexContent,
+                                JLatexMathDrawable.builder(latexContent)
+                                        .textSize(with(density) { textSize.toPx() })
+                                        .padding(2) // 减少内边距
+                                        .color(color)
+                                        .background(0x00000000)
+                                        .align(JLatexMathDrawable.ALIGN_LEFT)
+                        )
+                        // 成功时返回drawable
+                        Result.success(drawable)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "行内LaTeX渲染失败: $latexContent", e)
+                        // 失败时返回null
+                        Result.failure<JLatexMathDrawable>(e)
+                    }
+                }
+
+                // 根据渲染结果选择不同的渲染方式
+                if (latexRenderResult.isSuccess) {
+                    val drawable = latexRenderResult.getOrNull()
+                    if (drawable != null) {
+                        val width = with(density) { drawable.intrinsicWidth.toSp() }
+                        val height = with(density) { drawable.intrinsicHeight.toSp() }
+
+                        val inlineContentId = "ilatex_${latexContent.hashCode()}_${System.nanoTime()}"
+
+                        appendInlineContent(inlineContentId, "[latex]")
+
+                        inlineContentMap[inlineContentId] =
+                                InlineTextContent(
+                                        Placeholder(
+                                                width = width,
+                                                height = height,
+                                                placeholderVerticalAlign =
+                                                        PlaceholderVerticalAlign.TextCenter
+                                        )
+                                ) {
+                                    AndroidView(
+                                            factory = { ctx ->
+                                                ImageView(ctx).apply { setImageDrawable(drawable) }
+                                            }
+                                    )
+                                }
+                    }
+                } else {
+                    // 渲染失败时回退到纯文本显示
+                    withStyle(
+                            SpanStyle(
+                                    fontFamily = FontFamily.Monospace,
+                                    background = Color.LightGray.copy(alpha = 0.15f),
+                                    fontSize = 14.sp
                             )
-                        }
-
-                val width = with(density) { drawable.intrinsicWidth.toSp() }
-                val height = with(density) { drawable.intrinsicHeight.toSp() }
-
-                val inlineContentId = "ilatex_${latexContent.hashCode()}_${System.nanoTime()}"
-
-                appendInlineContent(inlineContentId, "[latex]")
-
-                inlineContentMap[inlineContentId] =
-                        InlineTextContent(
-                                Placeholder(
-                                        width = width,
-                                        height = height,
-                                        placeholderVerticalAlign =
-                                                PlaceholderVerticalAlign.TextCenter
-                                )
-                        ) {
-                            AndroidView(
-                                    factory = { ctx ->
-                                        ImageView(ctx).apply { setImageDrawable(drawable) }
-                                    }
-                            )
-                        }
+                    ) { 
+                        append("$$")
+                        append(latexContent)
+                        append("$$") 
+                    }
+                }
             }
             else -> {
                 // 默认情况，通常是 PLAIN_TEXT

@@ -27,8 +27,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FunctionalConfigScreen(
-        onBackPressed: () -> Unit = {},
-        enhancedAIService: EnhancedAIService? = null
+        onBackPressed: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -128,7 +127,7 @@ fun FunctionalConfigScreen(
                                             configId
                                     )
                                     // 刷新服务实例
-                                    enhancedAIService?.refreshServiceForFunction(functionType)
+                                    EnhancedAIService.refreshServiceForFunction(context,functionType)
                                     showSaveSuccess = true
                                 }
                             }
@@ -144,7 +143,7 @@ fun FunctionalConfigScreen(
                                 scope.launch {
                                     functionalConfigManager.resetAllFunctionConfigs()
                                     // 刷新所有服务实例
-                                    enhancedAIService?.refreshAllServices()
+                                    EnhancedAIService.refreshAllServices(context)
                                     showSaveSuccess = true
                                 }
                             },
