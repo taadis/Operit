@@ -5,6 +5,8 @@ import android.util.Log
 import com.ai.assistance.operit.core.tools.system.shell.RootShellExecutor
 import com.topjohnwu.superuser.Shell
 import java.io.File
+import java.io.BufferedReader
+import java.io.InputStreamReader
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +29,9 @@ object RootAuthorizer {
     // Root访问权限状态流
     private val _hasRootAccess = MutableStateFlow(false)
     val hasRootAccess: StateFlow<Boolean> = _hasRootAccess.asStateFlow()
+    
+    // 是否使用exec执行命令而不是libsu (适用于KernelSu等情况)
+    private var useExecForCommands = false
     
     // 静态初始化libsu
     init {
@@ -95,9 +100,19 @@ object RootAuthorizer {
             }
 
             // 检查应用是否有Root访问权限
-            val hasAccess = rootShellExecutor?.isAvailable() ?: false
+            val hasAccess = if (useExecForCommands) {
+                // 如果使用exec方式，则通过检查su --version的执行结果判断
+                checkExecSuAccess()
+            } else {
+                // 否则使用libsu检查
+                rootShellExecutor?.isAvailable() ?: false
+            }
+            
             _hasRootAccess.value = hasAccess
-            Log.d(TAG, "应用Root访问权限: $hasAccess")
+            Log.d(TAG, "应用Root访问权限: $hasAccess，使用exec模式: $useExecForCommands")
+
+            // 设置根执行器的执行模式
+            rootShellExecutor?.setUseExecMode(useExecForCommands)
 
             // 通知状态变更
             notifyStateChanged()
@@ -126,13 +141,21 @@ object RootAuthorizer {
                 val isRoot = Shell.isAppGrantedRoot() ?: false
                 if (isRoot) {
                     Log.d(TAG, "libsu检测到设备已Root并授予应用权限")
+                    useExecForCommands = false
                     return true
                 }
             } catch (e: Exception) {
                 Log.d(TAG, "libsu检测Root失败: ${e.message}")
             }
             
-            // 方法2: 检查常见的su路径
+            // 方法2: 检查KernelSU
+            if (checkKernelSu()) {
+                Log.d(TAG, "检测到KernelSU，设备已Root")
+                useExecForCommands = true
+                return true
+            }
+            
+            // 方法3: 检查常见的su路径
             val suPaths = arrayOf(
                 "/system/bin/su", 
                 "/system/xbin/su", 
@@ -148,7 +171,7 @@ object RootAuthorizer {
                 }
             }
             
-            // 方法3: 检查是否可以执行su命令
+            // 方法4: 检查是否可以执行su命令
             try {
                 val process = Runtime.getRuntime().exec(arrayOf("which", "su"))
                 val exitCode = process.waitFor()
@@ -162,9 +185,78 @@ object RootAuthorizer {
             
             // 如果所有方法都失败，则认为设备未Root
             Log.d(TAG, "设备未检测到Root")
+            useExecForCommands = false
             return false
         } catch (e: Exception) {
             Log.e(TAG, "检查设备Root状态时出错", e)
+            useExecForCommands = false
+            return false
+        }
+    }
+    
+    /**
+     * 检查是否是KernelSU
+     * @return 是否检测到KernelSU
+     */
+    private fun checkKernelSu(): Boolean {
+        try {
+            Log.d(TAG, "检查KernelSU...")
+            
+            // 执行su --version命令
+            val process = Runtime.getRuntime().exec(arrayOf("su", "--version"))
+            val reader = BufferedReader(InputStreamReader(process.inputStream))
+            val output = StringBuilder()
+            var line: String?
+            
+            while (reader.readLine().also { line = it } != null) {
+                output.append(line).append("\n")
+            }
+            
+            val exitCode = process.waitFor()
+            val result = output.toString().trim()
+            
+            Log.d(TAG, "su --version输出: $result (退出码: $exitCode)")
+            
+            // 检查输出是否包含KernelSU
+            val isKernelSu = result.contains("KernelSU", ignoreCase = true)
+            if (isKernelSu) {
+                Log.d(TAG, "检测到KernelSU")
+                useExecForCommands = true
+            }
+            
+            return isKernelSu || exitCode == 0
+        } catch (e: Exception) {
+            Log.d(TAG, "检查KernelSU失败: ${e.message}")
+            return false
+        }
+    }
+    
+    /**
+     * 检查通过exec方式执行su命令是否可行
+     * @return 是否可以使用exec执行su命令
+     */
+    private fun checkExecSuAccess(): Boolean {
+        try {
+            Log.d(TAG, "检查exec su访问权限...")
+            
+            // 执行一个简单的测试命令
+            val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "echo success"))
+            val reader = BufferedReader(InputStreamReader(process.inputStream))
+            val output = StringBuilder()
+            var line: String?
+            
+            while (reader.readLine().also { line = it } != null) {
+                output.append(line)
+            }
+            
+            val exitCode = process.waitFor()
+            val result = output.toString().trim()
+            
+            Log.d(TAG, "exec su测试结果: $result (退出码: $exitCode)")
+            
+            return result == "success" && exitCode == 0
+        } catch (e: Exception) {
+            Log.e(TAG, "检查exec su访问权限失败", e)
             return false
         }
     }
@@ -177,6 +269,30 @@ object RootAuthorizer {
     fun requestRootPermission(onResult: (Boolean) -> Unit) {
         try {
             Log.d(TAG, "正在请求Root权限...")
+
+            // 如果使用exec模式，尝试通过exec请求权限
+            if (useExecForCommands) {
+                try {
+                    val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "echo granted"))
+                    val reader = BufferedReader(InputStreamReader(process.inputStream))
+                    val result = reader.readLine()
+                    val exitCode = process.waitFor()
+                    
+                    val granted = result == "granted" && exitCode == 0
+                    Log.d(TAG, "通过exec请求Root权限结果: ${if (granted) "已授予" else "已拒绝"}")
+                    
+                    _hasRootAccess.value = granted
+                    if (granted) {
+                        _isRooted.value = true
+                    }
+                    
+                    notifyStateChanged()
+                    onResult(granted)
+                    return
+                } catch (e: Exception) {
+                    Log.e(TAG, "通过exec请求Root权限失败", e)
+                }
+            }
 
             // 使用libsu直接请求root权限
             Shell.getShell { shell ->
