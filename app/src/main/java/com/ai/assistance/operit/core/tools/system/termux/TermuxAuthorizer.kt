@@ -76,19 +76,24 @@ class TermuxAuthorizer {
         private val permissionCache = AtomicReference<PermissionStatus?>(null)
 
         public suspend fun deleteTermuxConfig(context: Context) {
-            AndroidShellExecutor.executeShellCommand("run-as com.termux sh -c 'rm -rf $TERMUX_CONFIG_PATH'")
+            AndroidShellExecutor.executeShellCommand(
+                    "run-as com.termux sh -c 'rm -rf $TERMUX_CONFIG_PATH'"
+            )
         }
 
         /** 检查Termux配置 */
         private suspend fun checkTermuxConfig(): Boolean =
                 withContext(Dispatchers.IO) {
                     // 直接读取配置文件内容并检查
-                    val readConfigCommand = "run-as com.termux sh -c 'cat \"$TERMUX_CONFIG_PATH\" 2>/dev/null'"
-                    val readConfigResult = AndroidShellExecutor.executeShellCommand(readConfigCommand)
+                    val readConfigCommand =
+                            "run-as com.termux sh -c 'cat \"$TERMUX_CONFIG_PATH\" 2>/dev/null'"
+                    val readConfigResult =
+                            AndroidShellExecutor.executeShellCommand(readConfigCommand)
 
-                    val configured = readConfigResult.success && 
-                                     readConfigResult.stdout.contains("allow-external-apps=true")
-                                     && !readConfigResult.stdout.contains("# allow-external-apps")
+                    val configured =
+                            readConfigResult.success &&
+                                    readConfigResult.stdout.contains("allow-external-apps=true") &&
+                                    !readConfigResult.stdout.contains("# allow-external-apps")
                     return@withContext configured
                 }
 
@@ -147,7 +152,7 @@ class TermuxAuthorizer {
                     // 三者都满足才算完全授权：Termux运行中、配置允许外部应用访问、有Run Command权限
                     val authorized = configEnabled && hasRunCommandPermission
                     Log.d(TAG, "Termux授权状态: 配置=$configEnabled, 权限=$hasRunCommandPermission")
-                    
+
                     return@withContext authorized
                 }
 
@@ -434,12 +439,9 @@ class TermuxAuthorizer {
                                 AlertDialog.Builder(context)
                                         .setTitle("需要手动授权")
                                         .setMessage(
-                                                "无法自动授予Termux存储权限，请手动操作:\n\n" +
-                                                        "1. 打开系统设置\n" +
-                                                        "2. 进入应用管理\n" +
-                                                        "3. 找到Termux\n" +
-                                                        "4. 点击权限\n" +
-                                                        "5. 开启存储权限"
+                                                "无法自动授予Termux存储权限，请检查:\n\n" +
+                                                        "1. 检查是否使用正确的权限组并且shell能够使用，比如adb或者root能够正常使用（shizuku请不要使用root启动）\n" +
+                                                        "2. termux确保未内置的termux或者gthub上找来的debug版本的软件版本"
                                         )
                                         .setPositiveButton("打开设置") { dialog, _ ->
                                             dialog.dismiss()
