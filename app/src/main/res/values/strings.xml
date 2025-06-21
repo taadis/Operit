@@ -707,4 +707,17 @@
     <string name="ask">询问</string>
     <string name="ai_planning_mode">AI计划模式:</string>
     <string name="disabled">已关闭</string>
+    
+    <!-- Termux 相关 -->
+    <string name="termux_not_installed_message">请先安装Termux应用</string>
+    <string name="termux_manual_auth_title">需要手动授权</string>
+    <string name="termux_manual_auth_message">无法自动授予Termux运行命令权限，请手动操作:\n\n1. 打开Termux\n2. 长按屏幕，选择\'更多\'\n3. 选择\'设置\'\n4. 启用\'允许外部应用访问\'</string>
+    <string name="termux_storage_permission_message">无法自动授予Termux存储权限，请检查以下配置：\n\n1. Shell环境：请确保您拥有一个可用的Shell（如ADB或Root）。注意：若使用Shizuku，请勿以Root模式启动。\n2. Termux版本：请确保您安装的Termux为应用内置版，或从其官方GitHub仓库获取的Debug版本。</string>
+    <string name="termux_all_permissions_granted">Termux全部权限授权成功</string>
+    <string name="termux_some_permissions_failed">部分权限授权失败，请查看日志或手动设置</string>
+    <string name="termux_app_association_granted">已授权应用与Termux关联</string>
+    <string name="termux_manual_setting_hint">请在Termux中开启\'允许外部应用访问\'选项</string>
+    <string name="termux_manual_setting_failed">无法打开Termux，请手动设置</string>
+    <string name="open_settings">打开设置</string>
+    <string name="cannot_open_settings">无法打开设置</string>
 </resources>

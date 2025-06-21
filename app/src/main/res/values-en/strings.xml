@@ -707,4 +707,17 @@
     <string name="ask">Ask</string>
     <string name="ai_planning_mode">AI Planning:</string>
     <string name="disabled">Disabled</string>
+    
+    <!-- Termux Related -->
+    <string name="termux_not_installed_message">Please install Termux first</string>
+    <string name="termux_manual_auth_title">Manual Authorization Required</string>
+    <string name="termux_manual_auth_message">Cannot automatically grant Termux Run Command permission, please follow these steps:\n\n1. Open Termux\n2. Long press the screen, select \'More\'\n3. Select \'Settings\'\n4. Enable \'Allow External Apps\'</string>
+    <string name="termux_storage_permission_message">Cannot automatically grant Termux storage permission, please check the following:\n\n1. Shell environment: Make sure you have a working Shell (such as ADB or Root). Note: If using Shizuku, do not start in Root mode.\n2. Termux version: Make sure your installed Termux is the built-in version or a Debug version from its official GitHub repository.</string>
+    <string name="termux_all_permissions_granted">Termux permissions granted successfully</string>
+    <string name="termux_some_permissions_failed">Some permission grants failed, please check the logs or set manually</string>
+    <string name="termux_app_association_granted">App authorized to associate with Termux</string>
+    <string name="termux_manual_setting_hint">Please enable \'Allow External Apps\' option in Termux</string>
+    <string name="termux_manual_setting_failed">Cannot open Termux, please set manually</string>
+    <string name="open_settings">Open Settings</string>
+    <string name="cannot_open_settings">Cannot open settings</string>
 </resources> 

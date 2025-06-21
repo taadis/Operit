@@ -110,18 +110,20 @@ private constructor(
 
         // 如果index.html不存在，创建一个默认的欢迎页面
         if (uri == "/index.html" && !requestedFile.exists()) {
-            return createDefaultIndexHtml()
+            return createDefaultIndexHtml().addCorsHeaders()
         }
 
         try {
             if (!requestedFile.exists()) {
                 Log.w(TAG, "文件不存在: $requestedFile")
                 return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "文件不存在")
+                        .addCorsHeaders()
             }
 
             if (!isInWorkspace(requestedFile)) {
                 Log.w(TAG, "试图访问工作空间外的文件: $requestedFile")
                 return newFixedLengthResponse(Response.Status.FORBIDDEN, MIME_PLAINTEXT, "禁止访问")
+                        .addCorsHeaders()
             }
 
             // 确定MIME类型
@@ -130,20 +132,23 @@ private constructor(
             // 返回文件内容
             val fileInputStream = FileInputStream(requestedFile)
             return newChunkedResponse(Response.Status.OK, mimeType, fileInputStream)
+                    .addCorsHeaders()
         } catch (e: FileNotFoundException) {
             Log.e(TAG, "文件未找到: ${e.message}")
             return newFixedLengthResponse(
-                    Response.Status.NOT_FOUND,
-                    MIME_PLAINTEXT,
-                    "文件不存在: ${e.message}"
-            )
+                            Response.Status.NOT_FOUND,
+                            MIME_PLAINTEXT,
+                            "文件不存在: ${e.message}"
+                    )
+                    .addCorsHeaders()
         } catch (e: Exception) {
             Log.e(TAG, "服务器错误: ${e.message}")
             return newFixedLengthResponse(
-                    Response.Status.INTERNAL_ERROR,
-                    MIME_PLAINTEXT,
-                    "服务器错误: ${e.message}"
-            )
+                            Response.Status.INTERNAL_ERROR,
+                            MIME_PLAINTEXT,
+                            "服务器错误: ${e.message}"
+                    )
+                    .addCorsHeaders()
         }
     }
 
@@ -222,5 +227,30 @@ private constructor(
         """.trimIndent()
 
         return newFixedLengthResponse(Response.Status.OK, "text/html", html)
+    }
+
+    // 添加CORS响应头的扩展函数
+    private fun Response.addCorsHeaders(): Response {
+        // 允许所有来源的跨域请求
+        this.addHeader("Access-Control-Allow-Origin", "*")
+        // 允许的请求方法
+        this.addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD")
+        // 允许的请求头
+        this.addHeader(
+                "Access-Control-Allow-Headers",
+                "X-Requested-With, Content-Type, Authorization, Origin, Accept"
+        )
+        // 预检请求有效期（秒）
+        this.addHeader("Access-Control-Max-Age", "3600")
+        // 是否允许发送Cookie
+        this.addHeader("Access-Control-Allow-Credentials", "true")
+        // 如果是OPTIONS预检请求，快速返回
+        return this
+    }
+
+    // 处理OPTIONS预检请求
+    private fun handleOptionsRequest(): Response {
+        val response = newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, "")
+        return response.addCorsHeaders()
     }
 }
