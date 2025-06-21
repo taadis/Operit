@@ -266,15 +266,59 @@ open class StandardFileSystemTools(protected val context: Context) {
                         } else {
                             Log.w(
                                     TAG,
-                                    "OCR extraction returned empty text, falling back to raw content"
+                                    "OCR extraction returned empty text, returning no text detected message"
+                            )
+
+                            // 直接返回未识别到文字的提示信息
+                            return ToolResult(
+                                    toolName = tool.name,
+                                    success = true,
+                                    result =
+                                            FileContentData(
+                                                    path = path,
+                                                    content = "No text detected in image.",
+                                                    size =
+                                                            "No text detected in image.".length
+                                                                    .toLong()
+                                            ),
+                                    error = ""
                             )
                         }
                     } else {
-                        Log.w(TAG, "Failed to decode image file, falling back to raw content")
+                        Log.w(TAG, "Failed to decode image file, returning error message")
+
+                        // 返回无法解码图片的提示信息
+                        return ToolResult(
+                                toolName = tool.name,
+                                success = true,
+                                result =
+                                        FileContentData(
+                                                path = path,
+                                                content = "Failed to decode image file.",
+                                                size =
+                                                        "Failed to decode image file.".length
+                                                                .toLong()
+                                        ),
+                                error = ""
+                        )
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Error during OCR text extraction", e)
-                    // OCR提取失败，回退到读取原始文件
+                    // OCR提取失败，返回错误信息
+                    return ToolResult(
+                            toolName = tool.name,
+                            success = true,
+                            result =
+                                    FileContentData(
+                                            path = path,
+                                            content =
+                                                    "Error extracting text from image: ${e.message}",
+                                            size =
+                                                    "Error extracting text from image: ${e.message}"
+                                                            .length.toLong()
+                                    ),
+                            error = ""
+                    )
                 }
             }
 
