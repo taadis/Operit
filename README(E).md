@@ -183,6 +183,6 @@ Here are the features we are planning:
 
 ## 🐛 Known Bugs
 
-- Display errors for thinking messages.
+Please visit the [Issue Tracker](https://github.com/AAswordman/Operit/issues) to see the latest list of known issues.
 
-If you find any other bugs, please let us know by submitting an issue! We'll do our best to fix them... unless we're too busy, too lazy, or just can't figure it out (just kidding, we'll really try our best). 
+If you find any other bugs, please let us know by submitting an issue! We'll do our best to fix them.

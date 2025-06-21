@@ -26,9 +26,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FunctionalConfigScreen(
-        onBackPressed: () -> Unit = {}
-) {
+fun FunctionalConfigScreen(onBackPressed: () -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -127,7 +125,10 @@ fun FunctionalConfigScreen(
                                             configId
                                     )
                                     // 刷新服务实例
-                                    EnhancedAIService.refreshServiceForFunction(context,functionType)
+                                    EnhancedAIService.refreshServiceForFunction(
+                                            context,
+                                            functionType
+                                    )
                                     showSaveSuccess = true
                                 }
                             }
@@ -383,6 +384,7 @@ fun getFunctionDescription(functionType: FunctionType): String {
         FunctionType.CHAT -> "主要的对话功能，用于与用户进行日常对话交互"
         FunctionType.SUMMARY -> "生成对话总结，方便追踪重要信息"
         FunctionType.PROBLEM_LIBRARY -> "用于问题库的分析和管理"
-        FunctionType.FILE_BINDING -> "处理文件内容的智能绑定与混合，提供更精确的代码处理能力"
+        FunctionType.FILE_BINDING ->
+                "处理文件内容的智能绑定与混合，提供更精确的代码处理能力。建议使用快速的廉价模型如Gemini Flash，不建议使用DeepSeek R1"
     }
 }

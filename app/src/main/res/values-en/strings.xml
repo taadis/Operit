@@ -1,6 +1,13 @@
 <resources>
     <string name="app_name">Operit AI</string>
-    <string name="accessibility_service_description">For obtaining UI hierarchy, providing faster interface analysis for AI assistant, without collecting or storing any personal information.</string>
+    <string name="accessibility_service_description">Used to obtain the UI hierarchy, providing faster interface analysis capabilities for AI assistants, and does not collect or store any personal information.</string>
+    
+    <!-- Model selector related -->
+    <string name="model_selector_title">Select Model Configuration</string>
+    <string name="model_selector_close">Close</string>
+    <string name="model_selector_toggle">Show Model Selector</string>
+    <string name="model_selector_toggle_desc">Show model configuration selector at the top of the chat interface for easy switching between different model configurations</string>
+    <string name="model">Model</string>
     
     <!-- Navigation -->
     <string name="nav_ai_chat">AI Chat</string>

@@ -2,6 +2,13 @@
     <string name="app_name">Operit AI</string>
     <string name="accessibility_service_description">用于获取UI层次结构，为AI助手提供更快速的界面分析能力，不会收集或存储任何个人信息。</string>
     
+    <!-- 模型选择器相关 -->
+    <string name="model_selector_title">选择模型配置</string>
+    <string name="model_selector_close">关闭</string>
+    <string name="model_selector_toggle">显示模型选择器</string>
+    <string name="model_selector_toggle_desc">在聊天界面顶部显示模型配置选择器，方便快速切换不同的模型配置</string>
+    <string name="model">模型</string>
+    
     <!-- Navigation -->
     <string name="nav_ai_chat">AI 对话</string>
     <string name="nav_adb_commands">权限授予</string>
