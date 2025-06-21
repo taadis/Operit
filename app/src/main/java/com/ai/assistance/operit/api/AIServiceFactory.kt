@@ -42,6 +42,7 @@ object AIServiceFactory {
             ApiProviderType.DEEPSEEK -> OpenAIProvider(apiEndpoint, apiKey, modelName)
             ApiProviderType.SILICONFLOW -> OpenAIProvider(apiEndpoint, apiKey, modelName)
             ApiProviderType.OPENROUTER -> OpenAIProvider(apiEndpoint, apiKey, modelName)
+            ApiProviderType.INFINIAI -> OpenAIProvider(apiEndpoint, apiKey, modelName)
             ApiProviderType.OTHER -> OpenAIProvider(apiEndpoint, apiKey, modelName)
         }
     }

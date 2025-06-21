@@ -53,6 +53,7 @@ fun ModelApiSettingsSection(
             ApiProviderType.MOONSHOT -> "moonshot-v1-128k"
             ApiProviderType.SILICONFLOW -> "yi-1.5-34b"
             ApiProviderType.OPENROUTER -> "google/gemini-pro"
+            ApiProviderType.INFINIAI -> "infini-mini"
             ApiProviderType.OTHER -> ""
         }
     }
@@ -86,6 +87,7 @@ fun ModelApiSettingsSection(
             ApiProviderType.MOONSHOT -> "https://api.moonshot.cn/v1/chat/completions"
             ApiProviderType.SILICONFLOW -> "https://api.siliconflow.cn/v1/chat/completions"
             ApiProviderType.OPENROUTER -> "https://openrouter.ai/api/v1/chat/completions"
+            ApiProviderType.INFINIAI -> "https://cloud.infini-ai.com/maas/v1/chat/completions"
             ApiProviderType.OTHER -> ""
         }
     }
@@ -356,6 +358,7 @@ fun ModelApiSettingsSection(
                                                 ApiProviderType.DEEPSEEK -> "Deepseek大模型"
                                                 ApiProviderType.SILICONFLOW -> "硅基流动"
                                                 ApiProviderType.OPENROUTER -> "OpenRouter (多模型聚合)"
+                                                ApiProviderType.INFINIAI -> "无问芯穹"
                                                 ApiProviderType.OTHER -> "其他提供商"
                                             }
                                     )
@@ -418,7 +421,9 @@ fun ModelApiSettingsSection(
                                 )
 
                                 // 刷新所有AI服务实例，确保使用最新配置
-                                com.ai.assistance.operit.api.EnhancedAIService.refreshAllServices(configManager.appContext)
+                                com.ai.assistance.operit.api.EnhancedAIService.refreshAllServices(
+                                        configManager.appContext
+                                )
 
                                 Log.d(TAG, "API设置保存完成并刷新服务")
                                 showNotification("API设置已保存")

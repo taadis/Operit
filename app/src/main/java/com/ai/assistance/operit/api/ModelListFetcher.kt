@@ -77,6 +77,7 @@ object ModelListFetcher {
                     ApiProviderType.MOONSHOT -> "${extractBaseUrl(apiEndpoint)}/v1/models"
                     ApiProviderType.SILICONFLOW -> "${extractBaseUrl(apiEndpoint)}/v1/models"
                     ApiProviderType.BAICHUAN -> "${extractBaseUrl(apiEndpoint)}/v1/models"
+                    ApiProviderType.INFINIAI -> "${extractBaseUrl(apiEndpoint)}/maas/v1/models"
                     // 其他API提供商可能需要特殊处理
                     else -> "${extractBaseUrl(apiEndpoint)}/v1/models" // 默认尝试OpenAI兼容格式
                 }
@@ -206,7 +207,8 @@ object ModelListFetcher {
                                     ApiProviderType.MOONSHOT,
                                     ApiProviderType.SILICONFLOW,
                                     ApiProviderType.BAICHUAN,
-                                    ApiProviderType.OPENROUTER ->
+                                    ApiProviderType.OPENROUTER,
+                                    ApiProviderType.INFINIAI ->
                                             parseOpenAIModelResponse(responseBody)
                                     ApiProviderType.ANTHROPIC ->
                                             parseAnthropicModelResponse(responseBody)
