@@ -78,6 +78,7 @@ object ModelListFetcher {
                     ApiProviderType.SILICONFLOW -> "${extractBaseUrl(apiEndpoint)}/v1/models"
                     ApiProviderType.BAICHUAN -> "${extractBaseUrl(apiEndpoint)}/v1/models"
                     ApiProviderType.INFINIAI -> "${extractBaseUrl(apiEndpoint)}/maas/v1/models"
+                    ApiProviderType.LMSTUDIO -> "${extractBaseUrl(apiEndpoint)}/v1/models"
                     // 其他API提供商可能需要特殊处理
                     else -> "${extractBaseUrl(apiEndpoint)}/v1/models" // 默认尝试OpenAI兼容格式
                 }
@@ -208,7 +209,8 @@ object ModelListFetcher {
                                     ApiProviderType.SILICONFLOW,
                                     ApiProviderType.BAICHUAN,
                                     ApiProviderType.OPENROUTER,
-                                    ApiProviderType.INFINIAI ->
+                                    ApiProviderType.INFINIAI,
+                                    ApiProviderType.LMSTUDIO ->
                                             parseOpenAIModelResponse(responseBody)
                                     ApiProviderType.ANTHROPIC ->
                                             parseAnthropicModelResponse(responseBody)

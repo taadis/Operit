@@ -54,6 +54,7 @@ fun ModelApiSettingsSection(
             ApiProviderType.SILICONFLOW -> "yi-1.5-34b"
             ApiProviderType.OPENROUTER -> "google/gemini-pro"
             ApiProviderType.INFINIAI -> "infini-mini"
+            ApiProviderType.LMSTUDIO -> "meta-llama-3.1-8b-instruct"
             ApiProviderType.OTHER -> ""
         }
     }
@@ -88,6 +89,7 @@ fun ModelApiSettingsSection(
             ApiProviderType.SILICONFLOW -> "https://api.siliconflow.cn/v1/chat/completions"
             ApiProviderType.OPENROUTER -> "https://openrouter.ai/api/v1/chat/completions"
             ApiProviderType.INFINIAI -> "https://cloud.infini-ai.com/maas/v1/chat/completions"
+            ApiProviderType.LMSTUDIO -> "http://localhost:1234/v1/chat/completions"
             ApiProviderType.OTHER -> ""
         }
     }
@@ -359,6 +361,7 @@ fun ModelApiSettingsSection(
                                                 ApiProviderType.SILICONFLOW -> "硅基流动"
                                                 ApiProviderType.OPENROUTER -> "OpenRouter (多模型聚合)"
                                                 ApiProviderType.INFINIAI -> "无问芯穹"
+                                                ApiProviderType.LMSTUDIO -> "LM Studio"
                                                 ApiProviderType.OTHER -> "其他提供商"
                                             }
                                     )

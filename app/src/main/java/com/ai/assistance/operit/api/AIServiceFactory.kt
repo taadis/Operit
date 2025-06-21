@@ -29,6 +29,9 @@ object AIServiceFactory {
             // Gemini格式，支持Google Gemini系列
             ApiProviderType.GOOGLE -> GeminiProvider(apiEndpoint, apiKey, modelName)
 
+            // LM Studio使用OpenAI兼容格式
+            ApiProviderType.LMSTUDIO -> OpenAIProvider(apiEndpoint, apiKey, modelName)
+
             // 其他中文服务商，当前使用OpenAI Provider (大多数兼容OpenAI格式)
             // 后续可根据需要实现专用Provider
             ApiProviderType.BAIDU -> OpenAIProvider(apiEndpoint, apiKey, modelName)
