@@ -124,22 +124,21 @@ class AttachmentManager(private val context: Context, private val toolHandler: A
                         // Infer MIME type
                         val mimeType = contentResolver.getType(uri) ?: "application/octet-stream"
 
-                        // 检查是否是图片类型
-                        val isImage = mimeType.startsWith("image/")
+                        // 对所有文件类型尝试获取实际路径
+                        var actualFilePath = getFilePathFromUri(uri)
 
-                        // 对于图片类型，转换为实际文件路径
-                        val actualFilePath =
-                                if (isImage) {
-                                    // 创建一个临时文件来保存图片
-                                    val tempFile = createTempFileFromUri(uri, fileName)
-                                    tempFile?.absolutePath ?: filePath
-                                } else {
-                                    filePath // 非图片类型保留原始路径
-                                }
+                        // 如果无法获取实际路径，则创建临时文件以确保可用性
+                        if (actualFilePath == null) {
+                            Log.w(TAG, "无法从URI '$uri' 获取实际文件路径，将复制到临时文件。")
+                            // 创建一个临时文件来保存内容
+                            val tempFile = createTempFileFromUri(uri, fileName)
+                            actualFilePath = tempFile?.absolutePath
+                                    ?: filePath // fallback to original uri string if copying fails
+                        }
 
                         val attachmentInfo =
                                 AttachmentInfo(
-                                        filePath = actualFilePath, // 对图片使用绝对路径
+                                        filePath = actualFilePath,
                                         fileName = fileName,
                                         mimeType = mimeType,
                                         fileSize = fileSize
@@ -467,6 +466,96 @@ class AttachmentManager(private val context: Context, private val toolHandler: A
                     return@withContext Pair(errorMsg, "查询错误.txt")
                 }
             }
+
+    /** 从Content URI获取文件的实际路径，不复制文件内容 */
+    private fun getFilePathFromUri(uri: Uri): String? {
+        try {
+            // 尝试直接从URI获取路径
+            if (uri.scheme == "file") {
+                return uri.path
+            }
+            
+            // 对于content URI，使用不同的方法尝试获取实际路径
+            if (uri.scheme == "content") {
+                // 特殊处理: Downloads提供程序URI
+                if (uri.authority == "com.android.providers.downloads.documents") {
+                    val id = android.provider.DocumentsContract.getDocumentId(uri)
+                    
+                    // 处理raw:前缀，直接解码路径
+                    if (id.startsWith("raw:")) {
+                        val decodedPath = java.net.URLDecoder.decode(id.substring(4), "UTF-8")
+                        Log.d(TAG, "Downloads文档URI解析为: $decodedPath")
+                        return decodedPath
+                    }
+                    
+                    // 处理msf:前缀
+                    else if (id.startsWith("msf:")) {
+                        // MediaStore format.
+                        val mediaId = id.substring(4)
+                        // We can't know from the URI alone if it's an image, video, or audio file.
+                        // So we'll use the generic files table.
+                        val contentUri = android.provider.MediaStore.Files.getContentUri("external")
+                        val selection = "_id=?"
+                        val selectionArgs = arrayOf(mediaId)
+                        return getDataColumn(contentUri, selection, selectionArgs)
+                    }
+                    
+                    // 普通ID，使用下载内容URI
+                    else {
+                        val contentUri = android.content.ContentUris.withAppendedId(
+                            Uri.parse("content://downloads/public_downloads"), 
+                            id.toLong()
+                        )
+                        return getDataColumn(contentUri, null, null)
+                    }
+                }
+                
+                // 方法1: 通过DocumentsContract获取路径 (API 19+)
+                try {
+                    val docId = android.provider.DocumentsContract.getDocumentId(uri)
+                    val split = docId.split(":")
+                    val type = split[0]
+                    
+                    // 对于外部存储文件
+                    if ("primary".equals(type, ignoreCase = true)) {
+                        return "/storage/emulated/0/${split[1]}"
+                    }
+                    
+                    // 对于SD卡
+                    if ("sdcard".equals(type, ignoreCase = true) && split.size > 1) {
+                        return "/storage/sdcard1/${split[1]}"
+                    }
+                } catch (e: Exception) {
+                    Log.d(TAG, "通过DocumentsContract获取路径失败", e)
+                }
+                
+                // 方法2: 通过MediaStore查询
+                return getDataColumn(uri, null, null)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "获取文件实际路径失败: ${e.message}", e)
+        }
+        
+        return null
+    }
+    
+    /** 从URI获取数据列(DATA)的值 */
+    private fun getDataColumn(uri: Uri, selection: String?, selectionArgs: Array<String>?): String? {
+        val projection = arrayOf(android.provider.MediaStore.MediaColumns.DATA)
+        
+        try {
+            context.contentResolver.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val columnIndex = cursor.getColumnIndexOrThrow(android.provider.MediaStore.MediaColumns.DATA)
+                    return cursor.getString(columnIndex)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "查询URI数据列失败: ${e.message}", e)
+        }
+        
+        return null
+    }
 
     /** Get file name from content URI */
     private suspend fun getFileNameFromUri(uri: Uri): String =
