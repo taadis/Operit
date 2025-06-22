@@ -21,51 +21,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.ai.assistance.operit.ui.floating.FloatContext
 import kotlinx.coroutines.delay
 
 /**
  * 渲染悬浮窗的球模式界面
  *
- * @param ballSize 球的大小
- * @param isAtEdge 是否处于屏幕边缘
- * @param windowScale 窗口缩放比例
- * @param animatedAlpha 淡入淡出动画值
- * @param transitionFeedback 过渡反馈动画
- * @param onToggleBallMode 切换到窗口模式的回调
- * @param onModeChangeRequest 请求模式切换的回调，会触发handleModeToggle
- * @param onInputRequest 请求显示输入框的回调
- * @param onMove 移动事件的回调
- * @param saveWindowState 保存窗口状态的回调
- * @param snapToEdge 靠边收起的回调
- * @param screenWidth 屏幕宽度
- * @param screenHeight 屏幕高度
- * @param currentX 当前X坐标
- * @param currentY 当前Y坐标
+ * @param floatContext The context containing all the state and callbacks.
  */
 @Composable
-fun FloatingChatBallMode(
-        ballSize: Dp = 48.dp,
-        isAtEdge: Boolean = false,
-        windowScale: Float = 0.8f,
-        animatedAlpha: Float = 1f,
-        transitionFeedback: Float = 0f,
-        onToggleBallMode: () -> Unit = {},
-        onModeChangeRequest: () -> Unit = {},
-        onInputRequest: () -> Unit = {},
-        onMove: (Float, Float) -> Unit = { _, _ -> },
-        saveWindowState: (() -> Unit)? = null,
-        snapToEdge: (Boolean) -> Unit = { _ -> },
-        screenWidth: Dp = 1080.dp,
-        screenHeight: Dp = 2340.dp,
-        currentX: Float = 0f,
-        currentY: Float = 0f
-) {
-    val coroutineScope = rememberCoroutineScope()
-    val density = LocalDensity.current
-
+fun FloatingChatBallMode(floatContext: FloatContext) {
     val ballHoverState = remember { mutableStateOf(false) }
     val touchAnimationState = remember { mutableStateOf(false) }
     val touchAnimationValue = remember { Animatable(0f) }
@@ -81,10 +47,10 @@ fun FloatingChatBallMode(
     LaunchedEffect(inputButtonPressed.value) {
         if (inputButtonPressed.value) {
             // 修改为先切换到窗口模式，再显示输入框
-            onToggleBallMode()
+            floatContext.onToggleBallMode()
             // 等待模式切换完成后再显示输入框
             delay(500) // 等待模式切换动画完成
-            onInputRequest()
+            floatContext.onInputFocusRequest?.invoke(true)
             inputButtonPressed.value = false
         }
     }
@@ -92,10 +58,10 @@ fun FloatingChatBallMode(
     // Handle click events
     LaunchedEffect(ballTapState.value) {
         if (ballTapState.value) {
-            if (isAtEdge) {
-                snapToEdge(false)
+            if (floatContext.isAtEdge) {
+                floatContext.snapToEdge(false)
             } else {
-                onModeChangeRequest()
+                floatContext.onToggleBallMode()
             }
             // Reset state
             ballTapState.value = false
@@ -143,7 +109,7 @@ fun FloatingChatBallMode(
 
     Box(
             modifier =
-                    Modifier.size(ballSize)
+                    Modifier.size(floatContext.ballSize)
                             .shadow(
                                     elevation = if (ballHoverState.value) 6.dp else 4.dp,
                                     shape = CircleShape
@@ -153,23 +119,23 @@ fun FloatingChatBallMode(
                                     if (ballHoverState.value) primaryColor.copy(alpha = 0.9f)
                                     else primaryColor
                             )
-                            .alpha(if (isAtEdge) 0.8f else 1f)
+                            .alpha(if (floatContext.isAtEdge) 0.8f else 1f)
                             .then(ballInteractionModifier)
                             .graphicsLayer {
                                 // 确保球的缩放不会太小，最小保持0.8倍大小
-                                val effectiveScale = maxOf(windowScale, 0.8f)
+                                val effectiveScale = maxOf(floatContext.windowScale, 0.8f)
                                 val hoverEffect = if (ballHoverState.value) 1.05f else 1f
                                 scaleX =
                                         effectiveScale *
-                                                (if (isAtEdge) 0.7f else 1f) *
-                                                (if (!isAtEdge) pulseScale else 1f) *
+                                                (if (floatContext.isAtEdge) 0.7f else 1f) *
+                                                (if (!floatContext.isAtEdge) pulseScale else 1f) *
                                                 hoverEffect
                                 scaleY =
                                         effectiveScale *
-                                                (if (isAtEdge) 0.7f else 1f) *
-                                                (if (!isAtEdge) pulseScale else 1f) *
+                                                (if (floatContext.isAtEdge) 0.7f else 1f) *
+                                                (if (!floatContext.isAtEdge) pulseScale else 1f) *
                                                 hoverEffect
-                                alpha = animatedAlpha
+                                alpha = floatContext.animatedAlpha.value
                             }
                             .pointerInput(Unit) {
                                 detectDragGestures(
@@ -181,35 +147,45 @@ fun FloatingChatBallMode(
 
                                             // 只有当点击在圆内才处理事件
                                             if (distance <= radius) {
-                                                if (isAtEdge) snapToEdge(false)
+                                                if (floatContext.isAtEdge)
+                                                        floatContext.snapToEdge(false)
                                             }
                                         },
                                         onDragEnd = {
-                                            saveWindowState?.invoke()
+                                            floatContext.saveWindowState?.invoke()
 
                                             // 靠边检测
-                                            val edgeThresholdPx = with(density) { 20.dp.toPx() }
-                                            if (currentX < edgeThresholdPx ||
-                                                            currentX >
-                                                                    screenWidth.toPx() -
+                                            val edgeThresholdPx =
+                                                    with(floatContext.density) { 20.dp.toPx() }
+                                            if (floatContext.currentX < edgeThresholdPx ||
+                                                            floatContext.currentX >
+                                                                    floatContext.screenWidth
+                                                                            .toPx() -
                                                                             edgeThresholdPx
                                             ) {
-                                                snapToEdge(true)
+                                                floatContext.snapToEdge(true)
                                             }
                                         },
                                         onDrag = { change, dragAmount ->
                                             change.consume()
-                                            onMove(dragAmount.x, dragAmount.y)
+                                            floatContext.onMove(
+                                                    dragAmount.x,
+                                                    dragAmount.y,
+                                                    floatContext.windowScale
+                                            )
                                         }
                                 )
                             }
     ) {
         // 过渡时的波纹效果
-        if (transitionFeedback > 0) {
+        if (floatContext.transitionFeedback.value > 0) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 drawCircle(
-                        color = onPrimaryColor.copy(alpha = 0.15f * (1f - transitionFeedback)),
-                        radius = size.minDimension * 0.6f * transitionFeedback,
+                        color =
+                                onPrimaryColor.copy(
+                                        alpha = 0.15f * (1f - floatContext.transitionFeedback.value)
+                                ),
+                        radius = size.minDimension * 0.6f * floatContext.transitionFeedback.value,
                         center = Offset(size.width / 2, size.height / 2)
                 )
             }
@@ -254,12 +230,16 @@ fun FloatingChatBallMode(
                                         // 只有当长按在圆内才处理事件
                                         if (distance <= radius) {
                                             // 长按重置位置到屏幕中心（安全恢复功能）
-                                            val centerX = screenWidth.value / 2
-                                            val centerY = screenHeight.value / 2
-                                            onMove(centerX - currentX, centerY - currentY)
+                                            val centerX = floatContext.screenWidth.value / 2
+                                            val centerY = floatContext.screenHeight.value / 2
+                                            floatContext.onMove(
+                                                    centerX - floatContext.currentX,
+                                                    centerY - floatContext.currentY,
+                                                    floatContext.windowScale
+                                            )
 
                                             // 保存新位置
-                                            saveWindowState?.invoke()
+                                            floatContext.saveWindowState?.invoke()
                                         }
                                     }
                             )

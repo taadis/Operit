@@ -33,12 +33,12 @@ interface FloatingWindowCallback {
 }
 
 class FloatingWindowManager(
-    private val context: Context,
-    private val state: FloatingWindowState,
-    private val lifecycleOwner: LifecycleOwner,
-    private val viewModelStoreOwner: ViewModelStoreOwner,
-    private val savedStateRegistryOwner: SavedStateRegistryOwner,
-    private val callback: FloatingWindowCallback
+        private val context: Context,
+        private val state: FloatingWindowState,
+        private val lifecycleOwner: LifecycleOwner,
+        private val viewModelStoreOwner: ViewModelStoreOwner,
+        private val savedStateRegistryOwner: SavedStateRegistryOwner,
+        private val callback: FloatingWindowCallback
 ) {
     private val TAG = "FloatingWindowManager"
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -50,17 +50,14 @@ class FloatingWindowManager(
         if (isViewAdded) return
 
         try {
-            composeView = ComposeView(context).apply {
-                setViewTreeLifecycleOwner(lifecycleOwner)
-                setViewTreeViewModelStoreOwner(viewModelStoreOwner)
-                setViewTreeSavedStateRegistryOwner(savedStateRegistryOwner)
+            composeView =
+                    ComposeView(context).apply {
+                        setViewTreeLifecycleOwner(lifecycleOwner)
+                        setViewTreeViewModelStoreOwner(viewModelStoreOwner)
+                        setViewTreeSavedStateRegistryOwner(savedStateRegistryOwner)
 
-                setContent {
-                    MaterialTheme {
-                        FloatingChatUi()
+                        setContent { MaterialTheme { FloatingChatUi() } }
                     }
-                }
-            }
 
             val params = createLayoutParams()
             windowManager.addView(composeView, params)
@@ -88,38 +85,40 @@ class FloatingWindowManager(
     @Composable
     private fun FloatingChatUi() {
         FloatingChatWindow(
-            messages = callback.getMessages(),
-            width = state.windowWidth.value,
-            height = state.windowHeight.value,
-            initialWindowScale = state.windowScale.value,
-            onClose = { callback.onClose() },
-            onResize = { newWidth, newHeight ->
-                state.windowWidth.value = newWidth
-                state.windowHeight.value = newHeight
-                updateViewLayout()
-                callback.saveState()
-            },
-            isBallMode = state.isBallMode.value,
-            ballSize = state.ballSize.value,
-            onToggleBallMode = { onToggleBallMode() },
-            onMove = { dx, dy, scale -> onMove(dx, dy, scale) },
-            saveWindowState = { callback.saveState() },
-            onSendMessage = { callback.onSendMessage(it) },
-            onInputFocusRequest = { setFocusable(it) },
-            attachments = callback.getAttachments(),
-            onAttachmentRequest = { callback.onAttachmentRequest(it) },
-            onRemoveAttachment = { callback.onRemoveAttachment(it) }
+                messages = callback.getMessages(),
+                width = state.windowWidth.value,
+                height = state.windowHeight.value,
+                initialWindowScale = state.windowScale.value,
+                onClose = { callback.onClose() },
+                onResize = { newWidth, newHeight ->
+                    state.windowWidth.value = newWidth
+                    state.windowHeight.value = newHeight
+                    updateViewLayout()
+                    callback.saveState()
+                },
+                isBallMode = state.isBallMode.value,
+                ballSize = state.ballSize.value,
+                onToggleBallMode = { onToggleBallMode() },
+                onMove = { dx, dy, scale -> onMove(dx, dy, scale) },
+                saveWindowState = { callback.saveState() },
+                onSendMessage = { callback.onSendMessage(it) },
+                onInputFocusRequest = { setFocusable(it) },
+                attachments = callback.getAttachments(),
+                onAttachmentRequest = { callback.onAttachmentRequest(it) },
+                onRemoveAttachment = { callback.onRemoveAttachment(it) }
         )
     }
 
     private fun createLayoutParams(): WindowManager.LayoutParams {
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            PixelFormat.TRANSLUCENT
-        )
+        val params =
+                WindowManager.LayoutParams(
+                        WindowManager.LayoutParams.WRAP_CONTENT,
+                        WindowManager.LayoutParams.WRAP_CONTENT,
+                        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                        PixelFormat.TRANSLUCENT
+                )
         params.gravity = Gravity.TOP or Gravity.START
 
         val displayMetrics = context.resources.displayMetrics
@@ -131,14 +130,24 @@ class FloatingWindowManager(
             val ballSizeInPx = (state.ballSize.value.value * density).toInt()
             val safeMargin = (16 * density).toInt()
             val minVisible = ballSizeInPx / 2
-            state.x = state.x.coerceIn(-ballSizeInPx + minVisible + safeMargin, screenWidth - minVisible - safeMargin)
+            state.x =
+                    state.x.coerceIn(
+                            -ballSizeInPx + minVisible + safeMargin,
+                            screenWidth - minVisible - safeMargin
+                    )
             state.y = state.y.coerceIn(safeMargin, screenHeight - minVisible - safeMargin)
         } else {
-            val windowWidth = (state.windowWidth.value.value * density * state.windowScale.value).toInt()
-            val windowHeight = (state.windowHeight.value.value * density * state.windowScale.value).toInt()
+            val windowWidth =
+                    (state.windowWidth.value.value * density * state.windowScale.value).toInt()
+            val windowHeight =
+                    (state.windowHeight.value.value * density * state.windowScale.value).toInt()
             val minVisibleWidth = (windowWidth * 2 / 3)
             val safeMargin = (20 * density).toInt()
-            state.x = state.x.coerceIn(-(windowWidth - minVisibleWidth) + safeMargin, screenWidth - minVisibleWidth - safeMargin)
+            state.x =
+                    state.x.coerceIn(
+                            -(windowWidth - minVisibleWidth) + safeMargin,
+                            screenWidth - minVisibleWidth - safeMargin
+                    )
             state.y = state.y.coerceIn(safeMargin, screenHeight - (windowHeight / 2) - safeMargin)
         }
 
@@ -155,7 +164,14 @@ class FloatingWindowManager(
         }
     }
 
-    private fun calculateCenteredPosition(fromX: Int, fromY: Int, fromWidth: Int, fromHeight: Int, toWidth: Int, toHeight: Int): Pair<Int, Int> {
+    private fun calculateCenteredPosition(
+            fromX: Int,
+            fromY: Int,
+            fromWidth: Int,
+            fromHeight: Int,
+            toWidth: Int,
+            toHeight: Int
+    ): Pair<Int, Int> {
         val centerX = fromX + fromWidth / 2
         val centerY = fromY + fromHeight / 2
         val newX = centerX - toWidth / 2
@@ -190,8 +206,10 @@ class FloatingWindowManager(
             currentWidth = (state.ballSize.value.value * density).toInt()
             currentHeight = currentWidth
         } else {
-            currentWidth = (state.windowWidth.value.value * density * state.windowScale.value).toInt()
-            currentHeight = (state.windowHeight.value.value * density * state.windowScale.value).toInt()
+            currentWidth =
+                    (state.windowWidth.value.value * density * state.windowScale.value).toInt()
+            currentHeight =
+                    (state.windowHeight.value.value * density * state.windowScale.value).toInt()
         }
 
         state.isBallMode.value = !state.isBallMode.value
@@ -210,7 +228,15 @@ class FloatingWindowManager(
                     params.x = state.lastBallPositionX
                     params.y = state.lastBallPositionY
                 } else {
-                    val (centeredX, centeredY) = calculateCenteredPosition(params.x, params.y, currentWidth, currentHeight, newWidth, newHeight)
+                    val (centeredX, centeredY) =
+                            calculateCenteredPosition(
+                                    params.x,
+                                    params.y,
+                                    currentWidth,
+                                    currentHeight,
+                                    newWidth,
+                                    newHeight
+                            )
                     params.x = centeredX
                     params.y = centeredY
                 }
@@ -223,21 +249,35 @@ class FloatingWindowManager(
                 state.y = params.y
                 state.windowScale.value = state.windowScale.value.coerceIn(0.5f, 1.0f)
             } else {
-                newWidth = (state.windowWidth.value.value * density * state.windowScale.value).toInt()
-                newHeight = (state.windowHeight.value.value * density * state.windowScale.value).toInt()
+                newWidth =
+                        (state.windowWidth.value.value * density * state.windowScale.value).toInt()
+                newHeight =
+                        (state.windowHeight.value.value * density * state.windowScale.value).toInt()
 
                 if (state.lastWindowPositionX != 0 && state.lastWindowPositionY != 0) {
                     params.x = state.lastWindowPositionX
                     params.y = state.lastWindowPositionY
                 } else {
-                    val (centeredX, centeredY) = calculateCenteredPosition(params.x, params.y, currentWidth, currentHeight, newWidth, newHeight)
+                    val (centeredX, centeredY) =
+                            calculateCenteredPosition(
+                                    params.x,
+                                    params.y,
+                                    currentWidth,
+                                    currentHeight,
+                                    newWidth,
+                                    newHeight
+                            )
                     params.x = centeredX
                     params.y = centeredY
                 }
 
                 val minVisibleWidth = newWidth / 3
                 val minVisibleHeight = newHeight / 3
-                params.x = params.x.coerceIn(-newWidth + minVisibleWidth, screenWidth - minVisibleWidth)
+                params.x =
+                        params.x.coerceIn(
+                                -newWidth + minVisibleWidth,
+                                screenWidth - minVisibleWidth
+                        )
                 params.y = params.y.coerceIn(0, screenHeight - minVisibleHeight)
 
                 state.x = params.x
@@ -246,7 +286,8 @@ class FloatingWindowManager(
             }
         }
 
-        Handler(Looper.getMainLooper()).postDelayed({ state.isTransitioning = false }, state.transitionDebounceTime)
+        Handler(Looper.getMainLooper())
+                .postDelayed({ state.isTransitioning = false }, state.transitionDebounceTime)
     }
 
     private fun onMove(dx: Float, dy: Float, currentScale: Float) {
@@ -272,7 +313,11 @@ class FloatingWindowManager(
                 val windowHeight = (state.windowHeight.value.value * density * currentScale).toInt()
                 val minVisibleWidth = (windowWidth * 2 / 3)
                 val minVisibleHeight = (windowHeight * 2 / 3)
-                params.x = params.x.coerceIn(-(windowWidth - minVisibleWidth), screenWidth - minVisibleWidth / 2)
+                params.x =
+                        params.x.coerceIn(
+                                -(windowWidth - minVisibleWidth),
+                                screenWidth - minVisibleWidth / 2
+                        )
                 params.y = params.y.coerceIn(0, screenHeight - minVisibleHeight)
             }
             state.x = params.x
@@ -286,19 +331,34 @@ class FloatingWindowManager(
             updateViewLayout { params ->
                 params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
             }
-            Handler(Looper.getMainLooper()).postDelayed({
-                view.requestFocus()
-                val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
-                imm?.showSoftInput(view.findFocus(), InputMethodManager.SHOW_IMPLICIT)
-            }, 200)
+            Handler(Looper.getMainLooper())
+                    .postDelayed(
+                            {
+                                view.requestFocus()
+                                val imm =
+                                        context.getSystemService(Context.INPUT_METHOD_SERVICE) as?
+                                                InputMethodManager
+                                imm?.showSoftInput(
+                                        view.findFocus(),
+                                        InputMethodManager.SHOW_IMPLICIT
+                                )
+                            },
+                            200
+                    )
         } else {
             val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
             imm?.hideSoftInputFromWindow(view.windowToken, 0)
-            Handler(Looper.getMainLooper()).postDelayed({
-                updateViewLayout { params ->
-                    params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                }
-            }, 100)
+            Handler(Looper.getMainLooper())
+                    .postDelayed(
+                            {
+                                updateViewLayout { params ->
+                                    params.flags =
+                                            params.flags or
+                                                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                                }
+                            },
+                            100
+                    )
         }
     }
-} 
+}

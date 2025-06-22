@@ -1,11 +1,9 @@
 package com.ai.assistance.operit.ui.floating
 
-import com.ai.assistance.operit.ui.floating.ui.window.FloatingChatWindowMode
 import androidx.compose.animation.core.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.core.tools.AIToolHandler
@@ -13,6 +11,7 @@ import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.ui.features.chat.attachments.AttachmentManager
 import com.ai.assistance.operit.ui.floating.ui.ball.FloatingChatBallMode
+import com.ai.assistance.operit.ui.floating.ui.window.FloatingChatWindowMode
 import com.ai.assistance.operit.ui.floating.ui.window.ResizeEdge
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -68,9 +67,31 @@ fun FloatingChatWindow(
         onRemoveAttachment: ((String) -> Unit)? = null,
         onInputFocusRequest: ((Boolean) -> Unit)? = null
 ) {
-    val updatedMessages = remember(messages) { messages }
-    val coroutineScope = rememberCoroutineScope()
-    val density = LocalDensity.current
+    val floatContext =
+            rememberFloatContext(
+                    messages,
+                    width,
+                    height,
+                    onClose,
+                    onResize,
+                    isBallMode,
+                    ballSize,
+                    initialWindowScale,
+                    onToggleBallMode,
+                    onMove,
+                    snapToEdge,
+                    isAtEdge,
+                    screenWidth,
+                    screenHeight,
+                    currentX,
+                    currentY,
+                    saveWindowState,
+                    onSendMessage,
+                    onAttachmentRequest,
+                    attachments,
+                    onRemoveAttachment,
+                    onInputFocusRequest
+            )
 
     // 主题和颜色
     val backgroundColor = MaterialTheme.colorScheme.background
@@ -101,7 +122,9 @@ fun FloatingChatWindow(
     var windowScale by remember { mutableFloatStateOf(initialWindowScale.coerceIn(0.5f, 1.0f)) }
 
     // 当初始缩放值更新时应用它，限制最大缩放为1.0
-    LaunchedEffect(initialWindowScale) { windowScale = initialWindowScale.coerceIn(0.5f, 1.0f) }
+    LaunchedEffect(floatContext.initialWindowScale) {
+        floatContext.windowScale = floatContext.initialWindowScale.coerceIn(0.5f, 1.0f)
+    }
 
     // 窗口尺寸状态（基于传入的width和height）- 确保尺寸有效
     var windowWidthState by remember { mutableStateOf(width.coerceAtLeast(200.dp)) }
@@ -132,137 +155,138 @@ fun FloatingChatWindow(
             )
 
     // 当模式变化时更新缩放和动画
-    LaunchedEffect(isBallMode) {
+    LaunchedEffect(floatContext.isBallMode) {
         // 设置转换状态开始
-        isInTransition.value = true
+        floatContext.isInTransition.value = true
 
-        if (isBallMode) {
+        if (floatContext.isBallMode) {
             // 向球模式过渡 - 保持现有逻辑，球模式需要圆角
-            useDirectCorners.value = false
-            coroutineScope.launch {
+            floatContext.useDirectCorners.value = false
+            floatContext.coroutineScope.launch {
                 // 同时处理圆角和大小变化，无需先淡出再淡入
-                animatedAlpha.animateTo(
+                floatContext.animatedAlpha.animateTo(
                         0.9f,
                         animationSpec = tween(150, easing = FastOutSlowInEasing)
                 )
 
                 // 并行执行这些动画以加快过渡
-                coroutineScope.launch {
-                    cornerRadius.animateTo(
+                floatContext.coroutineScope.launch {
+                    floatContext.cornerRadius.animateTo(
                             100f,
                             animationSpec = tween(150, easing = FastOutSlowInEasing)
                     )
                 }
 
-                coroutineScope.launch {
-                    ballToWindowTransition.animateTo(
+                floatContext.coroutineScope.launch {
+                    floatContext.ballToWindowTransition.animateTo(
                             0f,
                             animationSpec = tween(150, easing = FastOutSlowInEasing)
                     )
                 }
 
                 // 快速恢复透明度
-                animatedAlpha.animateTo(1f, animationSpec = tween(100))
+                floatContext.animatedAlpha.animateTo(1f, animationSpec = tween(100))
             }
 
             // 切换到球模式时，保存当前缩放的90%
-            val targetScale = (windowScale * 0.9f).coerceAtLeast(0.5f)
-            windowScale = targetScale
+            val targetScale = (floatContext.windowScale * 0.9f).coerceAtLeast(0.5f)
+            floatContext.windowScale = targetScale
         } else {
             // 从球模式切换到窗口模式 - 使用直接切换，避免圆角过渡
-            useDirectCorners.value = true
+            floatContext.useDirectCorners.value = true
 
             // 立即设置窗口圆角 - 在动画开始前
-            cornerRadius.snapTo(12f)
+            floatContext.cornerRadius.snapTo(12f)
 
-            coroutineScope.launch {
+            floatContext.coroutineScope.launch {
                 // 轻微的淡出效果
-                animatedAlpha.animateTo(
+                floatContext.animatedAlpha.animateTo(
                         0.85f,
                         animationSpec = tween(80, easing = FastOutSlowInEasing)
                 )
 
                 // 只做大小过渡动画，直接从球扩展到窗口，无需圆角过渡
-                ballToWindowTransition.animateTo(
+                floatContext.ballToWindowTransition.animateTo(
                         1f,
                         animationSpec = tween(160, easing = FastOutSlowInEasing)
                 )
 
                 // 快速恢复透明度
-                animatedAlpha.animateTo(1f, animationSpec = tween(60))
+                floatContext.animatedAlpha.animateTo(1f, animationSpec = tween(60))
             }
 
             // 从球模式切换回窗口模式时确保窗口可见
-            if (windowScale < 0.6f) {
-                windowScale = 0.6f
+            if (floatContext.windowScale < 0.6f) {
+                floatContext.windowScale = 0.6f
             }
-            snapToEdge(false)
+            floatContext.snapToEdge(false)
         }
 
         // 短暂延迟后完成转换
         delay(200)
-        isInTransition.value = false
+        floatContext.isInTransition.value = false
         // 转换完成后重置直接切换标志
-        useDirectCorners.value = false
+        floatContext.useDirectCorners.value = false
     }
 
     // 处理拖动事件的函数
-    val handleDrag = { dx: Float, dy: Float -> onMove(dx, dy, windowScale) }
+    val handleDrag = { dx: Float, dy: Float -> floatContext.onMove(dx, dy, windowScale) }
 
     // 模式切换处理函数 - 添加防抖动
     val lastToggleTime = remember { mutableStateOf(0L) }
     val handleModeToggle = {
         val currentTime = System.currentTimeMillis()
-        if (currentTime - lastToggleTime.value > 500 && !isInTransition.value) {
+        if (currentTime - lastToggleTime.value > 500 && !floatContext.isInTransition.value) {
             lastToggleTime.value = currentTime
-            onToggleBallMode()
+            floatContext.onToggleBallMode()
         }
     }
 
     // 计算动画过渡中的尺寸
-    val transitionBallSize = with(density) { ballSize.toPx() }
-    val transitionWindowWidth = with(density) { windowWidthState.toPx() }
-    val transitionWindowHeight = with(density) { windowHeightState.toPx() }
+    val transitionBallSize = with(floatContext.density) { floatContext.ballSize.toPx() }
+    val transitionWindowWidth = with(floatContext.density) { windowWidthState.toPx() }
+    val transitionWindowHeight = with(floatContext.density) { windowHeightState.toPx() }
 
     // 计算过渡中的尺寸
-    val currentWidth = com.ai.assistance.operit.ui.floating.ui.window.lerp(
-        transitionBallSize,
-        transitionWindowWidth,
-        ballToWindowTransition.value
-    )
+    val currentWidth =
+            com.ai.assistance.operit.ui.floating.ui.window.lerp(
+                    transitionBallSize,
+                    transitionWindowWidth,
+                    ballToWindowTransition.value
+            )
     val currentHeight =
-        com.ai.assistance.operit.ui.floating.ui.window.lerp(
-            transitionBallSize,
-            transitionWindowHeight,
-            ballToWindowTransition.value
-        )
+            com.ai.assistance.operit.ui.floating.ui.window.lerp(
+                    transitionBallSize,
+                    transitionWindowHeight,
+                    ballToWindowTransition.value
+            )
     // 修改圆角计算，从球模式到窗口模式时直接使用窗口圆角
     val currentCornerRadius =
-            if (useDirectCorners.value && !isBallMode) {
-                with(density) { 12f.dp }
+            if (useDirectCorners.value && !floatContext.isBallMode) {
+                with(floatContext.density) { 12f.dp }
             } else {
-                with(density) { cornerRadius.value.dp }
+                with(floatContext.density) { cornerRadius.value.dp }
             }
 
     // 添加过渡期间的视觉反馈
     val transitionFeedback = remember { Animatable(0f) }
 
     // 当状态变化时提供视觉反馈
-    LaunchedEffect(isInTransition.value) {
-        if (isInTransition.value) {
+    LaunchedEffect(floatContext.isInTransition.value) {
+        if (floatContext.isInTransition.value) {
             // 启动一个短暂的波纹动画 - 减少持续时间
-            transitionFeedback.snapTo(0f)
-            transitionFeedback.animateTo(
+            floatContext.transitionFeedback.snapTo(0f)
+            floatContext.transitionFeedback.animateTo(
                     1f,
                     animationSpec = tween(200, easing = FastOutSlowInEasing)
             )
         } else {
-            transitionFeedback.snapTo(0f)
+            floatContext.transitionFeedback.snapTo(0f)
         }
     }
 
     // 添加淡入淡出内容动画
-    val contentVisible = !isInTransition.value
+    val contentVisible = !floatContext.isInTransition.value
 
     // Add state for the input dialog
     var showInputDialog by remember { mutableStateOf(false) }
@@ -270,82 +294,26 @@ fun FloatingChatWindow(
 
     // 添加附件选择器相关状态
     var showAttachmentPanel by remember { mutableStateOf(false) }
-    val context = LocalContext.current
+    val localContext = LocalContext.current
     val attachmentManager = remember {
-        AttachmentManager(context, AIToolHandler.getInstance(context))
+        AttachmentManager(localContext, AIToolHandler.getInstance(localContext))
     }
 
     // 监听显示状态变化并通知焦点变化
-    LaunchedEffect(showInputDialog) {
+    LaunchedEffect(floatContext.showInputDialog) {
         // 通知服务需要切换焦点模式
-        onInputFocusRequest?.invoke(showInputDialog)
+        floatContext.onInputFocusRequest?.invoke(floatContext.showInputDialog)
 
         // 如果隐藏输入框，清空消息
-        if (!showInputDialog) {
-            userMessage = ""
+        if (!floatContext.showInputDialog) {
+            floatContext.userMessage = ""
         }
     }
 
-    if (isBallMode) {
-        FloatingChatBallMode(
-                ballSize = ballSize,
-                isAtEdge = isAtEdge,
-                windowScale = windowScale,
-                animatedAlpha = animatedAlpha.value,
-                transitionFeedback = transitionFeedback.value,
-                onToggleBallMode = onToggleBallMode,
-                onModeChangeRequest = { onToggleBallMode() },
-                onInputRequest = { onInputFocusRequest?.invoke(true) },
-                onMove = { dx, dy -> onMove(dx, dy, windowScale) },
-                saveWindowState = saveWindowState,
-                snapToEdge = snapToEdge,
-                screenWidth = screenWidth,
-                screenHeight = screenHeight,
-                currentX = currentX,
-                currentY = currentY
-        )
+    if (floatContext.isBallMode) {
+        FloatingChatBallMode(floatContext = floatContext)
     } else {
         // 窗口模式
-        // Pre-extract theme colors for Canvas usage
-        FloatingChatWindowMode(
-            windowWidthState,
-            windowHeightState,
-            windowScale,
-            animatedAlpha,
-            currentCornerRadius,
-            borderThickness,
-            isEdgeResizing,
-            edgeHighlightColor,
-            backgroundColor,
-            initialWindowWidth,
-            initialWindowHeight,
-            transitionFeedback,
-            onClose,
-            onToggleBallMode,
-            saveWindowState,
-            handleDrag,
-            contentVisible,
-            showInputDialog,
-            messages,
-            userMessageColor,
-            aiMessageColor,
-            userTextColor,
-            aiTextColor,
-            systemMessageColor,
-            systemTextColor,
-            thinkingBackgroundColor,
-            thinkingTextColor,
-            showAttachmentPanel,
-            attachments,
-            onRemoveAttachment,
-            coroutineScope,
-            userMessage,
-            onSendMessage,
-            isBallMode,
-            activeEdge,
-            density,
-            onResize,
-            onAttachmentRequest
-        )
+        FloatingChatWindowMode(floatContext = floatContext)
     }
 }
