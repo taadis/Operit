@@ -1,61 +1,19 @@
 package com.ai.assistance.operit.ui.floating
 
-import FloatingChatWindowMode
-import android.util.Log
+import com.ai.assistance.operit.ui.floating.ui.window.FloatingChatWindowMode
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.times
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.ui.features.chat.attachments.AttachmentManager
-import com.ai.assistance.operit.ui.features.chat.components.AttachmentChip
-import kotlinx.coroutines.CoroutineScope
+import com.ai.assistance.operit.ui.floating.ui.ball.FloatingChatBallMode
+import com.ai.assistance.operit.ui.floating.ui.window.ResizeEdge
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -267,9 +225,17 @@ fun FloatingChatWindow(
     val transitionWindowHeight = with(density) { windowHeightState.toPx() }
 
     // 计算过渡中的尺寸
-    val currentWidth = lerp(transitionBallSize, transitionWindowWidth, ballToWindowTransition.value)
+    val currentWidth = com.ai.assistance.operit.ui.floating.ui.window.lerp(
+        transitionBallSize,
+        transitionWindowWidth,
+        ballToWindowTransition.value
+    )
     val currentHeight =
-            lerp(transitionBallSize, transitionWindowHeight, ballToWindowTransition.value)
+        com.ai.assistance.operit.ui.floating.ui.window.lerp(
+            transitionBallSize,
+            transitionWindowHeight,
+            ballToWindowTransition.value
+        )
     // 修改圆角计算，从球模式到窗口模式时直接使用窗口圆角
     val currentCornerRadius =
             if (useDirectCorners.value && !isBallMode) {

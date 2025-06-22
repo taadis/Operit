@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.floating
+package com.ai.assistance.operit.ui.floating.ui.ball
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas

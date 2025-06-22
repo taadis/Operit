@@ -1,3 +1,5 @@
+package com.ai.assistance.operit.ui.floating.ui.window
+
 import android.util.Log
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
@@ -45,14 +47,10 @@ import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.ui.features.chat.components.AttachmentChip
-import com.ai.assistance.operit.ui.floating.LoadingDotsIndicator
-import com.ai.assistance.operit.ui.floating.ResizeEdge
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.DisposableEffect
-import com.ai.assistance.operit.ui.floating.FloatingAttachmentPanel
-import com.ai.assistance.operit.ui.floating.MessageItem
 
 @Composable
 fun FloatingChatWindowMode(
