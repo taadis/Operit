@@ -17,6 +17,7 @@ class FloatingWindowState(context: Context) {
     val windowWidth = mutableStateOf(300.dp)
     val windowHeight = mutableStateOf(400.dp)
     val windowScale = mutableStateOf(1.0f)
+    var lastWindowScale: Float = 1.0f
 
     // Ball mode state
     val isBallMode = mutableStateOf(false)
@@ -43,6 +44,7 @@ class FloatingWindowState(context: Context) {
             putBoolean("is_ball_mode", isBallMode.value)
             putFloat("ball_size", ballSize.value.value)
             putFloat("window_scale", windowScale.value.coerceIn(0.5f, 1.0f))
+            putFloat("last_window_scale", lastWindowScale.coerceIn(0.5f, 1.0f))
             apply()
         }
     }
@@ -55,5 +57,6 @@ class FloatingWindowState(context: Context) {
         isBallMode.value = prefs.getBoolean("is_ball_mode", false)
         ballSize.value = Dp(prefs.getFloat("ball_size", 56f).coerceAtLeast(40f))
         windowScale.value = prefs.getFloat("window_scale", 1.0f).coerceIn(0.5f, 1.0f)
+        lastWindowScale = prefs.getFloat("last_window_scale", 1.0f).coerceIn(0.5f, 1.0f)
     }
 } 

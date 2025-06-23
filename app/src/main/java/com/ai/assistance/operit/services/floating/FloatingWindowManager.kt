@@ -88,12 +88,17 @@ class FloatingWindowManager(
                 messages = callback.getMessages(),
                 width = state.windowWidth.value,
                 height = state.windowHeight.value,
-                initialWindowScale = state.windowScale.value,
+                windowScale = state.windowScale.value,
+                onScaleChange = { newScale ->
+                    state.windowScale.value = newScale.coerceIn(0.5f, 1.0f)
+                    updateWindowSizeInLayoutParams()
+                    callback.saveState()
+                },
                 onClose = { callback.onClose() },
                 onResize = { newWidth, newHeight ->
                     state.windowWidth.value = newWidth
                     state.windowHeight.value = newHeight
-                    updateViewLayout()
+                    updateWindowSizeInLayoutParams()
                     callback.saveState()
                 },
                 isBallMode = state.isBallMode.value,
@@ -156,6 +161,17 @@ class FloatingWindowManager(
         return params
     }
 
+    private fun updateWindowSizeInLayoutParams() {
+        updateViewLayout { params ->
+            val density = context.resources.displayMetrics.density
+            val scale = state.windowScale.value
+            val widthDp = state.windowWidth.value
+            val heightDp = state.windowHeight.value
+            params.width = (widthDp.value * density * scale).toInt()
+            params.height = (heightDp.value * density * scale).toInt()
+        }
+    }
+
     private fun updateViewLayout(configure: (WindowManager.LayoutParams) -> Unit = {}) {
         composeView?.let { view ->
             val params = view.layoutParams as WindowManager.LayoutParams
@@ -206,6 +222,7 @@ class FloatingWindowManager(
             currentWidth = (state.ballSize.value.value * density).toInt()
             currentHeight = currentWidth
         } else {
+            state.lastWindowScale = state.windowScale.value
             currentWidth =
                     (state.windowWidth.value.value * density * state.windowScale.value).toInt()
             currentHeight =
@@ -216,13 +233,11 @@ class FloatingWindowManager(
         callback.saveState()
 
         updateViewLayout { params ->
-            val newWidth: Int
-            val newHeight: Int
-
             if (state.isBallMode.value) {
+                state.windowScale.value = 1.0f
                 val ballSizeInPx = (state.ballSize.value.value * density).toInt()
-                newWidth = ballSizeInPx
-                newHeight = ballSizeInPx
+                params.width = ballSizeInPx
+                params.height = ballSizeInPx
 
                 if (state.lastBallPositionX != 0 && state.lastBallPositionY != 0) {
                     params.x = state.lastBallPositionX
@@ -234,8 +249,8 @@ class FloatingWindowManager(
                                     params.y,
                                     currentWidth,
                                     currentHeight,
-                                    newWidth,
-                                    newHeight
+                                    ballSizeInPx,
+                                    ballSizeInPx
                             )
                     params.x = centeredX
                     params.y = centeredY
@@ -247,12 +262,12 @@ class FloatingWindowManager(
 
                 state.x = params.x
                 state.y = params.y
-                state.windowScale.value = state.windowScale.value.coerceIn(0.5f, 1.0f)
             } else {
-                newWidth =
-                        (state.windowWidth.value.value * density * state.windowScale.value).toInt()
-                newHeight =
-                        (state.windowHeight.value.value * density * state.windowScale.value).toInt()
+                state.windowScale.value = state.lastWindowScale
+                val newWidth = (state.windowWidth.value.value * density * state.windowScale.value).toInt()
+                val newHeight = (state.windowHeight.value.value * density * state.windowScale.value).toInt()
+                params.width = newWidth
+                params.height = newHeight
 
                 if (state.lastWindowPositionX != 0 && state.lastWindowPositionY != 0) {
                     params.x = state.lastWindowPositionX
@@ -282,7 +297,6 @@ class FloatingWindowManager(
 
                 state.x = params.x
                 state.y = params.y
-                state.windowScale.value = state.windowScale.value.coerceAtLeast(0.6f)
             }
         }
 
