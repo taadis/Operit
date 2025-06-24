@@ -1,16 +1,14 @@
 package com.ai.assistance.operit.ui.floating.ui.fullscreen
 
 import com.ai.assistance.operit.util.stream.Stream
-import com.ai.assistance.operit.util.stream.StreamCollector
 import com.ai.assistance.operit.util.stream.flatMap
-import com.ai.assistance.operit.util.stream.map
 import com.ai.assistance.operit.util.stream.plugins.StreamXmlPlugin
 import com.ai.assistance.operit.util.stream.splitBy
 import com.ai.assistance.operit.util.stream.stream
 
 /**
- * An object responsible for processing a character stream containing XML tags
- * and converting them into a human-readable plain text character stream in a fully streaming manner.
+ * An object responsible for processing a character stream containing XML tags and converting them
+ * into a human-readable plain text character stream in a fully streaming manner.
  */
 object XmlTextProcessor {
 
@@ -22,15 +20,15 @@ object XmlTextProcessor {
     }
 
     /**
-     * Processes a stream of strings, finds XML blocks, converts them to plain text,
-     * and returns a new stream of characters.
+     * Processes a stream of strings, finds XML blocks, converts them to plain text, and returns a
+     * new stream of characters.
      *
      * @param sourceStream The original stream of strings, which may contain XML.
      * @return A stream of characters with XML blocks replaced by plain text.
      */
     fun processStreamToText(sourceStream: Stream<String>): Stream<Char> {
         val xmlPlugin = StreamXmlPlugin(includeTagsInOutput = true)
-        
+
         // 直接使用Stream<String>的splitBy方法
         return sourceStream.splitBy(listOf(xmlPlugin)).flatMap { group ->
             if (group.tag == xmlPlugin) {
@@ -42,7 +40,7 @@ object XmlTextProcessor {
             }
         }
     }
-    
+
     /**
      * Converts a Stream<String> to a Stream<Char> by flattening each string into its characters.
      */
@@ -58,8 +56,7 @@ object XmlTextProcessor {
                     }
                 } else if (char.isWhitespace() && lastCharWasNewline) {
                     // Skip other whitespace if it follows a newline
-                }
-                else {
+                } else {
                     emit(char)
                     lastCharWasNewline = false
                 }
@@ -68,9 +65,9 @@ object XmlTextProcessor {
     }
 
     /**
-     * Transforms a stream of strings representing an XML block
-     * into a stream of characters representing human-readable text.
-     * This works as a state machine to process the stream on the fly.
+     * Transforms a stream of strings representing an XML block into a stream of characters
+     * representing human-readable text. This works as a state machine to process the stream on the
+     * fly.
      */
     private fun transformXmlGroup(xmlStream: Stream<String>): Stream<Char> = stream {
         val collector = this
@@ -88,8 +85,7 @@ object XmlTextProcessor {
                     }
                 } else if (char.isWhitespace() && lastCharWasNewline) {
                     // Skip other whitespace if it follows a newline
-                }
-                else {
+                } else {
                     collector.emit(char)
                     lastCharWasNewline = false
                 }
@@ -116,13 +112,14 @@ object XmlTextProcessor {
                             } else { // It's a start tag
                                 handleStartTag(::emit, tagText)
                             }
-                            
+
                             buffer.clear()
-                            state = if (tagText.endsWith("/>") || tagText.startsWith("</")) {
-                                XmlParserState.Scanning
-                            } else {
-                                XmlParserState.InContent
-                            }
+                            state =
+                                    if (tagText.endsWith("/>") || tagText.startsWith("</")) {
+                                        XmlParserState.Scanning
+                                    } else {
+                                        XmlParserState.InContent
+                                    }
                         }
                     }
                     XmlParserState.InContent -> {
@@ -139,7 +136,7 @@ object XmlTextProcessor {
                 }
             }
         }
-        
+
         // Emit any remaining content in the buffer
         if (state == XmlParserState.InContent && buffer.isNotEmpty()) {
             emit(buffer.toString())
@@ -148,26 +145,29 @@ object XmlTextProcessor {
 
     private suspend fun handleStartTag(emit: suspend (String) -> Unit, tagText: String) {
         val tagName = extractTagName(tagText) ?: return
-        val text = when (tagName) {
-            "think" -> "正在思考...\n"
-            "tool" -> "\n正在调用工具: ${extractAttribute(tagText, "name") ?: "未知"}"
-            "param" -> "\n- ${extractAttribute(tagText, "name") ?: "参数"}: "
-            "tool_result" -> "\n工具 '${extractAttribute(tagText, "name") ?: "未知"}' 执行${if (extractAttribute(tagText, "status") == "success") "成功" else "失败"}: "
-            "status" -> "\n状态更新 (${extractAttribute(tagText, "type") ?: "info"}): "
-            "plan_item" -> "\n计划项 (${extractAttribute(tagText, "status") ?: "todo"}): "
-            "plan_update" -> "\n计划更新 (${extractAttribute(tagText, "status") ?: "info"}): "
-            "content", "error" -> "" // These tags just wrap content, no prefix needed
-            else -> tagText // For unknown tags, show them as is
-        }
+        val text =
+                when (tagName) {
+                    "think" -> "正在思考...\n"
+                    "tool" -> "\n正在调用工具: ${extractAttribute(tagText, "name") ?: "未知"}"
+                    "param" -> "\n- ${extractAttribute(tagText, "name") ?: "参数"}: "
+                    "tool_result" ->
+                            "\n工具 '${extractAttribute(tagText, "name") ?: "未知"}' 执行${if (extractAttribute(tagText, "status") == "success") "成功" else "失败"}: "
+                    "status" -> ""
+                    "plan_item" -> "\n计划项 (${extractAttribute(tagText, "status") ?: "todo"}): "
+                    "plan_update" -> "\n计划更新 (${extractAttribute(tagText, "status") ?: "info"}): "
+                    "content", "error" -> "" // These tags just wrap content, no prefix needed
+                    else -> tagText // For unknown tags, show them as is
+                }
         emit(text)
     }
-    
+
     private suspend fun handleEndTag(emit: suspend (String) -> Unit, tagText: String) {
         val tagName = extractTagName(tagText) ?: return
-        val text = when (tagName) {
-             "tool", "think", "tool_result" -> "\n"
-            else -> "" // Most end tags don't need a suffix
-        }
+        val text =
+                when (tagName) {
+                    "tool", "think", "tool_result" -> "\n"
+                    else -> "" // Most end tags don't need a suffix
+                }
         emit(text)
     }
 
@@ -180,4 +180,4 @@ object XmlTextProcessor {
         val regex = "$attributeName=\"([^\"]+)\"".toRegex()
         return regex.find(tagText)?.groupValues?.getOrNull(1)
     }
-} 
+}
