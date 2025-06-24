@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.api
+package com.ai.assistance.operit.api.chat
 
 import android.app.Notification
 import android.app.NotificationChannel

@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.ai.assistance.operit.api.chat.EnhancedAIService
 import com.ai.assistance.operit.data.model.ModelConfigData
 import com.ai.assistance.operit.data.model.ModelParameter
 import com.ai.assistance.operit.data.model.ParameterCategory
@@ -311,7 +312,7 @@ fun ModelParametersSection(
                     configManager.saveModelConfig(updatedConfig)
 
                     // 刷新所有AI服务实例，确保使用最新配置
-                    com.ai.assistance.operit.api.EnhancedAIService.refreshAllServices(
+                    EnhancedAIService.refreshAllServices(
                             configManager.appContext
                     )
 

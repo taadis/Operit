@@ -20,7 +20,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.ai.assistance.operit.api.ModelListFetcher
+import com.ai.assistance.operit.api.chat.EnhancedAIService
+import com.ai.assistance.operit.api.chat.ModelListFetcher
 import com.ai.assistance.operit.data.model.ApiProviderType
 import com.ai.assistance.operit.data.model.ModelConfigData
 import com.ai.assistance.operit.data.model.ModelOption
@@ -424,7 +425,7 @@ fun ModelApiSettingsSection(
                                 )
 
                                 // 刷新所有AI服务实例，确保使用最新配置
-                                com.ai.assistance.operit.api.EnhancedAIService.refreshAllServices(
+                                EnhancedAIService.refreshAllServices(
                                         configManager.appContext
                                 )
 

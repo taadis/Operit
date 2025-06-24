@@ -1,9 +1,9 @@
-package com.ai.assistance.operit.api.enhance
+package com.ai.assistance.operit.api.chat.enhance
 
 import android.content.Context
 import android.util.Log
-import com.ai.assistance.operit.api.AIService
-import com.ai.assistance.operit.api.AIServiceFactory
+import com.ai.assistance.operit.api.chat.AIService
+import com.ai.assistance.operit.api.chat.AIServiceFactory
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.model.ModelConfigData
 import com.ai.assistance.operit.data.preferences.FunctionalConfigManager

@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.api.enhance
+package com.ai.assistance.operit.api.chat.enhance
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay

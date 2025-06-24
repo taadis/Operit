@@ -33,6 +33,8 @@ import com.ai.assistance.operit.ui.features.toolbox.screens.TerminalToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.ToolboxScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.UIDebuggerToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.ffmpegtoolbox.FFmpegToolboxScreen
+import com.ai.assistance.operit.ui.features.toolbox.screens.speechtotext.SpeechToTextToolScreen
+import com.ai.assistance.operit.ui.features.toolbox.screens.texttospeech.TextToSpeechToolScreen
 
 // 路由配置类
 typealias ScreenNavigationHandler = (Screen) -> Unit
@@ -143,7 +145,9 @@ sealed class Screen(
                     onFFmpegToolboxSelected = { navigateTo(FFmpegToolbox) },
                     onShellExecutorSelected = { navigateTo(ShellExecutor) },
                     onLogcatSelected = { navigateTo(Logcat) },
-                    onMarkdownDemoSelected = { navigateTo(MarkdownDemo) }
+                    onMarkdownDemoSelected = { navigateTo(MarkdownDemo) },
+                    onTextToSpeechSelected = { navigateTo(TextToSpeech) },
+                    onSpeechToTextSelected = { navigateTo(SpeechToText) }
             )
         }
     }
@@ -600,6 +604,39 @@ sealed class Screen(
                         updateNavItem(NavItem.Toolbox)
                     }
             )
+        }
+    }
+
+    // 在MarkdownDemo对象后添加TextToSpeech对象
+    data object TextToSpeech :
+            Screen(parentScreen = Toolbox, navItem = NavItem.Toolbox, titleRes = "文本转语音") {
+        @Composable
+        override fun Content(
+                navController: NavController,
+                navigateTo: ScreenNavigationHandler,
+                updateNavItem: NavItemChangeHandler,
+                hasBackgroundImage: Boolean,
+                onLoading: (Boolean) -> Unit,
+                onError: (String) -> Unit,
+                onGestureConsumed: (Boolean) -> Unit
+        ) {
+            TextToSpeechToolScreen(navController = navController)
+        }
+    }
+
+    // Tools screens
+    data object SpeechToText : Screen(parentScreen = Toolbox, navItem = NavItem.Toolbox, titleRes = "语音识别") {
+        @Composable
+        override fun Content(
+                navController: NavController,
+                navigateTo: ScreenNavigationHandler,
+                updateNavItem: NavItemChangeHandler,
+                hasBackgroundImage: Boolean,
+                onLoading: (Boolean) -> Unit,
+                onError: (String) -> Unit,
+                onGestureConsumed: (Boolean) -> Unit
+        ) {
+            SpeechToTextToolScreen(navController = navController)
         }
     }
 

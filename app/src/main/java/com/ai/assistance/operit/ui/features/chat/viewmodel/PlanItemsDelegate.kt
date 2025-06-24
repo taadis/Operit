@@ -2,7 +2,7 @@ package com.ai.assistance.operit.ui.features.chat.viewmodel
 
 import android.util.Log
 import androidx.lifecycle.viewModelScope
-import com.ai.assistance.operit.api.EnhancedAIService
+import com.ai.assistance.operit.api.chat.EnhancedAIService
 import com.ai.assistance.operit.data.model.InputProcessingState
 import com.ai.assistance.operit.data.model.PlanItem
 import kotlinx.coroutines.CoroutineScope

@@ -3,7 +3,7 @@ package com.ai.assistance.operit.ui.features.chat.viewmodel
 import android.content.Context
 import android.util.Log
 import androidx.lifecycle.viewModelScope
-import com.ai.assistance.operit.api.EnhancedAIService
+import com.ai.assistance.operit.api.chat.EnhancedAIService
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.model.InputProcessingState as EnhancedInputProcessingState

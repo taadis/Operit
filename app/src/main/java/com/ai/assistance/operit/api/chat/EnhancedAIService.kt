@@ -1,16 +1,15 @@
-package com.ai.assistance.operit.api
+package com.ai.assistance.operit.api.chat
 
 import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.util.Log
-import com.ai.assistance.operit.api.enhance.ConversationMarkupManager
-import com.ai.assistance.operit.api.enhance.ConversationRoundManager
-import com.ai.assistance.operit.api.enhance.ConversationService
-import com.ai.assistance.operit.api.enhance.InputProcessor
-import com.ai.assistance.operit.api.enhance.MultiServiceManager
-import com.ai.assistance.operit.api.enhance.ToolExecutionManager
-import com.ai.assistance.operit.api.library.ProblemLibrary
+import com.ai.assistance.operit.api.chat.enhance.ConversationMarkupManager
+import com.ai.assistance.operit.api.chat.enhance.ConversationRoundManager
+import com.ai.assistance.operit.api.chat.enhance.ConversationService
+import com.ai.assistance.operit.api.chat.enhance.InputProcessor
+import com.ai.assistance.operit.api.chat.enhance.MultiServiceManager
+import com.ai.assistance.operit.api.chat.enhance.ToolExecutionManager
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.core.tools.StringResultData
 import com.ai.assistance.operit.core.tools.packTool.PackageManager
@@ -208,7 +207,7 @@ class EnhancedAIService private constructor(private val context: Context) {
 
     // 初始化问题库
     init {
-        ProblemLibrary.initialize(context)
+        com.ai.assistance.operit.api.chat.library.ProblemLibrary.initialize(context)
         // 初始化 MultiServiceManager
         runBlocking { multiServiceManager.initialize() }
     }
@@ -755,7 +754,7 @@ class EnhancedAIService private constructor(private val context: Context) {
 
         // 保存问题记录到库
         toolProcessingScope.launch {
-            ProblemLibrary.saveProblemAsync(
+            com.ai.assistance.operit.api.chat.library.ProblemLibrary.saveProblemAsync(
                     context,
                     toolHandler,
                     conversationHistory,

@@ -1,0 +1,4 @@
+*.so filter=lfs diff=lfs merge=lfs -text
+*.ncnn.bin filter=lfs diff=lfs merge=lfs -text
+windows.zip filter=lfs diff=lfs merge=lfs -text
+android.apk filter=lfs diff=lfs merge=lfs -text

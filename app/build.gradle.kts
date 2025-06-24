@@ -21,6 +21,10 @@ android {
             useSupportLibrary = true
         }
         
+        // ndk {
+        //     // 只使用armeabi-v7a架构，因为只有这个架构有libsherpa-ncnn-jni.so库
+        //     abiFilters.add("armeabi-v7a")
+        // }
     }
 
     buildTypes {

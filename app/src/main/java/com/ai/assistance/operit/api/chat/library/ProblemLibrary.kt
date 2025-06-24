@@ -1,8 +1,8 @@
-package com.ai.assistance.operit.api.library
+package com.ai.assistance.operit.api.chat.library
 
 import android.content.Context
 import android.util.Log
-import com.ai.assistance.operit.api.AIService
+import com.ai.assistance.operit.api.chat.AIService
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.preferencesManager
@@ -35,30 +35,30 @@ object ProblemLibrary {
     /** 初始化问题库 */
     fun initialize(context: Context) {
         // 添加同步锁和初始化检查，确保只初始化一次
-        synchronized(ProblemLibrary::class.java) {
-            if (isInitialized) {
+        synchronized(com.ai.assistance.operit.api.chat.library.ProblemLibrary::class.java) {
+            if (com.ai.assistance.operit.api.chat.library.ProblemLibrary.isInitialized) {
                 // Log.d(TAG, "ProblemLibrary 已经初始化，跳过重复初始化")
                 return
             }
 
-            Log.d(TAG, "正在初始化 ProblemLibrary")
-            apiPreferences = ApiPreferences(context.applicationContext)
+            Log.d(com.ai.assistance.operit.api.chat.library.ProblemLibrary.TAG, "正在初始化 ProblemLibrary")
+            com.ai.assistance.operit.api.chat.library.ProblemLibrary.apiPreferences = ApiPreferences(context.applicationContext)
 
             // 初始化分词器
             TextSegmenter.initialize(context.applicationContext)
 
             // 后台预热分词器
-            coroutineScope.launch {
+            com.ai.assistance.operit.api.chat.library.ProblemLibrary.coroutineScope.launch {
                 try {
-                    prewarmSegmenter()
-                    Log.d(TAG, "分词器预热完成")
+                    com.ai.assistance.operit.api.chat.library.ProblemLibrary.prewarmSegmenter()
+                    Log.d(com.ai.assistance.operit.api.chat.library.ProblemLibrary.TAG, "分词器预热完成")
                 } catch (e: Exception) {
-                    Log.e(TAG, "分词器预热失败", e)
+                    Log.e(com.ai.assistance.operit.api.chat.library.ProblemLibrary.TAG, "分词器预热失败", e)
                 }
             }
 
-            isInitialized = true
-            Log.d(TAG, "ProblemLibrary 初始化完成")
+            com.ai.assistance.operit.api.chat.library.ProblemLibrary.isInitialized = true
+            Log.d(com.ai.assistance.operit.api.chat.library.ProblemLibrary.TAG, "ProblemLibrary 初始化完成")
         }
     }
 
@@ -80,23 +80,28 @@ object ProblemLibrary {
             content: String,
             aiService: AIService
     ) {
-        ensureInitialized(context)
+        com.ai.assistance.operit.api.chat.library.ProblemLibrary.ensureInitialized(context)
 
-        coroutineScope.launch {
+        com.ai.assistance.operit.api.chat.library.ProblemLibrary.coroutineScope.launch {
             try {
-                saveProblem(toolHandler, conversationHistory, content, aiService)
+                com.ai.assistance.operit.api.chat.library.ProblemLibrary.saveProblem(
+                    toolHandler,
+                    conversationHistory,
+                    content,
+                    aiService
+                )
             } catch (e: Exception) {
-                Log.e(TAG, "保存问题记录失败", e)
+                Log.e(com.ai.assistance.operit.api.chat.library.ProblemLibrary.TAG, "保存问题记录失败", e)
             }
         }
     }
 
     /** 确保已初始化 */
     private fun ensureInitialized(context: Context) {
-        if (!isInitialized) {
-            synchronized(ProblemLibrary::class.java) {
-                if (!isInitialized) {
-                    initialize(context)
+        if (!com.ai.assistance.operit.api.chat.library.ProblemLibrary.isInitialized) {
+            synchronized(com.ai.assistance.operit.api.chat.library.ProblemLibrary::class.java) {
+                if (!com.ai.assistance.operit.api.chat.library.ProblemLibrary.isInitialized) {
+                    com.ai.assistance.operit.api.chat.library.ProblemLibrary.initialize(context)
                 }
             }
         }
@@ -111,7 +116,7 @@ object ProblemLibrary {
     ) {
         // 检查会话历史是否为空
         if (conversationHistory.isEmpty()) {
-            Log.w(TAG, "会话历史为空，跳过保存问题记录")
+            Log.w(com.ai.assistance.operit.api.chat.library.ProblemLibrary.TAG, "会话历史为空，跳过保存问题记录")
             return
         }
 
@@ -122,16 +127,21 @@ object ProblemLibrary {
         // 获取用户最后一条消息作为查询
         val query = conversationHistory.lastOrNull { it.first == "user" }?.second ?: ""
         if (query.isEmpty()) {
-            Log.w(TAG, "未找到用户查询消息，使用空字符串")
+            Log.w(com.ai.assistance.operit.api.chat.library.ProblemLibrary.TAG, "未找到用户查询消息，使用空字符串")
         }
 
         // 生成问题分析
         val analysisResults =
                 try {
-                    generateAnalysis(aiService, query, content, conversationHistory)
+                    com.ai.assistance.operit.api.chat.library.ProblemLibrary.generateAnalysis(
+                        aiService,
+                        query,
+                        content,
+                        conversationHistory
+                    )
                 } catch (e: Exception) {
-                    Log.e(TAG, "生成分析失败", e)
-                    AnalysisResults()
+                    Log.e(com.ai.assistance.operit.api.chat.library.ProblemLibrary.TAG, "生成分析失败", e)
+                    com.ai.assistance.operit.api.chat.library.ProblemLibrary.AnalysisResults()
                 }
 
         // 更新用户偏好
@@ -139,38 +149,40 @@ object ProblemLibrary {
             try {
                 withContext(Dispatchers.IO) {
                     // 解析生成的偏好文本，尝试更新各个分类
-                    updateUserPreferencesFromAnalysis(analysisResults.userPreferences)
-                    Log.d(TAG, "用户偏好已更新")
+                    com.ai.assistance.operit.api.chat.library.ProblemLibrary.updateUserPreferencesFromAnalysis(
+                        analysisResults.userPreferences
+                    )
+                    Log.d(com.ai.assistance.operit.api.chat.library.ProblemLibrary.TAG, "用户偏好已更新")
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "更新用户偏好失败", e)
+                Log.e(com.ai.assistance.operit.api.chat.library.ProblemLibrary.TAG, "更新用户偏好失败", e)
             }
         }
 
         // 创建问题记录
         val record =
-                ProblemLibraryTool.ProblemRecord(
-                        uuid = java.util.UUID.randomUUID().toString(),
-                        query = query,
-                        solution =
-                                if (analysisResults.solutionSummary.isNotEmpty())
-                                        analysisResults.solutionSummary
-                                else content.take(300),
-                        tools = tools,
-                        summary = analysisResults.problemSummary
-                )
+            com.ai.assistance.operit.api.chat.library.ProblemLibraryTool.ProblemRecord(
+                uuid = java.util.UUID.randomUUID().toString(),
+                query = query,
+                solution =
+                if (analysisResults.solutionSummary.isNotEmpty())
+                    analysisResults.solutionSummary
+                else content.take(300),
+                tools = tools,
+                summary = analysisResults.problemSummary
+            )
 
         // 保存问题记录到 ProblemLibraryTool
         try {
             val problemLibraryTool = toolHandler.getProblemLibraryTool()
             if (problemLibraryTool != null) {
                 problemLibraryTool.saveProblemRecord(record)
-                Log.d(TAG, "问题记录已保存: ${record.uuid}")
+                Log.d(com.ai.assistance.operit.api.chat.library.ProblemLibrary.TAG, "问题记录已保存: ${record.uuid}")
             } else {
-                Log.e(TAG, "保存问题记录失败: ProblemLibraryTool 未初始化")
+                Log.e(com.ai.assistance.operit.api.chat.library.ProblemLibrary.TAG, "保存问题记录失败: ProblemLibraryTool 未初始化")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "保存问题记录失败", e)
+            Log.e(com.ai.assistance.operit.api.chat.library.ProblemLibrary.TAG, "保存问题记录失败", e)
         }
     }
 
@@ -180,14 +192,17 @@ object ProblemLibrary {
             query: String,
             solution: String,
             conversationHistory: List<Pair<String, String>>
-    ): AnalysisResults {
+    ): com.ai.assistance.operit.api.chat.library.ProblemLibrary.AnalysisResults {
         try {
             // 获取当前的用户偏好
             val currentPreferences =
                     withContext(Dispatchers.IO) {
                         var preferences = ""
                         preferencesManager.getUserPreferencesFlow().take(1).collect { profile ->
-                            preferences = buildPreferencesText(profile)
+                            preferences =
+                                com.ai.assistance.operit.api.chat.library.ProblemLibrary.buildPreferencesText(
+                                    profile
+                                )
                         }
                         preferences
                     }
@@ -237,7 +252,12 @@ object ProblemLibrary {
             """.trimIndent()
 
             // 构建分析消息
-            val analysisMessage = buildAnalysisMessage(query, solution, conversationHistory)
+            val analysisMessage =
+                com.ai.assistance.operit.api.chat.library.ProblemLibrary.buildAnalysisMessage(
+                    query,
+                    solution,
+                    conversationHistory
+                )
 
             // 准备消息
             val messages = listOf(Pair("system", systemPrompt), Pair("user", analysisMessage))
@@ -256,16 +276,18 @@ object ProblemLibrary {
             }
 
             // 更新token统计
-            apiPreferences?.updatePreferenceAnalysisTokens(
+            com.ai.assistance.operit.api.chat.library.ProblemLibrary.apiPreferences?.updatePreferenceAnalysisTokens(
                     aiService.inputTokenCount,
                     aiService.outputTokenCount
             )
 
             // 解析结果
-            return parseAnalysisResult(ChatUtils.removeThinkingContent(result.toString()))
+            return com.ai.assistance.operit.api.chat.library.ProblemLibrary.parseAnalysisResult(
+                ChatUtils.removeThinkingContent(result.toString())
+            )
         } catch (e: Exception) {
-            Log.e(TAG, "生成分析失败", e)
-            return AnalysisResults()
+            Log.e(com.ai.assistance.operit.api.chat.library.ProblemLibrary.TAG, "生成分析失败", e)
+            return com.ai.assistance.operit.api.chat.library.ProblemLibrary.AnalysisResults()
         }
     }
 
@@ -298,7 +320,7 @@ object ProblemLibrary {
     }
 
     /** 解析分析结果 */
-    private fun parseAnalysisResult(jsonString: String): AnalysisResults {
+    private fun parseAnalysisResult(jsonString: String): com.ai.assistance.operit.api.chat.library.ProblemLibrary.AnalysisResults {
         return try {
             // 清理非JSON前缀
             val cleanJson =
@@ -379,14 +401,18 @@ object ProblemLibrary {
                         json.optString("user_preferences", "")
                     }
 
-            AnalysisResults(
-                    problemSummary = json.optString("problem_summary", "").take(500),
-                    userPreferences = userPreferences.take(200),
-                    solutionSummary = json.optString("solution_summary", "").take(1000)
+            com.ai.assistance.operit.api.chat.library.ProblemLibrary.AnalysisResults(
+                problemSummary = json.optString("problem_summary", "").take(500),
+                userPreferences = userPreferences.take(200),
+                solutionSummary = json.optString("solution_summary", "").take(1000)
             )
         } catch (e: Exception) {
-            Log.e(TAG, "解析分析结果失败", e)
-            AnalysisResults(problemSummary = jsonString.take(200))
+            Log.e(com.ai.assistance.operit.api.chat.library.ProblemLibrary.TAG, "解析分析结果失败", e)
+            com.ai.assistance.operit.api.chat.library.ProblemLibrary.AnalysisResults(
+                problemSummary = jsonString.take(
+                    200
+                )
+            )
         }
     }
 
@@ -479,7 +505,7 @@ object ProblemLibrary {
                     birthDateTimestamp = date.time
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "解析出生日期失败: ${e.message}")
+                Log.e(com.ai.assistance.operit.api.chat.library.ProblemLibrary.TAG, "解析出生日期失败: ${e.message}")
             }
         } else if (birthYearMatch != null) {
             // 只有年份，设置为当年1月1日
@@ -490,7 +516,7 @@ object ProblemLibrary {
                 calendar.set(java.util.Calendar.MILLISECOND, 0)
                 birthDateTimestamp = calendar.timeInMillis
             } catch (e: Exception) {
-                Log.e(TAG, "解析出生年份失败: ${e.message}")
+                Log.e(com.ai.assistance.operit.api.chat.library.ProblemLibrary.TAG, "解析出生年份失败: ${e.message}")
             }
         }
 
@@ -514,9 +540,9 @@ object ProblemLibrary {
         if (aiStyleMatch != null) updatedFields.add("AI风格偏好")
 
         if (updatedFields.isNotEmpty()) {
-            Log.d(TAG, "已更新用户偏好字段: ${updatedFields.joinToString(", ")}")
+            Log.d(com.ai.assistance.operit.api.chat.library.ProblemLibrary.TAG, "已更新用户偏好字段: ${updatedFields.joinToString(", ")}")
         } else {
-            Log.d(TAG, "未从文本中提取到新的用户偏好信息")
+            Log.d(com.ai.assistance.operit.api.chat.library.ProblemLibrary.TAG, "未从文本中提取到新的用户偏好信息")
         }
     }
 }

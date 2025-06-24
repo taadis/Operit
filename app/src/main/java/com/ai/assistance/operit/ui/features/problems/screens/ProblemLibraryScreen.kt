@@ -33,7 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.ai.assistance.operit.R
-import com.ai.assistance.operit.api.library.ProblemLibraryTool
+import com.ai.assistance.operit.api.chat.library.ProblemLibraryTool
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.ui.features.problems.viewmodel.ProblemLibraryViewModel
 import java.text.SimpleDateFormat

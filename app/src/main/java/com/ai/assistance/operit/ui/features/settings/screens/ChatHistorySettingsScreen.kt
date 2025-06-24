@@ -51,7 +51,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.ai.assistance.operit.api.library.ProblemLibraryTool
+import com.ai.assistance.operit.api.chat.library.ProblemLibraryTool
 import com.ai.assistance.operit.data.model.ChatHistory
 import com.ai.assistance.operit.data.repository.ChatHistoryManager
 import com.google.gson.GsonBuilder

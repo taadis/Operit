@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.api.library
+package com.ai.assistance.operit.api.chat.library
 
 import android.content.Context
 import android.util.Log

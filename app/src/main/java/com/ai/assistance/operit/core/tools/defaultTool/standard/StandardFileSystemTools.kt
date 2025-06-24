@@ -2,6 +2,7 @@ package com.ai.assistance.operit.core.tools.defaultTool.standard
 
 import android.content.Context
 import android.util.Log
+import com.ai.assistance.operit.api.chat.EnhancedAIService
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.core.tools.DirectoryListingData
 import com.ai.assistance.operit.core.tools.FileApplyResultData
@@ -1763,8 +1764,7 @@ open class StandardFileSystemTools(protected val context: Context) {
             val originalContent = (readResult.result as? FileContentData)?.content ?: ""
 
             // 2. 使用EnhancedAIService处理文件绑定
-            val enhancedAIService =
-                    com.ai.assistance.operit.api.EnhancedAIService.getInstance(context)
+            val enhancedAIService = EnhancedAIService.getInstance(context)
             val bindingResult = enhancedAIService.applyFileBinding(originalContent, aiGeneratedCode)
             val mergedContent = bindingResult.first
             val aiInstructions = bindingResult.second

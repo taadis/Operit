@@ -2,8 +2,8 @@ package com.ai.assistance.operit.core.tools
 
 import android.content.Context
 import android.util.Log
-import com.ai.assistance.operit.api.enhance.ConversationMarkupManager
-import com.ai.assistance.operit.api.library.ProblemLibraryTool
+import com.ai.assistance.operit.api.chat.enhance.ConversationMarkupManager
+import com.ai.assistance.operit.api.chat.library.ProblemLibraryTool
 import com.ai.assistance.operit.core.tools.packTool.PackageManager
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolExecutionProgress

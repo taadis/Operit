@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.api.enhance
+package com.ai.assistance.operit.api.chat.enhance
 
 import android.util.Log
 import java.util.concurrent.atomic.AtomicInteger

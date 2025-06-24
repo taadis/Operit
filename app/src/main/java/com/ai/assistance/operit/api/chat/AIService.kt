@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.api
+package com.ai.assistance.operit.api.chat
 
 import com.ai.assistance.operit.data.model.ModelParameter
 import com.ai.assistance.operit.data.model.ModelOption

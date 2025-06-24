@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.api.enhance
+package com.ai.assistance.operit.api.chat.enhance
 
 import android.util.Log
 import com.ai.assistance.operit.core.tools.AIToolHandler

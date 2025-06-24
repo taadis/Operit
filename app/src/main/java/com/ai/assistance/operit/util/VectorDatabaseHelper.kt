@@ -2,7 +2,7 @@ package com.ai.assistance.operit.util
 
 import android.content.Context
 import android.util.Log
-import com.ai.assistance.operit.api.library.ProblemLibraryTool
+import com.ai.assistance.operit.api.chat.library.ProblemLibraryTool
 import com.ai.assistance.operit.data.db.AppDatabase
 import com.ai.assistance.operit.data.db.ProblemEntity
 import com.github.jelmerk.knn.Item
