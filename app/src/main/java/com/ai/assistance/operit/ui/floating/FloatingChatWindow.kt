@@ -8,6 +8,8 @@ import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.ui.floating.ui.ball.FloatingChatBallMode
+import com.ai.assistance.operit.ui.floating.ui.fullscreen.FloatingFullscreenMode
+import com.ai.assistance.operit.ui.floating.ui.live2d.FloatingLive2dMode
 import com.ai.assistance.operit.ui.floating.ui.window.FloatingChatWindowMode
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -20,11 +22,12 @@ import kotlinx.coroutines.launch
  * @param height 窗口高度
  * @param onClose 关闭窗口的回调
  * @param onResize 调整窗口大小的回调
- * @param isBallMode 是否为球模式
  * @param ballSize 球的大小
  * @param windowScale 窗口缩放比例
  * @param onScaleChange 缩放比例变化的回调
- * @param onToggleBallMode 切换球模式的回调
+ * @param currentMode 当前的显示模式 (窗口或球)
+ * @param previousMode 上一个显示模式，用于回退
+ * @param onModeChange 模式切换的回调
  * @param onMove 悬浮窗移动的回调，传递相对移动距离和当前缩放比例
  * @param snapToEdge 靠边收起的回调
  * @param isAtEdge 是否处于屏幕边缘
@@ -46,11 +49,12 @@ fun FloatingChatWindow(
         height: Dp,
         onClose: () -> Unit,
         onResize: (Dp, Dp) -> Unit,
-        isBallMode: Boolean = false,
         ballSize: Dp = 48.dp,
         windowScale: Float = 1.0f,
         onScaleChange: (Float) -> Unit = {},
-        onToggleBallMode: () -> Unit = {},
+        currentMode: FloatingMode = FloatingMode.WINDOW,
+        previousMode: FloatingMode = FloatingMode.WINDOW,
+        onModeChange: (FloatingMode) -> Unit = {},
         onMove: (Float, Float, Float) -> Unit = { _, _, _ -> },
         snapToEdge: (Boolean) -> Unit = { _ -> },
         isAtEdge: Boolean = false,
@@ -74,7 +78,9 @@ fun FloatingChatWindow(
         ballSize = ballSize,
         windowScale = windowScale,
         onScaleChange = onScaleChange,
-        onToggleBallMode = onToggleBallMode,
+        currentMode = currentMode,
+        previousMode = previousMode,
+        onModeChange = onModeChange,
         onMove = onMove,
         snapToEdge = snapToEdge,
         isAtEdge = isAtEdge,
@@ -106,10 +112,11 @@ fun FloatingChatWindow(
         }
     }
 
-    // 根据isBallMode参数渲染对应界面
-    if (isBallMode) {
-        FloatingChatBallMode(floatContext = floatContext)
-    } else {
-        FloatingChatWindowMode(floatContext = floatContext)
+    // 根据currentMode参数渲染对应界面
+    when (floatContext.currentMode) {
+        FloatingMode.WINDOW -> FloatingChatWindowMode(floatContext = floatContext)
+        FloatingMode.BALL -> FloatingChatBallMode(floatContext = floatContext)
+        FloatingMode.FULLSCREEN -> FloatingFullscreenMode(floatContext = floatContext)
+        FloatingMode.LIVE2D -> FloatingLive2dMode(floatContext = floatContext)
     }
 }

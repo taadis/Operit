@@ -21,6 +21,7 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.ui.floating.FloatingChatWindow
+import com.ai.assistance.operit.ui.floating.FloatingMode
 
 interface FloatingWindowCallback {
     fun onClose()
@@ -101,9 +102,10 @@ class FloatingWindowManager(
                     updateWindowSizeInLayoutParams()
                     callback.saveState()
                 },
-                isBallMode = state.isBallMode.value,
+                currentMode = state.currentMode.value,
+                previousMode = state.previousMode,
                 ballSize = state.ballSize.value,
-                onToggleBallMode = { onToggleBallMode() },
+                onModeChange = { newMode -> switchMode(newMode) },
                 onMove = { dx, dy, scale -> onMove(dx, dy, scale) },
                 saveWindowState = { callback.saveState() },
                 onSendMessage = { callback.onSendMessage(it) },
@@ -115,45 +117,67 @@ class FloatingWindowManager(
     }
 
     private fun createLayoutParams(): WindowManager.LayoutParams {
-        val params =
-                WindowManager.LayoutParams(
-                        WindowManager.LayoutParams.WRAP_CONTENT,
-                        WindowManager.LayoutParams.WRAP_CONTENT,
-                        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-                        PixelFormat.TRANSLUCENT
-                )
-        params.gravity = Gravity.TOP or Gravity.START
-
         val displayMetrics = context.resources.displayMetrics
         val screenWidth = displayMetrics.widthPixels
         val screenHeight = displayMetrics.heightPixels
         val density = displayMetrics.density
 
-        if (state.isBallMode.value) {
-            val ballSizeInPx = (state.ballSize.value.value * density).toInt()
-            val safeMargin = (16 * density).toInt()
-            val minVisible = ballSizeInPx / 2
-            state.x =
-                    state.x.coerceIn(
-                            -ballSizeInPx + minVisible + safeMargin,
-                            screenWidth - minVisible - safeMargin
-                    )
-            state.y = state.y.coerceIn(safeMargin, screenHeight - minVisible - safeMargin)
-        } else {
-            val windowWidth =
-                    (state.windowWidth.value.value * density * state.windowScale.value).toInt()
-            val windowHeight =
-                    (state.windowHeight.value.value * density * state.windowScale.value).toInt()
-            val minVisibleWidth = (windowWidth * 2 / 3)
-            val safeMargin = (20 * density).toInt()
-            state.x =
-                    state.x.coerceIn(
-                            -(windowWidth - minVisibleWidth) + safeMargin,
-                            screenWidth - minVisibleWidth - safeMargin
-                    )
-            state.y = state.y.coerceIn(safeMargin, screenHeight - (windowHeight / 2) - safeMargin)
+        val params =
+                WindowManager.LayoutParams(
+                        0, // width
+                        0, // height
+                        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                        0, // flags
+                        PixelFormat.TRANSLUCENT
+                )
+        params.gravity = Gravity.TOP or Gravity.START
+
+        when (state.currentMode.value) {
+            FloatingMode.FULLSCREEN -> {
+                params.width = WindowManager.LayoutParams.MATCH_PARENT
+                params.height = WindowManager.LayoutParams.MATCH_PARENT
+                params.flags = 0 // Focusable
+                state.x = 0
+                state.y = 0
+            }
+            FloatingMode.BALL -> {
+                val ballSizeInPx = (state.ballSize.value.value * density).toInt()
+                params.width = ballSizeInPx
+                params.height = ballSizeInPx
+                params.flags =
+                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+
+                val safeMargin = (16 * density).toInt()
+                val minVisible = ballSizeInPx / 2
+                state.x =
+                        state.x.coerceIn(
+                                -ballSizeInPx + minVisible + safeMargin,
+                                screenWidth - minVisible - safeMargin
+                        )
+                state.y = state.y.coerceIn(safeMargin, screenHeight - minVisible - safeMargin)
+            }
+            FloatingMode.WINDOW,
+            FloatingMode.LIVE2D -> {
+                val scale = state.windowScale.value
+                val windowWidthDp = state.windowWidth.value
+                val windowHeightDp = state.windowHeight.value
+                params.width = (windowWidthDp.value * density * scale).toInt()
+                params.height = (windowHeightDp.value * density * scale).toInt()
+                params.flags =
+                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+
+                val minVisibleWidth = (params.width * 2 / 3)
+                val safeMargin = (20 * density).toInt()
+                state.x =
+                        state.x.coerceIn(
+                                -(params.width - minVisibleWidth) + safeMargin,
+                                screenWidth - minVisibleWidth - safeMargin
+                        )
+                state.y =
+                        state.y.coerceIn(safeMargin, screenHeight - (params.height / 2) - safeMargin)
+            }
         }
 
         params.x = state.x
@@ -195,20 +219,12 @@ class FloatingWindowManager(
         return Pair(newX, newY)
     }
 
-    private fun onToggleBallMode() {
-        if (state.isTransitioning) return
+    private fun switchMode(newMode: FloatingMode) {
+        if (state.isTransitioning || state.currentMode.value == newMode) return
         state.isTransitioning = true
 
         val view = composeView ?: return
         val currentParams = view.layoutParams as WindowManager.LayoutParams
-
-        if (state.isBallMode.value) {
-            state.lastBallPositionX = currentParams.x
-            state.lastBallPositionY = currentParams.y
-        } else {
-            state.lastWindowPositionX = currentParams.x
-            state.lastWindowPositionY = currentParams.y
-        }
 
         val displayMetrics = context.resources.displayMetrics
         val screenWidth = displayMetrics.widthPixels
@@ -218,113 +234,138 @@ class FloatingWindowManager(
         val currentWidth: Int
         val currentHeight: Int
 
-        if (state.isBallMode.value) {
-            currentWidth = (state.ballSize.value.value * density).toInt()
-            currentHeight = currentWidth
-        } else {
-            state.lastWindowScale = state.windowScale.value
-            currentWidth =
-                    (state.windowWidth.value.value * density * state.windowScale.value).toInt()
-            currentHeight =
-                    (state.windowHeight.value.value * density * state.windowScale.value).toInt()
+        // Logic for leaving a mode
+        state.previousMode = state.currentMode.value
+        when (state.currentMode.value) {
+            FloatingMode.BALL -> {
+                state.lastBallPositionX = currentParams.x
+                state.lastBallPositionY = currentParams.y
+                currentWidth = (state.ballSize.value.value * density).toInt()
+                currentHeight = currentWidth
+            }
+            FloatingMode.WINDOW -> {
+                state.lastWindowPositionX = currentParams.x
+                state.lastWindowPositionY = currentParams.y
+                state.lastWindowScale = state.windowScale.value
+                currentWidth = (state.windowWidth.value.value * density * state.windowScale.value).toInt()
+                currentHeight = (state.windowHeight.value.value * density * state.windowScale.value).toInt()
+            }
+            FloatingMode.FULLSCREEN -> {
+                // Leaving fullscreen, no special state to save
+                currentWidth = screenWidth
+                currentHeight = screenHeight
+            }
+            FloatingMode.LIVE2D -> {
+                // Treat Live2D mode similar to Window mode when leaving
+                state.lastWindowPositionX = currentParams.x
+                state.lastWindowPositionY = currentParams.y
+                state.lastWindowScale = state.windowScale.value
+                currentWidth = (state.windowWidth.value.value * density * state.windowScale.value).toInt()
+                currentHeight = (state.windowHeight.value.value * density * state.windowScale.value).toInt()
+            }
         }
 
-        state.isBallMode.value = !state.isBallMode.value
+        state.currentMode.value = newMode
         callback.saveState()
 
+        // Update layout for the new mode
         updateViewLayout { params ->
-            if (state.isBallMode.value) {
-                state.windowScale.value = 1.0f
-                val ballSizeInPx = (state.ballSize.value.value * density).toInt()
-                params.width = ballSizeInPx
-                params.height = ballSizeInPx
-
-                if (state.lastBallPositionX != 0 && state.lastBallPositionY != 0) {
-                    params.x = state.lastBallPositionX
-                    params.y = state.lastBallPositionY
-                } else {
-                    val (centeredX, centeredY) =
+            when (newMode) {
+                FloatingMode.BALL -> {
+                    params.flags =
+                            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                    val ballSizeInPx = (state.ballSize.value.value * density).toInt()
+                    params.width = ballSizeInPx
+                    params.height = ballSizeInPx
+                    val (newX, newY) =
                             calculateCenteredPosition(
-                                    params.x,
-                                    params.y,
+                                    currentParams.x,
+                                    currentParams.y,
                                     currentWidth,
                                     currentHeight,
                                     ballSizeInPx,
                                     ballSizeInPx
                             )
-                    params.x = centeredX
-                    params.y = centeredY
+                    params.x = newX
+                    params.y = newY
                 }
-
-                val margin = (16 * density).toInt()
-                params.x = params.x.coerceIn(margin, screenWidth - ballSizeInPx - margin)
-                params.y = params.y.coerceIn(margin, screenHeight - ballSizeInPx - margin)
-
-                state.x = params.x
-                state.y = params.y
-            } else {
-                state.windowScale.value = state.lastWindowScale
-                val newWidth = (state.windowWidth.value.value * density * state.windowScale.value).toInt()
-                val newHeight = (state.windowHeight.value.value * density * state.windowScale.value).toInt()
-                params.width = newWidth
-                params.height = newHeight
-
-                if (state.lastWindowPositionX != 0 && state.lastWindowPositionY != 0) {
+                FloatingMode.WINDOW -> {
+                    params.flags =
+                            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                    val newWidth =
+                            (state.windowWidth.value.value * density * state.lastWindowScale).toInt()
+                    val newHeight =
+                            (state.windowHeight.value.value * density * state.lastWindowScale)
+                                    .toInt()
+                    params.width = newWidth
+                    params.height = newHeight
+                    if (state.previousMode == FloatingMode.BALL) {
+                        val (centeredX, centeredY) =
+                                calculateCenteredPosition(
+                                        currentParams.x,
+                                        currentParams.y,
+                                        currentWidth,
+                                        currentHeight,
+                                        newWidth,
+                                        newHeight
+                                )
+                        params.x = centeredX
+                        params.y = centeredY
+                    } else {
+                        params.x = state.lastWindowPositionX
+                        params.y = state.lastWindowPositionY
+                    }
+                    state.windowScale.value = state.lastWindowScale
+                }
+                FloatingMode.FULLSCREEN -> {
+                    params.flags = 0 // Remove all flags, making it focusable
+                    params.width = screenWidth
+                    params.height = screenHeight
+                    params.x = 0
+                    params.y = 0
+                }
+                FloatingMode.LIVE2D -> {
+                    params.flags =
+                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                    val newWidth = (state.windowWidth.value.value * density * state.lastWindowScale).toInt()
+                    val newHeight = (state.windowHeight.value.value * density * state.lastWindowScale).toInt()
+                    params.width = newWidth
+                    params.height = newHeight
                     params.x = state.lastWindowPositionX
                     params.y = state.lastWindowPositionY
-                } else {
-                    val (centeredX, centeredY) =
-                            calculateCenteredPosition(
-                                    params.x,
-                                    params.y,
-                                    currentWidth,
-                                    currentHeight,
-                                    newWidth,
-                                    newHeight
-                            )
-                    params.x = centeredX
-                    params.y = centeredY
                 }
-
-                val minVisibleWidth = newWidth / 3
-                val minVisibleHeight = newHeight / 3
-                params.x =
-                        params.x.coerceIn(
-                                -newWidth + minVisibleWidth,
-                                screenWidth - minVisibleWidth
-                        )
-                params.y = params.y.coerceIn(0, screenHeight - minVisibleHeight)
-
-                state.x = params.x
-                state.y = params.y
             }
         }
-
-        Handler(Looper.getMainLooper())
-                .postDelayed({ state.isTransitioning = false }, state.transitionDebounceTime)
+        // Use a Handler to reset the transitioning flag after a short delay
+        Handler(Looper.getMainLooper()).postDelayed({ state.isTransitioning = false }, 300)
     }
 
-    private fun onMove(dx: Float, dy: Float, currentScale: Float) {
+    private fun onMove(dx: Float, dy: Float, scale: Float) {
+        if (state.currentMode.value == FloatingMode.FULLSCREEN) return // Disable move in fullscreen
+
         updateViewLayout { params ->
             val displayMetrics = context.resources.displayMetrics
             val screenWidth = displayMetrics.widthPixels
             val screenHeight = displayMetrics.heightPixels
             val density = displayMetrics.density
 
-            state.windowScale.value = currentScale
+            state.windowScale.value = scale
 
-            val sensitivity = if (state.isBallMode.value) 0.9f else currentScale
+            val sensitivity = if (state.currentMode.value == FloatingMode.BALL) 0.9f else scale
             params.x += (dx * sensitivity).toInt()
             params.y += (dy * sensitivity).toInt()
 
-            if (state.isBallMode.value) {
+            if (state.currentMode.value == FloatingMode.BALL) {
                 val ballSize = (state.ballSize.value.value * density).toInt()
                 val minVisible = ballSize / 2
                 params.x = params.x.coerceIn(-ballSize + minVisible, screenWidth - minVisible)
                 params.y = params.y.coerceIn(0, screenHeight - minVisible)
             } else {
-                val windowWidth = (state.windowWidth.value.value * density * currentScale).toInt()
-                val windowHeight = (state.windowHeight.value.value * density * currentScale).toInt()
+                val windowWidth = (state.windowWidth.value.value * density * scale).toInt()
+                val windowHeight = (state.windowHeight.value.value * density * scale).toInt()
                 val minVisibleWidth = (windowWidth * 2 / 3)
                 val minVisibleHeight = (windowHeight * 2 / 3)
                 params.x =

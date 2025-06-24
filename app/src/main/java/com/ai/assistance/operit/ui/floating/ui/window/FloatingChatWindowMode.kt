@@ -22,6 +22,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.DisposableEffect
@@ -46,6 +48,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.ui.features.chat.components.AttachmentChip
 import com.ai.assistance.operit.ui.floating.FloatContext
+import com.ai.assistance.operit.ui.floating.FloatingMode
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -147,7 +150,6 @@ fun FloatingChatWindowMode(floatContext: FloatContext) {
                     val titleBarHover = remember { mutableStateOf(false) }
                     // 添加按钮事件状态
                     val closeButtonPressed = remember { mutableStateOf(false) }
-                    val minimizeButtonPressed = remember { mutableStateOf(false) }
 
                     // 处理关闭按钮副作用
                     LaunchedEffect(closeButtonPressed.value) {
@@ -155,14 +157,6 @@ fun FloatingChatWindowMode(floatContext: FloatContext) {
                             floatContext.animatedAlpha.animateTo(0f, animationSpec = tween(200))
                             floatContext.onClose()
                             closeButtonPressed.value = false // 重置状态
-                        }
-                    }
-
-                    // 处理最小化按钮副作用
-                    LaunchedEffect(minimizeButtonPressed.value) {
-                        if (minimizeButtonPressed.value) {
-                            floatContext.onToggleBallMode()
-                            minimizeButtonPressed.value = false // 重置状态
                         }
                     }
 
@@ -217,11 +211,37 @@ fun FloatingChatWindowMode(floatContext: FloatContext) {
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
+                                    // Live2D按钮
+                                    IconButton(
+                                        onClick = { floatContext.onModeChange(FloatingMode.LIVE2D) },
+                                        modifier = Modifier.size(30.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Person,
+                                            contentDescription = "Live2D",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+
+                                    // 全屏按钮
+                                    IconButton(
+                                        onClick = { floatContext.onModeChange(FloatingMode.FULLSCREEN) },
+                                        modifier = Modifier.size(30.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Fullscreen,
+                                            contentDescription = "全屏",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+
                                     // 最小化按钮
                                     val minimizeHover = remember { mutableStateOf(false) }
 
                                     IconButton(
-                                        onClick = { minimizeButtonPressed.value = true },
+                                        onClick = { floatContext.onModeChange(FloatingMode.BALL) },
                                         modifier = Modifier
                                             .size(30.dp)
                                             .background(

@@ -23,6 +23,7 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.ui.floating.FloatContext
+import com.ai.assistance.operit.ui.floating.FloatingMode
 import kotlinx.coroutines.delay
 
 /**
@@ -33,25 +34,10 @@ fun FloatingChatBallMode(floatContext: FloatContext) {
     val ballHoverState = remember { mutableStateOf(false) }
     val touchAnimationState = remember { mutableStateOf(false) }
     val touchAnimationValue = remember { Animatable(0f) }
-    val ballTapState = remember { mutableStateOf(false) }
 
     // 预先提取主题颜色用于Canvas
     val onPrimaryColor = MaterialTheme.colorScheme.onPrimary
     val primaryColor = MaterialTheme.colorScheme.primary
-
-    // 处理点击事件
-    LaunchedEffect(ballTapState.value) {
-        if (ballTapState.value) {
-            if (floatContext.isAtEdge) {
-                floatContext.snapToEdge(false)
-            } else {
-                // 切换到窗口模式
-                floatContext.onToggleBallMode()
-            }
-            // 重置状态
-            ballTapState.value = false
-        }
-    }
 
     // 触摸动画效果
     LaunchedEffect(touchAnimationState.value) {
@@ -180,7 +166,12 @@ fun FloatingChatBallMode(floatContext: FloatContext) {
                             // 只有当点击在圆内才处理事件
                             if (distance <= radius) {
                                 touchAnimationState.value = true
-                                ballTapState.value = true
+                                if (floatContext.isAtEdge) {
+                                    floatContext.snapToEdge(false)
+                                } else {
+                                    // 切换到窗口模式
+                                    floatContext.onModeChange(FloatingMode.WINDOW)
+                                }
                             }
                         },
                         onLongPress = { offset ->
