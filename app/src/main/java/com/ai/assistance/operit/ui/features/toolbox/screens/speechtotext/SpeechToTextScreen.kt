@@ -147,9 +147,6 @@ fun SpeechToTextScreen(navController: NavController) {
             if (currentMode == SpeechServiceFactory.SpeechServiceType.ANDROID_NATIVE) {
                 error = "原生引擎不可用，已自动切换到Sherpa-ncnn离线引擎。"
                 recognitionMode = SpeechServiceFactory.SpeechServiceType.SHERPA_NCNN
-            } else if (currentMode == SpeechServiceFactory.SpeechServiceType.SHERPA_NCNN) {
-                error = "Sherpa-ncnn引擎不可用，已自动切换到Whisper离线引擎。"
-                recognitionMode = SpeechServiceFactory.SpeechServiceType.WHISPER_LOCAL
             } else {
                 error = "引擎 ${currentMode.name} 初始化失败。"
             }
@@ -203,8 +200,6 @@ fun SpeechToTextScreen(navController: NavController) {
         recognitionMode = when (recognitionMode) {
             SpeechServiceFactory.SpeechServiceType.ANDROID_NATIVE -> 
                 SpeechServiceFactory.SpeechServiceType.SHERPA_NCNN
-            SpeechServiceFactory.SpeechServiceType.SHERPA_NCNN -> 
-                SpeechServiceFactory.SpeechServiceType.WHISPER_LOCAL
             else -> 
                 SpeechServiceFactory.SpeechServiceType.ANDROID_NATIVE
         }
@@ -215,7 +210,6 @@ fun SpeechToTextScreen(navController: NavController) {
         return when (mode) {
             SpeechServiceFactory.SpeechServiceType.ANDROID_NATIVE -> "Android 原生"
             SpeechServiceFactory.SpeechServiceType.SHERPA_NCNN -> "Sherpa-ncnn (最佳)"
-            SpeechServiceFactory.SpeechServiceType.WHISPER_LOCAL -> "Whisper (离线)"
         }
     }
 
