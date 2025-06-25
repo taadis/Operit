@@ -20,6 +20,7 @@ import com.ai.assistance.operit.data.model.ToolExecutionProgress
 import com.ai.assistance.operit.data.model.ToolInvocation
 import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.data.preferences.ApiPreferences
+import com.ai.assistance.operit.data.preferences.PromptFunctionType
 import com.ai.assistance.operit.util.stream.Stream
 import com.ai.assistance.operit.util.stream.StreamCollector
 import com.ai.assistance.operit.util.stream.plugins.StreamXmlPlugin
@@ -397,9 +398,10 @@ class EnhancedAIService private constructor(private val context: Context) {
             message: String,
             chatHistory: List<Pair<String, String>> = emptyList(),
             chatId: String? = null,
-            functionType: FunctionType = FunctionType.CHAT
+            functionType: FunctionType = FunctionType.CHAT,
+            promptFunctionType: PromptFunctionType = PromptFunctionType.CHAT
     ): Stream<String> {
-        Log.d(TAG, "sendMessage调用开始: 功能类型=$functionType")
+        Log.d(TAG, "sendMessage调用开始: 功能类型=$functionType, 提示词类型=$promptFunctionType")
         accumulatedInputTokenCount = 0
         accumulatedOutputTokenCount = 0
 
@@ -427,7 +429,7 @@ class EnhancedAIService private constructor(private val context: Context) {
                     }
 
                     // Prepare conversation history with system prompt
-                    val preparedHistory = prepareConversationHistory(chatHistory, processedInput)
+                    val preparedHistory = prepareConversationHistory(chatHistory, processedInput, promptFunctionType)
 
                     // Update UI state to connecting
                     withContext(Dispatchers.Main) {
@@ -1151,14 +1153,16 @@ class EnhancedAIService private constructor(private val context: Context) {
     /** Prepare the conversation history with system prompt */
     private suspend fun prepareConversationHistory(
             chatHistory: List<Pair<String, String>>,
-            processedInput: String
+            processedInput: String,
+            promptFunctionType: PromptFunctionType
     ): MutableList<Pair<String, String>> {
         return conversationService.prepareConversationHistory(
                 chatHistory,
                 processedInput,
                 currentChatId,
                 conversationHistory,
-                packageManager
+                packageManager,
+                promptFunctionType
         )
     }
 

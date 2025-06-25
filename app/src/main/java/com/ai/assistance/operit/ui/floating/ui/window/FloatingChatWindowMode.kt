@@ -46,6 +46,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.ai.assistance.operit.data.preferences.PromptFunctionType
 import com.ai.assistance.operit.ui.features.chat.components.AttachmentChip
 import com.ai.assistance.operit.ui.floating.FloatContext
 import com.ai.assistance.operit.ui.floating.FloatingMode
@@ -470,7 +471,8 @@ fun FloatingChatWindowMode(floatContext: FloatContext) {
                                                     floatContext.attachments.isNotEmpty()
                                                 ) {
                                                     floatContext.onSendMessage?.invoke(
-                                                        floatContext.userMessage
+                                                        floatContext.userMessage,
+                                                        PromptFunctionType.CHAT
                                                     )
                                                     floatContext.userMessage = ""
                                                     floatContext.showInputDialog = false
@@ -492,7 +494,8 @@ fun FloatingChatWindowMode(floatContext: FloatContext) {
                                                 floatContext.attachments.isNotEmpty()
                                             ) {
                                                 floatContext.onSendMessage?.invoke(
-                                                    floatContext.userMessage
+                                                    floatContext.userMessage,
+                                                    PromptFunctionType.CHAT
                                                 )
                                                 floatContext.userMessage = ""
                                                 floatContext.showInputDialog = false

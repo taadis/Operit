@@ -10,10 +10,12 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.Typography
 import androidx.lifecycle.viewModelScope
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.model.toSerializable
+import com.ai.assistance.operit.data.preferences.PromptFunctionType
 import com.ai.assistance.operit.services.FloatingChatService
 import com.ai.assistance.operit.util.stream.SharedStream
 import kotlinx.coroutines.CoroutineScope
@@ -26,7 +28,7 @@ import kotlinx.coroutines.launch
 class FloatingWindowDelegate(
         private val context: Context,
         private val viewModelScope: CoroutineScope,
-        private val onMessageReceived: (String) -> Unit,
+        private val onMessageReceived: (String, PromptFunctionType) -> Unit,
         private val onAttachmentRequested: (String) -> Unit,
         private val onAttachmentRemoveRequested: (String) -> Unit,
         private val onCancelMessageRequested: () -> Unit
@@ -66,7 +68,7 @@ class FloatingWindowDelegate(
     }
 
     /** 切换悬浮窗模式 */
-    fun toggleFloatingMode(colorScheme: ColorScheme? = null) {
+    fun toggleFloatingMode(colorScheme: ColorScheme? = null, typography: Typography? = null) {
         val newMode = !_isFloatingMode.value
         _isFloatingMode.value = newMode
 
@@ -75,6 +77,9 @@ class FloatingWindowDelegate(
             val intent = Intent(context, FloatingChatService::class.java)
             colorScheme?.let {
                 intent.putExtra("COLOR_SCHEME", it.toSerializable())
+            }
+            typography?.let {
+                intent.putExtra("TYPOGRAPHY", it.toSerializable())
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
@@ -116,10 +121,10 @@ class FloatingWindowDelegate(
             // 收集消息
             viewModelScope.launch {
                 try {
-                    service.messageToSend.collect { message ->
-                        Log.d(TAG, "从悬浮窗接收到消息: $message")
+                    service.messageToSend.collect { messagePair ->
+                        Log.d(TAG, "从悬浮窗接收到消息: ${messagePair.first}，模式: ${messagePair.second}")
                         // 处理消息
-                        onMessageReceived(message)
+                        onMessageReceived(messagePair.first, messagePair.second)
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "从悬浮窗收集消息时出错", e)

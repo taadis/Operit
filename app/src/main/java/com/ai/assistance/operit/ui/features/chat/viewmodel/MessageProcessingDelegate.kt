@@ -7,6 +7,7 @@ import com.ai.assistance.operit.api.chat.EnhancedAIService
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.model.InputProcessingState as EnhancedInputProcessingState
+import com.ai.assistance.operit.data.preferences.PromptFunctionType
 import com.ai.assistance.operit.util.NetworkUtils
 import com.ai.assistance.operit.util.stream.SharedStream
 import com.ai.assistance.operit.util.stream.share
@@ -77,7 +78,11 @@ class MessageProcessingDelegate(
         _scrollToBottomEvent.tryEmit(Unit)
     }
 
-    fun sendUserMessage(attachments: List<AttachmentInfo> = emptyList(), chatId: String? = null) {
+    fun sendUserMessage(
+            attachments: List<AttachmentInfo> = emptyList(),
+            chatId: String? = null,
+            promptFunctionType: PromptFunctionType = PromptFunctionType.CHAT
+    ) {
         if (_userMessage.value.isBlank() && attachments.isEmpty()) return
         if (_isLoading.value) return
 
@@ -128,7 +133,13 @@ class MessageProcessingDelegate(
                 val startTime = System.currentTimeMillis()
 
                 val deferred = CompletableDeferred<Unit>()
-                val responseStream = service.sendMessage(finalMessage, history, chatId)
+                val responseStream =
+                        service.sendMessage(
+                                finalMessage,
+                                history,
+                                chatId,
+                                promptFunctionType = promptFunctionType
+                        )
 
                 // 将字符串流共享，以便多个收集器可以使用
                 val sharedCharStream =

@@ -56,6 +56,7 @@ fun ChatScreenHeader(
 ) {
     val context = LocalContext.current
     val colorScheme = MaterialTheme.colorScheme
+    val typography = MaterialTheme.typography
     val currentChatTitle = chatHistories.find { it.id == currentChatId }?.title
     val scope = rememberCoroutineScope()
     
@@ -89,9 +90,9 @@ fun ChatScreenHeader(
                                         )
                                 )
                         context.startActivity(intent)
-                    } else {
-                        // 切换悬浮窗模式
-                        actualViewModel.toggleFloatingMode(colorScheme)
+                                                } else {
+                                // 切换悬浮窗模式，传递主题的颜色和字体配置
+                                actualViewModel.toggleFloatingMode(colorScheme, typography)
     
                         // 根据当前悬浮窗状态显示不同的提示
                         val isFloating = actualViewModel.isFloatingMode.value
@@ -194,15 +195,22 @@ fun ChatScreenHeader(
                                         )
                                 context.startActivity(intent)
                             } else {
-                                // 切换悬浮窗模式
-                                actualViewModel.toggleFloatingMode(colorScheme)
+                                // 切换悬浮窗模式，传递主题的颜色和字体配置
+                                actualViewModel.toggleFloatingMode(colorScheme, typography)
             
                                 // 根据当前悬浮窗状态显示不同的提示
                                 val isFloating = actualViewModel.isFloatingMode.value
                                 val message =
                                         if (isFloating)
-                                                context.getString(R.string.enable_floating_mode)
-                                        else context.getString(R.string.disable_floating_mode)
+                                                context.getString(
+                                                        R.string
+                                                                .enable_floating_mode
+                                                )
+                                        else
+                                                context.getString(
+                                                        R.string
+                                                                .disable_floating_mode
+                                                )
                                 android.widget.Toast.makeText(
                                         context,
                                         message,

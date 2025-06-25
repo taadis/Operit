@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -26,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.api.speech.SpeechServiceFactory
 import com.ai.assistance.operit.api.voice.VoiceServiceFactory
 import com.ai.assistance.operit.data.model.ChatMessage
+import com.ai.assistance.operit.data.preferences.PromptFunctionType
 import com.ai.assistance.operit.ui.floating.FloatContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -61,7 +63,7 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
                 isRecording = false
                 if (result.text.isNotBlank()) {
                     userMessage = result.text
-                    floatContext.onSendMessage?.invoke(result.text)
+                    floatContext.onSendMessage?.invoke(result.text, PromptFunctionType.VOICE)
                     aiMessage = "思考中..."
                 } else {
                     aiMessage = "没有听清，请再试一次"
@@ -168,7 +170,7 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
                             )
     ) {
         // 居中消息区域
-        Column(
+        LazyColumn(
                 modifier =
                         Modifier.align(Alignment.Center)
                                 .fillMaxWidth()
@@ -178,23 +180,29 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
         ) {
             // 用户消息
             if (userMessage.isNotEmpty()) {
-                Text(
-                        text = userMessage,
-                        style = MaterialTheme.typography.titleLarge,
-                        color = Color.White.copy(alpha = 0.7f),
-                        textAlign = TextAlign.Center
-                )
-                Spacer(modifier = Modifier.height(24.dp))
+                item {
+                    Text(
+                            text = userMessage,
+                            style = MaterialTheme.typography.titleLarge,
+                            color = Color.White.copy(alpha = 0.7f),
+                            textAlign = TextAlign.Center
+                    )
+                }
+                item {
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
             }
 
             // AI消息
-            Text(
-                    text = aiMessage,
-                    style = MaterialTheme.typography.headlineSmall,
-                    textAlign = TextAlign.Center,
-                    color = Color.White,
-                    modifier = Modifier.animateContentSize() // 内容变化时有动画
-            )
+            item {
+                Text(
+                        text = aiMessage,
+                        style = MaterialTheme.typography.headlineSmall,
+                        textAlign = TextAlign.Center,
+                        color = Color.White,
+                        modifier = Modifier.animateContentSize() // 内容变化时有动画
+                )
+            }
         }
 
         // 底部控制栏
@@ -290,7 +298,7 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
                                                                     isProcessingSpeech = false
                                                                     if (userMessage.isNotBlank()) {
                                                                         // 如果有部分结果，直接发送
-                                                                        floatContext.onSendMessage?.invoke(userMessage)
+                                                                        floatContext.onSendMessage?.invoke(userMessage, PromptFunctionType.VOICE)
                                                                         aiMessage = "思考中..."
                                                                     } else {
                                                                         // 否则提示未听清

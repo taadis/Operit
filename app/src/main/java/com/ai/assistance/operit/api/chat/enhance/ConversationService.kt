@@ -7,6 +7,8 @@ import com.ai.assistance.operit.core.tools.packTool.PackageManager
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.model.PreferenceProfile
 import com.ai.assistance.operit.data.preferences.ApiPreferences
+import com.ai.assistance.operit.data.preferences.FunctionalPromptManager
+import com.ai.assistance.operit.data.preferences.PromptFunctionType
 import com.ai.assistance.operit.data.preferences.preferencesManager
 import com.ai.assistance.operit.util.ChatUtils
 import com.ai.assistance.operit.util.stream.plugins.StreamXmlPlugin
@@ -28,6 +30,7 @@ class ConversationService(private val context: Context) {
     }
 
     private val apiPreferences = ApiPreferences(context)
+    private val functionalPromptManager = FunctionalPromptManager(context)
     private val conversationMutex = Mutex()
 
     /**
@@ -57,19 +60,19 @@ class ConversationService(private val context: Context) {
             // 使用更结构化、更详细的提示词
             var systemPrompt =
                     """
-            你是负责生成对话摘要的AI助手。你的任务是根据“上一次的摘要”（如果提供）和“最近的对话内容”，生成一份全新的、独立的、全面的摘要。这份新摘要将完全取代之前的摘要，成为后续对话的唯一历史参考。
+            你是负责生成对话摘要的AI助手。你的任务是根据"上一次的摘要"（如果提供）和"最近的对话内容"，生成一份全新的、独立的、全面的摘要。这份新摘要将完全取代之前的摘要，成为后续对话的唯一历史参考。
 
             请严格遵循以下结构和要求：
 
             1. 标题：
-               - 必须以“对话摘要”作为固定标题。
+               - 必须以"对话摘要"作为固定标题。
 
             2. 核心任务状态：
-               - 用一句话明确说明AI当前正在执行的任务、处于哪个阶段。例如：“正在分析用户提供的日志文件以定位错误”、“已完成代码生成，等待用户确认”、“正在多步骤计划的第2步：修改配置文件”。
+               - 用一句话明确说明AI当前正在执行的任务、处于哪个阶段。例如："正在分析用户提供的日志文件以定位错误"、"已完成代码生成，等待用户确认"、"正在多步骤计划的第2步：修改配置文件"。
                - 如果AI正在等待用户提供信息，请明确指出需要什么。
 
             3. 对话历程与概要：
-               - 综合“上一次的摘要”和“最近的对话内容”，用1-2个段落连贯地、整体地概述整个对话的演进过程。
+               - 综合"上一次的摘要"和"最近的对话内容"，用1-2个段落连贯地、整体地概述整个对话的演进过程。
                - 重点描述关键的转折点、已解决的问题、和达成的共识。
                - 简要提及用户的核心需求和意图是如何被理解和处理的。
 
@@ -154,6 +157,7 @@ class ConversationService(private val context: Context) {
      * @param currentChatId 当前聊天ID
      * @param conversationHistory 存储修改后的对话历史
      * @param packageManager 包管理器
+     * @param promptFunctionType 提示函数类型
      * @return 准备好的对话历史列表
      */
     suspend fun prepareConversationHistory(
@@ -161,7 +165,8 @@ class ConversationService(private val context: Context) {
             processedInput: String,
             currentChatId: String?,
             conversationHistory: MutableList<Pair<String, String>>,
-            packageManager: PackageManager
+            packageManager: PackageManager,
+            promptFunctionType: PromptFunctionType
     ): MutableList<Pair<String, String>> {
         conversationMutex.withLock {
             conversationHistory.clear()
@@ -174,24 +179,17 @@ class ConversationService(private val context: Context) {
                 // Check if planning is enabled
                 val planningEnabled = apiPreferences.enableAiPlanningFlow.first()
 
-                // Get custom prompts if available
-                val customIntroPrompt = apiPreferences.customIntroPromptFlow.first()
-                val customTonePrompt = apiPreferences.customTonePromptFlow.first()
+                // Get prompts for the specific function type from FunctionalPromptManager
+                val (introPrompt, tonePrompt) =
+                        functionalPromptManager.getPromptForFunction(promptFunctionType)
 
                 // 获取系统提示词，并替换{CHAT_ID}为当前聊天ID
-                var systemPrompt =
-                        if (customIntroPrompt.isNotEmpty() || customTonePrompt.isNotEmpty()) {
-                            // Use custom prompts if they are set
-                            SystemPromptConfig.getSystemPromptWithCustomPrompts(
-                                    packageManager,
-                                    planningEnabled,
-                                    customIntroPrompt,
-                                    customTonePrompt
-                            )
-                        } else {
-                            // Use default system prompt
-                            SystemPromptConfig.getSystemPrompt(packageManager, planningEnabled)
-                        }
+                var systemPrompt = SystemPromptConfig.getSystemPromptWithCustomPrompts(
+                        packageManager,
+                        planningEnabled,
+                        introPrompt,
+                        tonePrompt
+                )
 
                 // 替换{CHAT_ID}为当前聊天ID
                 if (currentChatId != null) {

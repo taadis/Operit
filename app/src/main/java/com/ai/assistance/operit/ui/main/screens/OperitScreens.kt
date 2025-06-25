@@ -13,6 +13,7 @@ import com.ai.assistance.operit.ui.features.packages.screens.PackageManagerScree
 import com.ai.assistance.operit.ui.features.problems.screens.ProblemLibraryScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ChatHistorySettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.FunctionalConfigScreen
+import com.ai.assistance.operit.ui.features.settings.screens.FunctionalPromptConfigScreen
 import com.ai.assistance.operit.ui.features.settings.screens.LanguageSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ModelConfigScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ModelPromptsSettingsScreen
@@ -184,6 +185,7 @@ sealed class Screen(
                     navigateToModelConfig = { navigateTo(ModelConfig) },
                     navigateToThemeSettings = { navigateTo(ThemeSettings) },
                     navigateToModelPrompts = { navigateTo(ModelPromptsSettings) },
+                    navigateToFunctionalPrompts = { navigateTo(FunctionalPromptConfig) },
                     navigateToFunctionalConfig = { navigateTo(FunctionalConfig) },
                     navigateToChatHistorySettings = { navigateTo(ChatHistorySettings) },
                     navigateToLanguageSettings = { navigateTo(LanguageSettings) }
@@ -625,7 +627,8 @@ sealed class Screen(
     }
 
     // Tools screens
-    data object SpeechToText : Screen(parentScreen = Toolbox, navItem = NavItem.Toolbox, titleRes = "语音识别") {
+    data object SpeechToText :
+            Screen(parentScreen = Toolbox, navItem = NavItem.Toolbox, titleRes = "语音识别") {
         @Composable
         override fun Content(
                 navController: NavController,
@@ -677,4 +680,28 @@ object OperitRouter {
 object GestureStateHolder {
     // 聊天界面手势是否被消费的状态
     var isChatScreenGestureConsumed: Boolean = false
+}
+
+// 添加FunctionalPromptConfig屏幕定义 - 放在FunctionalConfig之后
+data object FunctionalPromptConfig :
+        Screen(parentScreen = Settings, navItem = NavItem.Settings, titleRes = "功能提示词配置") {
+    @Composable
+    override fun Content(
+            navController: NavController,
+            navigateTo: ScreenNavigationHandler,
+            updateNavItem: NavItemChangeHandler,
+            hasBackgroundImage: Boolean,
+            onLoading: (Boolean) -> Unit,
+            onError: (String) -> Unit,
+            onGestureConsumed: (Boolean) -> Unit
+    ) {
+        FunctionalPromptConfigScreen(
+                onBackPressed = {
+                    parentScreen?.let {
+                        navigateTo(it)
+                        it.navItem?.let { navItem -> updateNavItem(navItem) }
+                    }
+                }
+        )
+    }
 }

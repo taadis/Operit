@@ -18,6 +18,7 @@ import androidx.compose.material3.ColorScheme
 @Composable
 fun FloatingWindowTheme(
     colorScheme: ColorScheme? = null,
+    typography: Typography? = null,
     content: @Composable () -> Unit
 ) {
     // 使用静态颜色，匹配动态主题的默认值
@@ -58,69 +59,72 @@ fun FloatingWindowTheme(
         outline = Color(0xFF79747E)                 // 标准轮廓色
     )
     
-    // 创建小型化的Typography
-    val smallTypography = Typography(
+    // 创建调整大小后的默认Typography，如果没有传入typography参数则使用此默认值
+    val defaultSmallTypography = Typography(
         // 正文大字号
         bodyLarge = TextStyle(
             fontFamily = FontFamily.Default,
             fontWeight = FontWeight.Normal,
-            fontSize = 8.sp,
-            lineHeight = 10.sp,
+            fontSize = 14.sp,
+            lineHeight = 18.sp,
             letterSpacing = 0.5.sp
         ),
         // 正文中字号 
         bodyMedium = TextStyle(
             fontFamily = FontFamily.Default,
             fontWeight = FontWeight.Normal,
-            fontSize = 7.sp,
-            lineHeight = 8.sp,
+            fontSize = 12.sp,
+            lineHeight = 16.sp,
             letterSpacing = 0.25.sp
         ),
         // 正文小字号 
         bodySmall = TextStyle(
             fontFamily = FontFamily.Default,
             fontWeight = FontWeight.Normal,
-            fontSize = 6.sp,
-            lineHeight = 7.sp,
+            fontSize = 10.sp,
+            lineHeight = 14.sp,
             letterSpacing = 0.4.sp
         ),
         // 标签小字号
         labelSmall = TextStyle(
             fontFamily = FontFamily.Default,
             fontWeight = FontWeight.Medium,
-            fontSize = 6.sp,
-            lineHeight = 7.sp,
+            fontSize = 10.sp,
+            lineHeight = 14.sp,
             letterSpacing = 0.5.sp
         ),
         // 标题小字号
         titleSmall = TextStyle(
             fontFamily = FontFamily.Default,
             fontWeight = FontWeight.Medium,
-            fontSize = 8.sp,
-            lineHeight = 9.sp,
+            fontSize = 14.sp,
+            lineHeight = 18.sp,
             letterSpacing = 0.5.sp
         ),
         // 按钮文本样式
         labelMedium = TextStyle(
             fontFamily = FontFamily.Default,
             fontWeight = FontWeight.Medium,
-            fontSize = 7.sp,
-            lineHeight = 8.sp,
+            fontSize = 12.sp,
+            lineHeight = 16.sp,
             letterSpacing = 0.5.sp
         ),
         // 按钮大文本样式
         labelLarge = TextStyle(
             fontFamily = FontFamily.Default,
             fontWeight = FontWeight.Medium,
-            fontSize = 8.sp,
-            lineHeight = 10.sp,
+            fontSize = 14.sp,
+            lineHeight = 18.sp,
             letterSpacing = 0.5.sp
         )
     )
+
+    // 优先使用传入的typography，如果没有则使用默认的小型typography
+    val finalTypography = typography ?: defaultSmallTypography
     
     MaterialTheme(
         colorScheme = finalColorScheme,
-        typography = smallTypography,
+        typography = finalTypography,
         content = content
     )
 } 

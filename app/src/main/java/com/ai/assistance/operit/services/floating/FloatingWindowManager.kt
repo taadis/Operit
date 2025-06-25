@@ -20,14 +20,16 @@ import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatMessage
+import com.ai.assistance.operit.data.preferences.PromptFunctionType
 import com.ai.assistance.operit.ui.floating.FloatingChatWindow
 import com.ai.assistance.operit.ui.floating.FloatingMode
 import com.ai.assistance.operit.ui.floating.FloatingWindowTheme
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.Typography
 
 interface FloatingWindowCallback {
     fun onClose()
-    fun onSendMessage(message: String)
+    fun onSendMessage(message: String, promptType: PromptFunctionType = PromptFunctionType.CHAT)
     fun onCancelMessage()
     fun onAttachmentRequest(request: String)
     fun onRemoveAttachment(filePath: String)
@@ -35,6 +37,7 @@ interface FloatingWindowCallback {
     fun getAttachments(): List<AttachmentInfo>
     fun saveState()
     fun getColorScheme(): ColorScheme?
+    fun getTypography(): Typography?
 }
 
 class FloatingWindowManager(
@@ -62,7 +65,10 @@ class FloatingWindowManager(
                         setViewTreeSavedStateRegistryOwner(savedStateRegistryOwner)
 
                         setContent {
-                            FloatingWindowTheme(colorScheme = callback.getColorScheme()) {
+                            FloatingWindowTheme(
+                                colorScheme = callback.getColorScheme(),
+                                typography = callback.getTypography()
+                            ) {
                                 FloatingChatUi()
                             }
                         }
@@ -116,7 +122,7 @@ class FloatingWindowManager(
                 onModeChange = { newMode -> switchMode(newMode) },
                 onMove = { dx, dy, scale -> onMove(dx, dy, scale) },
                 saveWindowState = { callback.saveState() },
-                onSendMessage = { callback.onSendMessage(it) },
+                onSendMessage = { message, promptType -> callback.onSendMessage(message, promptType) },
                 onCancelMessage = { callback.onCancelMessage() },
                 onInputFocusRequest = { setFocusable(it) },
                 attachments = callback.getAttachments(),

@@ -7,6 +7,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatMessage
+import com.ai.assistance.operit.data.preferences.PromptFunctionType
 import com.ai.assistance.operit.ui.floating.ui.ball.FloatingChatBallMode
 import com.ai.assistance.operit.ui.floating.ui.fullscreen.FloatingFullscreenMode
 import com.ai.assistance.operit.ui.floating.ui.live2d.FloatingLive2dMode
@@ -64,7 +65,7 @@ fun FloatingChatWindow(
         currentX: Float = 0f,
         currentY: Float = 0f,
         saveWindowState: (() -> Unit)? = null,
-        onSendMessage: ((String) -> Unit)? = null,
+        onSendMessage: ((String, PromptFunctionType) -> Unit)? = null,
         onCancelMessage: (() -> Unit)? = null,
         onAttachmentRequest: ((String) -> Unit)? = null,
         attachments: List<AttachmentInfo> = emptyList(),

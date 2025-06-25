@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.Typography
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ai.assistance.operit.api.chat.EnhancedAIService
@@ -15,8 +16,10 @@ import com.ai.assistance.operit.data.model.PlanItem
 import com.ai.assistance.operit.data.model.ToolExecutionProgress
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.ModelConfigManager
+import com.ai.assistance.operit.data.preferences.PromptFunctionType
 import com.ai.assistance.operit.ui.features.chat.attachments.AttachmentManager
 import com.ai.assistance.operit.ui.features.chat.webview.LocalWebServer
+import com.ai.assistance.operit.ui.features.chat.viewmodel.FloatingWindowDelegate
 import com.ai.assistance.operit.ui.permissions.PermissionLevel
 import com.ai.assistance.operit.ui.permissions.ToolPermissionSystem
 import java.io.IOException
@@ -219,14 +222,11 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 FloatingWindowDelegate(
                         context = context,
                         viewModelScope = viewModelScope,
-                        onMessageReceived = { message ->
-                            // 更新用户消息
-                            messageProcessingDelegate.updateUserMessage(message)
-                            // 发送消息时也要传递附件
-                            // 直接调用sendUserMessage方法，它会检查并创建新对话
-                            sendUserMessage()
+                        onMessageReceived = { message, type ->
+                            updateUserMessage(message)
+                            sendUserMessage(type)
                         },
-                        onAttachmentRequested = { request -> processAttachmentRequest(request) },
+                        onAttachmentRequested = { type -> processAttachmentRequest(type) },
                         onAttachmentRemoveRequested = { filePath -> removeAttachment(filePath) },
                         onCancelMessageRequested = {
                             // 取消当前消息
@@ -501,7 +501,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 chatHistoryDelegate.updateChatHistory(rewindHistory)
 
                 messageProcessingDelegate.updateUserMessage(finalMessage.content)
-                messageProcessingDelegate.sendUserMessage(emptyList(), currentChatId.value)
+                sendUserMessage()
             } catch (e: Exception) {
                 Log.e(TAG, "回档并重新发送消息失败", e)
                 uiStateDelegate.showErrorMessage("回档失败: ${e.message}")
@@ -512,7 +512,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     // 消息处理相关方法
     fun updateUserMessage(message: String) = messageProcessingDelegate.updateUserMessage(message)
 
-    fun sendUserMessage() {
+    fun sendUserMessage(promptFunctionType: PromptFunctionType = PromptFunctionType.CHAT) {
         // 检查是否有当前对话，如果没有则创建一个新对话
         if (currentChatId.value == null) {
             Log.d(TAG, "当前没有活跃对话，自动创建新对话")
@@ -538,16 +538,16 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 Log.d(TAG, "新对话创建完成，ID: ${currentChatId.value}，现在发送消息")
 
                 // 对话创建完成后，发送消息
-                sendMessageInternal()
+                sendMessageInternal(promptFunctionType)
             }
         } else {
             // 已有对话，直接发送消息
-            sendMessageInternal()
+            sendMessageInternal(promptFunctionType)
         }
     }
 
     // 提取内部发送消息的逻辑为一个私有方法
-    private fun sendMessageInternal() {
+    private fun sendMessageInternal(promptFunctionType: PromptFunctionType) {
         // 获取当前聊天ID
         val chatId = currentChatId.value
 
@@ -558,7 +558,11 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         val currentAttachments = attachmentManager.attachments.value
 
         // 调用messageProcessingDelegate发送消息，并传递附件信息
-        messageProcessingDelegate.sendUserMessage(currentAttachments, chatId)
+        messageProcessingDelegate.sendUserMessage(
+            attachments = currentAttachments, 
+            chatId = chatId, 
+            promptFunctionType = promptFunctionType
+        )
 
         if (chatHistoryDelegate.shouldGenerateSummary(chatHistoryDelegate.chatHistory.value)) {
             // 触发总结
@@ -592,8 +596,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     fun clearToastEvent() = uiStateDelegate.clearToastEvent()
 
     // 悬浮窗相关方法
-    fun toggleFloatingMode(colorScheme: ColorScheme? = null) {
-        floatingWindowDelegate.toggleFloatingMode(colorScheme)
+    fun toggleFloatingMode(colorScheme: ColorScheme? = null, typography: Typography? = null) {
+        floatingWindowDelegate.toggleFloatingMode(colorScheme, typography)
     }
 
     fun updateFloatingWindowMessages(messages: List<ChatMessage>) {
