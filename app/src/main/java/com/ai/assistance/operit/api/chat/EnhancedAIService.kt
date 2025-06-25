@@ -429,7 +429,12 @@ class EnhancedAIService private constructor(private val context: Context) {
                     }
 
                     // Prepare conversation history with system prompt
-                    val preparedHistory = prepareConversationHistory(chatHistory, processedInput, promptFunctionType)
+                    val preparedHistory =
+                            prepareConversationHistory(
+                                    chatHistory,
+                                    processedInput,
+                                    promptFunctionType
+                            )
 
                     // Update UI state to connecting
                     withContext(Dispatchers.Main) {
@@ -514,14 +519,23 @@ class EnhancedAIService private constructor(private val context: Context) {
                     Log.d(TAG, "sendMessage流被取消")
                     throw e
                 }
-                // Handle any exceptions
-                Log.e(TAG, "发送消息时发生错误: ${e.message}", e)
-                withContext(Dispatchers.Main) {
-                    _inputProcessingState.value =
-                            InputProcessingState.Error(message = "Error: ${e.message}")
+
+                // 用户取消导致的 Socket closed 是预期行为，不应作为错误处理
+                if (e.message?.contains("Socket closed", ignoreCase = true) == true) {
+                    Log.d(TAG, "Stream was cancelled by the user (Socket closed).")
+                } else {
+                    // Handle any exceptions
+                    Log.e(TAG, "发送消息时发生错误: ${e.message}", e)
+                    withContext(Dispatchers.Main) {
+                        _inputProcessingState.value =
+                                InputProcessingState.Error(message = "Error: ${e.message}")
+                    }
                 }
-                // 发生无法处理的错误时，也应停止服务
-                stopAiService()
+
+                // 发生无法处理的错误时，也应停止服务，但用户取消除外
+                if (e.message?.contains("Socket closed", ignoreCase = true) != true) {
+                    stopAiService()
+                }
             } finally {
                 // 确保流处理完成后调用
                 val collector = this

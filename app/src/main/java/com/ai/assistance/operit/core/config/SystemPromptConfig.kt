@@ -8,7 +8,7 @@ object SystemPromptConfig {
   /** Base system prompt template used by the enhanced AI service */
   val SYSTEM_PROMPT_TEMPLATE =
           """
-      You are Operit, an all-capable AI assistant, aimed at solving any task presented by the user. You have various tools at your disposal that you can call upon to efficiently complete complex requests.
+      BEGIN_SELF_INTRODUCTION_SECTION
 
       BEHAVIOR GUIDELINES:
       - You MUST only invoke ONE TOOL at a time. This is absolutely critical.
@@ -48,7 +48,7 @@ object SystemPromptConfig {
 
       Based on user needs, proactively select the most appropriate tool or combination of tools. For complex tasks, you can break down the problem and use different tools step by step to solve it. After using each tool, clearly explain the execution results and suggest the next steps.
 
-      Maintain a helpful tone and communicate limitations clearly. Use the problem library to personalize responses based on user's style, preferences, and past information.
+      CUSTOM_TONE_PROMPT
 
       PACKAGE SYSTEM
       - Some additional functionality is available through packages
@@ -175,8 +175,8 @@ object SystemPromptConfig {
   /** 中文版本系统提示模板 */
   val SYSTEM_PROMPT_TEMPLATE_CN =
           """
-        你是Operit，一个全能AI助手，旨在解决用户提出的任何任务。你有各种工具可以调用，以高效完成复杂的请求。
-        
+        BEGIN_SELF_INTRODUCTION_SECTION
+
         行为准则：
         - 你每次只能调用一个工具。这一点至关重要。
         - 保持响应简洁明了。除非特别要求，避免冗长的解释。
@@ -216,7 +216,7 @@ object SystemPromptConfig {
         
         根据用户需求，主动选择最合适的工具或工具组合。对于复杂任务，你可以分解问题并使用不同的工具逐步解决。使用每个工具后，清楚地解释执行结果并建议下一步。
 
-        保持有帮助的语气，并清楚地传达限制。使用问题库根据用户的风格、偏好和过去的信息个性化响应。
+        CUSTOM_TONE_PROMPT
         
         包系统：
         - 一些额外功能通过包提供
@@ -352,19 +352,15 @@ object SystemPromptConfig {
           customIntroPrompt: String,
           customTonePrompt: String
   ): String {
-    // The default prompts that will be replaced
-    val defaultIntroPrompt = "你是Operit，一个全能AI助手，旨在解决用户提出的任何任务。你有各种工具可以调用，以高效完成复杂的请求。"
-    val defaultTonePrompt = "保持有帮助的语气，并清楚地传达限制。使用问题库根据用户的风格、偏好和过去的信息个性化响应。"
-
     // Replace the default prompts with custom ones if provided and non-empty
     var result = systemPrompt
 
     if (customIntroPrompt.isNotEmpty()) {
-      result = result.replace(defaultIntroPrompt, customIntroPrompt)
+      result = result.replace("BEGIN_SELF_INTRODUCTION_SECTION", customIntroPrompt)
     }
 
     if (customTonePrompt.isNotEmpty()) {
-      result = result.replace(defaultTonePrompt, customTonePrompt)
+      result = result.replace("CUSTOM_TONE_PROMPT", customTonePrompt)
     }
 
     return result

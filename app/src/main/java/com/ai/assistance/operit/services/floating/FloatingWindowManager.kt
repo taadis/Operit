@@ -9,7 +9,8 @@ import android.util.Log
 import android.view.Gravity
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.LifecycleOwner
@@ -24,8 +25,6 @@ import com.ai.assistance.operit.data.preferences.PromptFunctionType
 import com.ai.assistance.operit.ui.floating.FloatingChatWindow
 import com.ai.assistance.operit.ui.floating.FloatingMode
 import com.ai.assistance.operit.ui.floating.FloatingWindowTheme
-import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.Typography
 
 interface FloatingWindowCallback {
     fun onClose()
@@ -66,11 +65,9 @@ class FloatingWindowManager(
 
                         setContent {
                             FloatingWindowTheme(
-                                colorScheme = callback.getColorScheme(),
-                                typography = callback.getTypography()
-                            ) {
-                                FloatingChatUi()
-                            }
+                                    colorScheme = callback.getColorScheme(),
+                                    typography = callback.getTypography()
+                            ) { FloatingChatUi() }
                         }
                     }
 
@@ -122,7 +119,9 @@ class FloatingWindowManager(
                 onModeChange = { newMode -> switchMode(newMode) },
                 onMove = { dx, dy, scale -> onMove(dx, dy, scale) },
                 saveWindowState = { callback.saveState() },
-                onSendMessage = { message, promptType -> callback.onSendMessage(message, promptType) },
+                onSendMessage = { message, promptType ->
+                    callback.onSendMessage(message, promptType)
+                },
                 onCancelMessage = { callback.onCancelMessage() },
                 onInputFocusRequest = { setFocusable(it) },
                 attachments = callback.getAttachments(),
@@ -155,7 +154,7 @@ class FloatingWindowManager(
                 state.x = 0
                 state.y = 0
             }
-            FloatingMode.BALL -> {
+            FloatingMode.BALL, FloatingMode.VOICE_BALL -> {
                 val ballSizeInPx = (state.ballSize.value.value * density).toInt()
                 params.width = ballSizeInPx
                 params.height = ballSizeInPx
@@ -172,8 +171,7 @@ class FloatingWindowManager(
                         )
                 state.y = state.y.coerceIn(safeMargin, screenHeight - minVisible - safeMargin)
             }
-            FloatingMode.WINDOW,
-            FloatingMode.LIVE2D -> {
+            FloatingMode.WINDOW, FloatingMode.LIVE2D -> {
                 val scale = state.windowScale.value
                 val windowWidthDp = state.windowWidth.value
                 val windowHeightDp = state.windowHeight.value
@@ -191,7 +189,10 @@ class FloatingWindowManager(
                                 screenWidth - minVisibleWidth - safeMargin
                         )
                 state.y =
-                        state.y.coerceIn(safeMargin, screenHeight - (params.height / 2) - safeMargin)
+                        state.y.coerceIn(
+                                safeMargin,
+                                screenHeight - (params.height / 2) - safeMargin
+                        )
             }
         }
 
@@ -252,7 +253,7 @@ class FloatingWindowManager(
         // Logic for leaving a mode
         state.previousMode = state.currentMode.value
         when (state.currentMode.value) {
-            FloatingMode.BALL -> {
+            FloatingMode.BALL, FloatingMode.VOICE_BALL -> {
                 state.lastBallPositionX = currentParams.x
                 state.lastBallPositionY = currentParams.y
                 currentWidth = (state.ballSize.value.value * density).toInt()
@@ -262,8 +263,10 @@ class FloatingWindowManager(
                 state.lastWindowPositionX = currentParams.x
                 state.lastWindowPositionY = currentParams.y
                 state.lastWindowScale = state.windowScale.value
-                currentWidth = (state.windowWidth.value.value * density * state.windowScale.value).toInt()
-                currentHeight = (state.windowHeight.value.value * density * state.windowScale.value).toInt()
+                currentWidth =
+                        (state.windowWidth.value.value * density * state.windowScale.value).toInt()
+                currentHeight =
+                        (state.windowHeight.value.value * density * state.windowScale.value).toInt()
             }
             FloatingMode.FULLSCREEN -> {
                 // Leaving fullscreen, no special state to save
@@ -275,8 +278,10 @@ class FloatingWindowManager(
                 state.lastWindowPositionX = currentParams.x
                 state.lastWindowPositionY = currentParams.y
                 state.lastWindowScale = state.windowScale.value
-                currentWidth = (state.windowWidth.value.value * density * state.windowScale.value).toInt()
-                currentHeight = (state.windowHeight.value.value * density * state.windowScale.value).toInt()
+                currentWidth =
+                        (state.windowWidth.value.value * density * state.windowScale.value).toInt()
+                currentHeight =
+                        (state.windowHeight.value.value * density * state.windowScale.value).toInt()
             }
         }
 
@@ -286,7 +291,7 @@ class FloatingWindowManager(
         // Update layout for the new mode
         updateViewLayout { params ->
             when (newMode) {
-                FloatingMode.BALL -> {
+                FloatingMode.BALL, FloatingMode.VOICE_BALL -> {
                     params.flags =
                             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
@@ -310,13 +315,16 @@ class FloatingWindowManager(
                             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
                     val newWidth =
-                            (state.windowWidth.value.value * density * state.lastWindowScale).toInt()
+                            (state.windowWidth.value.value * density * state.lastWindowScale)
+                                    .toInt()
                     val newHeight =
                             (state.windowHeight.value.value * density * state.lastWindowScale)
                                     .toInt()
                     params.width = newWidth
                     params.height = newHeight
-                    if (state.previousMode == FloatingMode.BALL) {
+                    if (state.previousMode == FloatingMode.BALL ||
+                                    state.previousMode == FloatingMode.VOICE_BALL
+                    ) {
                         val (centeredX, centeredY) =
                                 calculateCenteredPosition(
                                         currentParams.x,
@@ -343,10 +351,14 @@ class FloatingWindowManager(
                 }
                 FloatingMode.LIVE2D -> {
                     params.flags =
-                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-                    val newWidth = (state.windowWidth.value.value * density * state.lastWindowScale).toInt()
-                    val newHeight = (state.windowHeight.value.value * density * state.lastWindowScale).toInt()
+                            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                    val newWidth =
+                            (state.windowWidth.value.value * density * state.lastWindowScale)
+                                    .toInt()
+                    val newHeight =
+                            (state.windowHeight.value.value * density * state.lastWindowScale)
+                                    .toInt()
                     params.width = newWidth
                     params.height = newHeight
                     params.x = state.lastWindowPositionX
@@ -369,11 +381,18 @@ class FloatingWindowManager(
 
             state.windowScale.value = scale
 
-            val sensitivity = if (state.currentMode.value == FloatingMode.BALL) 0.9f else scale
+            val sensitivity =
+                    if (state.currentMode.value == FloatingMode.BALL ||
+                                    state.currentMode.value == FloatingMode.VOICE_BALL
+                    )
+                            0.9f
+                    else scale
             params.x += (dx * sensitivity).toInt()
             params.y += (dy * sensitivity).toInt()
 
-            if (state.currentMode.value == FloatingMode.BALL) {
+            if (state.currentMode.value == FloatingMode.BALL ||
+                            state.currentMode.value == FloatingMode.VOICE_BALL
+            ) {
                 val ballSize = (state.ballSize.value.value * density).toInt()
                 val minVisible = ballSize / 2
                 params.x = params.x.coerceIn(-ballSize + minVisible, screenWidth - minVisible)

@@ -9,11 +9,10 @@ import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.preferences.PromptFunctionType
 import com.ai.assistance.operit.ui.floating.ui.ball.FloatingChatBallMode
+import com.ai.assistance.operit.ui.floating.ui.ball.FloatingVoiceBallMode
 import com.ai.assistance.operit.ui.floating.ui.fullscreen.FloatingFullscreenMode
 import com.ai.assistance.operit.ui.floating.ui.live2d.FloatingLive2dMode
 import com.ai.assistance.operit.ui.floating.ui.window.FloatingChatWindowMode
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 /**
  * 悬浮聊天窗口的主要UI组件 - 重构版
@@ -72,34 +71,35 @@ fun FloatingChatWindow(
         onRemoveAttachment: ((String) -> Unit)? = null,
         onInputFocusRequest: ((Boolean) -> Unit)? = null
 ) {
-    val floatContext = rememberFloatContext(
-        messages = messages,
-        width = width,
-        height = height,
-        onClose = onClose,
-        onResize = onResize,
-        ballSize = ballSize,
-        windowScale = windowScale,
-        onScaleChange = onScaleChange,
-        currentMode = currentMode,
-        previousMode = previousMode,
-        onModeChange = onModeChange,
-        onMove = onMove,
-        snapToEdge = snapToEdge,
-        isAtEdge = isAtEdge,
-        screenWidth = screenWidth,
-        screenHeight = screenHeight,
-        currentX = currentX,
-        currentY = currentY,
-        saveWindowState = saveWindowState,
-        onSendMessage = onSendMessage,
-        onCancelMessage = onCancelMessage,
-        onAttachmentRequest = onAttachmentRequest,
-        attachments = attachments,
-        onRemoveAttachment = onRemoveAttachment,
-        onInputFocusRequest = onInputFocusRequest
-    )
-    
+    val floatContext =
+            rememberFloatContext(
+                    messages = messages,
+                    width = width,
+                    height = height,
+                    onClose = onClose,
+                    onResize = onResize,
+                    ballSize = ballSize,
+                    windowScale = windowScale,
+                    onScaleChange = onScaleChange,
+                    currentMode = currentMode,
+                    previousMode = previousMode,
+                    onModeChange = onModeChange,
+                    onMove = onMove,
+                    snapToEdge = snapToEdge,
+                    isAtEdge = isAtEdge,
+                    screenWidth = screenWidth,
+                    screenHeight = screenHeight,
+                    currentX = currentX,
+                    currentY = currentY,
+                    saveWindowState = saveWindowState,
+                    onSendMessage = onSendMessage,
+                    onCancelMessage = onCancelMessage,
+                    onAttachmentRequest = onAttachmentRequest,
+                    attachments = attachments,
+                    onRemoveAttachment = onRemoveAttachment,
+                    onInputFocusRequest = onInputFocusRequest
+            )
+
     // 将窗口缩放限制在合理范围内 - 已通过回调和状态源头处理，不再需要
     // LaunchedEffect(initialWindowScale) {
     //     floatContext.windowScale = initialWindowScale.coerceIn(0.5f, 1.0f)
@@ -120,6 +120,7 @@ fun FloatingChatWindow(
     when (floatContext.currentMode) {
         FloatingMode.WINDOW -> FloatingChatWindowMode(floatContext = floatContext)
         FloatingMode.BALL -> FloatingChatBallMode(floatContext = floatContext)
+        FloatingMode.VOICE_BALL -> FloatingVoiceBallMode(floatContext = floatContext)
         FloatingMode.FULLSCREEN -> FloatingFullscreenMode(floatContext = floatContext)
         FloatingMode.LIVE2D -> FloatingLive2dMode(floatContext = floatContext)
     }
