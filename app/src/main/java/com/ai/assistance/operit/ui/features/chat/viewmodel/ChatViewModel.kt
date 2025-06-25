@@ -3,6 +3,7 @@ package com.ai.assistance.operit.ui.features.chat.viewmodel
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import androidx.compose.material3.ColorScheme
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ai.assistance.operit.api.chat.EnhancedAIService
@@ -226,7 +227,11 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                             sendUserMessage()
                         },
                         onAttachmentRequested = { request -> processAttachmentRequest(request) },
-                        onAttachmentRemoveRequested = { filePath -> removeAttachment(filePath) }
+                        onAttachmentRemoveRequested = { filePath -> removeAttachment(filePath) },
+                        onCancelMessageRequested = {
+                            // 取消当前消息
+                            cancelCurrentMessage()
+                        }
                 )
     }
 
@@ -587,12 +592,14 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     fun clearToastEvent() = uiStateDelegate.clearToastEvent()
 
     // 悬浮窗相关方法
-    fun toggleFloatingMode() {
-        floatingWindowDelegate.toggleFloatingMode()
+    fun toggleFloatingMode(colorScheme: ColorScheme? = null) {
+        floatingWindowDelegate.toggleFloatingMode(colorScheme)
     }
+
     fun updateFloatingWindowMessages(messages: List<ChatMessage>) {
         floatingWindowDelegate.updateFloatingWindowMessages(messages)
     }
+
     fun updateFloatingWindowAttachments() {
         floatingWindowDelegate.updateFloatingWindowAttachments(attachments.value)
     }
@@ -976,6 +983,13 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     fun handleFileChooserResult(resultCode: Int, data: Intent?) {
         fileChooserCallback?.invoke(resultCode, data)
         fileChooserCallback = null
+    }
+
+    /**
+     * 设置权限系统的颜色方案
+     */
+    fun setPermissionSystemColorScheme(colorScheme: ColorScheme?) {
+        toolPermissionSystem.setColorScheme(colorScheme)
     }
 
     override fun onCleared() {

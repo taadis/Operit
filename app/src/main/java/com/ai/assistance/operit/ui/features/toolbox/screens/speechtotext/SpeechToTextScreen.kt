@@ -115,7 +115,7 @@ fun SpeechToTextScreen(navController: NavController) {
     var availableLanguages by remember { mutableStateOf<List<String>>(emptyList()) }
     
     // recognitionMode 是驱动服务实例创建的唯一状态源
-    var recognitionMode by remember { mutableStateOf(SpeechServiceFactory.SpeechServiceType.ANDROID_NATIVE) }
+    var recognitionMode by remember { mutableStateOf(SpeechServiceFactory.SpeechServiceType.SHERPA_NCNN) }
 
     // speechService 实例仅在 recognitionMode 改变时重新创建
     val speechService = remember(recognitionMode) {
@@ -141,16 +141,9 @@ fun SpeechToTextScreen(navController: NavController) {
         val success = speechService.initialize()
         if (success) {
             availableLanguages = speechService.getSupportedLanguages()
-        } else {
-            val currentMode = recognitionMode
-            // 如果是原生引擎失败，自动切换到Sherpa-ncnn，如果Sherpa-ncnn也失败，再尝试Whisper
-            if (currentMode == SpeechServiceFactory.SpeechServiceType.ANDROID_NATIVE) {
-                error = "原生引擎不可用，已自动切换到Sherpa-ncnn离线引擎。"
-                recognitionMode = SpeechServiceFactory.SpeechServiceType.SHERPA_NCNN
-            } else {
-                error = "引擎 ${currentMode.name} 初始化失败。"
-            }
-        }
+        } 
+        error = "引擎 ${recognitionMode.name} 初始化失败。"
+        
     }
     
     // 当服务实例改变时，重新开始收集结果和错误
@@ -198,17 +191,14 @@ fun SpeechToTextScreen(navController: NavController) {
     // 切换识别引擎现在只改变状态，Compose框架会处理后续的重新创建和初始化
     fun switchRecognitionMode() {
         recognitionMode = when (recognitionMode) {
-            SpeechServiceFactory.SpeechServiceType.ANDROID_NATIVE -> 
+            SpeechServiceFactory.SpeechServiceType.SHERPA_NCNN -> 
                 SpeechServiceFactory.SpeechServiceType.SHERPA_NCNN
-            else -> 
-                SpeechServiceFactory.SpeechServiceType.ANDROID_NATIVE
         }
     }
 
     // 获取当前引擎的显示名称
     fun getEngineName(mode: SpeechServiceFactory.SpeechServiceType): String {
         return when (mode) {
-            SpeechServiceFactory.SpeechServiceType.ANDROID_NATIVE -> "Android 原生"
             SpeechServiceFactory.SpeechServiceType.SHERPA_NCNN -> "Sherpa-ncnn (最佳)"
         }
     }

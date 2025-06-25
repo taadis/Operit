@@ -9,15 +9,19 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.ColorScheme
 
 /**
  * 为悬浮窗提供的独立主题
  * 使用静态颜色，避免对Activity上下文的依赖
  */
 @Composable
-fun FloatingWindowTheme(content: @Composable () -> Unit) {
+fun FloatingWindowTheme(
+    colorScheme: ColorScheme? = null,
+    content: @Composable () -> Unit
+) {
     // 使用静态颜色，匹配动态主题的默认值
-    val colorScheme = lightColorScheme(
+    val finalColorScheme = colorScheme ?: lightColorScheme(
         // 主要颜色
         primary = Color(0xFF6650a4),                // Purple40 - 与主应用默认主色匹配
         onPrimary = Color.White,
@@ -115,7 +119,7 @@ fun FloatingWindowTheme(content: @Composable () -> Unit) {
     )
     
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = finalColorScheme,
         typography = smallTypography,
         content = content
     )

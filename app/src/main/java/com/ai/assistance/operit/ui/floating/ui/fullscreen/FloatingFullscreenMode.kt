@@ -27,6 +27,7 @@ import com.ai.assistance.operit.api.speech.SpeechServiceFactory
 import com.ai.assistance.operit.api.voice.VoiceServiceFactory
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.ui.floating.FloatContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -34,6 +35,8 @@ import kotlinx.coroutines.launch
 fun FloatingFullscreenMode(floatContext: FloatContext) {
     val context = LocalContext.current
     var isRecording by remember { mutableStateOf(false) }
+    var isProcessingSpeech by remember { mutableStateOf(false) }
+    var timeoutJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var userMessage by remember { mutableStateOf("") }
     var aiMessage by remember { mutableStateOf("长按麦克风开始说话") }
     val coroutineScope = rememberCoroutineScope()
@@ -52,15 +55,21 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
     // 监听语音识别结果
     LaunchedEffect(speechService) {
         speechService.recognitionResultFlow.collectLatest { result ->
-            if (result.text.isNotBlank()) {
-                userMessage = result.text
-
-                // 如果是最终结果，发送消息
-                if (result.isFinal && isRecording) {
+            if (result.isFinal) {
+                timeoutJob?.cancel()
+                isProcessingSpeech = false
+                isRecording = false
+                if (result.text.isNotBlank()) {
+                    userMessage = result.text
                     floatContext.onSendMessage?.invoke(result.text)
-                    isRecording = false
                     aiMessage = "思考中..."
+                } else {
+                    aiMessage = "没有听清，请再试一次"
+                    voiceService.speak(aiMessage, rate = 1.5f)
                 }
+            } else if (result.text.isNotBlank()) {
+                // Partial result
+                userMessage = result.text
             }
         }
     }
@@ -108,7 +117,7 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
                                 val sentenceToSpeak = sentenceBuffer.toString().trim()
                                 if (sentenceToSpeak.isNotBlank()) {
                                     // 第一句中断播放，后续句子加入队列
-                                    voiceService.speak(sentenceToSpeak, interrupt = isFirstSentence)
+                                    voiceService.speak(sentenceToSpeak, interrupt = isFirstSentence, rate = 1.5f)
                                     isFirstSentence = false
                                 }
                                 sentenceBuffer.clear()
@@ -118,7 +127,7 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
                         // 处理最后剩余的文本
                         val finalSentence = sentenceBuffer.toString().trim()
                         if (finalSentence.isNotBlank()) {
-                            voiceService.speak(finalSentence, interrupt = isFirstSentence)
+                            voiceService.speak(finalSentence, interrupt = isFirstSentence, rate = 1.5f)
                         }
                     }
                             ?: run {
@@ -126,7 +135,7 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
                                 aiMessage = lastMessage.content
                                 // 一次性使用TTS播放AI回复
                                 if (aiMessage.isNotBlank()) {
-                                    voiceService.speak(aiMessage)
+                                    voiceService.speak(aiMessage, rate = 1.5f)
                                 }
                             }
                 }
@@ -137,6 +146,7 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
     // 清理资源
     DisposableEffect(speechService, voiceService) {
         onDispose {
+            timeoutJob?.cancel()
             coroutineScope.launch {
                 speechService.cancelRecognition()
                 voiceService.stop()
@@ -205,7 +215,7 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
                                             brush =
                                                     Brush.radialGradient(
                                                             colors =
-                                                                    if (isRecording) {
+                                                                    if (isRecording || isProcessingSpeech) {
                                                                         listOf(
                                                                                 MaterialTheme
                                                                                         .colorScheme
@@ -235,9 +245,24 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
                                         detectTapGestures(
                                                 onLongPress = {
                                                     coroutineScope.launch {
+                                                        timeoutJob?.cancel()
                                                         isRecording = true
                                                         userMessage = ""
                                                         aiMessage = "正在聆听..."
+                                                        
+                                                        // 立即停止当前语音输出
+                                                        voiceService.stop()
+                                                        
+                                                        // 在开始新的语音识别前，先取消可能正在进行的对话
+                                                        // 检查最后一条消息，确定AI是否在工作中
+                                                        val lastMessage = floatContext.messages.lastOrNull()
+                                                        val isAiCurrentlyWorking = lastMessage?.sender == "think" ||
+                                                                (lastMessage?.sender == "ai" && lastMessage.contentStream != null)
+
+                                                        if (isAiCurrentlyWorking) {
+                                                            floatContext.onCancelMessage?.invoke()
+                                                        }
+                                                        
                                                         // 开始语音识别
                                                         speechService.startRecognition(
                                                                 languageCode = "zh-CN",
@@ -251,16 +276,28 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
                                                         awaitRelease()
                                                     } finally {
                                                         if (isRecording) {
-                                                            coroutineScope.launch {
-                                                                // 停止语音识别
+                                                            timeoutJob = coroutineScope.launch {
                                                                 speechService.stopRecognition()
-                                                                // 如果没有获取到文本，使用空字符串
-                                                                if (userMessage.isBlank()) {
-                                                                    isRecording = false
-                                                                    aiMessage = "没有听清，请再试一次"
-                                                                    voiceService.speak(aiMessage)
+                                                                isRecording = false
+                                                                isProcessingSpeech = true
+                                                                aiMessage = "识别中..."
+
+                                                                // 添加超时机制
+                                                                delay(2000) // 等待2秒
+
+                                                                // 如果2秒后仍在处理，则手动结束
+                                                                if (isProcessingSpeech) {
+                                                                    isProcessingSpeech = false
+                                                                    if (userMessage.isNotBlank()) {
+                                                                        // 如果有部分结果，直接发送
+                                                                        floatContext.onSendMessage?.invoke(userMessage)
+                                                                        aiMessage = "思考中..."
+                                                                    } else {
+                                                                        // 否则提示未听清
+                                                                        aiMessage = "没有听清，请再试一次"
+                                                                        voiceService.speak(aiMessage, rate = 1.5f)
+                                                                    }
                                                                 }
-                                                                // 实际结果处理在recognitionResultFlow监听中
                                                             }
                                                         }
                                                     }

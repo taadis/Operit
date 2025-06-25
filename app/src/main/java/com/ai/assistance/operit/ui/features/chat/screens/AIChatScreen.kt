@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
@@ -42,10 +43,35 @@ fun AIChatScreen(
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
+    val colorScheme = MaterialTheme.colorScheme
 
     // Initialize ViewModel without using viewModel() function
     val factory = ChatViewModelFactory(context)
     val actualViewModel = viewModel ?: remember { factory.create(ChatViewModel::class.java) }
+
+    // 设置权限系统的颜色方案
+    LaunchedEffect(colorScheme) {
+        actualViewModel.setPermissionSystemColorScheme(colorScheme)
+    }
+
+    // 添加麦克风权限请求启动器
+    val requestMicrophonePermissionLauncher =
+            rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.RequestPermission()
+            ) { isGranted ->
+                if (isGranted) {
+                    // 权限已授予，启用悬浮窗
+                    actualViewModel.toggleFloatingMode(colorScheme)
+                } else {
+                    // 权限被拒绝
+                    android.widget.Toast.makeText(
+                                    context,
+                                    context.getString(R.string.microphone_permission_denied),
+                                    android.widget.Toast.LENGTH_SHORT
+                            )
+                            .show()
+                }
+            }
 
     // Get background image state
     val preferencesManager = remember { UserPreferencesManager(context) }
@@ -172,23 +198,6 @@ fun AIChatScreen(
             } catch (e: Exception) {
                 // Log.e("AIChatScreen", "自动滚动失败", e)
             }
-        }
-    }
-
-    // 启动和停止悬浮窗服务
-    LaunchedEffect(isFloatingMode) {
-        if (isFloatingMode) {
-            try {
-                val intent = Intent(context, FloatingChatService::class.java)
-                context.startService(intent)
-                Log.d("AIChatScreen", "悬浮窗服务已启动")
-            } catch (e: SecurityException) {
-                Log.e("AIChatScreen", "启动悬浮窗服务失败：权限问题", e)
-                actualViewModel.toggleFloatingMode()
-            }
-        } else {
-            context.stopService(Intent(context, FloatingChatService::class.java))
-            Log.d("AIChatScreen", "悬浮窗服务已停止")
         }
     }
 

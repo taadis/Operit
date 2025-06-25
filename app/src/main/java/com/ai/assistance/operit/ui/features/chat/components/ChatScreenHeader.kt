@@ -55,8 +55,72 @@ fun ChatScreenHeader(
         onWebDevClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val colorScheme = MaterialTheme.colorScheme
     val currentChatTitle = chatHistories.find { it.id == currentChatId }?.title
     val scope = rememberCoroutineScope()
+    
+    // 在顶层定义权限请求启动器
+    val requestMicrophonePermissionLauncher =
+            androidx.activity.compose.rememberLauncherForActivityResult(
+                    contract =
+                            androidx.activity.result.contract
+                                    .ActivityResultContracts.RequestPermission()
+            ) { isGranted ->
+                if (isGranted) {
+                    // 麦克风权限已授予，继续检查悬浮窗权限
+                    if (!Settings.canDrawOverlays(context)) {
+                        // 显示消息给用户
+                        android.widget.Toast.makeText(
+                                context,
+                                context.getString(
+                                        R.string
+                                                .overlay_permission_required
+                                ),
+                                android.widget.Toast.LENGTH_SHORT
+                        )
+                                .show()
+    
+                        // 启动设置页面请求权限
+                        val intent =
+                                Intent(
+                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                        Uri.parse(
+                                                "package:${context.packageName}"
+                                        )
+                                )
+                        context.startActivity(intent)
+                    } else {
+                        // 切换悬浮窗模式
+                        actualViewModel.toggleFloatingMode(colorScheme)
+    
+                        // 根据当前悬浮窗状态显示不同的提示
+                        val isFloating = actualViewModel.isFloatingMode.value
+                        val message =
+                                if (isFloating)
+                                        context.getString(
+                                                R.string.enable_floating_mode
+                                        )
+                                else
+                                        context.getString(
+                                                R.string.disable_floating_mode
+                                        )
+                        android.widget.Toast.makeText(
+                                context,
+                                message,
+                                android.widget.Toast.LENGTH_SHORT
+                        )
+                                .show()
+                    }
+                } else {
+                                                    // 麦克风权限被拒绝
+                                android.widget.Toast.makeText(
+                                        context,
+                                        context.getString(R.string.microphone_permission_denied),
+                                        android.widget.Toast.LENGTH_SHORT
+                                )
+                                        .show()
+                }
+            }
 
     // 获取是否显示模型选择器的设置
     val apiPreferences = remember { ApiPreferences(context) }
@@ -101,38 +165,51 @@ fun ChatScreenHeader(
                     modifier = Modifier,
                     isFloatingMode = actualViewModel.isFloatingMode.value,
                     onLaunchFloatingWindow = {
-                        // Check if we can draw overlays first
-                        if (!Settings.canDrawOverlays(context)) {
-                            // Show message to user
-                            android.widget.Toast.makeText(
-                                            context,
-                                            context.getString(R.string.overlay_permission_required),
-                                            android.widget.Toast.LENGTH_SHORT
-                                    )
-                                    .show()
-
-                            // Launch settings to grant permission
-                            val intent =
-                                    Intent(
-                                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                            Uri.parse("package:${context.packageName}")
-                                    )
-                            context.startActivity(intent)
+                        // 首先检查麦克风权限，但不要在这里使用rememberLauncherForActivityResult
+                        val hasMicPermission = android.content.pm.PackageManager.PERMISSION_GRANTED ==
+                                context.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
+                        if (!hasMicPermission) {
+                            // 需要麦克风权限，使用顶层声明的launcher
+                            requestMicrophonePermissionLauncher.launch(
+                                    android.Manifest.permission.RECORD_AUDIO
+                            )
                         } else {
-                            // Toggle floating mode
-                            actualViewModel.toggleFloatingMode()
-
-                            // 根据当前悬浮窗状态显示不同的提示
-                            val isFloating = actualViewModel.isFloatingMode.value
-                            val message =
-                                    if (isFloating) context.getString(R.string.enable_floating_mode)
-                                    else context.getString(R.string.disable_floating_mode)
-                            android.widget.Toast.makeText(
-                                            context,
-                                            message,
-                                            android.widget.Toast.LENGTH_SHORT
-                                    )
-                                    .show()
+                            // 已有麦克风权限，检查悬浮窗权限
+                            if (!Settings.canDrawOverlays(context)) {
+                                // 显示消息给用户
+                                android.widget.Toast.makeText(
+                                        context,
+                                        context.getString(
+                                                R.string.overlay_permission_required
+                                        ),
+                                        android.widget.Toast.LENGTH_SHORT
+                                )
+                                        .show()
+            
+                                // 启动设置页面请求权限
+                                val intent =
+                                        Intent(
+                                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                                Uri.parse("package:${context.packageName}")
+                                        )
+                                context.startActivity(intent)
+                            } else {
+                                // 切换悬浮窗模式
+                                actualViewModel.toggleFloatingMode(colorScheme)
+            
+                                // 根据当前悬浮窗状态显示不同的提示
+                                val isFloating = actualViewModel.isFloatingMode.value
+                                val message =
+                                        if (isFloating)
+                                                context.getString(R.string.enable_floating_mode)
+                                        else context.getString(R.string.disable_floating_mode)
+                                android.widget.Toast.makeText(
+                                        context,
+                                        message,
+                                        android.widget.Toast.LENGTH_SHORT
+                                )
+                                        .show()
+                            }
                         }
                     },
                     showWebView = showWebView,

@@ -6,9 +6,6 @@ import android.content.Context
 object SpeechServiceFactory {
     /** 语音识别服务类型 */
     enum class SpeechServiceType {
-        /** 基于Android系统SpeechRecognizer的识别实现 */
-        ANDROID_NATIVE,
-        
         /** 基于Sherpa-ncnn的本地识别实现 */
         SHERPA_NCNN
     }
@@ -22,17 +19,16 @@ object SpeechServiceFactory {
      */
     fun createSpeechService(
             context: Context,
-            type: SpeechServiceType = SpeechServiceType.ANDROID_NATIVE
+            type: SpeechServiceType = SpeechServiceType.SHERPA_NCNN
     ): SpeechService {
         return when (type) {
-            SpeechServiceType.ANDROID_NATIVE -> AndroidSpeechProvider(context)
             SpeechServiceType.SHERPA_NCNN -> SherpaSpeechProvider(context)
         }
     }
 
     // 单例实例缓存
     private var instance: SpeechService? = null
-    private var currentType: SpeechServiceType = SpeechServiceType.ANDROID_NATIVE
+    private var currentType: SpeechServiceType = SpeechServiceType.SHERPA_NCNN
 
     /**
      * 获取语音识别服务单例实例
@@ -43,7 +39,7 @@ object SpeechServiceFactory {
      */
     fun getInstance(
             context: Context,
-            type: SpeechServiceType = SpeechServiceType.ANDROID_NATIVE
+            type: SpeechServiceType = SpeechServiceType.SHERPA_NCNN
     ): SpeechService {
         val needNewInstance = instance == null || type != currentType
         

@@ -22,15 +22,19 @@ import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.ui.floating.FloatingChatWindow
 import com.ai.assistance.operit.ui.floating.FloatingMode
+import com.ai.assistance.operit.ui.floating.FloatingWindowTheme
+import androidx.compose.material3.ColorScheme
 
 interface FloatingWindowCallback {
     fun onClose()
     fun onSendMessage(message: String)
+    fun onCancelMessage()
     fun onAttachmentRequest(request: String)
     fun onRemoveAttachment(filePath: String)
     fun getMessages(): List<ChatMessage>
     fun getAttachments(): List<AttachmentInfo>
     fun saveState()
+    fun getColorScheme(): ColorScheme?
 }
 
 class FloatingWindowManager(
@@ -57,7 +61,11 @@ class FloatingWindowManager(
                         setViewTreeViewModelStoreOwner(viewModelStoreOwner)
                         setViewTreeSavedStateRegistryOwner(savedStateRegistryOwner)
 
-                        setContent { MaterialTheme { FloatingChatUi() } }
+                        setContent {
+                            FloatingWindowTheme(colorScheme = callback.getColorScheme()) {
+                                FloatingChatUi()
+                            }
+                        }
                     }
 
             val params = createLayoutParams()
@@ -109,6 +117,7 @@ class FloatingWindowManager(
                 onMove = { dx, dy, scale -> onMove(dx, dy, scale) },
                 saveWindowState = { callback.saveState() },
                 onSendMessage = { callback.onSendMessage(it) },
+                onCancelMessage = { callback.onCancelMessage() },
                 onInputFocusRequest = { setFocusable(it) },
                 attachments = callback.getAttachments(),
                 onAttachmentRequest = { callback.onAttachmentRequest(it) },

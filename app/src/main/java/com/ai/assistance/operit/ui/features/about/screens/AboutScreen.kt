@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.OpenInBrowser
+import androidx.compose.material.icons.filled.Source
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Update
 import androidx.compose.material.icons.rounded.Info
@@ -49,6 +50,9 @@ import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.updates.UpdateManager
 import com.ai.assistance.operit.data.updates.UpdateStatus
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.filled.ArrowForward
 
 @Composable
 fun HtmlText(
@@ -108,6 +112,176 @@ fun InfoItem(
     }
 }
 
+// 定义用于展示的开源库数据类
+data class OpenSourceLibrary(
+    val name: String,
+    val description: String = "",
+    val license: String = "",
+    val website: String = ""
+)
+
+// 准备开源库列表
+private fun getOpenSourceLibraries(): List<OpenSourceLibrary> {
+    return listOf(
+        OpenSourceLibrary("android-gif-drawable", "GIF support for Android", "MIT", "https://github.com/koral--/android-gif-drawable"),
+        OpenSourceLibrary("Android-Image-Cropper", "Image cropping library for Android", "Apache-2.0", "https://github.com/CanHub/Android-Image-Cropper"),
+        OpenSourceLibrary("AndroidSVG", "SVG rendering library", "Apache-2.0", "https://github.com/BigBadaboom/androidsvg"),
+        OpenSourceLibrary("AndroidX Compose", "Android 声明式 UI 框架", "Apache-2.0", "https://developer.android.com/jetpack/compose"),
+        OpenSourceLibrary("AndroidX Core KTX", "Android 核心库的 Kotlin 扩展", "Apache-2.0", "https://developer.android.com/jetpack/androidx"),
+        OpenSourceLibrary("AndroidX DataStore", "Data storage solution", "Apache-2.0", "https://developer.android.com/jetpack/androidx/releases/datastore"),
+        OpenSourceLibrary("AndroidX Window", "Window manager library for foldables", "Apache-2.0", "https://developer.android.com/jetpack/androidx/releases/window"),
+        OpenSourceLibrary("Apache Commons Compress", "Library for working with archives", "Apache-2.0", "https://commons.apache.org/proper/commons-compress/"),
+        OpenSourceLibrary("Apache Commons IO", "Library of I/O utilities", "Apache-2.0", "https://commons.apache.org/proper/commons-io/"),
+        OpenSourceLibrary("Apache PDFBox", "Java library for working with PDF documents", "Apache-2.0", "https://pdfbox.apache.org/"),
+        OpenSourceLibrary("Apache POI", "文档处理库", "Apache-2.0", "https://poi.apache.org/"),
+        OpenSourceLibrary("apk-parser", "A parser for APK files", "Apache-2.0", "https://github.com/hsiafan/apk-parser"),
+        OpenSourceLibrary("axml", "A-XML format parsing library", "Apache-2.0", "https://github.com/Sable/axml"),
+        OpenSourceLibrary("Bouncy Castle", "Cryptography library", "MIT", "https://www.bouncycastle.org/"),
+        OpenSourceLibrary("Coil", "Image loading library for Android", "Apache-2.0", "https://coil-kt.github.io/coil/"),
+        OpenSourceLibrary("colorpicker-compose", "A color picker for Jetpack Compose", "Apache-2.0", "https://github.com/skydoves/colorpicker-compose"),
+        OpenSourceLibrary("ExoPlayer", "Extensible media player for Android", "Apache-2.0", "https://exoplayer.dev/"),
+        OpenSourceLibrary("FFmpegKit", "FFmpeg 工具库", "LGPL-3.0", "https://github.com/arthenica/ffmpeg-kit"),
+        OpenSourceLibrary("Glide", "Android 图片加载库", "BSD, MIT, Apache-2.0", "https://github.com/bumptech/glide"),
+        OpenSourceLibrary("Gson", "Google JSON 解析库", "Apache-2.0", "https://github.com/google/gson"),
+        OpenSourceLibrary("HJSON", "Human-friendly JSON format", "MIT", "https://hjson.github.io/"),
+        OpenSourceLibrary("HNSWLib", "Header-only C++/python library for fast approximate nearest neighbor search", "Apache-2.0", "https://github.com/jelmerk/hnswlib"),
+        OpenSourceLibrary("iText (v5)", "Library for creating and manipulating PDF files", "MPL/LGPL", "https://itextpdf.com/"),
+        OpenSourceLibrary("java-diff-utils", "Diff library for Java", "Apache-2.0", "https://github.com/java-diff-utils/java-diff-utils"),
+        OpenSourceLibrary("Jieba-Android", "Jieba Chinese word segmentation for Android", "MIT", "https://github.com/huaban/jieba-analysis"),
+        OpenSourceLibrary("JLatexMath-Android", "LaTeX formula rendering library", "Apache-2.0", "https://github.com/noties/jlatexmath-android"),
+        OpenSourceLibrary("Jsoup", "Java HTML parser", "MIT", "https://jsoup.org/"),
+        OpenSourceLibrary("junrar", "RAR archive extraction library", "The Unlicense", "https://github.com/junrar/junrar"),
+        OpenSourceLibrary("kotlin-logging", "Lightweight logging framework for Kotlin", "Apache-2.0", "https://github.com/oshai/kotlin-logging"),
+        OpenSourceLibrary("kotlin-uuid", "UUID library for Kotlin", "Apache-2.0", "https://github.com/benasher44/uuid"),
+        OpenSourceLibrary("Kotlin Coroutines", "Kotlin 协程库", "Apache-2.0", "https://github.com/Kotlin/kotlinx.coroutines"),
+        OpenSourceLibrary("kotlinx.serialization", "Kotlin 序列化库", "Apache-2.0", "https://github.com/Kotlin/kotlinx.serialization"),
+        OpenSourceLibrary("libsu", "Root access library for Android", "Apache-2.0", "https://github.com/topjohnwu/libsu"),
+        OpenSourceLibrary("ML Kit", "Google 机器学习工具包", "Apache-2.0", "https://developers.google.com/ml-kit"),
+        OpenSourceLibrary("NanoHTTPD", "轻量级 HTTP 服务器", "BSD-3-Clause", "https://github.com/NanoHttpd/nanohttpd"),
+        OpenSourceLibrary("OkHttp", "HTTP 客户端", "Apache-2.0", "https://square.github.io/okhttp/"),
+        OpenSourceLibrary("RenderX", "LaTeX rendering library", "MIT", "https://github.com/tech-pw/RenderX"),
+        OpenSourceLibrary("Room", "Android SQLite 对象映射库", "Apache-2.0", "https://developer.android.com/training/data-storage/room"),
+        OpenSourceLibrary("Shizuku", "System service for apps to use system APIs directly", "Apache-2.0", "https://github.com/RikkaApps/Shizuku"),
+        OpenSourceLibrary("sherpa-ncnn", "Real-time speech recognition with Next-gen Kaldi", "Apache-2.0", "https://github.com/k2-fsa/sherpa-ncnn"),
+        OpenSourceLibrary("SLF4J", "Simple Logging Facade for Java", "MIT", "https://www.slf4j.org/"),
+        OpenSourceLibrary("TensorFlow Lite", "On-device machine learning framework", "Apache-2.0", "https://www.tensorflow.org/lite"),
+        OpenSourceLibrary("zipalign-java", "zipalign implementation in Java", "MIT", "https://github.com/Iyxan23/zipalign-java")
+    ).sortedBy { it.name }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LicenseDialog(onDismiss: () -> Unit) {
+    val libraries = remember { getOpenSourceLibraries() }
+    val context = LocalContext.current
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Source,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    "开源许可",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        text = {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 400.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(libraries) { library ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            Text(
+                                text = library.name,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            if (library.description.isNotEmpty()) {
+                                Text(
+                                    text = library.description,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
+                            Text(
+                                text = "许可: ${library.license}",
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(top = 4.dp),
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            )
+                            if (library.website.isNotEmpty()) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 8.dp)
+                                        .clickable {
+                                            val intent = Intent(Intent.ACTION_VIEW).apply {
+                                                data = Uri.parse(library.website)
+                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            }
+                                            onDismiss()
+                                            context.startActivity(intent)
+                                        },
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.End
+                                ) {
+                                    Text(
+                                        text = "访问项目",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Icon(
+                                        imageVector = Icons.Default.OpenInBrowser,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier
+                                            .size(16.dp)
+                                            .padding(start = 4.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Text("确定")
+            }
+        }
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AboutScreen() {
@@ -133,6 +307,9 @@ fun AboutScreen() {
     var showUpdateDialog by remember { mutableStateOf(false) }
     // 添加下载源选择对话框状态
     var showDownloadSourceMenu by remember { mutableStateOf(false) }
+
+    // 添加开源许可对话框状态
+    var showLicenseDialog by remember { mutableStateOf(false) }
 
     // 检查更新按钮动画
     val buttonAlpha =
@@ -209,6 +386,11 @@ fun AboutScreen() {
         context.startActivity(intent)
         showDownloadSourceMenu = false
         showUpdateDialog = false
+    }
+
+    // 显示开源许可对话框
+    if (showLicenseDialog) {
+        LicenseDialog(onDismiss = { showLicenseDialog = false })
     }
 
     // 更新对话框
@@ -634,6 +816,46 @@ fun AboutScreen() {
                             style = MaterialTheme.typography.bodySmall,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // 添加开源许可卡片
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(elevation = 4.dp, shape = RoundedCornerShape(16.dp))
+                    .clickable { showLicenseDialog = true },
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Source,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text(
+                            text = "开源许可声明",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Default.ArrowForward,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
                     )
                 }
             }

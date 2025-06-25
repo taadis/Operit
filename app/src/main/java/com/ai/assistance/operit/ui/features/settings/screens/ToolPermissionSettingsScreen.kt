@@ -24,6 +24,12 @@ fun ToolPermissionSettingsScreen(
     val context = LocalContext.current
     val toolPermissionSystem = remember { ToolPermissionSystem.getInstance(context) }
     val scope = rememberCoroutineScope()
+    val colorScheme = MaterialTheme.colorScheme
+    
+    // 设置权限系统的颜色方案
+    LaunchedEffect(colorScheme) {
+        toolPermissionSystem.setColorScheme(colorScheme)
+    }
     
     // 收集工具权限设置
     val masterSwitch = toolPermissionSystem.masterSwitchFlow.collectAsState(initial = PermissionLevel.ASK).value

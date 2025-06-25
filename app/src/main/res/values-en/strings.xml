@@ -215,6 +215,13 @@
     <string name="overlay_permission_denied">Overlay permission denied, cannot display floating window</string>
     <string name="close_floating_window">Close Floating Window</string>
     
+    <!-- Microphone Permission -->
+    <string name="microphone_permission">Microphone Permission</string>
+    <string name="microphone_permission_required">Microphone Permission Required</string>
+    <string name="microphone_permission_desc">Allow the app to record audio for voice input and speech recognition</string>
+    <string name="microphone_permission_denied">Microphone permission denied, cannot enable floating window feature</string>
+    <string name="microphone_permission_floating_required">Floating window feature requires microphone permission for voice interaction</string>
+    
     <!-- AI Tools -->
     <string name="ai_tools_enabled">AI Tools Enabled</string>
     <string name="tools_extracting">Detecting tool calls...</string>

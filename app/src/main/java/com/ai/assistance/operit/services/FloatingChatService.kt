@@ -16,12 +16,15 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
 import android.util.Log
+import androidx.compose.material3.ColorScheme
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.Lifecycle
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatMessage
+import com.ai.assistance.operit.data.model.SerializableColorScheme
+import com.ai.assistance.operit.data.model.toComposeColorScheme
 import com.ai.assistance.operit.services.floating.FloatingWindowCallback
 import com.ai.assistance.operit.services.floating.FloatingWindowManager
 import com.ai.assistance.operit.services.floating.FloatingWindowState
@@ -68,6 +71,7 @@ class FloatingChatService : Service(), FloatingWindowCallback {
                 handleServiceCrash(thread, throwable)
             }
 
+    private val colorScheme = mutableStateOf<ColorScheme?>(null)
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val _attachmentRequest = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val attachmentRequest: SharedFlow<String> get() = _attachmentRequest
@@ -77,6 +81,9 @@ class FloatingChatService : Service(), FloatingWindowCallback {
     
     private val _messageToSend = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val messageToSend: SharedFlow<String> get() = _messageToSend
+
+    private val _cancelMessageRequest = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val cancelMessageRequest: SharedFlow<Unit> get() = _cancelMessageRequest
 
     inner class LocalBinder : Binder() {
         private var closeCallback: (() -> Unit)? = null
@@ -216,6 +223,17 @@ class FloatingChatService : Service(), FloatingWindowCallback {
                     updateChatMessages(messages)
                 }
             }
+            if (intent?.hasExtra("COLOR_SCHEME") == true) {
+                val serializableColorScheme = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableExtra("COLOR_SCHEME", SerializableColorScheme::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableExtra<SerializableColorScheme>("COLOR_SCHEME")
+                }
+                serializableColorScheme?.let {
+                    colorScheme.value = it.toComposeColorScheme()
+                }
+            }
             windowManager.show()
         } catch (e: Exception) {
             Log.e(TAG, "Error in onStartCommand", e)
@@ -313,6 +331,11 @@ class FloatingChatService : Service(), FloatingWindowCallback {
         serviceScope.launch { _messageToSend.emit(message) }
     }
 
+    override fun onCancelMessage() {
+        Log.d(TAG, "Cancel message request from floating window")
+        serviceScope.launch { _cancelMessageRequest.emit(Unit) }
+    }
+
     override fun onAttachmentRequest(request: String) {
         handleAttachmentRequest(request)
     }
@@ -324,6 +347,8 @@ class FloatingChatService : Service(), FloatingWindowCallback {
     override fun getMessages(): List<ChatMessage> = chatMessages.value
 
     override fun getAttachments(): List<AttachmentInfo> = attachments.value
+
+    override fun getColorScheme(): ColorScheme? = colorScheme.value
 
     override fun saveState() {
         windowState.saveState()

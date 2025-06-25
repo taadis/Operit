@@ -37,6 +37,7 @@ import kotlinx.coroutines.launch
  * @param currentY 当前窗口Y坐标
  * @param saveWindowState 保存窗口状态的回调
  * @param onSendMessage 发送消息的回调
+ * @param onCancelMessage 取消消息的回调
  * @param onAttachmentRequest 附件请求回调
  * @param attachments 当前附件列表
  * @param onRemoveAttachment 删除附件回调
@@ -64,6 +65,7 @@ fun FloatingChatWindow(
         currentY: Float = 0f,
         saveWindowState: (() -> Unit)? = null,
         onSendMessage: ((String) -> Unit)? = null,
+        onCancelMessage: (() -> Unit)? = null,
         onAttachmentRequest: ((String) -> Unit)? = null,
         attachments: List<AttachmentInfo> = emptyList(),
         onRemoveAttachment: ((String) -> Unit)? = null,
@@ -90,6 +92,7 @@ fun FloatingChatWindow(
         currentY = currentY,
         saveWindowState = saveWindowState,
         onSendMessage = onSendMessage,
+        onCancelMessage = onCancelMessage,
         onAttachmentRequest = onAttachmentRequest,
         attachments = attachments,
         onRemoveAttachment = onRemoveAttachment,
