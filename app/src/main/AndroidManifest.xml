@@ -123,7 +123,7 @@
             android:name=".services.FloatingChatService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="dataSync|specialUse" />
+            android:foregroundServiceType="dataSync|specialUse|microphone" />
 
         <!-- AI 前台服务 - 保持网络连接稳定 -->
         <service

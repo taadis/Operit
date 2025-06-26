@@ -8,6 +8,7 @@ import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.preferences.PromptFunctionType
+import com.ai.assistance.operit.services.FloatingChatService
 import com.ai.assistance.operit.ui.floating.ui.ball.FloatingChatBallMode
 import com.ai.assistance.operit.ui.floating.ui.ball.FloatingVoiceBallMode
 import com.ai.assistance.operit.ui.floating.ui.fullscreen.FloatingFullscreenMode
@@ -42,6 +43,7 @@ import com.ai.assistance.operit.ui.floating.ui.window.FloatingChatWindowMode
  * @param attachments 当前附件列表
  * @param onRemoveAttachment 删除附件回调
  * @param onInputFocusRequest 请求输入焦点的回调，参数为true时请求获取焦点，false时释放焦点
+ * @param chatService 聊天服务实例，用于访问音频焦点管理器
  */
 @Composable
 fun FloatingChatWindow(
@@ -69,7 +71,8 @@ fun FloatingChatWindow(
         onAttachmentRequest: ((String) -> Unit)? = null,
         attachments: List<AttachmentInfo> = emptyList(),
         onRemoveAttachment: ((String) -> Unit)? = null,
-        onInputFocusRequest: ((Boolean) -> Unit)? = null
+        onInputFocusRequest: ((Boolean) -> Unit)? = null,
+        chatService: FloatingChatService? = null
 ) {
     val floatContext =
             rememberFloatContext(
@@ -97,7 +100,8 @@ fun FloatingChatWindow(
                     onAttachmentRequest = onAttachmentRequest,
                     attachments = attachments,
                     onRemoveAttachment = onRemoveAttachment,
-                    onInputFocusRequest = onInputFocusRequest
+                    onInputFocusRequest = onInputFocusRequest,
+                    chatService = chatService
             )
 
     // 将窗口缩放限制在合理范围内 - 已通过回调和状态源头处理，不再需要

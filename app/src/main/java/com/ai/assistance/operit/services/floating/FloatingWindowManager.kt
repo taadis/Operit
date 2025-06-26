@@ -22,6 +22,7 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.preferences.PromptFunctionType
+import com.ai.assistance.operit.services.FloatingChatService
 import com.ai.assistance.operit.ui.floating.FloatingChatWindow
 import com.ai.assistance.operit.ui.floating.FloatingMode
 import com.ai.assistance.operit.ui.floating.FloatingWindowTheme
@@ -126,7 +127,8 @@ class FloatingWindowManager(
                 onInputFocusRequest = { setFocusable(it) },
                 attachments = callback.getAttachments(),
                 onAttachmentRequest = { callback.onAttachmentRequest(it) },
-                onRemoveAttachment = { callback.onRemoveAttachment(it) }
+                onRemoveAttachment = { callback.onRemoveAttachment(it) },
+                chatService = context as? FloatingChatService
         )
     }
 

@@ -1,6 +1,5 @@
 package com.ai.assistance.operit.services
 
-import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -11,9 +10,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Binder
 import android.os.Build
-import android.os.Handler
 import android.os.IBinder
-import android.os.Looper
 import android.os.PowerManager
 import android.util.Log
 import androidx.compose.material3.ColorScheme
@@ -33,6 +30,7 @@ import com.ai.assistance.operit.services.floating.FloatingWindowCallback
 import com.ai.assistance.operit.services.floating.FloatingWindowManager
 import com.ai.assistance.operit.services.floating.FloatingWindowState
 import com.ai.assistance.operit.ui.features.chat.attachments.AttachmentManager
+import com.ai.assistance.operit.util.AudioFocusManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -53,15 +51,7 @@ class FloatingChatService : Service(), FloatingWindowCallback {
     private lateinit var prefs: SharedPreferences
     private var wakeLock: PowerManager.WakeLock? = null
 
-    private val serviceTimeoutHandler = Handler(Looper.getMainLooper())
-    private val serviceTimeoutRunnable = Runnable {
-        try {
-            Log.d(TAG, "短期前台服务即将超时，切换到普通服务模式")
-            stopForeground(STOP_FOREGROUND_DETACH)
-        } catch (e: Exception) {
-            Log.e(TAG, "切换服务模式时出错", e)
-        }
-    }
+    private lateinit var audioFocusManager: AudioFocusManager
 
     private lateinit var lifecycleOwner: ServiceLifecycleOwner
     private val chatMessages = mutableStateOf<List<ChatMessage>>(emptyList())
@@ -71,7 +61,8 @@ class FloatingChatService : Service(), FloatingWindowCallback {
     private var lastCrashTime = 0L
     private var crashCount = 0
     private val defaultExceptionHandler = Thread.getDefaultUncaughtExceptionHandler()
-    private val customExceptionHandler = Thread.UncaughtExceptionHandler { thread, throwable ->
+    private val customExceptionHandler =
+            Thread.UncaughtExceptionHandler { thread, throwable ->
                 handleServiceCrash(thread, throwable)
             }
 
@@ -79,22 +70,30 @@ class FloatingChatService : Service(), FloatingWindowCallback {
     private val typography = mutableStateOf<Typography?>(null)
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val _attachmentRequest = MutableSharedFlow<String>(extraBufferCapacity = 1)
-    val attachmentRequest: SharedFlow<String> get() = _attachmentRequest
+    val attachmentRequest: SharedFlow<String>
+        get() = _attachmentRequest
 
     private val _attachmentRemoveRequest = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val attachmentRemoveRequest: SharedFlow<String> = _attachmentRemoveRequest
-    
-    private val _messageToSend = MutableSharedFlow<Pair<String, PromptFunctionType>>(extraBufferCapacity = 1)
-    val messageToSend: SharedFlow<Pair<String, PromptFunctionType>> get() = _messageToSend
+
+    private val _messageToSend =
+            MutableSharedFlow<Pair<String, PromptFunctionType>>(extraBufferCapacity = 1)
+    val messageToSend: SharedFlow<Pair<String, PromptFunctionType>>
+        get() = _messageToSend
 
     private val _cancelMessageRequest = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    val cancelMessageRequest: SharedFlow<Unit> get() = _cancelMessageRequest
+    val cancelMessageRequest: SharedFlow<Unit>
+        get() = _cancelMessageRequest
 
     inner class LocalBinder : Binder() {
         private var closeCallback: (() -> Unit)? = null
         fun getService(): FloatingChatService = this@FloatingChatService
-        fun setCloseCallback(callback: () -> Unit) { this.closeCallback = callback }
-        fun notifyClose() { closeCallback?.invoke() }
+        fun setCloseCallback(callback: () -> Unit) {
+            this.closeCallback = callback
+        }
+        fun notifyClose() {
+            closeCallback?.invoke()
+        }
     }
 
     override fun onBind(intent: Intent): IBinder = binder
@@ -142,14 +141,24 @@ class FloatingChatService : Service(), FloatingWindowCallback {
 
         try {
             acquireWakeLock()
+            
+            audioFocusManager = AudioFocusManager(this)
+            
             lifecycleOwner = ServiceLifecycleOwner()
             lifecycleOwner.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
             attachmentManager = AttachmentManager(this, AIToolHandler.getInstance(this))
             windowState = FloatingWindowState(this)
-            windowManager = FloatingWindowManager(this, windowState, lifecycleOwner, lifecycleOwner, lifecycleOwner, this)
+            windowManager =
+                    FloatingWindowManager(
+                            this,
+                            windowState,
+                            lifecycleOwner,
+                            lifecycleOwner,
+                            lifecycleOwner,
+                            this
+                    )
             createNotificationChannel()
             startForeground(NOTIFICATION_ID, createNotification())
-            serviceTimeoutHandler.postDelayed(serviceTimeoutRunnable, 55 * 1000)
         } catch (e: Exception) {
             Log.e(TAG, "Error in onCreate", e)
             stopSelf()
@@ -160,7 +169,11 @@ class FloatingChatService : Service(), FloatingWindowCallback {
         try {
             if (wakeLock == null) {
                 val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-                wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "OperitApp:FloatingChatServiceWakeLock")
+                wakeLock =
+                        powerManager.newWakeLock(
+                                PowerManager.PARTIAL_WAKE_LOCK,
+                                "OperitApp:FloatingChatServiceWakeLock"
+                        )
                 wakeLock?.setReferenceCounted(false)
             }
             if (wakeLock?.isHeld == false) {
@@ -188,29 +201,36 @@ class FloatingChatService : Service(), FloatingWindowCallback {
             val name = "AI助手悬浮窗"
             val descriptionText = "显示AI助手的悬浮窗服务"
             val importance = NotificationManager.IMPORTANCE_LOW
-            val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
+            val channel =
+                    NotificationChannel(CHANNEL_ID, name, importance).apply {
                         description = descriptionText
-                setShowBadge(false)
+                        setShowBadge(false)
                     }
             val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
         }
     }
 
-    private fun createNotification() = NotificationCompat.Builder(this, CHANNEL_ID)
-        .setSmallIcon(android.R.drawable.ic_dialog_info)
+    private fun createNotification() =
+            NotificationCompat.Builder(this, CHANNEL_ID)
+                    .setSmallIcon(android.R.drawable.ic_dialog_info)
                     .setContentTitle("AI助手悬浮窗")
                     .setContentText("AI助手正在后台运行")
-        .setPriority(NotificationCompat.PRIORITY_LOW)
-        .setOngoing(true)
+                    .setPriority(NotificationCompat.PRIORITY_LOW)
+                    .setOngoing(true)
                     .setCategory(NotificationCompat.CATEGORY_SERVICE)
-        .setTimeoutAfter(60 * 1000)
                     .setContentIntent(getPendingIntent())
                     .build()
 
     private fun getPendingIntent(): PendingIntent {
         val intent = packageManager.getLaunchIntentForPackage(packageName)
-        return PendingIntent.getActivity(this, 0, intent, if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+        return PendingIntent.getActivity(
+                this,
+                0,
+                intent,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE
+                else 0
+        )
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -229,26 +249,30 @@ class FloatingChatService : Service(), FloatingWindowCallback {
                 }
             }
             if (intent?.hasExtra("COLOR_SCHEME") == true) {
-                val serializableColorScheme = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    intent.getParcelableExtra("COLOR_SCHEME", SerializableColorScheme::class.java)
-                } else {
-                    @Suppress("DEPRECATION")
-                    intent.getParcelableExtra<SerializableColorScheme>("COLOR_SCHEME")
-                }
-                serializableColorScheme?.let {
-                    colorScheme.value = it.toComposeColorScheme()
-                }
+                val serializableColorScheme =
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            intent.getParcelableExtra(
+                                    "COLOR_SCHEME",
+                                    SerializableColorScheme::class.java
+                            )
+                        } else {
+                            @Suppress("DEPRECATION")
+                            intent.getParcelableExtra<SerializableColorScheme>("COLOR_SCHEME")
+                        }
+                serializableColorScheme?.let { colorScheme.value = it.toComposeColorScheme() }
             }
             if (intent?.hasExtra("TYPOGRAPHY") == true) {
-                val serializableTypography = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    intent.getParcelableExtra("TYPOGRAPHY", SerializableTypography::class.java)
-                } else {
-                    @Suppress("DEPRECATION")
-                    intent.getParcelableExtra<SerializableTypography>("TYPOGRAPHY")
-                }
-                serializableTypography?.let {
-                    typography.value = it.toComposeTypography()
-                }
+                val serializableTypography =
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            intent.getParcelableExtra(
+                                    "TYPOGRAPHY",
+                                    SerializableTypography::class.java
+                            )
+                        } else {
+                            @Suppress("DEPRECATION")
+                            intent.getParcelableExtra<SerializableTypography>("TYPOGRAPHY")
+                        }
+                serializableTypography?.let { typography.value = it.toComposeTypography() }
             }
             windowManager.show()
         } catch (e: Exception) {
@@ -260,9 +284,8 @@ class FloatingChatService : Service(), FloatingWindowCallback {
     override fun onTaskRemoved(rootIntent: Intent) {
         super.onTaskRemoved(rootIntent)
         Log.d(TAG, "onTaskRemoved")
-        val restartServiceIntent = Intent(applicationContext, this.javaClass).apply {
-            setPackage(packageName)
-        }
+        val restartServiceIntent =
+                Intent(applicationContext, this.javaClass).apply { setPackage(packageName) }
         startService(restartServiceIntent)
     }
 
@@ -276,9 +299,10 @@ class FloatingChatService : Service(), FloatingWindowCallback {
         super.onTrimMemory(level)
         Log.d(TAG, "onTrimMemory: level=$level")
         if (level == ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN ||
-            level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL ||
-            level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW ||
-            level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE) {
+                        level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL ||
+                        level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW ||
+                        level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE
+        ) {
             saveState()
         }
     }
@@ -287,7 +311,7 @@ class FloatingChatService : Service(), FloatingWindowCallback {
         Log.d(TAG, "Attachment request received: $request")
         serviceScope.launch {
             try {
-                        _attachmentRequest.emit(request)
+                _attachmentRequest.emit(request)
             } catch (e: Exception) {
                 Log.e(TAG, "Error handling attachment request", e)
             }
@@ -312,7 +336,10 @@ class FloatingChatService : Service(), FloatingWindowCallback {
 
     fun updateChatMessages(messages: List<ChatMessage>) {
         serviceScope.launch {
-            Log.d(TAG, "服务收到消息更新: ${messages.size} 条. 最后一条消息的 stream is null: ${messages.lastOrNull()?.contentStream == null}")
+            Log.d(
+                    TAG,
+                    "服务收到消息更新: ${messages.size} 条. 最后一条消息的 stream is null: ${messages.lastOrNull()?.contentStream == null}"
+            )
             chatMessages.value = messages
         }
     }
@@ -320,9 +347,13 @@ class FloatingChatService : Service(), FloatingWindowCallback {
     override fun onDestroy() {
         try {
             releaseWakeLock()
+            
+            if (::audioFocusManager.isInitialized) {
+                audioFocusManager.release()
+            }
+            
             serviceScope.cancel()
             saveState()
-            serviceTimeoutHandler.removeCallbacks(serviceTimeoutRunnable)
             super.onDestroy()
             Log.d(TAG, "onDestroy")
             lifecycleOwner.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
@@ -343,15 +374,11 @@ class FloatingChatService : Service(), FloatingWindowCallback {
     }
 
     override fun onSendMessage(message: String, promptType: PromptFunctionType) {
-        serviceScope.launch {
-            _messageToSend.tryEmit(Pair(message, promptType))
-        }
+        serviceScope.launch { _messageToSend.tryEmit(Pair(message, promptType)) }
     }
 
     override fun onCancelMessage() {
-        serviceScope.launch {
-            _cancelMessageRequest.tryEmit(Unit)
-        }
+        serviceScope.launch { _cancelMessageRequest.tryEmit(Unit) }
     }
 
     override fun onAttachmentRequest(request: String) {
@@ -372,5 +399,9 @@ class FloatingChatService : Service(), FloatingWindowCallback {
 
     override fun saveState() {
         windowState.saveState()
+    }
+
+    fun getAudioFocusManager(): AudioFocusManager {
+        return audioFocusManager
     }
 }
