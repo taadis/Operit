@@ -113,6 +113,8 @@ Operit AI 提供丰富的插件生态，配合内置工具可实现从日常生�
 
 欢迎加入 Operit 开源生态！我们欢迎各种类型的贡献者，无论是开发第三方脚本、MCP插件，还是参与本体开发。
 
+对于本仓库，你必须从`https://drive.google.com/drive/folders/1g-Q_i7cf6Ua4KX9ZM6V282EEZvTVVfF7?usp=sharing`下载一些依赖库，并放入有.keep的文件夹
+
 **查看我们的 [开源共创指南](docx/CONTRIBUTING.md)** 了解如何参与项目开发。
 
 ## 📝 问题反馈 (Issues)
