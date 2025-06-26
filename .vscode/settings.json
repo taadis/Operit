@@ -8,8 +8,6 @@
         "*.ts": "typescript"
     },
     "terminal.integrated.defaultProfile.windows": "Command Prompt",
-    "terminal.integrated.defaultProfile.linux": "bash",
-    "terminal.integrated.defaultProfile.osx": "bash",
     "javascript.format.enable": true,
     "javascript.format.semicolons": "insert",
     "editor.formatOnSave": true,

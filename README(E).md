@@ -140,6 +140,8 @@ Operit AI offers a rich plugin ecosystem. Combined with built-in tools, it can h
 
 Join the Operit open-source ecosystem! We welcome all types of contributors, whether you're developing third-party scripts, MCP plugins, or participating in the core development.
 
+For this repository, you must download some dependency libraries from `https://drive.google.com/drive/folders/1g-Q_i7cf6Ua4KX9ZM6V282EEZvTVVfF7?usp=sharing` and place them in folders with .keep files
+
 **Check out our [Contribution Guide](docx/CONTRIBUTING.md)** to learn how to get involved.
 
 ## 📝 Feedback (Issues)
