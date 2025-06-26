@@ -104,13 +104,13 @@ fun DrawerContent(
                 }
         )
 
-        // 问题库
+        // 助手配置
         CompactNavigationDrawerItem(
-                icon = NavItem.ProblemLibrary.icon,
-                label = stringResource(id = NavItem.ProblemLibrary.titleResId),
-                selected = currentScreen is Screen.ProblemLibrary,
+                icon = NavItem.AssistantConfig.icon,
+                label = stringResource(id = NavItem.AssistantConfig.titleResId),
+                selected = currentScreen is Screen.AssistantConfig,
                 onClick = {
-                    onScreenSelected(Screen.ProblemLibrary, NavItem.ProblemLibrary)
+                    onScreenSelected(Screen.AssistantConfig, NavItem.AssistantConfig)
                     scope.launch { drawerState.close() }
                 }
         )
@@ -122,6 +122,17 @@ fun DrawerContent(
                 selected = currentScreen is Screen.Packages,
                 onClick = {
                     onScreenSelected(Screen.Packages, NavItem.Packages)
+                    scope.launch { drawerState.close() }
+                }
+        )
+
+        // 问题库
+        CompactNavigationDrawerItem(
+                icon = NavItem.ProblemLibrary.icon,
+                label = stringResource(id = NavItem.ProblemLibrary.titleResId),
+                selected = currentScreen is Screen.ProblemLibrary,
+                onClick = {
+                    onScreenSelected(Screen.ProblemLibrary, NavItem.ProblemLibrary)
                     scope.launch { drawerState.close() }
                 }
         )
@@ -250,6 +261,7 @@ fun CollapsedDrawerContent(
                         val screen =
                                 when (item) {
                                     NavItem.AiChat -> Screen.AiChat
+                                    NavItem.AssistantConfig -> Screen.AssistantConfig
                                     NavItem.ProblemLibrary -> Screen.ProblemLibrary
                                     NavItem.Packages -> Screen.Packages
                                     NavItem.Toolbox -> Screen.Toolbox

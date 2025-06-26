@@ -93,6 +93,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
         val navItems =
                 listOf(
                         NavItem.AiChat,
+                        NavItem.AssistantConfig,
                         NavItem.ShizukuCommands,
                         NavItem.Toolbox,
                         NavItem.Settings,

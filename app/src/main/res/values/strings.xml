@@ -17,6 +17,7 @@
     <string name="nav_about">关于</string>
     <string name="nav_packages">包管理</string>
     <string name="nav_problem_library">问题库</string>
+    <string name="nav_assistant_config">助手配置</string>
     <string name="nav_terminal">终端</string>
     <string name="nav_toolbox">工具箱</string>
     <string name="nav_item_agreement">用户协议</string>

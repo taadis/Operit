@@ -6,6 +6,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.ai.assistance.operit.ui.common.NavItem
 import com.ai.assistance.operit.ui.features.about.screens.AboutScreen
+import com.ai.assistance.operit.ui.features.assistant.screens.AssistantConfigScreen
 import com.ai.assistance.operit.ui.features.chat.screens.AIChatScreen
 import com.ai.assistance.operit.ui.features.demo.screens.ShizukuDemoScreen
 import com.ai.assistance.operit.ui.features.help.screens.HelpScreen
@@ -225,6 +226,21 @@ sealed class Screen(
                 onGestureConsumed: (Boolean) -> Unit
         ) {
             AboutScreen()
+        }
+    }
+
+    data object AssistantConfig : Screen(navItem = NavItem.AssistantConfig) {
+        @Composable
+        override fun Content(
+                navController: NavController,
+                navigateTo: ScreenNavigationHandler,
+                updateNavItem: NavItemChangeHandler,
+                hasBackgroundImage: Boolean,
+                onLoading: (Boolean) -> Unit,
+                onError: (String) -> Unit,
+                onGestureConsumed: (Boolean) -> Unit
+        ) {
+            AssistantConfigScreen()
         }
     }
 
@@ -671,6 +687,7 @@ object OperitRouter {
             NavItem.About -> Screen.About
             NavItem.TokenConfig -> Screen.TokenConfig
             NavItem.UserPreferencesGuide -> Screen.UserPreferencesGuide()
+            NavItem.AssistantConfig -> Screen.AssistantConfig
             else -> Screen.AiChat
         }
     }
