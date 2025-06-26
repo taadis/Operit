@@ -311,6 +311,12 @@ class FloatingWindowManager(
                             )
                     params.x = newX
                     params.y = newY
+
+                    // Coerce position to be within screen bounds for ball mode
+                    val minVisible = ballSizeInPx / 2
+                    params.x =
+                            params.x.coerceIn(-ballSizeInPx + minVisible, screenWidth - minVisible)
+                    params.y = params.y.coerceIn(0, screenHeight - minVisible)
                 }
                 FloatingMode.WINDOW -> {
                     params.flags =
@@ -343,6 +349,16 @@ class FloatingWindowManager(
                         params.y = state.lastWindowPositionY
                     }
                     state.windowScale.value = state.lastWindowScale
+
+                    // Coerce position to be within screen bounds for window mode
+                    val minVisibleWidth = (params.width * 2 / 3)
+                    val minVisibleHeight = (params.height * 2 / 3)
+                    params.x =
+                            params.x.coerceIn(
+                                    -(params.width - minVisibleWidth),
+                                    screenWidth - minVisibleWidth / 2
+                            )
+                    params.y = params.y.coerceIn(0, screenHeight - minVisibleHeight)
                 }
                 FloatingMode.FULLSCREEN -> {
                     params.flags = 0 // Remove all flags, making it focusable
@@ -365,8 +381,21 @@ class FloatingWindowManager(
                     params.height = newHeight
                     params.x = state.lastWindowPositionX
                     params.y = state.lastWindowPositionY
+
+                    // Coerce position to be within screen bounds for live2d mode
+                    val minVisibleWidth = (params.width * 2 / 3)
+                    val minVisibleHeight = (params.height * 2 / 3)
+                    params.x =
+                            params.x.coerceIn(
+                                    -(params.width - minVisibleWidth),
+                                    screenWidth - minVisibleWidth / 2
+                            )
+                    params.y = params.y.coerceIn(0, screenHeight - minVisibleHeight)
                 }
             }
+            // Sync state with params to avoid inconsistency
+            state.x = params.x
+            state.y = params.y
         }
         // Use a Handler to reset the transitioning flag after a short delay
         Handler(Looper.getMainLooper()).postDelayed({ state.isTransitioning = false }, 300)
