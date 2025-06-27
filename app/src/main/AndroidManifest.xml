@@ -14,6 +14,9 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     
+    <!-- 麦克风前台服务权限 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    
     <!-- 持续高性能模式 -->
     <uses-permission android:name="android.permission.SUSTAINED_PERFORMANCE_MODE" />
     

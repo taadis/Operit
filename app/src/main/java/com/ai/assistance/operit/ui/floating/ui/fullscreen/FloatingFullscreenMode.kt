@@ -1,7 +1,9 @@
 package com.ai.assistance.operit.ui.floating.ui.fullscreen
 
+import android.content.Context
 import android.media.AudioManager
 import android.util.Log
+import android.view.inputmethod.InputMethodManager
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -34,7 +36,6 @@ import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.preferences.PromptFunctionType
 import com.ai.assistance.operit.ui.floating.FloatContext
 import com.ai.assistance.operit.ui.floating.FloatingMode
-import com.ai.assistance.operit.util.AudioFocusManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -57,19 +58,13 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
     val coroutineScope = rememberCoroutineScope()
     var activeMessage by remember { mutableStateOf<ChatMessage?>(null) }
     val isInitialLoad = remember { mutableStateOf(true) }
+    
+    // 添加输入法服务引用
+    val inputMethodManager = remember { 
+        context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager 
+    }
 
     val speed = 1.2f
-    
-    // 使用服务中的 AudioFocusManager
-    val serviceAudioFocusManager = remember { 
-        floatContext.chatService?.getAudioFocusManager()
-    }
-    
-    // 如果服务中的 AudioFocusManager 不可用，则创建一个本地实例作为备选
-    val localAudioFocusManager = remember { AudioFocusManager(context) }
-    
-    // 选择可用的 AudioFocusManager
-    val audioFocusManager = remember { serviceAudioFocusManager ?: localAudioFocusManager }
     
     var hasFocus by remember { mutableStateOf(false) }
 
@@ -82,22 +77,6 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
     }
 
     val voiceService = remember { VoiceServiceFactory.getInstance(context) }
-    
-    val audioFocusListener = remember {
-        AudioManager.OnAudioFocusChangeListener { focusChange ->
-            when (focusChange) {
-                AudioManager.AUDIOFOCUS_LOSS -> {
-                    Log.d(TAG, "Audio focus lost, stopping recognition.")
-                    coroutineScope.launch {
-                        speechService.stopRecognition()
-                        isRecording = false
-                        hasFocus = false
-                        aiMessage = "音频焦点丢失"
-                    }
-                }
-            }
-        }
-    }
 
     // 监听语音识别结果
     LaunchedEffect(speechService) {
@@ -175,14 +154,19 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
         speechService.initialize()
         voiceService.initialize()
 
-        // 请求音频焦点
-        if (audioFocusManager.requestFocus(audioFocusListener)) {
+        // 请求输入法焦点以在后台保持录音能力
+        val composeView = floatContext.chatService?.getComposeView()
+        if (composeView != null) {
+            composeView.requestFocus()
+            // 请求显示输入法，然后立即隐藏，这是一种获取输入焦点的技巧
+            inputMethodManager.showSoftInput(composeView, InputMethodManager.SHOW_FORCED)
+            inputMethodManager.hideSoftInputFromWindow(composeView.windowToken, 0)
             hasFocus = true
-            Log.d(TAG, "Audio focus acquired for the session.")
+            Log.d(TAG, "FloatingFullscreenMode 已获取输入法焦点")
         } else {
             hasFocus = false
-            aiMessage = "无法获取音频服务"
-            Log.w(TAG, "Failed to acquire audio focus for the session.")
+            aiMessage = "无法获取输入法服务"
+            Log.w(TAG, "无法获取 composeView 以请求输入法焦点")
         }
     }
 
@@ -273,8 +257,11 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
     DisposableEffect(Unit) {
         onDispose {
             timeoutJob?.cancel()
-            // 释放音频焦点
-            audioFocusManager.abandonFocus()
+            // 确保释放输入法焦点
+            floatContext.chatService?.getComposeView()?.let { view ->
+                inputMethodManager.hideSoftInputFromWindow(view.windowToken, 0)
+                Log.d(TAG, "组件销毁时释放输入法焦点")
+            }
             
             coroutineScope.launch {
                 speechService.cancelRecognition()
@@ -404,7 +391,7 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
                                         detectTapGestures(
                                                 onLongPress = {
                                                     coroutineScope.launch {
-                                                        // 立即停止当前语音输出，为请求焦点做准备
+                                                        // 立即停止当前语音输出
                                                         voiceService.stop()
 
                                                         if (hasFocus) {
@@ -434,7 +421,7 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
                                                                     partialResults = true
                                                             )
                                                         } else {
-                                                            aiMessage = "无法开始录音，音频被占用"
+                                                            aiMessage = "无法开始录音，无法获取焦点"
                                                             voiceService.speak(aiMessage, rate = speed)
                                                         }
                                                     }
@@ -486,6 +473,8 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
                                                         if (isRecording) {
                                                             speechService.stopRecognition()
                                                             isRecording = false
+                                                            
+                                                            // 焦点在组件退出时统一释放，此处不再处理
 
                                                             if (isDraggingToCancel.value) {
                                                                 // 取消操作

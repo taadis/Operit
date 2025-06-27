@@ -13,6 +13,7 @@ import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
+import android.view.View
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.mutableStateOf
@@ -30,7 +31,6 @@ import com.ai.assistance.operit.services.floating.FloatingWindowCallback
 import com.ai.assistance.operit.services.floating.FloatingWindowManager
 import com.ai.assistance.operit.services.floating.FloatingWindowState
 import com.ai.assistance.operit.ui.features.chat.attachments.AttachmentManager
-import com.ai.assistance.operit.util.AudioFocusManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -50,8 +50,6 @@ class FloatingChatService : Service(), FloatingWindowCallback {
     private lateinit var windowManager: FloatingWindowManager
     private lateinit var prefs: SharedPreferences
     private var wakeLock: PowerManager.WakeLock? = null
-
-    private lateinit var audioFocusManager: AudioFocusManager
 
     private lateinit var lifecycleOwner: ServiceLifecycleOwner
     private val chatMessages = mutableStateOf<List<ChatMessage>>(emptyList())
@@ -141,8 +139,6 @@ class FloatingChatService : Service(), FloatingWindowCallback {
 
         try {
             acquireWakeLock()
-            
-            audioFocusManager = AudioFocusManager(this)
             
             lifecycleOwner = ServiceLifecycleOwner()
             lifecycleOwner.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
@@ -348,10 +344,6 @@ class FloatingChatService : Service(), FloatingWindowCallback {
         try {
             releaseWakeLock()
             
-            if (::audioFocusManager.isInitialized) {
-                audioFocusManager.release()
-            }
-            
             serviceScope.cancel()
             saveState()
             super.onDestroy()
@@ -401,7 +393,15 @@ class FloatingChatService : Service(), FloatingWindowCallback {
         windowState.saveState()
     }
 
-    fun getAudioFocusManager(): AudioFocusManager {
-        return audioFocusManager
+    /**
+     * 获取悬浮窗的ComposeView实例，用于申请输入法焦点
+     * @return ComposeView? 当前悬浮窗的ComposeView实例，如果未初始化则返回null
+     */
+    fun getComposeView(): View? {
+        return if (::windowManager.isInitialized) {
+            windowManager.getComposeView()
+        } else {
+            null
+        }
     }
 }
