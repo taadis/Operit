@@ -240,7 +240,13 @@ sealed class Screen(
                 onError: (String) -> Unit,
                 onGestureConsumed: (Boolean) -> Unit
         ) {
-            AssistantConfigScreen()
+            AssistantConfigScreen(
+                    navigateToModelConfig = { navigateTo(ModelConfig) },
+                    navigateToModelPrompts = { navigateTo(ModelPromptsSettings) },
+                    navigateToFunctionalConfig = { navigateTo(FunctionalConfig) },
+                    navigateToFunctionalPrompts = { navigateTo(FunctionalPromptConfig) },
+                    navigateToUserPreferences = { navigateTo(UserPreferencesSettings) }
+            )
         }
     }
 
@@ -331,10 +337,23 @@ sealed class Screen(
                 onError: (String) -> Unit,
                 onGestureConsumed: (Boolean) -> Unit
         ) {
+            // 检查是否是从助手配置界面导航过来的
+            val fromAssistant = navController.previousBackStackEntry?.destination?.route?.contains("AssistantConfig") == true
+            
             UserPreferencesSettingsScreen(
-                    onNavigateBack = { parentScreen?.let { navigateTo(it) } },
-                    onNavigateToGuide = { profileName, profileId ->
-                        navigateTo(UserPreferencesGuide(profileName, profileId))
+                    onNavigateBack = {
+                        if (fromAssistant) {
+                            navigateTo(AssistantConfig)
+                            updateNavItem(NavItem.AssistantConfig)
+                        } else {
+                            parentScreen?.let {
+                                navigateTo(it)
+                                it.navItem?.let { navItem -> updateNavItem(navItem) }
+                            }
+                        }
+                    },
+                    onNavigateToGuide = { profileId, category ->
+                        navigateTo(UserPreferencesGuide(profileId, category))
                     }
             )
         }
@@ -352,7 +371,22 @@ sealed class Screen(
                 onError: (String) -> Unit,
                 onGestureConsumed: (Boolean) -> Unit
         ) {
-            ModelConfigScreen()
+            // 检查是否是从助手配置界面导航过来的
+            val fromAssistant = navController.previousBackStackEntry?.destination?.route?.contains("AssistantConfig") == true
+            
+            ModelConfigScreen(
+                    onBackPressed = {
+                        if (fromAssistant) {
+                            navigateTo(AssistantConfig)
+                            updateNavItem(NavItem.AssistantConfig)
+                        } else {
+                            parentScreen?.let {
+                                navigateTo(it)
+                                it.navItem?.let { navItem -> updateNavItem(navItem) }
+                            }
+                        }
+                    }
+            )
         }
     }
 
@@ -368,11 +402,19 @@ sealed class Screen(
                 onError: (String) -> Unit,
                 onGestureConsumed: (Boolean) -> Unit
         ) {
+            // 检查是否是从助手配置界面导航过来的
+            val fromAssistant = navController.previousBackStackEntry?.destination?.route?.contains("AssistantConfig") == true
+            
             ModelPromptsSettingsScreen(
                     onBackPressed = {
-                        parentScreen?.let {
-                            navigateTo(it)
-                            it.navItem?.let { navItem -> updateNavItem(navItem) }
+                        if (fromAssistant) {
+                            navigateTo(AssistantConfig)
+                            updateNavItem(NavItem.AssistantConfig)
+                        } else {
+                            parentScreen?.let {
+                                navigateTo(it)
+                                it.navItem?.let { navItem -> updateNavItem(navItem) }
+                            }
                         }
                     }
             )
@@ -391,11 +433,19 @@ sealed class Screen(
                 onError: (String) -> Unit,
                 onGestureConsumed: (Boolean) -> Unit
         ) {
+            // 检查是否是从助手配置界面导航过来的
+            val fromAssistant = navController.previousBackStackEntry?.destination?.route?.contains("AssistantConfig") == true
+            
             FunctionalConfigScreen(
                     onBackPressed = {
-                        parentScreen?.let {
-                            navigateTo(it)
-                            it.navItem?.let { navItem -> updateNavItem(navItem) }
+                        if (fromAssistant) {
+                            navigateTo(AssistantConfig)
+                            updateNavItem(NavItem.AssistantConfig)
+                        } else {
+                            parentScreen?.let {
+                                navigateTo(it)
+                                it.navItem?.let { navItem -> updateNavItem(navItem) }
+                            }
                         }
                     }
             )
@@ -712,11 +762,19 @@ data object FunctionalPromptConfig :
             onError: (String) -> Unit,
             onGestureConsumed: (Boolean) -> Unit
     ) {
+        // 检查是否是从助手配置界面导航过来的
+        val fromAssistant = navController.previousBackStackEntry?.destination?.route?.contains("AssistantConfig") == true
+        
         FunctionalPromptConfigScreen(
                 onBackPressed = {
-                    parentScreen?.let {
-                        navigateTo(it)
-                        it.navItem?.let { navItem -> updateNavItem(navItem) }
+                    if (fromAssistant) {
+                        navigateTo(AssistantConfig)
+                        updateNavItem(NavItem.AssistantConfig)
+                    } else {
+                        parentScreen?.let {
+                            navigateTo(it)
+                            it.navItem?.let { navItem -> updateNavItem(navItem) }
+                        }
                     }
                 }
         )

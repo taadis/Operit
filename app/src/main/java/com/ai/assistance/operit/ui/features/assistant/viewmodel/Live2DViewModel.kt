@@ -27,7 +27,8 @@ class Live2DViewModel(private val repository: Live2DRepository) : ViewModel() {
             val isScanning: Boolean = false,
             val expressionToApply: String? = null,
             val manualExpression: String = "",
-            val triggerRandomTap: Long? = null
+            val triggerRandomTap: Long? = null,
+            val scrollPosition: Int = 0  // 添加滚动位置状态
     )
 
     // 当前UI状态
@@ -78,7 +79,8 @@ class Live2DViewModel(private val repository: Live2DRepository) : ViewModel() {
                         isScanning = isScanning ?: currentState.isScanning,
                         expressionToApply = expressionToApply,
                         manualExpression = manualExpression ?: currentState.manualExpression,
-                        triggerRandomTap = triggerRandomTap
+                        triggerRandomTap = triggerRandomTap,
+                        scrollPosition = currentState.scrollPosition
                 )
     }
 
@@ -234,6 +236,11 @@ class Live2DViewModel(private val repository: Live2DRepository) : ViewModel() {
     /** 更新错误消息 */
     fun updateErrorMessage(message: String?) {
         updateUiState(errorMessage = message)
+    }
+
+    /** 更新滚动位置 */
+    fun updateScrollPosition(position: Int) {
+        _uiState.value = _uiState.value.copy(scrollPosition = position)
     }
 
     /** ViewModel工厂类 */
