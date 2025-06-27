@@ -103,7 +103,7 @@ class Live2DRepository(private val context: Context) {
                     }
 
             baseResourceFiles?.forEach { fileName ->
-                val destFile = File(modelDir.parent, fileName) // 存放在 live2d 目录的父目录，即 files
+                val destFile = File(modelDir, fileName) // 存放在 live2d 目录的父目录，即 files
                 if (!destFile.exists()) {
                     val srcPath = "$ASSETS_MODEL_DIR/$fileName"
                     assetManager.open(srcPath).use { input ->

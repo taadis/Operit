@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -164,7 +165,7 @@ fun ModelApiSettingsSection(
 
             // API密钥输入
             OutlinedTextField(
-                    value = apiKeyInput,
+                    value = if (isUsingDefaultApiKey) "" else apiKeyInput,
                     onValueChange = {
                         apiKeyInput = it
 
@@ -177,8 +178,10 @@ fun ModelApiSettingsSection(
                         }
                     },
                     label = { Text("API密钥") },
-                    placeholder = { Text("输入API密钥") },
-                    visualTransformation = PasswordVisualTransformation(),
+                    placeholder = { Text(if (isUsingDefaultApiKey) "使用默认Key, 可直接输入" else "输入API密钥") },
+                    visualTransformation =
+                            if (isUsingDefaultApiKey) VisualTransformation.None
+                            else PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                     singleLine = true
             )

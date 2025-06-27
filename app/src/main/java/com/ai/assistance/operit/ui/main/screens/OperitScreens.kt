@@ -58,6 +58,7 @@ sealed class Screen(
             navController: NavController,
             navigateTo: ScreenNavigationHandler,
             updateNavItem: NavItemChangeHandler,
+            onGoBack: () -> Unit,
             hasBackgroundImage: Boolean,
             onLoading: (Boolean) -> Unit,
             onError: (String) -> Unit,
@@ -73,6 +74,7 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
@@ -101,6 +103,7 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
@@ -116,6 +119,7 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
@@ -131,6 +135,7 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
@@ -160,6 +165,7 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
@@ -175,6 +181,7 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
@@ -200,16 +207,14 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
                 onGestureConsumed: (Boolean) -> Unit
         ) {
             HelpScreen(
-                    onBackPressed = {
-                        navigateTo(AiChat)
-                        updateNavItem(NavItem.AiChat)
-                    }
+                    onBackPressed = onGoBack
             )
         }
     }
@@ -220,6 +225,7 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
@@ -235,6 +241,7 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
@@ -256,18 +263,14 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
                 onGestureConsumed: (Boolean) -> Unit
         ) {
             TokenConfigWebViewScreen(
-                    onNavigateBack = {
-                        parentScreen?.let {
-                            navigateTo(it)
-                            it.navItem?.let { navItem -> updateNavItem(navItem) }
-                        }
-                    }
+                    onNavigateBack = onGoBack
             )
         }
     }
@@ -280,18 +283,14 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
                 onGestureConsumed: (Boolean) -> Unit
         ) {
             ToolPermissionSettingsScreen(
-                    navigateBack = {
-                        parentScreen?.let {
-                            navigateTo(it)
-                            it.navItem?.let { navItem -> updateNavItem(navItem) }
-                        }
-                    }
+                    navigateBack = onGoBack
             )
         }
     }
@@ -303,6 +302,7 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
@@ -311,12 +311,7 @@ sealed class Screen(
             UserPreferencesGuideScreen(
                     profileName = profileName,
                     profileId = profileId,
-                    onComplete = {
-                        parentScreen?.let {
-                            navigateTo(it)
-                            it.navItem?.let { navItem -> updateNavItem(navItem) }
-                        }
-                    },
+                    onComplete = onGoBack,
                     navigateToPermissions = {
                         navigateTo(ShizukuCommands)
                         updateNavItem(NavItem.ShizukuCommands)
@@ -332,26 +327,14 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
                 onGestureConsumed: (Boolean) -> Unit
         ) {
-            // 检查是否是从助手配置界面导航过来的
-            val fromAssistant = navController.previousBackStackEntry?.destination?.route?.contains("AssistantConfig") == true
-            
             UserPreferencesSettingsScreen(
-                    onNavigateBack = {
-                        if (fromAssistant) {
-                            navigateTo(AssistantConfig)
-                            updateNavItem(NavItem.AssistantConfig)
-                        } else {
-                            parentScreen?.let {
-                                navigateTo(it)
-                                it.navItem?.let { navItem -> updateNavItem(navItem) }
-                            }
-                        }
-                    },
+                    onNavigateBack = onGoBack,
                     onNavigateToGuide = { profileId, category ->
                         navigateTo(UserPreferencesGuide(profileId, category))
                     }
@@ -366,26 +349,14 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
                 onGestureConsumed: (Boolean) -> Unit
         ) {
-            // 检查是否是从助手配置界面导航过来的
-            val fromAssistant = navController.previousBackStackEntry?.destination?.route?.contains("AssistantConfig") == true
-            
             ModelConfigScreen(
-                    onBackPressed = {
-                        if (fromAssistant) {
-                            navigateTo(AssistantConfig)
-                            updateNavItem(NavItem.AssistantConfig)
-                        } else {
-                            parentScreen?.let {
-                                navigateTo(it)
-                                it.navItem?.let { navItem -> updateNavItem(navItem) }
-                            }
-                        }
-                    }
+                    onBackPressed = onGoBack
             )
         }
     }
@@ -397,26 +368,14 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
                 onGestureConsumed: (Boolean) -> Unit
         ) {
-            // 检查是否是从助手配置界面导航过来的
-            val fromAssistant = navController.previousBackStackEntry?.destination?.route?.contains("AssistantConfig") == true
-            
             ModelPromptsSettingsScreen(
-                    onBackPressed = {
-                        if (fromAssistant) {
-                            navigateTo(AssistantConfig)
-                            updateNavItem(NavItem.AssistantConfig)
-                        } else {
-                            parentScreen?.let {
-                                navigateTo(it)
-                                it.navItem?.let { navItem -> updateNavItem(navItem) }
-                            }
-                        }
-                    }
+                    onBackPressed = onGoBack
             )
         }
     }
@@ -428,26 +387,14 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
                 onGestureConsumed: (Boolean) -> Unit
         ) {
-            // 检查是否是从助手配置界面导航过来的
-            val fromAssistant = navController.previousBackStackEntry?.destination?.route?.contains("AssistantConfig") == true
-            
             FunctionalConfigScreen(
-                    onBackPressed = {
-                        if (fromAssistant) {
-                            navigateTo(AssistantConfig)
-                            updateNavItem(NavItem.AssistantConfig)
-                        } else {
-                            parentScreen?.let {
-                                navigateTo(it)
-                                it.navItem?.let { navItem -> updateNavItem(navItem) }
-                            }
-                        }
-                    }
+                    onBackPressed = onGoBack
             )
         }
     }
@@ -459,6 +406,7 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
@@ -475,6 +423,7 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
@@ -491,18 +440,14 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
                 onGestureConsumed: (Boolean) -> Unit
         ) {
             LanguageSettingsScreen(
-                    onBackPressed = {
-                        parentScreen?.let {
-                            navigateTo(it)
-                            it.navItem?.let { navItem -> updateNavItem(navItem) }
-                        }
-                    }
+                    onBackPressed = onGoBack
             )
         }
     }
@@ -515,6 +460,7 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
@@ -531,6 +477,7 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
@@ -547,6 +494,7 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
@@ -563,6 +511,7 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
@@ -579,6 +528,7 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
@@ -595,6 +545,7 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
@@ -611,6 +562,7 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
@@ -627,6 +579,7 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
@@ -644,6 +597,7 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
@@ -661,16 +615,14 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
                 onGestureConsumed: (Boolean) -> Unit
         ) {
             StreamMarkdownDemoScreen(
-                    onBackClick = {
-                        navigateTo(parentScreen as Screen)
-                        updateNavItem(NavItem.Toolbox)
-                    }
+                    onBackClick = onGoBack
             )
         }
     }
@@ -683,6 +635,7 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
@@ -700,6 +653,7 @@ sealed class Screen(
                 navController: NavController,
                 navigateTo: ScreenNavigationHandler,
                 updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
                 hasBackgroundImage: Boolean,
                 onLoading: (Boolean) -> Unit,
                 onError: (String) -> Unit,
@@ -757,6 +711,7 @@ data object FunctionalPromptConfig :
             navController: NavController,
             navigateTo: ScreenNavigationHandler,
             updateNavItem: NavItemChangeHandler,
+            onGoBack: () -> Unit,
             hasBackgroundImage: Boolean,
             onLoading: (Boolean) -> Unit,
             onError: (String) -> Unit,
@@ -766,17 +721,7 @@ data object FunctionalPromptConfig :
         val fromAssistant = navController.previousBackStackEntry?.destination?.route?.contains("AssistantConfig") == true
         
         FunctionalPromptConfigScreen(
-                onBackPressed = {
-                    if (fromAssistant) {
-                        navigateTo(AssistantConfig)
-                        updateNavItem(NavItem.AssistantConfig)
-                    } else {
-                        parentScreen?.let {
-                            navigateTo(it)
-                            it.navItem?.let { navItem -> updateNavItem(navItem) }
-                        }
-                    }
-                }
+                onBackPressed = onGoBack
         )
     }
 }

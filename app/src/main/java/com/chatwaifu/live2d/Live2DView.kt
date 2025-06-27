@@ -1,6 +1,8 @@
 package com.chatwaifu.live2d
 
 import android.content.Context
+import android.graphics.Color
+import android.graphics.PixelFormat
 import android.opengl.GLSurfaceView
 import android.util.AttributeSet
 import android.view.MotionEvent
@@ -12,6 +14,19 @@ class Live2DView @JvmOverloads constructor(context: Context, attrs: AttributeSet
     private val renderer: GLRenderer
 
     init {
+        // 关键：确保GLSurfaceView本身是透明的
+        // 1. 设置EGL配置以支持Alpha通道
+        setEGLConfigChooser(8, 8, 8, 8, 16, 0)
+
+        // 2. 设置Z顺序，使其位于窗口顶层，这对于透明度至关重要
+        setZOrderOnTop(true)
+
+        // 3. 设置holder格式为半透明
+        holder.setFormat(PixelFormat.TRANSLUCENT)
+
+        // 4. 将视图的背景色也设置为透明
+        setBackgroundColor(Color.TRANSPARENT)
+
         // 设置OpenGL ES 2.0上下文
         setEGLContextClientVersion(2)
 

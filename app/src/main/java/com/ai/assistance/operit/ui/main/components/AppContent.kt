@@ -240,6 +240,7 @@ fun AppContent(
                                 navController = navController,
                                 navigateTo = onScreenChange,
                                 updateNavItem = onNavItemChange,
+                                onGoBack = onGoBack,
                                 hasBackgroundImage = hasBackgroundImage,
                                 onLoading = onLoading,
                                 onError = onError,

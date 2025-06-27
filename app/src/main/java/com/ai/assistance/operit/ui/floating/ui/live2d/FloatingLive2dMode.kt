@@ -12,8 +12,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.ai.assistance.operit.data.model.Live2DConfig
+import com.ai.assistance.operit.data.repository.Live2DRepository
 import com.ai.assistance.operit.ui.floating.FloatContext
+import com.chatwaifu.live2d.JniBridgeJava
+import com.chatwaifu.live2d.Live2DViewCompose
 
 @Composable
 fun FloatingLive2dMode(floatContext: FloatContext) {
@@ -25,6 +31,12 @@ fun FloatingLive2dMode(floatContext: FloatContext) {
             scale = floatContext.windowScale
         }
     }
+
+    val context = LocalContext.current
+    val repository = remember { Live2DRepository.getInstance(context) }
+    val models by repository.models.collectAsState()
+    val currentConfig by repository.currentConfig.collectAsState()
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     Box(
         modifier = Modifier
@@ -63,14 +75,51 @@ fun FloatingLive2dMode(floatContext: FloatContext) {
                 Spacer(modifier = Modifier.width(48.dp))
             }
 
-            // Live2D 人物占位符
+            // Live2D 显示区域
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Cyan.copy(alpha = 0.3f)),
+                    .fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                Text("这里是Live2D人物")
+                if (JniBridgeJava.isLibraryLoaded()) {
+                    if (models.isEmpty()) {
+                        Text(
+                            "没有可用的Live2D模型", 
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                    } else if (errorMessage != null) {
+                        Text(
+                            text = "加载失败: $errorMessage",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    } else {
+                        val currentModel = models.find { it.id == currentConfig?.modelId }
+                        if (currentModel != null && currentConfig != null) {
+                            Live2DViewCompose(
+                                modifier = Modifier.fillMaxSize(),
+                                model = currentModel,
+                                config = currentConfig?.copy(renderBack = false) ?: currentConfig,
+                                onError = { error -> errorMessage = "加载失败: $error" }
+                            )
+                        } else {
+                            Text(
+                                "未选择模型",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
+                    }
+                } else {
+                    Text(
+                        "Live2D库未正确加载",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                }
             }
         }
 

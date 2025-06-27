@@ -87,6 +87,8 @@ android {
 }
 
 dependencies {
+    implementation(project(":live2d"))
+
     implementation(libs.androidx.ui.graphics.android)
     implementation(files("libs\\ffmpegkit.jar"))
     implementation(files("libs\\arsc.jar"))
