@@ -39,6 +39,9 @@ class Live2DView @JvmOverloads constructor(context: Context, attrs: AttributeSet
 
         // 设置保持屏幕常亮
         keepScreenOn = true
+
+        // 设置保持EGL上下文
+        setPreserveEGLContextOnPause(true)
     }
 
     /**

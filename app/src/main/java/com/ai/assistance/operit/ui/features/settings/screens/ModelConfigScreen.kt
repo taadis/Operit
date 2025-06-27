@@ -83,21 +83,7 @@ fun ModelConfigScreen(onBackPressed: () -> Unit = {}) {
     }
 
     // 主界面内容
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("模型配置") },
-                navigationIcon = {
-                    IconButton(onClick = onBackPressed) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "返回"
-                        )
-                    }
-                }
-            )
-        }
-    ) { paddingValues ->
+    Scaffold() { paddingValues ->
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues).padding(16.dp).verticalScroll(rememberScrollState())) {
 
             // 配置选择区域

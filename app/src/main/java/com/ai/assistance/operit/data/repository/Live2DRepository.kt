@@ -2,6 +2,7 @@ package com.ai.assistance.operit.data.repository
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.net.Uri
 import android.util.Log
 import androidx.core.content.edit
 import com.ai.assistance.operit.data.model.Live2DConfig
@@ -9,6 +10,7 @@ import com.ai.assistance.operit.data.model.Live2DModel
 import com.google.gson.Gson
 import java.io.File
 import java.io.FileOutputStream
+import java.util.zip.ZipInputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -335,6 +337,128 @@ class Live2DRepository(private val context: Context) {
                 } catch (e: Exception) {
                     Log.e(TAG, "Error deleting user model: ${e.message}")
                     false
+                }
+            }
+
+    /**
+     * 从zip文件导入Live2D模型
+     * @param uri 选定的zip文件URI
+     * @return 是否导入成功
+     */
+    suspend fun importModelFromZip(uri: Uri): Boolean =
+            withContext(Dispatchers.IO) {
+                try {
+                    // 创建临时解压目录
+                    val tempDir = File("${context.cacheDir.absolutePath}/live2d_temp_extract")
+                    if (tempDir.exists()) tempDir.deleteRecursively()
+                    tempDir.mkdirs()
+
+                    Log.d(TAG, "开始解压模型到临时目录: ${tempDir.absolutePath}")
+
+                    // 解压zip文件
+                    val contentResolver = context.contentResolver
+                    contentResolver.openInputStream(uri)?.use { inputStream ->
+                        ZipInputStream(inputStream).use { zipInputStream ->
+                            var zipEntry = zipInputStream.nextEntry
+                            while (zipEntry != null) {
+                                if (!zipEntry.isDirectory) {
+                                    val fileName = zipEntry.name
+                                    Log.d(TAG, "解压文件: $fileName")
+
+                                    val outputFile = File(tempDir, fileName)
+                                    // 确保输出文件的父目录存在
+                                    outputFile.parentFile?.mkdirs()
+
+                                    outputFile.outputStream().use { outputStream ->
+                                        zipInputStream.copyTo(outputStream)
+                                    }
+                                } else {
+                                    // 创建目录
+                                    File(tempDir, zipEntry.name).mkdirs()
+                                }
+                                zipInputStream.closeEntry()
+                                zipEntry = zipInputStream.nextEntry
+                            }
+                        }
+                    }
+                            ?: return@withContext false
+
+                    // 查找model3.json文件，确认是否为有效的Live2D模型
+                    val modelFiles = mutableListOf<File>()
+                    tempDir.walkTopDown().forEach { file ->
+                        if (file.isFile && file.name.endsWith(".model3.json")) {
+                            modelFiles.add(file)
+                        }
+                    }
+
+                    if (modelFiles.isEmpty()) {
+                        Log.e(TAG, "未找到有效的Live2D模型文件")
+                        tempDir.deleteRecursively()
+                        return@withContext false
+                    }
+
+                    // 找到模型文件夹
+                    val modelFile = modelFiles.first()
+                    val modelDir = modelFile.parentFile
+
+                    // 如果是根目录直接解压的情况，创建一个以模型文件名命名的子文件夹
+                    val modelName =
+                            if (modelDir == tempDir) {
+                                val baseName = modelFile.nameWithoutExtension.replace(".model3", "")
+                                val targetDir = File(tempDir, baseName)
+                                targetDir.mkdirs()
+
+                                // 移动所有文件到新创建的目录
+                                tempDir.listFiles()?.forEach { file ->
+                                    if (file != targetDir) {
+                                        val dest = File(targetDir, file.name)
+                                        file.copyTo(dest, overwrite = true)
+                                        file.delete()
+                                    }
+                                }
+
+                                baseName
+                            } else {
+                                // 如果已经有子文件夹结构，使用子文件夹名称作为模型名称
+                                var parentDir = modelDir
+                                while (parentDir != tempDir && parentDir.parentFile != tempDir) {
+                                    parentDir = parentDir.parentFile
+                                }
+                                parentDir.name
+                            }
+
+                    // 准备目标目录
+                    var targetDir = File(userModelDir, modelName)
+                    if (targetDir.exists()) {
+                        // 如果目标目录已存在，使用时间戳创建唯一名称
+                        val uniqueName = "${modelName}_${System.currentTimeMillis()}"
+                        targetDir = File(userModelDir, uniqueName)
+                        Log.d(TAG, "模型目录已存在，使用唯一名称: $uniqueName")
+                    }
+
+                    // 移动模型文件到用户模型目录
+                    if (modelDir == tempDir) {
+                        // 如果是在根目录创建的子文件夹情况
+                        File(tempDir, modelName).copyRecursively(targetDir, overwrite = true)
+                    } else {
+                        var parentDir = modelDir
+                        while (parentDir != tempDir && parentDir.parentFile != tempDir) {
+                            parentDir = parentDir.parentFile
+                        }
+                        parentDir.copyRecursively(targetDir, overwrite = true)
+                    }
+
+                    // 清理临时目录
+                    tempDir.deleteRecursively()
+
+                    // 扫描新导入的模型
+                    loadModelsAndConfig()
+
+                    Log.d(TAG, "模型导入成功: ${targetDir.absolutePath}")
+                    return@withContext true
+                } catch (e: Exception) {
+                    Log.e(TAG, "导入模型失败: ${e.message}", e)
+                    return@withContext false
                 }
             }
 }

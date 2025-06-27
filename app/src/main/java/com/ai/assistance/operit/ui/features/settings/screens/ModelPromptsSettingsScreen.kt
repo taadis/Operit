@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,7 +31,10 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
-fun ModelPromptsSettingsScreen(onBackPressed: () -> Unit = {}) {
+fun ModelPromptsSettingsScreen(
+        onBackPressed: () -> Unit = {},
+        onNavigateToFunctionalPrompts: () -> Unit = {}
+) {
     val context = LocalContext.current
     val apiPreferences = remember { ApiPreferences(context) }
     val promptPreferencesManager = remember { PromptPreferencesManager(context) }
@@ -233,6 +237,31 @@ fun ModelPromptsSettingsScreen(onBackPressed: () -> Unit = {}) {
                                     )
                                 }
                             }
+                        }
+                        
+                        Divider(
+                                modifier = Modifier.padding(vertical = 8.dp),
+                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                        )
+
+                        Row(
+                                modifier =
+                                        Modifier.fillMaxWidth()
+                                                .clickable { onNavigateToFunctionalPrompts() }
+                                                .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                                Text(
+                                        text = "为功能分配提示词配置",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium
+                                )
+                                Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                        contentDescription = "为功能分配提示词配置",
+                                        tint = MaterialTheme.colorScheme.primary
+                                )
                         }
                         
                         // 操作按钮

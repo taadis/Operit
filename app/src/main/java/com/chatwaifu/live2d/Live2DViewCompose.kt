@@ -104,11 +104,27 @@ fun Live2DViewCompose(
         }
     }
 
-    DisposableEffect(lifecycleOwner) {
+    DisposableEffect(lifecycleOwner, config) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_PAUSE -> live2DView.onPause()
-                Lifecycle.Event.ON_RESUME -> live2DView.onResume()
+                Lifecycle.Event.ON_RESUME -> {
+                    live2DView.onResume()
+                    // 重新应用配置以确保状态恢复
+                    try {
+                        config?.let {
+                            live2DView.setModelScale(it.scale)
+                            live2DView.setModelTranslateX(it.translateX)
+                            live2DView.setModelTranslateY(it.translateY)
+                            live2DView.setMouthForm(it.mouthForm)
+                            live2DView.setMouthOpenY(it.mouthOpenY)
+                            live2DView.setAutoBlinkEnabled(it.autoBlinkEnabled)
+                            live2DView.setRenderBack(it.renderBack)
+                        }
+                    } catch (e: Exception) {
+                        onError(e.message ?: "未知错误")
+                    }
+                }
                 else -> {}
             }
         }

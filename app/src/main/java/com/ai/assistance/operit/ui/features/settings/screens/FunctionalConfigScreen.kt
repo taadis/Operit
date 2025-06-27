@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,7 +27,10 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FunctionalConfigScreen(onBackPressed: () -> Unit = {}) {
+fun FunctionalConfigScreen(
+        onBackPressed: () -> Unit = {},
+        onNavigateToModelConfig: () -> Unit = {}
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -101,6 +105,31 @@ fun FunctionalConfigScreen(onBackPressed: () -> Unit = {}) {
                                     style = MaterialTheme.typography.bodyMedium,
                                     modifier = Modifier.padding(bottom = 8.dp)
                             )
+
+                            Divider(
+                                    modifier = Modifier.padding(vertical = 8.dp),
+                                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                            )
+
+                            Row(
+                                    modifier =
+                                            Modifier.fillMaxWidth()
+                                                    .clickable { onNavigateToModelConfig() }
+                                                    .padding(vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                    Text(
+                                            text = "管理所有模型配置",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Medium
+                                    )
+                                    Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                            contentDescription = "管理模型配置",
+                                            tint = MaterialTheme.colorScheme.primary
+                                    )
+                            }
                         }
                     }
 

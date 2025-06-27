@@ -1,6 +1,7 @@
 package com.ai.assistance.operit.ui.features.assistant.viewmodel
 
 import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -28,7 +29,8 @@ class Live2DViewModel(private val repository: Live2DRepository) : ViewModel() {
             val expressionToApply: String? = null,
             val manualExpression: String = "",
             val triggerRandomTap: Long? = null,
-            val scrollPosition: Int = 0  // 添加滚动位置状态
+            val scrollPosition: Int = 0, // 添加滚动位置状态
+            val isImporting: Boolean = false // 导入模型状态
     )
 
     // 当前UI状态
@@ -65,7 +67,8 @@ class Live2DViewModel(private val repository: Live2DRepository) : ViewModel() {
             isScanning: Boolean? = null,
             expressionToApply: String? = null,
             manualExpression: String? = null,
-            triggerRandomTap: Long? = null
+            triggerRandomTap: Long? = null,
+            isImporting: Boolean? = null
     ) {
         val currentState = _uiState.value
         _uiState.value =
@@ -80,7 +83,8 @@ class Live2DViewModel(private val repository: Live2DRepository) : ViewModel() {
                         expressionToApply = expressionToApply,
                         manualExpression = manualExpression ?: currentState.manualExpression,
                         triggerRandomTap = triggerRandomTap,
-                        scrollPosition = currentState.scrollPosition
+                        scrollPosition = currentState.scrollPosition,
+                        isImporting = isImporting ?: currentState.isImporting
                 )
     }
 
@@ -138,23 +142,6 @@ class Live2DViewModel(private val repository: Live2DRepository) : ViewModel() {
         viewModelScope.launch { repository.updateConfig(updatedConfig) }
     }
 
-    /** 重置配置为默认值 */
-    fun resetConfig() {
-        val currentConfig = _uiState.value.config ?: return
-        val defaultConfig =
-                Live2DConfig(
-                        modelId = currentConfig.modelId,
-                        scale = 1.0f,
-                        translateX = 0.0f,
-                        translateY = 0.0f,
-                        mouthForm = 0.0f,
-                        mouthOpenY = 0.0f,
-                        autoBlinkEnabled = true,
-                        renderBack = false
-                )
-        viewModelScope.launch { repository.updateConfig(defaultConfig) }
-    }
-
     /** 扫描用户模型 */
     fun scanUserModels() {
         updateUiState(isScanning = true)
@@ -192,6 +179,29 @@ class Live2DViewModel(private val repository: Live2DRepository) : ViewModel() {
                         isLoading = false,
                         operationSuccess = false,
                         errorMessage = "删除模型出错: ${e.message}"
+                )
+            }
+        }
+    }
+
+    /** 导入Live2D模型ZIP文件 */
+    fun importModelFromZip(uri: Uri) {
+        updateUiState(isLoading = true, isImporting = true)
+        viewModelScope.launch {
+            try {
+                val success = repository.importModelFromZip(uri)
+                updateUiState(
+                        isLoading = false,
+                        isImporting = false,
+                        operationSuccess = success,
+                        errorMessage = if (!success) "导入Live2D模型失败" else null
+                )
+            } catch (e: Exception) {
+                updateUiState(
+                        isLoading = false,
+                        isImporting = false,
+                        operationSuccess = false,
+                        errorMessage = "导入模型出错: ${e.message}"
                 )
             }
         }

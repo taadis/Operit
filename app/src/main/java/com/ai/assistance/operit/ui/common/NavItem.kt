@@ -17,7 +17,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Token
-import androidx.compose.material.icons.filled.Toys
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.ai.assistance.operit.R
 
@@ -27,7 +27,7 @@ sealed class NavItem(val route: String, val titleResId: Int, val icon: ImageVect
         object ShizukuCommands :
                 NavItem("shizuku_commands", R.string.shizuku_commands, Icons.Default.Build)
         object AssistantConfig :
-                NavItem("assistant_config", R.string.nav_assistant_config, Icons.Default.Toys)
+                NavItem("assistant_config", R.string.nav_assistant_config, Icons.Default.Tune)
         object Settings : NavItem("settings", R.string.nav_settings, Icons.Default.Settings)
         object ToolPermissions :
                 NavItem("tool_permissions", R.string.tool_permissions, Icons.Default.Security)

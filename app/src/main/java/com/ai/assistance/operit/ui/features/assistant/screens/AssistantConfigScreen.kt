@@ -1,5 +1,10 @@
 package com.ai.assistance.operit.ui.features.assistant.screens
 
+import android.app.Activity
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -54,6 +59,28 @@ fun AssistantConfigScreen(
     val promptPreferences = remember { PromptPreferencesManager(context) }
     val userPrefsManager = remember { UserPreferencesManager(context) }
 
+    // 启动文件选择器
+    val zipFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            result.data?.data?.let { uri ->
+                // 导入选择的zip文件
+                viewModel.importModelFromZip(uri)
+            }
+        }
+    }
+
+    // 打开文件选择器的函数
+    val openZipFilePicker = {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/zip"
+            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/zip", "application/x-zip-compressed"))
+        }
+        zipFileLauncher.launch(intent)
+    }
+
     // State for the selected function type
     var selectedFunctionType by remember { mutableStateOf(PromptFunctionType.CHAT) }
 
@@ -89,13 +116,39 @@ fun AssistantConfigScreen(
         }
     }
 
+    // 显示操作结果的 SnackBar
+    LaunchedEffect(uiState.operationSuccess, uiState.errorMessage) {
+        if (uiState.operationSuccess) {
+            snackbarHostState.showSnackbar("操作成功")
+            viewModel.clearOperationSuccess()
+        } else if (uiState.errorMessage != null) {
+            snackbarHostState.showSnackbar(uiState.errorMessage ?: "发生错误")
+            viewModel.clearErrorMessage()
+        }
+    }
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("助手配置") },
                 actions = {
-                    IconButton(onClick = { viewModel.scanUserModels() }) {
+                    // 导入模型按钮
+                    IconButton(
+                        onClick = openZipFilePicker,
+                        enabled = !uiState.isImporting && !uiState.isLoading
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FileUpload,
+                            contentDescription = "导入模型"
+                        )
+                    }
+                    
+                    // 刷新模型列表按钮
+                    IconButton(
+                        onClick = { viewModel.scanUserModels() },
+                        enabled = !uiState.isImporting && !uiState.isLoading && !uiState.isScanning
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
                             contentDescription = "扫描用户模型"
@@ -105,121 +158,142 @@ fun AssistantConfigScreen(
             )
         }
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 12.dp)
-                .verticalScroll(scrollState)
-        ) {
-            // Live2D预览区域
-            Live2DPreviewSection(
-                viewModel,
-                uiState,
+        Box(modifier = Modifier.fillMaxSize()) {
+            // 主要内容
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp)
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // 模型选择器
-            Text(
-                "模型选择",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 4.dp, start = 4.dp)
-            )
-            ModelSelector(
-                models = uiState.models,
-                selectedModelId = uiState.currentModel?.id,
-                onModelSelected = { viewModel.switchModel(it) },
-                onDeleteModel = { viewModel.deleteUserModel(it) }
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // 功能配置区域
-            Text(
-                "功能配置",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 4.dp, start = 4.dp)
-            )
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f)
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(horizontal = 12.dp)
+                    .verticalScroll(scrollState)
             ) {
-                Column(modifier = Modifier.padding(vertical = 4.dp, horizontal = 8.dp)) {
-                    // 功能切换器
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        PromptFunctionType.values().forEach { functionType ->
-                            FilterChip(
-                                selected = selectedFunctionType == functionType,
-                                onClick = { selectedFunctionType = functionType },
-                                label = { Text(getFunctionDisplayName(functionType)) }
-                            )
-                        }
-                    }
+                // Live2D预览区域
+                Live2DPreviewSection(
+                    viewModel,
+                    uiState,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                )
 
-                    Divider(modifier = Modifier.padding(vertical = 4.dp))
-                    
-                    SettingItem(
-                        icon = Icons.Default.Face,
-                        title = "用户性格",
-                        value = activeUserPrefProfileName,
-                        onClick = navigateToUserPreferences
-                    )
-                    
-                    SettingItem(
-                        icon = Icons.Default.Message,
-                        title = "功能提示词",
-                        value = promptProfile?.name ?: "未配置",
-                        onClick = navigateToFunctionalPrompts
-                    )
-                    
-                    SettingItem(
-                        icon = Icons.Default.Api,
-                        title = "功能模型",
-                        value = modelConfig?.name ?: "未配置",
-                        onClick = navigateToFunctionalConfig
-                    )
-                }
-            }
+                Spacer(modifier = Modifier.height(12.dp))
 
-            Spacer(modifier = Modifier.height(12.dp))
+                // 模型选择器
+                Text(
+                    "模型选择",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 4.dp, start = 4.dp)
+                )
+                ModelSelector(
+                    models = uiState.models,
+                    selectedModelId = uiState.currentModel?.id,
+                    onModelSelected = { viewModel.switchModel(it) },
+                    onDeleteModel = { viewModel.deleteUserModel(it) }
+                )
 
-            // Live2D详细配置
-            if (uiState.currentModel != null && uiState.config != null) {
-                var isLive2dSettingsExpanded by remember { mutableStateOf(false) }
+                Spacer(modifier = Modifier.height(12.dp))
 
-                ExpandableSection(
-                    title = "Live2D 详细设置",
-                    expanded = isLive2dSettingsExpanded,
-                    onToggle = { isLive2dSettingsExpanded = !isLive2dSettingsExpanded }
+                // 功能配置区域
+                Text(
+                    "功能配置",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 4.dp, start = 4.dp)
+                )
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f)
                 ) {
-                    Live2DControls(
-                        config = uiState.config,
-                        onScaleChanged = viewModel::updateScale,
-                        onTranslateXChanged = viewModel::updateTranslateX,
-                        onTranslateYChanged = viewModel::updateTranslateY,
-                        onMouthFormChanged = viewModel::updateMouthForm,
-                        onMouthOpenYChanged = viewModel::updateMouthOpenY,
-                        onAutoBlinkChanged = viewModel::setAutoBlinkEnabled,
-                        onRenderBackChanged = viewModel::setRenderBack,
-                        onResetConfig = viewModel::resetConfig
-                    )
+                    Column(modifier = Modifier.padding(vertical = 4.dp, horizontal = 8.dp)) {
+                        // 功能切换器
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            PromptFunctionType.values().forEach { functionType ->
+                                FilterChip(
+                                    selected = selectedFunctionType == functionType,
+                                    onClick = { selectedFunctionType = functionType },
+                                    label = { Text(getFunctionDisplayName(functionType)) }
+                                )
+                            }
+                        }
+
+                        Divider(modifier = Modifier.padding(vertical = 4.dp))
+                        
+                        SettingItem(
+                            icon = Icons.Default.Face,
+                            title = "用户性格",
+                            value = activeUserPrefProfileName,
+                            onClick = navigateToUserPreferences
+                        )
+                        
+                        SettingItem(
+                            icon = Icons.Default.Message,
+                            title = "功能提示词",
+                            value = promptProfile?.name ?: "未配置",
+                            onClick = navigateToFunctionalPrompts
+                        )
+                        
+                        SettingItem(
+                            icon = Icons.Default.Api,
+                            title = "功能模型",
+                            value = modelConfig?.name ?: "未配置",
+                            onClick = navigateToFunctionalConfig
+                        )
+                    }
                 }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Live2D详细配置
+                if (uiState.currentModel != null && uiState.config != null) {
+                    var isLive2dSettingsExpanded by remember { mutableStateOf(false) }
+
+                    ExpandableSection(
+                        title = "Live2D 详细设置",
+                        expanded = isLive2dSettingsExpanded,
+                        onToggle = { isLive2dSettingsExpanded = !isLive2dSettingsExpanded }
+                    ) {
+                        Live2DControls(
+                            config = uiState.config,
+                            onScaleChanged = viewModel::updateScale,
+                            onTranslateXChanged = viewModel::updateTranslateX,
+                            onTranslateYChanged = viewModel::updateTranslateY,
+                            onMouthFormChanged = viewModel::updateMouthForm,
+                            onMouthOpenYChanged = viewModel::updateMouthOpenY,
+                            onAutoBlinkChanged = viewModel::setAutoBlinkEnabled,
+                            onRenderBackChanged = viewModel::setRenderBack
+                        )
+                    }
+                }
+                
+                // 底部空间
+                Spacer(modifier = Modifier.height(16.dp))
             }
             
-            // 底部空间
-            Spacer(modifier = Modifier.height(16.dp))
+            // 加载指示器覆盖层
+            if (uiState.isLoading || uiState.isImporting) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator()
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = if (uiState.isImporting) "正在导入模型..." else "处理中...",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+            }
         }
     }
 }

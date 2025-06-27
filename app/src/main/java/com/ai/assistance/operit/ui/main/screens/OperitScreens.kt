@@ -375,7 +375,8 @@ sealed class Screen(
                 onGestureConsumed: (Boolean) -> Unit
         ) {
             ModelPromptsSettingsScreen(
-                    onBackPressed = onGoBack
+                    onBackPressed = onGoBack,
+                    onNavigateToFunctionalPrompts = { navigateTo(FunctionalPromptConfig) }
             )
         }
     }
@@ -394,7 +395,8 @@ sealed class Screen(
                 onGestureConsumed: (Boolean) -> Unit
         ) {
             FunctionalConfigScreen(
-                    onBackPressed = onGoBack
+                    onBackPressed = onGoBack,
+                    onNavigateToModelConfig = { navigateTo(ModelConfig) }
             )
         }
     }
@@ -721,7 +723,8 @@ data object FunctionalPromptConfig :
         val fromAssistant = navController.previousBackStackEntry?.destination?.route?.contains("AssistantConfig") == true
         
         FunctionalPromptConfigScreen(
-                onBackPressed = onGoBack
+                onBackPressed = onGoBack,
+                onNavigateToModelPrompts = { navigateTo(ModelPromptsSettings) }
         )
     }
 }
