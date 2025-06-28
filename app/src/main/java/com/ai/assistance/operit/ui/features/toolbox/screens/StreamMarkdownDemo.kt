@@ -20,6 +20,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -46,6 +47,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.consumeAsFlow
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.platform.LocalContext
+import android.content.Intent
+import android.net.Uri
 
 private const val TAG = "StreamMarkdownDemo"
 
@@ -364,6 +369,47 @@ private fun ControlPanel(
                 onValueChange = onSpeedChange,
                 valueRange = 0.5f..10f,
                 steps = 18
+        )
+    }
+}
+
+@Preview
+@Composable
+fun StreamMarkdownDemoScreenPreview() {
+    val staticContent = """
+        # 静态Markdown演示
+        
+        这是一个**静态**的Markdown渲染示例。
+        
+        * 列表项1
+        * 列表项2
+        
+        [点击这个链接](https://www.example.com)
+        
+        ```kotlin
+        fun main() {
+            println("Hello, World!")
+        }
+        ```
+    """.trimIndent()
+    
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Text("流式Markdown渲染演示", style = MaterialTheme.typography.headlineSmall)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        HorizontalDivider()
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text("静态渲染", style = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.height(8.dp))
+        val context = LocalContext.current
+        StreamMarkdownRenderer(
+            content = staticContent,
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            onLinkClick = { url ->
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                context.startActivity(intent)
+            }
         )
     }
 }

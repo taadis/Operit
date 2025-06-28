@@ -14,6 +14,9 @@ import com.ai.assistance.operit.ui.common.markdown.StreamMarkdownRenderer
 import com.ai.assistance.operit.ui.features.chat.components.part.CustomXmlRenderer
 import com.ai.assistance.operit.util.stream.Stream
 import com.ai.assistance.operit.util.markdown.toCharStream
+import androidx.compose.ui.platform.LocalContext
+import android.content.Intent
+import android.net.Uri
 
 private const val TAG = "AiMessageComposable"
 
@@ -55,21 +58,29 @@ fun AiMessageComposable(
                 // 将contentStream保存到本地变量以避免智能转换问题
                 val charStream = remember(streamToRender) { streamToRender.toCharStream() }
 
+                val context = LocalContext.current
                 StreamMarkdownRenderer(
                         markdownStream = charStream,
                         textColor = textColor,
                         backgroundColor = backgroundColor,
-                        onLinkClick = onLinkClick,
+                        onLinkClick = { url ->
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                            context.startActivity(intent)
+                        },
                         xmlRenderer = xmlRenderer,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
                 )
             } else {
                 // 对于已完成的静态消息，使用新的字符串渲染器以提高性能
+                val context = LocalContext.current
                 StreamMarkdownRenderer(
                         content = message.content,
                         textColor = textColor,
                         backgroundColor = backgroundColor,
-                        onLinkClick = onLinkClick,
+                        onLinkClick = { url ->
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                            context.startActivity(intent)
+                        },
                         xmlRenderer = xmlRenderer,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
                 )

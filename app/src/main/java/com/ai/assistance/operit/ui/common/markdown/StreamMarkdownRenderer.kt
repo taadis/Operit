@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material3.Divider
@@ -30,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -39,12 +41,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
@@ -70,6 +74,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import ru.noties.jlatexmath.JLatexMathDrawable
+import androidx.compose.foundation.gestures.detectTapGestures
 
 private const val TAG = "MarkdownRenderer"
 private const val RENDER_INTERVAL_MS = 100L // 渲染间隔 0.1 秒
@@ -780,13 +785,24 @@ fun StableMarkdownNodeRenderer(
                                     )
                                 }
                             }
-
+                    var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
                     Text(
                             text = inlineContent,
+                            modifier = Modifier.fillMaxWidth().pointerInput(onLinkClick) {
+                                detectTapGestures { offset ->
+                                    textLayoutResult?.let { layoutResult ->
+                                        val position = layoutResult.getOffsetForPosition(offset)
+                                        inlineContent.getStringAnnotations("URL", position, position)
+                                            .firstOrNull()?.let { annotation ->
+                                                onLinkClick?.invoke(annotation.item)
+                                            }
+                                    }
+                                }
+                            },
                             inlineContent = inlineContentMap,
                             color = textColor,
                             style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.fillMaxWidth()
+                            onTextLayout = { textLayoutResult = it }
                     )
                 }
             }
@@ -1067,12 +1083,24 @@ fun StableMarkdownNodeRenderer(
 
             if (inlineContent.isEmpty()) return
 
+            var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
             Text(
                     text = inlineContent,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp).pointerInput(onLinkClick) {
+                        detectTapGestures { offset ->
+                            textLayoutResult?.let { layoutResult ->
+                                val position = layoutResult.getOffsetForPosition(offset)
+                                inlineContent.getStringAnnotations("URL", position, position)
+                                    .firstOrNull()?.let { annotation ->
+                                        onLinkClick?.invoke(annotation.item)
+                                    }
+                            }
+                        }
+                    },
                     inlineContent = inlineContentMap,
                     color = textColor,
                     style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp)
+                    onTextLayout = { textLayoutResult = it }
             )
         }
 
@@ -1094,12 +1122,24 @@ fun StableMarkdownNodeRenderer(
 
             if (inlineContent.isEmpty()) return
 
+            var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
             Text(
                     text = inlineContent,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp).pointerInput(onLinkClick) {
+                        detectTapGestures { offset ->
+                            textLayoutResult?.let { layoutResult ->
+                                val position = layoutResult.getOffsetForPosition(offset)
+                                inlineContent.getStringAnnotations("URL", position, position)
+                                    .firstOrNull()?.let { annotation ->
+                                        onLinkClick?.invoke(annotation.item)
+                                    }
+                            }
+                        }
+                    },
                     inlineContent = inlineContentMap,
                     color = textColor,
                     style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp)
+                    onTextLayout = { textLayoutResult = it }
             )
         }
     }

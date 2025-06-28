@@ -45,7 +45,8 @@ fun Live2DViewCompose(
         triggerRandomTap: Long? = null,
         onRandomTapHandled: () -> Unit = {},
         onViewCreated: (Live2DView) -> Unit = {},
-        onError: (String) -> Unit = {}
+        onError: (String) -> Unit = {},
+        useZOrderOnTop: Boolean = false
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -54,7 +55,7 @@ fun Live2DViewCompose(
 
     val live2DView: Live2DView? = remember {
         try {
-            createLive2DView(context)
+            createLive2DView(context, useZOrderOnTop)
         } catch (e: IllegalStateException) {
             creationError = e.message ?: "创建Live2DView时发生未知错误"
             null
@@ -163,20 +164,14 @@ fun Live2DViewCompose(
                 }
         )
     } else if (creationError != null) {
-        LaunchedEffect(creationError) {
-            currentOnError(creationError!!)
-        }
+        LaunchedEffect(creationError) { currentOnError(creationError!!) }
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
-            Text(
-                text = creationError!!,
-                color = Color.Red,
-                textAlign = TextAlign.Center
-            )
+            Text(text = creationError!!, color = Color.Red, textAlign = TextAlign.Center)
         }
     }
 }
 
-private fun createLive2DView(context: Context): Live2DView {
+private fun createLive2DView(context: Context, useZOrderOnTop: Boolean = false): Live2DView {
     JniBridgeJava.SetContext(context)
-    return Live2DView(context)
+    return Live2DView(context, null, useZOrderOnTop)
 }

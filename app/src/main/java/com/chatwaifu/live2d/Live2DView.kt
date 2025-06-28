@@ -9,8 +9,13 @@ import android.view.MotionEvent
 import java.lang.ref.WeakReference
 
 /** Live2D模型显示视图 负责处理OpenGL渲染和触摸事件 */
-class Live2DView @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null) :
-        GLSurfaceView(context, attrs) {
+class Live2DView
+@JvmOverloads
+constructor(
+        context: Context,
+        attrs: AttributeSet? = null,
+        private val useZOrderOnTop: Boolean = false // 添加Z顺序控制参数
+) : GLSurfaceView(context, attrs) {
 
     private val renderer: GLRenderer
 
@@ -33,7 +38,9 @@ class Live2DView @JvmOverloads constructor(context: Context, attrs: AttributeSet
         setEGLConfigChooser(8, 8, 8, 8, 16, 0)
 
         // 2. 设置Z顺序，使其位于窗口顶层，这对于透明度至关重要
-        // setZOrderOnTop(true)
+        if (useZOrderOnTop) {
+            setZOrderOnTop(true)
+        }
 
         // 3. 设置holder格式为半透明
         holder.setFormat(PixelFormat.TRANSLUCENT)

@@ -300,7 +300,9 @@ fun PetChatInputDialog(onDismiss: () -> Unit, onSendMessage: (String) -> Unit) {
                     OutlinedTextField(
                             value = text,
                             onValueChange = { text = it },
-                            placeholder = { Text("输入消息...") },
+                            placeholder = {
+                                Text("输入消息...", style = MaterialTheme.typography.bodyMedium)
+                            },
                             modifier = Modifier.weight(1f).focusRequester(focusRequester),
                             textStyle = MaterialTheme.typography.bodyMedium,
                             singleLine = true,

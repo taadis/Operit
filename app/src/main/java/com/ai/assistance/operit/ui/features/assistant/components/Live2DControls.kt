@@ -28,31 +28,31 @@ fun Live2DControls(
                 label = "缩放",
                 value = config.scale,
                 onValueChange = onScaleChanged,
-                valueRange = 0.5f..2.0f
+                valueRange = 0.1f..5.0f
         )
         ControlSliderItem(
                 label = "水平位置",
                 value = config.translateX,
                 onValueChange = onTranslateXChanged,
-                valueRange = -1.0f..1.0f
+                valueRange = -2.0f..2.0f
         )
         ControlSliderItem(
                 label = "垂直位置",
                 value = config.translateY,
                 onValueChange = onTranslateYChanged,
-                valueRange = -1.0f..1.0f
+                valueRange = -2.0f..2.0f
         )
         ControlSliderItem(
                 label = "嘴部形状",
                 value = config.mouthForm,
                 onValueChange = onMouthFormChanged,
-                valueRange = 0.0f..1.0f
+                valueRange = 0.0f..2.0f
         )
         ControlSliderItem(
                 label = "嘴部开合",
                 value = config.mouthOpenY,
                 onValueChange = onMouthOpenYChanged,
-                valueRange = 0.0f..1.0f
+                valueRange = 0.0f..2.0f
         )
 
         Divider(modifier = Modifier.padding(vertical = 4.dp))
