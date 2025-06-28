@@ -417,7 +417,7 @@ class FloatingWindowManager(
                     if (state.currentMode.value == FloatingMode.BALL ||
                                     state.currentMode.value == FloatingMode.VOICE_BALL
                     )
-                            0.9f
+                            1.0f
                     else scale
             params.x += (dx * sensitivity).toInt()
             params.y += (dy * sensitivity).toInt()

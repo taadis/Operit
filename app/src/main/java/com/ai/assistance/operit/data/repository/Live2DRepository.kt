@@ -347,118 +347,97 @@ class Live2DRepository(private val context: Context) {
      */
     suspend fun importModelFromZip(uri: Uri): Boolean =
             withContext(Dispatchers.IO) {
+                var successfulImport = false
+                // 创建临时解压目录
+                val tempDir = File("${context.cacheDir.absolutePath}/live2d_temp_extract_${System.nanoTime()}")
                 try {
-                    // 创建临时解压目录
-                    val tempDir = File("${context.cacheDir.absolutePath}/live2d_temp_extract")
                     if (tempDir.exists()) tempDir.deleteRecursively()
                     tempDir.mkdirs()
 
                     Log.d(TAG, "开始解压模型到临时目录: ${tempDir.absolutePath}")
 
                     // 解压zip文件
-                    val contentResolver = context.contentResolver
-                    contentResolver.openInputStream(uri)?.use { inputStream ->
+                    context.contentResolver.openInputStream(uri)?.use { inputStream ->
                         ZipInputStream(inputStream).use { zipInputStream ->
                             var zipEntry = zipInputStream.nextEntry
                             while (zipEntry != null) {
-                                if (!zipEntry.isDirectory) {
-                                    val fileName = zipEntry.name
-                                    Log.d(TAG, "解压文件: $fileName")
-
-                                    val outputFile = File(tempDir, fileName)
-                                    // 确保输出文件的父目录存在
+                                val outputFile = File(tempDir, zipEntry.name)
+                                // 防止路径遍历攻击
+                                if (!outputFile.canonicalPath.startsWith(tempDir.canonicalPath)) {
+                                    throw SecurityException("Zip Path Traversal Vulnerability")
+                                }
+                                if (zipEntry.isDirectory) {
+                                    outputFile.mkdirs()
+                                } else {
                                     outputFile.parentFile?.mkdirs()
-
                                     outputFile.outputStream().use { outputStream ->
                                         zipInputStream.copyTo(outputStream)
                                     }
-                                } else {
-                                    // 创建目录
-                                    File(tempDir, zipEntry.name).mkdirs()
                                 }
                                 zipInputStream.closeEntry()
                                 zipEntry = zipInputStream.nextEntry
                             }
                         }
-                    }
-                            ?: return@withContext false
+                    } ?: return@withContext false
 
-                    // 查找model3.json文件，确认是否为有效的Live2D模型
-                    val modelFiles = mutableListOf<File>()
-                    tempDir.walkTopDown().forEach { file ->
-                        if (file.isFile && file.name.endsWith(".model3.json")) {
-                            modelFiles.add(file)
-                        }
-                    }
+                    // 查找所有model3.json文件，确认是否为有效的Live2D模型
+                    val modelFiles = tempDir.walkTopDown().filter {
+                        it.isFile && it.name.endsWith(".model3.json")
+                    }.toList()
 
                     if (modelFiles.isEmpty()) {
-                        Log.e(TAG, "未找到有效的Live2D模型文件")
-                        tempDir.deleteRecursively()
+                        Log.e(TAG, "ZIP文件中未找到有效的Live2D模型文件(.model3.json)")
                         return@withContext false
                     }
 
-                    // 找到模型文件夹
-                    val modelFile = modelFiles.first()
-                    val modelDir = modelFile.parentFile
+                    Log.d(TAG, "在ZIP文件中找到 ${modelFiles.size} 个模型。")
 
-                    // 如果是根目录直接解压的情况，创建一个以模型文件名命名的子文件夹
-                    val modelName =
-                            if (modelDir == tempDir) {
-                                val baseName = modelFile.nameWithoutExtension.replace(".model3", "")
-                                val targetDir = File(tempDir, baseName)
-                                targetDir.mkdirs()
+                    for (modelFile in modelFiles) {
+                        val modelSourceDir: File
+                        val modelName: String
 
-                                // 移动所有文件到新创建的目录
-                                tempDir.listFiles()?.forEach { file ->
-                                    if (file != targetDir) {
-                                        val dest = File(targetDir, file.name)
-                                        file.copyTo(dest, overwrite = true)
-                                        file.delete()
-                                    }
-                                }
+                        // 核心逻辑：
+                        // 1. model3.json 所在的目录就是模型的源目录。
+                        // 2. 模型的名称应该从 model3.json 的文件名派生，这是最可靠的。
+                        modelSourceDir = modelFile.parentFile ?: tempDir
+                        modelName = modelFile.nameWithoutExtension.replace(".model3", "")
+                        
+                        Log.d(TAG, "找到模型 '$modelName'，源目录: ${modelSourceDir.path}")
 
-                                baseName
-                            } else {
-                                // 如果已经有子文件夹结构，使用子文件夹名称作为模型名称
-                                var parentDir = modelDir
-                                while (parentDir != tempDir && parentDir.parentFile != tempDir) {
-                                    parentDir = parentDir.parentFile
-                                }
-                                parentDir.name
-                            }
-
-                    // 准备目标目录
+                        // 准备目标目录，处理命名冲突
                     var targetDir = File(userModelDir, modelName)
                     if (targetDir.exists()) {
-                        // 如果目标目录已存在，使用时间戳创建唯一名称
                         val uniqueName = "${modelName}_${System.currentTimeMillis()}"
                         targetDir = File(userModelDir, uniqueName)
-                        Log.d(TAG, "模型目录已存在，使用唯一名称: $uniqueName")
+                            Log.w(TAG, "模型目录 '$modelName' 已存在, 重命名为 '$uniqueName'")
                     }
 
-                    // 移动模型文件到用户模型目录
-                    if (modelDir == tempDir) {
-                        // 如果是在根目录创建的子文件夹情况
-                        File(tempDir, modelName).copyRecursively(targetDir, overwrite = true)
-                    } else {
-                        var parentDir = modelDir
-                        while (parentDir != tempDir && parentDir.parentFile != tempDir) {
-                            parentDir = parentDir.parentFile
-                        }
-                        parentDir.copyRecursively(targetDir, overwrite = true)
+                        // 复制模型文件
+                        try {
+                            modelSourceDir.copyRecursively(targetDir, overwrite = true)
+                            Log.d(TAG, "模型 '$modelName' 已成功导入到 ${targetDir.absolutePath}")
+                            successfulImport = true
+                        } catch (e: Exception) {
+                            Log.e(TAG, "复制模型 '$modelName' 失败", e)
+                    }
                     }
 
-                    // 清理临时目录
-                    tempDir.deleteRecursively()
-
-                    // 扫描新导入的模型
+                    if (successfulImport) {
+                        // 重新扫描并加载所有模型
                     loadModelsAndConfig()
+                        Log.d(TAG, "所有模型导入完成，刷新模型列表。")
+                    }
 
-                    Log.d(TAG, "模型导入成功: ${targetDir.absolutePath}")
-                    return@withContext true
+                    return@withContext successfulImport
                 } catch (e: Exception) {
                     Log.e(TAG, "导入模型失败: ${e.message}", e)
                     return@withContext false
+                } finally {
+                    // 清理临时目录
+                    if (tempDir.exists()) {
+                        tempDir.deleteRecursively()
+                    }
                 }
             }
 }
+

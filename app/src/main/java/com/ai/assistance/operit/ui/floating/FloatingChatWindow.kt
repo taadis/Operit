@@ -10,6 +10,7 @@ import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.preferences.PromptFunctionType
 import com.ai.assistance.operit.services.FloatingChatService
 import com.ai.assistance.operit.ui.floating.ui.ball.FloatingChatBallMode
+import com.ai.assistance.operit.ui.floating.ui.ball.FloatingLive2dBallMode
 import com.ai.assistance.operit.ui.floating.ui.ball.FloatingVoiceBallMode
 import com.ai.assistance.operit.ui.floating.ui.fullscreen.FloatingFullscreenMode
 import com.ai.assistance.operit.ui.floating.ui.live2d.FloatingLive2dMode
@@ -123,7 +124,14 @@ fun FloatingChatWindow(
     // 根据currentMode参数渲染对应界面
     when (floatContext.currentMode) {
         FloatingMode.WINDOW -> FloatingChatWindowMode(floatContext = floatContext)
-        FloatingMode.BALL -> FloatingChatBallMode(floatContext = floatContext)
+        FloatingMode.BALL -> {
+            // 根据前一个模式决定显示哪种球
+            when (floatContext.previousMode) {
+                FloatingMode.LIVE2D -> FloatingLive2dBallMode(floatContext = floatContext)
+                FloatingMode.VOICE_BALL -> FloatingVoiceBallMode(floatContext = floatContext)
+                else -> FloatingChatBallMode(floatContext = floatContext)
+            }
+        }
         FloatingMode.VOICE_BALL -> FloatingVoiceBallMode(floatContext = floatContext)
         FloatingMode.FULLSCREEN -> FloatingFullscreenMode(floatContext = floatContext)
         FloatingMode.LIVE2D -> FloatingLive2dMode(floatContext = floatContext)

@@ -1,13 +1,22 @@
 package com.chatwaifu.live2d
 
 import android.content.Context
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -17,11 +26,12 @@ import com.ai.assistance.operit.data.model.Live2DModel
 /**
  * Compose版Live2D视图组件
  *
- * 遵循最简单的生命周期管理原则：
- * 1. 每次组合时，创建一个全新的Live2DView实例。
- * 2. 每次视图离开屏幕并被销毁时（onDispose），调用destroy()来彻底释放所有C++层和GL资源。
+ * 遵循生命周期管理原则：
+ * 1. 使用 `remember` 来持有 `Live2DView` 实例，确保其在重组之间保持稳定。
+ * 2. 使用 `DisposableEffect` 来管理 `Live2DView` 的生命周期，例如暂停、恢复和销毁。
+ * 3. 使用 `LaunchedEffect` 来响应外部状态（如模型、配置）的变化，并更新 `Live2DView`。
  *
- * 这确保了每次显示都是一次干净的、从零开始的渲染，从根本上避免了因状态残留和生命周期冲突导致的崩溃。
+ * 这种方法避免了不必要的视图重建，提高了性能和用户体验。
  */
 @Composable
 fun Live2DViewCompose(
@@ -39,105 +49,131 @@ fun Live2DViewCompose(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val currentOnError by rememberUpdatedState(onError)
+    var creationError by remember { mutableStateOf<String?>(null) }
 
-    val live2DView = remember { createLive2DView(context) }
-
-    LaunchedEffect(model, modelPath, modelJsonFileName) {
+    val live2DView: Live2DView? = remember {
         try {
-            when {
-                model != null -> {
-                    var path = if (model.isBuiltIn) model.folderPath else model.folderPath
-                    if (!path.endsWith("/")) {
-                        path += "/"
+            createLive2DView(context)
+        } catch (e: IllegalStateException) {
+            creationError = e.message ?: "创建Live2DView时发生未知错误"
+            null
+        }
+    }
+
+    if (live2DView != null) {
+        val currentConfig by rememberUpdatedState(config)
+
+        LaunchedEffect(model, modelPath, modelJsonFileName) {
+            try {
+                when {
+                    model != null -> {
+                        val path = model.folderPath.let { if (!it.endsWith("/")) "$it/" else it }
+                        live2DView.loadModel(path, model.jsonFileName)
                     }
-                    live2DView.loadModel(path, model.jsonFileName)
+                    modelPath.isNotEmpty() && modelJsonFileName.isNotEmpty() -> {
+                        live2DView.loadModel(modelPath, modelJsonFileName)
+                    }
                 }
-                modelPath.isNotEmpty() && modelJsonFileName.isNotEmpty() -> {
-                    live2DView.loadModel(modelPath, modelJsonFileName)
+            } catch (e: Exception) {
+                currentOnError(e.message ?: "加载模型时发生未知错误")
+            }
+        }
+
+        LaunchedEffect(config) {
+            try {
+                config?.let {
+                    live2DView.setModelScale(it.scale)
+                    live2DView.setModelTranslateX(it.translateX)
+                    live2DView.setModelTranslateY(it.translateY)
+                    live2DView.setMouthForm(it.mouthForm)
+                    live2DView.setMouthOpenY(it.mouthOpenY)
+                    live2DView.setAutoBlinkEnabled(it.autoBlinkEnabled)
+                    live2DView.setRenderBack(it.renderBack)
+                }
+            } catch (e: Exception) {
+                currentOnError(e.message ?: "应用配置时发生未知错误")
+            }
+        }
+
+        LaunchedEffect(expressionToApply) {
+            if (expressionToApply != null) {
+                try {
+                    val expressionName = expressionToApply.substringBeforeLast(':')
+                    live2DView.applyExpression(expressionName)
+                } catch (e: Exception) {
+                    currentOnError(e.message ?: "应用表情时发生未知错误")
+                } finally {
+                    onExpressionApplied()
                 }
             }
-        } catch (e: Exception) {
-            onError(e.message ?: "未知错误")
         }
-    }
 
-    LaunchedEffect(config) {
-        try {
-            config?.let {
-                live2DView.setModelScale(it.scale)
-                live2DView.setModelTranslateX(it.translateX)
-                live2DView.setModelTranslateY(it.translateY)
-                live2DView.setMouthForm(it.mouthForm)
-                live2DView.setMouthOpenY(it.mouthOpenY)
-                live2DView.setAutoBlinkEnabled(it.autoBlinkEnabled)
-                live2DView.setRenderBack(it.renderBack)
-            }
-        } catch (e: Exception) {
-            onError(e.message ?: "未知错误")
-        }
-    }
-
-    LaunchedEffect(expressionToApply) {
-        if (expressionToApply != null) {
-            try {
-                val expressionName = expressionToApply.substringBeforeLast(':')
-                live2DView.applyExpression(expressionName)
-            } catch (e: Exception) {
-                onError(e.message ?: "应用表情时发生未知错误")
-            } finally {
-                onExpressionApplied()
+        LaunchedEffect(triggerRandomTap) {
+            if (triggerRandomTap != null) {
+                try {
+                    val x = (0..live2DView.width).random().toFloat()
+                    val y = (0..live2DView.height).random().toFloat()
+                    live2DView.performTap(x, y)
+                } catch (e: Exception) {
+                    currentOnError(e.message ?: "模拟点击时发生未知错误")
+                } finally {
+                    onRandomTapHandled()
+                }
             }
         }
-    }
 
-    LaunchedEffect(triggerRandomTap) {
-        if (triggerRandomTap != null) {
-            try {
-                val x = (0..live2DView.width).random().toFloat()
-                val y = (0..live2DView.height).random().toFloat()
-                live2DView.performTap(x, y)
-            } catch (e: Exception) {
-                onError(e.message ?: "模拟点击时发生未知错误")
-            } finally {
-                onRandomTapHandled()
-            }
-        }
-    }
-
-    DisposableEffect(lifecycleOwner, config) {
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_PAUSE -> live2DView.onPause()
-                Lifecycle.Event.ON_RESUME -> {
-                    live2DView.onResume()
-                    // 重新应用配置以确保状态恢复
-                    try {
-                        config?.let {
-                            live2DView.setModelScale(it.scale)
-                            live2DView.setModelTranslateX(it.translateX)
-                            live2DView.setModelTranslateY(it.translateY)
-                            live2DView.setMouthForm(it.mouthForm)
-                            live2DView.setMouthOpenY(it.mouthOpenY)
-                            live2DView.setAutoBlinkEnabled(it.autoBlinkEnabled)
-                            live2DView.setRenderBack(it.renderBack)
+        DisposableEffect(lifecycleOwner, live2DView) {
+            val observer = LifecycleEventObserver { _, event ->
+                when (event) {
+                    Lifecycle.Event.ON_PAUSE -> live2DView.onPause()
+                    Lifecycle.Event.ON_RESUME -> {
+                        live2DView.onResume()
+                        try {
+                            currentConfig?.let {
+                                live2DView.setModelScale(it.scale)
+                                live2DView.setModelTranslateX(it.translateX)
+                                live2DView.setModelTranslateY(it.translateY)
+                                live2DView.setMouthForm(it.mouthForm)
+                                live2DView.setMouthOpenY(it.mouthOpenY)
+                                live2DView.setAutoBlinkEnabled(it.autoBlinkEnabled)
+                                live2DView.setRenderBack(it.renderBack)
+                            }
+                        } catch (e: Exception) {
+                            currentOnError(e.message ?: "恢复状态时发生未知错误")
                         }
-                    } catch (e: Exception) {
-                        onError(e.message ?: "未知错误")
                     }
+                    else -> {}
                 }
-                else -> {}
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+
+            onDispose {
+                lifecycleOwner.lifecycle.removeObserver(observer)
+                JniBridgeJava.nativeOnStop()
+                live2DView.destroy()
             }
         }
-        lifecycleOwner.lifecycle.addObserver(observer)
 
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-            JniBridgeJava.nativeOnStop()
-            live2DView.destroy()
+        AndroidView(
+                modifier = modifier,
+                factory = {
+                    onViewCreated(live2DView)
+                    live2DView
+                }
+        )
+    } else if (creationError != null) {
+        LaunchedEffect(creationError) {
+            currentOnError(creationError!!)
+        }
+        Box(modifier = modifier, contentAlignment = Alignment.Center) {
+            Text(
+                text = creationError!!,
+                color = Color.Red,
+                textAlign = TextAlign.Center
+            )
         }
     }
-
-    AndroidView(modifier = modifier, factory = { live2DView.also { onViewCreated(it) } })
 }
 
 private fun createLive2DView(context: Context): Live2DView {

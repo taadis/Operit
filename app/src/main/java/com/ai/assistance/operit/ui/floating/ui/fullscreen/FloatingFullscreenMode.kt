@@ -334,7 +334,14 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
         ) {
             // 返回按钮 - 左侧 (纯图标)，切换到窗口模式
             IconButton(
-                    onClick = { floatContext.onModeChange(FloatingMode.WINDOW) },
+                    onClick = { 
+                        val targetMode = if (floatContext.previousMode == FloatingMode.FULLSCREEN || floatContext.previousMode == FloatingMode.VOICE_BALL) {
+                            FloatingMode.WINDOW
+                        } else {
+                            floatContext.previousMode
+                        }
+                        floatContext.onModeChange(targetMode)
+                    },
                     modifier = Modifier.align(Alignment.CenterStart).size(42.dp)
             ) {
                 Icon(

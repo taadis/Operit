@@ -115,6 +115,11 @@ Operit AI 提供丰富的插件生态，配合内置工具可实现从日常生�
 
 对于本仓库，你必须从`https://drive.google.com/drive/folders/1g-Q_i7cf6Ua4KX9ZM6V282EEZvTVVfF7?usp=sharing`下载一些依赖库，并放入有.keep的文件夹
 
+**Live2D SDK说明：**
+- 由于许可限制，我们不提供Live2D SDK，您需要自行下载并放入`/SDKRoot`目录
+- 下载地址：[Live2D Cubism Native Samples](https://github.com/Live2D/CubismNativeSamples) 或 [Live2D官网SDK页面](https://www.live2d.com/zh-CHS/sdk/about/#native)
+- 使用时请遵守Live2D官方要求，包括但不限于保留logo以及"Powered By Live2D"声明
+
 **查看我们的 [开源共创指南](docx/CONTRIBUTING.md)** 了解如何参与项目开发。
 
 ## 📝 问题反馈 (Issues)

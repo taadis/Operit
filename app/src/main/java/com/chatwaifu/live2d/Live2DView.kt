@@ -6,6 +6,7 @@ import android.graphics.PixelFormat
 import android.opengl.GLSurfaceView
 import android.util.AttributeSet
 import android.view.MotionEvent
+import java.lang.ref.WeakReference
 
 /** Live2D模型显示视图 负责处理OpenGL渲染和触摸事件 */
 class Live2DView @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null) :
@@ -13,13 +14,26 @@ class Live2DView @JvmOverloads constructor(context: Context, attrs: AttributeSet
 
     private val renderer: GLRenderer
 
+    companion object {
+        // 使用WeakReference防止内存泄漏
+        private var activeInstance: WeakReference<Live2DView>? = null
+
+        fun isInstanceActive(): Boolean {
+            return activeInstance?.get() != null
+        }
+    }
+
     init {
+        if (isInstanceActive()) {
+            throw IllegalStateException("该形象再别处已展示.直到销毁")
+        }
+
         // 关键：确保GLSurfaceView本身是透明的
         // 1. 设置EGL配置以支持Alpha通道
         setEGLConfigChooser(8, 8, 8, 8, 16, 0)
 
         // 2. 设置Z顺序，使其位于窗口顶层，这对于透明度至关重要
-        setZOrderOnTop(true)
+        // setZOrderOnTop(true)
 
         // 3. 设置holder格式为半透明
         holder.setFormat(PixelFormat.TRANSLUCENT)
@@ -42,6 +56,8 @@ class Live2DView @JvmOverloads constructor(context: Context, attrs: AttributeSet
 
         // 设置保持EGL上下文
         setPreserveEGLContextOnPause(true)
+
+        activeInstance = WeakReference(this)
     }
 
     /**
@@ -167,5 +183,8 @@ class Live2DView @JvmOverloads constructor(context: Context, attrs: AttributeSet
     /** 销毁资源 */
     fun destroy() {
         queueEvent { JniBridgeJava.nativeOnDestroy() }
+        if (activeInstance?.get() == this) {
+            activeInstance?.clear()
+        }
     }
 }
