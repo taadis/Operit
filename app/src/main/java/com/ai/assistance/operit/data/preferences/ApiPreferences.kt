@@ -67,7 +67,8 @@ class ApiPreferences(private val context: Context) {
         // Default values
         const val DEFAULT_API_ENDPOINT = "https://api.deepseek.com/v1/chat/completions"
         const val DEFAULT_MODEL_NAME = "deepseek-chat"
-        const val DEFAULT_API_KEY = "sk-e565390c164c4cfa8820624ef47d68bf"
+        const val DEFAULT_API_KEY_OLD = "sk-e565390c164c4cfa8820624ef47d68bf"
+        const val DEFAULT_API_KEY = "sk-6b85622536ac48c080c5048ab5f5d1bd"
         const val DEFAULT_API_PROVIDER_TYPE = "DEEPSEEK"
         const val DEFAULT_MEMORY_OPTIMIZATION = true
         const val DEFAULT_SHOW_FPS_COUNTER = false
@@ -100,7 +101,16 @@ class ApiPreferences(private val context: Context) {
 
     // Get API Key as Flow
     val apiKeyFlow: Flow<String> =
-            context.apiDataStore.data.map { preferences -> preferences[API_KEY] ?: DEFAULT_API_KEY }
+            context.apiDataStore.data.map { preferences -> 
+                val savedApiKey = preferences[API_KEY] ?: DEFAULT_API_KEY
+                
+                // 如果是旧API KEY，返回新的API KEY
+                if (savedApiKey == DEFAULT_API_KEY_OLD) {
+                    DEFAULT_API_KEY
+                } else {
+                    savedApiKey
+                }
+            }
 
     // Get API Endpoint as Flow
     val apiEndpointFlow: Flow<String> =

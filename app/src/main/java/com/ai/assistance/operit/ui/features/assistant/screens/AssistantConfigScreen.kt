@@ -209,12 +209,20 @@ fun AssistantConfigScreen(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // 功能配置区域
-                Text(
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp, start = 4.dp)
+                ) {
+                    Text(
                         "功能配置",
                         style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 4.dp, start = 4.dp)
-                )
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "聊天 语音 桌宠将会根据使用情况自动选择对应的提示词配置",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 Surface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),

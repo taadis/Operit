@@ -7,10 +7,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Send
@@ -37,6 +39,7 @@ import kotlinx.coroutines.launch
 fun PetChatBubble(message: String) {
     var displayedMessage by remember { mutableStateOf("") }
     var showClose by remember { mutableStateOf(false) }
+    val scrollState = rememberScrollState()
 
     // 使用LaunchedEffect来实现打字机效果
     LaunchedEffect(message) {
@@ -50,6 +53,10 @@ fun PetChatBubble(message: String) {
         // 消息完全显示后显示关闭按钮
         delay(500)
         showClose = true
+    }
+
+    LaunchedEffect(displayedMessage) {
+        scrollState.animateScrollTo(scrollState.maxValue)
     }
 
     Box {
@@ -69,7 +76,9 @@ fun PetChatBubble(message: String) {
                                         top = 10.dp,
                                         bottom = 10.dp
                                 )
-                                .animateContentSize() // 添加内容大小变化动画
+                                .animateContentSize()
+                                .heightIn(max = 300.dp)
+                                .verticalScroll(scrollState)
         ) {
             Text(
                     text = displayedMessage,
@@ -107,6 +116,7 @@ fun PetChatBubble(chatMessage: ChatMessage, onClose: () -> Unit = {}) {
     var displayedMessage by remember { mutableStateOf("") }
     var showClose by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
+    val scrollState = rememberScrollState()
 
     // 处理流式消息
     LaunchedEffect(chatMessage) {
@@ -176,6 +186,10 @@ fun PetChatBubble(chatMessage: ChatMessage, onClose: () -> Unit = {}) {
         showClose = true
     }
 
+    LaunchedEffect(displayedMessage) {
+        scrollState.animateScrollTo(scrollState.maxValue)
+    }
+
     Box {
         Box(
                 modifier =
@@ -193,7 +207,9 @@ fun PetChatBubble(chatMessage: ChatMessage, onClose: () -> Unit = {}) {
                                         top = 10.dp,
                                         bottom = 10.dp
                                 )
-                                .animateContentSize() // 添加内容大小变化动画
+                                .animateContentSize()
+                                .heightIn(max = 300.dp)
+                                .verticalScroll(scrollState)
         ) {
             Text(
                     text = displayedMessage,
