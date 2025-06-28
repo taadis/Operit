@@ -40,6 +40,7 @@ class ApiPreferences(private val context: Context) {
         val SHOW_FPS_COUNTER = booleanPreferencesKey("show_fps_counter")
         val ENABLE_AI_PLANNING = booleanPreferencesKey("enable_ai_planning")
         val AUTO_GRANT_ACCESSIBILITY = booleanPreferencesKey("auto_grant_accessibility")
+        val SHOW_MODEL_SELECTOR = booleanPreferencesKey("show_model_selector")
 
         // Custom Prompt Settings
         val CUSTOM_INTRO_PROMPT = stringPreferencesKey("custom_intro_prompt")
@@ -72,6 +73,7 @@ class ApiPreferences(private val context: Context) {
         const val DEFAULT_SHOW_FPS_COUNTER = false
         const val DEFAULT_ENABLE_AI_PLANNING = false
         const val DEFAULT_AUTO_GRANT_ACCESSIBILITY = false
+        const val DEFAULT_SHOW_MODEL_SELECTOR = false
 
         // Default values for custom prompts
         const val DEFAULT_INTRO_PROMPT = "你是Operit，一个全能AI助手，旨在解决用户提出的任何任务。你有各种工具可以调用，以高效完成复杂的请求。"
@@ -228,6 +230,12 @@ class ApiPreferences(private val context: Context) {
                 preferences[AUTO_GRANT_ACCESSIBILITY] ?: DEFAULT_AUTO_GRANT_ACCESSIBILITY
             }
 
+    // 添加模型选择器显示设置的Flow
+    val showModelSelectorFlow: Flow<Boolean> =
+            context.apiDataStore.data.map { preferences ->
+                preferences[SHOW_MODEL_SELECTOR] ?: DEFAULT_SHOW_MODEL_SELECTOR
+            }
+
     // Custom Prompt Flows
     val customIntroPromptFlow: Flow<String> =
             context.apiDataStore.data.map { preferences ->
@@ -361,16 +369,25 @@ class ApiPreferences(private val context: Context) {
         }
     }
 
-    // 添加保存显示和行为设置的方法，不会影响模型参数
+    // 保存模型选择器显示设置
+    suspend fun saveShowModelSelector(showModelSelector: Boolean) {
+        context.apiDataStore.edit { preferences ->
+            preferences[SHOW_MODEL_SELECTOR] = showModelSelector
+        }
+    }
+
+    // 保存显示和行为设置的方法，不会影响模型参数
     suspend fun saveDisplaySettings(
             memoryOptimization: Boolean,
             showFpsCounter: Boolean,
-            autoGrantAccessibility: Boolean
+            autoGrantAccessibility: Boolean,
+            showModelSelector: Boolean = DEFAULT_SHOW_MODEL_SELECTOR
     ) {
         context.apiDataStore.edit { preferences ->
             preferences[MEMORY_OPTIMIZATION] = memoryOptimization
             preferences[SHOW_FPS_COUNTER] = showFpsCounter
             preferences[AUTO_GRANT_ACCESSIBILITY] = autoGrantAccessibility
+            preferences[SHOW_MODEL_SELECTOR] = showModelSelector
         }
     }
 

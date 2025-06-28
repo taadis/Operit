@@ -18,11 +18,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.ai.assistance.operit.ui.common.NavItem
+import com.ai.assistance.operit.ui.main.NavGroup
 import com.ai.assistance.operit.ui.main.components.AppContent
 import com.ai.assistance.operit.ui.main.components.CollapsedDrawerContent
 import com.ai.assistance.operit.ui.main.components.DrawerContent
 import com.ai.assistance.operit.ui.main.screens.Screen
-import com.ai.assistance.operit.ui.main.screens.GestureStateHolder
 import kotlinx.coroutines.CoroutineScope
 
 /** Layout for tablet devices with a permanent side navigation drawer */
@@ -32,6 +32,7 @@ fun TabletLayout(
         selectedItem: NavItem,
         isTabletSidebarExpanded: Boolean,
         isLoading: Boolean,
+        navGroups: List<NavGroup>,
         navItems: List<NavItem>,
         isNetworkAvailable: Boolean,
         networkType: String,
@@ -44,7 +45,10 @@ fun TabletLayout(
         onScreenChange: (Screen) -> Unit,
         onNavItemChange: (NavItem) -> Unit,
         onToggleSidebar: () -> Unit,
-        navigateToTokenConfig: () -> Unit
+        navigateToTokenConfig: () -> Unit,
+        canGoBack: Boolean,
+        onGoBack: () -> Unit,
+        isNavigatingBack: Boolean = false
 ) {
         // 计算侧边栏的动画宽度，轻微调整动画时间为280ms，保持原有效果但稍快
         val animatedSidebarWidth by
@@ -95,7 +99,7 @@ fun TabletLayout(
                         // 根据展开状态显示不同内容，保持原有逻辑稳定性
                         if (isTabletSidebarExpanded) {
                                 DrawerContent(
-                                        navItems = navItems,
+                                        navGroups = navGroups,
                                         currentScreen = currentScreen,
                                         selectedItem = selectedItem,
                                         isNetworkAvailable = isNetworkAvailable,
@@ -142,10 +146,13 @@ fun TabletLayout(
                                 onNavItemChange = onNavItemChange,
                                 onToggleSidebar = onToggleSidebar,
                                 navigateToTokenConfig = navigateToTokenConfig,
-                                onGestureConsumed = { consumed -> 
-                                    // 当聊天页面的手势被消费时，这里不需要特别处理
-                                    // 因为平板模式不像手机模式那样有侧滑抽屉
-                                }
+                                onGestureConsumed = { consumed ->
+                                        // 当聊天页面的手势被消费时，这里不需要特别处理
+                                        // 因为平板模式不像手机模式那样有侧滑抽屉
+                                },
+                                canGoBack = canGoBack,
+                                onGoBack = onGoBack,
+                                isNavigatingBack = isNavigatingBack
                         )
                 }
 

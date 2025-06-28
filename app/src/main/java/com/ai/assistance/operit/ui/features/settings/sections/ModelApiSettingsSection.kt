@@ -17,10 +17,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.ai.assistance.operit.api.ModelListFetcher
+import com.ai.assistance.operit.api.chat.EnhancedAIService
+import com.ai.assistance.operit.api.chat.ModelListFetcher
 import com.ai.assistance.operit.data.model.ApiProviderType
 import com.ai.assistance.operit.data.model.ModelConfigData
 import com.ai.assistance.operit.data.model.ModelOption
@@ -53,6 +55,8 @@ fun ModelApiSettingsSection(
             ApiProviderType.MOONSHOT -> "moonshot-v1-128k"
             ApiProviderType.SILICONFLOW -> "yi-1.5-34b"
             ApiProviderType.OPENROUTER -> "google/gemini-pro"
+            ApiProviderType.INFINIAI -> "infini-mini"
+            ApiProviderType.LMSTUDIO -> "meta-llama-3.1-8b-instruct"
             ApiProviderType.OTHER -> ""
         }
     }
@@ -86,6 +90,8 @@ fun ModelApiSettingsSection(
             ApiProviderType.MOONSHOT -> "https://api.moonshot.cn/v1/chat/completions"
             ApiProviderType.SILICONFLOW -> "https://api.siliconflow.cn/v1/chat/completions"
             ApiProviderType.OPENROUTER -> "https://openrouter.ai/api/v1/chat/completions"
+            ApiProviderType.INFINIAI -> "https://cloud.infini-ai.com/maas/v1/chat/completions"
+            ApiProviderType.LMSTUDIO -> "http://localhost:1234/v1/chat/completions"
             ApiProviderType.OTHER -> ""
         }
     }
@@ -159,7 +165,7 @@ fun ModelApiSettingsSection(
 
             // API密钥输入
             OutlinedTextField(
-                    value = apiKeyInput,
+                    value = if (isUsingDefaultApiKey) "" else apiKeyInput,
                     onValueChange = {
                         apiKeyInput = it
 
@@ -172,8 +178,10 @@ fun ModelApiSettingsSection(
                         }
                     },
                     label = { Text("API密钥") },
-                    placeholder = { Text("输入API密钥") },
-                    visualTransformation = PasswordVisualTransformation(),
+                    placeholder = { Text(if (isUsingDefaultApiKey) "使用默认Key, 可直接输入" else "输入API密钥") },
+                    visualTransformation =
+                            if (isUsingDefaultApiKey) VisualTransformation.None
+                            else PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                     singleLine = true
             )
@@ -356,6 +364,8 @@ fun ModelApiSettingsSection(
                                                 ApiProviderType.DEEPSEEK -> "Deepseek大模型"
                                                 ApiProviderType.SILICONFLOW -> "硅基流动"
                                                 ApiProviderType.OPENROUTER -> "OpenRouter (多模型聚合)"
+                                                ApiProviderType.INFINIAI -> "无问芯穹"
+                                                ApiProviderType.LMSTUDIO -> "LM Studio"
                                                 ApiProviderType.OTHER -> "其他提供商"
                                             }
                                     )
@@ -417,7 +427,12 @@ fun ModelApiSettingsSection(
                                         apiProviderType = selectedApiProvider
                                 )
 
-                                Log.d(TAG, "API设置保存完成")
+                                // 刷新所有AI服务实例，确保使用最新配置
+                                EnhancedAIService.refreshAllServices(
+                                        configManager.appContext
+                                )
+
+                                Log.d(TAG, "API设置保存完成并刷新服务")
                                 showNotification("API设置已保存")
                             }
                         }

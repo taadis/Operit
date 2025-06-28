@@ -9,9 +9,13 @@ import android.content.ServiceConnection
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
+import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.Typography
 import androidx.lifecycle.viewModelScope
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatMessage
+import com.ai.assistance.operit.data.model.toSerializable
+import com.ai.assistance.operit.data.preferences.PromptFunctionType
 import com.ai.assistance.operit.services.FloatingChatService
 import com.ai.assistance.operit.util.stream.SharedStream
 import kotlinx.coroutines.CoroutineScope
@@ -24,9 +28,10 @@ import kotlinx.coroutines.launch
 class FloatingWindowDelegate(
         private val context: Context,
         private val viewModelScope: CoroutineScope,
-        private val onMessageReceived: (String) -> Unit,
+        private val onMessageReceived: (String, PromptFunctionType) -> Unit,
         private val onAttachmentRequested: (String) -> Unit,
-        private val onAttachmentRemoveRequested: (String) -> Unit
+        private val onAttachmentRemoveRequested: (String) -> Unit,
+        private val onCancelMessageRequested: () -> Unit
 ) {
     companion object {
         private const val TAG = "FloatingWindowDelegate"
@@ -63,21 +68,33 @@ class FloatingWindowDelegate(
     }
 
     /** 切换悬浮窗模式 */
-    fun toggleFloatingMode() {
+    fun toggleFloatingMode(colorScheme: ColorScheme? = null, typography: Typography? = null) {
         val newMode = !_isFloatingMode.value
         _isFloatingMode.value = newMode
 
         if (newMode) {
-            // 绑定服务
+            // 启动并绑定服务
             val intent = Intent(context, FloatingChatService::class.java)
+            colorScheme?.let {
+                intent.putExtra("COLOR_SCHEME", it.toSerializable())
+            }
+            typography?.let {
+                intent.putExtra("TYPOGRAPHY", it.toSerializable())
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
             context.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
         } else {
-            // 解绑服务
+            // 解绑并停止服务
             try {
                 context.unbindService(serviceConnection)
             } catch (e: Exception) {
                 Log.e(TAG, "解绑服务失败", e)
             }
+            context.stopService(Intent(context, FloatingChatService::class.java))
             floatingService = null
         }
     }
@@ -104,13 +121,26 @@ class FloatingWindowDelegate(
             // 收集消息
             viewModelScope.launch {
                 try {
-                    service.messageToSend.collect { message ->
-                        Log.d(TAG, "从悬浮窗接收到消息: $message")
+                    service.messageToSend.collect { messagePair ->
+                        Log.d(TAG, "从悬浮窗接收到消息: ${messagePair.first}，模式: ${messagePair.second}")
                         // 处理消息
-                        onMessageReceived(message)
+                        onMessageReceived(messagePair.first, messagePair.second)
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "从悬浮窗收集消息时出错", e)
+                }
+            }
+            
+            // 收集取消消息请求
+            viewModelScope.launch {
+                try {
+                    service.cancelMessageRequest.collect {
+                        Log.d(TAG, "从悬浮窗接收到取消消息请求")
+                        // 处理取消消息请求
+                        onCancelMessageRequested()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "从悬浮窗收集取消消息请求时出错", e)
                 }
             }
 

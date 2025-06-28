@@ -4,6 +4,6 @@ package com.ai.assistance.operit.data.model
 enum class FunctionType {
     CHAT, // 常规对话
     SUMMARY, // 对话总结
-    PERSONA, // 修改性格/提示词
-    PROBLEM_LIBRARY // 问题库处理
+    PROBLEM_LIBRARY, // 问题库处理
+    FILE_BINDING // 文件绑定处理
 }

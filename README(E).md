@@ -140,6 +140,13 @@ Operit AI offers a rich plugin ecosystem. Combined with built-in tools, it can h
 
 Join the Operit open-source ecosystem! We welcome all types of contributors, whether you're developing third-party scripts, MCP plugins, or participating in the core development.
 
+For this repository, you must download some dependency libraries from `https://drive.google.com/drive/folders/1g-Q_i7cf6Ua4KX9ZM6V282EEZvTVVfF7?usp=sharing` and place them in folders with .keep files
+
+**Live2D SDK Note:**
+- Due to licensing restrictions, we do not provide the Live2D SDK. You need to download it yourself and place it in the `/SDKRoot` directory
+- Download from: [Live2D Cubism Native Samples](https://github.com/Live2D/CubismNativeSamples) or [Live2D Official SDK Page](https://www.live2d.com/zh-CHS/sdk/about/#native)
+- When using Live2D, please comply with their official requirements, including but not limited to retaining the logo and "Powered By Live2D" statement
+
 **Check out our [Contribution Guide](docx/CONTRIBUTING.md)** to learn how to get involved.
 
 ## 📝 Feedback (Issues)
@@ -183,6 +190,6 @@ Here are the features we are planning:
 
 ## 🐛 Known Bugs
 
-- Display errors for thinking messages.
+Please visit the [Issue Tracker](https://github.com/AAswordman/Operit/issues) to see the latest list of known issues.
 
-If you find any other bugs, please let us know by submitting an issue! We'll do our best to fix them... unless we're too busy, too lazy, or just can't figure it out (just kidding, we'll really try our best). 
+If you find any other bugs, please let us know by submitting an issue! We'll do our best to fix them.

@@ -9,6 +9,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.widget.Toast
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.Dispatchers
@@ -76,19 +77,24 @@ class TermuxAuthorizer {
         private val permissionCache = AtomicReference<PermissionStatus?>(null)
 
         public suspend fun deleteTermuxConfig(context: Context) {
-            AndroidShellExecutor.executeShellCommand("run-as com.termux sh -c 'rm -rf $TERMUX_CONFIG_PATH'")
+            AndroidShellExecutor.executeShellCommand(
+                    "run-as com.termux sh -c 'rm -rf $TERMUX_CONFIG_PATH'"
+            )
         }
 
         /** 检查Termux配置 */
         private suspend fun checkTermuxConfig(): Boolean =
                 withContext(Dispatchers.IO) {
                     // 直接读取配置文件内容并检查
-                    val readConfigCommand = "run-as com.termux sh -c 'cat \"$TERMUX_CONFIG_PATH\" 2>/dev/null'"
-                    val readConfigResult = AndroidShellExecutor.executeShellCommand(readConfigCommand)
+                    val readConfigCommand =
+                            "run-as com.termux sh -c 'cat \"$TERMUX_CONFIG_PATH\" 2>/dev/null'"
+                    val readConfigResult =
+                            AndroidShellExecutor.executeShellCommand(readConfigCommand)
 
-                    val configured = readConfigResult.success && 
-                                     readConfigResult.stdout.contains("allow-external-apps=true")
-                                     && !readConfigResult.stdout.contains("# allow-external-apps")
+                    val configured =
+                            readConfigResult.success &&
+                                    readConfigResult.stdout.contains("allow-external-apps=true") &&
+                                    !readConfigResult.stdout.contains("# allow-external-apps")
                     return@withContext configured
                 }
 
@@ -147,7 +153,7 @@ class TermuxAuthorizer {
                     // 三者都满足才算完全授权：Termux运行中、配置允许外部应用访问、有Run Command权限
                     val authorized = configEnabled && hasRunCommandPermission
                     Log.d(TAG, "Termux授权状态: 配置=$configEnabled, 权限=$hasRunCommandPermission")
-                    
+
                     return@withContext authorized
                 }
 
@@ -157,7 +163,14 @@ class TermuxAuthorizer {
                     // 必要检查
                     if (!TermuxInstaller.isTermuxInstalled(context)) {
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(context, "请先安装Termux应用", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                            context,
+                                            context.getString(
+                                                    R.string.termux_not_installed_message
+                                            ),
+                                            Toast.LENGTH_SHORT
+                                    )
+                                    .show()
                         }
                         return@withContext false
                     }
@@ -357,19 +370,25 @@ class TermuxAuthorizer {
                     withContext(Dispatchers.Main) {
                         val dialog =
                                 AlertDialog.Builder(context)
-                                        .setTitle("需要手动授权")
-                                        .setMessage(
-                                                "无法自动授予Termux运行命令权限，请手动操作:\n\n" +
-                                                        "1. 打开Termux\n" +
-                                                        "2. 长按屏幕，选择'更多'\n" +
-                                                        "3. 选择'设置'\n" +
-                                                        "4. 启用'允许外部应用访问'"
+                                        .setTitle(
+                                                context.getString(R.string.termux_manual_auth_title)
                                         )
-                                        .setPositiveButton("打开Termux") { dialog, _ ->
+                                        .setMessage(
+                                                context.getString(
+                                                        R.string.termux_manual_auth_message
+                                                )
+                                        )
+                                        .setPositiveButton(
+                                                context.getString(R.string.open_termux)
+                                        ) { dialog, _ ->
                                             dialog.dismiss()
                                             TermuxInstaller.openTermux(context)
                                         }
-                                        .setNegativeButton("取消") { dialog, _ -> dialog.dismiss() }
+                                        .setNegativeButton(context.getString(R.string.cancel)) {
+                                                dialog,
+                                                _ ->
+                                            dialog.dismiss()
+                                        }
                                         .create()
 
                         dialog.show()
@@ -384,7 +403,14 @@ class TermuxAuthorizer {
                     // 检查Termux是否已安装
                     if (!TermuxInstaller.isTermuxInstalled(context)) {
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(context, "请先安装Termux应用", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                            context,
+                                            context.getString(
+                                                    R.string.termux_not_installed_message
+                                            ),
+                                            Toast.LENGTH_SHORT
+                                    )
+                                    .show()
                         }
                         return@withContext false
                     }
@@ -432,16 +458,17 @@ class TermuxAuthorizer {
                     withContext(Dispatchers.Main) {
                         val dialog =
                                 AlertDialog.Builder(context)
-                                        .setTitle("需要手动授权")
-                                        .setMessage(
-                                                "无法自动授予Termux存储权限，请手动操作:\n\n" +
-                                                        "1. 打开系统设置\n" +
-                                                        "2. 进入应用管理\n" +
-                                                        "3. 找到Termux\n" +
-                                                        "4. 点击权限\n" +
-                                                        "5. 开启存储权限"
+                                        .setTitle(
+                                                context.getString(R.string.termux_manual_auth_title)
                                         )
-                                        .setPositiveButton("打开设置") { dialog, _ ->
+                                        .setMessage(
+                                                context.getString(
+                                                        R.string.termux_storage_permission_message
+                                                )
+                                        )
+                                        .setPositiveButton(
+                                                context.getString(R.string.open_settings)
+                                        ) { dialog, _ ->
                                             dialog.dismiss()
                                             try {
                                                 val intent =
@@ -458,13 +485,20 @@ class TermuxAuthorizer {
                                             } catch (e: Exception) {
                                                 Toast.makeText(
                                                                 context,
-                                                                "无法打开设置",
+                                                                context.getString(
+                                                                        R.string
+                                                                                .cannot_open_settings
+                                                                ),
                                                                 Toast.LENGTH_SHORT
                                                         )
                                                         .show()
                                             }
                                         }
-                                        .setNegativeButton("取消") { dialog, _ -> dialog.dismiss() }
+                                        .setNegativeButton(context.getString(R.string.cancel)) {
+                                                dialog,
+                                                _ ->
+                                            dialog.dismiss()
+                                        }
                                         .create()
 
                         dialog.show()
@@ -554,11 +588,25 @@ class TermuxAuthorizer {
 
                     if (success) {
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(context, "Termux全部权限授权成功", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                            context,
+                                            context.getString(
+                                                    R.string.termux_all_permissions_granted
+                                            ),
+                                            Toast.LENGTH_SHORT
+                                    )
+                                    .show()
                         }
                     } else {
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(context, "部分权限授权失败，请查看日志或手动设置", Toast.LENGTH_LONG).show()
+                            Toast.makeText(
+                                            context,
+                                            context.getString(
+                                                    R.string.termux_some_permissions_failed
+                                            ),
+                                            Toast.LENGTH_LONG
+                                    )
+                                    .show()
                         }
                     }
 
@@ -577,7 +625,14 @@ class TermuxAuthorizer {
 
                     if (!TermuxInstaller.isTermuxInstalled(context)) {
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(context, "请先安装Termux应用", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                            context,
+                                            context.getString(
+                                                    R.string.termux_not_installed_message
+                                            ),
+                                            Toast.LENGTH_SHORT
+                                    )
+                                    .show()
                         }
                         return@withContext false
                     }
@@ -663,7 +718,14 @@ class TermuxAuthorizer {
                         AndroidShellExecutor.executeShellCommand("am force-stop com.termux")
 
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(context, "已授权应用与Termux关联", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                            context,
+                                            context.getString(
+                                                    R.string.termux_app_association_granted
+                                            ),
+                                            Toast.LENGTH_SHORT
+                                    )
+                                    .show()
                         }
 
                         return@withContext true
@@ -690,11 +752,22 @@ class TermuxAuthorizer {
                             intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
                             context.startActivity(intent)
 
-                            Toast.makeText(context, "请在Termux中开启'允许外部应用访问'选项", Toast.LENGTH_LONG)
+                            Toast.makeText(
+                                            context,
+                                            context.getString(R.string.termux_manual_setting_hint),
+                                            Toast.LENGTH_LONG
+                                    )
                                     .show()
                         } catch (e: Exception) {
                             Log.e(TAG, "打开Termux失败: ${e.message}")
-                            Toast.makeText(context, "无法打开Termux，请手动设置", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                            context,
+                                            context.getString(
+                                                    R.string.termux_manual_setting_failed
+                                            ),
+                                            Toast.LENGTH_SHORT
+                                    )
+                                    .show()
                         }
                     }
 

@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,7 +31,10 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
-fun ModelPromptsSettingsScreen(onBackPressed: () -> Unit = {}) {
+fun ModelPromptsSettingsScreen(
+        onBackPressed: () -> Unit = {},
+        onNavigateToFunctionalPrompts: () -> Unit = {}
+) {
     val context = LocalContext.current
     val apiPreferences = remember { ApiPreferences(context) }
     val promptPreferencesManager = remember { PromptPreferencesManager(context) }
@@ -41,15 +45,13 @@ fun ModelPromptsSettingsScreen(onBackPressed: () -> Unit = {}) {
     val profileList =
             promptPreferencesManager.profileListFlow.collectAsState(initial = listOf("default"))
                     .value
-    val activeProfileId =
-            promptPreferencesManager.activeProfileIdFlow.collectAsState(initial = "default").value
 
     // 对话框状态
     var showAddProfileDialog by remember { mutableStateOf(false) }
     var newProfileName by remember { mutableStateOf("") }
 
     // 选中的配置文件
-    var selectedProfileId by remember { mutableStateOf(activeProfileId) }
+    var selectedProfileId by remember { mutableStateOf(profileList.firstOrNull() ?: "default") }
     val selectedProfile = remember { mutableStateOf<PromptProfile?>(null) }
 
     // 编辑状态
@@ -104,14 +106,6 @@ fun ModelPromptsSettingsScreen(onBackPressed: () -> Unit = {}) {
                     introPrompt = introPromptInput,
                     tonePrompt = tonePromptInput
                 )
-                
-                // 如果是当前激活的配置，也更新到ApiPreferences
-                if (profile.isActive) {
-                    apiPreferences.saveCustomPrompts(
-                        introPrompt = introPromptInput,
-                        tonePrompt = tonePromptInput
-                    )
-                }
                 
                 showSaveSuccessMessage = true
                 editMode = false
@@ -202,7 +196,6 @@ fun ModelPromptsSettingsScreen(onBackPressed: () -> Unit = {}) {
                         }
                         
                         val selectedProfileName = profileNameMap[selectedProfileId] ?: "默认配置"
-                        val isActive = selectedProfileId == activeProfileId
                         
                         Surface(
                             modifier = Modifier
@@ -223,24 +216,11 @@ fun ModelPromptsSettingsScreen(onBackPressed: () -> Unit = {}) {
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    // 活跃状态指示
-                                    if (isActive) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(8.dp)
-                                                .background(
-                                                    MaterialTheme.colorScheme.primary,
-                                                    CircleShape
-                                                )
-                                        )
-                                    }
-                                    
                                     Text(
                                         text = selectedProfileName,
                                         style = MaterialTheme.typography.bodyLarge,
-                                        fontWeight = if (isActive) FontWeight.Medium else FontWeight.Normal,
-                                        color = if (isActive) MaterialTheme.colorScheme.primary 
-                                               else MaterialTheme.colorScheme.onSurface
+                                        fontWeight = FontWeight.Normal,
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
                                 
@@ -259,44 +239,43 @@ fun ModelPromptsSettingsScreen(onBackPressed: () -> Unit = {}) {
                             }
                         }
                         
+                        Divider(
+                                modifier = Modifier.padding(vertical = 8.dp),
+                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                        )
+
+                        Row(
+                                modifier =
+                                        Modifier.fillMaxWidth()
+                                                .clickable { onNavigateToFunctionalPrompts() }
+                                                .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                                Text(
+                                        text = "为功能分配提示词配置",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium
+                                )
+                                Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                        contentDescription = "为功能分配提示词配置",
+                                        tint = MaterialTheme.colorScheme.primary
+                                )
+                        }
+                        
                         // 操作按钮
                         Row(
                             modifier = Modifier.padding(top = 12.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            // 激活按钮
-                            if (!isActive) {
-                                TextButton(
-                                    onClick = {
-                                        scope.launch {
-                                            promptPreferencesManager.setActiveProfile(selectedProfileId)
-                                            val profile = promptPreferencesManager.getPromptProfileFlow(selectedProfileId).first()
-                                            apiPreferences.saveCustomPrompts(
-                                                introPrompt = profile.introPrompt,
-                                                tonePrompt = profile.tonePrompt
-                                            )
-                                        }
-                                    },
-                                    contentPadding = PaddingValues(horizontal = 12.dp),
-                                    modifier = Modifier.height(36.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.Check,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("设为活跃", fontSize = 14.sp)
-                                }
-                            }
-                            
                             // 删除按钮
                             if (selectedProfileId != "default") {
                                 TextButton(
                                     onClick = {
                                         scope.launch {
                                             promptPreferencesManager.deleteProfile(selectedProfileId)
-                                            selectedProfileId = activeProfileId
+                                            selectedProfileId = profileList.firstOrNull { it != selectedProfileId } ?: "default"
                                         }
                                     },
                                     contentPadding = PaddingValues(horizontal = 12.dp),
@@ -326,7 +305,6 @@ fun ModelPromptsSettingsScreen(onBackPressed: () -> Unit = {}) {
                     ) {
                         profileList.forEach { profileId ->
                             val profileName = profileNameMap[profileId] ?: "未命名配置"
-                            val isCurrentActive = profileId == activeProfileId
                             val isSelected = profileId == selectedProfileId
                             
                             DropdownMenuItem(
@@ -334,21 +312,10 @@ fun ModelPromptsSettingsScreen(onBackPressed: () -> Unit = {}) {
                                     Text(
                                         text = profileName,
                                         fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                        color = when {
-                                            isSelected -> MaterialTheme.colorScheme.primary
-                                            isCurrentActive -> MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-                                            else -> MaterialTheme.colorScheme.onSurface
-                                        }
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                                     )
                                 },
-                                leadingIcon = if (isCurrentActive) { {
-                                    Icon(
-                                        Icons.Default.Check,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }} else null,
+                                leadingIcon = null,
                                 trailingIcon = if (isSelected) { {
                                     Box(
                                         modifier = Modifier

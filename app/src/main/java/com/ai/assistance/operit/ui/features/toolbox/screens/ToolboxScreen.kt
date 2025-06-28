@@ -72,7 +72,9 @@ fun ToolboxScreen(
         onFFmpegToolboxSelected: () -> Unit,
         onShellExecutorSelected: () -> Unit,
         onLogcatSelected: () -> Unit,
-        onMarkdownDemoSelected: () -> Unit
+        onMarkdownDemoSelected: () -> Unit,
+        onTextToSpeechSelected: () -> Unit,
+        onSpeechToTextSelected: () -> Unit
 ) {
         // 屏幕配置信息，用于响应式布局
         val configuration = LocalConfiguration.current
@@ -104,6 +106,20 @@ fun ToolboxScreen(
                                 description = "浏览和管理设备文件，支持多种操作",
                                 category = ToolCategory.FILE_MANAGEMENT,
                                 onClick = onFileManagerSelected
+                        ),
+                        Tool(
+                                name = "文本转语音",
+                                icon = Icons.Default.RecordVoiceOver,
+                                description = "将文本转换为语音，支持调整语速和音调",
+                                category = ToolCategory.SYSTEM,
+                                onClick = onTextToSpeechSelected
+                        ),
+                        Tool(
+                                name = "语音识别",
+                                icon = Icons.Default.Mic,
+                                description = "将语音转换为文本，支持多种引擎和语言",
+                                category = ToolCategory.SYSTEM,
+                                onClick = onSpeechToTextSelected
                         ),
                         Tool(
                                 name = "命令终端",

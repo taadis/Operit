@@ -23,6 +23,8 @@ import java.io.FileOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
+import okhttp3.OkHttpClient
+import okhttp3.Request
 
 /** 调试者级别的文件系统工具，继承无障碍级别，使用ADB命令实现 */
 open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTools(context) {
@@ -114,8 +116,10 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                 // 打印每一行以便调试
                 Log.d(TAG, "Parsing line: $line")
 
-                // Android上ls -la输出格式: crwxrw--- 2 u0_a425 media_rw 4056 2025-03-14 06:04 Android
-                // 符号链接格式: lrwxrwxrwx 1 root root 12 2025-03-14 06:04 filename -> /path/to/target
+                // Android上ls -la输出格式: crwxrw--- 2 u0_a425 media_rw 4056 2025-03-14
+                // 06:04 Android
+                // 符号链接格式: lrwxrwxrwx 1 root root 12 2025-03-14 06:04 filename ->
+                // /path/to/target
 
                 // 使用正则表达式解析Android上的ls -la输出
                 val androidRegex =
@@ -436,6 +440,99 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                 } catch (e: Exception) {
                     Log.e(TAG, "Error during Word document conversion", e)
                     // 转换失败，继续尝试读取原始文件
+                }
+            } else if (fileExt == "jpg" ||
+                            fileExt == "jpeg" ||
+                            fileExt == "png" ||
+                            fileExt == "gif" ||
+                            fileExt == "bmp"
+            ) {
+                Log.d(TAG, "Detected image file, attempting to extract text using OCR")
+
+                try {
+                    // 使用BitmapFactory读取图片
+                    val bitmap = android.graphics.BitmapFactory.decodeFile(path)
+                    if (bitmap != null) {
+                        // 使用OCRUtils提取文本
+                        val ocrText =
+                                kotlinx.coroutines.runBlocking {
+                                    com.ai.assistance.operit.util.OCRUtils.recognizeText(
+                                            context,
+                                            bitmap
+                                    )
+                                }
+
+                        if (ocrText.isNotBlank()) {
+                            Log.d(TAG, "Successfully extracted text from image using OCR")
+
+                            // 返回提取的文本
+                            return ToolResult(
+                                    toolName = tool.name,
+                                    success = true,
+                                    result =
+                                            FileContentData(
+                                                    path = path,
+                                                    content = ocrText,
+                                                    size = ocrText.length.toLong()
+                                            ),
+                                    error = ""
+                            )
+                        } else {
+                            Log.w(
+                                    TAG,
+                                    "OCR extraction returned empty text, returning no text detected message"
+                            )
+
+                            // 直接返回未识别到文字的提示信息
+                            return ToolResult(
+                                    toolName = tool.name,
+                                    success = true,
+                                    result =
+                                            FileContentData(
+                                                    path = path,
+                                                    content = "No text detected in image.",
+                                                    size =
+                                                            "No text detected in image.".length
+                                                                    .toLong()
+                                            ),
+                                    error = ""
+                            )
+                        }
+                    } else {
+                        Log.w(TAG, "Failed to decode image file, returning error message")
+
+                        // 返回无法解码图片的提示信息
+                        return ToolResult(
+                                toolName = tool.name,
+                                success = true,
+                                result =
+                                        FileContentData(
+                                                path = path,
+                                                content = "Failed to decode image file.",
+                                                size =
+                                                        "Failed to decode image file.".length
+                                                                .toLong()
+                                        ),
+                                error = ""
+                        )
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error during OCR text extraction", e)
+                    // OCR提取失败，返回错误信息
+                    return ToolResult(
+                            toolName = tool.name,
+                            success = true,
+                            result =
+                                    FileContentData(
+                                            path = path,
+                                            content =
+                                                    "Error extracting text from image: ${e.message}",
+                                            size =
+                                                    "Error extracting text from image: ${e.message}"
+                                                            .length.toLong()
+                                    ),
+                            error = ""
+                    )
                 }
             }
 
@@ -1947,18 +2044,8 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                         // 如果没有wget，尝试使用curl
                         val curlCheckResult = AndroidShellExecutor.executeShellCommand("which curl")
                         if (!curlCheckResult.success) {
-                            return ToolResult(
-                                    toolName = tool.name,
-                                    success = false,
-                                    result =
-                                            FileOperationData(
-                                                    operation = "download",
-                                                    path = destPath,
-                                                    successful = false,
-                                                    details = "系统中没有wget或curl工具，无法下载文件"
-                                            ),
-                                    error = "系统中没有wget或curl工具，无法下载文件"
-                            )
+                            // 如果wget和curl都不可用，尝试使用OkHttp下载
+                            return downloadFileWithOkHttp(url, destPath, tool.name)
                         }
                         "curl -L '$url' -o '$destPath' -s"
                     }
@@ -2042,6 +2129,154 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                                     details = "下载文件时出错: ${e.message}"
                             ),
                     error = "下载文件时出错: ${e.message}"
+            )
+        }
+    }
+
+    private suspend fun downloadFileWithOkHttp(
+            url: String,
+            destPath: String,
+            toolName: String
+    ): ToolResult {
+        Log.d(TAG, "尝试使用OkHttp下载文件: $url -> $destPath")
+
+        return try {
+            // 创建OkHttpClient实例
+            val client =
+                    OkHttpClient.Builder()
+                            .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                            .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                            .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                            .build()
+
+            // 创建请求
+            val request = Request.Builder().url(url).build()
+
+            // 执行请求
+            val response = client.newCall(request).execute()
+
+            if (!response.isSuccessful) {
+                return ToolResult(
+                        toolName = toolName,
+                        success = false,
+                        result =
+                                FileOperationData(
+                                        operation = "download",
+                                        path = destPath,
+                                        successful = false,
+                                        details = "下载失败: HTTP ${response.code}"
+                                ),
+                        error = "下载失败: HTTP ${response.code}"
+                )
+            }
+
+            // 确保目标目录存在
+            val directory = File(destPath).parent
+            if (directory != null) {
+                val mkdirResult = AndroidShellExecutor.executeShellCommand("mkdir -p '$directory'")
+                if (!mkdirResult.success) {
+                    Log.w(TAG, "警告: 创建目标目录失败: ${mkdirResult.stderr}")
+                }
+            }
+
+            // 写入文件
+            val body = response.body
+            if (body != null) {
+                val file = File(destPath)
+                val outputStream = FileOutputStream(file)
+
+                try {
+                    val buffer = ByteArray(8192)
+                    var bytesRead: Int
+                    val inputStream = body.byteStream()
+
+                    while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                        outputStream.write(buffer, 0, bytesRead)
+                    }
+
+                    outputStream.flush()
+                } finally {
+                    outputStream.close()
+                    body.close()
+                }
+
+                // 验证文件是否已下载
+                if (!file.exists() || file.length() == 0L) {
+                    return ToolResult(
+                            toolName = toolName,
+                            success = false,
+                            result =
+                                    FileOperationData(
+                                            operation = "download",
+                                            path = destPath,
+                                            successful = false,
+                                            details = "下载似乎已完成，但文件未被正确创建或为空"
+                                    ),
+                            error = "下载似乎已完成，但文件未被正确创建或为空"
+                    )
+                }
+
+                // 格式化文件大小
+                val fileSize = file.length()
+                val formattedSize =
+                        when {
+                            fileSize > 1024 * 1024 ->
+                                    String.format("%.2f MB", fileSize / (1024.0 * 1024.0))
+                            fileSize > 1024 -> String.format("%.2f KB", fileSize / 1024.0)
+                            else -> "$fileSize bytes"
+                        }
+
+                return ToolResult(
+                        toolName = toolName,
+                        success = true,
+                        result =
+                                FileOperationData(
+                                        operation = "download",
+                                        path = destPath,
+                                        successful = true,
+                                        details =
+                                                "通过OkHttp文件下载成功: $url -> $destPath (文件大小: $formattedSize)"
+                                ),
+                        error = ""
+                )
+            } else {
+                return ToolResult(
+                        toolName = toolName,
+                        success = false,
+                        result =
+                                FileOperationData(
+                                        operation = "download",
+                                        path = destPath,
+                                        successful = false,
+                                        details = "下载失败: 响应体为空"
+                                ),
+                        error = "下载失败: 响应体为空"
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "使用OkHttp下载文件时出错", e)
+
+            // 提供更具体的错误信息
+            val errorMessage =
+                    when {
+                        e is java.net.UnknownHostException ->
+                                "无法解析主机名，请检查网络连接和URL是否正确: ${e.message}"
+                        e is java.io.IOException -> "网络IO错误: ${e.message}。请检查网络连接。"
+                        e is SecurityException -> "安全错误: ${e.message}。请检查应用是否有网络和存储权限。"
+                        else -> "使用OkHttp下载文件时出错: ${e.message}"
+                    }
+
+            return ToolResult(
+                    toolName = toolName,
+                    success = false,
+                    result =
+                            FileOperationData(
+                                    operation = "download",
+                                    path = destPath,
+                                    successful = false,
+                                    details = errorMessage
+                            ),
+                    error = errorMessage
             )
         }
     }

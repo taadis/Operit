@@ -2,12 +2,15 @@ package com.ai.assistance.operit.core.tools.defaultTool.standard
 
 import android.content.Context
 import android.util.Log
+import com.ai.assistance.operit.api.chat.EnhancedAIService
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.core.tools.DirectoryListingData
+import com.ai.assistance.operit.core.tools.FileApplyResultData
 import com.ai.assistance.operit.core.tools.FileContentData
 import com.ai.assistance.operit.core.tools.FileExistsData
 import com.ai.assistance.operit.core.tools.FileInfoData
 import com.ai.assistance.operit.core.tools.FileOperationData
+import com.ai.assistance.operit.core.tools.FilePartContentData
 import com.ai.assistance.operit.core.tools.FindFilesResultData
 import com.ai.assistance.operit.core.tools.StringResultData
 import com.ai.assistance.operit.data.model.AITool
@@ -38,6 +41,9 @@ open class StandardFileSystemTools(protected val context: Context) {
 
         // Maximum allowed file size for operations
         protected const val MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024 // 10MB
+
+        // 每个部分的行数
+        protected const val PART_SIZE = 200
     }
 
     /** List files in a directory */
@@ -222,6 +228,99 @@ open class StandardFileSystemTools(protected val context: Context) {
                     Log.e(TAG, "Error during Word document conversion", e)
                     // Conversion failed, fall back to reading raw file
                 }
+            } else if (fileExt == "jpg" ||
+                            fileExt == "jpeg" ||
+                            fileExt == "png" ||
+                            fileExt == "gif" ||
+                            fileExt == "bmp"
+            ) {
+                Log.d(TAG, "Detected image file, attempting to extract text using OCR")
+
+                try {
+                    // 使用BitmapFactory读取图片
+                    val bitmap = android.graphics.BitmapFactory.decodeFile(path)
+                    if (bitmap != null) {
+                        // 使用OCRUtils提取文本
+                        val ocrText =
+                                kotlinx.coroutines.runBlocking {
+                                    com.ai.assistance.operit.util.OCRUtils.recognizeText(
+                                            context,
+                                            bitmap
+                                    )
+                                }
+
+                        if (ocrText.isNotBlank()) {
+                            Log.d(TAG, "Successfully extracted text from image using OCR")
+
+                            // 返回提取的文本
+                            return ToolResult(
+                                    toolName = tool.name,
+                                    success = true,
+                                    result =
+                                            FileContentData(
+                                                    path = path,
+                                                    content = ocrText,
+                                                    size = ocrText.length.toLong()
+                                            ),
+                                    error = ""
+                            )
+                        } else {
+                            Log.w(
+                                    TAG,
+                                    "OCR extraction returned empty text, returning no text detected message"
+                            )
+
+                            // 直接返回未识别到文字的提示信息
+                            return ToolResult(
+                                    toolName = tool.name,
+                                    success = true,
+                                    result =
+                                            FileContentData(
+                                                    path = path,
+                                                    content = "No text detected in image.",
+                                                    size =
+                                                            "No text detected in image.".length
+                                                                    .toLong()
+                                            ),
+                                    error = ""
+                            )
+                        }
+                    } else {
+                        Log.w(TAG, "Failed to decode image file, returning error message")
+
+                        // 返回无法解码图片的提示信息
+                        return ToolResult(
+                                toolName = tool.name,
+                                success = true,
+                                result =
+                                        FileContentData(
+                                                path = path,
+                                                content = "Failed to decode image file.",
+                                                size =
+                                                        "Failed to decode image file.".length
+                                                                .toLong()
+                                        ),
+                                error = ""
+                        )
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error during OCR text extraction", e)
+                    // OCR提取失败，返回错误信息
+                    return ToolResult(
+                            toolName = tool.name,
+                            success = true,
+                            result =
+                                    FileContentData(
+                                            path = path,
+                                            content =
+                                                    "Error extracting text from image: ${e.message}",
+                                            size =
+                                                    "Error extracting text from image: ${e.message}"
+                                                            .length.toLong()
+                                    ),
+                            error = ""
+                    )
+                }
             }
 
             // Read file content as string
@@ -242,6 +341,74 @@ open class StandardFileSystemTools(protected val context: Context) {
                     error = "Error reading file: ${e.message}"
             )
         }
+    }
+
+    /** 分段读取文件内容，每次读取指定部分（默认每部分200行） */
+    open suspend fun readFilePart(tool: AITool): ToolResult {
+        val path = tool.parameters.find { it.name == "path" }?.value ?: ""
+        val partIndex = tool.parameters.find { it.name == "partIndex" }?.value?.toIntOrNull() ?: 0
+
+        if (path.isBlank()) {
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Path parameter is required"
+            )
+        }
+
+        // 先调用readFile获取完整内容
+        val fileResult =
+                readFile(
+                        AITool(name = "read_file", parameters = listOf(ToolParameter("path", path)))
+                )
+
+        if (!fileResult.success) {
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = fileResult.error
+            )
+        }
+
+        // 获取文件内容并按行分割
+        val fileContent = (fileResult.result as? FileContentData)?.content ?: ""
+        val lines = fileContent.lines()
+
+        // 计算总部分数
+        val totalParts = (lines.size + PART_SIZE - 1) / PART_SIZE
+
+        // 确保partIndex在有效范围内
+        val validPartIndex = partIndex.coerceIn(0, totalParts - 1)
+
+        // 计算开始和结束行
+        val startLine = validPartIndex * PART_SIZE
+        val endLine = minOf(startLine + PART_SIZE, lines.size)
+
+        // 提取当前部分的行
+        val partContent =
+                if (lines.isNotEmpty()) {
+                    lines.subList(startLine, endLine).joinToString("\n")
+                } else {
+                    ""
+                }
+
+        return ToolResult(
+                toolName = tool.name,
+                success = true,
+                result =
+                        FilePartContentData(
+                                path = path,
+                                content = partContent,
+                                partIndex = validPartIndex,
+                                totalParts = totalParts,
+                                startLine = startLine,
+                                endLine = endLine,
+                                totalLines = lines.size
+                        ),
+                error = ""
+        )
     }
 
     /** Write content to a file */
@@ -1476,6 +1643,211 @@ open class StandardFileSystemTools(protected val context: Context) {
                     success = false,
                     result = StringResultData(""),
                     error = "Error extracting zip file: ${e.message}"
+            )
+        }
+    }
+
+    /** 智能应用文件绑定，将AI生成的代码与原始文件内容智能合并 该工具会读取原始文件内容，应用AI生成的代码（通常包含//existing code标记）， 然后将合并后的内容写回文件 */
+    open suspend fun applyFile(tool: AITool): ToolResult {
+        val path = tool.parameters.find { it.name == "path" }?.value ?: ""
+        val aiGeneratedCode = tool.parameters.find { it.name == "content" }?.value ?: ""
+
+        if (path.isBlank()) {
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                            FileOperationData(
+                                    operation = "apply",
+                                    path = "",
+                                    successful = false,
+                                    details = "Path parameter is required"
+                            ),
+                    error = "Path parameter is required"
+            )
+        }
+
+        if (aiGeneratedCode.isBlank()) {
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                            FileOperationData(
+                                    operation = "apply",
+                                    path = path,
+                                    successful = false,
+                                    details = "Content parameter is required"
+                            ),
+                    error = "Content parameter is required"
+            )
+        }
+
+        return try {
+            // 1. 检查文件是否存在
+            val fileExistsResult =
+                    fileExists(
+                            AITool(
+                                    name = "file_exists",
+                                    parameters = listOf(ToolParameter("path", path))
+                            )
+                    )
+
+            // 如果文件不存在，直接写入内容而不是合并
+            if (!fileExistsResult.success || !(fileExistsResult.result as FileExistsData).exists) {
+                Log.d(TAG, "文件不存在，直接创建新文件: $path")
+                // 直接调用writeFile写入内容
+                val writeResult =
+                        writeFile(
+                                AITool(
+                                        name = "write_file",
+                                        parameters =
+                                                listOf(
+                                                        ToolParameter("path", path),
+                                                        ToolParameter("content", aiGeneratedCode),
+                                                        ToolParameter("append", "false")
+                                                )
+                                )
+                        )
+
+                if (writeResult.success) {
+                    // 成功写入新文件
+                    val operationData =
+                            FileOperationData(
+                                    operation = "apply",
+                                    path = path,
+                                    successful = true,
+                                    details = "Successfully created new file with AI code: $path"
+                            )
+
+                    return ToolResult(
+                            toolName = tool.name,
+                            success = true,
+                            result =
+                                    FileApplyResultData(
+                                            operation = operationData,
+                                            aiDiffInstructions = aiGeneratedCode
+                                    ),
+                            error = ""
+                    )
+                } else {
+                    // 写入失败，返回写入工具的错误
+                    return writeResult
+                }
+            }
+
+            // 2. 读取原始文件内容
+            val readResult =
+                    readFile(
+                            AITool(
+                                    name = "read_file",
+                                    parameters = listOf(ToolParameter("path", path))
+                            )
+                    )
+
+            if (!readResult.success) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result =
+                                FileOperationData(
+                                        operation = "apply",
+                                        path = path,
+                                        successful = false,
+                                        details =
+                                                "Failed to read original file: ${readResult.error}"
+                                ),
+                        error = "Failed to read original file: ${readResult.error}"
+                )
+            }
+
+            // 提取原始文件内容
+            val originalContent = (readResult.result as? FileContentData)?.content ?: ""
+
+            // 2. 使用EnhancedAIService处理文件绑定
+            val enhancedAIService = EnhancedAIService.getInstance(context)
+            val bindingResult = enhancedAIService.applyFileBinding(originalContent, aiGeneratedCode)
+            val mergedContent = bindingResult.first
+            val aiInstructions = bindingResult.second
+
+            // 检查文件绑定是否返回错误
+            if (aiInstructions.startsWith("Error", ignoreCase = true)) {
+                Log.e(TAG, "File binding failed: $aiInstructions")
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result =
+                                FileOperationData(
+                                        operation = "apply",
+                                        path = path,
+                                        successful = false,
+                                        details = "File binding failed: $aiInstructions"
+                                ),
+                        error = aiInstructions
+                )
+            }
+
+            // 3. 将合并后的内容写回文件
+            val writeResult =
+                    writeFile(
+                            AITool(
+                                    name = "write_file",
+                                    parameters =
+                                            listOf(
+                                                    ToolParameter("path", path),
+                                                    ToolParameter("content", mergedContent),
+                                                    ToolParameter("append", "false")
+                                            )
+                            )
+                    )
+
+            if (!writeResult.success) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result =
+                                FileOperationData(
+                                        operation = "apply",
+                                        path = path,
+                                        successful = false,
+                                        details =
+                                                "Failed to write merged content: ${writeResult.error}"
+                                ),
+                        error = "Failed to write merged content: ${writeResult.error}"
+                )
+            }
+
+            // 成功完成
+            val operationData =
+                    FileOperationData(
+                            operation = "apply",
+                            path = path,
+                            successful = true,
+                            details = "Successfully applied AI code to file: $path"
+                    )
+
+            return ToolResult(
+                    toolName = tool.name,
+                    success = true,
+                    result =
+                            FileApplyResultData(
+                                    operation = operationData,
+                                    aiDiffInstructions = aiInstructions
+                            ),
+                    error = ""
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error applying file binding", e)
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                            FileOperationData(
+                                    operation = "apply",
+                                    path = path,
+                                    successful = false,
+                                    details = "Error applying file binding: ${e.message}"
+                            ),
+                    error = "Error applying file binding: ${e.message}"
             )
         }
     }

@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import android.webkit.WebView
-import android.widget.LinearLayout
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -39,6 +38,7 @@ import com.ai.assistance.operit.data.model.PlanItem
 import com.ai.assistance.operit.data.model.ToolExecutionProgress
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
 import com.ai.assistance.operit.ui.features.chat.webview.LocalWebServer
+import com.ai.assistance.operit.ui.features.chat.webview.WebViewHandler
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -277,147 +277,26 @@ fun ChatScreenContent(
                     if (showWebView) {
                         // 显示WebView
                         var webView by remember { mutableStateOf<WebView?>(null) }
+                        val webViewHandler = remember { WebViewHandler(context) }
+
+                        // 设置文件选择回调
+                        webViewHandler.onFileChooserRequest = { intent, callback ->
+                            actualViewModel.startFileChooserForResult(intent) { resultCode, data ->
+                                callback(resultCode, data)
+                            }
+                        }
 
                         AndroidView(
                                 factory = { context ->
-                                    android.webkit.WebView(context).apply {
-                                        // 创建更强大的WebViewClient
-                                        webViewClient =
-                                                object : android.webkit.WebViewClient() {
-                                                    override fun onPageFinished(
-                                                            view: android.webkit.WebView?,
-                                                            url: String?
-                                                    ) {
-                                                        super.onPageFinished(view, url)
-                                                        // 页面加载完成后执行的操作
-                                                    }
-                                                }
-
-                                        // 添加WebChromeClient以支持H5文件选择
-                                        webChromeClient = object : android.webkit.WebChromeClient() {
-                                            // 文件选择回调的结果
-                                            private var filePathCallback: android.webkit.ValueCallback<Array<android.net.Uri>>? = null
-                                            
-                                            // 处理文件选择
-                                            override fun onShowFileChooser(
-                                                webView: android.webkit.WebView?,
-                                                filePathCallback: android.webkit.ValueCallback<Array<android.net.Uri>>?,
-                                                fileChooserParams: android.webkit.WebChromeClient.FileChooserParams?
-                                            ): Boolean {
-                                                // 保存回调引用
-                                                this.filePathCallback?.onReceiveValue(null)
-                                                this.filePathCallback = filePathCallback
-                                                
-                                                try {
-                                                    // 创建文件选择Intent
-                                                    val intent = fileChooserParams?.createIntent()
-                                                        ?: Intent(Intent.ACTION_GET_CONTENT).apply {
-                                                            addCategory(Intent.CATEGORY_OPENABLE)
-                                                            type = "*/*"
-                                                        }
-                                                    
-                                                    // 如果需要多选
-                                                    if (fileChooserParams?.mode == android.webkit.WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE) {
-                                                        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
-                                                    }
-                                                    
-                                                    // 启动文件选择器
-                                                    val chooserIntent = Intent.createChooser(intent, "选择文件")
-                                                    actualViewModel.startFileChooserForResult(chooserIntent) { resultCode, data ->
-                                                        // 处理文件选择结果
-                                                        if (resultCode == android.app.Activity.RESULT_OK && data != null) {
-                                                            val results = when {
-                                                                // 多选文件
-                                                                data.clipData != null -> {
-                                                                    val clipData = data.clipData!!
-                                                                    Array(clipData.itemCount) { i ->
-                                                                        clipData.getItemAt(i).uri
-                                                                    }
-                                                                }
-                                                                // 单选文件
-                                                                data.data != null -> arrayOf(data.data!!)
-                                                                // 没有选择文件
-                                                                else -> arrayOf()
-                                                            }
-                                                            filePathCallback?.onReceiveValue(results)
-                                                        } else {
-                                                            // 用户取消了选择
-                                                            filePathCallback?.onReceiveValue(null)
-                                                        }
-                                                        // 重置回调
-                                                        this.filePathCallback = null
-                                                    }
-                                                    
-                                                    return true
-                                                } catch (e: Exception) {
-                                                    Log.e("WebView", "无法打开文件选择器", e)
-                                                    filePathCallback?.onReceiveValue(null)
-                                                    this.filePathCallback = null
-                                                    return false
-                                                }
-                                            }
-                                        }
-
-                                        // 设置WebView的各种配置
-                                        settings.apply {
-                                            layoutParams =
-                                                    LinearLayout.LayoutParams(
-                                                            LinearLayout.LayoutParams.MATCH_PARENT,
-                                                            LinearLayout.LayoutParams.MATCH_PARENT,
-                                                            1.0f
-                                                    )
-                                            // 启用JavaScript
-                                            javaScriptEnabled = true
-
-                                            // 设置适用于现代网页的关键配置
-                                            // 视口设置
-                                            useWideViewPort = true // 启用宽视口
-                                            loadWithOverviewMode = true // 使页面适应屏幕大小
-                                            isNestedScrollingEnabled = true
-
-                                            // 缩放控制
-                                            setSupportZoom(true) // 支持缩放
-                                            builtInZoomControls = true // 启用内置缩放控件
-                                            displayZoomControls = false // 隐藏默认缩放控件
-
-                                            // 文本设置
-                                            defaultTextEncodingName = "UTF-8" // 设置默认字符集
-
-                                            // 缓存设置
-                                            cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
-
-                                            // 使页面适应当前尺寸
-                                            layoutAlgorithm =
-                                                    android.webkit.WebSettings.LayoutAlgorithm
-                                                            .NORMAL
-
-                                            // 设置用户代理，添加自定义标识符以便更好地适配
-                                            val defaultUserAgent = userAgentString
-                                            userAgentString = "$defaultUserAgent OperitWebView/1.0"
-
-                                            // 启用DOM存储API
-                                            domStorageEnabled = true
-
-                                            // 启用应用缓存
-                                            databaseEnabled = true
-                                        }
-
-                                        // 设置初始比例 - 匹配显示宽度
-                                        setInitialScale(0)
-
-                                        // 添加触摸事件监听器优化滑动体验
-                                        setOnTouchListener { v, event ->
-                                            // 允许WebView处理所有触摸事件
-                                            v.parent.requestDisallowInterceptTouchEvent(true)
-                                            false // 返回false表示不消费事件，让WebView默认行为继续处理
-                                        }
-
-                                        // 加载URL
-                                        loadUrl("http://localhost:8080")
-
-                                        // 保存WebView引用以便获取工作目录
-                                        webView = this
-                                    }
+                                    val webView = WebView(context)
+                                    // 使用WebViewHandler配置WebView
+                                    webViewHandler.configureWebView(webView)
+                                    // 记录WebView引用以便JavaScript注入
+                                    webViewHandler.currentWebView = webView
+                                    // 加载URL
+                                    webView.loadUrl("http://localhost:8080")
+                                    // 保存WebView引用以便获取工作目录
+                                    return@AndroidView webView
                                 },
                                 update = { webView ->
                                     // 当需要刷新WebView内容时更新
@@ -425,6 +304,8 @@ fun ChatScreenContent(
                                         webView.reload()
                                         onWebViewRefreshed()
                                     }
+                                    // 确保WebViewHandler有当前WebView引用
+                                    webViewHandler.currentWebView = webView
                                 },
                                 modifier = Modifier.fillMaxSize()
                         )

@@ -34,6 +34,24 @@ data class IntResultData(val value: Int) : ToolResultData() {
     override fun toString(): String = value.toString()
 }
 
+/** 文件分段读取结果数据 */
+@Serializable
+data class FilePartContentData(
+        val path: String,
+        val content: String,
+        val partIndex: Int,
+        val totalParts: Int,
+        val startLine: Int,
+        val endLine: Int,
+        val totalLines: Int
+) : ToolResultData() {
+    override fun toString(): String {
+        val partInfo =
+                "Part ${partIndex + 1} of $totalParts (Lines ${startLine + 1}-$endLine of $totalLines)"
+        return "$partInfo\n\n$content"
+    }
+}
+
 /** ADB命令执行结果数据 */
 @Serializable
 data class ADBResultData(val command: String, val output: String, val exitCode: Int) :
@@ -206,6 +224,21 @@ data class FileOperationData(
 ) : ToolResultData() {
     override fun toString(): String {
         return details
+    }
+}
+
+/** Represents the result of an 'apply_file' operation, including the AI-generated diff */
+@Serializable
+data class FileApplyResultData(val operation: FileOperationData, val aiDiffInstructions: String) :
+        ToolResultData() {
+    override fun toString(): String {
+        val sb = StringBuilder()
+        sb.appendLine(operation.details)
+        if (aiDiffInstructions.isNotEmpty() && !aiDiffInstructions.startsWith("Error")) {
+            sb.appendLine("\n--- AI-Generated Diff ---")
+            sb.appendLine(aiDiffInstructions)
+        }
+        return sb.toString()
     }
 }
 

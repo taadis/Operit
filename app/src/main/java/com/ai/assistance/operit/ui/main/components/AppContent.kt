@@ -41,8 +41,15 @@ import com.ai.assistance.operit.ui.common.displays.FpsCounter
 import com.ai.assistance.operit.ui.main.screens.Screen
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.with
+import androidx.compose.animation.ExperimentalAnimationApi
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
 fun AppContent(
         currentScreen: Screen,
@@ -60,7 +67,10 @@ fun AppContent(
         navigateToTokenConfig: () -> Unit,
         onLoading: (Boolean) -> Unit = {},
         onError: (String) -> Unit = {},
-        onGestureConsumed: (Boolean) -> Unit = {}
+        onGestureConsumed: (Boolean) -> Unit = {},
+        canGoBack: Boolean,
+        onGoBack: () -> Unit,
+        isNavigatingBack: Boolean = false
 ) {
     // Get background image state
     val context = LocalContext.current
@@ -97,14 +107,17 @@ fun AppContent(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         // 使用Screen的标题或导航项的标题
                         Text(
-                                text = when {
-                                    // 优先使用Screen的标题
-                                    currentScreen.getTitle().isNotBlank() -> currentScreen.getTitle()
-                                    // 回退到导航项的标题资源
-                                    selectedItem.titleResId != 0 -> stringResource(id = selectedItem.titleResId)
-                                    // 最后的默认值
-                                    else -> ""
-                                },
+                                text =
+                                        when {
+                                            // 优先使用Screen的标题
+                                            currentScreen.getTitle().isNotBlank() ->
+                                                    currentScreen.getTitle()
+                                            // 回退到导航项的标题资源
+                                            selectedItem.titleResId != 0 ->
+                                                    stringResource(id = selectedItem.titleResId)
+                                            // 最后的默认值
+                                            else -> ""
+                                        },
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 14.sp,
                                 color = MaterialTheme.colorScheme.onPrimary
@@ -126,13 +139,8 @@ fun AppContent(
                     // 导航按钮逻辑
                     IconButton(
                             onClick = {
-                                if (currentScreen.isSecondaryScreen) {
-                                    // 有父屏幕时返回父屏幕
-                                    val parentScreen = currentScreen.parentScreen
-                                    if (parentScreen != null) {
-                                        onScreenChange(parentScreen)
-                                        parentScreen.navItem?.let { onNavItemChange(it) }
-                                    }
+                                if (canGoBack) {
+                                    onGoBack()
                                 } else {
                                     // 平板模式下切换侧边栏展开/收起状态
                                     if (useTabletLayout) {
@@ -145,20 +153,20 @@ fun AppContent(
                             }
                     ) {
                         Icon(
-                                if (currentScreen.isSecondaryScreen) 
-                                    Icons.Default.ArrowBack
+                                if (canGoBack) Icons.Default.ArrowBack
                                 else if (useTabletLayout)
-                                    // 平板模式下使用开关图标表示收起/展开
-                                    if (isTabletSidebarExpanded) Icons.Filled.ChevronLeft
-                                    else Icons.Default.Menu
-                                else 
-                                    Icons.Default.Menu,
-                                contentDescription = when {
-                                    currentScreen.isSecondaryScreen -> "返回"
-                                    useTabletLayout -> 
-                                        if (isTabletSidebarExpanded) "收起侧边栏" else "展开侧边栏"
-                                    else -> stringResource(id = R.string.menu)
-                                },
+                                // 平板模式下使用开关图标表示收起/展开
+                                if (isTabletSidebarExpanded) Icons.Filled.ChevronLeft
+                                        else Icons.Default.Menu
+                                else Icons.Default.Menu,
+                                contentDescription =
+                                        when {
+                                            canGoBack -> "返回"
+                                            useTabletLayout ->
+                                                    if (isTabletSidebarExpanded) "收起侧边栏"
+                                                    else "展开侧边栏"
+                                            else -> stringResource(id = R.string.menu)
+                                        },
                                 tint = MaterialTheme.colorScheme.onPrimary
                         )
                     }
@@ -210,25 +218,45 @@ fun AppContent(
                 }
             } else {
                 // 主要内容 - 使用Screen的Content方法直接渲染
-                Box(modifier = Modifier.fillMaxSize()) {
-                    // 统一调用当前屏幕的内容渲染方法
-                    currentScreen.Content(
-                        navController = navController,
-                        navigateTo = onScreenChange,
-                        updateNavItem = onNavItemChange,
-                        hasBackgroundImage = hasBackgroundImage,
-                        onLoading = onLoading,
-                        onError = onError,
-                        onGestureConsumed = if (currentScreen is Screen.AiChat) onGestureConsumed else { _ -> }
-                    )
-
-                    // 帧率计数器 - 放在右上角
-                    if (showFpsCounter) {
-                        FpsCounter(
-                                modifier =
-                                        Modifier.align(Alignment.TopEnd)
-                                                .padding(top = 80.dp, end = 16.dp)
+                AnimatedContent(
+                    targetState = currentScreen,
+                    transitionSpec = {
+                        // 根据导航方向决定动画方向
+                        if (isNavigatingBack) {
+                            // 返回操作：新屏幕从左侧滑入，旧屏幕向右侧滑出
+                            slideInHorizontally { width -> -width } + fadeIn() with
+                                    slideOutHorizontally { width -> width } + fadeOut()
+                        } else {
+                            // 前进操作：新屏幕从右侧滑入，旧屏幕向左侧滑出
+                            slideInHorizontally { width -> width } + fadeIn() with
+                                    slideOutHorizontally { width -> -width } + fadeOut()
+                        }
+                    },
+                    label = "ScreenAnimation"
+                ) { screen ->
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        // 统一调用当前屏幕的内容渲染方法
+                        screen.Content(
+                                navController = navController,
+                                navigateTo = onScreenChange,
+                                updateNavItem = onNavItemChange,
+                                onGoBack = onGoBack,
+                                hasBackgroundImage = hasBackgroundImage,
+                                onLoading = onLoading,
+                                onError = onError,
+                                onGestureConsumed =
+                                if (screen is Screen.AiChat) onGestureConsumed
+                                else { _ -> }
                         )
+
+                        // 帧率计数器 - 放在右上角
+                        if (showFpsCounter) {
+                            FpsCounter(
+                                    modifier =
+                                    Modifier.align(Alignment.TopEnd)
+                                            .padding(top = 80.dp, end = 16.dp)
+                            )
+                        }
                     }
                 }
             }

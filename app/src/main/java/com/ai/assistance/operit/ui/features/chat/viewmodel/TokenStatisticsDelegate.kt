@@ -1,7 +1,7 @@
 package com.ai.assistance.operit.ui.features.chat.viewmodel
 
 import android.util.Log
-import com.ai.assistance.operit.api.EnhancedAIService
+import com.ai.assistance.operit.api.chat.EnhancedAIService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

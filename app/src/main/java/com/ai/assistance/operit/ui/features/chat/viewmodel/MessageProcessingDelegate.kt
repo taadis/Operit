@@ -3,16 +3,18 @@ package com.ai.assistance.operit.ui.features.chat.viewmodel
 import android.content.Context
 import android.util.Log
 import androidx.lifecycle.viewModelScope
-import com.ai.assistance.operit.api.EnhancedAIService
+import com.ai.assistance.operit.api.chat.EnhancedAIService
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.model.InputProcessingState as EnhancedInputProcessingState
+import com.ai.assistance.operit.data.preferences.PromptFunctionType
 import com.ai.assistance.operit.util.NetworkUtils
 import com.ai.assistance.operit.util.stream.SharedStream
 import com.ai.assistance.operit.util.stream.share
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -57,6 +59,8 @@ class MessageProcessingDelegate(
 
     // 当前活跃的AI响应流
     private var currentResponseStream: SharedStream<String>? = null
+    // 添加一个Job来跟踪流收集协程
+    private var streamCollectionJob: Job? = null
 
     // 获取当前活跃的AI响应流
     fun getCurrentResponseStream(): SharedStream<String>? = currentResponseStream
@@ -77,7 +81,11 @@ class MessageProcessingDelegate(
         _scrollToBottomEvent.tryEmit(Unit)
     }
 
-    fun sendUserMessage(attachments: List<AttachmentInfo> = emptyList(), chatId: String? = null) {
+    fun sendUserMessage(
+            attachments: List<AttachmentInfo> = emptyList(),
+            chatId: String? = null,
+            promptFunctionType: PromptFunctionType = PromptFunctionType.CHAT
+    ) {
         if (_userMessage.value.isBlank() && attachments.isEmpty()) return
         if (_isLoading.value) return
 
@@ -128,7 +136,13 @@ class MessageProcessingDelegate(
                 val startTime = System.currentTimeMillis()
 
                 val deferred = CompletableDeferred<Unit>()
-                val responseStream = service.sendMessage(finalMessage, history, chatId)
+                val responseStream =
+                        service.sendMessage(
+                                finalMessage,
+                                history,
+                                chatId,
+                                promptFunctionType = promptFunctionType
+                        )
 
                 // 将字符串流共享，以便多个收集器可以使用
                 val sharedCharStream =
@@ -158,18 +172,19 @@ class MessageProcessingDelegate(
                 withContext(Dispatchers.Main) { addMessageToChat(aiMessage) }
 
                 // 启动一个独立的协程来收集流内容并持续更新数据库
-                viewModelScope.launch(Dispatchers.IO) {
-                    val contentBuilder = StringBuilder()
-                    sharedCharStream.collect { chunk ->
-                        contentBuilder.append(chunk)
-                        val content = contentBuilder.toString()
-                        val updatedMessage = aiMessage.copy(content = content)
-                        // 防止后续读取不到
-                        aiMessage.content = content
-                        addMessageToChat(updatedMessage)
-                        _scrollToBottomEvent.tryEmit(Unit)
-                    }
-                }
+                streamCollectionJob =
+                        viewModelScope.launch(Dispatchers.IO) {
+                            val contentBuilder = StringBuilder()
+                            sharedCharStream.collect { chunk ->
+                                contentBuilder.append(chunk)
+                                val content = contentBuilder.toString()
+                                val updatedMessage = aiMessage.copy(content = content)
+                                // 防止后续读取不到
+                                aiMessage.content = content
+                                addMessageToChat(updatedMessage)
+                                _scrollToBottomEvent.tryEmit(Unit)
+                            }
+                        }
 
                 // 等待流完成，以便finally块可以正确执行来更新UI状态
                 deferred.await()
@@ -193,6 +208,9 @@ class MessageProcessingDelegate(
                     // aiMessage 未初始化，忽略清理步骤
                     Log.d(TAG, "AI消息未初始化，跳过流清理步骤")
                 }
+
+                // 清理job引用
+                streamCollectionJob = null
 
                 // 添加一个短暂的延迟，以确保UI有足够的时间来渲染最后一个数据块
                 // 这有助于解决因竞态条件导致的UI内容（如状态标签）有时无法显示的问题
@@ -235,6 +253,11 @@ class MessageProcessingDelegate(
             _isLoading.value = false
             _isProcessingInput.value = false
             _inputProcessingMessage.value = ""
+
+            // 取消正在进行的流收集
+            streamCollectionJob?.cancel()
+            streamCollectionJob = null
+            Log.d(TAG, "流收集任务已取消")
 
             withContext(Dispatchers.IO) {
                 getEnhancedAiService()?.cancelConversation()

@@ -2,7 +2,7 @@ package com.ai.assistance.operit.core.tools.defaultTool.standard
 
 import android.content.Context
 import android.util.Log
-import com.ai.assistance.operit.api.library.ProblemLibraryTool
+import com.ai.assistance.operit.api.chat.library.ProblemLibraryTool
 import com.ai.assistance.operit.core.tools.StringResultData
 import com.ai.assistance.operit.core.tools.ToolExecutor
 import com.ai.assistance.operit.data.model.AITool

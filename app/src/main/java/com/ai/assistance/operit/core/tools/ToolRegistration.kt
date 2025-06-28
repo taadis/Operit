@@ -215,6 +215,20 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             executor = { tool -> kotlinx.coroutines.runBlocking { fileSystemTools.readFile(tool) } }
     )
 
+    // 分段读取文件内容
+    handler.registerTool(
+            name = "read_file_part",
+            category = ToolCategory.FILE_READ,
+            descriptionGenerator = { tool ->
+                val path = tool.parameters.find { it.name == "path" }?.value ?: ""
+                val partIndex = tool.parameters.find { it.name == "partIndex" }?.value ?: "0"
+                "分段读取文件 (部分 $partIndex): $path"
+            },
+            executor = { tool ->
+                kotlinx.coroutines.runBlocking { fileSystemTools.readFilePart(tool) }
+            }
+    )
+
     // 写入文件
     handler.registerTool(
             name = "write_file",
@@ -440,6 +454,20 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
                 "获取文件信息: $path"
             },
             executor = { tool -> kotlinx.coroutines.runBlocking { fileSystemTools.fileInfo(tool) } }
+    )
+
+    // 智能应用文件绑定
+    handler.registerTool(
+            name = "apply_file",
+            category = ToolCategory.FILE_WRITE,
+            dangerCheck = { true }, // 总是危险操作
+            descriptionGenerator = { tool ->
+                val path = tool.parameters.find { it.name == "path" }?.value ?: ""
+                "智能合并AI代码到文件: $path"
+            },
+            executor = { tool ->
+                kotlinx.coroutines.runBlocking { fileSystemTools.applyFile(tool) }
+            }
     )
 
     // 压缩文件/目录

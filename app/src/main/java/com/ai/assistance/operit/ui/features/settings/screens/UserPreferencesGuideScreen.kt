@@ -17,8 +17,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DisplayMode
@@ -30,6 +32,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -428,8 +431,32 @@ fun UserPreferencesGuideScreen(
                     style = MaterialTheme.typography.titleMedium
             )
 
+            // 添加说明卡片，提示所有选项都是可选的
+            Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    tonalElevation = 1.dp,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = "信息",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        "以下所有选项均为可选，您可以根据自己的偏好自由填写。",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+
             // 性别选择（标签选择）
-            Text(stringResource(id = R.string.gender), style = MaterialTheme.typography.titleSmall)
+            Text("性别 (可选)", style = MaterialTheme.typography.titleSmall)
             FlowRow(
                     modifier = Modifier.fillMaxWidth(),
                     maxItemsInEachRow = 4,
@@ -447,7 +474,7 @@ fun UserPreferencesGuideScreen(
 
             // 职业选择（标签选择）
             Text(
-                    stringResource(id = R.string.occupation),
+                    "职业 (可选)",
                     style = MaterialTheme.typography.titleSmall
             )
             FlowRow(
@@ -467,7 +494,7 @@ fun UserPreferencesGuideScreen(
 
             // 出生日期选择
             Text(
-                    stringResource(id = R.string.birth_date),
+                    "出生日期 (可选)",
                     style = MaterialTheme.typography.titleSmall
             )
             OutlinedCard(
@@ -502,7 +529,7 @@ fun UserPreferencesGuideScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("性格特点 (可多选)", style = MaterialTheme.typography.titleSmall)
+                Text("性格特点 (可选，可多选)", style = MaterialTheme.typography.titleSmall)
                 TextButton(
                         onClick = {
                             currentTagCategory = "personality"
@@ -570,7 +597,7 @@ fun UserPreferencesGuideScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("身份认同 (可多选)", style = MaterialTheme.typography.titleSmall)
+                Text("身份认同 (可选，可多选)", style = MaterialTheme.typography.titleSmall)
                 TextButton(
                         onClick = {
                             currentTagCategory = "identity"
@@ -638,7 +665,7 @@ fun UserPreferencesGuideScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("期待的AI风格 (可多选)", style = MaterialTheme.typography.titleSmall)
+                Text("期待的AI风格 (可选，可多选)", style = MaterialTheme.typography.titleSmall)
                 TextButton(
                         onClick = {
                             currentTagCategory = "aiStyle"
@@ -745,11 +772,7 @@ fun UserPreferencesGuideScreen(
                             }
                         }
                     },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled =
-                            selectedGender.isNotEmpty() &&
-                                    selectedOccupation.isNotEmpty() &&
-                                    birthDate > 0
+                    modifier = Modifier.fillMaxWidth()
             ) { Text(stringResource(id = R.string.complete)) }
         }
     }

@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     kotlin("plugin.serialization") version "1.9.22"
     id("kotlin-kapt")
+    id("kotlin-parcelize")
 }
 
 android {
@@ -13,14 +14,18 @@ android {
         applicationId = "com.ai.assistance.operit"
         minSdk = 26
         targetSdk = 34
-        versionCode = 6
-        versionName = "1.1.5"
+        versionCode = 13
+        versionName = "1.1.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
         }
         
+        // ndk {
+        //     // 只使用armeabi-v7a架构，因为只有这个架构有libsherpa-ncnn-jni.so库
+        //     abiFilters.add("armeabi-v7a")
+        // }
     }
 
     buildTypes {
@@ -82,11 +87,24 @@ android {
 }
 
 dependencies {
+    implementation(project(":live2d"))
+
     implementation(libs.androidx.ui.graphics.android)
     implementation(files("libs\\ffmpegkit.jar"))
     implementation(files("libs\\arsc.jar"))
     // Desugaring support for modern Java APIs on older Android
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+
+    // ML Kit - 文本识别
+    implementation("com.google.mlkit:text-recognition:16.0.0")
+    // ML Kit - 多语言识别支持
+    implementation("com.google.mlkit:text-recognition-chinese:16.0.0")
+    implementation("com.google.mlkit:text-recognition-japanese:16.0.0")
+    implementation("com.google.mlkit:text-recognition-korean:16.0.0")
+    implementation("com.google.mlkit:text-recognition-devanagari:16.0.0")
+    
+    // diff
+    implementation("io.github.java-diff-utils:java-diff-utils:4.12")
     
     // APK解析和修改库
     implementation("com.android.tools.build:apksig:8.1.0") // APK签名工具
@@ -131,18 +149,6 @@ dependencies {
     implementation("com.itextpdf:itextpdf:5.5.13.3") // iText for PDF creation
     implementation("org.apache.pdfbox:pdfbox:2.0.27") // PDFBox for PDF operations
     
-    // Markdown rendering libraries - 使用自定义的Markwon，不使用compose-markdown库
-    // implementation("com.github.jeziellago:compose-markdown:0.5.7") {
-    //     exclude(group = "io.noties.markwon")  // Exclude all Markwon dependencies from compose-markdown
-    // }
-    implementation("io.noties.markwon:core:4.6.2")
-    implementation("io.noties.markwon:html:4.6.2")
-    implementation("io.noties.markwon:linkify:4.6.2")
-    implementation("io.noties.markwon:ext-strikethrough:4.6.2")
-    implementation("io.noties.markwon:ext-tables:4.6.2")
-    implementation("io.noties.markwon:image:4.6.2")
-    implementation("io.noties.markwon:image-coil:4.6.2")
-    
     // 图片加载库
     implementation("io.coil-kt:coil:2.5.0")
     implementation("io.coil-kt:coil-compose:2.5.0")
@@ -159,27 +165,6 @@ dependencies {
 
     // Kotlin Serialization
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
-    
-    // Ktor dependencies
-    implementation("io.ktor:ktor-client-core:2.3.7")
-    implementation("io.ktor:ktor-client-cio:2.3.7")
-    implementation("io.ktor:ktor-client-content-negotiation:2.3.7")
-    implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.7")
-    implementation("io.ktor:ktor-client-auth:2.3.7")
-    implementation("io.ktor:ktor-client-logging:2.3.7")
-    implementation("io.ktor:ktor-server-core:2.3.7")
-    implementation("io.ktor:ktor-server-netty:2.3.7")
-    implementation("io.ktor:ktor-server-content-negotiation:2.3.7")
-    implementation("io.ktor:ktor-client-websockets:2.3.7")
-    implementation("io.ktor:ktor-server-websockets:2.3.7")
-    implementation("io.ktor:ktor-server-status-pages:2.3.7")
-    
-    // Server-Sent Events (SSE) dependencies for Ktor
-    implementation("io.ktor:ktor-client-core-jvm:2.3.7")
-    implementation("io.ktor:ktor-server-servlet-jvm:2.3.7")
-    
-    // Additional Ktor dependencies for IO operations
-    implementation("io.ktor:ktor-io:2.3.7")
     
     // UUID dependencies
     implementation("com.benasher44:uuid:0.8.2")
@@ -208,12 +193,6 @@ dependencies {
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1") // Kotlin扩展和协程支持
     kapt("androidx.room:room-compiler:2.6.1") // 使用kapt代替ksp
-
-    // FFmpeg dependency with specific architectures
-    // implementation("com.arthenica:ffmpeg-kit-full:6.0-2") {
-        // exclude(group = "com.arthenica", module = "ffmpeg-kit-android-lib-armeabi-v7a")
-        // exclude(group = "com.arthenica", module = "ffmpeg-kit-android-lib-x86")
-    // }
 
     // Archive/compression libraries
     implementation("org.apache.commons:commons-compress:1.24.0")

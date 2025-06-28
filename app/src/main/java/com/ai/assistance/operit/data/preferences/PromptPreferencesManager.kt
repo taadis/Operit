@@ -1,6 +1,7 @@
 package com.ai.assistance.operit.data.preferences
 
 import android.content.Context
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -33,11 +34,28 @@ class PromptPreferencesManager(private val context: Context) {
         private fun profileIntroPromptKey(id: String) = stringPreferencesKey("prompt_profile_${id}_intro_prompt")
         private fun profileTonePromptKey(id: String) = stringPreferencesKey("prompt_profile_${id}_tone_prompt")
         private fun profileIsDefaultKey(id: String) = booleanPreferencesKey("prompt_profile_${id}_is_default")
+        
+        // 固定ID，用于特定功能的默认提示词配置
+        const val DEFAULT_CHAT_PROFILE_ID = "default_chat"
+        const val DEFAULT_VOICE_PROFILE_ID = "default_voice"
+        const val DEFAULT_DESKTOP_PET_PROFILE_ID = "default_desktop_pet"
     }
 
-    // Default prompt values
+    // Default prompt values for standard usage
     val defaultIntroPrompt = "你是Operit，一个全能AI助手，旨在解决用户提出的任何任务。你有各种工具可以调用，以高效完成复杂的请求。"
     val defaultTonePrompt = "保持有帮助的语气，并清楚地传达限制。使用问题库根据用户的风格、偏好和过去的信息个性化响应。"
+    
+    // Default prompt values for chat function
+    val defaultChatIntroPrompt = "你是Operit，一个全能AI助手，旨在解决用户提出的任何任务。你有各种工具可以调用，以高效完成复杂的请求。"
+    val defaultChatTonePrompt = "保持有帮助的语气，并清楚地传达限制。使用问题库根据用户的风格、偏好和过去的信息个性化响应。"
+    
+    // Default prompt values for voice function
+    val defaultVoiceIntroPrompt = "你是Operit语音助手。你的所有回答都将通过语音播出，所以你必须只说那些听起来自然的话。你的核心任务是进行流畅、自然的口语对话。"
+    val defaultVoiceTonePrompt = "你的回答必须非常简短、口语化，像日常聊天一样。严禁使用任何形式的列表、分点（例如'第一'、'第二'或'首先'、'其次'）和Markdown标记（例如`*`、`#`、`**`）。你的回答就是纯文本的、可以直接朗读的对话。总是直接回答问题，不要有多余的客套话和引导语。"
+    
+    // Default prompt values for desktop pet function
+    val defaultDesktopPetIntroPrompt = "你是Operit桌宠，一个友好活泼的桌面伙伴。你的主要任务是提供陪伴和娱乐，同时也可以帮助用户完成简单任务。"
+    val defaultDesktopPetTonePrompt = "使用活泼、亲切的语气，偶尔加入一些幽默元素。表现得像一个有个性的伙伴，而不仅仅是工具。可以使用简单的表情符号增加互动感。"
 
     // Flow of prompt profile list
     val profileListFlow: Flow<List<String>> = dataStore.data.map { preferences ->
@@ -139,17 +157,65 @@ class PromptPreferencesManager(private val context: Context) {
         }
     }
 
-    // Initialize with default profile if needed
+    // Initialize with default profiles if needed
     suspend fun initializeIfNeeded() {
         dataStore.edit { preferences ->
-            if (preferences[PROMPT_PROFILE_LIST] == null) {
-                preferences[PROMPT_PROFILE_LIST] = setOf("default")
+            val profileListKey = PROMPT_PROFILE_LIST
+            val currentList = preferences[profileListKey]?.toMutableSet()
+
+            if (currentList == null) {
+                // --- Fresh Install ---
+                val defaultProfiles = setOf(
+                    "default",
+                    DEFAULT_CHAT_PROFILE_ID,
+                    DEFAULT_VOICE_PROFILE_ID,
+                    DEFAULT_DESKTOP_PET_PROFILE_ID
+                )
+                preferences[profileListKey] = defaultProfiles
                 preferences[ACTIVE_PROFILE_ID] = "default"
-                preferences[profileNameKey("default")] = "默认提示词"
-                preferences[profileIntroPromptKey("default")] = defaultIntroPrompt
-                preferences[profileTonePromptKey("default")] = defaultTonePrompt
-                preferences[profileIsDefaultKey("default")] = true
+
+                // Set up all default profiles
+                setupDefaultProfile(preferences, "default", "默认提示词", defaultIntroPrompt, defaultTonePrompt, true)
+                setupDefaultProfile(preferences, DEFAULT_CHAT_PROFILE_ID, "默认聊天提示词", defaultChatIntroPrompt, defaultChatTonePrompt)
+                setupDefaultProfile(preferences, DEFAULT_VOICE_PROFILE_ID, "默认语音提示词", defaultVoiceIntroPrompt, defaultVoiceTonePrompt)
+                setupDefaultProfile(preferences, DEFAULT_DESKTOP_PET_PROFILE_ID, "默认桌宠提示词", defaultDesktopPetIntroPrompt, defaultDesktopPetTonePrompt)
+
+            } else {
+                // --- Migration for existing users ---
+                var listModified = false
+                val profilesToAdd = mapOf(
+                    DEFAULT_CHAT_PROFILE_ID to Triple("默认聊天提示词", defaultChatIntroPrompt, defaultChatTonePrompt),
+                    DEFAULT_VOICE_PROFILE_ID to Triple("默认语音提示词", defaultVoiceIntroPrompt, defaultVoiceTonePrompt),
+                    DEFAULT_DESKTOP_PET_PROFILE_ID to Triple("默认桌宠提示词", defaultDesktopPetIntroPrompt, defaultDesktopPetTonePrompt)
+                )
+
+                profilesToAdd.forEach { (id, details) ->
+                    if (!currentList.contains(id)) {
+                        currentList.add(id)
+                        setupDefaultProfile(preferences, id, details.first, details.second, details.third)
+                        listModified = true
+                    }
+                }
+
+                if (listModified) {
+                    preferences[profileListKey] = currentList
+                }
             }
         }
+    }
+    
+    // Helper function to set up a default profile's data
+    private fun setupDefaultProfile(
+        preferences: MutablePreferences,
+        id: String,
+        name: String,
+        introPrompt: String,
+        tonePrompt: String,
+        isDefault: Boolean = false
+    ) {
+        preferences[profileNameKey(id)] = name
+        preferences[profileIntroPromptKey(id)] = introPrompt
+        preferences[profileTonePromptKey(id)] = tonePrompt
+        preferences[profileIsDefaultKey(id)] = isDefault
     }
 } 

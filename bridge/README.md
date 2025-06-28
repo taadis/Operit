@@ -32,7 +32,7 @@ npm run build
 npm start
 ```
 
-这将在默认端口8765上启动桥接器，连接到`../your-mcp-server.js`。
+这将在默认端口8752上启动桥接器，连接到`../your-mcp-server.js`。
 
 ### 高级用法
 
@@ -46,7 +46,7 @@ npm start -- [端口] [命令] [参数...]
 npm start -- 9000 python ../python_mcp_server.py
 
 # 示例：连接到Java MCP服务器
-npm start -- 8765 java -jar ../java_mcp_server.jar
+npm start -- 8752 java -jar ../java_mcp_server.jar
 ```
 
 ### 在代码中使用
@@ -57,7 +57,7 @@ npm start -- 8765 java -jar ../java_mcp_server.jar
 import McpBridge from './path/to/bridge';
 
 const bridge = new McpBridge({
-  port: 8765,
+  port: 8752,
   host: '127.0.0.1',
   mcpCommand: 'node',
   mcpArgs: ['../your-mcp-server.js'],
@@ -86,7 +86,7 @@ npm install
 npm run build
 
 # 启动桥接器
-npm start -- 8765 node ../your-mcp-server.js
+npm start -- 8752 node ../your-mcp-server.js
 ```
 
 ## Android客户端示例
@@ -104,7 +104,7 @@ import org.json.JSONObject
 
 class McpClient {
     private val host = "127.0.0.1"
-    private val port = 8765
+    private val port = 8752
     
     suspend fun sendRequest(method: String, params: JSONObject): JSONObject = withContext(Dispatchers.IO) {
         Socket(host, port).use { socket ->

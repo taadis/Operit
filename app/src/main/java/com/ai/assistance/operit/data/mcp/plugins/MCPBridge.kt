@@ -34,7 +34,7 @@ class MCPBridge(private val context: Context) {
     companion object {
         private const val TAG = "MCPBridge"
         private const val DEFAULT_HOST = "127.0.0.1"
-        private const val DEFAULT_PORT = 8765
+        private const val DEFAULT_PORT = 8752
         private const val TERMUX_BRIDGE_PATH = "/data/data/com.termux/files/home/bridge"
         private const val BRIDGE_LOG_FILE = "$TERMUX_BRIDGE_PATH/bridge.log"
         private var appContext: Context? = null

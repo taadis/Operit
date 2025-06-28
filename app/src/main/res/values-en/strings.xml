@@ -1,6 +1,13 @@
 <resources>
     <string name="app_name">Operit AI</string>
-    <string name="accessibility_service_description">For obtaining UI hierarchy, providing faster interface analysis for AI assistant, without collecting or storing any personal information.</string>
+    <string name="accessibility_service_description">Used to obtain the UI hierarchy, providing faster interface analysis capabilities for AI assistants, and does not collect or store any personal information.</string>
+    
+    <!-- Model selector related -->
+    <string name="model_selector_title">Select Model Configuration</string>
+    <string name="model_selector_close">Close</string>
+    <string name="model_selector_toggle">Show Model Selector</string>
+    <string name="model_selector_toggle_desc">Show model configuration selector at the top of the chat interface for easy switching between different model configurations</string>
+    <string name="model">Model</string>
     
     <!-- Navigation -->
     <string name="nav_ai_chat">AI Chat</string>
@@ -112,6 +119,12 @@
     <string name="free_usage_confirm">Confirm Use</string>
     <string name="free_usage_depleted">Limit Reached</string>
     <string name="free_usage_tip">Please try again tomorrow or use your own API key</string>
+    <string name="free_usage_wait_days">Please wait %1$d days before using again~</string>
+    <string name="free_usage_used_today">Today\'s free quota all gone QAQ</string>
+    <string name="free_usage_next_available">Next available: %1$s (patience is a virtue~)</string>
+    <string name="free_usage_interval_tip">To prevent developer bankruptcy, waiting time doubles after each use~</string>
+    <string name="free_usage_first_tip">This is your first use, next time you\'ll need to wait 1 day~</string>
+    <string name="free_usage_later_tip">Free stuff comes with limits, please wait %1$d more days (๑•̀ㅂ•́)و✧</string>
     
     <!-- Plugin Loading Screen -->
     <string name="plugin_skip">Skip</string>
@@ -201,6 +214,13 @@
     <string name="overlay_permission_required">Overlay Permission Required</string>
     <string name="overlay_permission_denied">Overlay permission denied, cannot display floating window</string>
     <string name="close_floating_window">Close Floating Window</string>
+    
+    <!-- Microphone Permission -->
+    <string name="microphone_permission">Microphone Permission</string>
+    <string name="microphone_permission_required">Microphone Permission Required</string>
+    <string name="microphone_permission_desc">Allow the app to record audio for voice input and speech recognition</string>
+    <string name="microphone_permission_denied">Microphone permission denied, cannot enable floating window feature</string>
+    <string name="microphone_permission_floating_required">Floating window feature requires microphone permission for voice interaction</string>
     
     <!-- AI Tools -->
     <string name="ai_tools_enabled">AI Tools Enabled</string>
@@ -676,4 +696,35 @@
     <string name="toast_operation_failed">Operation failed: %1$s</string>
     <string name="toast_skip_tuna_source">Skipped Tuna mirror configuration, you can configure the mirror in Termux later</string>
     <string name="toast_skip_tuna_source_dialog">You have chosen to skip Tuna mirror configuration. For manual configuration later, run the following command in Termux:\n\ntermux-change-repo\n\nThen select Tuna or another mirror from the list.</string>
+    
+    <!-- Chat History Selector -->
+    <string name="chat_history">Chat History</string>
+    <string name="new_chat">New Chat</string>
+    
+    <!-- Chat Screen Header -->
+    <string name="exit_edit_mode">Exit Edit Mode</string>
+    <string name="enter_edit_mode">Enter Edit Mode</string>
+    <string name="total">Total</string>
+    <string name="total_tokens">Total: %1$s</string>
+    <string name="input_tokens">Input: %1$s</string>
+    <string name="output_tokens">Output: %1$s</string>
+    <string name="context_window">Context: %1$s</string>
+    <string name="auto_approve">Auto-approve:</string>
+    <string name="enabled">Enabled</string>
+    <string name="ask">Ask</string>
+    <string name="ai_planning_mode">AI Planning:</string>
+    <string name="disabled">Disabled</string>
+    
+    <!-- Termux Related -->
+    <string name="termux_not_installed_message">Please install Termux first</string>
+    <string name="termux_manual_auth_title">Manual Authorization Required</string>
+    <string name="termux_manual_auth_message">Cannot automatically grant Termux Run Command permission, please follow these steps:\n\n1. Open Termux\n2. Long press the screen, select \'More\'\n3. Select \'Settings\'\n4. Enable \'Allow External Apps\'</string>
+    <string name="termux_storage_permission_message">Cannot automatically grant Termux storage permission, please check the following:\n\n1. Shell environment: Make sure you have a working Shell (such as ADB or Root). Note: If using Shizuku, do not start in Root mode.\n2. Termux version: Make sure your installed Termux is the built-in version or a Debug version from its official GitHub repository.</string>
+    <string name="termux_all_permissions_granted">Termux permissions granted successfully</string>
+    <string name="termux_some_permissions_failed">Some permission grants failed, please check the logs or set manually</string>
+    <string name="termux_app_association_granted">App authorized to associate with Termux</string>
+    <string name="termux_manual_setting_hint">Please enable \'Allow External Apps\' option in Termux</string>
+    <string name="termux_manual_setting_failed">Cannot open Termux, please set manually</string>
+    <string name="open_settings">Open Settings</string>
+    <string name="cannot_open_settings">Cannot open settings</string>
 </resources> 

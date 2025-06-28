@@ -33,7 +33,7 @@ class MCPLocalServer private constructor(private val context: Context) {
         private const val KEY_AUTO_START = "auto_start"
         private const val KEY_LOG_LEVEL = "log_level"
 
-        private const val DEFAULT_PORT = 8765
+        private const val DEFAULT_PORT = 8752
         private const val DEFAULT_LOG_LEVEL = "info"
         private const val MAX_LOG_ENTRIES = 1000
 

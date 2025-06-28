@@ -17,6 +17,8 @@ enum class ApiProviderType {
         DEEPSEEK, // Deepseek大模型
         SILICONFLOW, // 硅基流动
         OPENROUTER, // OpenRouter (多模型聚合)
+        INFINIAI, // 无问芯穹
+        LMSTUDIO, // LM Studio本地模型服务
         OTHER // 其他提供商
 }
 

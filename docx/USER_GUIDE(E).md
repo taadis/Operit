@@ -536,40 +536,71 @@ When you ask the AI to write software, the performance of the software depends o
 | Tool | Description |
 |---|---|
 | `sleep` | Pauses execution for a short period. |
-| `device_info` | Gets detailed device information. |
+| `device_info` | Gets detailed device information including model, OS version, memory, storage, network status, and more. |
 | `use_package` | Activates an extension package. |
-| `query_problem_library` | Queries the problem library. |
+| `query_problem_library` | Queries the problem library for similar past solutions, user style preferences, and user information. |
+
+File System Tools:
+
+| Tool | Description |
+|---|---|
 | `list_files` | Lists files in a directory. |
-| `read_file` | Reads the content of a file. |
-| `write_file` | Writes content to a file. |
+| `read_file_part` | Reads the content of a file by parts (200 lines per part). |
+| `apply_file` | Applies intelligent edits to a file, using placeholders for parts that should remain unchanged. |
 | `delete_file` | Deletes a file or directory. |
-| `file_exists` | Checks if a file exists. |
-| `move_file` | Moves or renames a file. |
+| `file_exists` | Checks if a file or directory exists. |
+| `move_file` | Moves or renames a file or directory. |
 | `copy_file` | Copies a file or directory. |
 | `make_directory` | Creates a directory. |
-| `find_files` | Finds matching files. |
+| `find_files` | Searches for files matching a pattern. |
+| `file_info` | Gets detailed information about a file or directory. |
 | `zip_files/unzip_files` | Compresses/decompresses files. |
-| `download_file` | Downloads a file from the network. |
+| `open_file` | Opens a file using the system's default application. |
+| `share_file` | Shares a file with other applications. |
+| `download_file` | Downloads a file from the internet. |
+| `convert_file` | Converts a file from one format to another. |
+| `get_supported_conversions` | Lists all supported file format conversions. |
+
+HTTP Tools:
+
+| Tool | Description |
+|---|---|
 | `http_request` | Sends an HTTP request. |
-| `multipart_request` | Uploads a file. |
+| `multipart_request` | Uploads files. |
 | `manage_cookies` | Manages cookies. |
-| `visit_web` | Visits and extracts content from a web page. |
-| `get_system_setting` | Gets a system setting. |
-| `modify_system_setting` | Modifies a system setting. |
-| `install_app/uninstall_app`| Installs/uninstalls an app. |
-| `start_app/stop_app` | Starts/stops an app. |
+| `visit_web` | Visits a webpage and extracts its content. |
+
+System Operation Tools:
+
+| Tool | Description |
+|---|---|
+| `get_system_setting` | Gets the value of a system setting. |
+| `modify_system_setting` | Modifies the value of a system setting. |
+| `install_app/uninstall_app`| Installs/uninstalls an application. |
+| `list_installed_apps` | Gets a list of installed applications. |
+| `start_app/stop_app` | Launches/stops an application. |
 | `get_notifications` | Gets device notifications. |
-| `get_device_location` | Gets the device location. |
-| `get_page_info` | Gets UI screen information. |
-| `tap` | Simulates a tap at coordinates. |
-| `click_element` | Clicks a UI element. |
-| `set_input_text` | Sets input text. |
+| `get_device_location` | Gets current device location. |
+
+UI Automation Tools:
+
+| Tool | Description |
+|---|---|
+| `get_page_info` | Gets information about the current UI screen. |
+| `tap` | Simulates a tap at specific coordinates. |
+| `click_element` | Clicks an element identified by resource ID or class name. |
+| `set_input_text` | Sets text in an input field. |
 | `press_key` | Simulates a key press. |
 | `swipe` | Simulates a swipe gesture. |
-| `find_element` | Finds a UI element. |
-| `ffmpeg_execute` | Executes an FFmpeg command. |
-| `ffmpeg_info` | Gets FFmpeg information. |
-| `ffmpeg_convert` | Converts a video file. |
+| `find_element` | Finds UI elements matching specific criteria. |
+
+FFmpeg Tools:
+
+| Tool | Description |
+|---|---|
+| `ffmpeg_execute` | Executes a custom FFmpeg command. |
+| `ffmpeg_info` | Gets FFmpeg system information. |
+| `ffmpeg_convert` | Converts video files with simplified parameters. |
 
 <h3 id="mcp-market" style="display: flex; justify-content: space-between; align-items: center;"><span>🛒 MCP Market</span><a href="#advanced-usage" style="text-decoration: none; font-size: 0.8em;" title="Back to Parent">↩️</a></h3>
 

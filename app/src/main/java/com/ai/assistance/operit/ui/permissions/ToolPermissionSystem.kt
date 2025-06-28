@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import androidx.compose.material3.ColorScheme
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
@@ -102,6 +103,17 @@ class ToolPermissionSystem private constructor(private val context: Context) {
     private val permissionRequestOverlay = PermissionRequestOverlay(context)
     private var currentPermissionCallback: ((PermissionRequestResult) -> Unit)? = null
     private var permissionRequestInfo: Pair<AITool, String>? = null
+    
+    // 存储当前颜色方案
+    private var currentColorScheme: ColorScheme? = null
+    
+    /**
+     * 设置当前使用的颜色方案
+     */
+    fun setColorScheme(colorScheme: ColorScheme?) {
+        this.currentColorScheme = colorScheme
+        permissionRequestOverlay.setColorScheme(colorScheme)
+    }
     
     // Permission request state flow
     private val _permissionRequestState = MutableStateFlow<Pair<AITool, String>?>(null)

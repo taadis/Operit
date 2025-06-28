@@ -3,9 +3,11 @@ package com.ai.assistance.operit.ui.features.chat.viewmodel
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.Typography
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.ai.assistance.operit.api.EnhancedAIService
+import com.ai.assistance.operit.api.chat.EnhancedAIService
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatHistory
@@ -14,8 +16,10 @@ import com.ai.assistance.operit.data.model.PlanItem
 import com.ai.assistance.operit.data.model.ToolExecutionProgress
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.ModelConfigManager
+import com.ai.assistance.operit.data.preferences.PromptFunctionType
 import com.ai.assistance.operit.ui.features.chat.attachments.AttachmentManager
 import com.ai.assistance.operit.ui.features.chat.webview.LocalWebServer
+import com.ai.assistance.operit.ui.features.chat.viewmodel.FloatingWindowDelegate
 import com.ai.assistance.operit.ui.permissions.PermissionLevel
 import com.ai.assistance.operit.ui.permissions.ToolPermissionSystem
 import java.io.IOException
@@ -167,7 +171,9 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                         context = context,
                         viewModelScope = viewModelScope,
                         onChatHistoryLoaded = { messages: List<ChatMessage> ->
-                            if (::floatingWindowDelegate.isInitialized && floatingWindowDelegate.isFloatingMode.value) {
+                            if (::floatingWindowDelegate.isInitialized &&
+                                            floatingWindowDelegate.isFloatingMode.value
+                            ) {
                                 floatingWindowDelegate.updateFloatingWindowMessages(messages)
                             }
                         },
@@ -216,15 +222,16 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 FloatingWindowDelegate(
                         context = context,
                         viewModelScope = viewModelScope,
-                        onMessageReceived = { message ->
-                            // 更新用户消息
-                            messageProcessingDelegate.updateUserMessage(message)
-                            // 发送消息时也要传递附件
-                            // 直接调用sendUserMessage方法，它会检查并创建新对话
-                            sendUserMessage()
+                        onMessageReceived = { message, type ->
+                            updateUserMessage(message)
+                            sendUserMessage(type)
                         },
-                        onAttachmentRequested = { request -> processAttachmentRequest(request) },
-                        onAttachmentRemoveRequested = { filePath -> removeAttachment(filePath) }
+                        onAttachmentRequested = { type -> processAttachmentRequest(type) },
+                        onAttachmentRemoveRequested = { filePath -> removeAttachment(filePath) },
+                        onCancelMessageRequested = {
+                            // 取消当前消息
+                            cancelCurrentMessage()
+                        }
                 )
     }
 
@@ -494,7 +501,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 chatHistoryDelegate.updateChatHistory(rewindHistory)
 
                 messageProcessingDelegate.updateUserMessage(finalMessage.content)
-                messageProcessingDelegate.sendUserMessage(emptyList())
+                sendUserMessage()
             } catch (e: Exception) {
                 Log.e(TAG, "回档并重新发送消息失败", e)
                 uiStateDelegate.showErrorMessage("回档失败: ${e.message}")
@@ -505,7 +512,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     // 消息处理相关方法
     fun updateUserMessage(message: String) = messageProcessingDelegate.updateUserMessage(message)
 
-    fun sendUserMessage() {
+    fun sendUserMessage(promptFunctionType: PromptFunctionType = PromptFunctionType.CHAT) {
         // 检查是否有当前对话，如果没有则创建一个新对话
         if (currentChatId.value == null) {
             Log.d(TAG, "当前没有活跃对话，自动创建新对话")
@@ -531,16 +538,16 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 Log.d(TAG, "新对话创建完成，ID: ${currentChatId.value}，现在发送消息")
 
                 // 对话创建完成后，发送消息
-                sendMessageInternal()
+                sendMessageInternal(promptFunctionType)
             }
         } else {
             // 已有对话，直接发送消息
-            sendMessageInternal()
+            sendMessageInternal(promptFunctionType)
         }
     }
 
     // 提取内部发送消息的逻辑为一个私有方法
-    private fun sendMessageInternal() {
+    private fun sendMessageInternal(promptFunctionType: PromptFunctionType) {
         // 获取当前聊天ID
         val chatId = currentChatId.value
 
@@ -551,7 +558,11 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         val currentAttachments = attachmentManager.attachments.value
 
         // 调用messageProcessingDelegate发送消息，并传递附件信息
-        messageProcessingDelegate.sendUserMessage(currentAttachments, chatId)
+        messageProcessingDelegate.sendUserMessage(
+            attachments = currentAttachments, 
+            chatId = chatId, 
+            promptFunctionType = promptFunctionType
+        )
 
         if (chatHistoryDelegate.shouldGenerateSummary(chatHistoryDelegate.chatHistory.value)) {
             // 触发总结
@@ -585,12 +596,14 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     fun clearToastEvent() = uiStateDelegate.clearToastEvent()
 
     // 悬浮窗相关方法
-    fun toggleFloatingMode() {
-        floatingWindowDelegate.toggleFloatingMode()
+    fun toggleFloatingMode(colorScheme: ColorScheme? = null, typography: Typography? = null) {
+        floatingWindowDelegate.toggleFloatingMode(colorScheme, typography)
     }
+
     fun updateFloatingWindowMessages(messages: List<ChatMessage>) {
         floatingWindowDelegate.updateFloatingWindowMessages(messages)
     }
+
     fun updateFloatingWindowAttachments() {
         floatingWindowDelegate.updateFloatingWindowAttachments(attachments.value)
     }
@@ -719,6 +732,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 messageProcessingDelegate.setInputProcessingState(true, "正在获取屏幕内容...")
                 uiStateDelegate.showToast("正在获取屏幕内容...")
 
+                // 直接委托给attachmentManager执行
                 attachmentManager.captureScreenContent()
 
                 // 完成后立即更新悬浮窗中的附件列表
@@ -728,9 +742,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 messageProcessingDelegate.setInputProcessingState(false, "")
             } catch (e: Exception) {
                 Log.e(TAG, "截取屏幕内容失败", e)
-                // 修改: 使用错误弹窗而不是 Toast 显示屏幕内容获取错误
                 uiStateDelegate.showErrorMessage("截取屏幕内容失败: ${e.message}")
-                // 发生错误时也需要清除进度显示
                 messageProcessingDelegate.setInputProcessingState(false, "")
             }
         }
@@ -745,6 +757,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 messageProcessingDelegate.setInputProcessingState(true, "正在获取当前通知...")
                 uiStateDelegate.showToast("正在获取当前通知...")
 
+                // 直接委托给attachmentManager执行
                 attachmentManager.captureNotifications()
 
                 // 完成后立即更新悬浮窗中的附件列表
@@ -754,9 +767,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 messageProcessingDelegate.setInputProcessingState(false, "")
             } catch (e: Exception) {
                 Log.e(TAG, "获取通知数据失败", e)
-                // 修改: 使用错误弹窗而不是 Toast 显示通知获取错误
                 uiStateDelegate.showErrorMessage("获取通知数据失败: ${e.message}")
-                // 发生错误时也需要清除进度显示
                 messageProcessingDelegate.setInputProcessingState(false, "")
             }
         }
@@ -771,6 +782,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 messageProcessingDelegate.setInputProcessingState(true, "正在获取位置信息...")
                 uiStateDelegate.showToast("正在获取位置信息...")
 
+                // 直接委托给attachmentManager执行
                 attachmentManager.captureLocation()
 
                 // 完成后立即更新悬浮窗中的附件列表
@@ -780,9 +792,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 messageProcessingDelegate.setInputProcessingState(false, "")
             } catch (e: Exception) {
                 Log.e(TAG, "获取位置数据失败", e)
-                // 修改: 使用错误弹窗而不是 Toast 显示位置获取错误
                 uiStateDelegate.showErrorMessage("获取位置数据失败: ${e.message}")
-                // 发生错误时也需要清除进度显示
                 messageProcessingDelegate.setInputProcessingState(false, "")
             }
         }
@@ -977,6 +987,13 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     fun handleFileChooserResult(resultCode: Int, data: Intent?) {
         fileChooserCallback?.invoke(resultCode, data)
         fileChooserCallback = null
+    }
+
+    /**
+     * 设置权限系统的颜色方案
+     */
+    fun setPermissionSystemColorScheme(colorScheme: ColorScheme?) {
+        toolPermissionSystem.setColorScheme(colorScheme)
     }
 
     override fun onCleared() {

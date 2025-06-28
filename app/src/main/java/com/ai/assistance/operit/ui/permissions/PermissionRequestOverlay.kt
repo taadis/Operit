@@ -12,39 +12,71 @@ import android.widget.Toast
 import android.util.Log
 import android.view.Gravity
 import android.view.WindowManager
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.AITool
+import com.ai.assistance.operit.data.model.ToolParameter
 import com.ai.assistance.operit.services.ServiceLifecycleOwner
+import com.ai.assistance.operit.ui.floating.FloatingWindowTheme
+import kotlinx.coroutines.delay
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -54,110 +86,232 @@ private fun PermissionRequestContent(
     operationDescription: String,
     toolCategory: String?,
     onAllow: () -> Unit,
-    onDeny: () -> Unit
+    onDeny: () -> Unit,
+    colorScheme: ColorScheme? = null,
+    tool: AITool? = null
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.5f))
-        // .clickable { onDeny() }
-    ) {
-        Surface(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .fillMaxWidth(0.9f)
-                .padding(16.dp),
-            shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.surface
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "权限请求",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
+    var visible by remember { mutableStateOf(false) }
 
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                    )
+    LaunchedEffect(Unit) {
+        delay(100)
+        visible = true
+    }
+
+    FloatingWindowTheme(colorScheme = colorScheme) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.6f)),
+            contentAlignment = Alignment.Center
+        ) {
+            AnimatedVisibility(
+                visible = visible,
+                enter = fadeIn(tween(300)) + scaleIn(tween(300), initialScale = 0.9f)
+            ) {
+                ElevatedCard(
+                    modifier = Modifier
+                        .fillMaxWidth(0.85f)
+                        .fillMaxHeight(0.65f)
+                        .padding(16.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.elevatedCardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                    ),
+                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 6.dp)
                 ) {
                     Column(
-                        modifier = Modifier.padding(16.dp)
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(
-                            text = "AI助手需要执行以下操作的权限：",
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        Icon(
+                            imageVector = Icons.Default.Shield,
+                            contentDescription = "Permission Icon",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(36.dp)
                         )
 
                         Spacer(modifier = Modifier.height(8.dp))
 
                         Text(
-                            text = operationDescription,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            text = "权限请求",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontSize = 20.sp
+                            ),
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
 
                         Text(
-                            text = "工具: $toolName",
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            text = "AI 助手请求执行以下操作",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = 15.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
                         )
 
-                        toolCategory?.let {
-                            Text(
-                                text = "类别: $it",
-                                fontSize = 14.sp,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                        ) {
+                            PermissionDetails(
+                                operationDescription = operationDescription,
+                                toolName = toolName,
+                                toolCategory = toolCategory,
+                                toolParameters = tool?.parameters
                             )
                         }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = onDeny,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                            ) {
+                                Text(
+                                    "拒绝", 
+                                    style = MaterialTheme.typography.labelLarge.copy(
+                                        fontSize = 15.sp
+                                    )
+                                )
+                            }
+
+                            Button(
+                                onClick = onAllow,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text(
+                                    "允许", 
+                                    style = MaterialTheme.typography.labelLarge.copy(
+                                        fontSize = 15.sp
+                                    )
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = "* 您可以在设置中随时更改权限",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontSize = 12.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
                     }
                 }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    Button(
-                        onClick = onDeny,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error
-                        )
-                    ) {
-                        Text("拒绝")
-                    }
-
-                    Button(
-                        onClick = onAllow,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        )
-                    ) {
-                        Text("允许")
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text(
-                    text = "* 您可以在设置中更改默认权限",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
             }
         }
+    }
+}
+
+@Composable
+private fun PermissionDetails(
+    operationDescription: String,
+    toolName: String,
+    toolCategory: String?,
+    toolParameters: List<ToolParameter>? = null
+) {
+    val scrollState = rememberScrollState()
+    
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(scrollState)
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        DetailItem(label = "请求的操作", value = operationDescription)
+        DetailItem(label = "使用的工具", value = toolName)
+        toolCategory?.let {
+            DetailItem(label = "工具类别", value = it)
+        }
+        
+        if (!toolParameters.isNullOrEmpty()) {
+            Text(
+                text = "参数详情",
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontSize = 17.sp
+                ),
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Medium
+            )
+            
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    .padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                toolParameters.forEach { param ->
+                    ParameterItem(param = param)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailItem(label: String, value: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontSize = 15.sp
+            ),
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyLarge.copy(
+                fontSize = 17.sp
+            ),
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+@Composable
+private fun ParameterItem(param: ToolParameter) {
+    Column {
+        Text(
+            text = param.name,
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontSize = 15.sp
+            ),
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.Medium
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = param.value,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontSize = 15.sp
+            ),
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -166,6 +320,14 @@ class PermissionRequestOverlay(private val context: Context) {
     private var windowManager: WindowManager? = null
     private var overlayView: ComposeView? = null
     private var lifecycleOwner: ServiceLifecycleOwner? = null
+    private var colorScheme: ColorScheme? = null
+
+    /**
+     * 设置颜色方案
+     */
+    fun setColorScheme(colorScheme: ColorScheme?) {
+        this.colorScheme = colorScheme
+    }
 
     /**
      * 检查是否有悬浮窗权限
@@ -235,21 +397,21 @@ class PermissionRequestOverlay(private val context: Context) {
         overlayView = ComposeView(context).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
             setContent {
-                MaterialTheme {
-                    PermissionRequestContent(
-                        toolName = tool.name,
-                        operationDescription = operationDescription,
-                        toolCategory = tool.category?.name,
-                        onAllow = {
-                            onResult(PermissionRequestResult.ALLOW)
-                            dismiss()
-                        },
-                        onDeny = {
-                            onResult(PermissionRequestResult.DENY)
-                            dismiss()
-                        }
-                    )
-                }
+                PermissionRequestContent(
+                    toolName = tool.name,
+                    operationDescription = operationDescription,
+                    toolCategory = tool.category?.name,
+                    colorScheme = colorScheme,
+                    tool = tool,
+                    onAllow = {
+                        onResult(PermissionRequestResult.ALLOW)
+                        dismiss()
+                    },
+                    onDeny = {
+                        onResult(PermissionRequestResult.DENY)
+                        dismiss()
+                    }
+                )
             }
         }
 
