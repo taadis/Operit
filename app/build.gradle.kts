@@ -88,7 +88,7 @@ android {
 
 dependencies {
     implementation(project(":live2d"))
-
+    implementation(project(":dragonbones"))
     implementation(libs.androidx.ui.graphics.android)
     implementation(files("libs\\ffmpegkit.jar"))
     implementation(files("libs\\arsc.jar"))
@@ -206,9 +206,9 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.activity.compose)
     // Use BOM version for all Compose dependencies
-    implementation("androidx.compose.material:material-icons-extended")
-    implementation("androidx.compose.animation:animation")
-    implementation("androidx.compose.animation:animation-core")
+    implementation(libs.compose.material.icons.extended)
+    implementation(libs.compose.animation)
+    implementation(libs.compose.animation.core)
 
     // Navigation Compose
     implementation("androidx.navigation:navigation-compose:2.7.7")

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <activity
+            android:name=".DragonBonesLoongExample"
+            android:exported="true"
+            android:label="DragonBones 龙模型示例"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar">
+        </activity>
+    </application>
+</manifest> 
