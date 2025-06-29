@@ -5,8 +5,6 @@
 #include "opengl/OpenGLSlot.h"
 #include <GLES2/gl2.h>
 #include <string>
-#include <android/asset_manager.h>
-#include <android/asset_manager_jni.h>
 #include <vector>
 #include <cstring>
 #include "rapidjson/document.h"
@@ -31,11 +29,19 @@ namespace {
         GLint textureLocation = -1;
         GLfloat projectionMatrix[16];
 
-        // Buffers to hold asset data, loaded off the GL thread
+        // Armature transform
+        float worldScale = 0.5f;
+        float worldTranslateX = 0.0f;
+        float worldTranslateY = 0.0f;
+
+        // Buffers to hold data, loaded off the GL thread
         std::vector<char> dragonBonesDataBuffer;
         std::vector<char> textureJsonBuffer;
         std::vector<char> texturePngDataBuffer;
-        bool assetsLoaded = false;
+        
+        // State flags to handle race condition between surface creation and data loading
+        bool isDataLoaded = false;
+        bool isGlReady = false;
 
         ~JniBridgeInstance() {
             if (worldClock) {
@@ -63,6 +69,8 @@ namespace {
         return instance;
     }
     
+    void _tryBuildArmature(JniBridgeInstance* instance); // Forward declaration
+
     // 辅助函数：创建和编译着色器
     GLuint compileShader(GLenum type, const char* source) {
         GLuint shader = glCreateShader(type);
@@ -203,59 +211,75 @@ namespace {
         }
         memcpy(result, res, sizeof(res));
     }
+
+    void _tryBuildArmature(JniBridgeInstance* instance) {
+        if (!instance->isGlReady || !instance->isDataLoaded || instance->armature) {
+            return;
+        }
+
+        LOGI("Creating armature on GL thread...");
+        
+        // The factory might have old data, clear it before parsing new data.
+        instance->factory->clear();
+
+        std::pair<void*, int> textureInfo = {instance->texturePngDataBuffer.data(), (int)instance->texturePngDataBuffer.size()};
+        auto* textureAtlasData = instance->factory->parseTextureAtlasData(instance->textureJsonBuffer.data(), &textureInfo);
+        if (!textureAtlasData) {
+            LOGE("Failed to parse texture atlas data.");
+            return;
+        }
+        instance->factory->addTextureAtlasData(textureAtlasData);
+
+        auto* dragonBonesData = instance->factory->parseDragonBonesData(instance->dragonBonesDataBuffer.data());
+        if (!dragonBonesData) {
+            LOGE("Failed to parse DragonBones data.");
+            return;
+        }
+
+        const auto& armatureNames = dragonBonesData->getArmatureNames();
+        std::string armatureNameToBuild;
+        if (!armatureNames.empty()) {
+            bool dragonFound = false;
+            for (const auto& name : armatureNames) {
+                if (name == "Dragon") {
+                    armatureNameToBuild = name;
+                    dragonFound = true;
+                    break;
+                }
+            }
+            if (!dragonFound) {
+                armatureNameToBuild = armatureNames[0]; 
+            }
+        }
+
+        if (armatureNameToBuild.empty()) {
+            LOGE("No armatures found in DragonBones data.");
+            return;
+        }
+
+        auto* armatureObject = instance->factory->buildArmature(armatureNameToBuild, "", "", dragonBonesData->name);
+        if (armatureObject)
+        {
+            instance->armature = armatureObject;
+            LOGI("Armature '%s' built at %p, instance is %p", armatureNameToBuild.c_str(), instance->armature, instance);
+            instance->worldClock->add(armatureObject);
+            if (!armatureObject->getAnimation()->getAnimationNames().empty()) {
+                const auto& initialAnimation = armatureObject->getAnimation()->getAnimationNames()[0];
+                LOGI("Playing initial animation: '%s'", initialAnimation.c_str());
+                armatureObject->getAnimation()->play(initialAnimation);
+            }
+        } else {
+            LOGE("Failed to build armature '%s'.", armatureNameToBuild.c_str());
+        }
+    }
 }
 
 // Global variables for DragonBones
 static float viewportWidth = 0.0f;
 static float viewportHeight = 0.0f;
-static AAssetManager* assetManager = nullptr;
-
-// Helper function to get the asset path
-std::string getAssetPath(const std::string& path) {
-    if (assetManager == nullptr) {
-        LOGE("AssetManager is null");
-        return "";
-    }
-
-    // The asset path in the APK should not have the "file:///android_asset/" prefix
-    std::string assetPath = path;
-    const std::string prefix = "file:///android_asset/";
-    if (path.rfind(prefix, 0) == 0) {
-        assetPath = path.substr(prefix.length());
-    }
-
-    return assetPath;
-}
-
-// Helper function to read a file from assets
-std::vector<char> readFileFromAssets(const std::string& path) {
-    if (!assetManager) {
-        LOGE("AssetManager is not initialized");
-        return {};
-    }
-
-    std::string assetPath = path;
-    const std::string prefix = "file:///android_asset/";
-    if (path.rfind(prefix, 0) == 0) {
-        assetPath = path.substr(prefix.length());
-    }
-
-    AAsset* asset = AAssetManager_open(assetManager, assetPath.c_str(), AASSET_MODE_BUFFER);
-    if (!asset) {
-        LOGE("Failed to open asset: %s", assetPath.c_str());
-        return {};
-    }
-
-    off_t assetLength = AAsset_getLength(asset);
-    std::vector<char> buffer(assetLength + 1, 0); // +1 for null terminator
-    AAsset_read(asset, buffer.data(), assetLength);
-    AAsset_close(asset);
-    return buffer;
-}
 
 JNIEXPORT void JNICALL
-Java_com_ai_assistance_dragonbones_JniBridge_init(JNIEnv *env, jclass clazz, jobject asset_manager) {
-    assetManager = AAssetManager_fromJava(env, asset_manager);
+Java_com_ai_assistance_dragonbones_JniBridge_init(JNIEnv *env, jclass clazz) {
     auto* instance = getInstance();
     if (!instance->factory) {
         instance->factory = new dragonBones::opengl::OpenGLFactory();
@@ -267,34 +291,51 @@ Java_com_ai_assistance_dragonbones_JniBridge_init(JNIEnv *env, jclass clazz, job
 }
 
 JNIEXPORT void JNICALL
-Java_com_ai_assistance_dragonbones_JniBridge_loadDragonBones(JNIEnv *env, jclass clazz, jstring model_path, jstring texture_path) {
+Java_com_ai_assistance_dragonbones_JniBridge_loadDragonBones(JNIEnv *env, jclass clazz, jbyteArray skeleton_data, jbyteArray texture_json_data, jbyteArray texture_png_data) {
     auto* instance = getInstance();
     if (!instance) return;
 
-    const char* modelPathStr = env->GetStringUTFChars(model_path, nullptr);
-    const char* texturePngPathStr = env->GetStringUTFChars(texture_path, nullptr);
-
-    std::string textureJsonPathStr = texturePngPathStr;
-    size_t last_dot = textureJsonPathStr.find_last_of(".");
-    if (last_dot != std::string::npos) {
-        textureJsonPathStr.replace(last_dot, std::string::npos, ".json");
+    // Clean up previous model if it exists
+    if (instance->armature) {
+        LOGI("Cleaning up previous armature.");
+        instance->worldClock->remove(instance->armature);
+        instance->armature = nullptr;
     }
+    instance->isDataLoaded = false;
+    instance->dragonBonesDataBuffer.clear();
+    instance->textureJsonBuffer.clear();
+    instance->texturePngDataBuffer.clear();
 
-    LOGI("Buffering asset files...");
-    instance->dragonBonesDataBuffer = readFileFromAssets(modelPathStr);
-    instance->textureJsonBuffer = readFileFromAssets(textureJsonPathStr);
-    instance->texturePngDataBuffer = readFileFromAssets(texturePngPathStr);
+    LOGI("Buffering data from byte arrays...");
+
+    // Skeleton data
+    jbyte* skeleton_bytes = env->GetByteArrayElements(skeleton_data, nullptr);
+    jsize skeleton_len = env->GetArrayLength(skeleton_data);
+    instance->dragonBonesDataBuffer.assign(skeleton_bytes, skeleton_bytes + skeleton_len);
+    env->ReleaseByteArrayElements(skeleton_data, skeleton_bytes, JNI_ABORT);
+    instance->dragonBonesDataBuffer.push_back('\0'); // Null-terminate for string parsing
+
+    // Texture JSON data
+    jbyte* texture_json_bytes = env->GetByteArrayElements(texture_json_data, nullptr);
+    jsize texture_json_len = env->GetArrayLength(texture_json_data);
+    instance->textureJsonBuffer.assign(texture_json_bytes, texture_json_bytes + texture_json_len);
+    env->ReleaseByteArrayElements(texture_json_data, texture_json_bytes, JNI_ABORT);
+    instance->textureJsonBuffer.push_back('\0'); // Null-terminate for string parsing
+
+    // Texture PNG data
+    jbyte* texture_png_bytes = env->GetByteArrayElements(texture_png_data, nullptr);
+    jsize texture_png_len = env->GetArrayLength(texture_png_data);
+    instance->texturePngDataBuffer.assign(texture_png_bytes, texture_png_bytes + texture_png_len);
+    env->ReleaseByteArrayElements(texture_png_data, texture_png_bytes, JNI_ABORT);
 
     if (instance->dragonBonesDataBuffer.empty() || instance->textureJsonBuffer.empty() || instance->texturePngDataBuffer.empty()) {
-        LOGE("Failed to read one or more asset files into buffer.");
-        instance->assetsLoaded = false;
+        LOGE("Failed to copy one or more byte arrays.");
+        instance->isDataLoaded = false;
     } else {
-        LOGI("Asset files successfully buffered.");
-        instance->assetsLoaded = true;
+        LOGI("Data successfully buffered.");
+        instance->isDataLoaded = true;
+        _tryBuildArmature(instance);
     }
-
-    env->ReleaseStringUTFChars(model_path, modelPathStr);
-    env->ReleaseStringUTFChars(texture_path, texturePngPathStr);
 }
 
 JNIEXPORT void JNICALL
@@ -328,6 +369,13 @@ Java_com_ai_assistance_dragonbones_JniBridge_onSurfaceCreated(JNIEnv *env, jclas
     auto* instance = getInstance();
     if (!instance) return;
 
+    // If the surface is recreated, old GL resources are invalid. Clean up the armature.
+    if (instance->armature) {
+        LOGI("GL context recreated. Cleaning up old armature to recreate GL resources.");
+        instance->worldClock->remove(instance->armature);
+        instance->armature = nullptr;
+    }
+
     // 1. Setup GL State
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
     glEnable(GL_BLEND);
@@ -354,66 +402,9 @@ Java_com_ai_assistance_dragonbones_JniBridge_onSurfaceCreated(JNIEnv *env, jclas
         return;
     }
 
-    // 4. Parse data and build armature if not already done
-    if (!instance->assetsLoaded) {
-        LOGE("Assets not loaded, skipping armature creation.");
-        return;
-    }
-    if (instance->armature) {
-        LOGI("Armature already exists at %p, skipping recreation.", instance->armature);
-        return; 
-    }
-
-    LOGI("Creating armature on GL thread...");
-    std::pair<void*, int> textureInfo = {instance->texturePngDataBuffer.data(), (int)instance->texturePngDataBuffer.size()};
-    auto* textureAtlasData = instance->factory->parseTextureAtlasData(instance->textureJsonBuffer.data(), &textureInfo);
-    if (!textureAtlasData) {
-        LOGE("Failed to parse texture atlas data.");
-        return;
-    }
-    instance->factory->addTextureAtlasData(textureAtlasData);
-
-    auto* dragonBonesData = instance->factory->parseDragonBonesData(instance->dragonBonesDataBuffer.data());
-    if (!dragonBonesData) {
-        LOGE("Failed to parse DragonBones data.");
-        return;
-    }
-
-    const auto& armatureNames = dragonBonesData->getArmatureNames();
-    std::string armatureNameToBuild;
-    if (!armatureNames.empty()) {
-        bool dragonFound = false;
-        for (const auto& name : armatureNames) {
-            if (name == "Dragon") {
-                armatureNameToBuild = name;
-                dragonFound = true;
-                break;
-            }
-        }
-        if (!dragonFound) {
-            armatureNameToBuild = armatureNames[0]; 
-        }
-    }
-
-    if (armatureNameToBuild.empty()) {
-        LOGE("No armatures found in DragonBones data.");
-        return;
-    }
-
-    auto* armatureObject = instance->factory->buildArmature(armatureNameToBuild, "", "", dragonBonesData->name);
-    if (armatureObject)
-    {
-        instance->armature = armatureObject;
-        LOGI("Armature '%s' built at %p, instance is %p", armatureNameToBuild.c_str(), instance->armature, instance);
-        instance->worldClock->add(armatureObject);
-        if (!armatureObject->getAnimation()->getAnimationNames().empty()) {
-            const auto& initialAnimation = armatureObject->getAnimation()->getAnimationNames()[0];
-            LOGI("Playing initial animation: '%s'", initialAnimation.c_str());
-            armatureObject->getAnimation()->play(initialAnimation);
-        }
-    } else {
-        LOGE("Failed to build armature '%s'.", armatureNameToBuild.c_str());
-    }
+    // 4. Set GL ready flag and attempt to build armature
+    instance->isGlReady = true;
+    _tryBuildArmature(instance);
 }
 
 JNIEXPORT void JNICALL
@@ -449,13 +440,12 @@ Java_com_ai_assistance_dragonbones_JniBridge_onDrawFrame(JNIEnv *env, jclass cla
         
         // 4. Create a "view" matrix to scale and center the entire armature
         float viewMatrix[16], scaleM[16], transM[16];
-        createScaleMatrix(scaleM, 0.5f, 0.5f, 1.0f);
-        createTranslateMatrix(transM, viewportWidth / 2.0f, viewportHeight / 2.0f, 0.0f);
+        createScaleMatrix(scaleM, instance->worldScale, instance->worldScale, 1.0f);
+        createTranslateMatrix(transM, (viewportWidth / 2.0f) + instance->worldTranslateX, (viewportHeight / 2.0f) + instance->worldTranslateY, 0.0f);
         multiplyMatrices(transM, scaleM, viewMatrix);
         
         // 5. Render each slot
         const auto& slots = instance->armature->getSlots();
-        LOGI("onDrawFrame: Armature '%s' has %zu slots.", instance->armature->getName().c_str(), slots.size());
 
         int renderedSlots = 0;
         for (const auto& slot : slots) {
@@ -512,14 +502,126 @@ Java_com_ai_assistance_dragonbones_JniBridge_onDrawFrame(JNIEnv *env, jclass cla
         if (renderedSlots == 0 && !slots.empty()) {
             LOGW("onDrawFrame: Rendered 0 slots out of %zu.", slots.size());
         }
-
+        
         // 6. Cleanup
         glDisableVertexAttribArray(instance->positionLocation);
         glDisableVertexAttribArray(instance->texCoordLocation);
     }
 }
 
-extern "C" JNIEXPORT void JNICALL
-Java_com_ai_assistance_dragonbones_JniBridge_destroy(JNIEnv *env, jobject thiz) {
-    // ... existing code ...
-} 
+JNIEXPORT jobjectArray JNICALL
+Java_com_ai_assistance_dragonbones_JniBridge_getAnimationNames(JNIEnv *env, jclass clazz) {
+    auto* instance = getInstance();
+    if (!instance || !instance->armature) {
+        return nullptr;
+    }
+
+    const auto& animationNames = instance->armature->getAnimation()->getAnimationNames();
+    if (animationNames.empty()) {
+        return nullptr;
+    }
+
+    jclass stringClass = env->FindClass("java/lang/String");
+    jobjectArray stringArray = env->NewObjectArray(animationNames.size(), stringClass, nullptr);
+
+    for (size_t i = 0; i < animationNames.size(); ++i) {
+        jstring javaString = env->NewStringUTF(animationNames[i].c_str());
+        env->SetObjectArrayElement(stringArray, i, javaString);
+        env->DeleteLocalRef(javaString);
+    }
+
+    return stringArray;
+}
+
+JNIEXPORT void JNICALL
+Java_com_ai_assistance_dragonbones_JniBridge_playAnimation(JNIEnv *env, jclass clazz, jstring animation_name, jfloat fade_in_time) {
+    auto* instance = getInstance();
+    if (!instance || !instance->armature) {
+        return;
+    }
+
+    const char* nameChars = env->GetStringUTFChars(animation_name, nullptr);
+    std::string name(nameChars);
+    env->ReleaseStringUTFChars(animation_name, nameChars);
+
+    // Using fadeIn for smooth transitions.
+    // The previous reset() call is removed as it prevents blending between animation states.
+    // If crashes re-occur, a deeper investigation into DragonBones' animation blending is needed.
+    if(instance->armature->getAnimation()->fadeIn(name, fade_in_time, -1, 0, "", dragonBones::AnimationFadeOutMode::SameLayerAndGroup)) {
+        LOGI("Playing animation: '%s' with fade in: %f", name.c_str(), (float)fade_in_time);
+    } else {
+        LOGW("Animation not found: '%s'", name.c_str());
+    }
+}
+
+JNIEXPORT jstring JNICALL
+Java_com_ai_assistance_dragonbones_JniBridge_containsPoint(JNIEnv *env, jclass clazz, jfloat x, jfloat y) {
+    auto* instance = getInstance();
+    if (!instance || !instance->armature) {
+        return nullptr;
+    }
+
+    // Convert screen coordinates to armature space coordinates
+    const float armatureX = (x - (viewportWidth / 2.0f) - instance->worldTranslateX) / instance->worldScale;
+    const float armatureY = (y - (viewportHeight / 2.0f) - instance->worldTranslateY) / instance->worldScale;
+
+    auto* slot = instance->armature->containsPoint(armatureX, armatureY);
+    if (slot) {
+        return env->NewStringUTF(slot->getName().c_str());
+    }
+
+    return nullptr;
+}
+
+JNIEXPORT void JNICALL
+Java_com_ai_assistance_dragonbones_JniBridge_setWorldScale(JNIEnv *env, jclass clazz, jfloat scale) {
+    auto* instance = getInstance();
+    if (instance) {
+        instance->worldScale = scale;
+    }
+}
+
+JNIEXPORT void JNICALL
+Java_com_ai_assistance_dragonbones_JniBridge_setWorldTranslation(JNIEnv *env, jclass clazz, jfloat x, jfloat y) {
+    auto* instance = getInstance();
+    if (instance) {
+        instance->worldTranslateX = x;
+        instance->worldTranslateY = y;
+    }
+}
+
+JNIEXPORT void JNICALL
+Java_com_ai_assistance_dragonbones_JniBridge_overrideBonePosition(JNIEnv *env, jclass clazz, jstring bone_name, jfloat x, jfloat y) {
+    auto* instance = getInstance();
+    if (!instance || !instance->armature) return;
+
+    const char* boneNameChars = env->GetStringUTFChars(bone_name, nullptr);
+    auto* bone = instance->armature->getBone(boneNameChars);
+    env->ReleaseStringUTFChars(bone_name, boneNameChars);
+
+    if (bone) {
+        // Convert screen coordinates to armature space
+        const float armatureX = (x - (viewportWidth / 2.0f) - instance->worldTranslateX) / instance->worldScale;
+        const float armatureY = (y - (viewportHeight / 2.0f) - instance->worldTranslateY) / instance->worldScale;
+
+        bone->offsetMode = dragonBones::OffsetMode::Override;
+        bone->offset.x = armatureX;
+        bone->offset.y = armatureY;
+        bone->invalidUpdate();
+    }
+}
+
+JNIEXPORT void JNICALL
+Java_com_ai_assistance_dragonbones_JniBridge_resetBone(JNIEnv *env, jclass clazz, jstring bone_name) {
+    auto* instance = getInstance();
+    if (!instance || !instance->armature) return;
+
+    const char* boneNameChars = env->GetStringUTFChars(bone_name, nullptr);
+    auto* bone = instance->armature->getBone(boneNameChars);
+    env->ReleaseStringUTFChars(bone_name, boneNameChars);
+
+    if (bone) {
+        bone->offsetMode = dragonBones::OffsetMode::None;
+        bone->invalidUpdate();
+    }
+}

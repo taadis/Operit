@@ -8,10 +8,10 @@ extern "C" {
 #endif
 
 JNIEXPORT void JNICALL
-Java_com_ai_assistance_dragonbones_JniBridge_init(JNIEnv *env, jclass clazz, jobject asset_manager);
+Java_com_ai_assistance_dragonbones_JniBridge_init(JNIEnv *env, jclass clazz);
 
 JNIEXPORT void JNICALL
-Java_com_ai_assistance_dragonbones_JniBridge_loadDragonBones(JNIEnv *env, jclass clazz, jstring model_path, jstring texture_path);
+Java_com_ai_assistance_dragonbones_JniBridge_loadDragonBones(JNIEnv *env, jclass clazz, jbyteArray skeleton_data, jbyteArray texture_json_data, jbyteArray texture_png_data);
 
 JNIEXPORT void JNICALL
 Java_com_ai_assistance_dragonbones_JniBridge_onPause(JNIEnv *env, jclass clazz);
@@ -30,6 +30,27 @@ Java_com_ai_assistance_dragonbones_JniBridge_onSurfaceChanged(JNIEnv *env, jclas
 
 JNIEXPORT void JNICALL
 Java_com_ai_assistance_dragonbones_JniBridge_onDrawFrame(JNIEnv *env, jclass clazz);
+
+JNIEXPORT jobjectArray JNICALL
+Java_com_ai_assistance_dragonbones_JniBridge_getAnimationNames(JNIEnv *env, jclass clazz);
+
+JNIEXPORT void JNICALL
+Java_com_ai_assistance_dragonbones_JniBridge_playAnimation(JNIEnv *env, jclass clazz, jstring animation_name, jfloat fade_in_time);
+
+JNIEXPORT jstring JNICALL
+Java_com_ai_assistance_dragonbones_JniBridge_containsPoint(JNIEnv *env, jclass clazz, jfloat x, jfloat y);
+
+JNIEXPORT void JNICALL
+Java_com_ai_assistance_dragonbones_JniBridge_setWorldScale(JNIEnv *env, jclass clazz, jfloat scale);
+
+JNIEXPORT void JNICALL
+Java_com_ai_assistance_dragonbones_JniBridge_setWorldTranslation(JNIEnv *env, jclass clazz, jfloat x, jfloat y);
+
+JNIEXPORT void JNICALL
+Java_com_ai_assistance_dragonbones_JniBridge_overrideBonePosition(JNIEnv *env, jclass clazz, jstring bone_name, jfloat x, jfloat y);
+
+JNIEXPORT void JNICALL
+Java_com_ai_assistance_dragonbones_JniBridge_resetBone(JNIEnv *env, jclass clazz, jstring bone_name);
 
 #ifdef __cplusplus
 }

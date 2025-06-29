@@ -1,15 +1,18 @@
 package com.ai.assistance.dragonbones
 
-import android.content.res.AssetManager
-
 object JniBridge {
     init {
         System.loadLibrary("dragonbones_native")
     }
 
-    @JvmStatic external fun init(assetManager: AssetManager)
+    @JvmStatic external fun init()
 
-    @JvmStatic external fun loadDragonBones(modelPath: String, texturePath: String)
+    @JvmStatic
+    external fun loadDragonBones(
+            skeletonData: ByteArray,
+            textureJsonData: ByteArray,
+            texturePngData: ByteArray
+    )
 
     @JvmStatic external fun onPause()
 
@@ -22,4 +25,18 @@ object JniBridge {
     @JvmStatic external fun onSurfaceChanged(width: Int, height: Int)
 
     @JvmStatic external fun onDrawFrame()
+
+    @JvmStatic external fun getAnimationNames(): Array<String>?
+
+    @JvmStatic external fun playAnimation(name: String, fadeInTime: Float)
+
+    @JvmStatic external fun containsPoint(x: Float, y: Float): String?
+
+    @JvmStatic external fun setWorldScale(scale: Float)
+
+    @JvmStatic external fun setWorldTranslation(x: Float, y: Float)
+
+    @JvmStatic external fun overrideBonePosition(boneName: String, x: Float, y: Float)
+
+    @JvmStatic external fun resetBone(boneName: String)
 }

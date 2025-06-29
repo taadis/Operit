@@ -118,7 +118,7 @@ void Animation::advanceTime(float passedTime)
         const auto animationState = _animationStates[0];
         if (animationState->_fadeState > 0 && animationState->_subFadeState > 0)
         {
-            _armature->_dragonBones->bufferObject(animationState);
+            // _armature->_dragonBones->bufferObject(animationState); // TODO: Temporary fix for fade out crash.
             _animationStates.clear();
             _lastAnimationState = nullptr;
         }
@@ -166,7 +166,7 @@ void Animation::advanceTime(float passedTime)
             if (animationState->_fadeState > 0 && animationState->_subFadeState > 0)
             {
                 r++;
-                _armature->_dragonBones->bufferObject(animationState);
+                // _armature->_dragonBones->bufferObject(animationState); // TODO: Temporary fix for fade out crash.
                 _animationDirty = true;
                 if (_lastAnimationState == animationState)
                 {
