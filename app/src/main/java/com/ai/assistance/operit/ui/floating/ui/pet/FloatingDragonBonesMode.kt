@@ -39,13 +39,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.ai.assistance.dragonbones.DragonBonesViewCompose
+import com.ai.assistance.dragonbones.rememberDragonBonesController
 import com.ai.assistance.operit.data.preferences.PromptFunctionType
-import com.ai.assistance.operit.data.repository.Live2DRepository
+import com.ai.assistance.operit.data.repository.DragonBonesRepository
 import com.ai.assistance.operit.ui.floating.FloatContext
 import com.ai.assistance.operit.ui.floating.FloatingMode
 import com.ai.assistance.operit.ui.floating.ui.window.ResizeEdge
-import com.chatwaifu.live2d.JniBridgeJava
-import com.chatwaifu.live2d.Live2DViewCompose
+import java.io.File
 import kotlin.math.roundToInt
 
 // A data class to hold the UI state that changes during drag
@@ -103,7 +104,7 @@ fun FloatingLive2dMode(floatContext: FloatContext) {
         }
 
         val context = LocalContext.current
-        val repository = remember { Live2DRepository.getInstance(context) }
+        val repository = remember { DragonBonesRepository.getInstance(context) }
         val models by repository.models.collectAsState()
         val currentConfig by repository.currentConfig.collectAsState()
         var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -305,7 +306,7 @@ fun FloatingLive2dMode(floatContext: FloatContext) {
                                                                                 }
 
                                                                                 Text(
-                                                                                        text = "Live2D 模式",
+                                                                                        text = "龙骨模式",
                                                                                         style =
                                                                                                 MaterialTheme
                                                                                                         .typography
@@ -505,102 +506,97 @@ fun FloatingLive2dMode(floatContext: FloatContext) {
                                                         modifier = Modifier.fillMaxSize().weight(1f),
                                                         contentAlignment = Alignment.Center
                                                 ) {
-                                                        if (JniBridgeJava.isLibraryLoaded()) {
-                                                                if (models.isEmpty()) {
-                                                                        Text(
-                                                                                "没有可用的Live2D模型",
-                                                                                style =
-                                                                                        MaterialTheme
-                                                                                                .typography
-                                                                                                .bodyMedium,
-                                                                                color =
-                                                                                        MaterialTheme
-                                                                                                .colorScheme
-                                                                                                .onBackground
-                                                                        )
-                                                                } else if (errorMessage != null) {
-                                                                        Text(
-                                                                                text =
-                                                                                        "加载失败: $errorMessage",
-                                                                                style =
-                                                                                        MaterialTheme
-                                                                                                .typography
-                                                                                                .bodyMedium,
-                                                                                color =
-                                                                                        MaterialTheme
-                                                                                                .colorScheme
-                                                                                                .error
+                                                        if (models.isEmpty()) {
+                                                                Text(
+                                                                        "没有可用的龙骨模型",
+                                                                        style =
+                                                                        MaterialTheme
+                                                                                .typography
+                                                                                .bodyMedium,
+                                                                        color =
+                                                                        MaterialTheme
+                                                                                .colorScheme
+                                                                                .onBackground
+                                                                )
+                                                        } else if (errorMessage != null) {
+                                                                Text(
+                                                                        text =
+                                                                        "加载失败: $errorMessage",
+                                                                        style =
+                                                                        MaterialTheme
+                                                                                .typography
+                                                                                .bodyMedium,
+                                                                        color =
+                                                                        MaterialTheme
+                                                                                .colorScheme
+                                                                                .error
+                                                                )
+                                                        } else {
+                                                                val currentModel =
+                                                                        models.find {
+                                                                                it.id ==
+                                                                                        currentConfig
+                                                                                                ?.modelId
+                                                                        }
+                                                                if (currentModel != null &&
+                                                                        currentConfig !=
+                                                                        null
+                                                                ) {
+
+                                                                        val dragonBonesController = rememberDragonBonesController()
+
+                                                                        val viewableModel = remember(currentModel) {
+                                                                                com.ai.assistance.dragonbones.DragonBonesModel(
+                                                                                        skeletonPath = File(currentModel.folderPath, currentModel.skeletonFile).absolutePath,
+                                                                                        textureJsonPath = File(currentModel.folderPath, currentModel.textureJsonFile).absolutePath,
+                                                                                        textureImagePath = File(currentModel.folderPath, currentModel.textureImageFile).absolutePath
+                                                                                )
+                                                                        }
+
+                                                                        LaunchedEffect(currentConfig) {
+                                                                                currentConfig?.let {
+                                                                                        dragonBonesController.scale = it.scale
+                                                                                        dragonBonesController.translationX = it.translateX
+                                                                                        dragonBonesController.translationY = it.translateY
+                                                                                }
+                                                                        }
+
+                                                                        DragonBonesViewCompose(
+                                                                                modifier =
+                                                                                Modifier.fillMaxSize(),
+                                                                                model = viewableModel,
+                                                                                controller = dragonBonesController,
+                                                                                onError = { error ->
+                                                                                        errorMessage =
+                                                                                                "加载失败: $error"
+                                                                                }
                                                                         )
                                                                 } else {
-                                                                        val currentModel =
-                                                                                models.find {
-                                                                                        it.id ==
-                                                                                                currentConfig
-                                                                                                        ?.modelId
-                                                                        }
-                                                                        if (currentModel != null &&
-                                                                                        currentConfig !=
-                                                                                                null
-                                                                        ) {
-                                                                                Live2DViewCompose(
-                                                                                        modifier =
-                                                                                                Modifier.fillMaxSize(),
-                                                                                        model =
-                                                                                                currentModel,
-                                                                                        config =
-                                                                                                currentConfig
-                                                                                                        ?.copy(
-                                                                                                                renderBack =
-                                                                                                                        false
-                                                                                                        )
-                                                                                                        ?: currentConfig,
-                                                                                        onError = { error ->
-                                                                                                errorMessage =
-                                                                                                        "加载失败: $error"
-                                                                                        }
-                                                                                )
-                                                                        } else {
-                                                                                Text(
-                                                                                        "未选择模型",
-                                                                                        style =
-                                                                                                MaterialTheme
-                                                                                                        .typography
-                                                                                                        .bodyMedium,
-                                                                                        color =
-                                                                                                MaterialTheme
-                                                                                                        .colorScheme
-                                                                                                        .onBackground
-                                                                        )
-                                                                        }
-                                                                }
-                                                        } else {
-                                                                Text(
-                                                                        "Live2D库未正确加载",
-                                                                        style =
-                                                                                MaterialTheme.typography
+                                                                        Text(
+                                                                                "未选择模型",
+                                                                                style =
+                                                                                MaterialTheme
+                                                                                        .typography
                                                                                         .bodyMedium,
-                                                                        color =
-                                                                                MaterialTheme.colorScheme
-                                                                                        .error,
-                                                                        textAlign = TextAlign.Center,
-                                                                        modifier =
-                                                                                Modifier.padding(
-                                                                                        horizontal = 16.dp
-                                                                                )
-                                                                )
+                                                                                color =
+                                                                                MaterialTheme
+                                                                                        .colorScheme
+                                                                                        .onBackground
+                                                                        )
+                                                                }
                                                         }
 
                                                         // 宠物对话气泡
                                                         Box(
                                                                 modifier =
-                                                                        Modifier.align(
-                                                                                        Alignment
-                                                                                                .CenterStart
-                                                                                )
-                                                                                .padding(
-                                                                                        start = 24.dp,
-                                                                                        bottom = 120.dp
-                                                                                ),
+                                                                Modifier.align(
+                                                                        Alignment
+                                                                                .CenterStart
+                                                                )
+                                                                .padding(
+                                                                        start = 24.dp,
+                                                                        bottom = 120.dp
+                                                                ),
                                                         ) {
                                                                 androidx.compose.animation
                                                                         .AnimatedVisibility(
