@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.PixelFormat
 import android.opengl.GLSurfaceView
 import android.util.AttributeSet
+import android.util.Log
 import android.view.GestureDetector
 import android.view.MotionEvent
 import androidx.compose.runtime.Composable
@@ -23,8 +24,11 @@ import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 
 /** DragonBones 骨骼动画视图组件 使用 C++ JNI 和 OpenGL ES 进行渲染，以获得高性能 */
-class DragonBonesView @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null) :
-        GLSurfaceView(context, attrs) {
+class DragonBonesView @JvmOverloads constructor(
+    context: Context,
+    attrs: AttributeSet? = null,
+    zOrderOnTop: Boolean = true
+) : GLSurfaceView(context, attrs) {
 
     private val renderer: DragonBonesRenderer
     var onSlotTapListener: ((String) -> Unit)? = null
@@ -62,7 +66,7 @@ class DragonBonesView @JvmOverloads constructor(context: Context, attrs: Attribu
 
         // 5. 将视图的背景设置为透明，并置于顶层
         setBackgroundColor(0x00000000)
-        setZOrderOnTop(true)
+        setZOrderOnTop(zOrderOnTop)
 
         activeInstance = WeakReference(this)
 
@@ -87,8 +91,10 @@ class DragonBonesView @JvmOverloads constructor(context: Context, attrs: Attribu
                 )
 
         setOnTouchListener { _, event ->
+            // Let the gesture detector handle the event.
+            // Return true if the event was consumed, false otherwise.
+            // This allows unconsumed events to be passed up to Compose's pointer input handlers.
             gestureDetector.onTouchEvent(event)
-            true // Consume event
         }
     }
 
@@ -176,8 +182,8 @@ class DragonBonesView @JvmOverloads constructor(context: Context, attrs: Attribu
      *
      * @param name 要播放的动画的名称。
      */
-    fun playAnimation(name: String, fadeInTime: Float) {
-        queueEvent { JniBridge.playAnimation(name, fadeInTime) }
+    fun fadeInAnimation(name: String, layer: Int, loop: Int, fadeInTime: Float) {
+        queueEvent { JniBridge.fadeInAnimation(name, layer, loop, fadeInTime) }
     }
 
     fun setWorldScale(scale: Float) {
@@ -189,10 +195,12 @@ class DragonBonesView @JvmOverloads constructor(context: Context, attrs: Attribu
     }
 
     fun overrideBonePosition(boneName: String, x: Float, y: Float) {
+        Log.d("DragonBonesView", "Queueing overrideBonePosition: $boneName to ($x, $y)")
         queueEvent { JniBridge.overrideBonePosition(boneName, x, y) }
     }
 
     fun resetBone(boneName: String) {
+        Log.d("DragonBonesView", "Queueing resetBone: $boneName")
         queueEvent { JniBridge.resetBone(boneName) }
     }
 }
@@ -214,15 +222,17 @@ fun DragonBonesViewCompose(
         modifier: Modifier = Modifier,
         model: DragonBonesModel?,
         controller: DragonBonesController,
+        zOrderOnTop: Boolean = true,
         onError: (String) -> Unit = {}
 ) {
     var creationError by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
 
+    // The view instance is now stable and will not be recreated.
     val viewInstance =
-            remember(context) {
+            remember {
                 try {
-                    DragonBonesView(context)
+                    DragonBonesView(context, zOrderOnTop = zOrderOnTop)
                 } catch (e: IllegalStateException) {
                     creationError = e.message ?: "Failed to create DragonBonesView"
                     null
@@ -230,24 +240,36 @@ fun DragonBonesViewCompose(
             }
 
     if (viewInstance != null) {
-        LaunchedEffect(model) {
+        // This effect now triggers whenever the model object changes.
+        // It loads the new model data into the existing, stable view.
+        LaunchedEffect(viewInstance, model) {
             if (model != null) {
                 try {
                     viewInstance.loadModel(model)
+                    controller.fetchAnimationNames()
                 } catch (e: Exception) {
                     onError("Failed to load model: ${e.message}")
                 }
             }
         }
+        
+        // This effect runs only once to associate the view with the controller.
+        LaunchedEffect(viewInstance) {
+            controller.setView(viewInstance)
+        }
 
-        LaunchedEffect(viewInstance) { controller.setView(viewInstance) }
-
-        LaunchedEffect(controller.animationToPlay) {
-            if (viewInstance != null && controller.animationToPlay != null) {
-                val animationName = controller.animationToPlay!!.split(":").first()
-                val fadeInTime = controller.fadeInTime
-                viewInstance.playAnimation(animationName, fadeInTime)
-                controller.onAnimationPlayed()
+        LaunchedEffect(controller.animationCommandQueue.toList()) {
+            if (viewInstance != null && controller.animationCommandQueue.isNotEmpty()) {
+                val commandsToProcess = controller.animationCommandQueue.toList()
+                commandsToProcess.forEach { command ->
+                    viewInstance.fadeInAnimation(
+                        name = command.name,
+                        layer = command.layer,
+                        loop = command.loop,
+                        fadeInTime = command.fadeInTime
+                    )
+                    controller.onAnimationCommandConsumed(command)
+                }
             }
         }
 
@@ -257,10 +279,10 @@ fun DragonBonesViewCompose(
             viewInstance?.setWorldTranslation(controller.translationX, controller.translationY)
         }
 
-        DisposableEffect(Unit) {
+        // The view is disposed only when the composable leaves the screen entirely.
+        DisposableEffect(viewInstance) {
             onDispose {
-                viewInstance?.destroy()
-                controller.setView(null) // Clean up the view reference
+                controller.destroyView()
             }
         }
 

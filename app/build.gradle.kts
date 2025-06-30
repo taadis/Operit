@@ -87,7 +87,6 @@ android {
 }
 
 dependencies {
-    implementation(project(":live2d"))
     implementation(project(":dragonbones"))
     implementation(libs.androidx.ui.graphics.android)
     implementation(files("libs\\ffmpegkit.jar"))

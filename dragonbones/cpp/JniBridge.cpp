@@ -263,11 +263,10 @@ namespace {
             instance->armature = armatureObject;
             LOGI("Armature '%s' built at %p, instance is %p", armatureNameToBuild.c_str(), instance->armature, instance);
             instance->worldClock->add(armatureObject);
-            if (!armatureObject->getAnimation()->getAnimationNames().empty()) {
-                const auto& initialAnimation = armatureObject->getAnimation()->getAnimationNames()[0];
-                LOGI("Playing initial animation: '%s'", initialAnimation.c_str());
-                armatureObject->getAnimation()->play(initialAnimation);
-            }
+            // Reset animation to force armature to setup pose.
+            // This overrides any "defaultActions" in the data file (e.g., auto-playing an empty animation),
+            // which can cause rendering issues for some models.
+            armatureObject->getAnimation()->reset();
         } else {
             LOGE("Failed to build armature '%s'.", armatureNameToBuild.c_str());
         }
@@ -534,7 +533,7 @@ Java_com_ai_assistance_dragonbones_JniBridge_getAnimationNames(JNIEnv *env, jcla
 }
 
 JNIEXPORT void JNICALL
-Java_com_ai_assistance_dragonbones_JniBridge_playAnimation(JNIEnv *env, jclass clazz, jstring animation_name, jfloat fade_in_time) {
+Java_com_ai_assistance_dragonbones_JniBridge_fadeInAnimation(JNIEnv *env, jclass clazz, jstring animation_name, jint layer, jint loop, jfloat fade_in_time) {
     auto* instance = getInstance();
     if (!instance || !instance->armature) {
         return;
@@ -544,11 +543,15 @@ Java_com_ai_assistance_dragonbones_JniBridge_playAnimation(JNIEnv *env, jclass c
     std::string name(nameChars);
     env->ReleaseStringUTFChars(animation_name, nameChars);
 
-    // Using fadeIn for smooth transitions.
-    // The previous reset() call is removed as it prevents blending between animation states.
-    // If crashes re-occur, a deeper investigation into DragonBones' animation blending is needed.
-    if(instance->armature->getAnimation()->fadeIn(name, fade_in_time, -1, 0, "", dragonBones::AnimationFadeOutMode::SameLayerAndGroup)) {
-        LOGI("Playing animation: '%s' with fade in: %f", name.c_str(), (float)fade_in_time);
+    // playTimes: -1 means use default value, 0 means loop infinitely, [1~N] means repeat N times.
+    // The `loop` parameter from Kotlin is: 0 for infinite, 1 for once, etc. This maps directly to playTimes.
+    int playTimes = (int)loop;
+
+    // Use fadeIn to enable blending and layering.
+    // Set fadeOutMode to None to prevent animations on different layers from stopping each other.
+    // Use SameLayerAndGroup if you want an animation to replace another on the same layer.
+    if(instance->armature->getAnimation()->fadeIn(name, (float)fade_in_time, playTimes, (int)layer, "", dragonBones::AnimationFadeOutMode::SameLayerAndGroup)) {
+        LOGI("Fading in animation: '%s' on layer %d, loop: %d, fade: %f", name.c_str(), (int)layer, playTimes, (float)fade_in_time);
     } else {
         LOGW("Animation not found: '%s'", name.c_str());
     }

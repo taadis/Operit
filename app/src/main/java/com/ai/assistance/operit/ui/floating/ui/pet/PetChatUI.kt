@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.floating.ui.live2d
+package com.ai.assistance.operit.ui.floating.ui.pet
 
 import android.util.Log
 import androidx.compose.animation.animateContentSize

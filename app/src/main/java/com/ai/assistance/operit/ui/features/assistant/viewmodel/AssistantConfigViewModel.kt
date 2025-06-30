@@ -5,32 +5,31 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.ai.assistance.operit.data.model.Live2DConfig
-import com.ai.assistance.operit.data.model.Live2DModel
-import com.ai.assistance.operit.data.repository.Live2DRepository
+import com.ai.assistance.operit.data.model.DragonBonesConfig
+import com.ai.assistance.operit.data.model.DragonBonesModel
+import com.ai.assistance.operit.data.repository.DragonBonesRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import com.ai.assistance.operit.data.model.ModelType
 
-/** Live2D视图模型 负责管理Live2D模型的UI状态和业务逻辑 */
-class Live2DViewModel(private val repository: Live2DRepository) : ViewModel() {
+/** 助手配置视图模型 负责管理DragonBones模型的UI状态和业务逻辑 */
+class AssistantConfigViewModel(private val repository: DragonBonesRepository) : ViewModel() {
 
     // UI状态
     data class UiState(
             val isLoading: Boolean = false,
-            val models: List<Live2DModel> = emptyList(),
-            val currentModel: Live2DModel? = null,
-            val config: Live2DConfig? = null,
+            val models: List<DragonBonesModel> = emptyList(),
+            val currentModel: DragonBonesModel? = null,
+            val config: DragonBonesConfig? = null,
             val errorMessage: String? = null,
             val operationSuccess: Boolean = false,
             val isScanning: Boolean = false,
-            val expressionToApply: String? = null,
-            val manualExpression: String = "",
-            val triggerRandomTap: Long? = null,
-            val scrollPosition: Int = 0, // 添加滚动位置状态
-            val isImporting: Boolean = false // 导入模型状态
+            val scrollPosition: Int = 0,
+            val isImporting: Boolean = false
     )
 
     // 当前UI状态
@@ -38,20 +37,19 @@ class Live2DViewModel(private val repository: Live2DRepository) : ViewModel() {
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     init {
-        // 监听Repository中的数据变化
+        // 合并模型和配置流，以确保UI状态的一致性
         viewModelScope.launch {
-            repository.models.collectLatest { models -> updateUiState(models = models) }
-        }
-
-        viewModelScope.launch {
-            repository.currentConfig.collectLatest { config ->
-                // 当配置更新时，同时更新当前模型
-                val currentModel =
-                        if (config != null) {
-                            repository.models.value.find { it.id == config.modelId }
-                        } else null
-
-                updateUiState(config = config, currentModel = currentModel)
+            combine(repository.models, repository.currentConfig) { models, config ->
+                // 当配置或模型列表更新时，重新查找当前模型
+                val currentModel = config?.let { cfg -> models.find { it.id == cfg.modelId } }
+                // 将所有相关状态捆绑在一起发出
+                Triple(models, config, currentModel)
+            }.collectLatest { (models, config, currentModel) ->
+                updateUiState(
+                    models = models,
+                    config = config,
+                    currentModel = currentModel
+                )
             }
         }
     }
@@ -59,15 +57,12 @@ class Live2DViewModel(private val repository: Live2DRepository) : ViewModel() {
     /** 更新UI状态 */
     private fun updateUiState(
             isLoading: Boolean? = null,
-            models: List<Live2DModel>? = null,
-            currentModel: Live2DModel? = null,
-            config: Live2DConfig? = null,
+            models: List<DragonBonesModel>? = null,
+            currentModel: DragonBonesModel? = null,
+            config: DragonBonesConfig? = null,
             errorMessage: String? = null,
             operationSuccess: Boolean? = null,
             isScanning: Boolean? = null,
-            expressionToApply: String? = null,
-            manualExpression: String? = null,
-            triggerRandomTap: Long? = null,
             isImporting: Boolean? = null
     ) {
         val currentState = _uiState.value
@@ -80,9 +75,6 @@ class Live2DViewModel(private val repository: Live2DRepository) : ViewModel() {
                         errorMessage = errorMessage,
                         operationSuccess = operationSuccess ?: currentState.operationSuccess,
                         isScanning = isScanning ?: currentState.isScanning,
-                        expressionToApply = expressionToApply,
-                        manualExpression = manualExpression ?: currentState.manualExpression,
-                        triggerRandomTap = triggerRandomTap,
                         scrollPosition = currentState.scrollPosition,
                         isImporting = isImporting ?: currentState.isImporting
                 )
@@ -114,32 +106,11 @@ class Live2DViewModel(private val repository: Live2DRepository) : ViewModel() {
         viewModelScope.launch { repository.updateConfig(updatedConfig) }
     }
 
-    /** 更新嘴部形状 */
-    fun updateMouthForm(value: Float) {
-        val currentConfig = _uiState.value.config ?: return
-        val updatedConfig = currentConfig.copy(mouthForm = value)
-        viewModelScope.launch { repository.updateConfig(updatedConfig) }
-    }
-
-    /** 更新嘴部开合度 */
-    fun updateMouthOpenY(value: Float) {
-        val currentConfig = _uiState.value.config ?: return
-        val updatedConfig = currentConfig.copy(mouthOpenY = value)
-        viewModelScope.launch { repository.updateConfig(updatedConfig) }
-    }
-
-    /** 设置自动眨眼 */
-    fun setAutoBlinkEnabled(enabled: Boolean) {
-        val currentConfig = _uiState.value.config ?: return
-        val updatedConfig = currentConfig.copy(autoBlinkEnabled = enabled)
-        viewModelScope.launch { repository.updateConfig(updatedConfig) }
-    }
-
-    /** 设置是否渲染背景 */
-    fun setRenderBack(enabled: Boolean) {
-        val currentConfig = _uiState.value.config ?: return
-        val updatedConfig = currentConfig.copy(renderBack = enabled)
-        viewModelScope.launch { repository.updateConfig(updatedConfig) }
+    /** 更新模型类型 */
+    fun updateModelType(modelId: String, modelType: ModelType) {
+        viewModelScope.launch {
+            repository.updateModelType(modelId, modelType)
+        }
     }
 
     /** 扫描用户模型 */
@@ -184,7 +155,7 @@ class Live2DViewModel(private val repository: Live2DRepository) : ViewModel() {
         }
     }
 
-    /** 导入Live2D模型ZIP文件 */
+    /** 导入DragonBones模型ZIP文件 */
     fun importModelFromZip(uri: Uri) {
         updateUiState(isLoading = true, isImporting = true)
         viewModelScope.launch {
@@ -194,7 +165,7 @@ class Live2DViewModel(private val repository: Live2DRepository) : ViewModel() {
                         isLoading = false,
                         isImporting = false,
                         operationSuccess = success,
-                        errorMessage = if (!success) "导入Live2D模型失败" else null
+                        errorMessage = if (!success) "导入DragonBones模型失败" else null
                 )
             } catch (e: Exception) {
                 updateUiState(
@@ -217,32 +188,6 @@ class Live2DViewModel(private val repository: Live2DRepository) : ViewModel() {
         updateUiState(operationSuccess = false)
     }
 
-    /** 应用表情 */
-    fun applyExpression(expression: String) {
-        // 使用时间戳确保即使是同一个表情也能被触发
-        updateUiState(expressionToApply = "$expression:${System.currentTimeMillis()}")
-    }
-
-    /** 表情已应用（由UI调用） */
-    fun onExpressionApplied() {
-        updateUiState(expressionToApply = null)
-    }
-
-    /** 更新手动输入的表情名称 */
-    fun updateManualExpression(name: String) {
-        updateUiState(manualExpression = name)
-    }
-
-    /** 触发一次随机点击 */
-    fun triggerRandomTap() {
-        updateUiState(triggerRandomTap = System.currentTimeMillis())
-    }
-
-    /** 随机点击已处理（由UI调用） */
-    fun onRandomTapHandled() {
-        updateUiState(triggerRandomTap = null)
-    }
-
     /** 更新错误消息 */
     fun updateErrorMessage(message: String?) {
         updateUiState(errorMessage = message)
@@ -257,9 +202,9 @@ class Live2DViewModel(private val repository: Live2DRepository) : ViewModel() {
     class Factory(private val context: Context) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            if (modelClass.isAssignableFrom(Live2DViewModel::class.java)) {
-                val repository = Live2DRepository.getInstance(context)
-                return Live2DViewModel(repository) as T
+            if (modelClass.isAssignableFrom(AssistantConfigViewModel::class.java)) {
+                val repository = DragonBonesRepository.getInstance(context)
+                return AssistantConfigViewModel(repository) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class")
         }

@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.floating.ui.live2d
+package com.ai.assistance.operit.ui.floating.ui.pet
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
@@ -29,20 +29,20 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.dragonbones.DragonBonesViewCompose
 import com.ai.assistance.dragonbones.rememberDragonBonesController
+import com.ai.assistance.operit.data.model.ModelType
 import com.ai.assistance.operit.data.preferences.PromptFunctionType
 import com.ai.assistance.operit.data.repository.DragonBonesRepository
+import com.ai.assistance.operit.ui.components.ManagedDragonBonesView
 import com.ai.assistance.operit.ui.floating.FloatContext
 import com.ai.assistance.operit.ui.floating.FloatingMode
 import com.ai.assistance.operit.ui.floating.ui.window.ResizeEdge
@@ -57,7 +57,7 @@ private data class DraggableWindowState(
 )
 
 @Composable
-fun FloatingLive2dMode(floatContext: FloatContext) {
+fun FloatingDragonBonesMode(floatContext: FloatContext) {
         var isLocked by remember { mutableStateOf(false) }
         var showPetChatInput by remember { mutableStateOf(false) }
         val latestMessage = floatContext.messages.lastOrNull { it.sender == "ai" }
@@ -561,11 +561,14 @@ fun FloatingLive2dMode(floatContext: FloatContext) {
                                                                                 }
                                                                         }
 
-                                                                        DragonBonesViewCompose(
+                                                                        ManagedDragonBonesView(
                                                                                 modifier =
                                                                                 Modifier.fillMaxSize(),
                                                                                 model = viewableModel,
                                                                                 controller = dragonBonesController,
+                                                                                enableGestures = isLocked,
+                                                                                zOrderOnTop = false,
+                                                                                modelType = ModelType.QPET,
                                                                                 onError = { error ->
                                                                                         errorMessage =
                                                                                                 "加载失败: $error"

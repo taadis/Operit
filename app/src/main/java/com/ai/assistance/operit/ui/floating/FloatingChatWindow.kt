@@ -1,7 +1,5 @@
 package com.ai.assistance.operit.ui.floating
 
-import androidx.compose.animation.core.*
-import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -13,7 +11,7 @@ import com.ai.assistance.operit.ui.floating.ui.ball.FloatingChatBallMode
 import com.ai.assistance.operit.ui.floating.ui.ball.FloatingLive2dBallMode
 import com.ai.assistance.operit.ui.floating.ui.ball.FloatingVoiceBallMode
 import com.ai.assistance.operit.ui.floating.ui.fullscreen.FloatingFullscreenMode
-import com.ai.assistance.operit.ui.floating.ui.live2d.FloatingLive2dMode
+import com.ai.assistance.operit.ui.floating.ui.pet.FloatingDragonBonesMode
 import com.ai.assistance.operit.ui.floating.ui.window.FloatingChatWindowMode
 
 /**
@@ -134,6 +132,6 @@ fun FloatingChatWindow(
         }
         FloatingMode.VOICE_BALL -> FloatingVoiceBallMode(floatContext = floatContext)
         FloatingMode.FULLSCREEN -> FloatingFullscreenMode(floatContext = floatContext)
-        FloatingMode.LIVE2D -> FloatingLive2dMode(floatContext = floatContext)
+        FloatingMode.LIVE2D -> FloatingDragonBonesMode(floatContext = floatContext)
     }
 }

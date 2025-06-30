@@ -142,11 +142,6 @@ Join the Operit open-source ecosystem! We welcome all types of contributors, whe
 
 For this repository, you must download some dependency libraries from `https://drive.google.com/drive/folders/1g-Q_i7cf6Ua4KX9ZM6V282EEZvTVVfF7?usp=sharing` and place them in folders with .keep files
 
-**Live2D SDK Note:**
-- Due to licensing restrictions, we do not provide the Live2D SDK. You need to download it yourself and place it in the `/SDKRoot` directory
-- Download from: [Live2D Cubism Native Samples](https://github.com/Live2D/CubismNativeSamples) or [Live2D Official SDK Page](https://www.live2d.com/zh-CHS/sdk/about/#native)
-- When using Live2D, please comply with their official requirements, including but not limited to retaining the logo and "Powered By Live2D" statement
-
 **Check out our [Contribution Guide](docx/CONTRIBUTING.md)** to learn how to get involved.
 
 ## 📝 Feedback (Issues)

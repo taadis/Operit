@@ -35,7 +35,7 @@ JNIEXPORT jobjectArray JNICALL
 Java_com_ai_assistance_dragonbones_JniBridge_getAnimationNames(JNIEnv *env, jclass clazz);
 
 JNIEXPORT void JNICALL
-Java_com_ai_assistance_dragonbones_JniBridge_playAnimation(JNIEnv *env, jclass clazz, jstring animation_name, jfloat fade_in_time);
+Java_com_ai_assistance_dragonbones_JniBridge_fadeInAnimation(JNIEnv *env, jclass clazz, jstring animation_name, jint layer, jint loop, jfloat fade_in_time);
 
 JNIEXPORT jstring JNICALL
 Java_com_ai_assistance_dragonbones_JniBridge_containsPoint(JNIEnv *env, jclass clazz, jfloat x, jfloat y);

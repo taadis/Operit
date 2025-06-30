@@ -28,7 +28,7 @@ object JniBridge {
 
     @JvmStatic external fun getAnimationNames(): Array<String>?
 
-    @JvmStatic external fun playAnimation(name: String, fadeInTime: Float)
+    @JvmStatic external fun fadeInAnimation(name: String, layer: Int, loop: Int, fadeInTime: Float)
 
     @JvmStatic external fun containsPoint(x: Float, y: Float): String?
 
