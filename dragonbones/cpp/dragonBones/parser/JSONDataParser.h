@@ -62,13 +62,7 @@ protected:
     {
         if (rawData.HasMember(key))
         {
-            const auto& value = rawData[key];
-            if (value.IsUint()) {
-                return value.GetUint();
-            }
-            if (value.IsInt() && value.GetInt() >= 0) {
-                return static_cast<unsigned>(value.GetInt());
-            }
+            return rawData[key].GetUint();
         }
 
         return defaultValue;
@@ -78,13 +72,7 @@ protected:
     {
         if (rawData.HasMember(key))
         {
-            const auto& value = rawData[key];
-            if (value.IsInt()) {
-                return value.GetInt();
-            }
-            if (value.IsUint() && value.GetUint() <= static_cast<unsigned>(2147483647L)) {
-                return static_cast<int>(value.GetUint());
-            }
+            return rawData[key].GetInt();
         }
 
         return defaultValue;
@@ -104,16 +92,12 @@ protected:
     {
         if (rawData.HasMember(key))
         {
-            const auto& value = rawData[key];
-            if (value.IsString())
+            if (rawData[key].IsString())
             {
-                return value.GetString();
+                return rawData[key].GetString();
             }
 
-            if (value.IsNumber())
-            {
-                return dragonBones::to_string(value.GetDouble());
-            }
+            return dragonBones::to_string(rawData[key].GetDouble());
         }
 
         return defaultValue;
@@ -161,7 +145,6 @@ protected:
     AnimationData* _animation;
     TimelineData* _timeline;
     rapidjson::Value* _rawTextureAtlases;
-    rapidjson::Document _document;
 
 private:
     int _defaultColorOffset;
@@ -179,7 +162,6 @@ private:
     std::vector<float> _frameFloatArray;
     std::vector<std::int16_t> _frameArray;
     std::vector<std::uint16_t> _timelineArray;
-    std::vector<std::string> _stringArray;
     std::vector<const rapidjson::Value*> _cacheRawMeshes;
     std::vector<MeshDisplayData*> _cacheMeshes;
     std::vector<ActionFrame> _actionFrames;
@@ -201,7 +183,6 @@ public:
         _animation(nullptr),
         _timeline(nullptr),
         _rawTextureAtlases(nullptr),
-        _document(),
 
         _defaultColorOffset(-1),
         _prevClockwise(0),
@@ -218,7 +199,6 @@ public:
         _frameFloatArray(),
         _frameArray(),
         _timelineArray(),
-        _stringArray(),
         _cacheMeshes(),
         _cacheRawMeshes(),
         _actionFrames(),

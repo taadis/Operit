@@ -16,6 +16,7 @@ public:
     std::vector<float> vertices;
     std::vector<unsigned short> indices;
     unsigned int textureID;
+    bool isSkinned = false;
 
 protected:
     void _updateVisible() override;

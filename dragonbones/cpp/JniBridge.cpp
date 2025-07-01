@@ -487,7 +487,14 @@ Java_com_ai_assistance_dragonbones_JniBridge_onDrawFrame(JNIEnv *env, jclass cla
 
             // A. Get this slot's unique transformation matrix
             float slotModelMatrix[16];
-            convertDBMatrixToGL(slot->globalTransformMatrix, slotModelMatrix);
+            if (openglSlot->isSkinned)
+            {
+                createIdentityMatrix(slotModelMatrix);
+            }
+            else
+            {
+                convertDBMatrixToGL(slot->globalTransformMatrix, slotModelMatrix);
+            }
 
             // B. Create the final MVP matrix: MVP = Projection * View * SlotModel
             float pvMatrix[16], mvpMatrix[16];

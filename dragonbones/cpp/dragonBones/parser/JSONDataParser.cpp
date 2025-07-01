@@ -1824,42 +1824,10 @@ void JSONDataParser::_parseArray(const rapidjson::Value& rawData)
     _frameFloatArray.clear();
     _frameArray.clear();
     _timelineArray.clear();
-    _stringArray.clear();
-
-    if (rawData.HasMember(INTS) && rawData[INTS].IsArray())
-    {
-        const auto& rawInts = rawData[INTS];
-        for (std::size_t i = 0, l = rawInts.Size(); i < l; ++i)
-        {
-            _intArray.push_back(rawInts[i].GetInt());
-        }
-    }
-
-    if (rawData.HasMember(FLOATS) && rawData[FLOATS].IsArray())
-    {
-        const auto& rawFloats = rawData[FLOATS];
-        for (std::size_t i = 0, l = rawFloats.Size(); i < l; ++i)
-        {
-            _floatArray.push_back(rawFloats[i].GetDouble());
-        }
-    }
-
-    if (rawData.HasMember(STRINGS) && rawData[STRINGS].IsArray())
-    {
-        const auto& rawStrings = rawData[STRINGS];
-        for (std::size_t i = 0, l = rawStrings.Size(); i < l; ++i)
-        {
-            _stringArray.push_back(rawStrings[i].GetString());
-        }
-    }
 }
 
 DragonBonesData* JSONDataParser::_parseDragonBonesData(const rapidjson::Value& rawData, float scale)
 {
-    if (!rawData.IsObject()) {
-        return nullptr;
-    }
-
     const auto& version = _getString(rawData, VERSION, "");
     const auto& compatibleVersion = _getString(rawData, COMPATIBLE_VERSION, "");
 
@@ -2033,14 +2001,10 @@ DragonBonesData* JSONDataParser::parseDragonBonesData(const char* rawData, float
 {
     DRAGONBONES_ASSERT(rawData != nullptr, "");
 
-    _document.Parse(rawData);
+    rapidjson::Document document;
+    document.Parse(rawData);
 
-    if (_document.HasParseError())
-    {
-        return nullptr;
-    }
-
-    return _parseDragonBonesData(_document, scale);
+    return _parseDragonBonesData(document, scale);
 }
 
 bool JSONDataParser::parseTextureAtlasData(const char* rawData, TextureAtlasData& textureAtlasData, float scale)
@@ -2065,12 +2029,6 @@ bool JSONDataParser::parseTextureAtlasData(const char* rawData, TextureAtlasData
 
     rapidjson::Document document;
     document.Parse(rawData);
-
-    if (document.HasParseError())
-    {
-        return false;
-    }
-
     _parseTextureAtlasData(document, textureAtlasData, scale);
 
     return true;
