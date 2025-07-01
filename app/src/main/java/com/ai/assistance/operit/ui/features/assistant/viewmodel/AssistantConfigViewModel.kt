@@ -106,13 +106,6 @@ class AssistantConfigViewModel(private val repository: DragonBonesRepository) : 
         viewModelScope.launch { repository.updateConfig(updatedConfig) }
     }
 
-    /** 更新模型类型 */
-    fun updateModelType(modelId: String, modelType: ModelType) {
-        viewModelScope.launch {
-            repository.updateModelType(modelId, modelType)
-        }
-    }
-
     /** 扫描用户模型 */
     fun scanUserModels() {
         updateUiState(isScanning = true)

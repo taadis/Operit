@@ -39,4 +39,6 @@ object JniBridge {
     @JvmStatic external fun overrideBonePosition(boneName: String, x: Float, y: Float)
 
     @JvmStatic external fun resetBone(boneName: String)
+
+    @JvmStatic external fun stopAnimation(name: String)
 }

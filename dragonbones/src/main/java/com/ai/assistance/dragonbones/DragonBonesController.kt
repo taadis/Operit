@@ -10,6 +10,10 @@ import androidx.compose.runtime.setValue
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+
+private const val TAG = "DBController"
 
 /**
  * A controller for the [DragonBonesViewCompose] composable.
@@ -20,7 +24,7 @@ import kotlinx.coroutines.launch
  * @see rememberDragonBonesController
  */
 @Stable
-class DragonBonesController(private val coroutineScope: CoroutineScope) {
+class DragonBonesController(val coroutineScope: CoroutineScope) {
 
     private var view: DragonBonesView? = null
 
@@ -29,6 +33,7 @@ class DragonBonesController(private val coroutineScope: CoroutineScope) {
      * automatically when a new model is loaded.
      */
     var animationNames by mutableStateOf<List<String>>(emptyList())
+        private set
 
     internal val animationCommandQueue = mutableStateListOf<AnimationCommand>()
 
@@ -49,31 +54,55 @@ class DragonBonesController(private val coroutineScope: CoroutineScope) {
 
     /** Destroys the currently associated view, if any. */
     fun destroyView() {
+        Log.d(TAG, "destroyView: Destroying view $view")
         view?.destroy()
         view = null
     }
 
     /**
-     * Fetches the animation names from the current view and updates the state.
-     * This is useful after loading a new model into an existing view.
+     * Asynchronously fetches the animation names from the current view and updates the state.
+     * This function suspends until the names are retrieved.
      */
-    fun fetchAnimationNames() {
-        view?.getAnimationNames { names ->
-            animationNames = names
+    suspend fun fetchAnimationNames() {
+        Log.d(TAG, "fetchAnimationNames: Starting...")
+        suspendCancellableCoroutine<Unit> { continuation ->
+            val v = view
+            if (v == null) {
+                Log.w(TAG, "fetchAnimationNames: View is null, setting names to empty.")
+                animationNames = emptyList()
+                if (continuation.isActive) {
+                    continuation.resume(Unit)
+                }
+                return@suspendCancellableCoroutine
+            }
+
+            v.getAnimationNames { names ->
+                Log.d(TAG, "fetchAnimationNames: Completed. Names: ${names.joinToString(", ")}")
+                animationNames = names
+                if (continuation.isActive) {
+                    continuation.resume(Unit)
+                }
+            }
         }
     }
 
     internal fun setView(dragonBonesView: DragonBonesView?) {
         // If there's already a view, and we're setting a new one (or null), destroy the old one.
         if (view != null && view != dragonBonesView) {
+            Log.d(TAG, "setView: Destroying old view during setView.")
             destroyView()
         }
-
+        Log.d(TAG, "setView: Setting view to $dragonBonesView")
         view = dragonBonesView
         if (dragonBonesView != null) {
             dragonBonesView.onSlotTapListener = { slotName -> onSlotTap?.invoke(slotName) }
             // Fetch names when the view is initially set.
-            fetchAnimationNames()
+            coroutineScope.launch {
+                fetchAnimationNames()
+            }
+        } else {
+            // If the view is set to null, clear the animation names.
+            animationNames = emptyList()
         }
         // Do NOT clear animationNames here, as it would cause the UI to flicker during recomposition.
     }
@@ -88,9 +117,34 @@ class DragonBonesController(private val coroutineScope: CoroutineScope) {
      * @param fadeInTime The time in seconds to fade in the animation.
      */
     fun fadeInAnimation(name: String, layer: Int, loop: Int, fadeInTime: Float = 0.3f) {
-        coroutineScope.launch {
-            animationCommandQueue.add(AnimationCommand(name, layer, loop, fadeInTime))
-        }
+        Log.d(TAG, "fadeInAnimation: Adding command for '$name' on layer $layer to queue.")
+        // The command is added to the queue synchronously.
+        // The LaunchedEffect in DragonBonesViewCompose is responsible for consuming them.
+        animationCommandQueue.add(FadeInAnimationCommand(name, layer, loop, fadeInTime))
+    }
+
+    fun stopAnimation(name: String) {
+        Log.d(TAG, "stopAnimation: Adding command for '$name' to queue.")
+        // The command is added to the queue synchronously.
+        animationCommandQueue.add(StopAnimationCommand(name))
+    }
+
+    /**
+     * Clears all pending animation commands from the queue.
+     * This should be called before loading a new model to prevent
+     * old commands from executing on the new model.
+     */
+    fun clearAnimationQueue() {
+        Log.d(TAG, "clearAnimationQueue: Called, queue size was ${animationCommandQueue.size}")
+        animationCommandQueue.clear()
+    }
+
+    /**
+     * Atomically retrieves and removes the next command from the queue.
+     * Returns null if the queue is empty.
+     */
+    internal fun consumeNextAnimationCommand(): AnimationCommand? {
+        return animationCommandQueue.removeFirstOrNull()
     }
 
     /**
@@ -104,19 +158,19 @@ class DragonBonesController(private val coroutineScope: CoroutineScope) {
     }
 
     fun overrideBonePosition(boneName: String, x: Float, y: Float) {
-        Log.d("DBController", "overrideBonePosition: $boneName to ($x, $y)")
+        // This is called frequently, so keep logging minimal or commented out
+        // Log.d(TAG, "overrideBonePosition: $boneName to ($x, $y)")
         view?.overrideBonePosition(boneName, x, y)
     }
 
     fun resetBone(boneName: String) {
-        Log.d("DBController", "resetBone: $boneName")
+        Log.d(TAG, "resetBone: $boneName")
         view?.resetBone(boneName)
     }
 
-    internal fun onAnimationCommandConsumed(command: AnimationCommand) {
-        coroutineScope.launch {
-            animationCommandQueue.remove(command)
-        }
+    internal fun setAnimationNames(names: List<String>) {
+        Log.d(TAG, "setAnimationNames: Setting names to ${names.joinToString(", ")}. Count: ${names.size}")
+        animationNames = names
     }
 }
 
@@ -132,6 +186,11 @@ fun rememberDragonBonesController(): DragonBonesController {
 }
 
 /**
+ * Represents a command to be executed on the DragonBones view.
+ */
+sealed interface AnimationCommand
+
+/**
  * Represents a command to play a DragonBones animation.
  * @param name The name of the animation.
  * @param layer The layer (track) to play on.
@@ -139,10 +198,20 @@ fun rememberDragonBonesController(): DragonBonesController {
  * @param fadeInTime The duration of the fade-in effect.
  * @param id A unique identifier to allow recomposition to trigger the same animation again.
  */
-data class AnimationCommand(
+data class FadeInAnimationCommand(
     val name: String,
     val layer: Int,
     val loop: Int,
     val fadeInTime: Float,
     val id: Long = System.currentTimeMillis()
-)
+) : AnimationCommand
+
+/**
+ * Represents a command to stop a specific DragonBones animation.
+ * @param name The name of the animation to stop.
+ * @param id A unique identifier.
+ */
+data class StopAnimationCommand(
+    val name: String,
+    val id: Long = System.currentTimeMillis()
+) : AnimationCommand

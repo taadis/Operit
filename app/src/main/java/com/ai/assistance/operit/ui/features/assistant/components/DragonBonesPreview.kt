@@ -73,7 +73,6 @@ fun DragonBonesPreviewSection(
                         modifier = Modifier.fillMaxSize(),
                         model = model,
                         controller = controller,
-                        modelType = currentModel.modelType ?: ModelType.STANDARD,
                         onError = { error -> println("DragonBones error: $error") }
                 )
             } else {

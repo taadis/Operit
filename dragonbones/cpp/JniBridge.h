@@ -52,6 +52,9 @@ Java_com_ai_assistance_dragonbones_JniBridge_overrideBonePosition(JNIEnv *env, j
 JNIEXPORT void JNICALL
 Java_com_ai_assistance_dragonbones_JniBridge_resetBone(JNIEnv *env, jclass clazz, jstring bone_name);
 
+JNIEXPORT void JNICALL
+Java_com_ai_assistance_dragonbones_JniBridge_stopAnimation(JNIEnv *env, jclass clazz, jstring animation_name);
+
 #ifdef __cplusplus
 }
 #endif

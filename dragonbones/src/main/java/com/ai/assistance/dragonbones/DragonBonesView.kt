@@ -22,16 +22,21 @@ import java.io.IOException
 import java.lang.ref.WeakReference
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
+import kotlinx.coroutines.launch
+
+private const val TAG = "DragonBonesView"
 
 /** DragonBones 骨骼动画视图组件 使用 C++ JNI 和 OpenGL ES 进行渲染，以获得高性能 */
-class DragonBonesView @JvmOverloads constructor(
-    context: Context,
-    attrs: AttributeSet? = null,
-    zOrderOnTop: Boolean = true
-) : GLSurfaceView(context, attrs) {
+class DragonBonesView
+@JvmOverloads
+constructor(context: Context, attrs: AttributeSet? = null, zOrderOnTop: Boolean = true) :
+        GLSurfaceView(context, attrs) {
 
     private val renderer: DragonBonesRenderer
     var onSlotTapListener: ((String) -> Unit)? = null
+    var onRenderStart: (() -> Unit)? = null
+    var onRenderFrame: (() -> Unit)? = null
+    var onRenderEnd: (() -> Unit)? = null
 
     companion object {
         private var activeInstance: WeakReference<DragonBonesView>? = null
@@ -58,7 +63,11 @@ class DragonBonesView @JvmOverloads constructor(
         setEGLContextClientVersion(2)
 
         // 3. 创建并设置渲染器
-        renderer = DragonBonesRenderer()
+        renderer = DragonBonesRenderer(
+            onSurfaceCreated = { onRenderStart?.invoke() },
+            onDrawFrame = { onRenderFrame?.invoke() },
+            onSurfaceDestroyed = { onRenderEnd?.invoke() }
+        )
         setRenderer(renderer)
 
         // 4. 设置渲染模式为连续渲染，以驱动动画
@@ -99,9 +108,14 @@ class DragonBonesView @JvmOverloads constructor(
     }
 
     /** GL渲染器，负责调用JNI代码执行实际的OpenGL绘制 */
-    private class DragonBonesRenderer : Renderer {
+    private class DragonBonesRenderer(
+        private val onSurfaceCreated: () -> Unit,
+        private val onDrawFrame: () -> Unit,
+        private val onSurfaceDestroyed: () -> Unit
+    ) : Renderer {
         override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
             JniBridge.onSurfaceCreated()
+            onSurfaceCreated.invoke()
         }
 
         override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
@@ -110,6 +124,7 @@ class DragonBonesView @JvmOverloads constructor(
 
         override fun onDrawFrame(gl: GL10?) {
             JniBridge.onDrawFrame()
+            onDrawFrame.invoke()
         }
     }
 
@@ -125,13 +140,16 @@ class DragonBonesView @JvmOverloads constructor(
         }
     }
 
-    fun loadModel(model: DragonBonesModel) {
+    fun loadModel(model: DragonBonesModel, onComplete: (() -> Unit)? = null) {
         try {
+            Log.d(TAG, "loadModel: Reading data for ${model.skeletonPath}")
             val skeletonData = readBytesFromPath(model.skeletonPath)
             val textureJsonData = readBytesFromPath(model.textureJsonPath)
             val textureImageData = readBytesFromPath(model.textureImagePath)
             queueEvent {
+                Log.d(TAG, "loadModel: Queuing JNI call for ${model.skeletonPath}")
                 JniBridge.loadDragonBones(skeletonData, textureJsonData, textureImageData)
+                onComplete?.let { post(it) }
             }
         } catch (e: IOException) {
             // Forward exception to be handled by the caller, e.g., in Compose
@@ -154,7 +172,11 @@ class DragonBonesView @JvmOverloads constructor(
     }
 
     fun destroy() {
-        queueEvent { JniBridge.onDestroy() }
+        Log.d(TAG, "destroy() called on view $this")
+        queueEvent { 
+            JniBridge.onDestroy() 
+            onRenderEnd?.invoke()
+        }
         if (activeInstance?.get() == this) {
             activeInstance?.clear()
         }
@@ -183,7 +205,13 @@ class DragonBonesView @JvmOverloads constructor(
      * @param name 要播放的动画的名称。
      */
     fun fadeInAnimation(name: String, layer: Int, loop: Int, fadeInTime: Float) {
+        Log.d(TAG, "JNI Call: Queueing fadeInAnimation for '$name' on layer $layer")
         queueEvent { JniBridge.fadeInAnimation(name, layer, loop, fadeInTime) }
+    }
+
+    fun stopAnimation(name: String) {
+        Log.d(TAG, "JNI Call: Queueing stopAnimation for '$name'")
+        queueEvent { JniBridge.stopAnimation(name) }
     }
 
     fun setWorldScale(scale: Float) {
@@ -223,53 +251,88 @@ fun DragonBonesViewCompose(
         model: DragonBonesModel?,
         controller: DragonBonesController,
         zOrderOnTop: Boolean = true,
-        onError: (String) -> Unit = {}
+        onError: (String) -> Unit = {},
+        onRenderStart: () -> Unit = {},
+        onRenderFrame: () -> Unit = {},
+        onRenderEnd: () -> Unit = {}
 ) {
     var creationError by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
 
     // The view instance is now stable and will not be recreated.
-    val viewInstance =
-            remember {
-                try {
-                    DragonBonesView(context, zOrderOnTop = zOrderOnTop)
-                } catch (e: IllegalStateException) {
-                    creationError = e.message ?: "Failed to create DragonBonesView"
-                    null
-                }
+    val viewInstance = remember {
+        try {
+            DragonBonesView(context, zOrderOnTop = zOrderOnTop).apply {
+                this.onRenderStart = onRenderStart
+                this.onRenderFrame = onRenderFrame
+                this.onRenderEnd = onRenderEnd
             }
+        } catch (e: IllegalStateException) {
+            creationError = e.message ?: "Failed to create DragonBonesView"
+            null
+        }
+    }
 
     if (viewInstance != null) {
         // This effect now triggers whenever the model object changes.
         // It loads the new model data into the existing, stable view.
         LaunchedEffect(viewInstance, model) {
             if (model != null) {
+                Log.d(TAG, "LaunchedEffect for model change. New model: ${model.skeletonPath}")
                 try {
-                    viewInstance.loadModel(model)
-                    controller.fetchAnimationNames()
+                    // CRITICAL: Immediately clear animation names to prevent effects
+                    // from using stale data on the new model.
+                    controller.setAnimationNames(emptyList())
+                    // IMPORTANT: Clear any pending animation commands from the previous model.
+                    controller.clearAnimationQueue()
+
+                    // Load the model and then fetch the animation names for the new model.
+                    // This guarantees a sequential, race-free state update.
+                    // CRUCIALLY, we use the controller's stable scope, which is not
+                    // cancelled when this LaunchedEffect is restarted.
+                    viewInstance.loadModel(model) {
+                        Log.d(TAG, "loadModel onComplete: Fetching animations for ${model.skeletonPath}")
+                        controller.coroutineScope.launch {
+                            controller.fetchAnimationNames()
+                        }
+                    }
                 } catch (e: Exception) {
+                    Log.e(TAG, "Error in model change effect", e)
                     onError("Failed to load model: ${e.message}")
                 }
             }
         }
-        
-        // This effect runs only once to associate the view with the controller.
-        LaunchedEffect(viewInstance) {
-            controller.setView(viewInstance)
+
+        // Update render callbacks when they change
+        LaunchedEffect(onRenderStart, onRenderFrame, onRenderEnd) {
+            viewInstance.onRenderStart = onRenderStart
+            viewInstance.onRenderFrame = onRenderFrame
+            viewInstance.onRenderEnd = onRenderEnd
         }
 
-        LaunchedEffect(controller.animationCommandQueue.toList()) {
-            if (viewInstance != null && controller.animationCommandQueue.isNotEmpty()) {
-                val commandsToProcess = controller.animationCommandQueue.toList()
-                commandsToProcess.forEach { command ->
-                    viewInstance.fadeInAnimation(
-                        name = command.name,
-                        layer = command.layer,
-                        loop = command.loop,
-                        fadeInTime = command.fadeInTime
-                    )
-                    controller.onAnimationCommandConsumed(command)
+        // This effect runs only once to associate the view with the controller.
+        LaunchedEffect(viewInstance) { controller.setView(viewInstance) }
+
+        // This robust, single-instance effect handles the command queue processing.
+        // It's decoupled from recomposition and safe from race conditions.
+        LaunchedEffect(viewInstance, controller) {
+            while (true) {
+                controller.consumeNextAnimationCommand()?.let { command ->
+                    when (command) {
+                        is FadeInAnimationCommand -> {
+                            viewInstance.fadeInAnimation(
+                                name = command.name,
+                                layer = command.layer,
+                                loop = command.loop,
+                                fadeInTime = command.fadeInTime
+                            )
+                        }
+                        is StopAnimationCommand -> {
+                            viewInstance.stopAnimation(command.name)
+                        }
+                    }
                 }
+                kotlinx.coroutines.delay(16) // Check for new commands roughly every frame
             }
         }
 
@@ -280,11 +343,7 @@ fun DragonBonesViewCompose(
         }
 
         // The view is disposed only when the composable leaves the screen entirely.
-        DisposableEffect(viewInstance) {
-            onDispose {
-                controller.destroyView()
-            }
-        }
+        DisposableEffect(viewInstance) { onDispose { controller.destroyView() } }
 
         AndroidView(factory = { viewInstance }, modifier = modifier)
     } else if (creationError != null) {

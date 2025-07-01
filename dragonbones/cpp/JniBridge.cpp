@@ -296,9 +296,16 @@ Java_com_ai_assistance_dragonbones_JniBridge_loadDragonBones(JNIEnv *env, jclass
 
     // Clean up previous model if it exists
     if (instance->armature) {
-        LOGI("Cleaning up previous armature.");
-        instance->worldClock->remove(instance->armature);
+        LOGI("Cleaning up previous armature, resetting clock, and RECREATING factory.");
+        instance->worldClock->clear(); // This removes all armatures and resets the clock time.
         instance->armature = nullptr;
+        
+        // The factory holds onto texture data and other state. To prevent corruption
+        // between model loads, it's safest to destroy and recreate it entirely.
+        if (instance->factory) {
+            delete instance->factory;
+        }
+        instance->factory = new dragonBones::opengl::OpenGLFactory();
     }
     instance->isDataLoaded = false;
     instance->dragonBonesDataBuffer.clear();
@@ -358,8 +365,11 @@ Java_com_ai_assistance_dragonbones_JniBridge_onResume(JNIEnv *env, jclass clazz)
 JNIEXPORT void JNICALL
 Java_com_ai_assistance_dragonbones_JniBridge_onDestroy(JNIEnv *env, jclass clazz) {
     LOGI("DragonBones onDestroy");
-    delete getInstance();
-    instance = nullptr;
+    auto* currentInstance = getInstance();
+    if (currentInstance) {
+        delete currentInstance;
+        instance = nullptr;
+    }
 }
 
 JNIEXPORT void JNICALL
@@ -627,4 +637,19 @@ Java_com_ai_assistance_dragonbones_JniBridge_resetBone(JNIEnv *env, jclass clazz
         bone->offsetMode = dragonBones::OffsetMode::None;
         bone->invalidUpdate();
     }
+}
+
+JNIEXPORT void JNICALL
+Java_com_ai_assistance_dragonbones_JniBridge_stopAnimation(JNIEnv *env, jclass clazz, jstring animation_name) {
+    auto* instance = getInstance();
+    if (!instance || !instance->armature || !instance->armature->getAnimation()) {
+        return;
+    }
+
+    const char* nameChars = env->GetStringUTFChars(animation_name, nullptr);
+    std::string name(nameChars);
+    env->ReleaseStringUTFChars(animation_name, nameChars);
+
+    LOGI("Stopping animation: '%s' via JNI call.", name.c_str());
+    instance->armature->getAnimation()->stop(name);
 }

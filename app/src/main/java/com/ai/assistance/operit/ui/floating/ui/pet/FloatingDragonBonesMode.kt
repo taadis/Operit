@@ -1,5 +1,6 @@
 package com.ai.assistance.operit.ui.floating.ui.pet
 
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
 import androidx.compose.animation.fadeIn
@@ -566,9 +567,8 @@ fun FloatingDragonBonesMode(floatContext: FloatContext) {
                                                                                 Modifier.fillMaxSize(),
                                                                                 model = viewableModel,
                                                                                 controller = dragonBonesController,
-                                                                                enableGestures = isLocked,
+                                                                                enableGestures = true,
                                                                                 zOrderOnTop = false,
-                                                                                modelType = ModelType.QPET,
                                                                                 onError = { error ->
                                                                                         errorMessage =
                                                                                                 "加载失败: $error"

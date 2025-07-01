@@ -7,9 +7,7 @@ import com.google.gson.annotations.SerializedName
  */
 enum class ModelType {
     /** Standard animation logic, suitable for humanoid or complex models (the "Live2D-like" style). */
-    STANDARD,
-    /** Animation logic for cute, simple pets. */
-    QPET
+    STANDARD
 }
 
 /**
@@ -22,7 +20,6 @@ enum class ModelType {
  * @param textureJsonFile The filename of the texture atlas data (e.g., "loongbones-web_tex.json").
  * @param textureImageFile The filename of the texture atlas image (e.g., "loongbones-web_tex.png").
  * @param isBuiltIn True if the model is bundled with the app in assets, false if it's a user model.
- * @param modelType The animation style to use for this model.
  */
 data class DragonBonesModel(
         @SerializedName("id") val id: String,
@@ -31,8 +28,7 @@ data class DragonBonesModel(
         @SerializedName("skeletonFile") val skeletonFile: String,
         @SerializedName("textureJsonFile") val textureJsonFile: String,
         @SerializedName("textureImageFile") val textureImageFile: String,
-        @SerializedName("isBuiltIn") val isBuiltIn: Boolean = false,
-        @SerializedName("modelType") val modelType: ModelType? = ModelType.STANDARD
+        @SerializedName("isBuiltIn") val isBuiltIn: Boolean = false
 )
 
 /**

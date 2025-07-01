@@ -101,7 +101,7 @@ class DragonBonesRepository(private val context: Context) {
         // otherwise use the newly scanned model data.
         val finalModels =
                 modelsFromDisk.map { diskModel ->
-                        modelsFromPrefs.find { it.id == diskModel.id } ?: diskModel
+                    modelsFromPrefs.find { it.id == diskModel.id } ?: diskModel
                 }
 
         _models.value = finalModels
@@ -376,14 +376,7 @@ class DragonBonesRepository(private val context: Context) {
                 }
             }
 
-    fun updateModelType(modelId: String, modelType: ModelType) {
-        val currentModels = _models.value.toMutableList()
-        val modelIndex = currentModels.indexOfFirst { it.id == modelId }
-        if (modelIndex != -1) {
-            val updatedModel = currentModels[modelIndex].copy(modelType = modelType)
-            currentModels[modelIndex] = updatedModel
-            _models.value = currentModels
-            saveModelsToPrefs(currentModels)
-        }
+    suspend fun saveDragonBonesConfig(config: DragonBonesConfig) {
+        // ... implementation ...
     }
 }

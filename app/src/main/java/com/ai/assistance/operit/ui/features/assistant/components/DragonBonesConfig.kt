@@ -97,41 +97,6 @@ fun DragonBonesConfigSection(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // 模型类型选择器
-                val currentModel = uiState.currentModel
-                if (currentModel != null) {
-                    Column {
-                        Text(
-                            "模型类型", 
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.padding(vertical = 4.dp)
-                        ) {
-                            ModelType.values().forEach { type ->
-                                FilterChip(
-                                    selected = (currentModel.modelType ?: ModelType.STANDARD) == type,
-                                    onClick = {
-                                        if (currentModel.modelType != type) {
-                                            viewModel.updateModelType(currentModel.id, type)
-                                        }
-                                    },
-                                    label = {
-                                        Text(
-                                            when (type) {
-                                                ModelType.STANDARD -> "标准"
-                                                ModelType.QPET -> "Q版宠物"
-                                            }
-                                        )
-                                    }
-                                )
-                            }
-                        }
-                        Divider(modifier = Modifier.padding(vertical = 4.dp))
-                    }
-                }
-
                 // Scale Slider
                 Text(
                         text = "缩放: ${String.format("%.2f", controller.scale)}",
