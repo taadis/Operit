@@ -469,7 +469,7 @@ Java_com_ai_assistance_dragonbones_JniBridge_onDrawFrame(JNIEnv *env, jclass cla
             }
 
             if (!slot->getDisplay()) {
-                LOGW("onDrawFrame: Slot '%s' has no display object.", slot->getName().c_str());
+                // LOGW("onDrawFrame: Slot '%s' has no display object.", slot->getName().c_str());
                 continue;
             }
             

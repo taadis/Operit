@@ -2,13 +2,9 @@ package com.ai.assistance.operit.ui.features.assistant.screens
 
 import android.app.Activity
 import android.content.Intent
-import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -19,25 +15,19 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.ai.assistance.dragonbones.DragonBonesModel
 import com.ai.assistance.dragonbones.rememberDragonBonesController
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.preferences.*
-import com.ai.assistance.operit.ui.components.ManagedDragonBonesView
 import com.ai.assistance.operit.ui.features.assistant.components.DragonBonesConfigSection
 import com.ai.assistance.operit.ui.features.assistant.components.DragonBonesPreviewSection
 import com.ai.assistance.operit.ui.features.assistant.components.HowToImportSection
 import com.ai.assistance.operit.ui.features.assistant.components.SettingItem
 import com.ai.assistance.operit.ui.features.assistant.viewmodel.AssistantConfigViewModel
 import com.ai.assistance.operit.ui.features.settings.screens.getFunctionDisplayName
-import java.io.File
 import kotlinx.coroutines.launch
 
 /** 助手配置屏幕 提供DragonBones模型预览和相关配置 */
@@ -51,7 +41,8 @@ fun AssistantConfigScreen(
         navigateToUserPreferences: () -> Unit
 ) {
         val context = LocalContext.current
-        val viewModel: AssistantConfigViewModel = viewModel(factory = AssistantConfigViewModel.Factory(context))
+        val viewModel: AssistantConfigViewModel =
+                viewModel(factory = AssistantConfigViewModel.Factory(context))
         val uiState by viewModel.uiState.collectAsState()
 
         // Preferences Managers
@@ -152,8 +143,8 @@ fun AssistantConfigScreen(
         ) {
                 uiState.config?.let {
                         if (it.scale != dragonBonesController.scale ||
-                                it.translateX != dragonBonesController.translationX ||
-                                it.translateY != dragonBonesController.translationY
+                                        it.translateX != dragonBonesController.translationX ||
+                                        it.translateY != dragonBonesController.translationY
                         ) {
                                 viewModel.updateScale(dragonBonesController.scale)
                                 viewModel.updateTranslateX(dragonBonesController.translationX)
@@ -196,10 +187,10 @@ fun AssistantConfigScreen(
                                                 onClick = openZipFilePicker,
                                                 enabled = !uiState.isImporting && !uiState.isLoading
                                         ) {
-                                            Icon(
-                                                    imageVector = Icons.Default.FileUpload,
-                                                    contentDescription = "导入模型"
-                                            )
+                                                Icon(
+                                                        imageVector = Icons.Default.FileUpload,
+                                                        contentDescription = "导入模型"
+                                                )
                                         }
 
                                         // 刷新模型列表按钮
@@ -210,10 +201,10 @@ fun AssistantConfigScreen(
                                                                 !uiState.isLoading &&
                                                                 !uiState.isScanning
                                         ) {
-                                            Icon(
-                                                    imageVector = Icons.Default.Refresh,
-                                                    contentDescription = "扫描用户模型"
-                                            )
+                                                Icon(
+                                                        imageVector = Icons.Default.Refresh,
+                                                        contentDescription = "扫描用户模型"
+                                                )
                                         }
                                 }
                         )
@@ -232,7 +223,11 @@ fun AssistantConfigScreen(
                                 DragonBonesPreviewSection(
                                         modifier = Modifier.fillMaxWidth().height(300.dp),
                                         controller = dragonBonesController,
-                                        uiState = uiState
+                                        uiState = uiState,
+                                        onDeleteCurrentModel =
+                                                uiState.currentModel?.let { model ->
+                                                        { viewModel.deleteUserModel(model.id) }
+                                                }
                                 )
 
                                 Spacer(modifier = Modifier.height(12.dp))

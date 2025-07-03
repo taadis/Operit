@@ -63,11 +63,12 @@ constructor(context: Context, attrs: AttributeSet? = null, zOrderOnTop: Boolean 
         setEGLContextClientVersion(2)
 
         // 3. 创建并设置渲染器
-        renderer = DragonBonesRenderer(
-            onSurfaceCreated = { onRenderStart?.invoke() },
-            onDrawFrame = { onRenderFrame?.invoke() },
-            onSurfaceDestroyed = { onRenderEnd?.invoke() }
-        )
+        renderer =
+                DragonBonesRenderer(
+                        onSurfaceCreated = { onRenderStart?.invoke() },
+                        onDrawFrame = { onRenderFrame?.invoke() },
+                        onSurfaceDestroyed = { onRenderEnd?.invoke() }
+                )
         setRenderer(renderer)
 
         // 4. 设置渲染模式为连续渲染，以驱动动画
@@ -109,9 +110,9 @@ constructor(context: Context, attrs: AttributeSet? = null, zOrderOnTop: Boolean 
 
     /** GL渲染器，负责调用JNI代码执行实际的OpenGL绘制 */
     private class DragonBonesRenderer(
-        private val onSurfaceCreated: () -> Unit,
-        private val onDrawFrame: () -> Unit,
-        private val onSurfaceDestroyed: () -> Unit
+            private val onSurfaceCreated: () -> Unit,
+            private val onDrawFrame: () -> Unit,
+            private val onSurfaceDestroyed: () -> Unit
     ) : Renderer {
         override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
             JniBridge.onSurfaceCreated()
@@ -173,8 +174,8 @@ constructor(context: Context, attrs: AttributeSet? = null, zOrderOnTop: Boolean 
 
     fun destroy() {
         Log.d(TAG, "destroy() called on view $this")
-        queueEvent { 
-            JniBridge.onDestroy() 
+        queueEvent {
+            JniBridge.onDestroy()
             onRenderEnd?.invoke()
         }
         if (activeInstance?.get() == this) {
@@ -223,7 +224,6 @@ constructor(context: Context, attrs: AttributeSet? = null, zOrderOnTop: Boolean 
     }
 
     fun overrideBonePosition(boneName: String, x: Float, y: Float) {
-        Log.d("DragonBonesView", "Queueing overrideBonePosition: $boneName to ($x, $y)")
         queueEvent { JniBridge.overrideBonePosition(boneName, x, y) }
     }
 
@@ -291,10 +291,11 @@ fun DragonBonesViewCompose(
                     // CRUCIALLY, we use the controller's stable scope, which is not
                     // cancelled when this LaunchedEffect is restarted.
                     viewInstance.loadModel(model) {
-                        Log.d(TAG, "loadModel onComplete: Fetching animations for ${model.skeletonPath}")
-                        controller.coroutineScope.launch {
-                            controller.fetchAnimationNames()
-                        }
+                        Log.d(
+                                TAG,
+                                "loadModel onComplete: Fetching animations for ${model.skeletonPath}"
+                        )
+                        controller.coroutineScope.launch { controller.fetchAnimationNames() }
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Error in model change effect", e)
@@ -321,10 +322,10 @@ fun DragonBonesViewCompose(
                     when (command) {
                         is FadeInAnimationCommand -> {
                             viewInstance.fadeInAnimation(
-                                name = command.name,
-                                layer = command.layer,
-                                loop = command.loop,
-                                fadeInTime = command.fadeInTime
+                                    name = command.name,
+                                    layer = command.layer,
+                                    loop = command.loop,
+                                    fadeInTime = command.fadeInTime
                             )
                         }
                         is StopAnimationCommand -> {

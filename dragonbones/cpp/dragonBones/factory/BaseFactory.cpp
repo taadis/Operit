@@ -230,7 +230,7 @@ std::pair<void*, DisplayType> BaseFactory::_getSlotDisplay(const BuildArmaturePa
                 imageDisplayData->texture = _getTextureData(dataPackage->textureAtlasName, displayData->path);
             }
 
-            display.first = slot;
+            display.first = slot->_rawDisplay;
             display.second = DisplayType::Image;
             break;
         }
@@ -249,12 +249,12 @@ std::pair<void*, DisplayType> BaseFactory::_getSlotDisplay(const BuildArmaturePa
 
             if (_isSupportMesh())
             {
-                display.first = slot;
+                display.first = slot->_meshDisplay;
                 display.second = DisplayType::Mesh;
             }
             else
             {
-                display.first = slot;
+                display.first = slot->_rawDisplay;
                 display.second = DisplayType::Image;
             }
             break;

@@ -15,11 +15,6 @@ DRAGONBONES_NAMESPACE_BEGIN
 
 void AnimationState::_onClear()
 {
-    // By commenting out these returnToPool calls, we are intentionally leaking
-    // timeline objects to diagnose a deeper memory corruption issue. If this
-    // prevents the crash, it indicates the problem lies within the object pooling
-    // of one of the timeline state types, rather than the AnimationState itself.
-    /*
     for (const auto timeline : _boneTimelines)
     {
         timeline->returnToPool();
@@ -47,7 +42,6 @@ void AnimationState::_onClear()
     if (_zOrderTimeline != nullptr) {
         _zOrderTimeline->returnToPool();
     }
-    */
 
     actionEnabled = false;
     additiveBlending = false;

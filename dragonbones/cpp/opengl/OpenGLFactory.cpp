@@ -65,7 +65,7 @@ Armature* OpenGLFactory::_buildArmature(const BuildArmaturePackage& dataPackage)
 Slot* OpenGLFactory::_buildSlot(const BuildArmaturePackage& dataPackage, const SlotData* slotData, Armature* armature) const
 {
     const auto slot = BaseObject::borrowObject<OpenGLSlot>();
-    slot->init(slotData, armature, nullptr, nullptr);
+    slot->init(slotData, armature, slot, slot);
     return slot;
 }
 

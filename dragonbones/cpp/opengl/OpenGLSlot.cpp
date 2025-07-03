@@ -6,8 +6,12 @@
 #include "dragonBones/model/DisplayData.h"
 #include "dragonBones/armature/DeformVertices.h"
 #include <android/log.h>
-#define LOG_TAG "DragonBonesJNI"
+#include <string>
+#include <cmath>
+
+#define LOG_TAG "DragonBones_Mesh"
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 
 DRAGONBONES_NAMESPACE_BEGIN
 
@@ -24,9 +28,34 @@ void OpenGLSlot::_onClear()
 
 void OpenGLSlot::_initDisplay(void* value, bool isRetain) {}
 void OpenGLSlot::_disposeDisplay(void* value, bool isRetain) {}
-void OpenGLSlot::_onUpdateDisplay() 
+void OpenGLSlot::_onUpdateDisplay()
 {
-    _updateMesh();
+    // The responsibility of this method is to update the vertex buffer based on the current display data.
+    // It should NOT modify _meshDisplay, which is set at initialization by the factory to act
+    // as a persistent identifier for the mesh display object.
+
+    if (_displayData != nullptr)
+    {
+        if (_displayData->type == DisplayType::Mesh)
+        {
+            // The current display is a mesh. Update the vertex buffer with mesh data.
+            // The FFD logic in Slot::update() relies on _updateMesh() being called here.
+            _updateMesh();
+        }
+        else
+        {
+            // The current display is a simple image or something else.
+            // Update the vertex buffer for a simple quad.
+            _updateFrame();
+        }
+    }
+    else
+    {
+        // No display data, clear vertices to render nothing.
+        vertices.clear();
+        indices.clear();
+        textureID = 0;
+    }
 }
 void OpenGLSlot::_addDisplay() {}
 void OpenGLSlot::_replaceDisplay(void* value, bool isRetain) {}
@@ -97,7 +126,7 @@ void OpenGLSlot::_updateMesh()
 
     if (_displayData == nullptr || _displayData->type != DisplayType::Mesh)
     {
-        _updateFrame(); 
+        _updateFrame();
         isSkinned = false;
         return;
     }
@@ -180,18 +209,34 @@ void OpenGLSlot::_updateMesh()
     }
     else
     {
+        std::size_t deform_idx = 0;
         for (std::size_t i = 0, l = vertexCount * 2; i < l; i += 2)
         {
             const auto iH = i / 2;
             const auto iV = iH * 4;
 
-            auto x = floatArray[vertexOffset + i] * scale;
-            auto y = floatArray[vertexOffset + i + 1] * scale;
+            const auto x_orig = floatArray[vertexOffset + i] * scale;
+            const auto y_orig = floatArray[vertexOffset + i + 1] * scale;
+
+            auto x = x_orig;
+            auto y = y_orig;
+            
+            float deformX = 0.f;
+            float deformY = 0.f;
 
             if (hasDeform)
             {
-                x += deform[i];
-                y += deform[i + 1];
+                if (deform_idx < deform.size()) {
+                    deformX = deform[deform_idx];
+                    x += deformX;
+                }
+                deform_idx++;
+
+                if (deform_idx < deform.size()) {
+                    deformY = deform[deform_idx];
+                    y += deformY;
+                }
+                deform_idx++;
             }
 
             vertices[iV] = x;
