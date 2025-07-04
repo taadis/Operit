@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.api.chat.EnhancedAIService
@@ -229,7 +230,8 @@ fun ChatScreenHeader(
                                                 Column(
                                                         horizontalAlignment =
                                                                 Alignment.CenterHorizontally,
-                                                        verticalArrangement = Arrangement.Center
+                                                        verticalArrangement = Arrangement.Center,
+                                                        modifier = Modifier.widthIn(max = 120.dp)
                                                 ) {
                                                         Text(
                                                                 text =
@@ -260,7 +262,9 @@ fun ChatScreenHeader(
                                                                         ),
                                                                 color =
                                                                         MaterialTheme.colorScheme
-                                                                                .primary
+                                                                                .primary,
+                                                                maxLines = 1,
+                                                                overflow = TextOverflow.Ellipsis
                                                         )
                                                 }
 

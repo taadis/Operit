@@ -119,37 +119,74 @@ class DragonBonesRepository(private val context: Context) {
 
     private fun scanModelsInDirectory(directory: File): List<DragonBonesModel> {
         val allModels = mutableListOf<DragonBonesModel>()
-        if (directory.exists() && directory.isDirectory) {
-            val modelFolders = directory.listFiles { file -> file.isDirectory } ?: emptyArray()
+        Log.d(TAG, "Scanning for models in directory: ${directory.absolutePath}")
+        if (!directory.exists() || !directory.isDirectory) {
+            Log.e(TAG, "Scan directory does not exist or is not a directory: ${directory.absolutePath}")
+            return allModels
+        }
 
-            for (folder in modelFolders) {
-                val skeletonFile =
-                        folder
-                                .listFiles { file ->
-                                    file.isFile &&
-                                            file.extension == "json" &&
-                                            !file.name.endsWith("_tex.json")
-                                }
-                                ?.firstOrNull()
-                                ?: continue
+        // 1. 检查根目录下是否有模型
+        val directSkeletonFile = directory.listFiles { file ->
+            file.isFile && file.extension == "json" && !file.name.endsWith("_tex.json")
+        }?.firstOrNull()
+        if (directSkeletonFile != null) {
+            Log.d(TAG, "--- Found model files directly in the root of the scan directory ---")
+            val modelName = directSkeletonFile.nameWithoutExtension.removeSuffix("_ske")
+            Log.d(TAG, "Deduced model name from root: '$modelName'")
+            val textureJsonFile = File(directory, "${modelName}_tex.json")
+            val textureImageFile = File(directory, "${modelName}_tex.png")
+            Log.d(TAG, "Expecting texture JSON in root: ${textureJsonFile.path} (Exists: ${textureJsonFile.exists()})")
+            Log.d(TAG, "Expecting texture image in root: ${textureImageFile.path} (Exists: ${textureImageFile.exists()})")
+            if (textureJsonFile.exists() && textureImageFile.exists()) {
+                val model = DragonBonesModel(
+                    id = "user_${modelName}_${System.currentTimeMillis()}",
+                    name = modelName,
+                    folderPath = directory.absolutePath,
+                    skeletonFile = directSkeletonFile.name,
+                    textureJsonFile = textureJsonFile.name,
+                    textureImageFile = textureImageFile.name,
+                    isBuiltIn = false
+                )
+                allModels.add(model)
+                Log.i(TAG, "Successfully validated and added root model: '${model.name}'")
+            } else {
+                Log.w(TAG, "Validation failed for root model. Texture files might be missing or misnamed.")
+            }
+        }
 
-                val modelName = skeletonFile.nameWithoutExtension
-                val textureJsonFile = File(folder, "${modelName}_tex.json")
-                val textureImageFile = File(folder, "${modelName}_tex.png")
-
-                if (textureJsonFile.exists() && textureImageFile.exists()) {
-                    val model =
-                            DragonBonesModel(
-                                    id = "user_${folder.name}",
-                                    name = folder.name,
-                                    folderPath = folder.absolutePath,
-                                    skeletonFile = skeletonFile.name,
-                                    textureJsonFile = textureJsonFile.name,
-                                    textureImageFile = textureImageFile.name,
-                                    isBuiltIn = false // All models in user dir are treated as such
-                            )
-                    allModels.add(model)
-                }
+        // 2. 继续扫描子目录
+        val modelFolders = directory.listFiles { file -> file.isDirectory } ?: emptyArray()
+        Log.d(TAG, "Scanning ${modelFolders.size} subdirectories: ${modelFolders.joinToString { it.name }}")
+        for (folder in modelFolders) {
+            Log.d(TAG, "--- Processing sub-directory: ${folder.name} ---")
+            val skeletonFile = folder.listFiles { file ->
+                file.isFile && file.extension == "json" && !file.name.endsWith("_tex.json")
+            }?.firstOrNull()
+            if (skeletonFile == null) {
+                Log.w(TAG, "No skeleton '.json' file found in ${folder.name}. Skipping.")
+                continue
+            }
+            Log.d(TAG, "Found potential skeleton file in sub-directory: ${skeletonFile.name}")
+            val modelName = skeletonFile.nameWithoutExtension.removeSuffix("_ske")
+            Log.d(TAG, "Deduced model name from sub-directory: '$modelName'")
+            val textureJsonFile = File(folder, "${modelName}_tex.json")
+            val textureImageFile = File(folder, "${modelName}_tex.png")
+            Log.d(TAG, "Expecting texture JSON in sub-directory: ${textureJsonFile.path} (Exists: ${textureJsonFile.exists()})")
+            Log.d(TAG, "Expecting texture image in sub-directory: ${textureImageFile.path} (Exists: ${textureImageFile.exists()})")
+            if (textureJsonFile.exists() && textureImageFile.exists()) {
+                val model = DragonBonesModel(
+                    id = "user_${folder.name}",
+                    name = folder.name,
+                    folderPath = folder.absolutePath,
+                    skeletonFile = skeletonFile.name,
+                    textureJsonFile = textureJsonFile.name,
+                    textureImageFile = textureImageFile.name,
+                    isBuiltIn = false
+                )
+                allModels.add(model)
+                Log.i(TAG, "Successfully validated and added model from sub-directory: '${model.name}'")
+            } else {
+                Log.w(TAG, "Validation failed for model in folder '${folder.name}'. Texture files might be missing or misnamed.")
             }
         }
         return allModels
@@ -327,6 +364,9 @@ class DragonBonesRepository(private val context: Context) {
                         }
                     }
                             ?: return@withContext false
+
+                    val fileList = tempDir.walkTopDown().joinToString("\n") { "  - ${it.relativeTo(tempDir).path}" }
+                    Log.d(TAG, "ZIP content extracted to temp dir '${tempDir.absolutePath}':\n$fileList")
 
                     val foundModels = scanModelsInDirectory(tempDir)
 
