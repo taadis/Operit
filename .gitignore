@@ -20,3 +20,9 @@ temp.json
 /app/src/main/jniLibs
 /app/src/main/assets/models
 /app/src/main/assets/subpack
+
+.gradle
+.idea
+.cursor
+.vscode
+.kotlin
