@@ -1,6 +1,5 @@
 package com.ai.assistance.operit.ui.features.chat.screens
 
-import android.content.Intent
 import android.provider.Settings
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -18,13 +17,11 @@ import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
-import com.ai.assistance.operit.services.FloatingChatService
 import com.ai.assistance.operit.ui.components.ErrorDialog
 import com.ai.assistance.operit.ui.features.chat.components.*
 import com.ai.assistance.operit.ui.features.chat.util.ConfigurationStateHolder
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModelFactory
-import com.ai.assistance.operit.ui.floating.FloatingMode
 import com.ai.assistance.operit.ui.main.screens.GestureStateHolder
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.sample
@@ -51,9 +48,7 @@ fun AIChatScreen(
     val actualViewModel = viewModel ?: remember { factory.create(ChatViewModel::class.java) }
 
     // 设置权限系统的颜色方案
-    LaunchedEffect(colorScheme) {
-        actualViewModel.setPermissionSystemColorScheme(colorScheme)
-    }
+    LaunchedEffect(colorScheme) { actualViewModel.setPermissionSystemColorScheme(colorScheme) }
 
     // 添加麦克风权限请求启动器
     val requestMicrophonePermissionLauncher =
@@ -310,6 +305,7 @@ fun AIChatScreen(
 
                         // 原有输入框区域
                         ChatInputSection(
+                                actualViewModel = actualViewModel,
                                 userMessage = userMessage,
                                 onUserMessageChange = { actualViewModel.updateUserMessage(it) },
                                 onSendMessage = {
@@ -356,13 +352,6 @@ fun AIChatScreen(
                                 externalAttachmentPanelState = attachmentPanelState,
                                 onAttachmentPanelStateChange = { newState ->
                                     actualViewModel.updateAttachmentPanelState(newState)
-                                },
-                                onLaunchVoiceMode = {
-                                    actualViewModel.launchFloatingModeIn(
-                                        FloatingMode.FULLSCREEN,
-                                        colorScheme,
-                                        null //
-                                    )
                                 }
                         )
                     }

@@ -1,5 +1,7 @@
 package com.ai.assistance.operit.ui.features.chat.components
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,11 +24,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -34,9 +38,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.ui.common.animations.SimpleAnimatedVisibility
+import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
+import com.ai.assistance.operit.ui.floating.FloatingMode
 
 @Composable
 fun ChatInputSection(
+        actualViewModel: ChatViewModel,
         userMessage: String,
         onUserMessageChange: (String) -> Unit,
         onSendMessage: () -> Unit,
@@ -56,12 +63,25 @@ fun ChatInputSection(
         hasBackgroundImage: Boolean = false,
         modifier: Modifier = Modifier,
         externalAttachmentPanelState: Boolean? = null,
-        onAttachmentPanelStateChange: ((Boolean) -> Unit)? = null,
-        onLaunchVoiceMode: () -> Unit = {}
+        onAttachmentPanelStateChange: ((Boolean) -> Unit)? = null
 ) {
         val modernTextStyle = TextStyle(fontSize = 13.sp, lineHeight = 16.sp)
+        val scope = rememberCoroutineScope()
+        val context = LocalContext.current
+        val colorScheme = MaterialTheme.colorScheme
+        val typography = MaterialTheme.typography
 
         val isProcessing = isLoading || isProcessingInput
+
+        val voicePermissionLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.RequestPermission()
+        ) { isGranted ->
+                if (isGranted) {
+                        actualViewModel.launchFloatingModeIn(FloatingMode.FULLSCREEN)
+                } else {
+                        actualViewModel.showToast("麦克风权限被拒绝")
+                }
+        }
 
         // 控制附件面板的展开状态 - 使用外部状态或本地状态
         val (showAttachmentPanel, setShowAttachmentPanel) =
@@ -267,15 +287,21 @@ fun ChatInputSection(
                                                                 enabled = true, // 始终启用，因为现在它也是语音入口
                                                                 onClick = {
                                                                         when {
-                                                                                isProcessing -> onCancelMessage()
-                                                                                userMessage.isNotBlank() || attachments.isNotEmpty() -> {
+                                                                                isProcessing ->
+                                                                                        onCancelMessage()
+                                                                                userMessage
+                                                                                        .isNotBlank() ||
+                                                                                        attachments
+                                                                                                .isNotEmpty() -> {
                                                                                         onSendMessage()
                                                                                         // 发送消息后关闭附件面板
                                                                                         setShowAttachmentPanel(
                                                                                                 false
                                                                                         )
                                                                                 }
-                                                                                else -> onLaunchVoiceMode() // 作为语音入口
+                                                                                else -> {
+                                                                                        actualViewModel.launchFullscreenVoiceModeWithPermissionCheck(voicePermissionLauncher)
+                                                                                }
                                                                         }
                                                                 }
                                                         ),
@@ -285,13 +311,17 @@ fun ChatInputSection(
                                                 imageVector =
                                                         when {
                                                                 isProcessing -> Icons.Default.Close
-                                                                userMessage.isNotBlank() || attachments.isNotEmpty() -> Icons.Default.Send
+                                                                userMessage.isNotBlank() ||
+                                                                        attachments.isNotEmpty() ->
+                                                                        Icons.Default.Send
                                                                 else -> Icons.Default.Mic
                                                         },
                                                 contentDescription =
                                                         when {
                                                                 isProcessing -> "取消"
-                                                                userMessage.isNotBlank() || attachments.isNotEmpty() -> "发送"
+                                                                userMessage.isNotBlank() ||
+                                                                        attachments.isNotEmpty() ->
+                                                                        "发送"
                                                                 else -> "语音输入"
                                                         },
                                                 tint =

@@ -1,8 +1,11 @@
 package com.ai.assistance.operit.ui.features.chat.viewmodel
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.provider.Settings
 import android.util.Log
+import androidx.activity.result.ActivityResultLauncher
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.Typography
 import androidx.lifecycle.ViewModel
@@ -19,7 +22,6 @@ import com.ai.assistance.operit.data.preferences.ModelConfigManager
 import com.ai.assistance.operit.data.preferences.PromptFunctionType
 import com.ai.assistance.operit.ui.features.chat.attachments.AttachmentManager
 import com.ai.assistance.operit.ui.features.chat.webview.LocalWebServer
-import com.ai.assistance.operit.ui.features.chat.viewmodel.FloatingWindowDelegate
 import com.ai.assistance.operit.ui.floating.FloatingMode
 import com.ai.assistance.operit.ui.permissions.PermissionLevel
 import com.ai.assistance.operit.ui.permissions.ToolPermissionSystem
@@ -560,9 +562,9 @@ class ChatViewModel(private val context: Context) : ViewModel() {
 
         // 调用messageProcessingDelegate发送消息，并传递附件信息
         messageProcessingDelegate.sendUserMessage(
-            attachments = currentAttachments, 
-            chatId = chatId, 
-            promptFunctionType = promptFunctionType
+                attachments = currentAttachments,
+                chatId = chatId,
+                promptFunctionType = promptFunctionType
         )
 
         if (chatHistoryDelegate.shouldGenerateSummary(chatHistoryDelegate.chatHistory.value)) {
@@ -990,9 +992,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         fileChooserCallback = null
     }
 
-    /**
-     * 设置权限系统的颜色方案
-     */
+    /** 设置权限系统的颜色方案 */
     fun setPermissionSystemColorScheme(colorScheme: ColorScheme?) {
         toolPermissionSystem.setColorScheme(colorScheme)
     }
@@ -1003,6 +1003,55 @@ class ChatViewModel(private val context: Context) : ViewModel() {
             typography: Typography? = null
     ) {
         floatingWindowDelegate.launchInMode(mode, colorScheme, typography)
+    }
+
+    fun launchFloatingWindowWithPermissionCheck(
+            launcher: ActivityResultLauncher<String>,
+            onPermissionGranted: () -> Unit
+    ) {
+        val hasMicPermission =
+                android.content.pm.PackageManager.PERMISSION_GRANTED ==
+                        context.checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+        val canDrawOverlays = Settings.canDrawOverlays(context)
+
+        if (!hasMicPermission) {
+            launcher.launch(Manifest.permission.RECORD_AUDIO)
+        } else if (!canDrawOverlays) {
+            val intent =
+                    Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            android.net.Uri.parse("package:${context.packageName}")
+                    )
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+            showToast("需要悬浮窗权限才能启动语音助手")
+        } else {
+            onPermissionGranted()
+        }
+    }
+
+    fun launchFullscreenVoiceModeWithPermissionCheck(
+        launcher: ActivityResultLauncher<String>
+    ) {
+        val hasMicPermission =
+            android.content.pm.PackageManager.PERMISSION_GRANTED ==
+                    context.checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+        val canDrawOverlays = Settings.canDrawOverlays(context)
+
+        if (!hasMicPermission) {
+            launcher.launch(Manifest.permission.RECORD_AUDIO)
+        } else if (!canDrawOverlays) {
+            val intent = Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                android.net.Uri.parse("package:${context.packageName}")
+            )
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+            showToast("需要悬浮窗权限才能启动语音助手")
+        } else {
+            // Directly launch fullscreen voice mode
+            launchFloatingModeIn(FloatingMode.FULLSCREEN)
+        }
     }
 
     override fun onCleared() {
