@@ -1,4 +1,4 @@
-package com.ai.assistance.dragonbones
+package com.dragonbones
 
 import android.content.Context
 import android.graphics.PixelFormat

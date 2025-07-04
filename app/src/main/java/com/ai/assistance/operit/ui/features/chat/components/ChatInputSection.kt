@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -55,7 +56,8 @@ fun ChatInputSection(
         hasBackgroundImage: Boolean = false,
         modifier: Modifier = Modifier,
         externalAttachmentPanelState: Boolean? = null,
-        onAttachmentPanelStateChange: ((Boolean) -> Unit)? = null
+        onAttachmentPanelStateChange: ((Boolean) -> Unit)? = null,
+        onLaunchVoiceMode: () -> Unit = {}
 ) {
         val modernTextStyle = TextStyle(fontSize = 13.sp, lineHeight = 16.sp)
 
@@ -259,29 +261,21 @@ fun ChatInputSection(
                                                                                 MaterialTheme
                                                                                         .colorScheme
                                                                                         .primary
-                                                                                        .copy(
-                                                                                                alpha =
-                                                                                                        0.5f
-                                                                                        )
                                                                 }
                                                         )
                                                         .clickable(
-                                                                enabled =
-                                                                        if (isProcessing) true
-                                                                        else
-                                                                                userMessage
-                                                                                        .isNotBlank() ||
-                                                                                        attachments
-                                                                                                .isNotEmpty(),
+                                                                enabled = true, // 始终启用，因为现在它也是语音入口
                                                                 onClick = {
-                                                                        if (isProcessing) {
-                                                                                onCancelMessage()
-                                                                        } else {
-                                                                                onSendMessage()
-                                                                                // 发送消息后关闭附件面板
-                                                                                setShowAttachmentPanel(
-                                                                                        false
-                                                                                )
+                                                                        when {
+                                                                                isProcessing -> onCancelMessage()
+                                                                                userMessage.isNotBlank() || attachments.isNotEmpty() -> {
+                                                                                        onSendMessage()
+                                                                                        // 发送消息后关闭附件面板
+                                                                                        setShowAttachmentPanel(
+                                                                                                false
+                                                                                        )
+                                                                                }
+                                                                                else -> onLaunchVoiceMode() // 作为语音入口
                                                                         }
                                                                 }
                                                         ),
@@ -289,10 +283,17 @@ fun ChatInputSection(
                                 ) {
                                         Icon(
                                                 imageVector =
-                                                        if (isProcessing) Icons.Default.Close
-                                                        else Icons.Default.Send,
+                                                        when {
+                                                                isProcessing -> Icons.Default.Close
+                                                                userMessage.isNotBlank() || attachments.isNotEmpty() -> Icons.Default.Send
+                                                                else -> Icons.Default.Mic
+                                                        },
                                                 contentDescription =
-                                                        if (isProcessing) "取消" else "发送",
+                                                        when {
+                                                                isProcessing -> "取消"
+                                                                userMessage.isNotBlank() || attachments.isNotEmpty() -> "发送"
+                                                                else -> "语音输入"
+                                                        },
                                                 tint =
                                                         if (isProcessing)
                                                                 MaterialTheme.colorScheme.onError

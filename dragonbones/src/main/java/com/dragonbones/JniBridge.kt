@@ -1,4 +1,4 @@
-package com.ai.assistance.dragonbones
+package com.dragonbones
 
 object JniBridge {
     init {

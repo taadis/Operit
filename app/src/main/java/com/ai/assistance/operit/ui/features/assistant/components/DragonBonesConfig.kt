@@ -42,12 +42,12 @@ import com.ai.assistance.operit.ui.features.assistant.viewmodel.AssistantConfigV
 
 @Composable
 fun DragonBonesConfigSection(
-        controller: com.ai.assistance.dragonbones.DragonBonesController,
+        controller: com.dragonbones.DragonBonesController,
         viewModel: AssistantConfigViewModel,
         uiState: AssistantConfigViewModel.UiState,
         onImportClick: () -> Unit
 ) {
-    var expanded by remember { mutableStateOf(true) }
+    var expanded by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp, start = 4.dp)) {
         Row(

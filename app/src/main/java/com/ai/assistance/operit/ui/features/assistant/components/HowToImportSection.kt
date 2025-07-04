@@ -68,26 +68,43 @@ fun HowToImportSection() {
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f)
         ) {
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                val primaryColor = MaterialTheme.colorScheme.primary
+                val annotatedString = buildAnnotatedString {
+                    withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                        append("DragonBones现已更名为 LoongBones，并推出了新版在线编辑器。\n")
+                        append("LoongBones支持IK反向动力学、网格形变、骨骼绑定等专业级动画功能。\n\n")
+                    }
+                    
+                    withStyle(style = SpanStyle(color = primaryColor, fontWeight = FontWeight.Bold)) {
+                        append("1. 制作模型：\n")
+                    }
+                    append("    · 推荐：使用新版在线编辑器。\n")
+                    append("    · 备选：从第三方存档网站下载旧版 v5.6.3 离线编辑器。\n\n")
+                    
+                    withStyle(style = SpanStyle(color = primaryColor, fontWeight = FontWeight.Bold)) {
+                        append("2. 导出文件：\n")
+                    }
+                    append("    · 无论使用哪个版本，导出数据时类型请选择 JSON，版本请选择 5.5（当前还不支持 6.0 运行时）。\n")
+                    append("    · 导出的核心文件为：*_ske.json、*_tex.json、*_tex.png。\n\n")
+                    
+                    withStyle(style = SpanStyle(color = primaryColor, fontWeight = FontWeight.Bold)) {
+                        append("3. 配置交互：\n")
+                    }
+                    append("    · 如需实现头部跟随，请添加 IK 约束，并将其目标骨骼命名为 ik_target。\n")
+                    append("    · idle 动画：请确保有一个命名为 idle 的动画，作为基础待机动画，会自动循环播放。\n")
+                    append("    · 随机动画：可添加如 blink（眨眼）、shake_head（摇头）、wag_tail（摇尾巴）等动画，\n")
+                    append("      系统会随机自动触发这些动画，丰富宠物表现。\n\n")
+                    
+                    withStyle(style = SpanStyle(color = primaryColor, fontWeight = FontWeight.Bold)) {
+                        append("4. 打包与导入：\n")
+                    }
+                    append("    · 将导出的三个文件打包成一个 .zip 文件后导入。")
+                }
+                
                 Text(
-                        text = """
-                                DragonBones现已更名为 LoongBones，并推出了新版在线编辑器。
-                                
-                                1. 制作模型:
-                                   - 推荐: 使用新版在线编辑器。
-                                   - 备选: 从第三方存档网站下载旧版v5.6.3离线编辑器。
-                                
-                                2. 导出文件:
-                                   - 无论使用哪个版本，导出数据时类型请选择 `JSON`。
-                                   - 导出的核心文件为: `*_ske.json`, `*_tex.json`, `*_tex.png`。
-                                
-                                3. 配置交互:
-                                   - (可选) 如需实现头部跟随，请添加IK约束，并将其目标骨骼命名为 `ik_target`。
-                                   
-                                4. 打包与导入:
-                                   - 将导出的三个文件打包成一个 `.zip` 文件后导入。
-                                """.trimIndent(),
-                        style = MaterialTheme.typography.bodyMedium,
-                        lineHeight = MaterialTheme.typography.bodyLarge.lineHeight
+                    text = annotatedString,
+                    style = MaterialTheme.typography.bodyMedium,
+                    lineHeight = MaterialTheme.typography.bodyLarge.lineHeight
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -125,68 +142,6 @@ fun HowToImportSection() {
                     }
                 }
             }
-        }
-    }
-
-    // Animation Specification Section
-    var specExpanded by remember { mutableStateOf(false) }
-    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp, start = 4.dp, top = 12.dp)) {
-        Row(
-                modifier = Modifier.fillMaxWidth().clickable { specExpanded = !specExpanded },
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                    "桌面宠物动画规范",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-            )
-            Icon(
-                    imageVector =
-                    if (specExpanded) Icons.Default.ExpandLess
-                    else Icons.Default.ExpandMore,
-                    contentDescription = if (specExpanded) "折叠" else "展开"
-            )
-        }
-    }
-
-    if (specExpanded) {
-        Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f)
-        ) {
-            val titleColor = MaterialTheme.colorScheme.primary
-            val annotatedString = buildAnnotatedString {
-                withStyle(style = SpanStyle(color = titleColor, fontWeight = FontWeight.Bold)) {
-                    append("核心交互 (必需)\n")
-                }
-                append("• ik_target: 用于头部跟随的IK目标骨骼，应添加IK约束并正确命名。\n\n")
-
-                withStyle(style = SpanStyle(color = titleColor, fontWeight = FontWeight.Bold)) {
-                    append("核心状态动画 (建议)\n")
-                }
-                append("• idle: (循环) 基础待机/呼吸动画，将在底层(layer 0)持续播放。\n")
-                append("• blink: (不循环) 单次眨眼，将在idle之上的中层(layer 1)随机叠加。\n\n")
-
-                withStyle(style = SpanStyle(color = titleColor, fontWeight = FontWeight.Bold)) {
-                    append("核心用户交互动画 (建议)\n")
-                }
-                append("• tap_reaction: (不循环) 对用户点击的反应，将在高层(layer 2)播放，不打断其他动画。\n\n")
-                
-                withStyle(style = SpanStyle(color = titleColor, fontWeight = FontWeight.Bold)) {
-                    append("动画制作建议\n")
-                }
-                append("• 基础动画: 尽量将待机(idle)动画设计为循环播放的形式，确保平滑过渡。\n")
-                append("• 分层设计: 眨眼(blink)等短暂表情应设计为可叠加在基础动画上的独立动画。\n")
-                append("• IK设置: 头部跟随效果需要在模型中创建一个名为'ik_target'的骨骼，并设置相应IK约束。\n")
-            }
-            Text(
-                    text = annotatedString,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                    style = MaterialTheme.typography.bodyMedium,
-                    lineHeight = MaterialTheme.typography.bodyLarge.lineHeight
-            )
         }
     }
 } 

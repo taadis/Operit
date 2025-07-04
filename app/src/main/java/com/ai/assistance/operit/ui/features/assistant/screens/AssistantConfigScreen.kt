@@ -19,7 +19,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.ai.assistance.dragonbones.rememberDragonBonesController
+import com.dragonbones.rememberDragonBonesController
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.preferences.*
 import com.ai.assistance.operit.ui.features.assistant.components.DragonBonesConfigSection

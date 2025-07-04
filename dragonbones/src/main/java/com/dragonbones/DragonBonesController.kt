@@ -1,4 +1,4 @@
-package com.ai.assistance.dragonbones
+package com.dragonbones
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable

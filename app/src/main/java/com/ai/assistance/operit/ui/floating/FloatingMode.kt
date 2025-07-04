@@ -5,5 +5,5 @@ enum class FloatingMode {
     BALL,
     VOICE_BALL,
     FULLSCREEN,
-    LIVE2D
+    DragonBones
 }

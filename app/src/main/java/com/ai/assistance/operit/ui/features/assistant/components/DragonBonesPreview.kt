@@ -30,7 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.dp
-import com.ai.assistance.dragonbones.DragonBonesModel
+import com.dragonbones.DragonBonesModel
 import com.ai.assistance.operit.ui.components.ManagedDragonBonesView
 import com.ai.assistance.operit.ui.features.assistant.viewmodel.AssistantConfigViewModel
 import java.io.File
@@ -40,7 +40,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun DragonBonesPreviewSection(
         modifier: Modifier = Modifier,
-        controller: com.ai.assistance.dragonbones.DragonBonesController,
+        controller: com.dragonbones.DragonBonesController,
         uiState: AssistantConfigViewModel.UiState,
         onDeleteCurrentModel: (() -> Unit)? = null
 ) {
@@ -67,43 +67,6 @@ fun DragonBonesPreviewSection(
                 Box(modifier = Modifier.fillMaxSize()) {
                         val currentModel = uiState.currentModel
                         if (currentModel != null) {
-                                // 删除按钮
-                                if (onDeleteCurrentModel != null) {
-                                        IconButton(
-                                                onClick = { showDeleteDialog = true },
-                                                modifier =
-                                                        Modifier.align(Alignment.TopEnd)
-                                                                .padding(8.dp)
-                                        ) {
-                                                Icon(
-                                                        Icons.Default.Delete,
-                                                        contentDescription = "删除当前模型"
-                                                )
-                                        }
-                                }
-                                if (showDeleteDialog) {
-                                        AlertDialog(
-                                                onDismissRequest = { showDeleteDialog = false },
-                                                title = { Text("确认删除模型？") },
-                                                text = { Text("删除后不可恢复，确定要删除该模型吗？") },
-                                                confirmButton = {
-                                                        TextButton(
-                                                                onClick = {
-                                                                        onDeleteCurrentModel
-                                                                                ?.invoke()
-                                                                        showDeleteDialog = false
-                                                                }
-                                                        ) { Text("删除") }
-                                                },
-                                                dismissButton = {
-                                                        TextButton(
-                                                                onClick = {
-                                                                        showDeleteDialog = false
-                                                                }
-                                                        ) { Text("取消") }
-                                                }
-                                        )
-                                }
                                 val model =
                                         remember(currentModel) {
                                                 DragonBonesModel(

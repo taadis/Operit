@@ -6,7 +6,7 @@ import com.google.gson.annotations.SerializedName
  * The type of animation logic to apply to a model.
  */
 enum class ModelType {
-    /** Standard animation logic, suitable for humanoid or complex models (the "Live2D-like" style). */
+    /** Standard animation logic, suitable for humanoid or complex models (the "DragonBones-like" style). */
     STANDARD
 }
 

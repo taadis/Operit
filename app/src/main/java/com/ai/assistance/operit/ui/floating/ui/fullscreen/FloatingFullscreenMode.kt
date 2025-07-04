@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -323,6 +324,22 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
                         modifier = Modifier.animateContentSize() // 内容变化时有动画
                 )
             }
+        }
+
+        // Top right close button
+        IconButton(
+            onClick = { floatContext.onClose() },
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(16.dp)
+                .size(42.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "关闭悬浮窗",
+                tint = Color.White,
+                modifier = Modifier.size(28.dp)
+            )
         }
 
         // 底部控制栏

@@ -17,7 +17,7 @@
 
 namespace {
     struct JniBridgeInstance {
-        dragonBones::WorldClock* worldClock = nullptr;
+        dragonBones::DragonBones* dragonBones = nullptr;
         dragonBones::Armature* armature = nullptr;
         dragonBones::opengl::OpenGLFactory* factory = nullptr;
         
@@ -44,9 +44,9 @@ namespace {
         bool isGlReady = false;
 
         ~JniBridgeInstance() {
-            if (worldClock) {
-                delete worldClock;
-                worldClock = nullptr;
+            if (dragonBones) {
+                delete dragonBones;
+                dragonBones = nullptr;
             }
             if (factory) {
                 delete factory;
@@ -262,7 +262,7 @@ namespace {
         {
             instance->armature = armatureObject;
             LOGI("Armature '%s' built at %p, instance is %p", armatureNameToBuild.c_str(), instance->armature, instance);
-            instance->worldClock->add(armatureObject);
+            instance->dragonBones->getClock()->add(armatureObject);
             // Reset animation to force armature to setup pose.
             // This overrides any "defaultActions" in the data file (e.g., auto-playing an empty animation),
             // which can cause rendering issues for some models.
@@ -278,34 +278,34 @@ static float viewportWidth = 0.0f;
 static float viewportHeight = 0.0f;
 
 JNIEXPORT void JNICALL
-Java_com_ai_assistance_dragonbones_JniBridge_init(JNIEnv *env, jclass clazz) {
+Java_com_dragonbones_JniBridge_init(JNIEnv *env, jclass clazz) {
     auto* instance = getInstance();
     if (!instance->factory) {
         instance->factory = new dragonBones::opengl::OpenGLFactory();
     }
-    if (!instance->worldClock) {
-        instance->worldClock = new dragonBones::WorldClock();
+    if (!instance->dragonBones) {
+        instance->dragonBones = new dragonBones::DragonBones(instance->factory);
+        instance->factory->setDragonBones(instance->dragonBones);
     }
     LOGI("DragonBones JNI Initialized");
 }
 
 JNIEXPORT void JNICALL
-Java_com_ai_assistance_dragonbones_JniBridge_loadDragonBones(JNIEnv *env, jclass clazz, jbyteArray skeleton_data, jbyteArray texture_json_data, jbyteArray texture_png_data) {
+Java_com_dragonbones_JniBridge_loadDragonBones(JNIEnv *env, jclass clazz, jbyteArray skeleton_data, jbyteArray texture_json_data, jbyteArray texture_png_data) {
     auto* instance = getInstance();
     if (!instance) return;
 
     // Clean up previous model if it exists
     if (instance->armature) {
-        LOGI("Cleaning up previous armature, resetting clock, and RECREATING factory.");
-        instance->worldClock->clear(); // This removes all armatures and resets the clock time.
+        LOGI("Cleaning up previous armature and factory data.");
+        // 1. Dispose of the old armature object. This will queue it for cleanup on the next advanceTime().
+        instance->armature->dispose();
         instance->armature = nullptr;
-        
-        // The factory holds onto texture data and other state. To prevent corruption
-        // between model loads, it's safest to destroy and recreate it entirely.
-        if (instance->factory) {
-            delete instance->factory;
-        }
-        instance->factory = new dragonBones::opengl::OpenGLFactory();
+
+        // 2. Clear all parsed data (dragonbones data, texture atlas data) from the factory.
+        // Recreating the factory is dangerous because the DragonBones instance holds a pointer
+        // to it as an event manager. Clearing is the intended way to switch models.
+        instance->factory->clear();
     }
     instance->isDataLoaded = false;
     instance->dragonBonesDataBuffer.clear();
@@ -345,25 +345,25 @@ Java_com_ai_assistance_dragonbones_JniBridge_loadDragonBones(JNIEnv *env, jclass
 }
 
 JNIEXPORT void JNICALL
-Java_com_ai_assistance_dragonbones_JniBridge_onPause(JNIEnv *env, jclass clazz) {
+Java_com_dragonbones_JniBridge_onPause(JNIEnv *env, jclass clazz) {
     LOGI("DragonBones onPause");
     // 暂停动画和渲染
-    if (getInstance()->worldClock) {
+    if (getInstance()->dragonBones) {
         // 可以在这里保存状态或暂停动画
     }
 }
 
 JNIEXPORT void JNICALL
-Java_com_ai_assistance_dragonbones_JniBridge_onResume(JNIEnv *env, jclass clazz) {
+Java_com_dragonbones_JniBridge_onResume(JNIEnv *env, jclass clazz) {
     LOGI("DragonBones onResume");
     // 恢复动画和渲染
-    if (getInstance()->worldClock) {
+    if (getInstance()->dragonBones) {
         // 可以在这里恢复之前的状态
     }
 }
 
 JNIEXPORT void JNICALL
-Java_com_ai_assistance_dragonbones_JniBridge_onDestroy(JNIEnv *env, jclass clazz) {
+Java_com_dragonbones_JniBridge_onDestroy(JNIEnv *env, jclass clazz) {
     LOGI("DragonBones onDestroy");
     auto* currentInstance = getInstance();
     if (currentInstance) {
@@ -373,7 +373,7 @@ Java_com_ai_assistance_dragonbones_JniBridge_onDestroy(JNIEnv *env, jclass clazz
 }
 
 JNIEXPORT void JNICALL
-Java_com_ai_assistance_dragonbones_JniBridge_onSurfaceCreated(JNIEnv *env, jclass clazz) {
+Java_com_dragonbones_JniBridge_onSurfaceCreated(JNIEnv *env, jclass clazz) {
     LOGI("DragonBones onSurfaceCreated");
     auto* instance = getInstance();
     if (!instance) return;
@@ -381,7 +381,7 @@ Java_com_ai_assistance_dragonbones_JniBridge_onSurfaceCreated(JNIEnv *env, jclas
     // If the surface is recreated, old GL resources are invalid. Clean up the armature.
     if (instance->armature) {
         LOGI("GL context recreated. Cleaning up old armature to recreate GL resources.");
-        instance->worldClock->remove(instance->armature);
+        instance->dragonBones->getClock()->remove(instance->armature);
         instance->armature = nullptr;
     }
 
@@ -417,7 +417,7 @@ Java_com_ai_assistance_dragonbones_JniBridge_onSurfaceCreated(JNIEnv *env, jclas
 }
 
 JNIEXPORT void JNICALL
-Java_com_ai_assistance_dragonbones_JniBridge_onSurfaceChanged(JNIEnv *env, jclass clazz, jint width, jint height) {
+Java_com_dragonbones_JniBridge_onSurfaceChanged(JNIEnv *env, jclass clazz, jint width, jint height) {
     auto* instance = getInstance();
     if (instance) {
         glViewport(0, 0, width, height);
@@ -429,104 +429,105 @@ Java_com_ai_assistance_dragonbones_JniBridge_onSurfaceChanged(JNIEnv *env, jclas
 }
 
 JNIEXPORT void JNICALL
-Java_com_ai_assistance_dragonbones_JniBridge_onDrawFrame(JNIEnv *env, jclass clazz) {
+Java_com_dragonbones_JniBridge_onDrawFrame(JNIEnv *env, jclass clazz) {
     auto* instance = getInstance();
-    if (instance && instance->armature)
+    if (instance && instance->dragonBones)
     {
-        // 1. Clear the screen
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        instance->dragonBones->advanceTime(1.0f / 60.0f);
 
-        // 2. Advance animation time
-        instance->worldClock->advanceTime(1.0f / 60.0f);
-        
-        // 3. Setup the rendering program and global GL state
-        glUseProgram(instance->programId);
-        glEnableVertexAttribArray(instance->positionLocation);
-        glEnableVertexAttribArray(instance->texCoordLocation);
-        
-        glActiveTexture(GL_TEXTURE0);
-        glUniform1i(instance->textureLocation, 0);
-        
-        // 4. Create a "view" matrix to scale and center the entire armature
-        float viewMatrix[16], scaleM[16], transM[16];
-        createScaleMatrix(scaleM, instance->worldScale, instance->worldScale, 1.0f);
-        createTranslateMatrix(transM, (viewportWidth / 2.0f) + instance->worldTranslateX, (viewportHeight / 2.0f) + instance->worldTranslateY, 0.0f);
-        multiplyMatrices(transM, scaleM, viewMatrix);
-        
-        // 5. Render each slot
-        const auto& slots = instance->armature->getSlots();
+        if (instance->armature) {
+            // 1. Clear the screen
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        int renderedSlots = 0;
-        for (const auto& slot : slots) {
-            if (!slot) {
-                LOGW("onDrawFrame: Skipping null slot.");
-                continue;
-            }
+            // 2. Setup the rendering program and global GL state
+            glUseProgram(instance->programId);
+            glEnableVertexAttribArray(instance->positionLocation);
+            glEnableVertexAttribArray(instance->texCoordLocation);
+            
+            glActiveTexture(GL_TEXTURE0);
+            glUniform1i(instance->textureLocation, 0);
+            
+            // 3. Create a "view" matrix to scale and center the entire armature
+            float viewMatrix[16], scaleM[16], transM[16];
+            createScaleMatrix(scaleM, instance->worldScale, instance->worldScale, 1.0f);
+            createTranslateMatrix(transM, (viewportWidth / 2.0f) + instance->worldTranslateX, (viewportHeight / 2.0f) + instance->worldTranslateY, 0.0f);
+            multiplyMatrices(transM, scaleM, viewMatrix);
+            
+            // 4. Render each slot
+            const auto& slots = instance->armature->getSlots();
 
-            if (!slot->getVisible()) {
-                LOGW("onDrawFrame: Slot '%s' is not visible.", slot->getName().c_str());
-                continue;
-            }
+            int renderedSlots = 0;
+            for (const auto& slot : slots) {
+                if (!slot) {
+                    LOGW("onDrawFrame: Skipping null slot.");
+                    continue;
+                }
 
-            if (!slot->getDisplay()) {
-                // LOGW("onDrawFrame: Slot '%s' has no display object.", slot->getName().c_str());
-                continue;
+                if (!slot->getVisible()) {
+                    LOGW("onDrawFrame: Slot '%s' is not visible.", slot->getName().c_str());
+                    continue;
+                }
+
+                if (!slot->getDisplay()) {
+                    // LOGW("onDrawFrame: Slot '%s' has no display object.", slot->getName().c_str());
+                    continue;
+                }
+                
+                auto* openglSlot = static_cast<dragonBones::opengl::OpenGLSlot*>(slot);
+                if (!openglSlot) {
+                    LOGW("onDrawFrame: Slot '%s' could not be cast to OpenGLSlot.", slot->getName().c_str());
+                    continue;
+                }
+
+                if (openglSlot->vertices.empty() || openglSlot->indices.empty() || openglSlot->textureID == 0) {
+                    LOGW("onDrawFrame: Skipping slot '%s' due to empty buffers or texture ID 0 (vertices: %zu, indices: %zu, textureID: %u)",
+                        slot->getName().c_str(), openglSlot->vertices.size(), openglSlot->indices.size(), openglSlot->textureID);
+                    continue;
+                }
+
+                // A. Get this slot's unique transformation matrix
+                float slotModelMatrix[16];
+                if (openglSlot->isSkinned)
+                {
+                    createIdentityMatrix(slotModelMatrix);
+                }
+                else
+                {
+                    convertDBMatrixToGL(slot->globalTransformMatrix, slotModelMatrix);
+                }
+
+                // B. Create the final MVP matrix: MVP = Projection * View * SlotModel
+                float pvMatrix[16], mvpMatrix[16];
+                multiplyMatrices(instance->projectionMatrix, viewMatrix, pvMatrix);
+                multiplyMatrices(pvMatrix, slotModelMatrix, mvpMatrix);
+                
+                // C. Pass the final matrix to the shader
+                glUniformMatrix4fv(instance->mvpMatrixLocation, 1, GL_FALSE, mvpMatrix);
+                
+                // D. Bind the texture and draw
+                glBindTexture(GL_TEXTURE_2D, openglSlot->textureID);
+                
+                const GLsizei stride = 4 * sizeof(float);
+                glVertexAttribPointer(instance->positionLocation, 2, GL_FLOAT, GL_FALSE, stride, openglSlot->vertices.data());
+                glVertexAttribPointer(instance->texCoordLocation, 2, GL_FLOAT, GL_FALSE, stride, (const GLvoid*)(openglSlot->vertices.data() + 2));
+                
+                glDrawElements(GL_TRIANGLES, openglSlot->indices.size(), GL_UNSIGNED_SHORT, openglSlot->indices.data());
+                renderedSlots++;
             }
             
-            auto* openglSlot = static_cast<dragonBones::opengl::OpenGLSlot*>(slot);
-            if (!openglSlot) {
-                LOGW("onDrawFrame: Slot '%s' could not be cast to OpenGLSlot.", slot->getName().c_str());
-                continue;
+            if (renderedSlots == 0 && !slots.empty()) {
+                LOGW("onDrawFrame: Rendered 0 slots out of %zu.", slots.size());
             }
-
-            if (openglSlot->vertices.empty() || openglSlot->indices.empty() || openglSlot->textureID == 0) {
-                LOGW("onDrawFrame: Skipping slot '%s' due to empty buffers or texture ID 0 (vertices: %zu, indices: %zu, textureID: %u)",
-                    slot->getName().c_str(), openglSlot->vertices.size(), openglSlot->indices.size(), openglSlot->textureID);
-                continue;
-            }
-
-            // A. Get this slot's unique transformation matrix
-            float slotModelMatrix[16];
-            if (openglSlot->isSkinned)
-            {
-                createIdentityMatrix(slotModelMatrix);
-            }
-            else
-            {
-                convertDBMatrixToGL(slot->globalTransformMatrix, slotModelMatrix);
-            }
-
-            // B. Create the final MVP matrix: MVP = Projection * View * SlotModel
-            float pvMatrix[16], mvpMatrix[16];
-            multiplyMatrices(instance->projectionMatrix, viewMatrix, pvMatrix);
-            multiplyMatrices(pvMatrix, slotModelMatrix, mvpMatrix);
             
-            // C. Pass the final matrix to the shader
-            glUniformMatrix4fv(instance->mvpMatrixLocation, 1, GL_FALSE, mvpMatrix);
-            
-            // D. Bind the texture and draw
-            glBindTexture(GL_TEXTURE_2D, openglSlot->textureID);
-            
-            const GLsizei stride = 4 * sizeof(float);
-            glVertexAttribPointer(instance->positionLocation, 2, GL_FLOAT, GL_FALSE, stride, openglSlot->vertices.data());
-            glVertexAttribPointer(instance->texCoordLocation, 2, GL_FLOAT, GL_FALSE, stride, (const GLvoid*)(openglSlot->vertices.data() + 2));
-            
-            glDrawElements(GL_TRIANGLES, openglSlot->indices.size(), GL_UNSIGNED_SHORT, openglSlot->indices.data());
-            renderedSlots++;
+            // 5. Cleanup
+            glDisableVertexAttribArray(instance->positionLocation);
+            glDisableVertexAttribArray(instance->texCoordLocation);
         }
-        
-        if (renderedSlots == 0 && !slots.empty()) {
-            LOGW("onDrawFrame: Rendered 0 slots out of %zu.", slots.size());
-        }
-        
-        // 6. Cleanup
-        glDisableVertexAttribArray(instance->positionLocation);
-        glDisableVertexAttribArray(instance->texCoordLocation);
     }
 }
 
 JNIEXPORT jobjectArray JNICALL
-Java_com_ai_assistance_dragonbones_JniBridge_getAnimationNames(JNIEnv *env, jclass clazz) {
+Java_com_dragonbones_JniBridge_getAnimationNames(JNIEnv *env, jclass clazz) {
     auto* instance = getInstance();
     if (!instance || !instance->armature) {
         return nullptr;
@@ -550,7 +551,7 @@ Java_com_ai_assistance_dragonbones_JniBridge_getAnimationNames(JNIEnv *env, jcla
 }
 
 JNIEXPORT void JNICALL
-Java_com_ai_assistance_dragonbones_JniBridge_fadeInAnimation(JNIEnv *env, jclass clazz, jstring animation_name, jint layer, jint loop, jfloat fade_in_time) {
+Java_com_dragonbones_JniBridge_fadeInAnimation(JNIEnv *env, jclass clazz, jstring animation_name, jint layer, jint loop, jfloat fade_in_time) {
     auto* instance = getInstance();
     if (!instance || !instance->armature) {
         return;
@@ -575,7 +576,7 @@ Java_com_ai_assistance_dragonbones_JniBridge_fadeInAnimation(JNIEnv *env, jclass
 }
 
 JNIEXPORT jstring JNICALL
-Java_com_ai_assistance_dragonbones_JniBridge_containsPoint(JNIEnv *env, jclass clazz, jfloat x, jfloat y) {
+Java_com_dragonbones_JniBridge_containsPoint(JNIEnv *env, jclass clazz, jfloat x, jfloat y) {
     auto* instance = getInstance();
     if (!instance || !instance->armature) {
         return nullptr;
@@ -594,7 +595,7 @@ Java_com_ai_assistance_dragonbones_JniBridge_containsPoint(JNIEnv *env, jclass c
 }
 
 JNIEXPORT void JNICALL
-Java_com_ai_assistance_dragonbones_JniBridge_setWorldScale(JNIEnv *env, jclass clazz, jfloat scale) {
+Java_com_dragonbones_JniBridge_setWorldScale(JNIEnv *env, jclass clazz, jfloat scale) {
     auto* instance = getInstance();
     if (instance) {
         instance->worldScale = scale;
@@ -602,7 +603,7 @@ Java_com_ai_assistance_dragonbones_JniBridge_setWorldScale(JNIEnv *env, jclass c
 }
 
 JNIEXPORT void JNICALL
-Java_com_ai_assistance_dragonbones_JniBridge_setWorldTranslation(JNIEnv *env, jclass clazz, jfloat x, jfloat y) {
+Java_com_dragonbones_JniBridge_setWorldTranslation(JNIEnv *env, jclass clazz, jfloat x, jfloat y) {
     auto* instance = getInstance();
     if (instance) {
         instance->worldTranslateX = x;
@@ -611,7 +612,7 @@ Java_com_ai_assistance_dragonbones_JniBridge_setWorldTranslation(JNIEnv *env, jc
 }
 
 JNIEXPORT void JNICALL
-Java_com_ai_assistance_dragonbones_JniBridge_overrideBonePosition(JNIEnv *env, jclass clazz, jstring bone_name, jfloat x, jfloat y) {
+Java_com_dragonbones_JniBridge_overrideBonePosition(JNIEnv *env, jclass clazz, jstring bone_name, jfloat x, jfloat y) {
     auto* instance = getInstance();
     if (!instance || !instance->armature) return;
 
@@ -632,7 +633,7 @@ Java_com_ai_assistance_dragonbones_JniBridge_overrideBonePosition(JNIEnv *env, j
 }
 
 JNIEXPORT void JNICALL
-Java_com_ai_assistance_dragonbones_JniBridge_resetBone(JNIEnv *env, jclass clazz, jstring bone_name) {
+Java_com_dragonbones_JniBridge_resetBone(JNIEnv *env, jclass clazz, jstring bone_name) {
     auto* instance = getInstance();
     if (!instance || !instance->armature) return;
 
@@ -647,7 +648,7 @@ Java_com_ai_assistance_dragonbones_JniBridge_resetBone(JNIEnv *env, jclass clazz
 }
 
 JNIEXPORT void JNICALL
-Java_com_ai_assistance_dragonbones_JniBridge_stopAnimation(JNIEnv *env, jclass clazz, jstring animation_name) {
+Java_com_dragonbones_JniBridge_stopAnimation(JNIEnv *env, jclass clazz, jstring animation_name) {
     auto* instance = getInstance();
     if (!instance || !instance->armature || !instance->armature->getAnimation()) {
         return;

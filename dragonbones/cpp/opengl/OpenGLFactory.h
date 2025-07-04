@@ -56,6 +56,11 @@ public:
     OpenGLFactory();
     ~OpenGLFactory();
 
+    void setDragonBones(DragonBones* dragonBones)
+    {
+        _dragonBones = dragonBones;
+    }
+
     // IEventDispatcher interface
     void addDBEventListener(const std::string& type, const std::function<void(EventObject*)>& listener) override {}
     void removeDBEventListener(const std::string& type, const std::function<void(EventObject*)>& listener) override {}

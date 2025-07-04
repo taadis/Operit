@@ -20,6 +20,7 @@ import com.ai.assistance.operit.data.preferences.PromptFunctionType
 import com.ai.assistance.operit.ui.features.chat.attachments.AttachmentManager
 import com.ai.assistance.operit.ui.features.chat.webview.LocalWebServer
 import com.ai.assistance.operit.ui.features.chat.viewmodel.FloatingWindowDelegate
+import com.ai.assistance.operit.ui.floating.FloatingMode
 import com.ai.assistance.operit.ui.permissions.PermissionLevel
 import com.ai.assistance.operit.ui.permissions.ToolPermissionSystem
 import java.io.IOException
@@ -870,8 +871,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     }
 
     /** 更新附件面板状态 */
-    fun updateAttachmentPanelState(newState: Boolean) {
-        _attachmentPanelState.value = newState
+    fun updateAttachmentPanelState(isExpanded: Boolean) {
+        _attachmentPanelState.value = isExpanded
     }
 
     // WebView控制方法
@@ -994,6 +995,14 @@ class ChatViewModel(private val context: Context) : ViewModel() {
      */
     fun setPermissionSystemColorScheme(colorScheme: ColorScheme?) {
         toolPermissionSystem.setColorScheme(colorScheme)
+    }
+
+    fun launchFloatingModeIn(
+            mode: FloatingMode,
+            colorScheme: ColorScheme? = null,
+            typography: Typography? = null
+    ) {
+        floatingWindowDelegate.launchInMode(mode, colorScheme, typography)
     }
 
     override fun onCleared() {

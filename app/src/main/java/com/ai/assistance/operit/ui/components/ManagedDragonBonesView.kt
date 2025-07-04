@@ -9,9 +9,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
-import com.ai.assistance.dragonbones.DragonBonesController
-import com.ai.assistance.dragonbones.DragonBonesModel
-import com.ai.assistance.dragonbones.DragonBonesViewCompose
+import com.dragonbones.DragonBonesController
+import com.dragonbones.DragonBonesModel
+import com.dragonbones.DragonBonesViewCompose
 import kotlin.random.Random
 import kotlinx.coroutines.delay
 
@@ -24,9 +24,6 @@ const val IDLE_ANIMATION_NAME = "idle"
 // Common random animations for idle state
 val RANDOM_IDLE_ANIMATIONS = listOf("blink", "shake_head", "wag_tail")
 
-// Q-Pet specific state animations
-const val QPET_WALK_ANIMATION = "walk"
-const val QPET_RUN_ANIMATION = "run"
 
 // --- Animation Layers ---
 private const val BASE_ANIMATION_LAYER = 0

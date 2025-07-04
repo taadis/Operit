@@ -24,6 +24,7 @@ import com.ai.assistance.operit.ui.features.chat.components.*
 import com.ai.assistance.operit.ui.features.chat.util.ConfigurationStateHolder
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModelFactory
+import com.ai.assistance.operit.ui.floating.FloatingMode
 import com.ai.assistance.operit.ui.main.screens.GestureStateHolder
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.sample
@@ -355,6 +356,13 @@ fun AIChatScreen(
                                 externalAttachmentPanelState = attachmentPanelState,
                                 onAttachmentPanelStateChange = { newState ->
                                     actualViewModel.updateAttachmentPanelState(newState)
+                                },
+                                onLaunchVoiceMode = {
+                                    actualViewModel.launchFloatingModeIn(
+                                        FloatingMode.FULLSCREEN,
+                                        colorScheme,
+                                        null //
+                                    )
                                 }
                         )
                     }

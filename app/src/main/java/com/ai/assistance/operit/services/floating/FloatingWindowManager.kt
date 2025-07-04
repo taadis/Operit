@@ -129,7 +129,8 @@ class FloatingWindowManager(
                 attachments = callback.getAttachments(),
                 onAttachmentRequest = { callback.onAttachmentRequest(it) },
                 onRemoveAttachment = { callback.onRemoveAttachment(it) },
-                chatService = context as? FloatingChatService
+                chatService = context as? FloatingChatService,
+                windowState = state
         )
     }
 
@@ -174,7 +175,7 @@ class FloatingWindowManager(
                         )
                 state.y = state.y.coerceIn(safeMargin, screenHeight - minVisible - safeMargin)
             }
-            FloatingMode.WINDOW, FloatingMode.LIVE2D -> {
+            FloatingMode.WINDOW, FloatingMode.DragonBones -> {
                 val scale = state.windowScale.value
                 val windowWidthDp = state.windowWidth.value
                 val windowHeightDp = state.windowHeight.value
@@ -276,8 +277,8 @@ class FloatingWindowManager(
                 currentWidth = screenWidth
                 currentHeight = screenHeight
             }
-            FloatingMode.LIVE2D -> {
-                // Treat Live2D mode similar to Window mode when leaving
+            FloatingMode.DragonBones -> {
+                // Treat DragonBones mode similar to Window mode when leaving
                 state.lastWindowPositionX = currentParams.x
                 state.lastWindowPositionY = currentParams.y
                 state.lastWindowScale = state.windowScale.value
@@ -368,7 +369,7 @@ class FloatingWindowManager(
                     params.x = 0
                     params.y = 0
                 }
-                FloatingMode.LIVE2D -> {
+                FloatingMode.DragonBones -> {
                     params.flags =
                             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
@@ -383,7 +384,7 @@ class FloatingWindowManager(
                     params.x = state.lastWindowPositionX
                     params.y = state.lastWindowPositionY
 
-                    // Coerce position to be within screen bounds for live2d mode
+                    // Coerce position to be within screen bounds for DragonBones mode
                     val minVisibleWidth = (params.width * 2 / 3)
                     val minVisibleHeight = (params.height * 2 / 3)
                     params.x =

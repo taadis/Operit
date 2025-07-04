@@ -255,7 +255,7 @@ fun PetChatInputDialog(onDismiss: () -> Unit, onSendMessage: (String) -> Unit) {
     Box(
             modifier =
                     Modifier.fillMaxSize()
-                            .zIndex(10f) // 确保在Live2D模型上方
+                            .zIndex(10f) // 确保在DragonBones模型上方
                             // 移除背景色
                             .pointerInput(Unit) {
                                 detectTapGestures {

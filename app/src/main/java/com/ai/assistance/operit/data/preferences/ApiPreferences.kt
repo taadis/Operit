@@ -74,7 +74,7 @@ class ApiPreferences(private val context: Context) {
         const val DEFAULT_SHOW_FPS_COUNTER = false
         const val DEFAULT_ENABLE_AI_PLANNING = false
         const val DEFAULT_AUTO_GRANT_ACCESSIBILITY = false
-        const val DEFAULT_SHOW_MODEL_SELECTOR = false
+        const val DEFAULT_SHOW_MODEL_SELECTOR = true
 
         // Default values for custom prompts
         const val DEFAULT_INTRO_PROMPT = "你是Operit，一个全能AI助手，旨在解决用户提出的任何任务。你有各种工具可以调用，以高效完成复杂的请求。"

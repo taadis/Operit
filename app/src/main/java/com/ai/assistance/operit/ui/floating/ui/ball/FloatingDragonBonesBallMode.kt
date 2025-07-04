@@ -25,10 +25,10 @@ import com.ai.assistance.operit.ui.floating.FloatContext
 import com.ai.assistance.operit.ui.floating.FloatingMode
 
 /**
- * 渲染Live2D悬浮球模式界面
+ * 渲染DragonBones悬浮球模式界面
  */
 @Composable
-fun FloatingLive2dBallMode(floatContext: FloatContext) {
+fun FloatingDragonBonesBallMode(floatContext: FloatContext) {
     Box(
         modifier = Modifier
             .size(floatContext.ballSize)
@@ -53,8 +53,8 @@ fun FloatingLive2dBallMode(floatContext: FloatContext) {
             .pointerInput(Unit) {
                 detectTapGestures(
                     onTap = {
-                        // 点击切换到Live2D模式
-                        floatContext.onModeChange(FloatingMode.LIVE2D)
+                        // 点击切换到DragonBones模式
+                        floatContext.onModeChange(FloatingMode.DragonBones)
                     }
                 )
             }
@@ -66,7 +66,7 @@ fun FloatingLive2dBallMode(floatContext: FloatContext) {
         ) {
             Icon(
                 imageVector = Icons.Default.Person,
-                contentDescription = "Live2D模式",
+                contentDescription = "DragonBones模式",
                 tint = Color.White,
                 modifier = Modifier
                     .size(22.dp)

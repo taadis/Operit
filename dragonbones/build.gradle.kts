@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.ai.assistance.dragonbones"
+    namespace = "com.dragonbones"
     compileSdk = 34
 
     defaultConfig {
