@@ -42,6 +42,7 @@ import com.ai.assistance.operit.ui.features.chat.webview.WebViewHandler
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import android.view.MotionEvent
 
 @Composable
 fun ChatScreenContent(
@@ -100,98 +101,97 @@ fun ChatScreenContent(
     var exportErrorMessage by remember { mutableStateOf<String?>(null) }
     var webContentDir by remember { mutableStateOf<File?>(null) }
 
+    // 将 showWebView 的状态提升，以便在 modifier 中使用
+    val webViewVisible = actualViewModel.showWebView.collectAsState().value
+
     Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
         // 主聊天区域（包括顶部工具栏），确保它一直可见
         Column(
                 modifier =
                         Modifier.fillMaxSize()
-                                .pointerInput(Unit) {
-                                    detectHorizontalDragGestures(
-                                            onDragStart = {
-                                                // 当WebView显示时，不处理水平拖动手势
-                                                if (!showWebView) {
-                                                    onChatScreenGestureConsumed(false)
-                                                    onCurrentDragChange(0f)
-                                                    onVerticalDragChange(0f)
-                                                }
-                                            },
-                                            onDragEnd = {
-                                                // 手势结束后重置累计值
-                                                if (!showWebView) {
-                                                    onCurrentDragChange(0f)
-                                                    onVerticalDragChange(0f)
-                                                    // 延迟重置消费状态，确保事件不会传递到全局侧边栏
-                                                    onChatScreenGestureConsumed(false)
-                                                }
-                                            },
-                                            onDragCancel = {
-                                                if (!showWebView) {
-                                                    onCurrentDragChange(0f)
-                                                    onVerticalDragChange(0f)
-                                                    onChatScreenGestureConsumed(false)
-                                                }
-                                            },
-                                            onHorizontalDrag = { change, dragAmount ->
-                                                // 当WebView显示时，不处理水平拖动手势
-                                                if (showWebView) {
-                                                    return@detectHorizontalDragGestures
-                                                }
-
-                                                // 累加水平拖动距离
-                                                val newDrag = currentDrag + dragAmount
-                                                onCurrentDragChange(newDrag)
-
-                                                // 保持判定条件简单，与PhoneLayout类似
-                                                val dragRight = dragAmount > 0 // 即时判断方向，而不是累计方向
-
-                                                // 添加日志记录手势状态
-                                                Log.d(
-                                                        "ChatScreenContent",
-                                                        "手势状态: 方向=${if(dragRight) "右" else "左"}, 累计=${newDrag}, 垂直=${verticalDrag}, 显示历史=${showChatHistorySelector}"
-                                                )
-
-                                                // 简化判定条件：只要是向右滑动且累积量超过阈值就触发
-                                                if (!showChatHistorySelector &&
-                                                                dragRight &&
-                                                                newDrag > dragThreshold &&
-                                                                Math.abs(newDrag) >
-                                                                        Math.abs(verticalDrag)
-                                                ) {
-                                                    Log.d(
-                                                            "ChatScreenContent",
-                                                            "触发打开历史记录：累计=${newDrag}"
-                                                    )
-                                                    actualViewModel.showChatHistorySelector(true)
-                                                    // 告知父组件手势已被消费
-                                                    onChatScreenGestureConsumed(true)
-                                                    change.consume()
-                                                }
-
-                                                // 如果是从右向左滑动，且历史选择器已显示，则关闭历史选择器
-                                                if (dragAmount < 0 &&
-                                                                showChatHistorySelector &&
-                                                                newDrag < -dragThreshold
-                                                ) {
-                                                    Log.d(
-                                                            "ChatScreenContent",
-                                                            "触发关闭历史记录：累计=${newDrag}"
-                                                    )
-                                                    actualViewModel.showChatHistorySelector(false)
-                                                    onChatScreenGestureConsumed(true)
-                                                    change.consume()
-                                                }
-                                            }
-                                    )
-                                }
-                                .pointerInput(Unit) {
-                                    // 添加垂直方向手势检测，用于记录垂直拖动距离
-                                    detectVerticalDragGestures { _, dragAmount ->
-                                        // 当WebView显示时，不处理垂直拖动手势（记录）
-                                        if (!showWebView) {
-                                            onVerticalDragChange(verticalDrag + dragAmount)
+                                .then(
+                                        // 仅当WebView不可见时，才应用手势监听
+                                        if (!webViewVisible) {
+                                            Modifier
+                                                    .pointerInput(Unit) {
+                                                        detectHorizontalDragGestures(
+                                                                onDragStart = {
+                                                                    onChatScreenGestureConsumed(
+                                                                            false
+                                                                            )
+                                                                    onCurrentDragChange(0f)
+                                                                    onVerticalDragChange(0f)
+                                                                },
+                                                                onDragEnd = {
+                                                                    onCurrentDragChange(0f)
+                                                                    onVerticalDragChange(0f)
+                                                                    onChatScreenGestureConsumed(
+                                                                            false
+                                                                            )
+                                                                },
+                                                                onDragCancel = {
+                                                                    onCurrentDragChange(0f)
+                                                                    onVerticalDragChange(0f)
+                                                                    onChatScreenGestureConsumed(
+                                                                            false
+                                                                            )
+                                                                },
+                                                                onHorizontalDrag = { change,
+                                                                    dragAmount ->
+                                                                    val newDrag =
+                                                                            currentDrag +
+                                                                                    dragAmount
+                                                                    onCurrentDragChange(newDrag)
+                                                                    val dragRight = dragAmount > 0
+                                                                    if (!showChatHistorySelector &&
+                                                                                    dragRight &&
+                                                                                    newDrag >
+                                                                                            dragThreshold &&
+                                                                                    Math.abs(
+                                                                                            newDrag
+                                                                                    ) >
+                                                                                            Math.abs(
+                                                                                                    verticalDrag
+                                                                                            )
+                                                                    ) {
+                                                                        actualViewModel
+                                                                                .showChatHistorySelector(
+                                                                                        true
+                                                                                )
+                                                                        onChatScreenGestureConsumed(
+                                                                                true
+                                                                                )
+                                                                        change.consume()
+                                                                    }
+                                                                    if (dragAmount < 0 &&
+                                                                                    showChatHistorySelector &&
+                                                                                    newDrag <
+                                                                                            -dragThreshold
+                                                                    ) {
+                                                                        actualViewModel
+                                                                                .showChatHistorySelector(
+                                                                                        false
+                                                                                )
+                                                                        onChatScreenGestureConsumed(
+                                                                                true
+                                                                                )
+                                                                        change.consume()
+                                                                    }
+                                                                }
+                                                        )
+                                                    }
+                                                    .pointerInput(Unit) {
+                                                        detectVerticalDragGestures { _,
+                                                            dragAmount ->
+                                                            onVerticalDragChange(
+                                                                    verticalDrag + dragAmount
+                                                            )
+                                                        }
+                                                    }
+                                        } else {
+                                            Modifier // WebView可见时，不应用任何手势监听
                                         }
-                                    }
-                                }
+                                )
         ) {
             // 聊天区域
             Column(modifier = Modifier.fillMaxSize()) {
@@ -202,7 +202,7 @@ fun ChatScreenContent(
                         chatHistories = chatHistories,
                         currentChatId = currentChatId,
                         isEditMode = isEditMode,
-                        showWebView = showWebView,
+                        showWebView = webViewVisible,
                         onWebDevClick = { actualViewModel.toggleWebView() }
                 )
 
@@ -274,7 +274,7 @@ fun ChatScreenContent(
                     }
 
                     // 仅当showWebView为true时才显示WebView，将其覆盖在ChatArea上方
-                    if (showWebView) {
+                    if (webViewVisible) {
                         // 显示WebView
                         var webView by remember { mutableStateOf<WebView?>(null) }
                         val webViewHandler = remember { WebViewHandler(context) }
@@ -289,6 +289,17 @@ fun ChatScreenContent(
                         AndroidView(
                                 factory = { context ->
                                     val webView = WebView(context)
+
+                                    // 请求父布局不要拦截触摸事件，以确保WebView内部的拖动和滚动能正常工作
+                                    webView.setOnTouchListener { v, event ->
+                                        when (event.action) {
+                                            MotionEvent.ACTION_DOWN -> v.parent.requestDisallowInterceptTouchEvent(true)
+                                            MotionEvent.ACTION_UP -> v.parent.requestDisallowInterceptTouchEvent(false)
+                                        }
+                                        // 返回false，让WebView自己处理触摸事件
+                                        false
+                                    }
+
                                     // 使用WebViewHandler配置WebView
                                     webViewHandler.configureWebView(webView)
                                     // 记录WebView引用以便JavaScript注入

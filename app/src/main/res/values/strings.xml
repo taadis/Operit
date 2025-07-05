@@ -734,4 +734,15 @@
     <string name="speech_error_model_not_found">Speech model not found in assets: %s</string>
     <string name="speech_error_init_failed">Failed to initialize speech recognition engine</string>
     <string name="speech_error_not_initialized">Speech recognition engine not initialized</string>
+    <string name="title_activity_crash_report">Application Error</string>
+
+    <!-- Crash Report Screen -->
+    <string name="crash_report_header">应用遇到了一个无法恢复的错误，需要重启。</string>
+    <string name="crash_report_restart_button">重启应用</string>
+    <string name="crash_report_details_title">错误详情</string>
+    <string name="crash_report_copy_button">复制</string>
+    <string name="crash_report_export_button">导出</string>
+    <string name="crash_report_copy_success">已复制到剪贴板</string>
+    <string name="crash_report_export_success">错误报告已导出到\n%1$s</string>
+    <string name="crash_report_export_failed">导出失败: %1$s</string>
 </resources>

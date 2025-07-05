@@ -129,6 +129,19 @@ private constructor(
             // 确定MIME类型
             val mimeType = getMimeTypeForFile(uri)
 
+            // 如果是HTML文件，注入eruda
+            if (mimeType == "text/html") {
+                try {
+                    val fileContent = requestedFile.readText(Charsets.UTF_8)
+                    val injectedContent = injectErudaIntoHtml(fileContent)
+                    return newFixedLengthResponse(Response.Status.OK, mimeType, injectedContent)
+                            .addCorsHeaders()
+                } catch (e: Exception) {
+                    Log.e(TAG, "读取或注入HTML时出错: ${e.message}")
+                    // 出错则回退到直接提供文件
+                }
+            }
+
             // 返回文件内容
             val fileInputStream = FileInputStream(requestedFile)
             return newChunkedResponse(Response.Status.OK, mimeType, fileInputStream)
@@ -150,6 +163,36 @@ private constructor(
                     )
                     .addCorsHeaders()
         }
+    }
+
+    // 注入eruda脚本到HTML内容中
+    private fun injectErudaIntoHtml(htmlContent: String): String {
+        val erudaScript =
+                """
+        <script>
+        (function() {
+            if (window.erudaInjected) { return; }
+            window.erudaInjected = true;
+            localStorage.removeItem('eruda-entry-btn');
+            var script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/eruda';
+            document.body.appendChild(script);
+            script.onload = function() {
+                if (!window.eruda) return;
+                eruda.init();
+                var entryBtn = eruda.get('entry');
+                if (entryBtn) {
+                    entryBtn.position({
+                        x: 10,
+                        y: window.innerHeight - 70
+                    });
+                }
+            }
+        })();
+        </script>
+        """
+        // 将脚本插入到</body>之前
+        return htmlContent.replace("</body>", "$erudaScript</body>", ignoreCase = true)
     }
 
     // 检查文件是否在工作空间内
@@ -215,18 +258,14 @@ private constructor(
                 </ol>
             </div>
             
-            <p>这个页面会自动刷新，当有新内容时将会显示。</p>
-            <script>
-                // 每5秒自动刷新一次
-                setTimeout(() => {
-                    window.location.reload();
-                }, 5000);
-            </script>
+            <p>这个页面会在您请求AI生成内容后自动更新。</p>
         </body>
         </html>
         """.trimIndent()
 
-        return newFixedLengthResponse(Response.Status.OK, "text/html", html)
+        // 为默认页面也注入eruda
+        val injectedHtml = injectErudaIntoHtml(html)
+        return newFixedLengthResponse(Response.Status.OK, "text/html", injectedHtml)
     }
 
     // 添加CORS响应头的扩展函数

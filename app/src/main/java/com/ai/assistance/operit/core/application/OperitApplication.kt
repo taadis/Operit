@@ -19,6 +19,7 @@ import com.ai.assistance.operit.data.preferences.initAndroidPermissionPreference
 import com.ai.assistance.operit.data.preferences.initUserPreferencesManager
 import com.ai.assistance.operit.data.preferences.preferencesManager
 import com.ai.assistance.operit.ui.features.chat.webview.LocalWebServer
+import com.ai.assistance.operit.util.GlobalExceptionHandler
 import com.ai.assistance.operit.util.LocaleUtils
 import com.ai.assistance.operit.util.SerializationSetup
 import com.ai.assistance.operit.util.TextSegmenter
@@ -59,6 +60,9 @@ class OperitApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+
+        // 在所有其他初始化之前设置全局异常处理器
+        Thread.setDefaultUncaughtExceptionHandler(GlobalExceptionHandler(this))
 
         // Initialize the JSON serializer with our custom module
         json = Json {
@@ -189,7 +193,7 @@ class OperitApplication : Application() {
             super.attachBaseContext(base)
         }
     }
-    
+
     override fun onTerminate() {
         super.onTerminate()
         // 在应用终止时关闭LocalWebServer服务器

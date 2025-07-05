@@ -109,6 +109,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Crash Report Activity -->
+        <activity
+            android:name=".ui.error.CrashReportActivity"
+            android:exported="false"
+            android:label="@string/title_activity_crash_report"
+            android:process=":crash"
+            android:theme="@style/Theme.Operit" />
         
         <!-- Floating Chat Service -->
         <service
