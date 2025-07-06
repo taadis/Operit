@@ -331,6 +331,257 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
         }
     }
 
+    private suspend fun readFileFull(path: String, toolName: String): ToolResult {
+        try {
+            // First check if the file exists
+            val existsResult =
+                    AndroidShellExecutor.executeShellCommand(
+                            "test -f \"$path\" && echo 'exists' || echo 'not exists'"
+                    )
+            if (existsResult.stdout.trim() != "exists") {
+                return ToolResult(
+                        toolName = toolName,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "File does not exist: $path"
+                )
+            }
+
+            // 检查文件扩展名
+            val fileExt = path.substringAfterLast('.', "").lowercase()
+
+            // 如果是Word文档，先转换为文本
+            return when (fileExt) {
+                "doc", "docx" -> {
+                    Log.d(TAG, "Detected Word document, converting to text before reading")
+
+                    // 创建临时文件路径用于存储转换后的文本
+                    val tempFilePath = "${path}_converted_${System.currentTimeMillis()}.txt"
+
+                    try {
+                        // 使用AIToolHandler获取并使用文件转换工具
+                        val fileConverterTool =
+                                AITool(
+                                        name = "convert_file",
+                                        parameters =
+                                                listOf(
+                                                        ToolParameter("source_path", path),
+                                                        ToolParameter("target_path", tempFilePath)
+                                                )
+                                )
+
+                        // 获取AIToolHandler实例
+                        val toolHandler = AIToolHandler.getInstance(context)
+
+                        // 执行文件转换
+                        val conversionResult = toolHandler.executeTool(fileConverterTool)
+
+                        if (conversionResult.success) {
+                            Log.d(TAG, "Successfully converted Word document to text")
+
+                            // 读取转换后的文本文件
+                            val textContent =
+                                    AndroidShellExecutor.executeShellCommand(
+                                            "cat \"$tempFilePath\""
+                                    )
+
+                            // 删除临时文件
+                            AndroidShellExecutor.executeShellCommand("rm -f \"$tempFilePath\"")
+
+                            if (textContent.success) {
+                                // 创建结果
+                                ToolResult(
+                                        toolName = toolName,
+                                        success = true,
+                                        result =
+                                                FileContentData(
+                                                        path = path,
+                                                        content = textContent.stdout,
+                                                        size = textContent.stdout.length.toLong()
+                                                ),
+                                        error = ""
+                                )
+                            } else {
+                                ToolResult(
+                                        toolName = toolName,
+                                        success = false,
+                                        result = StringResultData(""),
+                                        error =
+                                                "Failed to read converted file: ${textContent.stderr}"
+                                )
+                            }
+                        } else {
+                            Log.w(
+                                    TAG,
+                                    "Word conversion failed: ${conversionResult.error}, falling back to raw content"
+                            )
+                            ToolResult(
+                                    toolName = toolName,
+                                    success = false,
+                                    result = StringResultData(""),
+                                    error =
+                                            "Failed to convert word document: ${conversionResult.error}"
+                            )
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error during Word document conversion", e)
+                        // 转换失败，继续尝试读取原始文件
+                        ToolResult(
+                                toolName = toolName,
+                                success = false,
+                                result = StringResultData(""),
+                                error = "Error during word conversion: ${e.message}"
+                        )
+                    }
+                }
+                "jpg", "jpeg", "png", "gif", "bmp" -> {
+                    Log.d(TAG, "Detected image file, attempting to extract text using OCR")
+
+                    try {
+                        // 使用BitmapFactory读取图片
+                        val bitmap = android.graphics.BitmapFactory.decodeFile(path)
+                        if (bitmap != null) {
+                            // 使用OCRUtils提取文本
+                            val ocrText =
+                                    kotlinx.coroutines.runBlocking {
+                                        com.ai.assistance.operit.util.OCRUtils.recognizeText(
+                                                context,
+                                                bitmap
+                                        )
+                                    }
+
+                            if (ocrText.isNotBlank()) {
+                                Log.d(TAG, "Successfully extracted text from image using OCR")
+
+                                // 返回提取的文本
+                                ToolResult(
+                                        toolName = toolName,
+                                        success = true,
+                                        result =
+                                                FileContentData(
+                                                        path = path,
+                                                        content = ocrText,
+                                                        size = ocrText.length.toLong()
+                                                ),
+                                        error = ""
+                                )
+                            } else {
+                                Log.w(
+                                        TAG,
+                                        "OCR extraction returned empty text, returning no text detected message"
+                                )
+                                // 直接返回未识别到文字的提示信息
+                                ToolResult(
+                                        toolName = toolName,
+                                        success = true,
+                                        result =
+                                                FileContentData(
+                                                        path = path,
+                                                        content = "No text detected in image.",
+                                                        size =
+                                                                "No text detected in image.".length
+                                                                        .toLong()
+                                                ),
+                                        error = ""
+                                )
+                            }
+                        } else {
+                            Log.w(TAG, "Failed to decode image file, returning error message")
+                            // 返回无法解码图片的提示信息
+                            ToolResult(
+                                    toolName = toolName,
+                                    success = true,
+                                    result =
+                                            FileContentData(
+                                                    path = path,
+                                                    content = "Failed to decode image file.",
+                                                    size =
+                                                            "Failed to decode image file.".length
+                                                                    .toLong()
+                                            ),
+                                    error = ""
+                            )
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error during OCR text extraction", e)
+                        // OCR提取失败，返回错误信息
+                        ToolResult(
+                                toolName = toolName,
+                                success = true,
+                                result =
+                                        FileContentData(
+                                                path = path,
+                                                content =
+                                                        "Error extracting text from image: ${e.message}",
+                                                size =
+                                                        "Error extracting text from image: ${e.message}"
+                                                                .length.toLong()
+                                        ),
+                                error = ""
+                        )
+                    }
+                }
+                "csv",
+                "txt",
+                "json",
+                "xml",
+                "html",
+                "js",
+                "css",
+                "md",
+                "log",
+                "kt",
+                "java",
+                "py",
+                "sh" -> {
+                    val result = AndroidShellExecutor.executeShellCommand("cat \"$path\"")
+                    if (result.success) {
+                        val sizeResult =
+                                AndroidShellExecutor.executeShellCommand("stat -c %s \"$path\"")
+                        val size =
+                                sizeResult.stdout.trim().toLongOrNull()
+                                        ?: result.stdout.length.toLong()
+
+                        ToolResult(
+                                toolName = toolName,
+                                success = true,
+                                result =
+                                        FileContentData(
+                                                path = path,
+                                                content = result.stdout,
+                                                size = size
+                                        ),
+                                error = ""
+                        )
+                    } else {
+                        ToolResult(
+                                toolName = toolName,
+                                success = false,
+                                result = StringResultData(""),
+                                error = "Failed to read file: ${result.stderr}"
+                        )
+                    }
+                }
+                else -> {
+                    ToolResult(
+                            toolName = toolName,
+                            success = false,
+                            result = StringResultData(""),
+                            error = "Unsupported file format: .$fileExt"
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error reading file", e)
+            return ToolResult(
+                    toolName = toolName,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Error reading file: ${e.message}"
+            )
+        }
+    }
+
     /** Read file content */
     override suspend fun readFile(tool: AITool): ToolResult {
         val path = tool.parameters.find { it.name == "path" }?.value ?: ""
@@ -344,227 +595,40 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
             )
         }
 
-        return try {
-            // First check if the file exists
-            val existsResult =
-                    AndroidShellExecutor.executeShellCommand(
-                            "test -f \"$path\" && echo 'exists' || echo 'not exists'"
-                    )
-            if (existsResult.stdout.trim() != "exists") {
-                return ToolResult(
-                        toolName = tool.name,
-                        success = false,
-                        result = StringResultData(""),
-                        error = "File does not exist: $path"
-                )
-            }
+        val fullReadResult = readFileFull(path, tool.name)
+        if (!fullReadResult.success) {
+            return fullReadResult
+        }
 
-            // Check file size before reading
-            val sizeResult = AndroidShellExecutor.executeShellCommand("stat -c %s \"$path\"")
-            if (sizeResult.success) {
-                val size = sizeResult.stdout.trim().toLongOrNull() ?: 0
-                if (size > MAX_FILE_SIZE_BYTES) {
-                    return ToolResult(
-                            toolName = tool.name,
-                            success = false,
-                            result = StringResultData(""),
-                            error =
-                                    "File is too large (${size / 1024} KB). Maximum allowed size is ${MAX_FILE_SIZE_BYTES / 1024} KB."
-                    )
-                }
-            }
-
-            // 检查文件扩展名
-            val fileExt = path.substringAfterLast('.', "").lowercase()
-
-            // 如果是Word文档，先转换为文本
-            if (fileExt == "doc" || fileExt == "docx") {
-                Log.d(TAG, "Detected Word document, converting to text before reading")
-
-                // 创建临时文件路径用于存储转换后的文本
-                val tempFilePath = "${path}_converted_${System.currentTimeMillis()}.txt"
-
-                try {
-                    // 使用AIToolHandler获取并使用文件转换工具
-                    val fileConverterTool =
-                            AITool(
-                                    name = "convert_file",
-                                    parameters =
-                                            listOf(
-                                                    ToolParameter("source_path", path),
-                                                    ToolParameter("target_path", tempFilePath)
-                                            )
-                            )
-
-                    // 获取AIToolHandler实例
-                    val toolHandler = AIToolHandler.getInstance(context)
-
-                    // 执行文件转换
-                    val conversionResult = toolHandler.executeTool(fileConverterTool)
-
-                    if (conversionResult.success) {
-                        Log.d(TAG, "Successfully converted Word document to text")
-
-                        // 读取转换后的文本文件
-                        val textContent =
-                                AndroidShellExecutor.executeShellCommand("cat \"$tempFilePath\"")
-
-                        if (textContent.success) {
-                            // 创建结果
-                            val result =
-                                    ToolResult(
-                                            toolName = tool.name,
-                                            success = true,
-                                            result =
-                                                    FileContentData(
-                                                            path = path,
-                                                            content = textContent.stdout,
-                                                            size =
-                                                                    textContent.stdout.length
-                                                                            .toLong()
-                                                    ),
-                                            error = ""
-                                    )
-
-                            // 删除临时文件
-                            AndroidShellExecutor.executeShellCommand("rm -f \"$tempFilePath\"")
-
-                            return result
-                        }
-                    } else {
-                        Log.w(
-                                TAG,
-                                "Word conversion failed: ${conversionResult.error}, falling back to raw content"
-                        )
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error during Word document conversion", e)
-                    // 转换失败，继续尝试读取原始文件
-                }
-            } else if (fileExt == "jpg" ||
-                            fileExt == "jpeg" ||
-                            fileExt == "png" ||
-                            fileExt == "gif" ||
-                            fileExt == "bmp"
-            ) {
-                Log.d(TAG, "Detected image file, attempting to extract text using OCR")
-
-                try {
-                    // 使用BitmapFactory读取图片
-                    val bitmap = android.graphics.BitmapFactory.decodeFile(path)
-                    if (bitmap != null) {
-                        // 使用OCRUtils提取文本
-                        val ocrText =
-                                kotlinx.coroutines.runBlocking {
-                                    com.ai.assistance.operit.util.OCRUtils.recognizeText(
-                                            context,
-                                            bitmap
-                                    )
-                                }
-
-                        if (ocrText.isNotBlank()) {
-                            Log.d(TAG, "Successfully extracted text from image using OCR")
-
-                            // 返回提取的文本
-                            return ToolResult(
-                                    toolName = tool.name,
-                                    success = true,
-                                    result =
-                                            FileContentData(
-                                                    path = path,
-                                                    content = ocrText,
-                                                    size = ocrText.length.toLong()
-                                            ),
-                                    error = ""
-                            )
-                        } else {
-                            Log.w(
-                                    TAG,
-                                    "OCR extraction returned empty text, returning no text detected message"
-                            )
-
-                            // 直接返回未识别到文字的提示信息
-                            return ToolResult(
-                                    toolName = tool.name,
-                                    success = true,
-                                    result =
-                                            FileContentData(
-                                                    path = path,
-                                                    content = "No text detected in image.",
-                                                    size =
-                                                            "No text detected in image.".length
-                                                                    .toLong()
-                                            ),
-                                    error = ""
-                            )
-                        }
-                    } else {
-                        Log.w(TAG, "Failed to decode image file, returning error message")
-
-                        // 返回无法解码图片的提示信息
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = true,
-                                result =
-                                        FileContentData(
-                                                path = path,
-                                                content = "Failed to decode image file.",
-                                                size =
-                                                        "Failed to decode image file.".length
-                                                                .toLong()
-                                        ),
-                                error = ""
-                        )
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error during OCR text extraction", e)
-                    // OCR提取失败，返回错误信息
-                    return ToolResult(
-                            toolName = tool.name,
-                            success = true,
-                            result =
-                                    FileContentData(
-                                            path = path,
-                                            content =
-                                                    "Error extracting text from image: ${e.message}",
-                                            size =
-                                                    "Error extracting text from image: ${e.message}"
-                                                            .length.toLong()
-                                    ),
-                            error = ""
-                    )
-                }
-            }
-
-            // 对于非Word文档或转换失败的情况，直接读取文件内容
-            val result = AndroidShellExecutor.executeShellCommand("cat \"$path\"")
-
-            if (result.success) {
-                val size = sizeResult.stdout.trim().toLongOrNull() ?: result.stdout.length.toLong()
-
-                return ToolResult(
-                        toolName = tool.name,
-                        success = true,
-                        result = FileContentData(path = path, content = result.stdout, size = size),
-                        error = ""
-                )
-            } else {
-                return ToolResult(
-                        toolName = tool.name,
-                        success = false,
-                        result = StringResultData(""),
-                        error = "Failed to read file: ${result.stderr}"
-                )
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error reading file", e)
+        val fileContentData = fullReadResult.result as? FileContentData
+        if (fileContentData == null) {
             return ToolResult(
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error = "Error reading file: ${e.message}"
+                    error = "Internal error: Could not retrieve file content."
             )
         }
+
+        var content = fileContentData.content
+        val originalSize = content.length
+        if (originalSize > MAX_FILE_SIZE_BYTES) {
+            content =
+                    content.substring(0, MAX_FILE_SIZE_BYTES) +
+                            "\n\n... (file content truncated) ..."
+        }
+
+        return ToolResult(
+                toolName = tool.name,
+                success = true,
+                result =
+                        FileContentData(
+                                path = path,
+                                content = content,
+                                size = content.length.toLong()
+                        ),
+                error = ""
+        )
     }
 
     /** Write content to a file */
