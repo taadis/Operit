@@ -8,6 +8,7 @@ import com.ai.assistance.operit.core.tools.FileContentData
 import com.ai.assistance.operit.core.tools.FileExistsData
 import com.ai.assistance.operit.core.tools.FileInfoData
 import com.ai.assistance.operit.core.tools.FileOperationData
+import com.ai.assistance.operit.core.tools.FilePartContentData
 import com.ai.assistance.operit.core.tools.FindFilesResultData
 import com.ai.assistance.operit.core.tools.StringResultData
 import com.ai.assistance.operit.core.tools.defaultTool.accessbility.AccessibilityFileSystemTools
@@ -629,6 +630,115 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                         ),
                 error = ""
         )
+    }
+
+    /** 分段读取文件内容 */
+    override suspend fun readFilePart(tool: AITool): ToolResult {
+        val path = tool.parameters.find { it.name == "path" }?.value ?: ""
+        val partIndex = tool.parameters.find { it.name == "partIndex" }?.value?.toIntOrNull() ?: 0
+        val partSize = 200
+
+        if (path.isBlank()) {
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Path parameter is required"
+            )
+        }
+
+        return try {
+            // 1. Check if file exists
+            val existsResult =
+                    AndroidShellExecutor.executeShellCommand(
+                            "test -f \"$path\" && echo 'exists' || echo 'not exists'"
+                    )
+            if (existsResult.stdout.trim() != "exists") {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "File does not exist: $path"
+                )
+            }
+
+            // 2. Get total number of lines
+            val wcResult = AndroidShellExecutor.executeShellCommand("wc -l < \"$path\"")
+            if (!wcResult.success) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "Failed to count lines in file: ${wcResult.stderr}"
+                )
+            }
+
+            val totalLines = wcResult.stdout.trim().split(" ")[0].toIntOrNull() ?: 0
+
+            // 3. Calculate part info
+            val totalParts = (totalLines + partSize - 1) / partSize
+            val validPartIndex = partIndex.coerceIn(0, if (totalParts > 0) totalParts - 1 else 0)
+
+            val startLine = validPartIndex * partSize + 1 // sed is 1-indexed
+            val endLine = minOf(startLine + partSize - 1, totalLines)
+
+            if (totalLines == 0 || startLine > endLine) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = true,
+                        result =
+                                FilePartContentData(
+                                        path = path,
+                                        content = "",
+                                        partIndex = validPartIndex,
+                                        totalParts = totalParts,
+                                        startLine = startLine - 1,
+                                        endLine = endLine,
+                                        totalLines = totalLines
+                                ),
+                        error = ""
+                )
+            }
+
+            // 4. Extract the specific part using sed
+            val sedCommand = "sed -n '${startLine},${endLine}p' \"$path\""
+            val partResult = AndroidShellExecutor.executeShellCommand(sedCommand)
+
+            if (!partResult.success) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "Failed to read file part: ${partResult.stderr}"
+                )
+            }
+
+            val content = partResult.stdout
+
+            ToolResult(
+                    toolName = tool.name,
+                    success = true,
+                    result =
+                            FilePartContentData(
+                                    path = path,
+                                    content = content.trimEnd(),
+                                    partIndex = validPartIndex,
+                                    totalParts = totalParts,
+                                    startLine = startLine - 1, // To 0-indexed for response
+                                    endLine = endLine,
+                                    totalLines = totalLines
+                            ),
+                    error = ""
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error reading file part", e)
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Error reading file part: ${e.message}"
+            )
+        }
     }
 
     /** Write content to a file */

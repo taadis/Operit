@@ -412,49 +412,75 @@ open class StandardFileSystemTools(protected val context: Context) {
             )
         }
 
-        val fileResult = readFileFull(path, tool.name)
+        return try {
+            val file = File(path)
+            if (!file.exists() || !file.isFile) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "File does not exist or is not a regular file: $path"
+                )
+            }
 
-        if (!fileResult.success) {
+            // First, count total lines without loading the file into memory.
+            var totalLines = 0
+            file.bufferedReader().use { reader ->
+                while (reader.readLine() != null) {
+                    totalLines++
+                }
+            }
+
+            val totalParts = (totalLines + PART_SIZE - 1) / PART_SIZE
+            val validPartIndex = partIndex.coerceIn(0, if (totalParts > 0) totalParts - 1 else 0)
+
+            val startLine = validPartIndex * PART_SIZE // 0-indexed
+            val endLine = minOf(startLine + PART_SIZE, totalLines) // exclusive
+
+            val partContent = StringBuilder()
+            if (totalLines > 0) {
+                var currentLine = 0
+                file.bufferedReader().useLines { lines ->
+                    lines.forEach { line ->
+                        if (currentLine >= endLine) {
+                            return@useLines // early exit
+                        }
+                        if (currentLine >= startLine) {
+                            partContent.append(line).append('\n')
+                        }
+                        currentLine++
+                    }
+                }
+                // Remove last newline if content is not empty
+                if (partContent.isNotEmpty()) {
+                    partContent.setLength(partContent.length - 1)
+                }
+            }
+
+            ToolResult(
+                    toolName = tool.name,
+                    success = true,
+                    result =
+                            FilePartContentData(
+                                    path = path,
+                                    content = partContent.toString(),
+                                    partIndex = validPartIndex,
+                                    totalParts = totalParts,
+                                    startLine = startLine,
+                                    endLine = endLine,
+                                    totalLines = totalLines
+                            ),
+                    error = ""
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error reading file part", e)
             return ToolResult(
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error = fileResult.error
+                    error = "Error reading file part: ${e.message}"
             )
         }
-
-        val fileContent = (fileResult.result as? FileContentData)?.content ?: ""
-        val lines = fileContent.lines()
-
-        val totalParts = (lines.size + PART_SIZE - 1) / PART_SIZE
-
-        val validPartIndex = partIndex.coerceIn(0, if (totalParts > 0) totalParts - 1 else 0)
-
-        val startLine = validPartIndex * PART_SIZE
-        val endLine = minOf(startLine + PART_SIZE, lines.size)
-
-        val partContent =
-                if (lines.isNotEmpty()) {
-                    lines.subList(startLine, endLine).joinToString("\n")
-                } else {
-                    ""
-                }
-
-        return ToolResult(
-                toolName = tool.name,
-                success = true,
-                result =
-                        FilePartContentData(
-                                path = path,
-                                content = partContent,
-                                partIndex = validPartIndex,
-                                totalParts = totalParts,
-                                startLine = startLine,
-                                endLine = endLine,
-                                totalLines = lines.size
-                        ),
-                error = ""
-        )
     }
 
     /** Write content to a file */
