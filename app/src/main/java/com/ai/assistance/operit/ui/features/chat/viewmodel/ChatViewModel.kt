@@ -1031,26 +1031,29 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     }
 
     fun launchFullscreenVoiceModeWithPermissionCheck(
-        launcher: ActivityResultLauncher<String>
+            launcher: ActivityResultLauncher<String>,
+            colorScheme: ColorScheme? = null,
+            typography: Typography? = null
     ) {
         val hasMicPermission =
-            android.content.pm.PackageManager.PERMISSION_GRANTED ==
-                    context.checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                android.content.pm.PackageManager.PERMISSION_GRANTED ==
+                        context.checkSelfPermission(Manifest.permission.RECORD_AUDIO)
         val canDrawOverlays = Settings.canDrawOverlays(context)
 
         if (!hasMicPermission) {
             launcher.launch(Manifest.permission.RECORD_AUDIO)
         } else if (!canDrawOverlays) {
-            val intent = Intent(
-                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                android.net.Uri.parse("package:${context.packageName}")
-            )
+            val intent =
+                    Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            android.net.Uri.parse("package:${context.packageName}")
+                    )
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
             showToast("需要悬浮窗权限才能启动语音助手")
         } else {
             // Directly launch fullscreen voice mode
-            launchFloatingModeIn(FloatingMode.FULLSCREEN)
+            launchFloatingModeIn(FloatingMode.FULLSCREEN, colorScheme, typography)
         }
     }
 

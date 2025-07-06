@@ -40,7 +40,7 @@ open class StandardFileSystemTools(protected val context: Context) {
         private const val TAG = "FileSystemTools"
 
         // Maximum allowed file size for operations
-        protected const val MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024 // 10MB
+        protected const val MAX_FILE_SIZE_BYTES = 32 * 1024 // 32k
 
         // 每个部分的行数
         protected const val PART_SIZE = 200

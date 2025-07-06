@@ -73,15 +73,20 @@ fun ChatInputSection(
 
         val isProcessing = isLoading || isProcessingInput
 
-        val voicePermissionLauncher = rememberLauncherForActivityResult(
-                contract = ActivityResultContracts.RequestPermission()
-        ) { isGranted ->
-                if (isGranted) {
-                        actualViewModel.launchFloatingModeIn(FloatingMode.FULLSCREEN)
-                } else {
-                        actualViewModel.showToast("麦克风权限被拒绝")
+        val voicePermissionLauncher =
+                rememberLauncherForActivityResult(
+                        contract = ActivityResultContracts.RequestPermission()
+                ) { isGranted ->
+                        if (isGranted) {
+                                actualViewModel.launchFloatingModeIn(
+                                        FloatingMode.FULLSCREEN,
+                                        colorScheme,
+                                        typography
+                                )
+                        } else {
+                                actualViewModel.showToast("麦克风权限被拒绝")
+                        }
                 }
-        }
 
         // 控制附件面板的展开状态 - 使用外部状态或本地状态
         val (showAttachmentPanel, setShowAttachmentPanel) =
@@ -300,7 +305,12 @@ fun ChatInputSection(
                                                                                         )
                                                                                 }
                                                                                 else -> {
-                                                                                        actualViewModel.launchFullscreenVoiceModeWithPermissionCheck(voicePermissionLauncher)
+                                                                                        actualViewModel
+                                                                                                .launchFullscreenVoiceModeWithPermissionCheck(
+                                                                                                        voicePermissionLauncher,
+                                                                                                        colorScheme,
+                                                                                                        typography
+                                                                                                )
                                                                                 }
                                                                         }
                                                                 }

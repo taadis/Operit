@@ -33,7 +33,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
         private const val TAG = "DebuggerFileSystemTools"
 
         // Maximum allowed file size for operations
-        protected const val MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024 // 10MB
+        protected const val MAX_FILE_SIZE_BYTES = 32 * 1024 // 32k
     }
 
     /** List files in a directory */
