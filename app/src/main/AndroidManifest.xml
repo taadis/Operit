@@ -65,6 +65,10 @@
         tools:targetApi="31"
         tools:replace="android:theme">
 
+        <meta-data
+            android:name="com.google.firebase.ml.kit.analytics.collection.enabled"
+            android:value="false" />
+
         <activity 
             android:name="live.pw.renderX.LatexView"
             tools:node="remove" />
@@ -78,6 +82,11 @@
         <meta-data
             android:name="android.allow_high_refresh_rate" 
             android:value="true" />
+        
+        <!-- Disable Firebase ML Kit analytics -->
+        <meta-data
+            android:name="firebase_ml_collection_enabled"
+            android:value="false" />
         
         <provider
             android:name="rikka.shizuku.ShizukuProvider"

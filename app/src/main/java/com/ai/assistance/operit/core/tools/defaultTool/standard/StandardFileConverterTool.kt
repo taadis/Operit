@@ -16,10 +16,12 @@ import com.ai.assistance.operit.util.FFmpegUtil
 import com.ai.assistance.operit.util.FileFormatUtil
 import com.ai.assistance.operit.util.MediaConversionUtil
 import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.apache.poi.xwpf.usermodel.XWPFDocument
 
 /** Tool for converting between different file formats */
 class StandardFileConverterTool(private val context: Context) {
@@ -367,221 +369,57 @@ class StandardFileConverterTool(private val context: Context) {
                 quality: String,
                 extraParams: String? = null
         ): Boolean {
-                Log.d(TAG, "Converting document from $sourceExt to $targetExt")
+                Log.d(TAG, "Converting document from .$sourceExt to .$targetExt")
 
-                try {
-                        when {
-                                // Convert to PDF
-                                targetExt == "pdf" -> {
-                                        when (sourceExt) {
-                                                // Text to PDF - use proper library
-                                                "txt" -> {
-                                                        return DocumentConversionUtil
-                                                                .convertTextToPdf(
-                                                                        context,
-                                                                        sourceFile,
-                                                                        targetFile
-                                                                )
-                                                }
-                                                // Doc/Docx to PDF - create HTML first then convert
-                                                "doc",
-                                                "docx" -> {
-                                                        // Create temporary HTML file
-                                                        val tempHtmlFile =
-                                                                File(
-                                                                        context.cacheDir,
-                                                                        "temp_${System.currentTimeMillis()}.html"
-                                                                )
+                return try {
+                        when (sourceExt to targetExt) {
+                                // PDF Conversions
+                                "pdf" to "txt" -> DocumentConversionUtil.extractTextFromPdf(context, sourceFile, targetFile)
+                                "pdf" to "docx" -> DocumentConversionUtil.convertPdfToDocx(context, sourceFile, targetFile)
+                                "pdf" to "html" -> DocumentConversionUtil.convertToHtml(context, sourceFile, targetFile, sourceExt)
+                                "pdf" to "jpg", "pdf" to "jpeg", "pdf" to "png", "pdf" to "webp" ->
+                                        DocumentConversionUtil.convertPdfToImage(sourceFile, targetFile, targetExt)
 
-                                                        // Convert DOC/DOCX to HTML
-                                                        val htmlSuccess =
-                                                                DocumentConversionUtil
-                                                                        .convertToHtml(
-                                                                                context,
-                                                                                sourceFile,
-                                                                                tempHtmlFile,
-                                                                                sourceExt
-                                                                        )
+                                // Word (DOC/DOCX) Conversions
+                                "doc" to "docx", "docx" to "doc" ->
+                                        DocumentConversionUtil.convertBetweenDocFormats(context, sourceFile, targetFile, sourceExt, targetExt)
+                                "doc" to "txt", "docx" to "txt" ->
+                                        DocumentConversionUtil.extractTextFromWord(sourceFile, targetFile, sourceExt)
+                                "doc" to "pdf", "docx" to "pdf" ->
+                                        DocumentConversionUtil.convertWordToPdf(context, sourceFile, targetFile, sourceExt)
+                                "doc" to "html", "docx" to "html" ->
+                                        DocumentConversionUtil.convertToHtml(context, sourceFile, targetFile, sourceExt)
 
-                                                        if (!htmlSuccess) {
-                                                                Log.e(
-                                                                        TAG,
-                                                                        "Failed to convert ${sourceFile.name} to HTML"
-                                                                )
-                                                                tempHtmlFile.delete()
-                                                                return false
-                                                        }
-
-                                                        // Now convert HTML to PDF
-                                                        val result =
-                                                                DocumentConversionUtil
-                                                                        .convertFromHtml(
-                                                                                context,
-                                                                                tempHtmlFile,
-                                                                                targetFile,
-                                                                                "pdf"
-                                                                        )
-
-                                                        // Clean up
-                                                        tempHtmlFile.delete()
-                                                        return result
-                                                }
-                                                // For other formats, we need specialized handling
-                                                else -> {
-                                                        Log.w(
-                                                                TAG,
-                                                                "Direct conversion from $sourceExt to PDF is not well supported, attempting basic conversion"
-                                                        )
-                                                        // Try to extract text and create a simple
-                                                        // PDF
-                                                        val tempTextFile =
-                                                                File(
-                                                                        context.cacheDir,
-                                                                        "temp_${System.currentTimeMillis()}.txt"
-                                                                )
-
-                                                        // Simple file copy as text
-                                                        sourceFile.inputStream().use { input ->
-                                                                tempTextFile.outputStream().use {
-                                                                        output ->
-                                                                        input.copyTo(output)
-                                                                }
-                                                        }
-
-                                                        // Now convert text to PDF
-                                                        val result =
-                                                                DocumentConversionUtil
-                                                                        .convertTextToPdf(
-                                                                                context,
-                                                                                tempTextFile,
-                                                                                targetFile
-                                                                        )
-
-                                                        // Clean up
-                                                        tempTextFile.delete()
-                                                        return result
-                                                }
+                                // Text Conversions
+                                "txt" to "pdf" -> DocumentConversionUtil.convertTextToPdf(context, sourceFile, targetFile)
+                                "txt" to "html" -> DocumentConversionUtil.convertToHtml(context, sourceFile, targetFile, sourceExt)
+                                "txt" to "docx" -> {
+                                    val content = sourceFile.readText()
+                                    XWPFDocument().use { docx ->
+                                        val para = docx.createParagraph()
+                                        para.createRun().setText(content)
+                                        FileOutputStream(targetFile).use { fos ->
+                                            docx.write(fos)
                                         }
+                                    }
+                                    true
                                 }
+                                
+                                // HTML Conversions
+                                "html" to "txt", "html" to "pdf", "html" to "docx", "html" to "doc" ->
+                                        DocumentConversionUtil.convertFromHtml(context, sourceFile, targetFile, targetExt)
 
-                                // Convert from PDF to text
-                                sourceExt == "pdf" && targetExt == "txt" -> {
-                                        return DocumentConversionUtil.extractTextFromPdf(
-                                                sourceFile,
-                                                targetFile
-                                        )
-                                }
-
-                                // Convert from PDF to image
-                                sourceExt == "pdf" &&
-                                        targetExt.matches(Regex("jpe?g|png|webp|bmp")) -> {
-                                        return DocumentConversionUtil.convertPdfToImage(
-                                                sourceFile,
-                                                targetFile,
-                                                targetExt
-                                        )
-                                }
-
-                                // Convert between doc formats
-                                (sourceExt in listOf("doc", "docx") &&
-                                        targetExt in listOf("doc", "docx")) -> {
-                                        return DocumentConversionUtil.convertBetweenDocFormats(
-                                                context,
-                                                sourceFile,
-                                                targetFile,
-                                                sourceExt,
-                                                targetExt
-                                        )
-                                }
-
-                                // Convert to HTML
-                                targetExt == "html" -> {
-                                        return DocumentConversionUtil.convertToHtml(
-                                                context,
-                                                sourceFile,
-                                                targetFile,
-                                                sourceExt
-                                        )
-                                }
-
-                                // Convert from HTML
-                                sourceExt == "html" -> {
-                                        return DocumentConversionUtil.convertFromHtml(
-                                                context,
-                                                sourceFile,
-                                                targetFile,
-                                                targetExt
-                                        )
-                                }
-
-                                // Direct conversion from Word formats to text
-                                (sourceExt in listOf("doc", "docx") && targetExt == "txt") -> {
-                                        return DocumentConversionUtil.extractTextFromWord(
-                                                sourceFile,
-                                                targetFile,
-                                                sourceExt
-                                        )
-                                }
-
-                                // Other document conversions - use simple copy for text-based
-                                // formats
-                                sourceExt in listOf("txt", "md", "csv", "json", "xml") &&
-                                        targetExt in listOf("txt", "md", "csv", "json", "xml") -> {
-                                        return DocumentConversionUtil.copyTextFile(
-                                                sourceFile,
-                                                targetFile
-                                        )
-                                }
-
-                                // For other conversions that aren't directly supported
-                                else -> {
-                                        Log.w(
-                                                TAG,
-                                                "No direct conversion path from $sourceExt to $targetExt, attempting intermediate conversion"
-                                        )
-
-                                        // Try using HTML as an intermediate format
-                                        val tempHtmlFile =
-                                                File(
-                                                        context.cacheDir,
-                                                        "temp_${System.currentTimeMillis()}.html"
-                                                )
-
-                                        // First convert to HTML if possible
-                                        val htmlSuccess =
-                                                DocumentConversionUtil.convertToHtml(
-                                                        context,
-                                                        sourceFile,
-                                                        tempHtmlFile,
-                                                        sourceExt
-                                                )
-
-                                        if (!htmlSuccess) {
-                                                Log.e(
-                                                        TAG,
-                                                        "Failed to convert ${sourceFile.name} to HTML"
-                                                )
-                                                tempHtmlFile.delete()
-                                                return false
-                                        }
-
-                                        // Now convert from HTML to target format
-                                        val result =
-                                                DocumentConversionUtil.convertFromHtml(
-                                                        context,
-                                                        tempHtmlFile,
-                                                        targetFile,
-                                                        targetExt
-                                                )
-
-                                        // Clean up
-                                        tempHtmlFile.delete()
-                                        return result
+                                // Simple Copy for compatible text-based formats
+                                else -> if (FileFormatUtil.isTextBased(sourceExt) && FileFormatUtil.isTextBased(targetExt)) {
+                                    DocumentConversionUtil.copyTextFile(sourceFile, targetFile)
+                                } else {
+                                    Log.e(TAG, "Unsupported document conversion from .$sourceExt to .$targetExt")
+                                    false
                                 }
                         }
                 } catch (e: Exception) {
                         Log.e(TAG, "Error converting document", e)
-                        return false
+                        false
                 }
         }
 

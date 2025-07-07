@@ -25,6 +25,8 @@ import com.itextpdf.text.Document
 import com.itextpdf.text.FontFactory
 import com.itextpdf.text.Paragraph
 import com.itextpdf.text.pdf.PdfWriter
+import kotlinx.coroutines.runBlocking
+import java.io.IOException
 
 /** Utility class for document conversion operations */
 object DocumentConversionUtil {
@@ -61,44 +63,99 @@ object DocumentConversionUtil {
         }
     }
 
-    /** Extract text from PDF */
-    fun extractTextFromPdf(sourceFile: File, targetFile: File): Boolean {
+    /**
+     * Extract text from PDF, with OCR fallback for image-based PDFs.
+     *
+     * @param context Context is required for OCR initialization.
+     * @param sourceFile The source PDF file.
+     * @param targetFile The target text file.
+     * @return True if successful, false otherwise.
+     */
+    fun extractTextFromPdf(context: Context, sourceFile: File, targetFile: File): Boolean {
         try {
-            // Use the Android-ported PDFBox to extract text
-            PDDocument.load(sourceFile).use { document ->
-                // Check if the document is encrypted, which could cause issues
+            // Step 1: Attempt direct text extraction with PDFBox
+            val extractedText = PDDocument.load(sourceFile).use { document ->
                 if (document.isEncrypted) {
-                    Log.w(TAG, "PDF is encrypted, text extraction may fail or be incomplete.")
-                    // Attempt to decrypt with an empty password, though this is unlikely to succeed
-                    // for most encrypted PDFs. For robust handling, a password prompt would be needed.
                     try {
                         document.setAllSecurityToBeRemoved(true)
                     } catch (e: Exception) {
-                        Log.e(TAG, "Failed to decrypt PDF, proceeding with potentially empty extraction.", e)
+                        Log.e(TAG, "Failed to decrypt PDF, text extraction may fail.", e)
                     }
                 }
+                PDFTextStripper().getText(document)
+            }
 
-                val pdfStripper = PDFTextStripper()
-                val text = pdfStripper.getText(document)
+            // Step 2: Check if the extracted text is meaningful. If not, trigger OCR.
+            if (extractedText.trim().length > 20) { // Threshold for meaningful text
+                // Success with direct extraction
+                FileOutputStream(targetFile).bufferedWriter().use { it.write(extractedText) }
+                return true
+            } else {
+                // Fallback to OCR
+                Log.d(TAG, "Direct text extraction yielded little or no text. Falling back to OCR.")
+                return runBlocking {
+                    convertPdfToTextWithOcr(context, sourceFile, targetFile)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error during PDF text extraction process", e)
+            // If even the initial loading fails, try OCR as a last resort
+            return runBlocking {
+                Log.d(TAG, "Initial PDF load failed. Attempting OCR as last resort.")
+                convertPdfToTextWithOcr(context, sourceFile, targetFile)
+            }
+        }
+    }
+    
+    /**
+     * Converts each page of a PDF to an image and uses OCR to extract text.
+     */
+    private suspend fun convertPdfToTextWithOcr(context: Context, sourceFile: File, targetFile: File): Boolean {
+        val fullText = StringBuilder()
+        var fileDescriptor: ParcelFileDescriptor? = null
+        var pdfRenderer: PdfRenderer? = null
 
-                // Write the extracted text to the target file
-                FileOutputStream(targetFile).bufferedWriter().use { writer -> writer.write(text) }
+        try {
+            fileDescriptor = ParcelFileDescriptor.open(sourceFile, ParcelFileDescriptor.MODE_READ_ONLY)
+            pdfRenderer = PdfRenderer(fileDescriptor)
+            
+            val pageCount = pdfRenderer.pageCount
+            if (pageCount == 0) {
+                Log.w(TAG, "PDF has no pages, OCR cannot proceed.")
+                return false
+            }
+
+            for (i in 0 until pageCount) {
+                val page = pdfRenderer.openPage(i)
+                
+                // Render page to bitmap
+                val bitmap = Bitmap.createBitmap(page.width, page.height, Bitmap.Config.ARGB_8888)
+                page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                
+                // Recognize text from bitmap using OCRUtils in high quality
+                val recognizedText =
+                        OCRUtils.recognizeText(context, bitmap, OCRUtils.Quality.HIGH)
+                fullText.append(recognizedText).append("\n\n")
+
+                // Clean up resources for the current page
+                page.close()
+                bitmap.recycle()
+            }
+
+            // Write the aggregated text to the target file
+            FileOutputStream(targetFile).bufferedWriter().use { writer ->
+                writer.write(fullText.toString())
             }
             return true
         } catch (e: Exception) {
-            Log.e(TAG, "Error extracting text from PDF with PDFBox", e)
-            // Fallback to create a basic output file with error info
+            Log.e(TAG, "Error during OCR PDF conversion", e)
+            return false
+        } finally {
             try {
-                FileOutputStream(targetFile).bufferedWriter().use { writer ->
-                    writer.write("Error extracting text from PDF: ${e.message}\n\n")
-                    writer.write(
-                            "The PDF file at ${sourceFile.name} could not be processed. It might be corrupted, password-protected, or in an unsupported format."
-                    )
-                }
-                return false // Return false as the primary operation failed
-            } catch (writeEx: Exception) {
-                Log.e(TAG, "Failed to write error message to output file", writeEx)
-                return false
+                pdfRenderer?.close()
+                fileDescriptor?.close()
+            } catch (e: IOException) {
+                Log.e(TAG, "Error closing PDF resources in OCR fallback", e)
             }
         }
     }
@@ -527,7 +584,7 @@ object DocumentConversionUtil {
                     // Create a temporary text file
                     val tempTextFile =
                             File(context.cacheDir, "temp_${System.currentTimeMillis()}.txt")
-                    if (extractTextFromPdf(sourceFile, tempTextFile)) {
+                    if (extractTextFromPdf(context, sourceFile, tempTextFile)) {
                         // Now convert the text to HTML
                         val content =
                                 FileInputStream(tempTextFile).bufferedReader().use { it.readText() }
@@ -672,6 +729,88 @@ object DocumentConversionUtil {
             "doc" -> extractTextFromDoc(sourceFile, targetFile)
             "docx" -> extractTextFromDocx(sourceFile, targetFile)
             else -> false
+        }
+    }
+
+    /** Convert PDF to DOCX */
+    fun convertPdfToDocx(context: Context, sourceFile: File, targetFile: File): Boolean {
+        return try {
+            Log.d(TAG, "Starting PDF to DOCX conversion for ${sourceFile.name}")
+
+            // Step 1: Extract text from PDF.
+            // We create a temporary text file to store the extracted content.
+            val tempTextFile = File(context.cacheDir, "temp_pdf_to_docx_${System.currentTimeMillis()}.txt")
+            val textExtractionSuccess = extractTextFromPdf(context, sourceFile, tempTextFile)
+
+            if (!textExtractionSuccess) {
+                Log.e(TAG, "Failed to extract text from PDF, aborting DOCX conversion.")
+                tempTextFile.delete()
+                return false
+            }
+
+            // Step 2: Read the extracted text from the temporary file.
+            val content = tempTextFile.readText()
+            tempTextFile.delete() // Clean up the temp file immediately after reading.
+
+            // Step 3: Create a new DOCX document and write the content.
+            XWPFDocument().use { docx ->
+                // Split the content into paragraphs. We can split by one or more newlines.
+                val paragraphs = content.split(Regex("(\\r\\n|\\n){2,}"))
+                
+                for (paraText in paragraphs) {
+                    if (paraText.isNotBlank()) {
+                        // Create a paragraph in the DOCX document.
+                        val docxParagraph = docx.createParagraph()
+                        val run = docxParagraph.createRun()
+                        run.setText(paraText.trim())
+                    }
+                }
+
+                // Step 4: Save the new DOCX document.
+                FileOutputStream(targetFile).use { fos ->
+                    docx.write(fos)
+                }
+            }
+            
+            Log.d(TAG, "Successfully converted PDF to DOCX: ${targetFile.name}")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error converting PDF to DOCX", e)
+            false
+        }
+    }
+
+    /** Convert Word (DOC/DOCX) to PDF */
+    fun convertWordToPdf(context: Context, sourceFile: File, targetFile: File, sourceExt: String): Boolean {
+        return try {
+            Log.d(TAG, "Starting Word to PDF conversion for ${sourceFile.name}")
+
+            // Step 1: Extract text from the Word document into a temporary file.
+            val tempTextFile = File(context.cacheDir, "temp_word_to_pdf_${System.currentTimeMillis()}.txt")
+            val textExtractionSuccess = extractTextFromWord(sourceFile, tempTextFile, sourceExt)
+
+            if (!textExtractionSuccess) {
+                Log.e(TAG, "Failed to extract text from Word file, aborting PDF conversion.")
+                tempTextFile.delete()
+                return false
+            }
+
+            // Step 2: Convert the extracted text file to PDF.
+            val pdfConversionSuccess = convertTextToPdf(context, tempTextFile, targetFile)
+
+            // Step 3: Clean up the temporary file.
+            tempTextFile.delete()
+
+            if (pdfConversionSuccess) {
+                Log.d(TAG, "Successfully converted Word to PDF: ${targetFile.name}")
+                true
+            } else {
+                Log.e(TAG, "Failed to convert extracted text to PDF.")
+                false
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error converting Word to PDF", e)
+            false
         }
     }
 }

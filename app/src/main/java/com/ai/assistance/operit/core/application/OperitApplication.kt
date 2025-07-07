@@ -23,6 +23,7 @@ import com.ai.assistance.operit.util.GlobalExceptionHandler
 import com.ai.assistance.operit.util.LocaleUtils
 import com.ai.assistance.operit.util.SerializationSetup
 import com.ai.assistance.operit.util.TextSegmenter
+import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -84,6 +85,9 @@ class OperitApplication : Application() {
 
         // 初始化AndroidShellExecutor上下文
         AndroidShellExecutor.setContext(applicationContext)
+
+        // 初始化PDFBox资源加载器
+        PDFBoxResourceLoader.init(getApplicationContext());
 
         // 初始化图片缓存
         MCPImageCache.initialize(applicationContext)
