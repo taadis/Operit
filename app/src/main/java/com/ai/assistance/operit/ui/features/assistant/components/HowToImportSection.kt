@@ -28,11 +28,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import com.ai.assistance.operit.R
 
 @Composable
 fun HowToImportSection() {
@@ -48,7 +50,7 @@ fun HowToImportSection() {
                 horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                    "如何制作和导入模型?",
+                    stringResource(R.string.how_to_import),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold
             )
@@ -56,7 +58,7 @@ fun HowToImportSection() {
                     imageVector =
                     if (expanded) Icons.Default.ExpandLess
                     else Icons.Default.ExpandMore,
-                    contentDescription = if (expanded) "折叠" else "展开"
+                    contentDescription = if (expanded) stringResource(R.string.collapse) else stringResource(R.string.expand)
             )
         }
     }
@@ -71,34 +73,36 @@ fun HowToImportSection() {
                 val primaryColor = MaterialTheme.colorScheme.primary
                 val annotatedString = buildAnnotatedString {
                     withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                        append("DragonBones现已更名为 LoongBones，并推出了新版在线编辑器。\n")
-                        append("LoongBones支持IK反向动力学、网格形变、骨骼绑定等专业级动画功能。\n\n")
+                        append(stringResource(R.string.dragon_bones_renamed))
+                        append("\n\n")
                     }
                     
                     withStyle(style = SpanStyle(color = primaryColor, fontWeight = FontWeight.Bold)) {
-                        append("1. 制作模型：\n")
+                        append(stringResource(R.string.making_models))
                     }
-                    append("    · 推荐：使用新版在线编辑器。\n")
-                    append("    · 备选：从第三方存档网站下载旧版 v5.6.3 离线编辑器。\n\n")
+                    append("\n")
+                    append(stringResource(R.string.making_models_desc))
+                    append("\n\n")
                     
                     withStyle(style = SpanStyle(color = primaryColor, fontWeight = FontWeight.Bold)) {
-                        append("2. 导出文件：\n")
+                        append(stringResource(R.string.exporting_files))
                     }
-                    append("    · 无论使用哪个版本，导出数据时类型请选择 JSON，版本请选择 5.5（当前还不支持 6.0 运行时）。\n")
-                    append("    · 导出的核心文件为：*_ske.json、*_tex.json、*_tex.png。\n\n")
+                    append("\n")
+                    append(stringResource(R.string.exporting_files_desc))
+                    append("\n\n")
                     
                     withStyle(style = SpanStyle(color = primaryColor, fontWeight = FontWeight.Bold)) {
-                        append("3. 配置交互：\n")
+                        append(stringResource(R.string.configuring_interaction))
                     }
-                    append("    · 如需实现头部跟随，请添加 IK 约束，并将其目标骨骼命名为 ik_target。\n")
-                    append("    · idle 动画：请确保有一个命名为 idle 的动画，作为基础待机动画，会自动循环播放。\n")
-                    append("    · 随机动画：可添加如 blink（眨眼）、shake_head（摇头）、wag_tail（摇尾巴）等动画，\n")
-                    append("      系统会随机自动触发这些动画，丰富宠物表现。\n\n")
+                    append("\n")
+                    append(stringResource(R.string.configuring_interaction_desc))
+                    append("\n\n")
                     
                     withStyle(style = SpanStyle(color = primaryColor, fontWeight = FontWeight.Bold)) {
-                        append("4. 打包与导入：\n")
+                        append(stringResource(R.string.packaging_and_importing))
                     }
-                    append("    · 将导出的三个文件打包成一个 .zip 文件后导入。")
+                    append("\n")
+                    append(stringResource(R.string.packaging_and_importing_desc))
                 }
                 
                 Text(
@@ -114,7 +118,7 @@ fun HowToImportSection() {
                         shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
-                            text = "重要提示：旧版编辑器下载页面中，Windows和Mac的下载链接放反了，请注意选择正确的链接下载。",
+                            text = stringResource(R.string.important_tip),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onErrorContainer,
                             modifier = Modifier.padding(all = 8.dp)
@@ -131,14 +135,14 @@ fun HowToImportSection() {
                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(oldEditorUrl))
                         context.startActivity(intent)
                     }) {
-                        Text("下载旧版编辑器")
+                        Text(stringResource(R.string.download_old_editor))
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(onClick = {
                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(newEditorUrl))
                         context.startActivity(intent)
                     }) {
-                        Text("访问在线编辑器")
+                        Text(stringResource(R.string.visit_online_editor))
                     }
                 }
             }

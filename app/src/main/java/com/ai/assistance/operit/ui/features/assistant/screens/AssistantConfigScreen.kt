@@ -16,10 +16,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dragonbones.rememberDragonBonesController
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.preferences.*
 import com.ai.assistance.operit.ui.features.assistant.components.DragonBonesConfigSection
@@ -89,7 +91,7 @@ fun AssistantConfigScreen(
                 userPrefsManager
                         .getUserPreferencesFlow(activeUserPrefProfileId)
                         .collectAsState(initial = null)
-        val activeUserPrefProfileName = activeUserPrefProfile?.name ?: "加载中..."
+        val activeUserPrefProfileName = activeUserPrefProfile?.name ?: stringResource(R.string.processing)
 
         // 根据所选功能获取数据
         val promptProfileId by
@@ -125,6 +127,10 @@ fun AssistantConfigScreen(
         val scrollState = rememberScrollState(initial = uiState.scrollPosition)
         val scope = rememberCoroutineScope()
         val dragonBonesController = rememberDragonBonesController()
+
+        // 在 Composable 函数中获取字符串资源，以便在 LaunchedEffect 中使用
+        val operationSuccessString = context.getString(R.string.operation_success)
+        val errorOccurredString = context.getString(R.string.error_occurred_simple)
 
         // Sync ViewModel state with Controller
         LaunchedEffect(uiState.config) {
@@ -168,10 +174,10 @@ fun AssistantConfigScreen(
         // 显示操作结果的 SnackBar
         LaunchedEffect(uiState.operationSuccess, uiState.errorMessage) {
                 if (uiState.operationSuccess) {
-                        snackbarHostState.showSnackbar("操作成功")
+                        snackbarHostState.showSnackbar(operationSuccessString)
                         viewModel.clearOperationSuccess()
                 } else if (uiState.errorMessage != null) {
-                        snackbarHostState.showSnackbar(uiState.errorMessage ?: "发生错误")
+                        snackbarHostState.showSnackbar(uiState.errorMessage ?: errorOccurredString)
                         viewModel.clearErrorMessage()
                 }
         }
@@ -180,7 +186,7 @@ fun AssistantConfigScreen(
                 snackbarHost = { SnackbarHost(snackbarHostState) },
                 topBar = {
                         TopAppBar(
-                                title = { Text("助手配置") },
+                                title = { Text(stringResource(R.string.assistant_config_title)) },
                                 actions = {
                                         // 导入模型按钮
                                         IconButton(
@@ -189,7 +195,7 @@ fun AssistantConfigScreen(
                                         ) {
                                                 Icon(
                                                         imageVector = Icons.Default.FileUpload,
-                                                        contentDescription = "导入模型"
+                                                        contentDescription = stringResource(R.string.import_model)
                                                 )
                                         }
 
@@ -203,7 +209,7 @@ fun AssistantConfigScreen(
                                         ) {
                                                 Icon(
                                                         imageVector = Icons.Default.Refresh,
-                                                        contentDescription = "扫描用户模型"
+                                                        contentDescription = stringResource(R.string.scan_user_models)
                                                 )
                                         }
                                 }
@@ -250,12 +256,12 @@ fun AssistantConfigScreen(
                                                         .padding(bottom = 4.dp, start = 4.dp)
                                 ) {
                                         Text(
-                                                "功能配置",
+                                                stringResource(R.string.function_config_title),
                                                 style = MaterialTheme.typography.titleSmall,
                                                 fontWeight = FontWeight.Bold
                                         )
                                         Text(
-                                                "聊天 语音 桌宠将会根据使用情况自动选择对应的提示词配置",
+                                                stringResource(R.string.function_config_desc),
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -295,9 +301,11 @@ fun AssistantConfigScreen(
                                                                         },
                                                                         label = {
                                                                                 Text(
-                                                                                        getFunctionDisplayName(
-                                                                                                functionType
-                                                                                        )
+                                                                                        when (functionType) {
+                                                                                            PromptFunctionType.CHAT -> context.getString(R.string.chat_function)
+                                                                                            PromptFunctionType.VOICE -> context.getString(R.string.voice_function)
+                                                                                            PromptFunctionType.DESKTOP_PET -> context.getString(R.string.desktop_pet_function)
+                                                                                        }
                                                                                 )
                                                                         }
                                                                 )
@@ -310,22 +318,22 @@ fun AssistantConfigScreen(
 
                                                 SettingItem(
                                                         icon = Icons.Default.Face,
-                                                        title = "用户性格",
+                                                        title = stringResource(R.string.user_personality),
                                                         value = activeUserPrefProfileName,
                                                         onClick = navigateToUserPreferences
                                                 )
 
                                                 SettingItem(
                                                         icon = Icons.Default.Message,
-                                                        title = "功能提示词",
-                                                        value = promptProfile?.name ?: "未配置",
+                                                        title = stringResource(R.string.function_prompt),
+                                                        value = promptProfile?.name ?: stringResource(R.string.not_configured),
                                                         onClick = navigateToFunctionalPrompts
                                                 )
 
                                                 SettingItem(
                                                         icon = Icons.Default.Api,
-                                                        title = "功能模型",
-                                                        value = modelConfig?.name ?: "未配置",
+                                                        title = stringResource(R.string.function_model),
+                                                        value = modelConfig?.name ?: stringResource(R.string.not_configured),
                                                         onClick = navigateToFunctionalConfig
                                                 )
                                         }
@@ -353,8 +361,8 @@ fun AssistantConfigScreen(
                                                 Spacer(modifier = Modifier.height(16.dp))
                                                 Text(
                                                         text =
-                                                                if (uiState.isImporting) "正在导入模型..."
-                                                                else "处理中...",
+                                                                if (uiState.isImporting) stringResource(R.string.importing_model)
+                                                                else stringResource(R.string.processing),
                                                         style = MaterialTheme.typography.bodyMedium
                                                 )
                                         }

@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.DragonBonesConfig
 import com.ai.assistance.operit.data.model.DragonBonesModel
 import com.ai.assistance.operit.data.repository.DragonBonesRepository
@@ -17,7 +18,10 @@ import kotlinx.coroutines.launch
 import com.ai.assistance.operit.data.model.ModelType
 
 /** 助手配置视图模型 负责管理DragonBones模型的UI状态和业务逻辑 */
-class AssistantConfigViewModel(private val repository: DragonBonesRepository) : ViewModel() {
+class AssistantConfigViewModel(
+    private val repository: DragonBonesRepository,
+    private val context: Context
+) : ViewModel() {
 
     // UI状态
     data class UiState(
@@ -115,13 +119,13 @@ class AssistantConfigViewModel(private val repository: DragonBonesRepository) : 
                 updateUiState(
                         isScanning = false,
                         operationSuccess = success,
-                        errorMessage = if (!success) "扫描用户模型失败" else null
+                        errorMessage = if (!success) context.getString(R.string.error_occurred_simple) else null
                 )
             } catch (e: Exception) {
                 updateUiState(
                         isScanning = false,
                         operationSuccess = false,
-                        errorMessage = "扫描用户模型出错: ${e.message}"
+                        errorMessage = context.getString(R.string.error_occurred, e.message)
                 )
             }
         }
@@ -136,13 +140,13 @@ class AssistantConfigViewModel(private val repository: DragonBonesRepository) : 
                 updateUiState(
                         isLoading = false,
                         operationSuccess = success,
-                        errorMessage = if (!success) "删除模型失败" else null
+                        errorMessage = if (!success) context.getString(R.string.error_occurred_simple) else null
                 )
             } catch (e: Exception) {
                 updateUiState(
                         isLoading = false,
                         operationSuccess = false,
-                        errorMessage = "删除模型出错: ${e.message}"
+                        errorMessage = context.getString(R.string.error_occurred, e.message)
                 )
             }
         }
@@ -158,14 +162,14 @@ class AssistantConfigViewModel(private val repository: DragonBonesRepository) : 
                         isLoading = false,
                         isImporting = false,
                         operationSuccess = success,
-                        errorMessage = if (!success) "导入DragonBones模型失败" else null
+                        errorMessage = if (!success) context.getString(R.string.error_occurred_simple) else null
                 )
             } catch (e: Exception) {
                 updateUiState(
                         isLoading = false,
                         isImporting = false,
                         operationSuccess = false,
-                        errorMessage = "导入模型出错: ${e.message}"
+                        errorMessage = context.getString(R.string.error_occurred, e.message)
                 )
             }
         }
@@ -197,7 +201,7 @@ class AssistantConfigViewModel(private val repository: DragonBonesRepository) : 
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(AssistantConfigViewModel::class.java)) {
                 val repository = DragonBonesRepository.getInstance(context)
-                return AssistantConfigViewModel(repository) as T
+                return AssistantConfigViewModel(repository, context) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class")
         }

@@ -20,6 +20,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavController
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.core.tools.StringResultData
@@ -31,19 +32,18 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** 工具测试屏幕 - 最终版网格布局 + 底部抽屉详情 */
+/** 工具测试屏幕 - 最终版网格布局 + 中间弹窗详情 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ToolTesterScreen(navController: NavController) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val aiToolHandler = remember { AIToolHandler.getInstance(context) }
-    val sheetState = rememberModalBottomSheetState()
 
     var testResults by remember { mutableStateOf<Map<String, ToolTestResult>>(emptyMap()) }
     var isTestingAll by remember { mutableStateOf(false) }
     var selectedTestForDetails by remember { mutableStateOf<ToolTest?>(null) }
-    var showBottomSheet by remember { mutableStateOf(false) }
+    var showDialog by remember { mutableStateOf(false) }
 
     val toolGroups = remember { getFinalToolTestGroups() }
 
@@ -126,7 +126,7 @@ fun ToolTesterScreen(navController: NavController) {
                             testResult = testResults[toolTest.id]
                         ) {
                             selectedTestForDetails = it
-                            showBottomSheet = true
+                            showDialog = true
                         }
                     }
                 }
@@ -134,18 +134,28 @@ fun ToolTesterScreen(navController: NavController) {
         }
     }
 
-    if (showBottomSheet && selectedTestForDetails != null) {
-        ModalBottomSheet(
-            onDismissRequest = { showBottomSheet = false },
-            sheetState = sheetState,
-        ) {
-            ToolDetailsSheet(
-                toolTest = selectedTestForDetails!!,
-                testResult = testResults[selectedTestForDetails!!.id],
-                scope = scope,
-                onTest = { test -> scope.launch { runTest(test); } },
-                onDismiss = { scope.launch { sheetState.hide() }.invokeOnCompletion { if (!sheetState.isVisible) showBottomSheet = false } }
+    if (showDialog && selectedTestForDetails != null) {
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            properties = DialogProperties(
+                dismissOnBackPress = true,
+                dismissOnClickOutside = true
             )
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth(),
+                shape = MaterialTheme.shapes.large
+            ) {
+                ToolDetailsSheet(
+                    toolTest = selectedTestForDetails!!,
+                    testResult = testResults[selectedTestForDetails!!.id],
+                    scope = scope,
+                    onTest = { test -> scope.launch { runTest(test); } },
+                    onDismiss = { showDialog = false }
+                )
+            }
         }
     }
 }

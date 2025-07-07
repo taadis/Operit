@@ -166,28 +166,28 @@ fun SettingsScreen(
                 )
 
                 // ======= SECTION 3: PROMPT CONFIGURATION =======
-                SettingsSectionTitle(title = "提示词配置", icon = Icons.Default.Message)
+                SettingsSectionTitle(title = stringResource(R.string.settings_prompt_section), icon = Icons.Default.Message)
 
                 // 模型提示词设置
                 SettingsCard(
-                        title = "提示词配置",
-                        description = "自定义AI助手的行为和性格的提示词",
+                        title = stringResource(R.string.settings_prompt_title),
+                        description = stringResource(R.string.settings_prompt_desc),
                         onClick = navigateToModelPrompts,
-                        buttonText = "配置提示词",
+                        buttonText = stringResource(R.string.settings_configure_prompt),
                         icon = Icons.Default.ChatBubble
                 )
 
                 // 功能提示词配置卡片
                 SettingsCard(
-                        title = "功能提示词配置",
-                        description = "为不同功能（对话、语音、桌宠）设置专用的提示词",
+                        title = stringResource(R.string.settings_functional_prompt_title),
+                        description = stringResource(R.string.settings_functional_prompt_desc),
                         onClick = navigateToFunctionalPrompts,
-                        buttonText = "配置功能提示词",
+                        buttonText = stringResource(R.string.settings_configure_functional_prompt),
                         icon = Icons.Default.Settings
                 )
 
                 // ======= SECTION 4: APPEARANCE =======
-                SettingsSectionTitle(title = "外观设置", icon = Icons.Default.Palette)
+                SettingsSectionTitle(title = stringResource(R.string.settings_appearance_section), icon = Icons.Default.Palette)
 
                 // 主题设置
                 SettingsCard(

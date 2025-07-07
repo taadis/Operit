@@ -28,9 +28,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.ai.assistance.operit.R
 
 @Composable
 fun SettingItem(
@@ -94,7 +96,7 @@ fun SettingItem(
         // 箭头指示器
         Icon(
             imageVector = Icons.Default.ArrowForward,
-            contentDescription = "进入",
+            contentDescription = stringResource(R.string.enter),
             tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
             modifier = Modifier.size(14.dp)
         )

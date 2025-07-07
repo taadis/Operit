@@ -380,41 +380,41 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
             val supportedTextExtensions = listOf("csv", "txt", "json", "xml", "html", "js", "css", "md", "log", "kt", "java", "py", "sh")
             if (fileExt in supportedTextExtensions) {
                 val result = AndroidShellExecutor.executeShellCommand("cat '$path'")
-                if (result.success) {
-                    val sizeResult =
+                    if (result.success) {
+                        val sizeResult =
                             AndroidShellExecutor.executeShellCommand("stat -c %s '$path'")
-                    val size =
-                            sizeResult.stdout.trim().toLongOrNull()
-                                    ?: result.stdout.length.toLong()
+                        val size =
+                                sizeResult.stdout.trim().toLongOrNull()
+                                        ?: result.stdout.length.toLong()
 
                     return ToolResult(
-                            toolName = tool.name,
-                            success = true,
-                            result =
-                                    FileContentData(
-                                            path = path,
-                                            content = result.stdout,
-                                            size = size
-                                    ),
-                            error = ""
-                    )
-                } else {
+                                toolName = tool.name,
+                                success = true,
+                                result =
+                                        FileContentData(
+                                                path = path,
+                                                content = result.stdout,
+                                                size = size
+                                        ),
+                                error = ""
+                        )
+                    } else {
                     return ToolResult(
-                            toolName = tool.name,
-                            success = false,
-                            result = StringResultData(""),
-                            error = "Failed to read file: ${result.stderr}"
-                    )
+                                toolName = tool.name,
+                                success = false,
+                                result = StringResultData(""),
+                                error = "Failed to read file: ${result.stderr}"
+                        )
+                    }
                 }
-            }
             
             // If it's not a special file and not a standard text file, return unsupported
             return ToolResult(
-                toolName = tool.name,
-                success = false,
-                result = StringResultData(""),
-                error = "Unsupported file format: .$fileExt"
-            )
+                            toolName = tool.name,
+                            success = false,
+                            result = StringResultData(""),
+                            error = "Unsupported file format: .$fileExt"
+                    )
 
         } catch (e: Exception) {
             Log.e(TAG, "Error reading file", e)

@@ -188,7 +188,7 @@ fun LicenseDialog(onDismiss: () -> Unit) {
                     tint = MaterialTheme.colorScheme.primary
                 )
                 Text(
-                    "开源许可",
+                    stringResource(id = R.string.open_source_licenses),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold
                 )
@@ -228,7 +228,7 @@ fun LicenseDialog(onDismiss: () -> Unit) {
                                 )
                             }
                             Text(
-                                text = "许可: ${library.license}",
+                                text = stringResource(id = R.string.license_format, library.license),
                                 style = MaterialTheme.typography.bodySmall,
                                 modifier = Modifier.padding(top = 4.dp),
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
@@ -250,7 +250,7 @@ fun LicenseDialog(onDismiss: () -> Unit) {
                                     horizontalArrangement = Arrangement.End
                                 ) {
                                     Text(
-                                        text = "访问项目",
+                                        text = stringResource(id = R.string.visit_project),
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.primary
                                     )
@@ -276,7 +276,7 @@ fun LicenseDialog(onDismiss: () -> Unit) {
                     containerColor = MaterialTheme.colorScheme.primary
                 )
             ) {
-                Text("确定")
+                Text(stringResource(id = R.string.ok))
             }
         }
     )
@@ -425,11 +425,11 @@ fun AboutScreen() {
                         Text(
                                 text =
                                         when (updateStatus) {
-                                            is UpdateStatus.Available -> "发现新版本"
-                                            is UpdateStatus.Checking -> "正在检查更新"
-                                            is UpdateStatus.UpToDate -> "检查完成"
-                                            is UpdateStatus.Error -> "检查失败"
-                                            else -> "更新检查"
+                                            is UpdateStatus.Available -> stringResource(id = R.string.new_version_found)
+                                            is UpdateStatus.Checking -> stringResource(id = R.string.checking_updates)
+                                            is UpdateStatus.UpToDate -> stringResource(id = R.string.check_complete)
+                                            is UpdateStatus.Error -> stringResource(id = R.string.check_failed)
+                                            else -> stringResource(id = R.string.update_check)
                                         }
                         )
                     }
@@ -439,7 +439,7 @@ fun AboutScreen() {
                         is UpdateStatus.Available -> {
                             Column {
                                 Text(
-                                        "当前版本: $appVersion\n新版本: ${status.newVersion}",
+                                        stringResource(id = R.string.new_version, appVersion, status.newVersion),
                                         style = MaterialTheme.typography.bodyMedium,
                                         modifier = Modifier.padding(bottom = 8.dp)
                                 )
@@ -448,7 +448,7 @@ fun AboutScreen() {
                                     Divider(modifier = Modifier.padding(vertical = 8.dp))
 
                                     Text(
-                                            "更新内容:",
+                                            stringResource(id = R.string.update_content),
                                             style = MaterialTheme.typography.titleSmall,
                                             fontWeight = FontWeight.Bold,
                                             modifier = Modifier.padding(bottom = 4.dp)
@@ -462,13 +462,13 @@ fun AboutScreen() {
                             }
                         }
                         is UpdateStatus.UpToDate -> {
-                            Text("当前已是最新版本: $appVersion")
+                            Text(stringResource(id = R.string.already_latest_version, appVersion))
                         }
                         is UpdateStatus.Error -> {
                             Text(status.message)
                         }
                         else -> {
-                            Text("检查更新中...")
+                            Text(stringResource(id = R.string.checking_updates))
                         }
                     }
                 },
@@ -487,15 +487,15 @@ fun AboutScreen() {
                     ) {
                         Text(
                                 when (updateStatus) {
-                                    is UpdateStatus.Available -> "去下载"
-                                    else -> "确定"
+                                    is UpdateStatus.Available -> stringResource(id = R.string.download)
+                                    else -> stringResource(id = R.string.ok)
                                 }
                         )
                     }
                 },
                 dismissButton = {
                     if (updateStatus !is UpdateStatus.Checking) {
-                        TextButton(onClick = { showUpdateDialog = false }) { Text("关闭") }
+                        TextButton(onClick = { showUpdateDialog = false }) { Text(stringResource(id = R.string.close)) }
                     }
                 }
         )
@@ -516,7 +516,7 @@ fun AboutScreen() {
                         tint = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        "选择下载源",
+                        stringResource(id = R.string.select_download_source),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
@@ -528,7 +528,7 @@ fun AboutScreen() {
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        "请选择适合您网络环境的下载源：",
+                        stringResource(id = R.string.select_download_source_desc),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -568,13 +568,13 @@ fun AboutScreen() {
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Text(
-                                    "国内加速镜像",
+                                    stringResource(id = R.string.china_mirror),
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                                 Text(
-                                    "通过ghfast.top加速，推荐国内用户使用",
+                                    stringResource(id = R.string.china_mirror_desc),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                                 )
@@ -624,12 +624,12 @@ fun AboutScreen() {
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Text(
-                                    "GitHub原始链接",
+                                    stringResource(id = R.string.github_source),
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    "直接从GitHub官方服务器下载，速度可能较慢",
+                                    stringResource(id = R.string.github_source_desc),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                 )
@@ -647,7 +647,7 @@ fun AboutScreen() {
                     )
                 ) {
                     Text(
-                        "取消",
+                        stringResource(id = R.string.cancel),
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -738,7 +738,9 @@ fun AboutScreen() {
                         Spacer(modifier = Modifier.width(8.dp))
                     }
                     Text(
-                            text = if (updateStatus is UpdateStatus.Checking) "检查中..." else "检查更新",
+                            text = if (updateStatus is UpdateStatus.Checking) 
+                                    stringResource(id = R.string.checking_updates) 
+                                else stringResource(id = R.string.check_for_updates),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium
                     )
@@ -774,7 +776,7 @@ fun AboutScreen() {
                     // 使用InfoItem组件展示信息
                     InfoItem(
                             icon = Icons.Rounded.Info,
-                            title = "开发者",
+                            title = stringResource(id = R.string.developer),
                             content = {
                                 HtmlText(
                                         html = stringResource(id = R.string.about_developer),
@@ -787,7 +789,7 @@ fun AboutScreen() {
 
                     InfoItem(
                             icon = Icons.Rounded.Info,
-                            title = "联系方式",
+                            title = stringResource(id = R.string.contact),
                             content = {
                                 Text(
                                         text = stringResource(id = R.string.about_contact),
@@ -800,7 +802,7 @@ fun AboutScreen() {
 
                     InfoItem(
                             icon = Icons.Rounded.Info,
-                            title = "项目地址",
+                            title = stringResource(id = R.string.project_url),
                             content = {
                                 HtmlText(
                                         html = stringResource(id = R.string.about_website),
@@ -847,7 +849,7 @@ fun AboutScreen() {
                         )
                         Spacer(modifier = Modifier.width(16.dp))
                         Text(
-                            text = "开源许可声明",
+                            text = stringResource(id = R.string.open_source_licenses),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Medium
                         )

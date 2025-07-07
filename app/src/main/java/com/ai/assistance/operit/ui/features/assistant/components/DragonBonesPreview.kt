@@ -29,8 +29,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.dragonbones.DragonBonesModel
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.ui.components.ManagedDragonBonesView
 import com.ai.assistance.operit.ui.features.assistant.viewmodel.AssistantConfigViewModel
 import java.io.File
@@ -106,8 +108,8 @@ fun DragonBonesPreviewSection(
                         } else {
                                 Text(
                                         text =
-                                                if (uiState.models.isEmpty()) "没有可用的模型"
-                                                else "请选择一个模型",
+                                                if (uiState.models.isEmpty()) stringResource(R.string.no_models_available)
+                                                else stringResource(R.string.please_select_model),
                                         style = MaterialTheme.typography.bodyLarge,
                                         modifier = Modifier.align(Alignment.Center)
                                 )

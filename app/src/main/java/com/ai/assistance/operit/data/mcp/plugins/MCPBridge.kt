@@ -39,117 +39,103 @@ class MCPBridge(private val context: Context) {
         private const val BRIDGE_LOG_FILE = "$TERMUX_BRIDGE_PATH/bridge.log"
         private var appContext: Context? = null
 
-        // Start monitoring bridge logs
-        fun startBridgeLogMonitor(context: Context) {
-            Log.d(TAG, "开始监控桥接器日志")
-            appContext = context.applicationContext
-            BridgeLogMonitor.startMonitoring(context)
-        }
-
-        // Stop monitoring bridge logs
-        fun stopBridgeLogMonitor() {
-            BridgeLogMonitor.stopMonitoring()
-            Log.d(TAG, "桥接器日志监控已停止")
-        }
-
         // 部署桥接器到Termux
-        suspend fun deployBridge(context: Context): Boolean =
-                withContext(Dispatchers.IO) {
-                    try {
-                        // 保存应用上下文以供其他方法使用
-                        appContext = context.applicationContext
-
-                        // 1. 首先将桥接器从assets复制到Download/Operit/bridge目录
-                        val downloadsDir =
-                                Environment.getExternalStoragePublicDirectory(
-                                        Environment.DIRECTORY_DOWNLOADS
-                                )
-                        val operitDir = File(downloadsDir, "Operit")
-                        if (!operitDir.exists()) {
-                            operitDir.mkdirs()
-                        }
-
-                        val publicBridgeDir = File(operitDir, "bridge")
-                        if (!publicBridgeDir.exists()) {
-                            publicBridgeDir.mkdirs()
-                        }
-
-                        // 复制index.js到公共目录
-                        val inputStream = context.assets.open("bridge/index.js")
-                        val indexJsContent = inputStream.bufferedReader().use { it.readText() }
-                        val outputFile = File(publicBridgeDir, "index.js")
-                        outputFile.writeText(indexJsContent)
-                        inputStream.close()
-
-                        // 创建package.json文件
-                        val packageJsonContent =
-                                """
-                    {
-                        "name": "mcp-tcp-bridge",
-                        "version": "1.0.0",
-                        "description": "将STDIO型MCP服务器桥接到TCP端口",
-                        "main": "index.js",
-                        "dependencies": {
-                            "uuid": "^9.0.0"
-                        }
+        suspend fun deployBridge(context: Context): Boolean {
+            appContext = context.applicationContext
+            return withContext(Dispatchers.IO) {
+                try {
+                    // 1. 首先将桥接器从assets复制到Download/Operit/bridge目录
+                    val downloadsDir =
+                            Environment.getExternalStoragePublicDirectory(
+                                    Environment.DIRECTORY_DOWNLOADS
+                            )
+                    val operitDir = File(downloadsDir, "Operit")
+                    if (!operitDir.exists()) {
+                        operitDir.mkdirs()
                     }
-                """.trimIndent()
-                        val packageJson = File(publicBridgeDir, "package.json")
-                        packageJson.writeText(packageJsonContent)
 
-                        Log.d(TAG, "桥接器文件已复制到公共目录: ${publicBridgeDir.absolutePath}")
+                    val publicBridgeDir = File(operitDir, "bridge")
+                    if (!publicBridgeDir.exists()) {
+                        publicBridgeDir.mkdirs()
+                    }
 
-                        // 2. 确保Termux目录存在并复制文件
-                        // 创建会话
-                        val session = TerminalSessionManager.createSession("MCPBridge")
+                    // 复制index.js到公共目录
+                    val inputStream = context.assets.open("bridge/index.js")
+                    val indexJsContent = inputStream.bufferedReader().use { it.readText() }
+                    val outputFile = File(publicBridgeDir, "index.js")
+                    outputFile.writeText(indexJsContent)
+                    inputStream.close()
 
-                        // 以非阻塞方式创建目录并复制文件
-                        val deployCommand =
-                                """
-                            mkdir -p $TERMUX_BRIDGE_PATH && 
-                            cp -f ${outputFile.absolutePath} $TERMUX_BRIDGE_PATH/ && 
-                            cp -f ${packageJson.absolutePath} $TERMUX_BRIDGE_PATH/ && 
-                            cd $TERMUX_BRIDGE_PATH && 
-                            ([ -d node_modules/uuid ] || npm install)
-                        """.trimIndent()
-
-                        // 执行命令
-                        var exitCode = -1
-                        val completionLatch = CountDownLatch(1)
-
-                        TerminalSessionManager.executeSessionCommand(
-                                context = context,
-                                session = session,
-                                command = deployCommand,
-                                onOutput = { output -> Log.d(TAG, "Termux部署输出: $output") },
-                                onInteractivePrompt = { _, _ -> },
-                                onComplete = { code, success ->
-                                    exitCode = code
-                                    Log.d(TAG, "Termux部署命令完成，退出码: $code, 成功: $success")
-                                    completionLatch.countDown()
-                                }
-                        )
-
-                        // 等待命令完成，最多等待30秒
-                        val commandFinished = completionLatch.await(30, TimeUnit.SECONDS)
-                        if (!commandFinished) {
-                            Log.e(TAG, "桥接器部署命令执行超时")
-                            return@withContext false
+                    // 创建package.json文件
+                    val packageJsonContent =
+                            """
+                        {
+                            "name": "mcp-tcp-bridge",
+                            "version": "1.0.0",
+                            "description": "将STDIO型MCP服务器桥接到TCP端口",
+                            "main": "index.js",
+                            "dependencies": {
+                                "uuid": "^9.0.0"
+                            }
                         }
+                    """.trimIndent()
+                    val packageJson = File(publicBridgeDir, "package.json")
+                    packageJson.writeText(packageJsonContent)
 
-                        val success = exitCode == 0
-                        if (success) {
-                            Log.d(TAG, "桥接器成功部署到Termux")
-                        } else {
-                            Log.e(TAG, "桥接器部署失败，退出码: $exitCode")
-                        }
+                    Log.d(TAG, "桥接器文件已复制到公共目录: ${publicBridgeDir.absolutePath}")
 
-                        return@withContext success
-                    } catch (e: Exception) {
-                        Log.e(TAG, "部署桥接器异常", e)
+                    // 2. 确保Termux目录存在并复制文件
+                    // 创建会话
+                    val session = TerminalSessionManager.createSession("MCPBridge")
+
+                    // 以非阻塞方式创建目录并复制文件
+                    val deployCommand =
+                            """
+                        mkdir -p $TERMUX_BRIDGE_PATH && 
+                        cp -f ${outputFile.absolutePath} $TERMUX_BRIDGE_PATH/ && 
+                        cp -f ${packageJson.absolutePath} $TERMUX_BRIDGE_PATH/ && 
+                        cd $TERMUX_BRIDGE_PATH && 
+                        ([ -d node_modules/uuid ] || npm install)
+                    """.trimIndent()
+
+                    // 执行命令
+                    var exitCode = -1
+                    val completionLatch = CountDownLatch(1)
+
+                    TerminalSessionManager.executeSessionCommand(
+                            context = context,
+                            session = session,
+                            command = deployCommand,
+                            onOutput = { output -> Log.d(TAG, "Termux部署输出: $output") },
+                            onInteractivePrompt = { _, _ -> },
+                            onComplete = { code, success ->
+                                exitCode = code
+                                Log.d(TAG, "Termux部署命令完成，退出码: $code, 成功: $success")
+                                completionLatch.countDown()
+                            }
+                    )
+
+                    // 等待命令完成，最多等待30秒
+                    val commandFinished = completionLatch.await(30, TimeUnit.SECONDS)
+                    if (!commandFinished) {
+                        Log.e(TAG, "桥接器部署命令执行超时")
                         return@withContext false
                     }
+
+                    val success = exitCode == 0
+                    if (success) {
+                        Log.d(TAG, "桥接器成功部署到Termux")
+                    } else {
+                        Log.e(TAG, "桥接器部署失败，退出码: $exitCode")
+                    }
+
+                    return@withContext success
+                } catch (e: Exception) {
+                    Log.e(TAG, "部署桥接器异常", e)
+                    return@withContext false
                 }
+            }
+        }
 
         // 在Termux中启动桥接器
         suspend fun startBridge(
@@ -179,7 +165,6 @@ class MCPBridge(private val context: Context) {
 
                         // 清理日志文件
                         Log.d(TAG, "清理日志文件")
-                        BridgeLogMonitor.clearLogFile()
 
                         // 构建启动命令 - 使用后台方式运行
                         val command = StringBuilder("cd $TERMUX_BRIDGE_PATH && node index.js $port")
@@ -208,9 +193,6 @@ class MCPBridge(private val context: Context) {
                         // 等待一段时间让桥接器启动
                         Log.d(TAG, "等待桥接器启动...")
                         delay(2000)
-
-                        // 启动日志监控
-                        startBridgeLogMonitor(ctx)
 
                         // 验证桥接器是否成功启动 - 尝试三次
                         var isRunning = false

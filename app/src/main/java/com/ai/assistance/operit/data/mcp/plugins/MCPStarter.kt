@@ -12,6 +12,8 @@ import com.ai.assistance.operit.data.mcp.MCPVscodeConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -341,28 +343,38 @@ class MCPStarter(private val context: Context) {
                     return@launch
                 }
 
-                var successCount = 0
-
-                // Start each plugin
-                deployedPlugins.forEachIndexed { index, pluginId ->
-                    progressListener.onPluginStarting(pluginId, index + 1, deployedPlugins.size)
-
-                    val success =
-                            startPlugin(pluginId) {
-                                // Status callback is not used here
+                // 并行启动所有插件
+                val deferreds =
+                        deployedPlugins.mapIndexed { index, pluginId ->
+                            starterScope.async {
+                                progressListener.onPluginStarting(
+                                        pluginId,
+                                        index + 1,
+                                        deployedPlugins.size
+                                )
+                                val success =
+                                        startPlugin(pluginId) {
+                                            // Status callback is not used here
+                                        }
+                                progressListener.onPluginStarted(
+                                        pluginId,
+                                        success,
+                                        index + 1,
+                                        deployedPlugins.size
+                                )
+                                success
                             }
+                        }
 
-                    if (success) successCount++
-                    progressListener.onPluginStarted(
-                            pluginId,
-                            success,
-                            index + 1,
-                            deployedPlugins.size
-                    )
-                }
+                val results = deferreds.awaitAll()
+                val successCount = results.count { it }
 
                 // Notify all plugins started
-                progressListener.onAllPluginsStarted(successCount, deployedPlugins.size, PluginInitStatus.SUCCESS)
+                progressListener.onAllPluginsStarted(
+                        successCount,
+                        deployedPlugins.size,
+                        PluginInitStatus.SUCCESS
+                )
 
                 // Verify plugins
                 verifyPlugins(progressListener)

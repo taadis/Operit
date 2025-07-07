@@ -36,8 +36,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.ui.features.assistant.viewmodel.AssistantConfigViewModel
 
 @Composable
@@ -55,11 +58,11 @@ fun DragonBonesConfigSection(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("龙骨配置", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.dragon_bones_config), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
             Icon(
                     imageVector =
                             if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                    contentDescription = if (expanded) "折叠" else "展开"
+                    contentDescription = if (expanded) stringResource(R.string.collapse) else stringResource(R.string.expand)
             )
         }
     }
@@ -84,7 +87,7 @@ fun DragonBonesConfigSection(
                     IconButton(onClick = onImportClick) {
                         Icon(
                                 imageVector = Icons.Default.AddPhotoAlternate,
-                                contentDescription = "导入模型"
+                                contentDescription = stringResource(R.string.import_model)
                         )
                     }
                 }
@@ -93,7 +96,7 @@ fun DragonBonesConfigSection(
 
                 // Scale Slider
                 Text(
-                        text = "缩放: ${String.format("%.2f", controller.scale)}",
+                        text = stringResource(R.string.scale, String.format("%.2f", controller.scale)),
                         style = MaterialTheme.typography.bodyMedium
                 )
                 Slider(
@@ -104,7 +107,7 @@ fun DragonBonesConfigSection(
 
                 // TranslationX Slider
                 Text(
-                        text = "X轴位移: ${String.format("%.1f", controller.translationX)}",
+                        text = stringResource(R.string.x_translation, String.format("%.1f", controller.translationX)),
                         style = MaterialTheme.typography.bodyMedium
                 )
                 Slider(
@@ -115,7 +118,7 @@ fun DragonBonesConfigSection(
 
                 // TranslationY Slider
                 Text(
-                        text = "Y轴位移: ${String.format("%.1f", controller.translationY)}",
+                        text = stringResource(R.string.y_translation, String.format("%.1f", controller.translationY)),
                         style = MaterialTheme.typography.bodyMedium
                 )
                 Slider(
@@ -143,26 +146,26 @@ fun ModelSelector(
     if (showDeleteDialog != null) {
         AlertDialog(
                 onDismissRequest = { showDeleteDialog = null },
-                title = { Text("确认删除模型？") },
-                text = { Text("删除后不可恢复，确定要删除该模型吗？") },
+                title = { Text(stringResource(R.string.confirm_delete_model_title)) },
+                text = { Text(stringResource(R.string.confirm_delete_model_message)) },
                 confirmButton = {
                     TextButton(
                             onClick = {
                                 onModelDelete(showDeleteDialog!!)
                                 showDeleteDialog = null
                             }
-                    ) { Text("删除") }
+                    ) { Text(stringResource(R.string.delete)) }
                 },
-                dismissButton = { TextButton(onClick = { showDeleteDialog = null }) { Text("取消") } }
+                dismissButton = { TextButton(onClick = { showDeleteDialog = null }) { Text(stringResource(R.string.cancel)) } }
         )
     }
 
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
         OutlinedTextField(
-                value = currentModel?.name ?: "选择模型",
+                value = currentModel?.name ?: stringResource(R.string.select_model),
                 onValueChange = {},
                 readOnly = true,
-                label = { Text("当前模型") },
+                label = { Text(stringResource(R.string.current_model)) },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                 modifier = Modifier.menuAnchor().fillMaxWidth()
         )
@@ -176,7 +179,7 @@ fun ModelSelector(
                         },
                         trailingIcon = {
                             IconButton(onClick = { showDeleteDialog = model.id }) {
-                                Icon(Icons.Default.Delete, contentDescription = "删除")
+                                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete))
                             }
                         }
                 )
