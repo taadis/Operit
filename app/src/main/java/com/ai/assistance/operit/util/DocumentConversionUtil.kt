@@ -5,21 +5,26 @@ import android.graphics.Bitmap
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
 import android.util.Log
-import com.itextpdf.text.Document
-import com.itextpdf.text.FontFactory
-import com.itextpdf.text.Paragraph
-import com.itextpdf.text.pdf.PdfWriter
-import java.io.File
-import java.io.FileInputStream
-import java.io.FileOutputStream
-import org.apache.pdfbox.pdmodel.PDDocument
-import org.apache.pdfbox.pdmodel.PDPage
-import org.apache.pdfbox.pdmodel.PDPageContentStream
-import org.apache.pdfbox.pdmodel.font.PDType1Font
+import com.tom_roush.pdfbox.pdmodel.PDDocument
+import com.tom_roush.pdfbox.pdmodel.PDPage
+import com.tom_roush.pdfbox.pdmodel.PDPageContentStream
+import com.tom_roush.pdfbox.pdmodel.font.PDType1Font
+import com.tom_roush.pdfbox.text.PDFTextStripper
 import org.apache.poi.hwpf.HWPFDocument
 import org.apache.poi.hwpf.extractor.WordExtractor
 import org.apache.poi.xwpf.extractor.XWPFWordExtractor
 import org.apache.poi.xwpf.usermodel.XWPFDocument
+import org.apache.poi.xwpf.usermodel.XWPFParagraph
+import org.apache.poi.xwpf.usermodel.XWPFRun
+import java.io.BufferedReader
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.io.FileReader
+import com.itextpdf.text.Document
+import com.itextpdf.text.FontFactory
+import com.itextpdf.text.Paragraph
+import com.itextpdf.text.pdf.PdfWriter
 
 /** Utility class for document conversion operations */
 object DocumentConversionUtil {
@@ -27,72 +32,53 @@ object DocumentConversionUtil {
 
     /** Convert text to PDF */
     fun convertTextToPdf(context: Context, sourceFile: File, targetFile: File): Boolean {
-        try {
-            // Read the text content
-            val textContent = FileInputStream(sourceFile).bufferedReader().use { it.readText() }
+        return try {
+            val document = PDDocument()
+            val page = PDPage()
+            document.addPage(page)
 
-            // Create PDF document using iText
-            val document = Document()
-            PdfWriter.getInstance(document, FileOutputStream(targetFile))
-            document.open()
+            PDPageContentStream(document, page).use { contentStream ->
+                BufferedReader(FileReader(sourceFile)).use { reader ->
+                    contentStream.beginText()
+                    contentStream.setFont(PDType1Font.HELVETICA, 12f)
+                    contentStream.setLeading(14.5f)
+                    contentStream.newLineAtOffset(25f, 725f)
 
-            // Add document title
-            val titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 16f)
-            document.add(Paragraph(sourceFile.nameWithoutExtension, titleFont))
-            document.add(Paragraph(" ")) // Empty line
-
-            // Add the text content with proper line breaks
-            val contentFont = FontFactory.getFont(FontFactory.HELVETICA, 12f)
-            textContent.split("\n").forEach { line -> document.add(Paragraph(line, contentFont)) }
-
-            document.close()
-            return true
-        } catch (e: Exception) {
-            Log.e(TAG, "Error converting text to PDF", e)
-
-            // Fallback using PDFBox if iText fails
-            try {
-                Log.w(TAG, "iText approach failed, trying PDFBox as fallback")
-                val textContent = FileInputStream(sourceFile).bufferedReader().use { it.readText() }
-
-                // Create a new PDF document
-                PDDocument().use { document ->
-                    val page = PDPage()
-                    document.addPage(page)
-
-                    // Create a content stream to write to the page
-                    PDPageContentStream(document, page).use { contentStream ->
-                        contentStream.beginText()
-                        contentStream.setFont(PDType1Font.HELVETICA, 12f)
-                        contentStream.newLineAtOffset(50f, 700f)
-                        contentStream.setLeading(14f)
-
-                        // Split text into lines and write them
-                        val lines = textContent.split("\n")
-                        lines.forEach { line ->
-                            contentStream.showText(line)
-                            contentStream.newLine()
-                        }
-
-                        contentStream.endText()
+                    var line: String?
+                    while (reader.readLine().also { line = it } != null) {
+                        contentStream.showText(line)
+                        contentStream.newLine()
                     }
-
-                    document.save(targetFile)
+                    contentStream.endText()
                 }
-                return true
-            } catch (e2: Exception) {
-                Log.e(TAG, "PDFBox fallback also failed", e2)
-                return false
             }
+            document.save(targetFile)
+            document.close()
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to convert text to PDF", e)
+            false
         }
     }
 
     /** Extract text from PDF */
     fun extractTextFromPdf(sourceFile: File, targetFile: File): Boolean {
         try {
-            // Use PDFBox to extract text from the PDF
+            // Use the Android-ported PDFBox to extract text
             PDDocument.load(sourceFile).use { document ->
-                val pdfStripper = org.apache.pdfbox.text.PDFTextStripper()
+                // Check if the document is encrypted, which could cause issues
+                if (document.isEncrypted) {
+                    Log.w(TAG, "PDF is encrypted, text extraction may fail or be incomplete.")
+                    // Attempt to decrypt with an empty password, though this is unlikely to succeed
+                    // for most encrypted PDFs. For robust handling, a password prompt would be needed.
+                    try {
+                        document.setAllSecurityToBeRemoved(true)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to decrypt PDF, proceeding with potentially empty extraction.", e)
+                    }
+                }
+
+                val pdfStripper = PDFTextStripper()
                 val text = pdfStripper.getText(document)
 
                 // Write the extracted text to the target file
@@ -101,15 +87,15 @@ object DocumentConversionUtil {
             return true
         } catch (e: Exception) {
             Log.e(TAG, "Error extracting text from PDF with PDFBox", e)
-            // Fallback to create a basic output file
+            // Fallback to create a basic output file with error info
             try {
                 FileOutputStream(targetFile).bufferedWriter().use { writer ->
                     writer.write("Error extracting text from PDF: ${e.message}\n\n")
                     writer.write(
-                            "Content extracted from PDF ${sourceFile.name}. For better PDF text extraction, ensure the PDF contains actual text and not just scanned images."
+                            "The PDF file at ${sourceFile.name} could not be processed. It might be corrupted, password-protected, or in an unsupported format."
                     )
                 }
-                return true // We still created a file with error info
+                return false // Return false as the primary operation failed
             } catch (writeEx: Exception) {
                 Log.e(TAG, "Failed to write error message to output file", writeEx)
                 return false

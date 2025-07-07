@@ -131,16 +131,26 @@ open class StandardFileSystemTools(protected val context: Context) {
     }
 
     /**
-     * Reads the full content of a file, handling different file types. This function does not
-     * enforce a size limit.
+       * Reads the full content of a file as a new tool, handling different file types.
+     * This function does not enforce a size limit.
      */
-    private suspend fun readFileFull(path: String, toolName: String): ToolResult {
+    open suspend fun readFileFull(tool: AITool): ToolResult {
+        val path = tool.parameters.find { it.name == "path" }?.value ?: ""
+        if (path.isBlank()) {
+            return ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "Path parameter is required"
+            )
+        }
+
         try {
             val file = File(path)
 
             if (!file.exists()) {
                 return ToolResult(
-                        toolName = toolName,
+                        toolName = tool.name,
                         success = false,
                         result = StringResultData(""),
                         error = "File does not exist: $path"
@@ -149,7 +159,7 @@ open class StandardFileSystemTools(protected val context: Context) {
 
             if (!file.isFile) {
                 return ToolResult(
-                        toolName = toolName,
+                        toolName = tool.name,
                         success = false,
                         result = StringResultData(""),
                         error = "Path is not a file: $path"
@@ -184,7 +194,7 @@ open class StandardFileSystemTools(protected val context: Context) {
                                 val content = tempFile.readText()
                                 tempFile.delete() // Clean up
                                 ToolResult(
-                                        toolName = toolName,
+                                        toolName = tool.name,
                                         success = true,
                                         result =
                                                 FileContentData(
@@ -196,7 +206,7 @@ open class StandardFileSystemTools(protected val context: Context) {
                                 )
                             } else {
                                 ToolResult(
-                                        toolName = toolName,
+                                        toolName = tool.name,
                                         success = false,
                                         result = StringResultData(""),
                                         error = "Conversion produced no output."
@@ -208,7 +218,7 @@ open class StandardFileSystemTools(protected val context: Context) {
                                     "Word conversion failed: ${conversionResult.error}, falling back to raw content"
                             )
                             ToolResult(
-                                    toolName = toolName,
+                                    toolName = tool.name,
                                     success = false,
                                     result = StringResultData(""),
                                     error =
@@ -218,7 +228,7 @@ open class StandardFileSystemTools(protected val context: Context) {
                     } catch (e: Exception) {
                         Log.e(TAG, "Error during Word document conversion", e)
                         ToolResult(
-                                toolName = toolName,
+                                toolName = tool.name,
                                 success = false,
                                 result = StringResultData(""),
                                 error = "Error converting Word document: ${e.message}"
@@ -240,7 +250,7 @@ open class StandardFileSystemTools(protected val context: Context) {
                             if (ocrText.isNotBlank()) {
                                 Log.d(TAG, "Successfully extracted text from image using OCR")
                                 ToolResult(
-                                        toolName = toolName,
+                                        toolName = tool.name,
                                         success = true,
                                         result =
                                                 FileContentData(
@@ -256,7 +266,7 @@ open class StandardFileSystemTools(protected val context: Context) {
                                         "OCR extraction returned empty text, returning no text detected message"
                                 )
                                 ToolResult(
-                                        toolName = toolName,
+                                        toolName = tool.name,
                                         success = true,
                                         result =
                                                 FileContentData(
@@ -272,7 +282,7 @@ open class StandardFileSystemTools(protected val context: Context) {
                         } else {
                             Log.w(TAG, "Failed to decode image file, returning error message")
                             ToolResult(
-                                    toolName = toolName,
+                                    toolName = tool.name,
                                     success = true,
                                     result =
                                             FileContentData(
@@ -288,7 +298,7 @@ open class StandardFileSystemTools(protected val context: Context) {
                     } catch (e: Exception) {
                         Log.e(TAG, "Error during OCR text extraction", e)
                         ToolResult(
-                                toolName = toolName,
+                                toolName = tool.name,
                                 success = true,
                                 result =
                                         FileContentData(
@@ -318,7 +328,7 @@ open class StandardFileSystemTools(protected val context: Context) {
                 "sh" -> {
                     val content = file.readText()
                     ToolResult(
-                            toolName = toolName,
+                            toolName = tool.name,
                             success = true,
                             result =
                                     FileContentData(
@@ -331,7 +341,7 @@ open class StandardFileSystemTools(protected val context: Context) {
                 }
                 else -> {
                     ToolResult(
-                            toolName = toolName,
+                            toolName = tool.name,
                             success = false,
                             result = StringResultData(""),
                             error = "Unsupported file format: .$fileExt"
@@ -341,7 +351,7 @@ open class StandardFileSystemTools(protected val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "Error reading file (full)", e)
             return ToolResult(
-                    toolName = toolName,
+                    toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
                     error = "Error reading file: ${e.message}"
@@ -362,40 +372,75 @@ open class StandardFileSystemTools(protected val context: Context) {
             )
         }
 
-        val fullReadResult = readFileFull(path, tool.name)
+        try {
+            val file = File(path)
+            if (!file.exists() || !file.isFile) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "Path is not a file: $path"
+                )
+            }
 
-        if (!fullReadResult.success) {
-            return fullReadResult
-        }
+            val fileExt = file.extension.lowercase()
 
-        val fileContentData = fullReadResult.result as? FileContentData
-        if (fileContentData == null) {
+            // For special types, full read then truncate text is the only way.
+            if (fileExt in listOf("doc", "docx", "jpg", "jpeg", "png", "gif", "bmp")) {
+                val fullResult = readFileFull(tool)
+                if (!fullResult.success) return fullResult
+
+                val contentData = fullResult.result as FileContentData
+                var content = contentData.content
+                if (content.length > MAX_FILE_SIZE_BYTES) {
+                    content = content.substring(0, MAX_FILE_SIZE_BYTES) + "\n\n... (file content truncated) ..."
+                }
+                return ToolResult(
+                    toolName = tool.name,
+                    success = true,
+                    result = FileContentData(path = path, content = content, size = content.length.toLong()),
+                    error = ""
+                )
+            }
+
+            // For text-based files, read only the beginning.
+            val supportedTextExtensions = listOf("csv", "txt", "json", "xml", "html", "js", "css", "md", "log", "kt", "java", "py", "sh")
+            if (fileExt !in supportedTextExtensions) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Unsupported file format for partial read: .$fileExt. Use readFileFull tool for full content."
+                )
+            }
+
+            val content = file.bufferedReader().use {
+                val buffer = CharArray(MAX_FILE_SIZE_BYTES)
+                val charsRead = it.read(buffer, 0, MAX_FILE_SIZE_BYTES)
+                String(buffer, 0, charsRead)
+            }
+
+            val truncated = file.length() > MAX_FILE_SIZE_BYTES
+            var finalContent = content
+            if (truncated) {
+                finalContent += "\n\n... (file content truncated) ..."
+            }
+
+            return ToolResult(
+                    toolName = tool.name,
+                    success = true,
+                    result = FileContentData(path = path, content = finalContent, size = finalContent.length.toLong()),
+                    error = ""
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error reading file", e)
             return ToolResult(
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error = "Internal error: Could not retrieve file content."
+                    error = "Error reading file: ${e.message}"
             )
         }
-
-        var content = fileContentData.content
-        if (content.length > MAX_FILE_SIZE_BYTES) {
-            content =
-                    content.substring(0, MAX_FILE_SIZE_BYTES) +
-                            "\n\n... (file content truncated) ..."
-        }
-
-        return ToolResult(
-                toolName = tool.name,
-                success = true,
-                result =
-                        FileContentData(
-                                path = path,
-                                content = content,
-                                size = content.length.toLong()
-                        ),
-                error = ""
-        )
     }
 
     /** 分段读取文件内容，每次读取指定部分（默认每部分200行） */

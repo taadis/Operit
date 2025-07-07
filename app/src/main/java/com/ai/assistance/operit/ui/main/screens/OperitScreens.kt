@@ -37,6 +37,7 @@ import com.ai.assistance.operit.ui.features.toolbox.screens.UIDebuggerToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.ffmpegtoolbox.FFmpegToolboxScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.speechtotext.SpeechToTextToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.texttospeech.TextToSpeechToolScreen
+import com.ai.assistance.operit.ui.features.toolbox.screens.tooltester.ToolTesterScreen
 
 // 路由配置类
 typealias ScreenNavigationHandler = (Screen) -> Unit
@@ -154,7 +155,8 @@ sealed class Screen(
                     onLogcatSelected = { navigateTo(Logcat) },
                     onMarkdownDemoSelected = { navigateTo(MarkdownDemo) },
                     onTextToSpeechSelected = { navigateTo(TextToSpeech) },
-                    onSpeechToTextSelected = { navigateTo(SpeechToText) }
+                    onSpeechToTextSelected = { navigateTo(SpeechToText) },
+                    onToolTesterSelected = { navigateTo(ToolTester) }
             )
         }
     }
@@ -213,9 +215,7 @@ sealed class Screen(
                 onError: (String) -> Unit,
                 onGestureConsumed: (Boolean) -> Unit
         ) {
-            HelpScreen(
-                    onBackPressed = onGoBack
-            )
+            HelpScreen(onBackPressed = onGoBack)
         }
     }
 
@@ -269,9 +269,7 @@ sealed class Screen(
                 onError: (String) -> Unit,
                 onGestureConsumed: (Boolean) -> Unit
         ) {
-            TokenConfigWebViewScreen(
-                    onNavigateBack = onGoBack
-            )
+            TokenConfigWebViewScreen(onNavigateBack = onGoBack)
         }
     }
 
@@ -289,9 +287,7 @@ sealed class Screen(
                 onError: (String) -> Unit,
                 onGestureConsumed: (Boolean) -> Unit
         ) {
-            ToolPermissionSettingsScreen(
-                    navigateBack = onGoBack
-            )
+            ToolPermissionSettingsScreen(navigateBack = onGoBack)
         }
     }
 
@@ -355,9 +351,7 @@ sealed class Screen(
                 onError: (String) -> Unit,
                 onGestureConsumed: (Boolean) -> Unit
         ) {
-            ModelConfigScreen(
-                    onBackPressed = onGoBack
-            )
+            ModelConfigScreen(onBackPressed = onGoBack)
         }
     }
 
@@ -448,9 +442,7 @@ sealed class Screen(
                 onError: (String) -> Unit,
                 onGestureConsumed: (Boolean) -> Unit
         ) {
-            LanguageSettingsScreen(
-                    onBackPressed = onGoBack
-            )
+            LanguageSettingsScreen(onBackPressed = onGoBack)
         }
     }
 
@@ -623,9 +615,25 @@ sealed class Screen(
                 onError: (String) -> Unit,
                 onGestureConsumed: (Boolean) -> Unit
         ) {
-            StreamMarkdownDemoScreen(
-                    onBackClick = onGoBack
-            )
+            StreamMarkdownDemoScreen(onBackClick = onGoBack)
+        }
+    }
+
+    // 工具测试屏幕
+    data object ToolTester :
+            Screen(parentScreen = Toolbox, navItem = NavItem.Toolbox, titleRes = "工具测试中心") {
+        @Composable
+        override fun Content(
+                navController: NavController,
+                navigateTo: ScreenNavigationHandler,
+                updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
+                hasBackgroundImage: Boolean,
+                onLoading: (Boolean) -> Unit,
+                onError: (String) -> Unit,
+                onGestureConsumed: (Boolean) -> Unit
+        ) {
+            ToolTesterScreen(navController = navController)
         }
     }
 
@@ -720,8 +728,11 @@ data object FunctionalPromptConfig :
             onGestureConsumed: (Boolean) -> Unit
     ) {
         // 检查是否是从助手配置界面导航过来的
-        val fromAssistant = navController.previousBackStackEntry?.destination?.route?.contains("AssistantConfig") == true
-        
+        val fromAssistant =
+                navController.previousBackStackEntry?.destination?.route?.contains(
+                        "AssistantConfig"
+                ) == true
+
         FunctionalPromptConfigScreen(
                 onBackPressed = onGoBack,
                 onNavigateToModelPrompts = { navigateTo(ModelPromptsSettings) }

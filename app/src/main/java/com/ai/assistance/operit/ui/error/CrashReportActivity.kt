@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.os.Environment
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -48,6 +49,7 @@ class CrashReportActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val stackTrace = intent.getStringExtra(EXTRA_STACK_TRACE) ?: "No stack trace available."
 
+        Log.e("CrashReportActivity", "stackTrace: $stackTrace")
         setContent { OperitTheme { CrashReportScreen(stackTrace = stackTrace) } }
     }
 }

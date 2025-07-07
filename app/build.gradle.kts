@@ -145,8 +145,9 @@ dependencies {
     implementation("androidx.window:window:1.1.0")
     
     // Document conversion libraries
-    implementation("com.itextpdf:itextpdf:5.5.13.3") // iText for PDF creation
-    implementation("org.apache.pdfbox:pdfbox:2.0.27") // PDFBox for PDF operations
+    implementation("com.itextpdf:itextg:5.5.10")
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
+    implementation("net.lingala.zip4j:zip4j:2.11.5")
     
     // 图片加载库
     implementation("io.coil-kt:coil:2.5.0")
@@ -183,10 +184,6 @@ dependencies {
     
     // 用于向量嵌入的TF Lite (如果需要自定义嵌入)
     implementation("org.tensorflow:tensorflow-lite:2.8.0")
-
-    // BouncyCastle加密库 - 用于PKCS12密钥处理
-    implementation("org.bouncycastle:bcpkix-jdk15on:1.70")
-    implementation("org.bouncycastle:bcprov-jdk15on:1.70")
 
     // Room 数据库
     implementation("androidx.room:room-runtime:2.6.1")

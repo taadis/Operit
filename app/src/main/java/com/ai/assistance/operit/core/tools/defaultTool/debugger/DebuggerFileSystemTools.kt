@@ -56,7 +56,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
 
             // 使用ls -la命令获取详细的文件列表
             Log.d(TAG, "Using ls -la command for path: $normalizedPath")
-            val listResult = AndroidShellExecutor.executeShellCommand("ls -la \"$normalizedPath\"")
+            val listResult = AndroidShellExecutor.executeShellCommand("ls -la '$normalizedPath'")
 
             if (listResult.success) {
                 Log.d(TAG, "ls -la command output: ${listResult.stdout}")
@@ -332,16 +332,30 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
         }
     }
 
-    private suspend fun readFileFull(path: String, toolName: String): ToolResult {
+    /**
+     * Reads the full content of a file as a new tool, handling different file types.
+     * This function does not enforce a size limit.
+     */
+    override suspend fun readFileFull(tool: AITool): ToolResult {
+        val path = tool.parameters.find { it.name == "path" }?.value ?: ""
+        if (path.isBlank()) {
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Path parameter is required"
+            )
+        }
+        
         try {
             // First check if the file exists
             val existsResult =
                     AndroidShellExecutor.executeShellCommand(
-                            "test -f \"$path\" && echo 'exists' || echo 'not exists'"
+                            "test -f '$path' && echo 'exists' || echo 'not exists'"
                     )
             if (existsResult.stdout.trim() != "exists") {
                 return ToolResult(
-                        toolName = toolName,
+                        toolName = tool.name,
                         success = false,
                         result = StringResultData(""),
                         error = "File does not exist: $path"
@@ -383,16 +397,16 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                             // 读取转换后的文本文件
                             val textContent =
                                     AndroidShellExecutor.executeShellCommand(
-                                            "cat \"$tempFilePath\""
+                                            "cat '$tempFilePath'"
                                     )
 
                             // 删除临时文件
-                            AndroidShellExecutor.executeShellCommand("rm -f \"$tempFilePath\"")
+                            AndroidShellExecutor.executeShellCommand("rm -f '$tempFilePath'")
 
                             if (textContent.success) {
                                 // 创建结果
                                 ToolResult(
-                                        toolName = toolName,
+                                        toolName = tool.name,
                                         success = true,
                                         result =
                                                 FileContentData(
@@ -404,7 +418,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                                 )
                             } else {
                                 ToolResult(
-                                        toolName = toolName,
+                                        toolName = tool.name,
                                         success = false,
                                         result = StringResultData(""),
                                         error =
@@ -417,7 +431,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                                     "Word conversion failed: ${conversionResult.error}, falling back to raw content"
                             )
                             ToolResult(
-                                    toolName = toolName,
+                                    toolName = tool.name,
                                     success = false,
                                     result = StringResultData(""),
                                     error =
@@ -428,7 +442,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                         Log.e(TAG, "Error during Word document conversion", e)
                         // 转换失败，继续尝试读取原始文件
                         ToolResult(
-                                toolName = toolName,
+                                toolName = tool.name,
                                 success = false,
                                 result = StringResultData(""),
                                 error = "Error during word conversion: ${e.message}"
@@ -456,7 +470,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
 
                                 // 返回提取的文本
                                 ToolResult(
-                                        toolName = toolName,
+                                        toolName = tool.name,
                                         success = true,
                                         result =
                                                 FileContentData(
@@ -473,7 +487,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                                 )
                                 // 直接返回未识别到文字的提示信息
                                 ToolResult(
-                                        toolName = toolName,
+                                        toolName = tool.name,
                                         success = true,
                                         result =
                                                 FileContentData(
@@ -490,7 +504,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                             Log.w(TAG, "Failed to decode image file, returning error message")
                             // 返回无法解码图片的提示信息
                             ToolResult(
-                                    toolName = toolName,
+                                    toolName = tool.name,
                                     success = true,
                                     result =
                                             FileContentData(
@@ -507,7 +521,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                         Log.e(TAG, "Error during OCR text extraction", e)
                         // OCR提取失败，返回错误信息
                         ToolResult(
-                                toolName = toolName,
+                                toolName = tool.name,
                                 success = true,
                                 result =
                                         FileContentData(
@@ -535,16 +549,16 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                 "java",
                 "py",
                 "sh" -> {
-                    val result = AndroidShellExecutor.executeShellCommand("cat \"$path\"")
+                    val result = AndroidShellExecutor.executeShellCommand("cat '$path'")
                     if (result.success) {
                         val sizeResult =
-                                AndroidShellExecutor.executeShellCommand("stat -c %s \"$path\"")
+                                AndroidShellExecutor.executeShellCommand("stat -c %s '$path'")
                         val size =
                                 sizeResult.stdout.trim().toLongOrNull()
                                         ?: result.stdout.length.toLong()
 
                         ToolResult(
-                                toolName = toolName,
+                                toolName = tool.name,
                                 success = true,
                                 result =
                                         FileContentData(
@@ -556,7 +570,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                         )
                     } else {
                         ToolResult(
-                                toolName = toolName,
+                                toolName = tool.name,
                                 success = false,
                                 result = StringResultData(""),
                                 error = "Failed to read file: ${result.stderr}"
@@ -565,7 +579,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                 }
                 else -> {
                     ToolResult(
-                            toolName = toolName,
+                            toolName = tool.name,
                             success = false,
                             result = StringResultData(""),
                             error = "Unsupported file format: .$fileExt"
@@ -575,7 +589,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
         } catch (e: Exception) {
             Log.e(TAG, "Error reading file", e)
             return ToolResult(
-                    toolName = toolName,
+                    toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
                     error = "Error reading file: ${e.message}"
@@ -596,40 +610,80 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
             )
         }
 
-        val fullReadResult = readFileFull(path, tool.name)
-        if (!fullReadResult.success) {
-            return fullReadResult
-        }
+        try {
+            val fileExt = path.substringAfterLast('.', "").lowercase()
 
-        val fileContentData = fullReadResult.result as? FileContentData
-        if (fileContentData == null) {
+            // For special types, full read then truncate text is the only way.
+            if (fileExt in listOf("doc", "docx", "jpg", "jpeg", "png", "gif", "bmp")) {
+                val fullResult = readFileFull(tool)
+                if (!fullResult.success) return fullResult
+
+                val contentData = fullResult.result as FileContentData
+                var content = contentData.content
+                if (content.length > MAX_FILE_SIZE_BYTES) {
+                    content = content.substring(0, MAX_FILE_SIZE_BYTES) + "\n\n... (file content truncated) ..."
+                }
+                return ToolResult(
+                    toolName = tool.name,
+                    success = true,
+                    result = FileContentData(path = path, content = content, size = content.length.toLong()),
+                    error = ""
+                )
+            }
+
+            // For text-based files, read only the beginning.
+             val supportedTextExtensions = listOf("csv", "txt", "json", "xml", "html", "js", "css", "md", "log", "kt", "java", "py", "sh")
+            if (fileExt !in supportedTextExtensions) {
+                 return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Unsupported file format for partial read: .$fileExt. Use readFileFull tool for full content."
+                )
+            }
+
+            // Check file size to see if truncation is needed
+            val sizeResult = AndroidShellExecutor.executeShellCommand("stat -c %s '$path'")
+            val size = sizeResult.stdout.trim().toLongOrNull() ?: 0
+            val truncated = size > MAX_FILE_SIZE_BYTES
+
+            val readCommand = "head -c $MAX_FILE_SIZE_BYTES '$path'"
+            val readResult = AndroidShellExecutor.executeShellCommand(readCommand)
+
+            if (!readResult.success) {
+                 return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "Failed to read file: ${readResult.stderr}"
+                )
+            }
+
+            var content = readResult.stdout
+            if (truncated) {
+                content += "\n\n... (file content truncated) ..."
+            }
+
+            return ToolResult(
+                    toolName = tool.name,
+                    success = true,
+                    result =
+                            FileContentData(
+                                    path = path,
+                                    content = content,
+                                    size = content.length.toLong()
+                            ),
+                    error = ""
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error reading file", e)
             return ToolResult(
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error = "Internal error: Could not retrieve file content."
+                    error = "Error reading file: ${e.message}"
             )
         }
-
-        var content = fileContentData.content
-        val originalSize = content.length
-        if (originalSize > MAX_FILE_SIZE_BYTES) {
-            content =
-                    content.substring(0, MAX_FILE_SIZE_BYTES) +
-                            "\n\n... (file content truncated) ..."
-        }
-
-        return ToolResult(
-                toolName = tool.name,
-                success = true,
-                result =
-                        FileContentData(
-                                path = path,
-                                content = content,
-                                size = content.length.toLong()
-                        ),
-                error = ""
-        )
     }
 
     /** 分段读取文件内容 */
@@ -651,7 +705,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
             // 1. Check if file exists
             val existsResult =
                     AndroidShellExecutor.executeShellCommand(
-                            "test -f \"$path\" && echo 'exists' || echo 'not exists'"
+                            "test -f '$path' && echo 'exists' || echo 'not exists'"
                     )
             if (existsResult.stdout.trim() != "exists") {
                 return ToolResult(
@@ -663,7 +717,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
             }
 
             // 2. Get total number of lines
-            val wcResult = AndroidShellExecutor.executeShellCommand("wc -l < \"$path\"")
+            val wcResult = AndroidShellExecutor.executeShellCommand("cat '$path' | wc -l")
             if (!wcResult.success) {
                 return ToolResult(
                         toolName = tool.name,
@@ -701,7 +755,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
             }
 
             // 4. Extract the specific part using sed
-            val sedCommand = "sed -n '${startLine},${endLine}p' \"$path\""
+            val sedCommand = "sed -n '${startLine},${endLine}p' '$path'"
             val partResult = AndroidShellExecutor.executeShellCommand(sedCommand)
 
             if (!partResult.success) {
@@ -943,7 +997,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
         }
 
         return try {
-            val deleteCommand = if (recursive) "rm -rf $path" else "rm -f $path"
+            val deleteCommand = if (recursive) "rm -rf '$path'" else "rm -f '$path'"
             val result = AndroidShellExecutor.executeShellCommand(deleteCommand)
 
             if (result.success) {
@@ -1413,7 +1467,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
             // Build the command with depth control if specified
             val depthOption = if (maxDepth >= 0) "-maxdepth $maxDepth" else ""
             val command =
-                    "find ${if(path.endsWith("/")) path else "$path/"} $depthOption $searchOption $patternForCommand"
+                    "find '${if(path.endsWith("/")) path else "$path/"}' $depthOption $searchOption $patternForCommand"
 
             val result = AndroidShellExecutor.executeShellCommand(command)
 
