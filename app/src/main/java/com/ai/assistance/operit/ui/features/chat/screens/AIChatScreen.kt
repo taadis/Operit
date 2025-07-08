@@ -4,11 +4,15 @@ import android.provider.Settings
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -19,12 +23,23 @@ import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.ui.components.ErrorDialog
 import com.ai.assistance.operit.ui.features.chat.components.*
+import com.ai.assistance.operit.ui.features.chat.components.AndroidExportDialog
+import com.ai.assistance.operit.ui.features.chat.components.ExportCompleteDialog
+import com.ai.assistance.operit.ui.features.chat.components.ExportPlatformDialog
+import com.ai.assistance.operit.ui.features.chat.components.ExportProgressDialog
+import com.ai.assistance.operit.ui.features.chat.components.WindowsExportDialog
+import com.ai.assistance.operit.ui.features.chat.components.WorkspaceScreen
+import com.ai.assistance.operit.ui.features.chat.components.exportAndroidApp
+import com.ai.assistance.operit.ui.features.chat.components.exportWindowsApp
 import com.ai.assistance.operit.ui.features.chat.util.ConfigurationStateHolder
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModelFactory
+import com.ai.assistance.operit.ui.main.LocalTopBarActions
 import com.ai.assistance.operit.ui.main.screens.GestureStateHolder
+import java.io.File
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.sample
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -283,161 +298,329 @@ fun AIChatScreen(
         fileChooserRequest?.let { fileChooserLauncher.launch(it) }
     }
 
-    Scaffold(
-            containerColor = Color.Transparent,
-            snackbarHost = { SnackbarHost(snackbarHostState) },
-            // Add WindowInsets to modify the entire screen when keyboard appears
-            contentWindowInsets = WindowInsets.ime,
-            bottomBar = {
-                // 只在不显示配置界面时显示底部输入框
-                if (!shouldShowConfig) {
-                    Column {
-                        // 添加优化和计划模式开关到输入框上方
-                        ChatSettingsBar(
-                                actualViewModel = actualViewModel,
-                                memoryOptimization =
-                                        actualViewModel.memoryOptimization.collectAsState().value,
-                                masterPermissionLevel =
-                                        actualViewModel.masterPermissionLevel.collectAsState()
-                                                .value,
-                                enableAiPlanning = enableAiPlanning
-                        )
+    // 从CompositionLocal获取设置TopBar Actions的函数
+    val setTopBarActions = LocalTopBarActions.current
 
-                        // 原有输入框区域
-                        ChatInputSection(
-                                actualViewModel = actualViewModel,
-                                userMessage = userMessage,
-                                onUserMessageChange = { actualViewModel.updateUserMessage(it) },
-                                onSendMessage = {
-                                    actualViewModel.sendUserMessage()
-                                    // 在发送消息后重置附件面板状态
-                                    actualViewModel.resetAttachmentPanelState()
-                                },
-                                onCancelMessage = { actualViewModel.cancelCurrentMessage() },
-                                isLoading = isLoading,
-                                isProcessingInput = isProcessingInput,
-                                inputProcessingMessage = inputProcessingMessage,
-                                allowTextInputWhileProcessing = true,
-                                onAttachmentRequest = { filePath ->
-                                    // 处理附件 - 现在使用文件路径而不是Uri
-                                    actualViewModel.handleAttachment(filePath)
-                                },
-                                attachments = attachments,
-                                onRemoveAttachment = { filePath ->
-                                    // 删除附件 - 现在使用文件路径而不是Uri
-                                    actualViewModel.removeAttachment(filePath)
-                                },
-                                onInsertAttachment = { attachment: AttachmentInfo ->
-                                    // 在光标位置插入附件引用
-                                    actualViewModel.insertAttachmentReference(attachment)
-                                },
-                                onAttachScreenContent = {
-                                    // 添加屏幕内容附件
-                                    actualViewModel.captureScreenContent()
-                                },
-                                onAttachNotifications = {
-                                    // 添加当前通知附件
-                                    actualViewModel.captureNotifications()
-                                },
-                                onAttachLocation = {
-                                    // 添加当前位置附件
-                                    actualViewModel.captureLocation()
-                                },
-                                onAttachProblemMemory = { content, filename ->
-                                    // 添加问题记忆附件
-                                    actualViewModel.attachProblemMemory(content, filename)
-                                },
-                                hasBackgroundImage = hasBackgroundImage,
-                                // 传递附件面板状态
-                                externalAttachmentPanelState = attachmentPanelState,
-                                onAttachmentPanelStateChange = { newState ->
-                                    actualViewModel.updateAttachmentPanelState(newState)
-                                }
-                        )
-                    }
-                }
-            },
-            floatingActionButton = {
-                // Remove the existing FAB since we now have the button in the header
+    // 当showWebView状态改变时，更新TopAppBar的actions
+    // 使用DisposableEffect确保当AIChatScreen离开组合时，actions被清空
+    DisposableEffect(showWebView) {
+        setTopBarActions {
+            // Web开发模式切换按钮
+            IconButton(onClick = { actualViewModel.toggleWebView() }) {
+                Icon(
+                        imageVector = Icons.Default.Language,
+                        contentDescription = "Web开发",
+                        tint =
+                                if (showWebView) MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.onPrimary
+                )
             }
-    ) { paddingValues ->
-        // 根据前面的逻辑条件决定是否显示配置界面
-        if (shouldShowConfig) {
-            ConfigurationScreen(
-                    apiEndpoint = "",
-                    apiKey = apiKey,
-                    modelName = "",
-                    onApiEndpointChange = {},
-                    onApiKeyChange = { actualViewModel.updateApiKey(it) },
-                    onModelNameChange = {},
-                    onSaveConfig = {
-                        actualViewModel.saveApiSettings()
-                        // 保存配置后导航到聊天界面
-                        ConfigurationStateHolder.hasConfirmedDefaultInSession = true
+        }
+
+        onDispose {
+            // 当此Composable离开组合时，清空TopAppBar的actions
+            setTopBarActions {}
+        }
+    }
+
+    // 导出相关状态
+    var showExportPlatformDialog by remember { mutableStateOf(false) }
+    var showAndroidExportDialog by remember { mutableStateOf(false) }
+    var showWindowsExportDialog by remember { mutableStateOf(false) }
+    var showExportProgressDialog by remember { mutableStateOf(false) }
+    var showExportCompleteDialog by remember { mutableStateOf(false) }
+    var exportProgress by remember { mutableStateOf(0f) }
+    var exportStatus by remember { mutableStateOf("") }
+    var exportSuccess by remember { mutableStateOf(false) }
+    var exportFilePath by remember { mutableStateOf<String?>(null) }
+    var exportErrorMessage by remember { mutableStateOf<String?>(null) }
+    var webContentDir by remember { mutableStateOf<File?>(null) }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+                containerColor = Color.Transparent,
+                snackbarHost = { SnackbarHost(snackbarHostState) },
+                // Add WindowInsets to modify the entire screen when keyboard appears
+                contentWindowInsets = WindowInsets.ime,
+                bottomBar = {
+                    // 只在不显示配置界面时显示底部输入框
+                    if (!shouldShowConfig) {
+                        Column {
+                            // 添加优化和计划模式开关到输入框上方
+                            ChatSettingsBar(
+                                    actualViewModel = actualViewModel,
+                                    memoryOptimization =
+                                            actualViewModel.memoryOptimization.collectAsState()
+                                                    .value,
+                                    masterPermissionLevel =
+                                            actualViewModel.masterPermissionLevel.collectAsState()
+                                                    .value,
+                                    enableAiPlanning = enableAiPlanning
+                            )
+
+                            // 原有输入框区域
+                            ChatInputSection(
+                                    actualViewModel = actualViewModel,
+                                    userMessage = userMessage,
+                                    onUserMessageChange = { actualViewModel.updateUserMessage(it) },
+                                    onSendMessage = {
+                                        actualViewModel.sendUserMessage()
+                                        // 在发送消息后重置附件面板状态
+                                        actualViewModel.resetAttachmentPanelState()
+                                    },
+                                    onCancelMessage = { actualViewModel.cancelCurrentMessage() },
+                                    isLoading = isLoading,
+                                    isProcessingInput = isProcessingInput,
+                                    inputProcessingMessage = inputProcessingMessage,
+                                    allowTextInputWhileProcessing = true,
+                                    onAttachmentRequest = { filePath ->
+                                        // 处理附件 - 现在使用文件路径而不是Uri
+                                        actualViewModel.handleAttachment(filePath)
+                                    },
+                                    attachments = attachments,
+                                    onRemoveAttachment = { filePath ->
+                                        // 删除附件 - 现在使用文件路径而不是Uri
+                                        actualViewModel.removeAttachment(filePath)
+                                    },
+                                    onInsertAttachment = { attachment: AttachmentInfo ->
+                                        // 在光标位置插入附件引用
+                                        actualViewModel.insertAttachmentReference(attachment)
+                                    },
+                                    onAttachScreenContent = {
+                                        // 添加屏幕内容附件
+                                        actualViewModel.captureScreenContent()
+                                    },
+                                    onAttachNotifications = {
+                                        // 添加当前通知附件
+                                        actualViewModel.captureNotifications()
+                                    },
+                                    onAttachLocation = {
+                                        // 添加当前位置附件
+                                        actualViewModel.captureLocation()
+                                    },
+                                    onAttachProblemMemory = { content, filename ->
+                                        // 添加问题记忆附件
+                                        actualViewModel.attachProblemMemory(content, filename)
+                                    },
+                                    hasBackgroundImage = hasBackgroundImage,
+                                    // 传递附件面板状态
+                                    externalAttachmentPanelState = attachmentPanelState,
+                                    onAttachmentPanelStateChange = { newState ->
+                                        actualViewModel.updateAttachmentPanelState(newState)
+                                    }
+                            )
+                        }
+                    }
+                },
+                floatingActionButton = {
+                    // Remove the existing FAB since we now have the button in the header
+                }
+        ) { paddingValues ->
+            // 根据前面的逻辑条件决定是否显示配置界面
+            if (shouldShowConfig) {
+                ConfigurationScreen(
+                        apiEndpoint = "",
+                        apiKey = apiKey,
+                        modelName = "",
+                        onApiEndpointChange = {},
+                        onApiKeyChange = { actualViewModel.updateApiKey(it) },
+                        onModelNameChange = {},
+                        onSaveConfig = {
+                            actualViewModel.saveApiSettings()
+                            // 保存配置后导航到聊天界面
+                            ConfigurationStateHolder.hasConfirmedDefaultInSession = true
+                        },
+                        onError = { error -> actualViewModel.showErrorMessage(error) },
+                        coroutineScope = coroutineScope,
+                        // 新增：使用默认配置的回调
+                        onUseDefault = {
+                            actualViewModel.useDefaultConfig()
+                            // 确认使用默认配置后导航到聊天界面
+                            ConfigurationStateHolder.hasConfirmedDefaultInSession = true
+                        },
+                        // 标识是否在使用默认配置
+                        isUsingDefault = isUsingDefaultConfig,
+                        // 添加导航到聊天界面的回调
+                        onNavigateToChat = {
+                            // 当用户设置了自己的配置后保存
+                            actualViewModel.saveApiSettings()
+                            // 确认后导航到聊天界面
+                            ConfigurationStateHolder.hasConfirmedDefaultInSession = true
+                        },
+                        // 添加导航到Token配置页面的回调
+                        onNavigateToTokenConfig = onNavigateToTokenConfig,
+                        // 添加导航到Settings页面的回调
+                        onNavigateToSettings = onNavigateToSettings
+                )
+            } else {
+                // 使用提取出来的聊天内容组件
+                ChatScreenContent(
+                        paddingValues = paddingValues,
+                        actualViewModel = actualViewModel,
+                        showChatHistorySelector = showChatHistorySelector,
+                        chatHistory = chatHistory,
+                        planItems = planItems,
+                        enableAiPlanning = enableAiPlanning,
+                        toolProgress = toolProgress,
+                        isLoading = isLoading,
+                        userMessageColor = userMessageColor,
+                        aiMessageColor = aiMessageColor,
+                        userTextColor = userTextColor,
+                        aiTextColor = aiTextColor,
+                        systemMessageColor = systemMessageColor,
+                        systemTextColor = systemTextColor,
+                        thinkingBackgroundColor = thinkingBackgroundColor,
+                        thinkingTextColor = thinkingTextColor,
+                        hasBackgroundImage = hasBackgroundImage,
+                        isEditMode = isEditMode,
+                        editingMessageIndex = editingMessageIndex,
+                        editingMessageContent = editingMessageContent,
+                        chatScreenGestureConsumed = chatScreenGestureConsumed,
+                        onChatScreenGestureConsumed = { chatScreenGestureConsumed = it },
+                        currentDrag = currentDrag,
+                        onCurrentDragChange = { currentDrag = it },
+                        verticalDrag = verticalDrag,
+                        onVerticalDragChange = { verticalDrag = it },
+                        dragThreshold = dragThreshold,
+                        scrollState = scrollState,
+                        showScrollButton = showScrollButton,
+                        onShowScrollButtonChange = { showScrollButton = it },
+                        autoScrollToBottom = autoScrollToBottom,
+                        onAutoScrollToBottomChange = { autoScrollToBottom = it },
+                        coroutineScope = coroutineScope,
+                        chatHistories = chatHistories,
+                        currentChatId = currentChatId ?: ""
+                )
+            }
+        }
+
+        // Web开发模式作为浮层，现在位于Scaffold外部，可以覆盖整个屏幕
+        AnimatedVisibility(visible = showWebView) {
+            val currentChat = chatHistories.find { it.id == currentChatId }
+            if (currentChat != null) {
+                WorkspaceScreen(
+                        actualViewModel = actualViewModel,
+                        currentChat = currentChat,
+                        onExportClick = { workDir ->
+                            webContentDir = workDir
+                            Log.d(
+                                    "AIChatScreen",
+                                    "正在导出工作区: ${workDir.absolutePath}, 聊天ID: $currentChatId"
+                            )
+                            showExportPlatformDialog = true
+                        }
+                )
+            }
+        }
+
+        // 导出平台选择对话框
+        if (showExportPlatformDialog) {
+            ExportPlatformDialog(
+                    onDismiss = { showExportPlatformDialog = false },
+                    onSelectAndroid = {
+                        showExportPlatformDialog = false
+                        showAndroidExportDialog = true
                     },
-                    onError = { error -> actualViewModel.showErrorMessage(error) },
-                    coroutineScope = coroutineScope,
-                    // 新增：使用默认配置的回调
-                    onUseDefault = {
-                        actualViewModel.useDefaultConfig()
-                        // 确认使用默认配置后导航到聊天界面
-                        ConfigurationStateHolder.hasConfirmedDefaultInSession = true
-                    },
-                    // 标识是否在使用默认配置
-                    isUsingDefault = isUsingDefaultConfig,
-                    // 添加导航到聊天界面的回调
-                    onNavigateToChat = {
-                        // 当用户设置了自己的配置后保存
-                        actualViewModel.saveApiSettings()
-                        // 确认后导航到聊天界面
-                        ConfigurationStateHolder.hasConfirmedDefaultInSession = true
-                    },
-                    // 添加导航到Token配置页面的回调
-                    onNavigateToTokenConfig = onNavigateToTokenConfig,
-                    // 添加导航到Settings页面的回调
-                    onNavigateToSettings = onNavigateToSettings
+                    onSelectWindows = {
+                        showExportPlatformDialog = false
+                        showWindowsExportDialog = true
+                    }
             )
-        } else {
-            // 使用提取出来的聊天内容组件
-            ChatScreenContent(
-                    paddingValues = paddingValues,
-                    actualViewModel = actualViewModel,
-                    showChatHistorySelector = showChatHistorySelector,
-                    chatHistory = chatHistory,
-                    planItems = planItems,
-                    enableAiPlanning = enableAiPlanning,
-                    toolProgress = toolProgress,
-                    isLoading = isLoading,
-                    userMessageColor = userMessageColor,
-                    aiMessageColor = aiMessageColor,
-                    userTextColor = userTextColor,
-                    aiTextColor = aiTextColor,
-                    systemMessageColor = systemMessageColor,
-                    systemTextColor = systemTextColor,
-                    thinkingBackgroundColor = thinkingBackgroundColor,
-                    thinkingTextColor = thinkingTextColor,
-                    hasBackgroundImage = hasBackgroundImage,
-                    isEditMode = isEditMode,
-                    editingMessageIndex = editingMessageIndex,
-                    editingMessageContent = editingMessageContent,
-                    chatScreenGestureConsumed = chatScreenGestureConsumed,
-                    onChatScreenGestureConsumed = { chatScreenGestureConsumed = it },
-                    currentDrag = currentDrag,
-                    onCurrentDragChange = { currentDrag = it },
-                    verticalDrag = verticalDrag,
-                    onVerticalDragChange = { verticalDrag = it },
-                    dragThreshold = dragThreshold,
-                    scrollState = scrollState,
-                    showScrollButton = showScrollButton,
-                    onShowScrollButtonChange = { showScrollButton = it },
-                    autoScrollToBottom = autoScrollToBottom,
-                    onAutoScrollToBottomChange = { autoScrollToBottom = it },
-                    coroutineScope = coroutineScope,
-                    chatHistories = chatHistories,
-                    currentChatId = currentChatId ?: "",
-                    // 添加WebView刷新相关参数
-                    webViewNeedsRefresh = webViewNeedsRefresh,
-                    onWebViewRefreshed = { actualViewModel.resetWebViewRefreshState() }
+        }
+
+        // Android导出设置对话框
+        if (showAndroidExportDialog && webContentDir != null) {
+            AndroidExportDialog(
+                    workDir = webContentDir!!,
+                    onDismiss = { showAndroidExportDialog = false },
+                    onExport = { packageName, appName, iconUri ->
+                        showAndroidExportDialog = false
+                        showExportProgressDialog = true
+                        exportProgress = 0f
+                        exportStatus = "开始导出..."
+
+                        // 启动导出过程
+                        coroutineScope.launch {
+                            exportAndroidApp(
+                                    context = context,
+                                    packageName = packageName,
+                                    appName = appName,
+                                    iconUri = iconUri,
+                                    webContentDir = webContentDir!!,
+                                    onProgress = { progress, status ->
+                                        exportProgress = progress
+                                        exportStatus = status
+                                    },
+                                    onComplete = { success, filePath, errorMessage ->
+                                        showExportProgressDialog = false
+                                        exportSuccess = success
+                                        exportFilePath = filePath
+                                        exportErrorMessage = errorMessage
+                                        showExportCompleteDialog = true
+                                    }
+                            )
+                        }
+                    }
+            )
+        }
+
+        // Windows导出设置对话框
+        if (showWindowsExportDialog && webContentDir != null) {
+            WindowsExportDialog(
+                    workDir = webContentDir!!,
+                    onDismiss = { showWindowsExportDialog = false },
+                    onExport = { appName, iconUri ->
+                        showWindowsExportDialog = false
+                        showExportProgressDialog = true
+                        exportProgress = 0f
+                        exportStatus = "开始导出..."
+
+                        // 启动导出过程
+                        coroutineScope.launch {
+                            exportWindowsApp(
+                                    context = context,
+                                    appName = appName,
+                                    iconUri = iconUri,
+                                    webContentDir = webContentDir!!,
+                                    onProgress = { progress, status ->
+                                        exportProgress = progress
+                                        exportStatus = status
+                                    },
+                                    onComplete = { success, filePath, errorMessage ->
+                                        showExportProgressDialog = false
+                                        exportSuccess = success
+                                        exportFilePath = filePath
+                                        exportErrorMessage = errorMessage
+                                        showExportCompleteDialog = true
+                                    }
+                            )
+                        }
+                    }
+            )
+        }
+
+        // 导出进度对话框
+        if (showExportProgressDialog) {
+            ExportProgressDialog(
+                    progress = exportProgress,
+                    status = exportStatus,
+                    onCancel = {
+                        // TODO: 实现取消导出的逻辑
+                        showExportProgressDialog = false
+                    }
+            )
+        }
+
+        // 导出完成对话框
+        if (showExportCompleteDialog) {
+            ExportCompleteDialog(
+                    success = exportSuccess,
+                    filePath = exportFilePath,
+                    errorMessage = exportErrorMessage,
+                    onDismiss = { showExportCompleteDialog = false },
+                    onOpenFile = { path ->
+                        // Share or open file logic
+                    }
             )
         }
     }

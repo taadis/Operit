@@ -15,7 +15,7 @@ import com.ai.assistance.operit.data.model.MessageEntity
 /** 应用数据库，包含问题记录表、聊天表和消息表 */
 @Database(
         entities = [ProblemEntity::class, ChatEntity::class, MessageEntity::class],
-        version = 4,
+        version = 5,
         exportSchema = false
 )
 @TypeConverters(StringListConverter::class)
@@ -53,6 +53,15 @@ abstract class AppDatabase : RoomDatabase() {
                         db.execSQL("UPDATE chats SET displayOrder = updatedAt")
                     }
                 }
+        
+        // 定义从版本4到5的迁移
+        private val MIGRATION_4_5 =
+                object : Migration(4, 5) {
+                    override fun migrate(db: SupportSQLiteDatabase) {
+                        // 向chats表添加workspace列
+                        db.execSQL("ALTER TABLE chats ADD COLUMN `workspace` TEXT")
+                    }
+                }
 
         /** 获取数据库实例，单例模式 */
         fun getDatabase(context: Context): AppDatabase {
@@ -64,7 +73,7 @@ abstract class AppDatabase : RoomDatabase() {
                                                 AppDatabase::class.java,
                                                 "app_database"
                                         )
-                                        .addMigrations(MIGRATION_2_3, MIGRATION_3_4) // 添加迁移
+                                        .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5) // 添加迁移
                                         .build()
                         INSTANCE = instance
                         instance

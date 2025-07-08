@@ -79,9 +79,7 @@ fun ChatScreenHeader(
         showChatHistorySelector: Boolean,
         chatHistories: List<ChatHistory>,
         currentChatId: String,
-        isEditMode: MutableState<Boolean>,
-        showWebView: Boolean = false,
-        onWebDevClick: () -> Unit = {}
+        isEditMode: MutableState<Boolean>
 ) {
     val context = LocalContext.current
     val colorScheme = MaterialTheme.colorScheme
@@ -133,9 +131,7 @@ fun ChatScreenHeader(
                     currentChatTitle = currentChatTitle,
                     modifier = Modifier,
                     isFloatingMode = actualViewModel.isFloatingMode.value,
-                    onLaunchFloatingWindow = launchFloatingWindow,
-                    showWebView = showWebView,
-                    onWebDevClick = onWebDevClick
+                    onLaunchFloatingWindow = launchFloatingWindow
             )
 
             // 添加编辑按钮 - 使用与悬浮窗按钮相同的样式

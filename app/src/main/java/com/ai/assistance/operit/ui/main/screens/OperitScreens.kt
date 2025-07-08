@@ -38,6 +38,12 @@ import com.ai.assistance.operit.ui.features.toolbox.screens.ffmpegtoolbox.FFmpeg
 import com.ai.assistance.operit.ui.features.toolbox.screens.speechtotext.SpeechToTextToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.texttospeech.TextToSpeechToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.tooltester.ToolTesterScreen
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 
 // 路由配置类
 typealias ScreenNavigationHandler = (Screen) -> Unit

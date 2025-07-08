@@ -180,6 +180,24 @@ class ChatHistoryDelegate(
         }
     }
 
+    /** 绑定聊天到工作区 */
+    fun bindChatToWorkspace(chatId: String, workspace: String) {
+        viewModelScope.launch {
+            // 1. Update the database
+            chatHistoryManager.updateChatWorkspace(chatId, workspace)
+
+            // 2. Manually update the UI state to reflect the change immediately
+            val updatedHistories = _chatHistories.value.map {
+                if (it.id == chatId) {
+                    it.copy(workspace = workspace, updatedAt = LocalDateTime.now())
+                } else {
+                    it
+                }
+            }
+            _chatHistories.value = updatedHistories
+        }
+    }
+
     /** 更新聊天标题 */
     fun updateChatTitle(chatId: String, title: String) {
         viewModelScope.launch {
@@ -411,11 +429,21 @@ class ChatHistoryDelegate(
 
             Log.d(TAG, "将总结 ${messagesToSummarize.size} 条消息")
 
-            // 确保AI服务可用
-            ensureAiServiceAvailable()
+            try {
+                // 确保AI服务可用
+                ensureAiServiceAvailable()
+            } catch (e: Exception) {
+                Log.e(TAG, "确保AI服务可用时发生异常", e)
+                return
+            }
 
-            // 等待一段时间以允许创建AI服务
-            kotlinx.coroutines.delay(100)
+            try {
+                // 等待一段时间以允许创建AI服务
+                kotlinx.coroutines.delay(100)
+            } catch (e: Exception) {
+                Log.e(TAG, "等待AI服务创建时发生异常", e)
+                return
+            }
 
             // 获取API服务实例
             val enhancedAiService = getEnhancedAiService()
@@ -435,16 +463,20 @@ class ChatHistoryDelegate(
                 Log.d(TAG, "开始使用AI生成对话总结：总结 ${messagesToSummarize.size} 条消息")
 
                 // 如果有上一条摘要，传入它作为上下文
-                val summary =
-                        if (previousSummary != null) {
-                            Log.d(TAG, "使用上一条摘要作为上下文生成新的总结")
-                            enhancedAiService.generateSummary(
-                                    conversationToSummarize,
-                                    previousSummary
-                            )
-                        } else {
-                            enhancedAiService.generateSummary(conversationToSummarize)
-                        }
+                val summary = try {
+                    if (previousSummary != null) {
+                        Log.d(TAG, "使用上一条摘要作为上下文生成新的总结")
+                        enhancedAiService.generateSummary(
+                                conversationToSummarize,
+                                previousSummary
+                        )
+                    } else {
+                        enhancedAiService.generateSummary(conversationToSummarize)
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "AI生成总结过程中发生异常", e)
+                    return
+                }
 
                 Log.d(TAG, "AI生成总结完成: ${summary.take(50)}...")
 

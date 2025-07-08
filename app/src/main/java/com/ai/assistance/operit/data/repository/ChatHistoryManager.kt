@@ -107,7 +107,8 @@ class ChatHistoryManager private constructor(private val context: Context) {
                                 inputTokens = chatEntity.inputTokens,
                                 outputTokens = chatEntity.outputTokens,
                                 group = chatEntity.group, // 映射group字段
-                                displayOrder = chatEntity.displayOrder
+                                displayOrder = chatEntity.displayOrder,
+                                workspace = chatEntity.workspace // 映射workspace字段
                         )
                     }
                 }
@@ -462,7 +463,19 @@ class ChatHistoryManager private constructor(private val context: Context) {
         return newHistory
     }
 
-    /** 更新聊天分组 */
+    /** 更新聊天工作区 */
+    suspend fun updateChatWorkspace(chatId: String, workspace: String) {
+        mutex.withLock {
+            try {
+                chatDao.updateChatWorkspace(chatId, workspace)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to update chat workspace for chat $chatId", e)
+                throw e
+            }
+        }
+    }
+
+    // 更新聊天分组
     suspend fun updateChatGroup(chatId: String, group: String?) {
         mutex.withLock {
             try {

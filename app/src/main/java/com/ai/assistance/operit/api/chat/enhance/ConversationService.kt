@@ -146,7 +146,8 @@ class ConversationService(private val context: Context) {
             return summaryContent
         } catch (e: Exception) {
             Log.e(TAG, "生成总结时出错", e)
-            return "对话摘要：生成摘要时出错，但对话仍在继续。"
+            // return "对话摘要：生成摘要时出错，但对话仍在继续。"
+            throw e
         }
     }
 

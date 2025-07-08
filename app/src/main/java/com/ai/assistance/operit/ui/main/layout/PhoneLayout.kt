@@ -39,6 +39,7 @@ import com.ai.assistance.operit.ui.main.screens.GestureStateHolder
 import com.ai.assistance.operit.ui.main.screens.Screen
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.layout.RowScope
 
 /** Layout for phone devices with a modal navigation drawer */
 @Composable
@@ -59,7 +60,8 @@ fun PhoneLayout(
         navigateToTokenConfig: () -> Unit,
         canGoBack: Boolean,
         onGoBack: () -> Unit,
-        isNavigatingBack: Boolean = false
+        isNavigatingBack: Boolean = false,
+        topBarActions: @Composable RowScope.() -> Unit = {}
 ) {
         // 创建动画化的内容偏移 - 使用更快的动画时间和更流畅的曲线
         val animatedOffset by
@@ -217,7 +219,8 @@ fun PhoneLayout(
                                 navigateToTokenConfig = navigateToTokenConfig,
                                 canGoBack = canGoBack,
                                 onGoBack = onGoBack,
-                                isNavigatingBack = isNavigatingBack
+                                isNavigatingBack = isNavigatingBack,
+                                actions = topBarActions
                         )
                 }
 

@@ -935,14 +935,23 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     // 更新当前聊天ID的Web服务器工作空间
     fun updateWebServerForCurrentChat(chatId: String) {
         try {
+            // Find the chat and its workspace
+            val chat = chatHistories.value.find { it.id == chatId }
+            val workspacePath = chat?.workspace
+
+            if (workspacePath == null) {
+                Log.w(TAG, "Chat $chatId has no workspace bound. Web server not updated.")
+                return
+            }
+
             // 使用单例模式获取LocalWebServer实例
             val webServer = LocalWebServer.getInstance(context)
             // 确保服务器已启动
             if (!webServer.isRunning()) {
                 webServer.start()
             }
-            webServer.updateChatId(chatId)
-            Log.d(TAG, "Web服务器工作空间已更新为: $chatId")
+            webServer.updateChatWorkspace(chatId, workspacePath)
+            Log.d(TAG, "Web服务器工作空间已更新为: $workspacePath for chat $chatId")
         } catch (e: Exception) {
             Log.e(TAG, "更新Web服务器工作空间失败", e)
             uiStateDelegate.showErrorMessage("更新Web工作空间失败: ${e.message}")
@@ -1074,6 +1083,30 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     /** 更新指定聊天的标题 */
     fun updateChatTitle(chatId: String, newTitle: String) {
         chatHistoryDelegate.updateChatTitle(chatId, newTitle)
+    }
+
+    /** 更新指定聊天的标题 */
+    fun bindChatToWorkspace(chatId: String, workspace: String) {
+        // 1. Persist the change
+        chatHistoryDelegate.bindChatToWorkspace(chatId, workspace)
+
+        // 2. Update the web server with the new path and refresh
+        viewModelScope.launch {
+            try {
+                val webServer = LocalWebServer.getInstance(context)
+                if (!webServer.isRunning()) {
+                    webServer.start()
+                }
+                webServer.updateChatWorkspace(chatId, workspace)
+                Log.d(TAG, "Web server workspace updated to: $workspace for chat $chatId")
+
+                // 3. Trigger a refresh of the WebView
+                refreshWebView()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to update web server workspace after binding", e)
+                uiStateDelegate.showErrorMessage("更新Web工作空间失败: ${e.message}")
+            }
+        }
     }
 
     /** 更新聊天顺序和分组 */

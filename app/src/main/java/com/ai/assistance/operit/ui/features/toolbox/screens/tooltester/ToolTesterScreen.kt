@@ -258,7 +258,7 @@ private fun getFinalToolTestGroups(): List<ToolGroup> {
         ToolGroup("环境准备 (顺序执行)", true, false, listOf(
             ToolTest("make_directory", "创建测试目录", "创建所有测试文件的根目录。", listOf(ToolParameter("path", testBaseDir), ToolParameter("create_parents", "true"))),
             ToolTest("download_file", "下载测试图片", "下载一张图片用于后续测试。", listOf(ToolParameter("url", "https://picsum.photos/100"), ToolParameter("destination", testImage))),
-            ToolTest("apply_file", "创建文本文件", "创建一个用于测试的文本文件。", listOf(ToolParameter("path", testFile), ToolParameter("content", "This is a test file for Operit tool testing.")))
+            ToolTest("write_file", "创建文本文件", "创建一个用于测试的文本文件。", listOf(ToolParameter("path", testFile), ToolParameter("content", "This is a test file for Operit tool testing.")))
         )),
         ToolGroup("基础与HTTP (并行)", false, false, listOf(
             ToolTest("sleep", "延时", "测试工具调用延时", listOf(ToolParameter("duration_ms", "1000"))),

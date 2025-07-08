@@ -21,9 +21,7 @@ fun ChatHeader(
         currentChatTitle: String?,
         modifier: Modifier = Modifier,
         onLaunchFloatingWindow: () -> Unit = {},
-        isFloatingMode: Boolean = false,
-        showWebView: Boolean = false,
-        onWebDevClick: () -> Unit = {}
+        isFloatingMode: Boolean = false
 ) {
         Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -85,27 +83,6 @@ fun ChatHeader(
                                         tint =
                                                 if (isFloatingMode)
                                                         MaterialTheme.colorScheme.primary
-                                                else
-                                                        MaterialTheme.colorScheme.onSurface.copy(
-                                                                alpha = 0.7f
-                                                        ),
-                                        modifier = Modifier.size(20.dp)
-                                )
-                        }
-                }
-
-                Box(
-                        modifier =
-                                Modifier.size(32.dp)
-                                        .background(color = Color.Transparent, shape = CircleShape)
-                ) {
-                        IconButton(onClick = onWebDevClick, modifier = Modifier.matchParentSize()) {
-                                Icon(
-                                        imageVector = Icons.Default.Language,
-                                        contentDescription =
-                                                if (showWebView) "关闭Web开发" else "Web开发",
-                                        tint =
-                                                if (showWebView) MaterialTheme.colorScheme.primary
                                                 else
                                                         MaterialTheme.colorScheme.onSurface.copy(
                                                                 alpha = 0.7f

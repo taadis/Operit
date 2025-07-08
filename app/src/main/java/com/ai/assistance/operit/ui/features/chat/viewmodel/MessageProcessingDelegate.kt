@@ -294,7 +294,7 @@ class MessageProcessingDelegate(
                     _inputProcessingMessage.value = state.message
                 }
                 is EnhancedInputProcessingState.Receiving -> {
-                    _isLoading.value = true
+                    _isLoading.value = false
                     _isProcessingInput.value = true
                     _inputProcessingMessage.value = state.message
                 }

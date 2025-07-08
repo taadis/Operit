@@ -17,5 +17,6 @@ data class ChatHistory(
     val inputTokens: Int = 0,
     val outputTokens: Int = 0,
     val group: String? = null,
-    val displayOrder: Long = System.currentTimeMillis()
+    val displayOrder: Long = 0L,
+    val workspace: String? = null
 ) 

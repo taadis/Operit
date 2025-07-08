@@ -1,6 +1,7 @@
 package com.ai.assistance.operit.ui.features.chat.components
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,7 +25,10 @@ import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.DriveFileRenameOutline
 import androidx.compose.material3.AlertDialog
@@ -57,11 +61,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.ChatHistory
+import com.ai.assistance.operit.ui.common.rememberLocal
 import me.saket.swipe.SwipeAction
 import me.saket.swipe.SwipeableActionsBox
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.Brush
 
 private sealed interface HistoryListItem {
     data class Header(val name: String) : HistoryListItem
@@ -86,11 +92,12 @@ fun ChatHistorySelector(
     var chatToEdit by remember { mutableStateOf<ChatHistory?>(null) }
     var showNewGroupDialog by remember { mutableStateOf(false) }
     var newGroupName by remember { mutableStateOf("") }
-    var collapsedGroups by remember { mutableStateOf(setOf<String>()) }
+    var collapsedGroups by rememberLocal("chat_history_collapsed_groups", emptySet<String>())
 
     var groupActionTarget by remember { mutableStateOf<String?>(null) }
     var groupToRename by remember { mutableStateOf<String?>(null) }
     var groupToDelete by remember { mutableStateOf<String?>(null) }
+    var hasLongPressedGroup by rememberLocal("has_long_pressed_group", defaultValue = false)
 
     val lazyListState = rememberLazyListState()
 
@@ -503,6 +510,31 @@ fun ChatHistorySelector(
         }
 
         Spacer(modifier = Modifier.height(8.dp))
+        var showSwipeHint by rememberLocal(key = "show_swipe_hint", defaultValue = true)
+
+        if (showSwipeHint) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .clickable { showSwipeHint = false },
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.SwapHoriz,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "左右滑动可编辑或删除(点击不再显示)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+            }
+        }
         Divider()
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -540,6 +572,7 @@ fun ChatHistorySelector(
                                         onLongPress = {
                                             if (item.name != "未分组") {
                                                 groupActionTarget = item.name
+                                                hasLongPressedGroup = true
                                             }
                                         }
                                     )
@@ -558,13 +591,27 @@ fun ChatHistorySelector(
                                     contentDescription = "Group",
                                     tint = MaterialTheme.colorScheme.primary
                                 )
-                            Text(
-                                    text = item.name,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.weight(1f),
-                                    color = MaterialTheme.colorScheme.onSurface
-                            )
+                            Column(
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = item.name,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    if (item.name != "未分组" && !hasLongPressedGroup) {
+                                        Text(
+                                            text = " (长按管理)",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                        )
+                                    }
+                                }
+                            }
                             Icon(
                                     imageVector = if (collapsedGroups.contains(item.name)) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
                                     contentDescription = if (collapsedGroups.contains(item.name)) "展开" else "折叠"
@@ -601,12 +648,16 @@ fun ChatHistorySelector(
 
                         ReorderableItem(reorderableState, key = item.history.id) { isDragging ->
                             val isSelected = item.history.id == currentId
-                        val surfaceColor =
-                                if (isSelected) MaterialTheme.colorScheme.primaryContainer
-                                else MaterialTheme.colorScheme.surface
-                        val textColor =
-                                if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer
-                                else MaterialTheme.colorScheme.onSurface
+                            val containerColor = if (isSelected) {
+                                MaterialTheme.colorScheme.primaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.surface
+                            }
+                            val contentColor = if (isSelected) {
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            }
 
                             SwipeableActionsBox(
                                 startActions = listOf(editAction),
@@ -617,40 +668,46 @@ fun ChatHistorySelector(
                                     .padding(vertical = 2.dp)
                                     .clip(MaterialTheme.shapes.medium)
                             ) {
-                        Surface(
+                                Surface(
                                     modifier = Modifier
                                         .fillMaxWidth(),
-                                color = surfaceColor,
+                                    color = containerColor,
                                     shape = MaterialTheme.shapes.medium,
                                     shadowElevation = if (isDragging) 8.dp else 0.dp
-                        ) {
-                            Row(
+                                ) {
+                                    Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(horizontal = 10.dp)
-                                            .pointerInput(Unit) {
-                                                detectTapGestures(onTap = { onSelectChat(item.history.id) })
-                                            },
-                                    verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                        IconButton(
-                                            modifier = Modifier.draggableHandle(),
-                                            onClick = {}
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 10.dp)
+                                                .pointerInput(Unit) {
+                                                    detectTapGestures(onTap = { onSelectChat(item.history.id) })
+                                                },
+                                            verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Icon(
-                                                imageVector = Icons.Default.DragHandle,
-                                                contentDescription = "Reorder"
+                                            IconButton(
+                                                modifier = Modifier.draggableHandle(),
+                                                onClick = {}
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.DragHandle,
+                                                    contentDescription = "Reorder",
+                                                    tint = contentColor
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = item.history.title,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = contentColor,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f)
                                             )
                                         }
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                            text = item.history.title,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = textColor,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f)
-                                        )
                                     }
                                 }
                             }
