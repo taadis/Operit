@@ -601,8 +601,25 @@ fun ChatHistorySelectorPanel(
                         // 切换聊天后也自动收起侧边框
                         actualViewModel.showChatHistorySelector(false)
                     },
-                    onDeleteChat = { chatId -> actualViewModel.deleteChatHistory(chatId) },
-                    chatHistories = chatHistories.sortedByDescending { it.createdAt },
+                    onDeleteChat = { chatId ->
+                        actualViewModel.deleteChatHistory(chatId)
+                    },
+                    onUpdateChatTitle = { chatId, newTitle ->
+                        actualViewModel.updateChatTitle(chatId, newTitle)
+                    },
+                    onCreateGroup = { groupName ->
+                        actualViewModel.createGroup(groupName)
+                    },
+                    onUpdateChatOrderAndGroup = { reorderedHistories, movedItem, targetGroup ->
+                        actualViewModel.updateChatOrderAndGroup(reorderedHistories, movedItem, targetGroup)
+                    },
+                    onUpdateGroupName = { oldName, newName ->
+                        actualViewModel.updateGroupName(oldName, newName)
+                    },
+                    onDeleteGroup = { groupName, deleteChats ->
+                        actualViewModel.deleteGroup(groupName, deleteChats)
+                    },
+                    chatHistories = chatHistories,
                     currentId = currentChatId
             )
 

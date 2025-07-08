@@ -105,7 +105,9 @@ class ChatHistoryManager private constructor(private val context: Context) {
                                 createdAt = createdAt,
                                 updatedAt = updatedAt,
                                 inputTokens = chatEntity.inputTokens,
-                                outputTokens = chatEntity.outputTokens
+                                outputTokens = chatEntity.outputTokens,
+                                group = chatEntity.group, // 映射group字段
+                                displayOrder = chatEntity.displayOrder
                         )
                     }
                 }
@@ -223,6 +225,67 @@ class ChatHistoryManager private constructor(private val context: Context) {
         }
     }
 
+    /**
+     * 批量更新聊天记录的顺序和分组
+     * @param updatedHistories 包含更新信息的ChatHistory列表
+     */
+    suspend fun updateChatOrderAndGroup(updatedHistories: List<ChatHistory>) {
+        mutex.withLock {
+            try {
+                val timestamp = System.currentTimeMillis()
+                val entitiesToUpdate = updatedHistories.map { history ->
+                    // Find the original entity to keep other fields intact
+                    val originalEntity = chatDao.getChatById(history.id)
+                    originalEntity?.copy(
+                        displayOrder = history.displayOrder,
+                        group = history.group,
+                        updatedAt = timestamp
+                    ) ?: ChatEntity.fromChatHistory(history.copy(updatedAt = LocalDateTime.now()))
+                }
+                chatDao.updateChats(entitiesToUpdate)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to update chat order and group", e)
+                throw e
+            }
+        }
+    }
+
+    /**
+     * 重命名分组
+     * @param oldName 旧的分组名称
+     * @param newName 新的分组名称
+     */
+    suspend fun updateGroupName(oldName: String, newName: String) {
+        mutex.withLock {
+            try {
+                chatDao.updateGroupName(oldName, newName)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to rename group from $oldName to $newName", e)
+                throw e
+            }
+        }
+    }
+
+    /**
+     * 删除分组
+     * @param groupName 要删除的分组名称
+     * @param deleteChats 是否同时删除分组下的聊天记录
+     */
+    suspend fun deleteGroup(groupName: String, deleteChats: Boolean) {
+        mutex.withLock {
+            try {
+                if (deleteChats) {
+                    chatDao.deleteChatsInGroup(groupName)
+                } else {
+                    chatDao.removeGroupFromChats(groupName)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to delete group $groupName (deleteChats: $deleteChats)", e)
+                throw e
+            }
+        }
+    }
+
     // 更新现有消息
     suspend fun updateMessage(chatId: String, message: ChatMessage) {
         mutex.withLock {
@@ -319,16 +382,7 @@ class ChatHistoryManager private constructor(private val context: Context) {
     suspend fun updateChatTitle(chatId: String, title: String) {
         mutex.withLock {
             try {
-                val chat = chatDao.getChatById(chatId)
-                if (chat != null) {
-                    chatDao.updateChatMetadata(
-                            chatId = chatId,
-                            title = title,
-                            timestamp = System.currentTimeMillis(),
-                            inputTokens = chat.inputTokens,
-                            outputTokens = chat.outputTokens
-                    )
-                }
+                chatDao.updateChatTitle(chatId, title)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to update chat title for chat $chatId", e)
                 throw e
@@ -384,7 +438,7 @@ class ChatHistoryManager private constructor(private val context: Context) {
     }
 
     // 创建新对话
-    suspend fun createNewChat(): ChatHistory {
+    suspend fun createNewChat(group: String? = null): ChatHistory {
         val dateTime = LocalDateTime.now()
         val formattedTime =
                 "${dateTime.hour}:${dateTime.minute.toString().padStart(2, '0')}:${dateTime.second.toString().padStart(2, '0')}"
@@ -394,7 +448,8 @@ class ChatHistoryManager private constructor(private val context: Context) {
                         title = "新对话 $formattedTime",
                         messages = listOf<ChatMessage>(),
                         inputTokens = 0,
-                        outputTokens = 0
+                        outputTokens = 0,
+                        group = group ?: "未分组" // 默认分组
                 )
 
         // 保存新聊天
@@ -405,6 +460,18 @@ class ChatHistoryManager private constructor(private val context: Context) {
         setCurrentChatId(newHistory.id)
 
         return newHistory
+    }
+
+    /** 更新聊天分组 */
+    suspend fun updateChatGroup(chatId: String, group: String?) {
+        mutex.withLock {
+            try {
+                chatDao.updateChatGroup(chatId, group)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to update chat group for chat $chatId", e)
+                throw e
+            }
+        }
     }
 
     // 直接加载聊天消息

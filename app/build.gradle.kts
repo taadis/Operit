@@ -266,4 +266,12 @@ dependencies {
     testImplementation("org.mockito:mockito-core:5.2.0")
     testImplementation("org.mockito.kotlin:mockito-kotlin:5.1.0")
     androidTestImplementation("org.mockito:mockito-android:5.2.0")
+    implementation("sh.calvin.reorderable:reorderable:2.5.1")
+
+    // Swipe to reveal actions
+    implementation("me.saket.swipe:swipe:1.2.0")
+
+    // Coroutine
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
 }

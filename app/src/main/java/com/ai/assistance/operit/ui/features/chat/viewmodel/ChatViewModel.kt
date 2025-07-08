@@ -214,7 +214,9 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                             chatHistoryDelegate.saveCurrentChat(inputTokens, outputTokens)
                         },
                         showErrorMessage = { message -> uiStateDelegate.showErrorMessage(message) },
-                        updateChatTitle = { title -> chatHistoryDelegate.updateChatTitle(title) },
+                        updateChatTitle = { chatId, title ->
+                            chatHistoryDelegate.updateChatTitle(chatId, title)
+                        },
                         onStreamComplete = {
                             // 流完成后不再需要特殊处理，UI会自动更新
                         }
@@ -394,7 +396,9 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         uiStateDelegate.showToast("聊天记录已清空")
     }
     fun toggleChatHistorySelector() = chatHistoryDelegate.toggleChatHistorySelector()
-    fun showChatHistorySelector(show: Boolean) = chatHistoryDelegate.showChatHistorySelector(show)
+    fun showChatHistorySelector(show: Boolean) {
+        chatHistoryDelegate.showChatHistorySelector(show)
+    }
     fun saveCurrentChat() {
         val (inputTokens, outputTokens) = tokenStatsDelegate.getCurrentTokenCounts()
         chatHistoryDelegate.saveCurrentChat(inputTokens, outputTokens)
@@ -1065,5 +1069,34 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         // 不再在这里停止Web服务器，因为使用的是单例模式
         // 服务器应在应用退出时由Application类或专门的服务管理类关闭
         // 这样可以在界面切换时保持服务器的连续运行
+    }
+
+    /** 更新指定聊天的标题 */
+    fun updateChatTitle(chatId: String, newTitle: String) {
+        chatHistoryDelegate.updateChatTitle(chatId, newTitle)
+    }
+
+    /** 更新聊天顺序和分组 */
+    fun updateChatOrderAndGroup(
+        reorderedHistories: List<ChatHistory>,
+        movedItem: ChatHistory,
+        targetGroup: String?
+    ) {
+        chatHistoryDelegate.updateChatOrderAndGroup(reorderedHistories, movedItem, targetGroup)
+    }
+
+    /** 创建新分组（通过创建新聊天实现） */
+    fun createGroup(groupName: String) {
+        chatHistoryDelegate.createGroup(groupName)
+    }
+
+    /** 重命名分组 */
+    fun updateGroupName(oldName: String, newName: String) {
+        chatHistoryDelegate.updateGroupName(oldName, newName)
+    }
+
+    /** 删除分组 */
+    fun deleteGroup(groupName: String, deleteChats: Boolean) {
+        chatHistoryDelegate.deleteGroup(groupName, deleteChats)
     }
 }

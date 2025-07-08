@@ -181,23 +181,21 @@ class ChatHistoryDelegate(
     }
 
     /** 更新聊天标题 */
-    fun updateChatTitle(title: String) {
+    fun updateChatTitle(chatId: String, title: String) {
         viewModelScope.launch {
-            _currentChatId.value?.let { chatId ->
-                // 更新数据库
-                chatHistoryManager.updateChatTitle(chatId, title)
+            // 更新数据库
+            chatHistoryManager.updateChatTitle(chatId, title)
 
-                // 更新UI状态
-                val updatedHistories =
-                        _chatHistories.value.map {
-                            if (it.id == chatId) {
-                                it.copy(title = title, updatedAt = LocalDateTime.now())
-                            } else {
-                                it
-                            }
+            // 更新UI状态
+            val updatedHistories =
+                    _chatHistories.value.map {
+                        if (it.id == chatId) {
+                            it.copy(title = title, updatedAt = LocalDateTime.now())
+                        } else {
+                            it
                         }
-                _chatHistories.value = updatedHistories
-            }
+                    }
+            _chatHistories.value = updatedHistories
         }
     }
 
@@ -283,6 +281,71 @@ class ChatHistoryDelegate(
     fun updateChatHistory(newHistory: List<ChatMessage>) {
         _chatHistory.value = newHistory.toList()
         onChatHistoryLoaded(_chatHistory.value)
+    }
+
+    /**
+     * 更新聊天记录的顺序和分组
+     * @param reorderedHistories 重新排序后的完整聊天历史列表
+     * @param movedItem 移动的聊天项
+     * @param targetGroup 目标分组的名称，如果拖拽到分组上
+     */
+    fun updateChatOrderAndGroup(
+        reorderedHistories: List<ChatHistory>,
+        movedItem: ChatHistory,
+        targetGroup: String?
+    ) {
+        viewModelScope.launch {
+            try {
+                // The list is already reordered. We just need to update displayOrder and group.
+                val updatedList = reorderedHistories.mapIndexed { index, history ->
+                    var newGroup = history.group
+                    if (history.id == movedItem.id && targetGroup != null) {
+                        newGroup = targetGroup
+                    }
+                    history.copy(displayOrder = index.toLong(), group = newGroup)
+                }
+
+                // Update UI immediately
+                _chatHistories.value = updatedList
+
+                // Persist changes
+                chatHistoryManager.updateChatOrderAndGroup(updatedList)
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to update chat order and group", e)
+                // Optionally revert UI changes or show an error
+            }
+        }
+    }
+
+    /** 重命名分组 */
+    fun updateGroupName(oldName: String, newName: String) {
+        viewModelScope.launch {
+            chatHistoryManager.updateGroupName(oldName, newName)
+        }
+    }
+
+    /** 删除分组 */
+    fun deleteGroup(groupName: String, deleteChats: Boolean) {
+        viewModelScope.launch {
+            chatHistoryManager.deleteGroup(groupName, deleteChats)
+        }
+    }
+
+    /** 创建新分组（通过创建新聊天实现） */
+    fun createGroup(groupName: String) {
+        viewModelScope.launch {
+            val (inputTokens, outputTokens) = getTokenCounts()
+            saveCurrentChat(inputTokens, outputTokens)
+
+            val newChat = chatHistoryManager.createNewChat(group = groupName)
+            _currentChatId.value = newChat.id
+            _chatHistory.value = newChat.messages
+
+            onChatHistoryLoaded(newChat.messages)
+            onTokenStatisticsLoaded(0, 0)
+            resetPlanItems()
+        }
     }
 
     /** 检查是否应该生成总结 */

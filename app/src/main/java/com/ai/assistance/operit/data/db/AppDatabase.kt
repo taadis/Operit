@@ -5,6 +5,8 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.ai.assistance.operit.data.dao.ChatDao
 import com.ai.assistance.operit.data.dao.MessageDao
 import com.ai.assistance.operit.data.model.ChatEntity
@@ -13,7 +15,7 @@ import com.ai.assistance.operit.data.model.MessageEntity
 /** 应用数据库，包含问题记录表、聊天表和消息表 */
 @Database(
         entities = [ProblemEntity::class, ChatEntity::class, MessageEntity::class],
-        version = 2,
+        version = 4,
         exportSchema = false
 )
 @TypeConverters(StringListConverter::class)
@@ -31,6 +33,27 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
 
+        // 定义从版本2到3的迁移
+        private val MIGRATION_2_3 =
+                object : Migration(2, 3) {
+                    override fun migrate(db: SupportSQLiteDatabase) {
+                        // 向chats表添加group列
+                        db.execSQL("ALTER TABLE chats ADD COLUMN `group` TEXT")
+                    }
+                }
+
+        // 定义从版本3到4的迁移
+        private val MIGRATION_3_4 =
+                object : Migration(3, 4) {
+                    override fun migrate(db: SupportSQLiteDatabase) {
+                        // 向chats表添加displayOrder列，并用updatedAt填充现有数据
+                        db.execSQL(
+                                "ALTER TABLE chats ADD COLUMN `displayOrder` INTEGER NOT NULL DEFAULT 0"
+                        )
+                        db.execSQL("UPDATE chats SET displayOrder = updatedAt")
+                    }
+                }
+
         /** 获取数据库实例，单例模式 */
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE
@@ -41,7 +64,7 @@ abstract class AppDatabase : RoomDatabase() {
                                                 AppDatabase::class.java,
                                                 "app_database"
                                         )
-                                        .fallbackToDestructiveMigration() // 当版本升级时，销毁旧表
+                                        .addMigrations(MIGRATION_2_3, MIGRATION_3_4) // 添加迁移
                                         .build()
                         INSTANCE = instance
                         instance
