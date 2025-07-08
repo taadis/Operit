@@ -36,6 +36,8 @@ import kotlinx.coroutines.launch
 import java.io.File
 import androidx.compose.ui.text.font.FontFamily
 import com.ai.assistance.operit.ui.features.chat.webview.workspace.getFileIcon
+import com.ai.assistance.operit.ui.features.chat.webview.workspace.editor.CodeEditor
+import com.ai.assistance.operit.ui.features.chat.webview.workspace.editor.LanguageDetector
 
 /**
  * VSCode风格的工作区管理器组件
@@ -258,10 +260,13 @@ fun WorkspaceManager(
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else {
-                            // 文件编辑器
-                            FileEditorContent(
-                                fileInfo = fileInfo,
-                                onSave = { newContent -> 
+                            // 文件编辑器 - 使用新的CodeEditor组件
+                            val fileLanguage = LanguageDetector.detectLanguage(fileInfo.name)
+                            
+                            CodeEditor(
+                                code = fileInfo.content,
+                                language = fileLanguage,
+                                onCodeChange = { newContent -> 
                                     // 保存文件
                                     val updatedFileInfo = fileInfo.copy(content = newContent)
                                     // 更新列表以触发UI和持久化
@@ -270,7 +275,8 @@ fun WorkspaceManager(
                                     openFiles = updatedList
                                     
                                     saveFile(updatedFileInfo, newContent) 
-                                }
+                                },
+                                modifier = Modifier.fillMaxSize()
                             )
                         }
                     }
@@ -454,42 +460,5 @@ fun VSCodeTab(
                     .background(bottomBorderColor)
             )
         }
-    }
-} 
-
-// 将FileEditor拆分为无Scaffold的纯内容组件
-@Composable
-fun FileEditorContent(
-    fileInfo: OpenFileInfo,
-    onSave: (String) -> Unit
-) {
-    var content by remember(fileInfo.path, fileInfo.content) { mutableStateOf(fileInfo.content) }
-    
-    LaunchedEffect(content) {
-        // 使用 debounce 避免过于频繁的保存操作
-        kotlinx.coroutines.delay(500)
-        onSave(content)
-    }
-
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = Color(0xFF1E1E1E) // VSCode Dark+
-    ) {
-        TextField(
-            value = content,
-            onValueChange = { content = it },
-            modifier = Modifier.fillMaxSize(),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent,
-                disabledContainerColor = Color.Transparent,
-                focusedTextColor = Color(0xFFD4D4D4),
-                unfocusedTextColor = Color(0xFFD4D4D4),
-                cursorColor = Color.White
-            ),
-            textStyle = MaterialTheme.typography.bodyMedium.copy(
-                fontFamily = FontFamily.Monospace
-            )
-        )
     }
 } 

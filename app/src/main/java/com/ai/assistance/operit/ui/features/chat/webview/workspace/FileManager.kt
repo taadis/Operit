@@ -28,6 +28,8 @@ import java.text.SimpleDateFormat
 import java.util.*
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 
 // 目录条目数据类
 data class DirectoryEntry(
@@ -213,7 +215,17 @@ fun FileBrowser(
         )
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier =
+                Modifier.fillMaxSize()
+                        .background(MaterialTheme.colorScheme.surface) // 设置不透明背景
+                        .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null, // 移除点击时的涟漪效果
+                                enabled = true,
+                                onClick = {}
+                        ) // 拦截点击事件，防止穿透
+    ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // 路径导航栏 - 移除背景使其更简洁
             Row(

@@ -19,6 +19,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.ui.features.chat.webview.createAndGetDefaultWorkspace
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.interaction.MutableInteractionSource
 
 /**
  * VSCode风格的工作区设置组件
@@ -40,6 +41,12 @@ fun WorkspaceSetup(chatId: String, onBindWorkspace: (String) -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.surface)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null, // 移除点击时的涟漪效果
+                    enabled = true,
+                    onClick = {}
+                ) // 添加点击拦截
                 .padding(16.dp),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally

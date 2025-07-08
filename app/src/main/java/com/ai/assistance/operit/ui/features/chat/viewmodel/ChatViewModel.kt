@@ -555,8 +555,10 @@ class ChatViewModel(private val context: Context) : ViewModel() {
 
     // 提取内部发送消息的逻辑为一个私有方法
     private fun sendMessageInternal(promptFunctionType: PromptFunctionType) {
-        // 获取当前聊天ID
+        // 获取当前聊天ID和工作区路径
         val chatId = currentChatId.value
+        val currentChat = chatHistories.value.find { it.id == chatId }
+        val workspacePath = currentChat?.workspace
 
         // 更新本地Web服务器的聊天ID
         chatId?.let { updateWebServerForCurrentChat(it) }
@@ -564,10 +566,11 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         // 获取当前附件列表
         val currentAttachments = attachmentManager.attachments.value
 
-        // 调用messageProcessingDelegate发送消息，并传递附件信息
+        // 调用messageProcessingDelegate发送消息，并传递附件信息和工作区路径
         messageProcessingDelegate.sendUserMessage(
                 attachments = currentAttachments,
                 chatId = chatId,
+                workspacePath = workspacePath,
                 promptFunctionType = promptFunctionType
         )
 

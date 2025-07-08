@@ -155,7 +155,7 @@ class ConversationService(private val context: Context) {
      * 为聊天准备对话历史记录
      * @param chatHistory 原始聊天历史
      * @param processedInput 处理后的用户输入
-     * @param currentChatId 当前聊天ID
+     * @param workspacePath 当前绑定的工作区路径，可以为null
      * @param conversationHistory 存储修改后的对话历史
      * @param packageManager 包管理器
      * @param promptFunctionType 提示函数类型
@@ -164,7 +164,7 @@ class ConversationService(private val context: Context) {
     suspend fun prepareConversationHistory(
             chatHistory: List<Pair<String, String>>,
             processedInput: String,
-            currentChatId: String?,
+            workspacePath: String?,
             conversationHistory: MutableList<Pair<String, String>>,
             packageManager: PackageManager,
             promptFunctionType: PromptFunctionType
@@ -184,21 +184,14 @@ class ConversationService(private val context: Context) {
                 val (introPrompt, tonePrompt) =
                         functionalPromptManager.getPromptForFunction(promptFunctionType)
 
-                // 获取系统提示词，并替换{CHAT_ID}为当前聊天ID
-                var systemPrompt = SystemPromptConfig.getSystemPromptWithCustomPrompts(
+                // 获取系统提示词，现在传入workspacePath
+                val systemPrompt = SystemPromptConfig.getSystemPromptWithCustomPrompts(
                         packageManager,
+                        workspacePath,
                         planningEnabled,
                         introPrompt,
                         tonePrompt
                 )
-
-                // 替换{CHAT_ID}为当前聊天ID
-                if (currentChatId != null) {
-                    systemPrompt = systemPrompt.replace("{CHAT_ID}", currentChatId)
-                } else {
-                    // 如果没有聊天ID，使用一个默认值
-                    systemPrompt = systemPrompt.replace("{CHAT_ID}", "default")
-                }
 
                 if (preferencesText.isNotEmpty()) {
                     conversationHistory.add(

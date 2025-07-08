@@ -84,6 +84,7 @@ class MessageProcessingDelegate(
     fun sendUserMessage(
             attachments: List<AttachmentInfo> = emptyList(),
             chatId: String? = null,
+            workspacePath: String? = null,
             promptFunctionType: PromptFunctionType = PromptFunctionType.CHAT
     ) {
         if (_userMessage.value.isBlank() && attachments.isEmpty()) return
@@ -140,7 +141,7 @@ class MessageProcessingDelegate(
                         service.sendMessage(
                                 finalMessage,
                                 history,
-                                chatId,
+                                workspacePath,
                                 promptFunctionType = promptFunctionType
                         )
 
