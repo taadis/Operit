@@ -40,6 +40,12 @@ import com.ai.assistance.operit.ui.features.chat.webview.workspace.editor.CodeEd
 import com.ai.assistance.operit.ui.features.chat.webview.workspace.editor.LanguageDetector
 
 /**
+ * 为[OpenFileInfo]添加扩展属性，用于判断是否为HTML文件
+ */
+val OpenFileInfo.isHtml: Boolean
+    get() = name.endsWith(".html", ignoreCase = true) || name.endsWith(".htm", ignoreCase = true)
+
+/**
  * VSCode风格的工作区管理器组件
  * 集成了WebView预览和文件管理功能
  */
@@ -150,11 +156,10 @@ fun WorkspaceManager(
             openFiles = openFiles + fileInfo
             currentFileIndex = openFiles.size - 1
             
-            // 初始化预览状态（HTML文件默认预览）
-            if (fileInfo.isHtml) {
-                filePreviewStates = filePreviewStates.toMutableMap().apply {
-                    this[fileInfo.path] = true
-                }
+            // 初始化预览状态
+            filePreviewStates = filePreviewStates.toMutableMap().apply {
+                // HTML文件默认预览, 其他文件默认不预览（即编辑模式）
+                this[fileInfo.path] = fileInfo.isHtml
             }
         }
     }
@@ -243,7 +248,7 @@ fun WorkspaceManager(
                         val fileInfo = openFiles[currentFileIndex]
                         val isPreviewMode = filePreviewStates[fileInfo.path] ?: false
 
-                        if (isPreviewMode && fileInfo.isHtml) {
+                        if (fileInfo.isHtml && isPreviewMode) {
                             // HTML文件的预览模式也使用WebView
                             AndroidView(
                                 factory = { context -> WebView(context) },
@@ -260,21 +265,20 @@ fun WorkspaceManager(
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else {
-                            // 文件编辑器 - 使用新的CodeEditor组件
+                            // 其他所有情况（非HTML文件，或处于编辑模式的HTML文件）都使用CodeEditor
                             val fileLanguage = LanguageDetector.detectLanguage(fileInfo.name)
-                            
                             CodeEditor(
                                 code = fileInfo.content,
                                 language = fileLanguage,
-                                onCodeChange = { newContent -> 
+                                onCodeChange = { newContent ->
                                     // 保存文件
                                     val updatedFileInfo = fileInfo.copy(content = newContent)
                                     // 更新列表以触发UI和持久化
                                     val updatedList = openFiles.toMutableList()
                                     updatedList[currentFileIndex] = updatedFileInfo
                                     openFiles = updatedList
-                                    
-                                    saveFile(updatedFileInfo, newContent) 
+
+                                    saveFile(updatedFileInfo, newContent)
                                 },
                                 modifier = Modifier.fillMaxSize()
                             )

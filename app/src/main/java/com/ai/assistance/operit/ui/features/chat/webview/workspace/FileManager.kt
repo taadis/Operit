@@ -45,10 +45,7 @@ data class DirectoryEntry(
 data class OpenFileInfo(
         val path: String,
         val content: String,
-        val name: String = File(path).name,
-        val isHtml: Boolean =
-                name.endsWith(".html", ignoreCase = true) ||
-                        name.endsWith(".htm", ignoreCase = true)
+        val name: String = File(path).name
 )
 
 /** 文件浏览器组件 - VSCode风格 */
@@ -305,10 +302,8 @@ fun FileBrowser(
                                             val newPath = File(currentPath, item.name).path
                                             loadDirectory(newPath)
                                         } else {
-                                            if (onFileOpen != null) {
-                                                val filePath = File(currentPath, item.name).path
-                                                openFile(filePath)
-                                            }
+                                            val filePath = File(currentPath, item.name).path
+                                            openFile(filePath)
                                         }
                                     },
                                     onLongPress = {
