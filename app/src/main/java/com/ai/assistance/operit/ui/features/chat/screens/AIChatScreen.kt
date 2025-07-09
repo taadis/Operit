@@ -17,6 +17,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalView
+import android.view.WindowManager
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.preferences.ApiPreferences
@@ -271,6 +273,24 @@ fun AIChatScreen(
 
     // 收集WebView显示状态
     val showWebView by actualViewModel.showWebView.collectAsState()
+    val view = LocalView.current
+
+    // Dynamically change window soft input mode based on web view visibility
+    DisposableEffect(showWebView) {
+        val window = (view.context as? android.app.Activity)?.window
+        if (showWebView) {
+            // 当进入工作区时，设置为 adjustResize
+            window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+            // 注册一个清理函数，当退出工作区时恢复原始模式
+            onDispose {
+                window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN)
+            }
+        } else {
+            // 当不在工作区时，不执行任何操作，并注册一个空的清理函数
+            window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN)
+            onDispose {}
+        }
+    }
 
     // 当手势状态改变时，通知父组件
     LaunchedEffect(chatScreenGestureConsumed, showWebView) {

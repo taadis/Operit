@@ -12,7 +12,8 @@ data class EditorTheme(
     val background: Color,
     val textColor: Color,
     val cursorColor: Color,
-    
+    val selectionColor: Color,
+
     // 语法高亮颜色
     val keywordColor: Color,
     val typeColor: Color,
@@ -45,7 +46,8 @@ val DarkTheme = EditorTheme(
     background = Color(0xFF1E1E1E),
     textColor = Color(0xFFD4D4D4),
     cursorColor = Color(0xFFAEAFAD),
-    
+    selectionColor = Color(0x66569CD6), // VSCode 风格的蓝色选区
+
     keywordColor = Color(0xFF569CD6),
     typeColor = Color(0xFF4EC9B0),
     stringColor = Color(0xFFCE9178),
@@ -74,7 +76,8 @@ val LightTheme = EditorTheme(
     background = Color(0xFFFFFFFF),
     textColor = Color(0xFF000000),
     cursorColor = Color(0xFF000000),
-    
+    selectionColor = Color(0x660070C1), // VSCode 风格的蓝色选区
+
     keywordColor = Color(0xFF0000FF),
     typeColor = Color(0xFF267F99),
     stringColor = Color(0xFFA31515),
