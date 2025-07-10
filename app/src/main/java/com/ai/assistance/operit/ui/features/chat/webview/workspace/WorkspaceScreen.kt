@@ -8,6 +8,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.data.model.ChatHistory
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
@@ -50,23 +51,3 @@ fun WorkspaceScreen(
         }
     }
 }
-
-/**
- * 导出按钮组件
- * 用于导出工作区文件
- */
-@Composable
-fun ExportButton(onClick: () -> Unit) {
-    SmallFloatingActionButton(
-        onClick = onClick,
-        modifier = Modifier.padding(end = 16.dp, bottom = 16.dp),
-        containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
-        contentColor = MaterialTheme.colorScheme.onPrimary
-    ) {
-        Icon(
-            imageVector = Icons.Default.Upload,
-            contentDescription = "打包并导出",
-            modifier = Modifier.size(20.dp)
-        )
-    }
-} 

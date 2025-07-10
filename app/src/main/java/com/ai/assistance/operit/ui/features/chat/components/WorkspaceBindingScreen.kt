@@ -23,13 +23,3 @@ fun WorkspaceScreen(
         onExportClick = onExportClick
     )
 }
-
-/**
- * 导出按钮
- * 该组件已被重构，现在仅作为兼容层重定向到新的导出按钮组件
- */
-@Composable
-fun ExportButton(onClick: () -> Unit) {
-    // 重定向到新的导出按钮组件
-    com.ai.assistance.operit.ui.features.chat.webview.workspace.ExportButton(onClick = onClick)
-} 

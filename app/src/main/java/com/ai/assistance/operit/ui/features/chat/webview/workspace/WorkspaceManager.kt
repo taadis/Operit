@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -31,15 +32,15 @@ import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
 import com.ai.assistance.operit.ui.features.chat.webview.WebViewHandler
 import com.ai.assistance.operit.ui.features.chat.webview.workspace.editor.CodeEditor
 import com.ai.assistance.operit.ui.features.chat.webview.workspace.editor.LanguageDetector
-import java.io.File
 import kotlinx.coroutines.launch
+import java.io.File
 
 /** 为[OpenFileInfo]添加扩展属性，用于判断是否为HTML文件 */
 val OpenFileInfo.isHtml: Boolean
     get() = name.endsWith(".html", ignoreCase = true) || name.endsWith(".htm", ignoreCase = true)
 
 /** VSCode风格的工作区管理器组件 集成了WebView预览和文件管理功能 */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun WorkspaceManager(
         actualViewModel: ChatViewModel,
@@ -83,10 +84,16 @@ fun WorkspaceManager(
 
     // 文件管理和标签状态 - 使用 rememberLocal 进行持久化
     var showFileManager by remember { mutableStateOf(false) }
-    var openFiles by rememberLocal<List<OpenFileInfo>>(key = "open_files_${currentChat.id}", emptyList())
-    var currentFileIndex by rememberLocal(key = "current_file_index_${currentChat.id}", -1)
+    var openFiles by rememberLocal<List<OpenFileInfo>>(key = "open_files_$workspacePath", emptyList())
+    var currentFileIndex by rememberLocal(key = "current_file_index_$workspacePath", -1)
     var filePreviewStates by remember { mutableStateOf(mapOf<String, Boolean>()) }
-    var unsavedFiles by rememberLocal<Set<String>>(key = "unsaved_files_${currentChat.id}", emptySet())
+    var unsavedFiles by rememberLocal<Set<String>>(key = "unsaved_files_$workspacePath", emptySet())
+    
+    // 控制可展开FAB的菜单状态
+    var isFabMenuExpanded by remember { mutableStateOf(false) }
+    
+    // 当前活动的编辑器引用
+    var activeEditor by remember { mutableStateOf<com.ai.assistance.operit.ui.features.chat.webview.workspace.editor.NativeCodeEditor?>(null) }
     
     // 保存文件函数
     fun saveFile(fileInfo: OpenFileInfo) {
@@ -288,7 +295,8 @@ fun WorkspaceManager(
                                                 unsavedFiles = unsavedFiles + updatedFile.path
                                             }
                                         },
-                                        modifier = Modifier.fillMaxSize()
+                                        modifier = Modifier.fillMaxSize(),
+                                        editorRef = { editor -> activeEditor = editor } // 传递editor引用
                                 )
                             }
                         }
@@ -298,77 +306,133 @@ fun WorkspaceManager(
         }
 
         // 从底部弹出的文件管理器面板
-        AnimatedVisibility(
-                visible = showFileManager,
-                enter = slideInVertically(initialOffsetY = { it }),
-                exit = slideOutVertically(targetOffsetY = { it })
-        ) {
-            // 使用一个Box来正确地将文件管理器对齐到底部
-            // 之前的 align 修饰符在 Surface 上不起作用，因为它不是 Box 的直接子元素
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
-                Surface(
-                        modifier = Modifier.fillMaxWidth().fillMaxHeight(0.6f), // 占据屏幕60%的高度
-                        color = MaterialTheme.colorScheme.surface,
-                        shadowElevation = 8.dp,
-                        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
-                ) {
-                    Column {
-                        // 文件管理器标题栏 - 优化样式
-                        Row(
-                                modifier =
-                                        Modifier.fillMaxWidth()
-                                                .padding(
-                                                        horizontal = 16.dp,
-                                                        vertical = 4.dp
-                                                ), // 减少垂直padding
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("文件浏览器", style = MaterialTheme.typography.titleMedium)
-                            IconButton(
-                                    onClick = { showFileManager = false },
-                                    modifier = Modifier.size(36.dp) // 缩小关闭按钮
-                            ) { Icon(Icons.Default.Close, contentDescription = "关闭") }
-                        }
-
-                        Divider()
-
-                        // 嵌入文件浏览器组件
-                        Box(modifier = Modifier.weight(1f)) {
-                            FileBrowser(
-                                    initialPath = workspacePath,
-                                    onCancel = { showFileManager = false },
-                                    isManageMode = true,
-                                    onFileOpen = { fileInfo ->
-                                        openFile(fileInfo)
-                                        showFileManager = false
-                                    }
-                            )
+        if (showFileManager) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .clickable { showFileManager = false }
+            )
+            
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.6f)
+                    .align(Alignment.BottomCenter),
+                color = MaterialTheme.colorScheme.surface,
+                shadowElevation = 8.dp,
+                shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+            ) {
+                Column {
+                    // 文件管理器标题栏
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("文件浏览器", style = MaterialTheme.typography.titleMedium)
+                        IconButton(onClick = { showFileManager = false }) {
+                            Icon(Icons.Default.Close, contentDescription = "关闭")
                         }
                     }
+
+                    Divider()
+
+                    // 嵌入文件浏览器组件
+                    FileBrowser(
+                        initialPath = workspacePath,
+                        onCancel = { showFileManager = false },
+                        isManageMode = true,
+                        onFileOpen = { fileInfo ->
+                            openFile(fileInfo)
+                            showFileManager = false
+                        }
+                    )
                 }
             }
         }
+        
+        // 可展开的悬浮操作按钮菜单
+        ExpandableFabMenu(
+            isExpanded = isFabMenuExpanded,
+            onToggle = { isFabMenuExpanded = !isFabMenuExpanded },
+            onExportClick = { onExportClick(File(workspacePath)) },
+            onFileManagerClick = { showFileManager = true },
+            onUndoClick = { activeEditor?.undo() },
+            onRedoClick = { activeEditor?.redo() }
+        )
+    }
+}
 
-        // 右下角的快捷操作按钮
-        if (!showFileManager) {
-            Column(
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
-                    horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                FloatingActionButton(
-                        onClick = { onExportClick(File(workspacePath)) },
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                ) { Icon(imageVector = Icons.Default.Upload, contentDescription = "打包并导出工作区") }
+@Composable
+fun ExpandableFabMenu(
+    isExpanded: Boolean,
+    onToggle: () -> Unit,
+    onExportClick: () -> Unit,
+    onFileManagerClick: () -> Unit,
+    onUndoClick: () -> Unit,
+    onRedoClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.End,
+        verticalArrangement = Arrangement.Bottom
+    ) {
+        // 展开的菜单项
+        if (isExpanded) {
+            FabMenuItem(icon = Icons.Default.Undo, text = "撤销", onClick = onUndoClick)
+            Spacer(modifier = Modifier.height(12.dp))
+            FabMenuItem(icon = Icons.Default.Redo, text = "重做", onClick = onRedoClick)
+            Spacer(modifier = Modifier.height(12.dp))
+            FabMenuItem(icon = Icons.Default.Folder, text = "文件", onClick = onFileManagerClick)
+            Spacer(modifier = Modifier.height(12.dp))
+            FabMenuItem(icon = Icons.Default.Upload, text = "导出", onClick = onExportClick)
+            Spacer(modifier = Modifier.height(16.dp))
+        }
 
-                FloatingActionButton(
-                        onClick = { showFileManager = true },
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                ) { Icon(imageVector = Icons.Default.Folder, contentDescription = "打开文件管理器") }
-            }
+        // 主切换按钮
+        FloatingActionButton(
+            onClick = onToggle,
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary
+        ) {
+            Icon(
+                imageVector = if (isExpanded) Icons.Default.Close else Icons.Default.MoreVert,
+                contentDescription = if (isExpanded) "关闭菜单" else "打开菜单"
+            )
+        }
+    }
+}
+
+@Composable
+fun FabMenuItem(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            shadowElevation = 2.dp,
+            modifier = Modifier.clickable(onClick = onClick)
+        ) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+            )
+        }
+        FloatingActionButton(
+            onClick = onClick,
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 0.dp)
+        ) {
+            Icon(imageVector = icon, contentDescription = text)
         }
     }
 }
