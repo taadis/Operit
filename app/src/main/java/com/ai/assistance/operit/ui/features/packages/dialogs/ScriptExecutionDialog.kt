@@ -16,6 +16,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -73,113 +76,118 @@ fun ScriptExecutionDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Script Editor
-                Text(
-                        text = "Script Code:" + ":",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                )
-
-                TextField(
-                        value = scriptText,
-                        onValueChange = { newValue -> scriptText = newValue },
-                        modifier = Modifier.fillMaxWidth().height(200.dp),
-                        textStyle =
-                                MaterialTheme.typography.bodyMedium.copy(
-                                        fontFamily = FontFamily.Monospace
-                                ),
-                        colors =
-                                TextFieldDefaults.textFieldColors(
-                                        containerColor = Color(0xFF1E1E1E),
-                                        focusedTextColor = Color.White,
-                                        unfocusedTextColor = Color.White,
-                                        cursorColor = Color.White,
-                                        focusedIndicatorColor = MaterialTheme.colorScheme.primary
-                                )
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Parameters
-                if (tool.parameters.isNotEmpty()) {
+                Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                    // Script Editor
                     Text(
-                            text = "Script Parameters:" + ":",
+                            text = "Script Code:" + ":",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Parameter inputs
-                    LazyColumn(
-                            modifier = Modifier.fillMaxWidth().heightIn(max = 120.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(items = tool.parameters, key = { param -> param.name }) { param ->
-                            OutlinedTextField(
-                                    value = paramValues[param.name] ?: "",
-                                    onValueChange = { value ->
-                                        paramValues =
-                                                paramValues.toMutableMap().apply {
-                                                    put(param.name, value)
-                                                }
-                                    },
-                                    label = {
-                                        Text("${param.name}${if (param.required) " *" else ""}")
-                                    },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    singleLine = true
-                            )
-                        }
-                    }
+                    TextField(
+                            value = scriptText,
+                            onValueChange = { newValue -> scriptText = newValue },
+                            modifier = Modifier.fillMaxWidth().height(200.dp),
+                            textStyle =
+                                    MaterialTheme.typography.bodyMedium.copy(
+                                            fontFamily = FontFamily.Monospace
+                                    ),
+                            colors =
+                                    TextFieldDefaults.textFieldColors(
+                                            containerColor = Color(0xFF1E1E1E),
+                                            focusedTextColor = Color.White,
+                                            unfocusedTextColor = Color.White,
+                                            cursorColor = Color.White,
+                                            focusedIndicatorColor = MaterialTheme.colorScheme.primary
+                                    )
+                    )
 
                     Spacer(modifier = Modifier.height(16.dp))
-                }
 
-                // Result area
-                if (executionResult != null) {
-                    Text(
-                            text = "Execution Result:" + ":",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                    )
+                    // Parameters
+                    if (tool.parameters.isNotEmpty()) {
+                        Text(
+                                text = "Script Parameters:" + ":",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                        )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                    Surface(
-                            modifier =
-                                    Modifier.fillMaxWidth()
-                                            .weight(1f, fill = false)
-                                            .border(
-                                                    width = 1.dp,
-                                                    color =
-                                                            if (executionResult!!.success)
-                                                                    Color(0xFF4CAF50)
-                                                            else Color(0xFFF44336),
-                                                    shape = RoundedCornerShape(8.dp)
-                                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            color =
-                                    if (executionResult!!.success) Color(0xFFE8F5E9)
-                                    else Color(0xFFFFEBEE)
-                    ) {
-                        Box(
+                        // Parameter inputs
+                        Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            tool.parameters.forEach { param ->
+                                OutlinedTextField(
+                                        value = paramValues[param.name] ?: "",
+                                        onValueChange = { value ->
+                                            paramValues =
+                                                    paramValues.toMutableMap().apply {
+                                                        put(param.name, value)
+                                                    }
+                                        },
+                                        label = {
+                                            Text("${param.name}${if (param.required) " *" else ""}")
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+
+                    // Result area
+                    if (executionResult != null) {
+                        Text(
+                                text = "Execution Result:" + ":",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Surface(
                                 modifier =
                                         Modifier.fillMaxWidth()
-                                                .verticalScroll(rememberScrollState())
+                                                .border(
+                                                        width = 1.dp,
+                                                        color = MaterialTheme.colorScheme.outline,
+                                                        shape = RoundedCornerShape(8.dp)
+                                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant
                         ) {
-                            Text(
-                                    text =
-                                            if (executionResult!!.success)
-                                                    executionResult!!.result.toString()
-                                            else "Error: ${executionResult!!.error}",
+                            Row(
                                     modifier = Modifier.padding(12.dp).fillMaxWidth(),
-                                    style = MaterialTheme.typography.bodyMedium
-                            )
+                                    verticalAlignment = Alignment.Top
+                            ) {
+                                val success = executionResult!!.success
+                                Icon(
+                                        imageVector =
+                                                if (success) Icons.Filled.CheckCircle
+                                                else Icons.Filled.Error,
+                                        contentDescription = if (success) "Success" else "Error",
+                                        tint =
+                                                if (success) Color(0xFF4CAF50)
+                                                else Color(0xFFF44336)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                        text =
+                                                if (executionResult!!.success)
+                                                        executionResult!!.result.toString()
+                                                else "Error: ${executionResult!!.error}",
+                                        style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
                         }
-                    }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
                 }
 
                 // Buttons
