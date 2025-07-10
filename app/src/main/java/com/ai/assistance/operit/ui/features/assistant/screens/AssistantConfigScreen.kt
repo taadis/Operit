@@ -2,15 +2,11 @@ package com.ai.assistance.operit.ui.features.assistant.screens
 
 import android.app.Activity
 import android.content.Intent
-import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -19,402 +15,359 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.dragonbones.rememberDragonBonesController
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.FunctionType
-import com.ai.assistance.operit.data.model.ModelConfigData
-import com.ai.assistance.operit.data.model.PromptProfile
 import com.ai.assistance.operit.data.preferences.*
-import com.ai.assistance.operit.ui.features.assistant.components.Live2DControls
-import com.ai.assistance.operit.ui.features.assistant.components.ModelSelector
+import com.ai.assistance.operit.ui.features.assistant.components.DragonBonesConfigSection
+import com.ai.assistance.operit.ui.features.assistant.components.DragonBonesPreviewSection
+import com.ai.assistance.operit.ui.features.assistant.components.HowToImportSection
 import com.ai.assistance.operit.ui.features.assistant.components.SettingItem
-import com.ai.assistance.operit.ui.features.assistant.viewmodel.Live2DViewModel
-import com.chatwaifu.live2d.JniBridgeJava
-import com.chatwaifu.live2d.Live2DViewCompose
+import com.ai.assistance.operit.ui.features.assistant.viewmodel.AssistantConfigViewModel
+import com.ai.assistance.operit.ui.features.settings.screens.getFunctionDisplayName
+import kotlinx.coroutines.launch
 
-/** 助手配置屏幕 提供Live2D模型预览和相关配置 */
+/** 助手配置屏幕 提供DragonBones模型预览和相关配置 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AssistantConfigScreen(
-    navigateToModelConfig: () -> Unit,
-    navigateToModelPrompts: () -> Unit,
-    navigateToFunctionalConfig: () -> Unit,
-    navigateToFunctionalPrompts: () -> Unit,
-    navigateToUserPreferences: () -> Unit
+        navigateToModelConfig: () -> Unit,
+        navigateToModelPrompts: () -> Unit,
+        navigateToFunctionalConfig: () -> Unit,
+        navigateToFunctionalPrompts: () -> Unit,
+        navigateToUserPreferences: () -> Unit
 ) {
-    val context = LocalContext.current
-    val viewModel: Live2DViewModel = viewModel(factory = Live2DViewModel.Factory(context))
-    val uiState by viewModel.uiState.collectAsState()
+        val context = LocalContext.current
+        val viewModel: AssistantConfigViewModel =
+                viewModel(factory = AssistantConfigViewModel.Factory(context))
+        val uiState by viewModel.uiState.collectAsState()
 
-    // Preferences Managers
-    val functionalPromptManager = remember { FunctionalPromptManager(context) }
-    val functionalConfigManager = remember { FunctionalConfigManager(context) }
-    val modelConfigManager = remember { ModelConfigManager(context) }
-    val promptPreferences = remember { PromptPreferencesManager(context) }
-    val userPrefsManager = remember { UserPreferencesManager(context) }
+        // Preferences Managers
+        val functionalPromptManager = remember { FunctionalPromptManager(context) }
+        val functionalConfigManager = remember { FunctionalConfigManager(context) }
+        val modelConfigManager = remember { ModelConfigManager(context) }
+        val promptPreferences = remember { PromptPreferencesManager(context) }
+        val userPrefsManager = remember { UserPreferencesManager(context) }
 
-    // 启动文件选择器
-    val zipFileLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            result.data?.data?.let { uri ->
-                // 导入选择的zip文件
-                viewModel.importModelFromZip(uri)
-            }
-        }
-    }
-
-    // 打开文件选择器的函数
-    val openZipFilePicker = {
-        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE)
-            type = "application/zip"
-            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/zip", "application/x-zip-compressed"))
-        }
-        zipFileLauncher.launch(intent)
-    }
-
-    // State for the selected function type
-    var selectedFunctionType by remember { mutableStateOf(PromptFunctionType.CHAT) }
-
-    // 获取当前活跃的用户偏好/性格配置
-    val activeUserPrefProfileId by userPrefsManager.activeProfileIdFlow.collectAsState(initial = "default")
-    val activeUserPrefProfile by userPrefsManager.getUserPreferencesFlow(activeUserPrefProfileId).collectAsState(initial = null)
-    val activeUserPrefProfileName = activeUserPrefProfile?.name ?: "加载中..."
-
-    // 根据所选功能获取数据
-    val promptProfileId by functionalPromptManager.getPromptProfileIdForFunction(selectedFunctionType)
-        .collectAsState(initial = FunctionalPromptManager.getDefaultProfileIdForFunction(selectedFunctionType))
-    val promptProfile by promptPreferences.getPromptProfileFlow(promptProfileId)
-        .collectAsState(initial = null)
-
-    val functionType = when(selectedFunctionType) {
-        PromptFunctionType.CHAT -> FunctionType.CHAT
-        PromptFunctionType.VOICE -> FunctionType.SUMMARY
-        PromptFunctionType.DESKTOP_PET -> FunctionType.PROBLEM_LIBRARY
-    }
-    val modelConfigId = remember { mutableStateOf(FunctionalConfigManager.DEFAULT_CONFIG_ID) }
-    LaunchedEffect(selectedFunctionType) {
-        modelConfigId.value = functionalConfigManager.getConfigIdForFunction(functionType)
-    }
-    val modelConfig by modelConfigManager.getModelConfigFlow(modelConfigId.value)
-        .collectAsState(initial = null)
-
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scrollState = rememberScrollState(initial = uiState.scrollPosition)
-
-    LaunchedEffect(scrollState) {
-        snapshotFlow { scrollState.value }.collect { position ->
-            viewModel.updateScrollPosition(position)
-        }
-    }
-
-    // 显示操作结果的 SnackBar
-    LaunchedEffect(uiState.operationSuccess, uiState.errorMessage) {
-        if (uiState.operationSuccess) {
-            snackbarHostState.showSnackbar("操作成功")
-            viewModel.clearOperationSuccess()
-        } else if (uiState.errorMessage != null) {
-            snackbarHostState.showSnackbar(uiState.errorMessage ?: "发生错误")
-            viewModel.clearErrorMessage()
-        }
-    }
-
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            TopAppBar(
-                title = { Text("助手配置") },
-                actions = {
-                    // 导入模型按钮
-                    IconButton(
-                        onClick = openZipFilePicker,
-                        enabled = !uiState.isImporting && !uiState.isLoading
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.FileUpload,
-                            contentDescription = "导入模型"
-                        )
-                    }
-                    
-                    // 刷新模型列表按钮
-                    IconButton(
-                        onClick = { viewModel.scanUserModels() },
-                        enabled = !uiState.isImporting && !uiState.isLoading && !uiState.isScanning
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "扫描用户模型"
-                        )
-                    }
+        // 启动文件选择器
+        val zipFileLauncher =
+                rememberLauncherForActivityResult(
+                        contract = ActivityResultContracts.StartActivityForResult()
+                ) { result ->
+                        if (result.resultCode == Activity.RESULT_OK) {
+                                result.data?.data?.let { uri ->
+                                        // 导入选择的zip文件
+                                        viewModel.importModelFromZip(uri)
+                                }
+                        }
                 }
-            )
-        }
-    ) { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize()) {
-            // 主要内容
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .padding(horizontal = 12.dp)
-                    .verticalScroll(scrollState)
-            ) {
-                // Live2D预览区域
-                Live2DPreviewSection(
-                    viewModel,
-                    uiState,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp)
-                )
 
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // 模型选择器
-                Text(
-                    "模型选择",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 4.dp, start = 4.dp)
-                )
-                ModelSelector(
-                    models = uiState.models,
-                    selectedModelId = uiState.currentModel?.id,
-                    onModelSelected = { viewModel.switchModel(it) },
-                    onDeleteModel = { viewModel.deleteUserModel(it) }
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // 功能配置区域
-                Text(
-                    "功能配置",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 4.dp, start = 4.dp)
-                )
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f)
-                ) {
-                    Column(modifier = Modifier.padding(vertical = 4.dp, horizontal = 8.dp)) {
-                        // 功能切换器
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            PromptFunctionType.values().forEach { functionType ->
-                                FilterChip(
-                                    selected = selectedFunctionType == functionType,
-                                    onClick = { selectedFunctionType = functionType },
-                                    label = { Text(getFunctionDisplayName(functionType)) }
+        // 打开文件选择器的函数
+        val openZipFilePicker = {
+                val intent =
+                        Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                                addCategory(Intent.CATEGORY_OPENABLE)
+                                type = "application/zip"
+                                putExtra(
+                                        Intent.EXTRA_MIME_TYPES,
+                                        arrayOf("application/zip", "application/x-zip-compressed")
                                 )
-                            }
+                        }
+                zipFileLauncher.launch(intent)
+        }
+
+        // State for the selected function type
+        var selectedFunctionType by remember { mutableStateOf(PromptFunctionType.CHAT) }
+
+        // 获取当前活跃的用户偏好/性格配置
+        val activeUserPrefProfileId by
+                userPrefsManager.activeProfileIdFlow.collectAsState(initial = "default")
+        val activeUserPrefProfile by
+                userPrefsManager
+                        .getUserPreferencesFlow(activeUserPrefProfileId)
+                        .collectAsState(initial = null)
+        val activeUserPrefProfileName = activeUserPrefProfile?.name ?: stringResource(R.string.processing)
+
+        // 根据所选功能获取数据
+        val promptProfileId by
+                functionalPromptManager
+                        .getPromptProfileIdForFunction(selectedFunctionType)
+                        .collectAsState(
+                                initial =
+                                        FunctionalPromptManager.getDefaultProfileIdForFunction(
+                                                selectedFunctionType
+                                        )
+                        )
+        val promptProfile by
+                promptPreferences
+                        .getPromptProfileFlow(promptProfileId)
+                        .collectAsState(initial = null)
+
+        val functionType =
+                when (selectedFunctionType) {
+                        PromptFunctionType.CHAT -> FunctionType.CHAT
+                        PromptFunctionType.VOICE -> FunctionType.SUMMARY
+                        PromptFunctionType.DESKTOP_PET -> FunctionType.PROBLEM_LIBRARY
+                }
+        val modelConfigId = remember { mutableStateOf(FunctionalConfigManager.DEFAULT_CONFIG_ID) }
+        LaunchedEffect(selectedFunctionType) {
+                modelConfigId.value = functionalConfigManager.getConfigIdForFunction(functionType)
+        }
+        val modelConfig by
+                modelConfigManager
+                        .getModelConfigFlow(modelConfigId.value)
+                        .collectAsState(initial = null)
+
+        val snackbarHostState = remember { SnackbarHostState() }
+        val scrollState = rememberScrollState(initial = uiState.scrollPosition)
+        val scope = rememberCoroutineScope()
+        val dragonBonesController = rememberDragonBonesController()
+
+        // 在 Composable 函数中获取字符串资源，以便在 LaunchedEffect 中使用
+        val operationSuccessString = context.getString(R.string.operation_success)
+        val errorOccurredString = context.getString(R.string.error_occurred_simple)
+
+        // Sync ViewModel state with Controller
+        LaunchedEffect(uiState.config) {
+                uiState.config?.let {
+                        dragonBonesController.scale = it.scale
+                        dragonBonesController.translationX = it.translateX
+                        dragonBonesController.translationY = it.translateY
+                }
+        }
+
+        // Sync Controller changes back to ViewModel
+        LaunchedEffect(
+                dragonBonesController.scale,
+                dragonBonesController.translationX,
+                dragonBonesController.translationY
+        ) {
+                uiState.config?.let {
+                        if (it.scale != dragonBonesController.scale ||
+                                        it.translateX != dragonBonesController.translationX ||
+                                        it.translateY != dragonBonesController.translationY
+                        ) {
+                                viewModel.updateScale(dragonBonesController.scale)
+                                viewModel.updateTranslateX(dragonBonesController.translationX)
+                                viewModel.updateTranslateY(dragonBonesController.translationY)
+                        }
+                }
+        }
+
+        LaunchedEffect(dragonBonesController) {
+                dragonBonesController.onSlotTap = { slotName ->
+                        scope.launch { snackbarHostState.showSnackbar("Tapped on: $slotName") }
+                }
+        }
+
+        LaunchedEffect(scrollState) {
+                snapshotFlow { scrollState.value }.collect { position ->
+                        viewModel.updateScrollPosition(position)
+                }
+        }
+
+        // 显示操作结果的 SnackBar
+        LaunchedEffect(uiState.operationSuccess, uiState.errorMessage) {
+                if (uiState.operationSuccess) {
+                        snackbarHostState.showSnackbar(operationSuccessString)
+                        viewModel.clearOperationSuccess()
+                } else if (uiState.errorMessage != null) {
+                        snackbarHostState.showSnackbar(uiState.errorMessage ?: errorOccurredString)
+                        viewModel.clearErrorMessage()
+                }
+        }
+
+        Scaffold(
+                snackbarHost = { SnackbarHost(snackbarHostState) },
+                topBar = {
+                        TopAppBar(
+                                title = { Text(stringResource(R.string.assistant_config_title)) },
+                                actions = {
+                                        // 导入模型按钮
+                                        IconButton(
+                                                onClick = openZipFilePicker,
+                                                enabled = !uiState.isImporting && !uiState.isLoading
+                                        ) {
+                                                Icon(
+                                                        imageVector = Icons.Default.FileUpload,
+                                                        contentDescription = stringResource(R.string.import_model)
+                                                )
+                                        }
+
+                                        // 刷新模型列表按钮
+                                        IconButton(
+                                                onClick = { viewModel.scanUserModels() },
+                                                enabled =
+                                                        !uiState.isImporting &&
+                                                                !uiState.isLoading &&
+                                                                !uiState.isScanning
+                                        ) {
+                                                Icon(
+                                                        imageVector = Icons.Default.Refresh,
+                                                        contentDescription = stringResource(R.string.scan_user_models)
+                                                )
+                                        }
+                                }
+                        )
+                }
+        ) { paddingValues ->
+                Box(modifier = Modifier.fillMaxSize()) {
+                        // 主要内容
+                        Column(
+                                modifier =
+                                        Modifier.fillMaxSize()
+                                                .padding(paddingValues)
+                                                .padding(horizontal = 12.dp)
+                                                .verticalScroll(scrollState)
+                        ) {
+                                // DragonBones预览区域
+                                DragonBonesPreviewSection(
+                                        modifier = Modifier.fillMaxWidth().height(300.dp),
+                                        controller = dragonBonesController,
+                                        uiState = uiState,
+                                        onDeleteCurrentModel =
+                                                uiState.currentModel?.let { model ->
+                                                        { viewModel.deleteUserModel(model.id) }
+                                                }
+                                )
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                DragonBonesConfigSection(
+                                        controller = dragonBonesController,
+                                        viewModel = viewModel,
+                                        uiState = uiState,
+                                        onImportClick = { openZipFilePicker() }
+                                )
+
+                                HowToImportSection()
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                // 功能配置区域
+                                Column(
+                                        modifier =
+                                                Modifier.fillMaxWidth()
+                                                        .padding(bottom = 4.dp, start = 4.dp)
+                                ) {
+                                        Text(
+                                                stringResource(R.string.function_config_title),
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                                stringResource(R.string.function_config_desc),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                }
+                                Surface(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(12.dp),
+                                        color =
+                                                MaterialTheme.colorScheme.surfaceVariant.copy(
+                                                        alpha = 0.1f
+                                                )
+                                ) {
+                                        Column(
+                                                modifier =
+                                                        Modifier.padding(
+                                                                vertical = 4.dp,
+                                                                horizontal = 8.dp
+                                                        )
+                                        ) {
+                                                // 功能切换器
+                                                Row(
+                                                        modifier =
+                                                                Modifier.fillMaxWidth()
+                                                                        .padding(vertical = 4.dp),
+                                                        horizontalArrangement =
+                                                                Arrangement.spacedBy(8.dp)
+                                                ) {
+                                                        PromptFunctionType.values().forEach {
+                                                                functionType ->
+                                                                FilterChip(
+                                                                        selected =
+                                                                                selectedFunctionType ==
+                                                                                        functionType,
+                                                                        onClick = {
+                                                                                selectedFunctionType =
+                                                                                        functionType
+                                                                        },
+                                                                        label = {
+                                                                                Text(
+                                                                                        when (functionType) {
+                                                                                            PromptFunctionType.CHAT -> context.getString(R.string.chat_function)
+                                                                                            PromptFunctionType.VOICE -> context.getString(R.string.voice_function)
+                                                                                            PromptFunctionType.DESKTOP_PET -> context.getString(R.string.desktop_pet_function)
+                                                                                        }
+                                                                                )
+                                                                        }
+                                                                )
+                                                        }
+                                                }
+
+                                                Divider(
+                                                        modifier = Modifier.padding(vertical = 4.dp)
+                                                )
+
+                                                SettingItem(
+                                                        icon = Icons.Default.Face,
+                                                        title = stringResource(R.string.user_personality),
+                                                        value = activeUserPrefProfileName,
+                                                        onClick = navigateToUserPreferences
+                                                )
+
+                                                SettingItem(
+                                                        icon = Icons.Default.Message,
+                                                        title = stringResource(R.string.function_prompt),
+                                                        value = promptProfile?.name ?: stringResource(R.string.not_configured),
+                                                        onClick = navigateToFunctionalPrompts
+                                                )
+
+                                                SettingItem(
+                                                        icon = Icons.Default.Api,
+                                                        title = stringResource(R.string.function_model),
+                                                        value = modelConfig?.name ?: stringResource(R.string.not_configured),
+                                                        onClick = navigateToFunctionalConfig
+                                                )
+                                        }
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                // 底部空间
+                                Spacer(modifier = Modifier.height(16.dp))
                         }
 
-                        Divider(modifier = Modifier.padding(vertical = 4.dp))
-                        
-                        SettingItem(
-                            icon = Icons.Default.Face,
-                            title = "用户性格",
-                            value = activeUserPrefProfileName,
-                            onClick = navigateToUserPreferences
-                        )
-                        
-                        SettingItem(
-                            icon = Icons.Default.Message,
-                            title = "功能提示词",
-                            value = promptProfile?.name ?: "未配置",
-                            onClick = navigateToFunctionalPrompts
-                        )
-                        
-                        SettingItem(
-                            icon = Icons.Default.Api,
-                            title = "功能模型",
-                            value = modelConfig?.name ?: "未配置",
-                            onClick = navigateToFunctionalConfig
-                        )
-                    }
+                        // 加载指示器覆盖层
+                        if (uiState.isLoading || uiState.isImporting) {
+                                Box(
+                                        modifier =
+                                                Modifier.fillMaxSize()
+                                                        .background(
+                                                                MaterialTheme.colorScheme.surface
+                                                                        .copy(alpha = 0.7f)
+                                                        ),
+                                        contentAlignment = Alignment.Center
+                                ) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                CircularProgressIndicator()
+                                                Spacer(modifier = Modifier.height(16.dp))
+                                                Text(
+                                                        text =
+                                                                if (uiState.isImporting) stringResource(R.string.importing_model)
+                                                                else stringResource(R.string.processing),
+                                                        style = MaterialTheme.typography.bodyMedium
+                                                )
+                                        }
+                                }
+                        }
                 }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Live2D详细配置
-                if (uiState.currentModel != null && uiState.config != null) {
-                    var isLive2dSettingsExpanded by remember { mutableStateOf(false) }
-
-                    ExpandableSection(
-                        title = "Live2D 详细设置",
-                        expanded = isLive2dSettingsExpanded,
-                        onToggle = { isLive2dSettingsExpanded = !isLive2dSettingsExpanded }
-                    ) {
-                        Live2DControls(
-                            config = uiState.config,
-                            onScaleChanged = viewModel::updateScale,
-                            onTranslateXChanged = viewModel::updateTranslateX,
-                            onTranslateYChanged = viewModel::updateTranslateY,
-                            onMouthFormChanged = viewModel::updateMouthForm,
-                            onMouthOpenYChanged = viewModel::updateMouthOpenY,
-                            onAutoBlinkChanged = viewModel::setAutoBlinkEnabled,
-                            onRenderBackChanged = viewModel::setRenderBack
-                        )
-                    }
-                }
-
-                // 底部空间
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-            
-            // 加载指示器覆盖层
-            if (uiState.isLoading || uiState.isImporting) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator()
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = if (uiState.isImporting) "正在导入模型..." else "处理中...",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                }
-            }
         }
-    }
-}
-
-@Composable
-private fun ExpandableSection(
-    title: String,
-    expanded: Boolean,
-    onToggle: () -> Unit,
-    content: @Composable () -> Unit
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f)
-    ) {
-        Column(modifier = Modifier.padding(8.dp)) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onToggle)
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    title, 
-                    style = MaterialTheme.typography.titleSmall, 
-                    fontWeight = FontWeight.Bold
-                )
-                
-                Icon(
-                    imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                    contentDescription = if (expanded) "收起" else "展开",
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            }
-            
-            if (expanded) {
-                Divider(
-                    modifier = Modifier.padding(vertical = 4.dp),
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                )
-                Column {
-                    content()
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun Live2DPreviewSection(
-    viewModel: Live2DViewModel,
-    uiState: Live2DViewModel.UiState,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        border = BorderStroke(
-            width = 1.dp,
-            brush = Brush.verticalGradient(
-                colors = listOf(
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                )
-            )
-        )
-    ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            if (JniBridgeJava.isLibraryLoaded()) {
-                if (uiState.models.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(
-                            "没有可用的Live2D模型", 
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                } else if (uiState.errorMessage != null) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(
-                            text = "加载失败: ${uiState.errorMessage}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
-                } else {
-                    Live2DViewCompose(
-                        modifier = Modifier.fillMaxSize(),
-                        model = uiState.currentModel,
-                        config = uiState.config,
-                        expressionToApply = uiState.expressionToApply,
-                        onExpressionApplied = viewModel::onExpressionApplied,
-                        triggerRandomTap = uiState.triggerRandomTap,
-                        onRandomTapHandled = viewModel::onRandomTapHandled,
-                        onError = { error -> viewModel.updateErrorMessage("加载失败: $error") }
-                    )
-                }
-            } else {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        "Live2D库未正确加载",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    )
-                }
-            }
-        }
-    }
-}
-
-private fun getFunctionDisplayName(functionType: PromptFunctionType): String {
-    return when (functionType) {
-        PromptFunctionType.CHAT -> "聊天"
-        PromptFunctionType.VOICE -> "语音"
-        PromptFunctionType.DESKTOP_PET -> "桌宠"
-    }
 }

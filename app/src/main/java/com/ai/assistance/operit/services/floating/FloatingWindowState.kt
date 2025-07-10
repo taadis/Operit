@@ -25,6 +25,9 @@ class FloatingWindowState(context: Context) {
     var previousMode: FloatingMode = FloatingMode.WINDOW
     val ballSize = mutableStateOf(40.dp)
 
+    // DragonBones pet mode lock state
+    var isPetModeLocked = mutableStateOf(false)
+
     // Transition state
     var lastWindowPositionX: Int = 0
     var lastWindowPositionY: Int = 0
@@ -56,8 +59,21 @@ class FloatingWindowState(context: Context) {
         y = prefs.getInt("window_y", 100)
         windowWidth.value = Dp(prefs.getFloat("window_width", 300f).coerceAtLeast(200f))
         windowHeight.value = Dp(prefs.getFloat("window_height", 400f).coerceAtLeast(250f))
-        currentMode.value = FloatingMode.valueOf(prefs.getString("current_mode", FloatingMode.WINDOW.name) ?: FloatingMode.WINDOW.name)
-        previousMode = FloatingMode.valueOf(prefs.getString("previous_mode", FloatingMode.WINDOW.name) ?: FloatingMode.WINDOW.name)
+
+        val currentModeName = prefs.getString("current_mode", FloatingMode.WINDOW.name) ?: FloatingMode.WINDOW.name
+        val previousModeName = prefs.getString("previous_mode", FloatingMode.WINDOW.name) ?: FloatingMode.WINDOW.name
+
+        currentMode.value = try {
+            FloatingMode.valueOf(if (currentModeName == "LIVE2D") "DragonBones" else currentModeName)
+        } catch (e: IllegalArgumentException) {
+            FloatingMode.WINDOW // Fallback to default
+        }
+
+        previousMode = try {
+            FloatingMode.valueOf(if (previousModeName == "LIVE2D") "DragonBones" else previousModeName)
+        } catch (e: IllegalArgumentException) {
+            FloatingMode.WINDOW // Fallback to default
+        }
         
         windowScale.value = prefs.getFloat("window_scale", 1.0f).coerceIn(0.5f, 1.0f)
         lastWindowScale = prefs.getFloat("last_window_scale", 1.0f).coerceIn(0.5f, 1.0f)

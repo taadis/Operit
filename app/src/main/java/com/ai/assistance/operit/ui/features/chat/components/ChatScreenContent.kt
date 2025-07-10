@@ -1,10 +1,8 @@
 package com.ai.assistance.operit.ui.features.chat.components
 
 import android.content.ActivityNotFoundException
-import android.content.Context
 import android.content.Intent
 import android.util.Log
-import android.webkit.WebView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -21,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,15 +27,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.FileProvider
 import com.ai.assistance.operit.data.model.ChatHistory
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.model.PlanItem
 import com.ai.assistance.operit.data.model.ToolExecutionProgress
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
-import com.ai.assistance.operit.ui.features.chat.webview.LocalWebServer
-import com.ai.assistance.operit.ui.features.chat.webview.WebViewHandler
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -79,12 +73,11 @@ fun ChatScreenContent(
         onAutoScrollToBottomChange: (Boolean) -> Unit,
         coroutineScope: CoroutineScope,
         chatHistories: List<ChatHistory>,
-        currentChatId: String,
-        webViewNeedsRefresh: Boolean = false,
-        onWebViewRefreshed: () -> Unit = {}
+        currentChatId: String
 ) {
     // 获取WebView状态
     val showWebView = actualViewModel.showWebView.collectAsState().value
+    val currentChat = chatHistories.find { it.id == currentChatId }
 
     // 导出相关状态
     val context = LocalContext.current
@@ -108,74 +101,38 @@ fun ChatScreenContent(
                                 .pointerInput(Unit) {
                                     detectHorizontalDragGestures(
                                             onDragStart = {
-                                                // 当WebView显示时，不处理水平拖动手势
-                                                if (!showWebView) {
-                                                    onChatScreenGestureConsumed(false)
-                                                    onCurrentDragChange(0f)
-                                                    onVerticalDragChange(0f)
-                                                }
+                                                onChatScreenGestureConsumed(false)
+                                                onCurrentDragChange(0f)
+                                                onVerticalDragChange(0f)
                                             },
                                             onDragEnd = {
-                                                // 手势结束后重置累计值
-                                                if (!showWebView) {
-                                                    onCurrentDragChange(0f)
-                                                    onVerticalDragChange(0f)
-                                                    // 延迟重置消费状态，确保事件不会传递到全局侧边栏
-                                                    onChatScreenGestureConsumed(false)
-                                                }
+                                                onCurrentDragChange(0f)
+                                                onVerticalDragChange(0f)
+                                                onChatScreenGestureConsumed(false)
                                             },
                                             onDragCancel = {
-                                                if (!showWebView) {
-                                                    onCurrentDragChange(0f)
-                                                    onVerticalDragChange(0f)
-                                                    onChatScreenGestureConsumed(false)
-                                                }
+                                                onCurrentDragChange(0f)
+                                                onVerticalDragChange(0f)
+                                                onChatScreenGestureConsumed(false)
                                             },
                                             onHorizontalDrag = { change, dragAmount ->
-                                                // 当WebView显示时，不处理水平拖动手势
-                                                if (showWebView) {
-                                                    return@detectHorizontalDragGestures
-                                                }
-
-                                                // 累加水平拖动距离
                                                 val newDrag = currentDrag + dragAmount
                                                 onCurrentDragChange(newDrag)
-
-                                                // 保持判定条件简单，与PhoneLayout类似
-                                                val dragRight = dragAmount > 0 // 即时判断方向，而不是累计方向
-
-                                                // 添加日志记录手势状态
-                                                Log.d(
-                                                        "ChatScreenContent",
-                                                        "手势状态: 方向=${if(dragRight) "右" else "左"}, 累计=${newDrag}, 垂直=${verticalDrag}, 显示历史=${showChatHistorySelector}"
-                                                )
-
-                                                // 简化判定条件：只要是向右滑动且累积量超过阈值就触发
+                                                val dragRight = dragAmount > 0
                                                 if (!showChatHistorySelector &&
                                                                 dragRight &&
                                                                 newDrag > dragThreshold &&
                                                                 Math.abs(newDrag) >
                                                                         Math.abs(verticalDrag)
                                                 ) {
-                                                    Log.d(
-                                                            "ChatScreenContent",
-                                                            "触发打开历史记录：累计=${newDrag}"
-                                                    )
                                                     actualViewModel.showChatHistorySelector(true)
-                                                    // 告知父组件手势已被消费
                                                     onChatScreenGestureConsumed(true)
                                                     change.consume()
                                                 }
-
-                                                // 如果是从右向左滑动，且历史选择器已显示，则关闭历史选择器
                                                 if (dragAmount < 0 &&
                                                                 showChatHistorySelector &&
                                                                 newDrag < -dragThreshold
                                                 ) {
-                                                    Log.d(
-                                                            "ChatScreenContent",
-                                                            "触发关闭历史记录：累计=${newDrag}"
-                                                    )
                                                     actualViewModel.showChatHistorySelector(false)
                                                     onChatScreenGestureConsumed(true)
                                                     change.consume()
@@ -184,12 +141,8 @@ fun ChatScreenContent(
                                     )
                                 }
                                 .pointerInput(Unit) {
-                                    // 添加垂直方向手势检测，用于记录垂直拖动距离
                                     detectVerticalDragGestures { _, dragAmount ->
-                                        // 当WebView显示时，不处理垂直拖动手势（记录）
-                                        if (!showWebView) {
-                                            onVerticalDragChange(verticalDrag + dragAmount)
-                                        }
+                                        onVerticalDragChange(verticalDrag + dragAmount)
                                     }
                                 }
         ) {
@@ -201,9 +154,7 @@ fun ChatScreenContent(
                         showChatHistorySelector = showChatHistorySelector,
                         chatHistories = chatHistories,
                         currentChatId = currentChatId,
-                        isEditMode = isEditMode,
-                        showWebView = showWebView,
-                        onWebDevClick = { actualViewModel.toggleWebView() }
+                        isEditMode = isEditMode
                 )
 
                 // 聊天对话区域
@@ -271,66 +222,6 @@ fun ChatScreenContent(
                                     }
                                 }
                         )
-                    }
-
-                    // 仅当showWebView为true时才显示WebView，将其覆盖在ChatArea上方
-                    if (showWebView) {
-                        // 显示WebView
-                        var webView by remember { mutableStateOf<WebView?>(null) }
-                        val webViewHandler = remember { WebViewHandler(context) }
-
-                        // 设置文件选择回调
-                        webViewHandler.onFileChooserRequest = { intent, callback ->
-                            actualViewModel.startFileChooserForResult(intent) { resultCode, data ->
-                                callback(resultCode, data)
-                            }
-                        }
-
-                        AndroidView(
-                                factory = { context ->
-                                    val webView = WebView(context)
-                                    // 使用WebViewHandler配置WebView
-                                    webViewHandler.configureWebView(webView)
-                                    // 记录WebView引用以便JavaScript注入
-                                    webViewHandler.currentWebView = webView
-                                    // 加载URL
-                                    webView.loadUrl("http://localhost:8080")
-                                    // 保存WebView引用以便获取工作目录
-                                    return@AndroidView webView
-                                },
-                                update = { webView ->
-                                    // 当需要刷新WebView内容时更新
-                                    if (webViewNeedsRefresh) {
-                                        webView.reload()
-                                        onWebViewRefreshed()
-                                    }
-                                    // 确保WebViewHandler有当前WebView引用
-                                    webViewHandler.currentWebView = webView
-                                },
-                                modifier = Modifier.fillMaxSize()
-                        )
-
-                        // 在WebView模式下显示导出按钮
-                        Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.BottomEnd
-                        ) {
-                            ExportButton(
-                                    onClick = {
-                                        // 存储WebView工作目录的数据，使用当前聊天ID
-                                        val workDir = getWebContentDir(context, currentChatId)
-                                        webContentDir = workDir
-
-                                        // 记录日志
-                                        Log.d(
-                                                "ChatScreenContent",
-                                                "正在导出工作区: ${workDir.absolutePath}, 聊天ID: $currentChatId"
-                                        )
-
-                                        showExportPlatformDialog = true
-                                    }
-                            )
-                        }
                     }
 
                     // 滚动到底部按钮 - 仅在可见区域需要时显示，不再受WebView显示状态影响
@@ -511,22 +402,6 @@ fun ChatScreenContent(
 }
 
 @Composable
-fun ExportButton(onClick: () -> Unit) {
-    SmallFloatingActionButton(
-            onClick = onClick,
-            modifier = Modifier.padding(end = 16.dp, bottom = 16.dp),
-            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
-            contentColor = MaterialTheme.colorScheme.onPrimary
-    ) {
-        Icon(
-                imageVector = Icons.Default.Upload,
-                contentDescription = "打包并导出",
-                modifier = Modifier.size(20.dp)
-        )
-    }
-}
-
-@Composable
 fun ScrollToBottomButton(onClick: () -> Unit) {
     SmallFloatingActionButton(
             onClick = onClick,
@@ -591,7 +466,24 @@ fun ChatHistorySelectorPanel(
                         actualViewModel.showChatHistorySelector(false)
                     },
                     onDeleteChat = { chatId -> actualViewModel.deleteChatHistory(chatId) },
-                    chatHistories = chatHistories.sortedByDescending { it.createdAt },
+                    onUpdateChatTitle = { chatId, newTitle ->
+                        actualViewModel.updateChatTitle(chatId, newTitle)
+                    },
+                    onCreateGroup = { groupName -> actualViewModel.createGroup(groupName) },
+                    onUpdateChatOrderAndGroup = { reorderedHistories, movedItem, targetGroup ->
+                        actualViewModel.updateChatOrderAndGroup(
+                                reorderedHistories,
+                                movedItem,
+                                targetGroup
+                        )
+                    },
+                    onUpdateGroupName = { oldName, newName ->
+                        actualViewModel.updateGroupName(oldName, newName)
+                    },
+                    onDeleteGroup = { groupName, deleteChats ->
+                        actualViewModel.deleteGroup(groupName, deleteChats)
+                    },
+                    chatHistories = chatHistories,
                     currentId = currentChatId
             )
 
@@ -625,49 +517,4 @@ fun ChatHistorySelectorPanel(
             }
         }
     }
-}
-
-// 从LocalWebServer获取工作目录
-private fun getWebContentDir(context: Context, chatId: String): File {
-    // 使用LocalWebServer获取工作区路径
-    val workspacePath = LocalWebServer.ensureWorkspaceDirExists(chatId)
-
-    // 创建并返回工作区目录
-    val webContentDir = File(workspacePath)
-    if (!webContentDir.exists()) {
-        webContentDir.mkdirs()
-
-        // 如果工作区为空，创建一个示例HTML文件
-        val indexHtmlFile = File(webContentDir, "index.html")
-        if (!indexHtmlFile.exists()) {
-            indexHtmlFile.createNewFile()
-            indexHtmlFile.writeText(
-                    """
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <meta charset="UTF-8">
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <title>Web Content</title>
-                    <style>
-                        body {
-                            font-family: system-ui, -apple-system, Arial, sans-serif;
-                            max-width: 800px;
-                            margin: 0 auto;
-                            padding: 20px;
-                        }
-                        h1 { color: #2c3e50; }
-                    </style>
-                </head>
-                <body>
-                    <h1>网页内容</h1>
-                    <p>这是当前工作区的网页内容。您可以将它导出为移动应用或桌面应用。</p>
-                </body>
-                </html>
-                """.trimIndent()
-            )
-        }
-    }
-
-    return webContentDir
 }

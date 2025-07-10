@@ -129,7 +129,8 @@ class FloatingWindowManager(
                 attachments = callback.getAttachments(),
                 onAttachmentRequest = { callback.onAttachmentRequest(it) },
                 onRemoveAttachment = { callback.onRemoveAttachment(it) },
-                chatService = context as? FloatingChatService
+                chatService = context as? FloatingChatService,
+                windowState = state
         )
     }
 
@@ -174,7 +175,7 @@ class FloatingWindowManager(
                         )
                 state.y = state.y.coerceIn(safeMargin, screenHeight - minVisible - safeMargin)
             }
-            FloatingMode.WINDOW, FloatingMode.LIVE2D -> {
+            FloatingMode.WINDOW, FloatingMode.DragonBones -> {
                 val scale = state.windowScale.value
                 val windowWidthDp = state.windowWidth.value
                 val windowHeightDp = state.windowHeight.value
@@ -276,8 +277,8 @@ class FloatingWindowManager(
                 currentWidth = screenWidth
                 currentHeight = screenHeight
             }
-            FloatingMode.LIVE2D -> {
-                // Treat Live2D mode similar to Window mode when leaving
+            FloatingMode.DragonBones -> {
+                // Treat DragonBones mode similar to Window mode when leaving
                 state.lastWindowPositionX = currentParams.x
                 state.lastWindowPositionY = currentParams.y
                 state.lastWindowScale = state.windowScale.value
@@ -368,7 +369,7 @@ class FloatingWindowManager(
                     params.x = 0
                     params.y = 0
                 }
-                FloatingMode.LIVE2D -> {
+                FloatingMode.DragonBones -> {
                     params.flags =
                             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
@@ -383,7 +384,7 @@ class FloatingWindowManager(
                     params.x = state.lastWindowPositionX
                     params.y = state.lastWindowPositionY
 
-                    // Coerce position to be within screen bounds for live2d mode
+                    // Coerce position to be within screen bounds for DragonBones mode
                     val minVisibleWidth = (params.width * 2 / 3)
                     val minVisibleHeight = (params.height * 2 / 3)
                     params.x =
@@ -454,36 +455,45 @@ class FloatingWindowManager(
             // Step 1: 更新窗口参数使其可获取焦点
             updateViewLayout { params ->
                 params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
-                
+
                 // 为全屏模式特殊处理软键盘，以避免遮挡UI
                 if (state.currentMode.value == FloatingMode.FULLSCREEN) {
-                    params.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
-                            WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN
+                    params.softInputMode =
+                            WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
+                                    WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN
                 }
             }
 
             // Step 2: 延迟请求焦点并显示键盘
             // 延迟是必要的，以确保WindowManager有足够的时间处理窗口标志的变更
-            view.postDelayed({
-                view.requestFocus()
-                imm.showSoftInput(view.findFocus(), InputMethodManager.SHOW_IMPLICIT)
-            }, 200)
-
+            view.postDelayed(
+                    {
+                        view.requestFocus()
+                        imm.showSoftInput(view.findFocus(), InputMethodManager.SHOW_IMPLICIT)
+                    },
+                    200
+            )
         } else {
             // Step 1: 立即隐藏键盘
             imm.hideSoftInputFromWindow(view.windowToken, 0)
 
             // Step 2: 延迟恢复窗口的不可聚焦状态（全屏模式除外）
-            view.postDelayed({
-                updateViewLayout { params ->
-                    // 在非全屏模式下，恢复FLAG_NOT_FOCUSABLE，以便与窗口下的内容交互
-                    if (state.currentMode.value != FloatingMode.FULLSCREEN) {
-                        params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                    }
-                    // 重置软键盘模式
-                    params.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_STATE_UNSPECIFIED
-                }
-            }, 100)
+            view.postDelayed(
+                    {
+                        updateViewLayout { params ->
+                            // 在非全屏模式下，恢复FLAG_NOT_FOCUSABLE，以便与窗口下的内容交互
+                            if (state.currentMode.value != FloatingMode.FULLSCREEN) {
+                                params.flags =
+                                        params.flags or
+                                                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                            }
+                            // 重置软键盘模式
+                            params.softInputMode =
+                                    WindowManager.LayoutParams.SOFT_INPUT_STATE_UNSPECIFIED
+                        }
+                    },
+                    100
+            )
         }
     }
 

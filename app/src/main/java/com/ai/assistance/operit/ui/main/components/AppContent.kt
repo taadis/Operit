@@ -48,6 +48,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.with
 import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.foundation.layout.RowScope
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
@@ -70,7 +71,8 @@ fun AppContent(
         onGestureConsumed: (Boolean) -> Unit = {},
         canGoBack: Boolean,
         onGoBack: () -> Unit,
-        isNavigatingBack: Boolean = false
+        isNavigatingBack: Boolean = false,
+        actions: @Composable RowScope.() -> Unit = {}
 ) {
     // Get background image state
     val context = LocalContext.current
@@ -171,6 +173,7 @@ fun AppContent(
                         )
                     }
                 },
+                actions = actions,
                 colors =
                         TopAppBarDefaults.smallTopAppBarColors(
                                 containerColor = MaterialTheme.colorScheme.primary,
@@ -246,7 +249,7 @@ fun AppContent(
                                 onError = onError,
                                 onGestureConsumed =
                                 if (screen is Screen.AiChat) onGestureConsumed
-                                else { _ -> }
+                                else { _ -> },
                         )
 
                         // 帧率计数器 - 放在右上角

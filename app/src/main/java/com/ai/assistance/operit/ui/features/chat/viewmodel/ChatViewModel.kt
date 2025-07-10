@@ -1,8 +1,11 @@
 package com.ai.assistance.operit.ui.features.chat.viewmodel
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.provider.Settings
 import android.util.Log
+import androidx.activity.result.ActivityResultLauncher
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.Typography
 import androidx.lifecycle.ViewModel
@@ -19,7 +22,7 @@ import com.ai.assistance.operit.data.preferences.ModelConfigManager
 import com.ai.assistance.operit.data.preferences.PromptFunctionType
 import com.ai.assistance.operit.ui.features.chat.attachments.AttachmentManager
 import com.ai.assistance.operit.ui.features.chat.webview.LocalWebServer
-import com.ai.assistance.operit.ui.features.chat.viewmodel.FloatingWindowDelegate
+import com.ai.assistance.operit.ui.floating.FloatingMode
 import com.ai.assistance.operit.ui.permissions.PermissionLevel
 import com.ai.assistance.operit.ui.permissions.ToolPermissionSystem
 import java.io.IOException
@@ -211,7 +214,9 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                             chatHistoryDelegate.saveCurrentChat(inputTokens, outputTokens)
                         },
                         showErrorMessage = { message -> uiStateDelegate.showErrorMessage(message) },
-                        updateChatTitle = { title -> chatHistoryDelegate.updateChatTitle(title) },
+                        updateChatTitle = { chatId, title ->
+                            chatHistoryDelegate.updateChatTitle(chatId, title)
+                        },
                         onStreamComplete = {
                             // 流完成后不再需要特殊处理，UI会自动更新
                         }
@@ -391,7 +396,9 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         uiStateDelegate.showToast("聊天记录已清空")
     }
     fun toggleChatHistorySelector() = chatHistoryDelegate.toggleChatHistorySelector()
-    fun showChatHistorySelector(show: Boolean) = chatHistoryDelegate.showChatHistorySelector(show)
+    fun showChatHistorySelector(show: Boolean) {
+        chatHistoryDelegate.showChatHistorySelector(show)
+    }
     fun saveCurrentChat() {
         val (inputTokens, outputTokens) = tokenStatsDelegate.getCurrentTokenCounts()
         chatHistoryDelegate.saveCurrentChat(inputTokens, outputTokens)
@@ -548,8 +555,10 @@ class ChatViewModel(private val context: Context) : ViewModel() {
 
     // 提取内部发送消息的逻辑为一个私有方法
     private fun sendMessageInternal(promptFunctionType: PromptFunctionType) {
-        // 获取当前聊天ID
+        // 获取当前聊天ID和工作区路径
         val chatId = currentChatId.value
+        val currentChat = chatHistories.value.find { it.id == chatId }
+        val workspacePath = currentChat?.workspace
 
         // 更新本地Web服务器的聊天ID
         chatId?.let { updateWebServerForCurrentChat(it) }
@@ -557,11 +566,12 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         // 获取当前附件列表
         val currentAttachments = attachmentManager.attachments.value
 
-        // 调用messageProcessingDelegate发送消息，并传递附件信息
+        // 调用messageProcessingDelegate发送消息，并传递附件信息和工作区路径
         messageProcessingDelegate.sendUserMessage(
-            attachments = currentAttachments, 
-            chatId = chatId, 
-            promptFunctionType = promptFunctionType
+                attachments = currentAttachments,
+                chatId = chatId,
+                workspacePath = workspacePath,
+                promptFunctionType = promptFunctionType
         )
 
         if (chatHistoryDelegate.shouldGenerateSummary(chatHistoryDelegate.chatHistory.value)) {
@@ -870,8 +880,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     }
 
     /** 更新附件面板状态 */
-    fun updateAttachmentPanelState(newState: Boolean) {
-        _attachmentPanelState.value = newState
+    fun updateAttachmentPanelState(isExpanded: Boolean) {
+        _attachmentPanelState.value = isExpanded
     }
 
     // WebView控制方法
@@ -928,14 +938,23 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     // 更新当前聊天ID的Web服务器工作空间
     fun updateWebServerForCurrentChat(chatId: String) {
         try {
+            // Find the chat and its workspace
+            val chat = chatHistories.value.find { it.id == chatId }
+            val workspacePath = chat?.workspace
+
+            if (workspacePath == null) {
+                Log.w(TAG, "Chat $chatId has no workspace bound. Web server not updated.")
+                return
+            }
+
             // 使用单例模式获取LocalWebServer实例
             val webServer = LocalWebServer.getInstance(context)
             // 确保服务器已启动
             if (!webServer.isRunning()) {
                 webServer.start()
             }
-            webServer.updateChatId(chatId)
-            Log.d(TAG, "Web服务器工作空间已更新为: $chatId")
+            webServer.updateChatWorkspace(chatId, workspacePath)
+            Log.d(TAG, "Web服务器工作空间已更新为: $workspacePath for chat $chatId")
         } catch (e: Exception) {
             Log.e(TAG, "更新Web服务器工作空间失败", e)
             uiStateDelegate.showErrorMessage("更新Web工作空间失败: ${e.message}")
@@ -989,11 +1008,69 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         fileChooserCallback = null
     }
 
-    /**
-     * 设置权限系统的颜色方案
-     */
+    /** 设置权限系统的颜色方案 */
     fun setPermissionSystemColorScheme(colorScheme: ColorScheme?) {
         toolPermissionSystem.setColorScheme(colorScheme)
+    }
+
+    fun launchFloatingModeIn(
+            mode: FloatingMode,
+            colorScheme: ColorScheme? = null,
+            typography: Typography? = null
+    ) {
+        floatingWindowDelegate.launchInMode(mode, colorScheme, typography)
+    }
+
+    fun launchFloatingWindowWithPermissionCheck(
+            launcher: ActivityResultLauncher<String>,
+            onPermissionGranted: () -> Unit
+    ) {
+        val hasMicPermission =
+                android.content.pm.PackageManager.PERMISSION_GRANTED ==
+                        context.checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+        val canDrawOverlays = Settings.canDrawOverlays(context)
+
+        if (!hasMicPermission) {
+            launcher.launch(Manifest.permission.RECORD_AUDIO)
+        } else if (!canDrawOverlays) {
+            val intent =
+                    Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            android.net.Uri.parse("package:${context.packageName}")
+                    )
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+            showToast("需要悬浮窗权限才能启动语音助手")
+        } else {
+            onPermissionGranted()
+        }
+    }
+
+    fun launchFullscreenVoiceModeWithPermissionCheck(
+            launcher: ActivityResultLauncher<String>,
+            colorScheme: ColorScheme? = null,
+            typography: Typography? = null
+    ) {
+        val hasMicPermission =
+                android.content.pm.PackageManager.PERMISSION_GRANTED ==
+                        context.checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+        val canDrawOverlays = Settings.canDrawOverlays(context)
+
+        if (!hasMicPermission) {
+            launcher.launch(Manifest.permission.RECORD_AUDIO)
+        } else if (!canDrawOverlays) {
+            val intent =
+                    Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            android.net.Uri.parse("package:${context.packageName}")
+                    )
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+            showToast("需要悬浮窗权限才能启动语音助手")
+        } else {
+            // Directly launch fullscreen voice mode
+            launchFloatingModeIn(FloatingMode.FULLSCREEN, colorScheme, typography)
+        }
     }
 
     override fun onCleared() {
@@ -1004,5 +1081,58 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         // 不再在这里停止Web服务器，因为使用的是单例模式
         // 服务器应在应用退出时由Application类或专门的服务管理类关闭
         // 这样可以在界面切换时保持服务器的连续运行
+    }
+
+    /** 更新指定聊天的标题 */
+    fun updateChatTitle(chatId: String, newTitle: String) {
+        chatHistoryDelegate.updateChatTitle(chatId, newTitle)
+    }
+
+    /** 更新指定聊天的标题 */
+    fun bindChatToWorkspace(chatId: String, workspace: String) {
+        // 1. Persist the change
+        chatHistoryDelegate.bindChatToWorkspace(chatId, workspace)
+
+        // 2. Update the web server with the new path and refresh
+        viewModelScope.launch {
+            try {
+                val webServer = LocalWebServer.getInstance(context)
+                if (!webServer.isRunning()) {
+                    webServer.start()
+                }
+                webServer.updateChatWorkspace(chatId, workspace)
+                Log.d(TAG, "Web server workspace updated to: $workspace for chat $chatId")
+
+                // 3. Trigger a refresh of the WebView
+                refreshWebView()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to update web server workspace after binding", e)
+                uiStateDelegate.showErrorMessage("更新Web工作空间失败: ${e.message}")
+            }
+        }
+    }
+
+    /** 更新聊天顺序和分组 */
+    fun updateChatOrderAndGroup(
+        reorderedHistories: List<ChatHistory>,
+        movedItem: ChatHistory,
+        targetGroup: String?
+    ) {
+        chatHistoryDelegate.updateChatOrderAndGroup(reorderedHistories, movedItem, targetGroup)
+    }
+
+    /** 创建新分组（通过创建新聊天实现） */
+    fun createGroup(groupName: String) {
+        chatHistoryDelegate.createGroup(groupName)
+    }
+
+    /** 重命名分组 */
+    fun updateGroupName(oldName: String, newName: String) {
+        chatHistoryDelegate.updateGroupName(oldName, newName)
+    }
+
+    /** 删除分组 */
+    fun deleteGroup(groupName: String, deleteChats: Boolean) {
+        chatHistoryDelegate.deleteGroup(groupName, deleteChats)
     }
 }

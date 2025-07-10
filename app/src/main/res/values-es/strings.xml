@@ -296,4 +296,52 @@
     <string name="network_transfer_failed">Error en la transferencia de red, verifique la conexión de red</string>
     <string name="error_occurred">Ocurrió un error: %1$s</string>
     <string name="try_again_later">Solicitud fallida, inténtelo de nuevo más tarde</string>
+
+    <!-- Model selector related -->
+    <string name="model_selector_title">Seleccionar configuración de modelo</string>
+    <string name="model_selector_close">Cerrar</string>
+    <string name="model_selector_toggle">Mostrar selector de modelo</string>
+    <string name="model_selector_toggle_desc">Mostrar el selector de configuración de modelo en la parte superior de la interfaz de chat para cambiar rápidamente entre diferentes configuraciones</string>
+    <string name="model">Modelo</string>
+
+    <!-- Assistant Config Screen -->
+    <string name="assistant_config_title">Configuración del asistente</string>
+    <string name="import_model">Importar modelo</string>
+    <string name="scan_user_models">Escanear modelos de usuario</string>
+    <string name="operation_success">Operación exitosa</string>
+    <string name="error_occurred_simple">Ocurrió un error</string>
+    <string name="function_config_title">Configuración de funciones</string>
+    <string name="function_config_desc">El chat, la voz y la mascota de escritorio seleccionarán automáticamente la configuración de prompt correspondiente según el uso</string>
+    <string name="user_personality">Personalidad del usuario</string>
+    <string name="not_configured">No configurado</string>
+    <string name="function_prompt">Prompt de función</string>
+    <string name="function_model">Modelo de función</string>
+    <string name="importing_model">Importando modelo...</string>
+    <string name="processing">Procesando...</string>
+    <string name="dragon_bones_config">Configuración de DragonBones</string>
+    <string name="collapse">Colapsar</string>
+    <string name="expand">Expandir</string>
+    <string name="select_model">Seleccionar modelo</string>
+    <string name="current_model">Modelo actual</string>
+    <string name="scale">Escala: %1$s</string>
+    <string name="x_translation">Desplazamiento X: %1$s</string>
+    <string name="y_translation">Desplazamiento Y: %1$s</string>
+    <string name="confirm_delete_model_title">¿Confirmar eliminación del modelo?</string>
+    <string name="confirm_delete_model_message">Esta acción no se puede deshacer, ¿desea eliminar este modelo?</string>
+    <string name="no_models_available">No hay modelos disponibles</string>
+    <string name="please_select_model">Por favor seleccione un modelo</string>
+    <string name="how_to_import">¿Cómo crear e importar modelos?</string>
+    <string name="enter">Entrar</string>
+    <string name="dragon_bones_renamed">DragonBones ahora se llama LoongBones y se ha lanzado un nuevo editor en línea.\nLoongBones admite funciones profesionales de animación como IK, deformación de malla y vinculación de huesos.</string>
+    <string name="making_models">1. Creación de modelos:</string>
+    <string name="making_models_desc">    · Recomendado: Utilice el nuevo editor en línea.\n    · Alternativa: Descargue el editor offline v5.6.3 desde sitios de archivo de terceros.</string>
+    <string name="exporting_files">2. Exportar archivos:</string>
+    <string name="exporting_files_desc">    · Independientemente de la versión, al exportar datos seleccione JSON y versión 5.5 (actualmente no se admite la versión 6.0 runtime).\n    · Los archivos principales exportados son: *_ske.json, *_tex.json, *_tex.png.</string>
+    <string name="configuring_interaction">3. Configuración de interacción:</string>
+    <string name="configuring_interaction_desc">    · Para seguimiento de cabeza, agregue una restricción IK y nombre el hueso objetivo como ik_target.\n    · Animación idle: asegúrese de tener una animación llamada idle como animación base, que se reproducirá en bucle.\n    · Animaciones aleatorias: puede agregar animaciones como blink, shake_head, wag_tail, etc., el sistema las activará aleatoriamente para enriquecer la expresión de la mascota.</string>
+    <string name="packaging_and_importing">4. Empaquetar e importar:</string>
+    <string name="packaging_and_importing_desc">    · Empaquete los tres archivos exportados en un solo archivo .zip para importar.</string>
+    <string name="important_tip">Nota importante: En la página de descarga del editor antiguo, los enlaces de descarga de Windows y Mac están invertidos. Asegúrese de seleccionar el enlace correcto.</string>
+    <string name="download_old_editor">Descargar editor antiguo</string>
+    <string name="visit_online_editor">Visitar editor en línea</string>
 </resources>

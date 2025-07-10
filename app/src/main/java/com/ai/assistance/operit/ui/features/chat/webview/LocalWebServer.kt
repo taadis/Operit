@@ -18,7 +18,6 @@ class LocalWebServer
 private constructor(
         private val port: Int,
         private val context: Context,
-        private var chatId: String = "default"
 ) : NanoHTTPD(port) {
 
     companion object {
@@ -26,6 +25,60 @@ private constructor(
 
         // 公共常量
         const val DEFAULT_PORT = 8080
+
+        private const val DEFAULT_INDEX_HTML_CONTENT = """
+        <!DOCTYPE html>
+        <html lang="zh-CN">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Operit Web 工作空间</title>
+            <style>
+                body {
+                    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                    max-width: 800px;
+                    margin: 0 auto;
+                    padding: 20px;
+                }
+                h1 {
+                    color: #2c3e50;
+                    border-bottom: 2px solid #eaecef;
+                    padding-bottom: 10px;
+                }
+                code {
+                    background-color: #f8f8f8;
+                    padding: 3px 5px;
+                    border-radius: 3px;
+                    font-family: Consolas, Monaco, 'Andale Mono', monospace;
+                }
+                .tip {
+                    background-color: #f0f7ff;
+                    border-left: 4px solid #42b983;
+                    padding: 12px 16px;
+                    margin: 20px 0;
+                    border-radius: 0 4px 4px 0;
+                }
+            </style>
+        </head>
+        <body>
+            <h1>Operit Web 工作空间</h1>
+            <p>欢迎使用 Operit Web 工作空间！这是当前对话的专属网页环境。</p>
+            
+            <div class="tip">
+                <p>目前还没有任何网页内容。请要求 AI 创建一个网站或 Web 应用，AI 将会：</p>
+                <ol>
+                    <li>创建 HTML、CSS 和 JavaScript 文件</li>
+                    <li>生成 <code>index.html</code> 作为主页</li>
+                    <li>您可以随时按下 Web 按钮查看实时结果</li>
+                </ol>
+            </div>
+            
+            <p>这个页面会在您请求AI生成内容后自动更新。</p>
+        </body>
+        </html>
+        """
 
         // 单例实例
         @Volatile private var INSTANCE: LocalWebServer? = null
@@ -42,6 +95,7 @@ private constructor(
         }
 
         // 工作空间的基础路径
+        @Deprecated("Use specific workspace paths instead of deriving from chatId")
         fun getWorkspacePath(chatId: String): String {
             val downloadDir =
                     Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
@@ -49,18 +103,29 @@ private constructor(
         }
 
         // 确保工作空间目录存在
-        fun ensureWorkspaceDirExists(chatId: String): String {
-            val workspacePath = getWorkspacePath(chatId)
-            val workspaceDir = File(workspacePath)
+        fun ensureWorkspaceDirExists(path: String): String {
+            val workspaceDir = File(path)
             if (!workspaceDir.exists()) {
                 workspaceDir.mkdirs()
             }
-            return workspacePath
+            return path
+        }
+
+        /** 如果需要，创建默认的index.html文件 */
+        fun createDefaultIndexHtmlIfNeeded(workspaceDir: File) {
+            val indexHtmlFile = File(workspaceDir, "index.html")
+            if (!indexHtmlFile.exists()) {
+                try {
+                    indexHtmlFile.writeText(DEFAULT_INDEX_HTML_CONTENT.trimIndent())
+                    Log.d(TAG, "已在 ${indexHtmlFile.absolutePath} 创建默认的 index.html")
+                } catch (e: IOException) {
+                    Log.e(TAG, "创建默认的 index.html 失败", e)
+                }
+            }
         }
     }
 
-    private val workspacePath: String
-        get() = getWorkspacePath(chatId)
+    private var workspacePath: String = "" // Default to empty
 
     private val isServerRunning = AtomicBoolean(false)
     private var serverSocket: ServerSocket? = null
@@ -70,7 +135,9 @@ private constructor(
     // 在启动前确保工作区目录存在
     @Throws(IOException::class)
     override fun start() {
-        ensureWorkspaceDirExists(chatId)
+        if (workspacePath.isNotEmpty()) {
+            ensureWorkspaceDirExists(workspacePath)
+        }
         super.start()
         isServerRunning.set(true)
         Log.d(TAG, "本地服务器已启动，端口: $port，工作空间: $workspacePath")
@@ -82,9 +149,9 @@ private constructor(
         Log.d(TAG, "本地服务器已停止")
     }
 
-    fun updateChatId(newChatId: String) {
-        chatId = newChatId
-        ensureWorkspaceDirExists(chatId)
+    fun updateChatWorkspace(chatId: String, newWorkspacePath: String) {
+        this.workspacePath = newWorkspacePath
+        ensureWorkspaceDirExists(newWorkspacePath)
         Log.d(TAG, "工作空间已更新: $workspacePath")
     }
 
@@ -129,6 +196,19 @@ private constructor(
             // 确定MIME类型
             val mimeType = getMimeTypeForFile(uri)
 
+            // 如果是HTML文件，注入eruda
+            if (mimeType == "text/html") {
+                try {
+                    val fileContent = requestedFile.readText(Charsets.UTF_8)
+                    val injectedContent = injectErudaIntoHtml(fileContent)
+                    return newFixedLengthResponse(Response.Status.OK, mimeType, injectedContent)
+                            .addCorsHeaders()
+                } catch (e: Exception) {
+                    Log.e(TAG, "读取或注入HTML时出错: ${e.message}")
+                    // 出错则回退到直接提供文件
+                }
+            }
+
             // 返回文件内容
             val fileInputStream = FileInputStream(requestedFile)
             return newChunkedResponse(Response.Status.OK, mimeType, fileInputStream)
@@ -152,6 +232,36 @@ private constructor(
         }
     }
 
+    // 注入eruda脚本到HTML内容中
+    private fun injectErudaIntoHtml(htmlContent: String): String {
+        val erudaScript =
+                """
+        <script>
+        (function() {
+            if (window.erudaInjected) { return; }
+            window.erudaInjected = true;
+            localStorage.removeItem('eruda-entry-btn');
+            var script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/eruda';
+            document.body.appendChild(script);
+            script.onload = function() {
+                if (!window.eruda) return;
+                eruda.init();
+                var entryBtn = eruda.get('entry');
+                if (entryBtn) {
+                    entryBtn.position({
+                        x: 10,
+                        y: window.innerHeight - 70
+                    });
+                }
+            }
+        })();
+        </script>
+        """
+        // 将脚本插入到</body>之前
+        return htmlContent.replace("</body>", "$erudaScript</body>", ignoreCase = true)
+    }
+
     // 检查文件是否在工作空间内
     private fun isInWorkspace(file: File): Boolean {
         return try {
@@ -165,68 +275,9 @@ private constructor(
 
     // 创建默认的欢迎页面
     private fun createDefaultIndexHtml(): Response {
-        val html =
-                """
-        <!DOCTYPE html>
-        <html lang="zh-CN">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Operit Web 工作空间</title>
-            <style>
-                body {
-                    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-                    line-height: 1.6;
-                    color: #333;
-                    max-width: 800px;
-                    margin: 0 auto;
-                    padding: 20px;
-                }
-                h1 {
-                    color: #2c3e50;
-                    border-bottom: 2px solid #eaecef;
-                    padding-bottom: 10px;
-                }
-                code {
-                    background-color: #f8f8f8;
-                    padding: 3px 5px;
-                    border-radius: 3px;
-                    font-family: Consolas, Monaco, 'Andale Mono', monospace;
-                }
-                .tip {
-                    background-color: #f0f7ff;
-                    border-left: 4px solid #42b983;
-                    padding: 12px 16px;
-                    margin: 20px 0;
-                    border-radius: 0 4px 4px 0;
-                }
-            </style>
-        </head>
-        <body>
-            <h1>Operit Web 工作空间</h1>
-            <p>欢迎使用 Operit Web 工作空间！这是聊天 ID <strong>$chatId</strong> 的专属网页环境。</p>
-            
-            <div class="tip">
-                <p>目前还没有任何网页内容。请要求 AI 创建一个网站或 Web 应用，AI 将会：</p>
-                <ol>
-                    <li>创建 HTML、CSS 和 JavaScript 文件</li>
-                    <li>生成 <code>index.html</code> 作为主页</li>
-                    <li>您可以随时按下 Web 按钮查看实时结果</li>
-                </ol>
-            </div>
-            
-            <p>这个页面会自动刷新，当有新内容时将会显示。</p>
-            <script>
-                // 每5秒自动刷新一次
-                setTimeout(() => {
-                    window.location.reload();
-                }, 5000);
-            </script>
-        </body>
-        </html>
-        """.trimIndent()
-
-        return newFixedLengthResponse(Response.Status.OK, "text/html", html)
+        // 为默认页面也注入eruda
+        val injectedHtml = injectErudaIntoHtml(DEFAULT_INDEX_HTML_CONTENT)
+        return newFixedLengthResponse(Response.Status.OK, "text/html", injectedHtml)
     }
 
     // 添加CORS响应头的扩展函数

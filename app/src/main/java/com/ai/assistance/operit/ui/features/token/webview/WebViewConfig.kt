@@ -39,9 +39,8 @@ object WebViewConfig {
                 setSupportMultipleWindows(true)
                 javaScriptCanOpenWindowsAutomatically = true
 
-                // 设置默认的User-Agent
-                val originalUserAgent = userAgentString
-                userAgentString = originalUserAgent
+                // 设置一个常见的移动浏览器User-Agent，以避免被某些服务（如Google登录）阻止
+                userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
                 // 启用缩放控制
                 setSupportZoom(true)

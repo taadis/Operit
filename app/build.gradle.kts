@@ -14,8 +14,8 @@ android {
         applicationId = "com.ai.assistance.operit"
         minSdk = 26
         targetSdk = 34
-        versionCode = 13
-        versionName = "1.1.8"
+        versionCode = 16
+        versionName = "1.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -87,8 +87,7 @@ android {
 }
 
 dependencies {
-    implementation(project(":live2d"))
-
+    implementation(project(":dragonbones"))
     implementation(libs.androidx.ui.graphics.android)
     implementation(files("libs\\ffmpegkit.jar"))
     implementation(files("libs\\arsc.jar"))
@@ -146,8 +145,9 @@ dependencies {
     implementation("androidx.window:window:1.1.0")
     
     // Document conversion libraries
-    implementation("com.itextpdf:itextpdf:5.5.13.3") // iText for PDF creation
-    implementation("org.apache.pdfbox:pdfbox:2.0.27") // PDFBox for PDF operations
+    implementation("com.itextpdf:itextg:5.5.10")
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
+    implementation("net.lingala.zip4j:zip4j:2.11.5")
     
     // 图片加载库
     implementation("io.coil-kt:coil:2.5.0")
@@ -185,10 +185,6 @@ dependencies {
     // 用于向量嵌入的TF Lite (如果需要自定义嵌入)
     implementation("org.tensorflow:tensorflow-lite:2.8.0")
 
-    // BouncyCastle加密库 - 用于PKCS12密钥处理
-    implementation("org.bouncycastle:bcpkix-jdk15on:1.70")
-    implementation("org.bouncycastle:bcprov-jdk15on:1.70")
-
     // Room 数据库
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1") // Kotlin扩展和协程支持
@@ -206,9 +202,9 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.activity.compose)
     // Use BOM version for all Compose dependencies
-    implementation("androidx.compose.material:material-icons-extended")
-    implementation("androidx.compose.animation:animation")
-    implementation("androidx.compose.animation:animation-core")
+    implementation(libs.compose.material.icons.extended)
+    implementation(libs.compose.animation)
+    implementation(libs.compose.animation.core)
 
     // Navigation Compose
     implementation("androidx.navigation:navigation-compose:2.7.7")
@@ -270,4 +266,12 @@ dependencies {
     testImplementation("org.mockito:mockito-core:5.2.0")
     testImplementation("org.mockito.kotlin:mockito-kotlin:5.1.0")
     androidTestImplementation("org.mockito:mockito-android:5.2.0")
+    implementation("sh.calvin.reorderable:reorderable:2.5.1")
+
+    // Swipe to reveal actions
+    implementation("me.saket.swipe:swipe:1.2.0")
+
+    // Coroutine
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
 }

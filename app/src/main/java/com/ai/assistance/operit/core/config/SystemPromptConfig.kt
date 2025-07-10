@@ -27,12 +27,7 @@ object SystemPromptConfig {
         • Be honest about limitations; use tools to retrieve forgotten information instead of guessing, and clearly state when information is unavailable.
         • Use the query_problem_library tool to understand user's style, preferences, and past information.
 
-      WEB WORKSPACE GUIDELINES:
-      - Your working directory, /sdcard/Download/Operit/workspace/{CHAT_ID}/, is automatically set up as a web server root.
-      - Use the apply_file tool to create web files (HTML/CSS/JS).
-      - The main file must be index.html for user previews.
-      - It's recommended to split code into multiple files for better stability and maintainability.
-      - Always use relative paths for file references.
+      WEB_WORKSPACE_GUIDELINES_SECTION
 
       FORMULA FORMATTING: For mathematical formulas, use $ $ for inline LaTeX and $$ $$ for block/display LaTeX equations.
 
@@ -195,12 +190,7 @@ object SystemPromptConfig {
         - 诚实地说明限制；使用工具检索遗忘的信息而不是猜测，并明确说明信息不可用的情况。
         - 使用query_problem_library工具了解用户的风格、偏好和过去的信息。
         
-        Web工作区指南：
-        - 工作目录 /sdcard/Download/Operit/workspace/{CHAT_ID}/ 会被自动配置为网页服务器。
-        - 使用 apply_file 工具创建网页文件 (HTML/CSS/JS)。
-        - 主文件必须是 index.html，用户可直接预览。
-        - 建议将代码拆分到不同文件，以提高稳定性和可维护性。
-        - 文件引用请使用相对路径。
+        WEB_WORKSPACE_GUIDELINES_SECTION
         
         公式格式化：对于数学公式，使用 $ $ 包裹行内LaTeX公式，使用 $$ $$ 包裹独立成行的LaTeX公式。
         
@@ -370,12 +360,18 @@ object SystemPromptConfig {
    * Generates the system prompt with dynamic package information and planning mode if enabled
    *
    * @param packageManager The PackageManager instance to get package information from
+   * @param workspacePath The current workspace path, if available.
    * @param enablePlanning Whether planning mode is enabled
    * @return The complete system prompt with package information and planning details if enabled
    */
-  fun getSystemPrompt(packageManager: PackageManager, enablePlanning: Boolean = false): String {
+  fun getSystemPrompt(
+          packageManager: PackageManager,
+          workspacePath: String? = null,
+          enablePlanning: Boolean = false
+  ): String {
     return getSystemPrompt(
             packageManager,
+            workspacePath,
             enablePlanning,
             false
     ) // Default to using Chinese template for backward compatibility
@@ -386,12 +382,14 @@ object SystemPromptConfig {
    * selection
    *
    * @param packageManager The PackageManager instance to get package information from
+   * @param workspacePath The current workspace path, if available.
    * @param enablePlanning Whether planning mode is enabled
    * @param useEnglish Whether to use English template instead of Chinese
    * @return The complete system prompt with package information and planning details if enabled
    */
   fun getSystemPrompt(
           packageManager: PackageManager,
+          workspacePath: String?,
           enablePlanning: Boolean = false,
           useEnglish: Boolean = false
   ): String {
@@ -432,9 +430,14 @@ object SystemPromptConfig {
     // Select appropriate template based on language preference
     val templateToUse = if (useEnglish) SYSTEM_PROMPT_TEMPLATE else SYSTEM_PROMPT_TEMPLATE_CN
     val planningPromptToUse = if (useEnglish) PLANNING_MODE_PROMPT else PLANNING_MODE_PROMPT_CN
+    
+    // Generate workspace guidelines
+    val workspaceGuidelines = getWorkspaceGuidelines(workspacePath, useEnglish)
 
     // Build prompt with appropriate sections
-    var prompt = templateToUse.replace("ACTIVE_PACKAGES_SECTION", packagesSection.toString())
+    var prompt = templateToUse
+        .replace("ACTIVE_PACKAGES_SECTION", packagesSection.toString())
+        .replace("WEB_WORKSPACE_GUIDELINES_SECTION", workspaceGuidelines)
 
     // Add planning mode section if enabled
     prompt =
@@ -446,11 +449,55 @@ object SystemPromptConfig {
 
     return prompt
   }
+  
+  /**
+   * Generates the dynamic web workspace guidelines based on the provided path.
+   *
+   * @param workspacePath The current path of the workspace. Null if not bound.
+   * @param useEnglish Whether to use the English or Chinese version of the guidelines.
+   * @return A string containing the appropriate workspace guidelines.
+   */
+  private fun getWorkspaceGuidelines(workspacePath: String?, useEnglish: Boolean): String {
+      return if (workspacePath != null) {
+          if (useEnglish) {
+              """
+              WEB WORKSPACE GUIDELINES:
+              - Your working directory, `$workspacePath`, is automatically set up as a web server root.
+              - Use the `apply_file` tool to create web files (HTML/CSS/JS).
+              - The main file must be `index.html` for user previews.
+              - It's recommended to split code into multiple files for better stability and maintainability.
+              - Always use relative paths for file references.
+              """.trimIndent()
+          } else {
+              """
+              Web工作区指南：
+              - 你的工作目录，$workspacePath，已被自动配置为Web服务器的根目录。
+              - 使用 apply_file 工具创建网页文件 (HTML/CSS/JS)。
+              - 主文件必须是 index.html，用户可直接预览。
+              - 建议将代码拆分到不同文件，以提高稳定性和可维护性。
+              - 文件引用请使用相对路径。
+              """.trimIndent()
+          }
+      } else {
+          if (useEnglish) {
+              """
+              WEB WORKSPACE GUIDELINES:
+              - A web workspace is not yet configured for this chat. To enable web development features, please prompt the user to click the 'Web' button in the top-right corner of the app to bind a workspace directory.
+              """.trimIndent()
+          } else {
+              """
+              Web工作区指南：
+              - 当前对话尚未配置Web工作区。如需启用Web开发功能，请提示用户点击应用右上角的 "Web" 按钮来绑定一个工作区目录。
+              """.trimIndent()
+          }
+      }
+  }
 
   /**
    * Generates the system prompt with dynamic package information, planning mode, and custom prompts
    *
    * @param packageManager The PackageManager instance to get package information from
+   * @param workspacePath The current workspace path, if available.
    * @param enablePlanning Whether planning mode is enabled
    * @param customIntroPrompt Custom introduction prompt text
    * @param customTonePrompt Custom tone prompt text
@@ -459,12 +506,13 @@ object SystemPromptConfig {
    */
   fun getSystemPromptWithCustomPrompts(
           packageManager: PackageManager,
+          workspacePath: String?,
           enablePlanning: Boolean = false,
           customIntroPrompt: String,
           customTonePrompt: String
   ): String {
     // Get the base system prompt
-    val basePrompt = getSystemPrompt(packageManager, enablePlanning, false)
+    val basePrompt = getSystemPrompt(packageManager, workspacePath, enablePlanning, false)
 
     // Apply custom prompts
     return applyCustomPrompts(basePrompt, customIntroPrompt, customTonePrompt)
@@ -472,6 +520,6 @@ object SystemPromptConfig {
 
   /** Original method for backward compatibility */
   fun getSystemPrompt(packageManager: PackageManager): String {
-    return getSystemPrompt(packageManager, false)
+    return getSystemPrompt(packageManager, null, false)
   }
 }

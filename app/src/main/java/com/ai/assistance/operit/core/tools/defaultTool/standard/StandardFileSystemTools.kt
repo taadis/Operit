@@ -40,7 +40,7 @@ open class StandardFileSystemTools(protected val context: Context) {
         private const val TAG = "FileSystemTools"
 
         // Maximum allowed file size for operations
-        protected const val MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024 // 10MB
+        protected const val MAX_FILE_SIZE_BYTES = 32 * 1024 // 32k
 
         // 每个部分的行数
         protected const val PART_SIZE = 200
@@ -130,20 +130,206 @@ open class StandardFileSystemTools(protected val context: Context) {
         return "$canRead$canWrite$canExecute$canRead-$canExecute$canRead-$canExecute"
     }
 
-    /** Read file content */
-    open suspend fun readFile(tool: AITool): ToolResult {
-        val path = tool.parameters.find { it.name == "path" }?.value ?: ""
+    /**
+     * Handles reading special file types that require conversion or OCR.
+     * Returns a ToolResult if the file type is special, otherwise null.
+     */
+    protected open suspend fun handleSpecialFileRead(tool: AITool, path: String, fileExt: String): ToolResult? {
+        return when (fileExt) {
+            "doc", "docx" -> {
+                Log.d(TAG, "Detected Word document, attempting to convert to text before reading")
+                val tempFilePath = "${path}_converted_${System.currentTimeMillis()}.txt"
+                try {
+                    val fileConverterTool = AITool(
+                        name = "convert_file",
+                        parameters = listOf(
+                            ToolParameter("source_path", path),
+                            ToolParameter("target_path", tempFilePath)
+                        )
+                    )
+                    val toolHandler = AIToolHandler.getInstance(context)
+                    val conversionResult = toolHandler.executeTool(fileConverterTool)
 
+                    if (conversionResult.success) {
+                        Log.d(TAG, "Successfully converted Word document to text")
+                        val tempFile = File(tempFilePath)
+                        if (tempFile.exists()) {
+                            val content = tempFile.readText()
+                            tempFile.delete() // Clean up
+                            ToolResult(
+                                toolName = tool.name,
+                                success = true,
+                                result = FileContentData(
+                                    path = path,
+                                    content = content,
+                                    size = content.length.toLong()
+                                ),
+                                error = ""
+                            )
+                        } else {
+                            ToolResult(
+                                toolName = tool.name,
+                                success = false,
+                                result = StringResultData(""),
+                                error = "Conversion produced no output."
+                            )
+                        }
+                    } else {
+                        Log.w(TAG, "Word conversion failed: ${conversionResult.error}, falling back to raw content")
+                        ToolResult(
+                            toolName = tool.name,
+                            success = false,
+                            result = StringResultData(""),
+                            error = "Failed to convert Word document: ${conversionResult.error}"
+                        )
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error during Word document conversion", e)
+                    ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "Error converting Word document: ${e.message}"
+                    )
+                }
+            }
+            "pdf" -> {
+                Log.d(TAG, "Detected PDF document, attempting to convert to text before reading")
+                val tempFilePath = "${path}_converted_${System.currentTimeMillis()}.txt"
+                try {
+                    val fileConverterTool = AITool(
+                        name = "convert_file",
+                        parameters = listOf(
+                            ToolParameter("source_path", path),
+                            ToolParameter("target_path", tempFilePath)
+                        )
+                    )
+                    val toolHandler = AIToolHandler.getInstance(context)
+                    val conversionResult = toolHandler.executeTool(fileConverterTool)
+
+                    if (conversionResult.success) {
+                        Log.d(TAG, "Successfully converted PDF document to text")
+                        val tempFile = File(tempFilePath)
+                        if (tempFile.exists()) {
+                            val content = tempFile.readText()
+                            tempFile.delete() // Clean up
+                            ToolResult(
+                                toolName = tool.name,
+                                success = true,
+                                result = FileContentData(
+                                    path = path,
+                                    content = content,
+                                    size = content.length.toLong()
+                                ),
+                                error = ""
+                            )
+                        } else {
+                            ToolResult(
+                                toolName = tool.name,
+                                success = false,
+                                result = StringResultData(""),
+                                error = "Conversion produced no output."
+                            )
+                        }
+                    } else {
+                        Log.w(TAG, "PDF conversion failed: ${conversionResult.error}, falling back to raw content")
+                        ToolResult(
+                            toolName = tool.name,
+                            success = false,
+                            result = StringResultData(""),
+                            error = "Failed to convert PDF document: ${conversionResult.error}"
+                        )
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error during PDF document conversion", e)
+                    ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "Error converting PDF document: ${e.message}"
+                    )
+                }
+            }
+            "jpg", "jpeg", "png", "gif", "bmp" -> {
+                Log.d(TAG, "Detected image file, attempting to extract text using OCR")
+                try {
+                    val bitmap = android.graphics.BitmapFactory.decodeFile(path)
+                    if (bitmap != null) {
+                        val ocrText = kotlinx.coroutines.runBlocking {
+                            com.ai.assistance.operit.util.OCRUtils.recognizeText(context, bitmap)
+                        }
+                        if (ocrText.isNotBlank()) {
+                            Log.d(TAG, "Successfully extracted text from image using OCR")
+                            ToolResult(
+                                toolName = tool.name,
+                                success = true,
+                                result = FileContentData(
+                                    path = path,
+                                    content = ocrText,
+                                    size = ocrText.length.toLong()
+                                ),
+                                error = ""
+                            )
+                        } else {
+                            Log.w(TAG, "OCR extraction returned empty text, returning no text detected message")
+                            ToolResult(
+                                toolName = tool.name,
+                                success = true,
+                                result = FileContentData(
+                                    path = path,
+                                    content = "No text detected in image.",
+                                    size = "No text detected in image.".length.toLong()
+                                ),
+                                error = ""
+                            )
+                        }
+                    } else {
+                        Log.w(TAG, "Failed to decode image file, returning error message")
+                        ToolResult(
+                            toolName = tool.name,
+                            success = true,
+                            result = FileContentData(
+                                path = path,
+                                content = "Failed to decode image file.",
+                                size = "Failed to decode image file.".length.toLong()
+                            ),
+                            error = ""
+                        )
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error during OCR text extraction", e)
+                    ToolResult(
+                        toolName = tool.name,
+                        success = true,
+                        result = FileContentData(
+                            path = path,
+                            content = "Error extracting text from image: ${e.message}",
+                            size = "Error extracting text from image: ${e.message}".length.toLong()
+                        ),
+                        error = ""
+                    )
+                }
+            }
+            else -> null
+        }
+    }
+
+    /**
+       * Reads the full content of a file as a new tool, handling different file types.
+     * This function does not enforce a size limit.
+     */
+    open suspend fun readFileFull(tool: AITool): ToolResult {
+        val path = tool.parameters.find { it.name == "path" }?.value ?: ""
         if (path.isBlank()) {
             return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "Path parameter is required"
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "Path parameter is required"
             )
         }
 
-        return try {
+        try {
             val file = File(path)
 
             if (!file.exists()) {
@@ -164,172 +350,130 @@ open class StandardFileSystemTools(protected val context: Context) {
                 )
             }
 
-            if (file.length() > MAX_FILE_SIZE_BYTES) {
-                return ToolResult(
-                        toolName = tool.name,
-                        success = false,
-                        result = StringResultData(""),
-                        error =
-                                "File is too large (${file.length() / 1024} KB). Maximum allowed size is ${MAX_FILE_SIZE_BYTES / 1024} KB."
-                )
+            val fileExt = file.extension.lowercase()
+            val specialReadResult = handleSpecialFileRead(tool, path, fileExt)
+            if (specialReadResult != null) {
+                return specialReadResult
             }
 
-            // Check if it's a Word document
-            val fileExt = file.extension.lowercase()
-            if (fileExt == "doc" || fileExt == "docx") {
-                Log.d(TAG, "Detected Word document, attempting to convert to text before reading")
-
-                // Create temporary file for converted text
-                val tempFilePath = "${path}_converted_${System.currentTimeMillis()}.txt"
-
-                try {
-                    // Try to use document conversion tool if available
-                    val fileConverterTool =
-                            AITool(
-                                    name = "convert_file",
-                                    parameters =
-                                            listOf(
-                                                    ToolParameter("source_path", path),
-                                                    ToolParameter("target_path", tempFilePath)
-                                            )
-                            )
-
-                    val toolHandler = AIToolHandler.getInstance(context)
-                    val conversionResult = toolHandler.executeTool(fileConverterTool)
-
-                    if (conversionResult.success) {
-                        Log.d(TAG, "Successfully converted Word document to text")
-
-                        // Read the converted text file
-                        val tempFile = File(tempFilePath)
-                        if (tempFile.exists()) {
-                            val content = tempFile.readText()
-                            tempFile.delete() // Clean up
-
-                            return ToolResult(
-                                    toolName = tool.name,
-                                    success = true,
-                                    result =
-                                            FileContentData(
-                                                    path = path,
-                                                    content = content,
-                                                    size = content.length.toLong()
-                                            ),
-                                    error = ""
-                            )
-                        }
-                    } else {
-                        Log.w(
-                                TAG,
-                                "Word conversion failed: ${conversionResult.error}, falling back to raw content"
-                        )
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error during Word document conversion", e)
-                    // Conversion failed, fall back to reading raw file
-                }
-            } else if (fileExt == "jpg" ||
-                            fileExt == "jpeg" ||
-                            fileExt == "png" ||
-                            fileExt == "gif" ||
-                            fileExt == "bmp"
-            ) {
-                Log.d(TAG, "Detected image file, attempting to extract text using OCR")
-
-                try {
-                    // 使用BitmapFactory读取图片
-                    val bitmap = android.graphics.BitmapFactory.decodeFile(path)
-                    if (bitmap != null) {
-                        // 使用OCRUtils提取文本
-                        val ocrText =
-                                kotlinx.coroutines.runBlocking {
-                                    com.ai.assistance.operit.util.OCRUtils.recognizeText(
-                                            context,
-                                            bitmap
-                                    )
-                                }
-
-                        if (ocrText.isNotBlank()) {
-                            Log.d(TAG, "Successfully extracted text from image using OCR")
-
-                            // 返回提取的文本
-                            return ToolResult(
-                                    toolName = tool.name,
-                                    success = true,
-                                    result =
-                                            FileContentData(
-                                                    path = path,
-                                                    content = ocrText,
-                                                    size = ocrText.length.toLong()
-                                            ),
-                                    error = ""
-                            )
-                        } else {
-                            Log.w(
-                                    TAG,
-                                    "OCR extraction returned empty text, returning no text detected message"
-                            )
-
-                            // 直接返回未识别到文字的提示信息
-                            return ToolResult(
-                                    toolName = tool.name,
-                                    success = true,
-                                    result =
-                                            FileContentData(
-                                                    path = path,
-                                                    content = "No text detected in image.",
-                                                    size =
-                                                            "No text detected in image.".length
-                                                                    .toLong()
-                                            ),
-                                    error = ""
-                            )
-                        }
-                    } else {
-                        Log.w(TAG, "Failed to decode image file, returning error message")
-
-                        // 返回无法解码图片的提示信息
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = true,
-                                result =
-                                        FileContentData(
-                                                path = path,
-                                                content = "Failed to decode image file.",
-                                                size =
-                                                        "Failed to decode image file.".length
-                                                                .toLong()
-                                        ),
-                                error = ""
-                        )
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error during OCR text extraction", e)
-                    // OCR提取失败，返回错误信息
-                    return ToolResult(
+            return when (fileExt) {
+                "csv",
+                "txt",
+                "json",
+                "xml",
+                "html",
+                "js",
+                "css",
+                "md",
+                "log",
+                "kt",
+                "java",
+                "py",
+                "sh" -> {
+                    val content = file.readText()
+                    ToolResult(
                             toolName = tool.name,
                             success = true,
                             result =
                                     FileContentData(
                                             path = path,
-                                            content =
-                                                    "Error extracting text from image: ${e.message}",
-                                            size =
-                                                    "Error extracting text from image: ${e.message}"
-                                                            .length.toLong()
+                                            content = content,
+                                            size = file.length()
                                     ),
                             error = ""
                     )
                 }
+                else -> {
+                    ToolResult(
+                            toolName = tool.name,
+                            success = false,
+                            result = StringResultData(""),
+                            error = "Unsupported file format: .$fileExt"
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error reading file (full)", e)
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Error reading file: ${e.message}"
+            )
+        }
+    }
+
+    /** Read file content, truncated to MAX_FILE_SIZE_BYTES */
+    open suspend fun readFile(tool: AITool): ToolResult {
+        val path = tool.parameters.find { it.name == "path" }?.value ?: ""
+
+        if (path.isBlank()) {
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Path parameter is required"
+            )
+        }
+
+        try {
+            val file = File(path)
+            if (!file.exists() || !file.isFile) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "Path is not a file: $path"
+                )
             }
 
-            // Read file content as string
-            val content = file.readText()
+            val fileExt = file.extension.lowercase()
+
+            // For special types, full read then truncate text is the only way.
+            if (fileExt in listOf("doc", "docx", "pdf", "jpg", "jpeg", "png", "gif", "bmp")) {
+                val fullResult = readFileFull(tool)
+                if (!fullResult.success) return fullResult
+
+                val contentData = fullResult.result as FileContentData
+                var content = contentData.content
+                if (content.length > MAX_FILE_SIZE_BYTES) {
+                    content = content.substring(0, MAX_FILE_SIZE_BYTES) + "\n\n... (file content truncated) ..."
+                }
+                return ToolResult(
+                    toolName = tool.name,
+                    success = true,
+                    result = FileContentData(path = path, content = content, size = content.length.toLong()),
+                    error = ""
+                )
+            }
+
+            // For text-based files, read only the beginning.
+            val supportedTextExtensions = listOf("csv", "txt", "json", "xml", "html", "js", "css", "md", "log", "kt", "java", "py", "sh")
+            if (fileExt !in supportedTextExtensions) {
+                return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Unsupported file format for partial read: .$fileExt. Use readFileFull tool for full content."
+                )
+            }
+
+            val content = file.bufferedReader().use {
+                val buffer = CharArray(MAX_FILE_SIZE_BYTES)
+                val charsRead = it.read(buffer, 0, MAX_FILE_SIZE_BYTES)
+                String(buffer, 0, charsRead)
+            }
+
+            val truncated = file.length() > MAX_FILE_SIZE_BYTES
+            var finalContent = content
+            if (truncated) {
+                finalContent += "\n\n... (file content truncated) ..."
+            }
 
             return ToolResult(
                     toolName = tool.name,
                     success = true,
-                    result = FileContentData(path = path, content = content, size = file.length()),
+                    result = FileContentData(path = path, content = finalContent, size = finalContent.length.toLong()),
                     error = ""
             )
         } catch (e: Exception) {
@@ -357,58 +501,75 @@ open class StandardFileSystemTools(protected val context: Context) {
             )
         }
 
-        // 先调用readFile获取完整内容
-        val fileResult =
-                readFile(
-                        AITool(name = "read_file", parameters = listOf(ToolParameter("path", path)))
+        return try {
+            val file = File(path)
+            if (!file.exists() || !file.isFile) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "File does not exist or is not a regular file: $path"
                 )
+            }
 
-        if (!fileResult.success) {
+            // First, count total lines without loading the file into memory.
+            var totalLines = 0
+            file.bufferedReader().use { reader ->
+                while (reader.readLine() != null) {
+                    totalLines++
+                }
+            }
+
+            val totalParts = (totalLines + PART_SIZE - 1) / PART_SIZE
+            val validPartIndex = partIndex.coerceIn(0, if (totalParts > 0) totalParts - 1 else 0)
+
+            val startLine = validPartIndex * PART_SIZE // 0-indexed
+            val endLine = minOf(startLine + PART_SIZE, totalLines) // exclusive
+
+            val partContent = StringBuilder()
+            if (totalLines > 0) {
+                var currentLine = 0
+                file.bufferedReader().useLines { lines ->
+                    lines.forEach { line ->
+                        if (currentLine >= endLine) {
+                            return@useLines // early exit
+                        }
+                        if (currentLine >= startLine) {
+                            partContent.append(line).append('\n')
+                        }
+                        currentLine++
+                    }
+                }
+                // Remove last newline if content is not empty
+                if (partContent.isNotEmpty()) {
+                    partContent.setLength(partContent.length - 1)
+                }
+            }
+
+            ToolResult(
+                    toolName = tool.name,
+                    success = true,
+                    result =
+                            FilePartContentData(
+                                    path = path,
+                                    content = partContent.toString(),
+                                    partIndex = validPartIndex,
+                                    totalParts = totalParts,
+                                    startLine = startLine,
+                                    endLine = endLine,
+                                    totalLines = totalLines
+                            ),
+                    error = ""
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error reading file part", e)
             return ToolResult(
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error = fileResult.error
+                    error = "Error reading file part: ${e.message}"
             )
         }
-
-        // 获取文件内容并按行分割
-        val fileContent = (fileResult.result as? FileContentData)?.content ?: ""
-        val lines = fileContent.lines()
-
-        // 计算总部分数
-        val totalParts = (lines.size + PART_SIZE - 1) / PART_SIZE
-
-        // 确保partIndex在有效范围内
-        val validPartIndex = partIndex.coerceIn(0, totalParts - 1)
-
-        // 计算开始和结束行
-        val startLine = validPartIndex * PART_SIZE
-        val endLine = minOf(startLine + PART_SIZE, lines.size)
-
-        // 提取当前部分的行
-        val partContent =
-                if (lines.isNotEmpty()) {
-                    lines.subList(startLine, endLine).joinToString("\n")
-                } else {
-                    ""
-                }
-
-        return ToolResult(
-                toolName = tool.name,
-                success = true,
-                result =
-                        FilePartContentData(
-                                path = path,
-                                content = partContent,
-                                partIndex = validPartIndex,
-                                totalParts = totalParts,
-                                startLine = startLine,
-                                endLine = endLine,
-                                totalLines = lines.size
-                        ),
-                error = ""
-        )
     }
 
     /** Write content to a file */

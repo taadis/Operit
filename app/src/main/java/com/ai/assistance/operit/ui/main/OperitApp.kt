@@ -32,6 +32,13 @@ import com.ai.assistance.operit.ui.main.screens.Screen
 import com.ai.assistance.operit.util.NetworkUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.CompositionLocalProvider
+
+// 为TopAppBar的actions提供CompositionLocal
+// 它允许子组件（如AIChatScreen）向上提供它们的action Composable
+val LocalTopBarActions = compositionLocalOf<(@Composable (RowScope.() -> Unit)) -> Unit> { {} }
 
 data class NavGroup(val title: String, val items: List<NavItem>)
 
@@ -51,6 +58,9 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
     
     // 跟踪是否是返回操作
     var isNavigatingBack by remember { mutableStateOf(false) }
+
+    // 用于存储由子屏幕提供的TopAppBar Actions
+    var topBarActions by remember { mutableStateOf<@Composable RowScope.() -> Unit>({}) }
 
     // Navigation functions
     fun navigateTo(newScreen: Screen, fromDrawer: Boolean = false) {
@@ -184,64 +194,70 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
 
     // Main app container
     Box(modifier = Modifier.fillMaxSize().background(Color.Transparent)) {
-        if (useTabletLayout) {
-            // Tablet layout
-            TabletLayout(
-                    currentScreen = currentScreen,
-                    selectedItem = selectedItem,
-                    isTabletSidebarExpanded = isTabletSidebarExpanded,
-                    isLoading = isLoading,
-                    navGroups = navGroups,
-                    navItems = navItems,
-                    isNetworkAvailable = isNetworkAvailable,
-                    networkType = networkType,
-                    navController = navController,
-                    scope = scope,
-                    drawerState = drawerState,
-                    showFpsCounter = showFpsCounter,
-                    tabletSidebarWidth = tabletSidebarWidth,
-                    collapsedTabletSidebarWidth = collapsedTabletSidebarWidth,
-                    onScreenChange = { screen -> navigateTo(screen) },
-                    onNavItemChange = { item ->
-                        navigateTo(
-                                OperitRouter.getScreenForNavItem(item),
-                                fromDrawer = true
-                        )
-                    },
-                    onToggleSidebar = {
-                            isTabletSidebarExpanded = !isTabletSidebarExpanded
-                    },
-                    navigateToTokenConfig = ::navigateToTokenConfig,
-                    canGoBack = canGoBack,
-                    onGoBack = ::goBack,
-                    isNavigatingBack = isNavigatingBack
-            )
-        } else {
-            // Phone layout
-            PhoneLayout(
-                    currentScreen = currentScreen,
-                    selectedItem = selectedItem,
-                    isLoading = isLoading,
-                    navGroups = navGroups,
-                    isNetworkAvailable = isNetworkAvailable,
-                    networkType = networkType,
-                    drawerWidth = drawerWidth,
-                    navController = navController,
-                    scope = scope,
-                    drawerState = drawerState,
-                    showFpsCounter = showFpsCounter,
-                    onScreenChange = { screen -> navigateTo(screen) },
-                    onNavItemChange = { item ->
-                        navigateTo(
-                                OperitRouter.getScreenForNavItem(item),
-                                fromDrawer = true
-                        )
-                    },
-                    navigateToTokenConfig = ::navigateToTokenConfig,
-                    canGoBack = canGoBack,
-                    onGoBack = ::goBack,
-                    isNavigatingBack = isNavigatingBack
-            )
+        CompositionLocalProvider(LocalTopBarActions provides { actions: @Composable RowScope.() -> Unit -> 
+            topBarActions = actions 
+        }) {
+            if (useTabletLayout) {
+                // Tablet layout
+                TabletLayout(
+                        currentScreen = currentScreen,
+                        selectedItem = selectedItem,
+                        isTabletSidebarExpanded = isTabletSidebarExpanded,
+                        isLoading = isLoading,
+                        navGroups = navGroups,
+                        navItems = navItems,
+                        isNetworkAvailable = isNetworkAvailable,
+                        networkType = networkType,
+                        navController = navController,
+                        scope = scope,
+                        drawerState = drawerState,
+                        showFpsCounter = showFpsCounter,
+                        tabletSidebarWidth = tabletSidebarWidth,
+                        collapsedTabletSidebarWidth = collapsedTabletSidebarWidth,
+                        onScreenChange = { screen -> navigateTo(screen) },
+                        onNavItemChange = { item ->
+                            navigateTo(
+                                    OperitRouter.getScreenForNavItem(item),
+                                    fromDrawer = true
+                            )
+                        },
+                        onToggleSidebar = {
+                                isTabletSidebarExpanded = !isTabletSidebarExpanded
+                        },
+                        navigateToTokenConfig = ::navigateToTokenConfig,
+                        canGoBack = canGoBack,
+                        onGoBack = ::goBack,
+                        isNavigatingBack = isNavigatingBack,
+                        topBarActions = { topBarActions() }
+                )
+            } else {
+                // Phone layout
+                PhoneLayout(
+                        currentScreen = currentScreen,
+                        selectedItem = selectedItem,
+                        isLoading = isLoading,
+                        navGroups = navGroups,
+                        isNetworkAvailable = isNetworkAvailable,
+                        networkType = networkType,
+                        drawerWidth = drawerWidth,
+                        navController = navController,
+                        scope = scope,
+                        drawerState = drawerState,
+                        showFpsCounter = showFpsCounter,
+                        onScreenChange = { screen -> navigateTo(screen) },
+                        onNavItemChange = { item ->
+                            navigateTo(
+                                    OperitRouter.getScreenForNavItem(item),
+                                    fromDrawer = true
+                            )
+                        },
+                        navigateToTokenConfig = ::navigateToTokenConfig,
+                        canGoBack = canGoBack,
+                        onGoBack = ::goBack,
+                        isNavigatingBack = isNavigatingBack,
+                        topBarActions = { topBarActions() }
+                )
+            }
         }
     }
 }

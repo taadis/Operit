@@ -13,7 +13,10 @@ data class ChatEntity(
         val createdAt: Long = System.currentTimeMillis(),
         val updatedAt: Long = System.currentTimeMillis(),
         val inputTokens: Int = 0,
-        val outputTokens: Int = 0
+        val outputTokens: Int = 0,
+        val group: String? = null,
+        val displayOrder: Long = -createdAt,
+        val workspace: String? = null
 ) {
     /** 转换为ChatHistory对象（供UI层使用） */
     fun toChatHistory(messages: List<ChatMessage>): ChatHistory {
@@ -24,13 +27,17 @@ data class ChatEntity(
                 createdAt = LocalDateTime.now(), // 需要进一步转换
                 updatedAt = LocalDateTime.now(), // 需要进一步转换
                 inputTokens = inputTokens,
-                outputTokens = outputTokens
+                outputTokens = outputTokens,
+                group = group,
+                displayOrder = displayOrder,
+                workspace = workspace
         )
     }
 
     companion object {
         /** 从ChatHistory创建ChatEntity */
         fun fromChatHistory(chatHistory: ChatHistory): ChatEntity {
+            val now = System.currentTimeMillis()
             return ChatEntity(
                     id = chatHistory.id,
                     title = chatHistory.title,
@@ -39,15 +46,18 @@ data class ChatEntity(
                                     .createdAt
                                     ?.toEpochSecond(java.time.ZoneOffset.UTC)
                                     ?.times(1000)
-                                    ?: System.currentTimeMillis(),
+                                    ?: now,
                     updatedAt =
                             chatHistory
                                     .updatedAt
                                     ?.toEpochSecond(java.time.ZoneOffset.UTC)
                                     ?.times(1000)
-                                    ?: System.currentTimeMillis(),
+                                    ?: now,
                     inputTokens = chatHistory.inputTokens,
-                    outputTokens = chatHistory.outputTokens
+                    outputTokens = chatHistory.outputTokens,
+                    group = chatHistory.group,
+                    displayOrder = if (chatHistory.displayOrder != 0L) chatHistory.displayOrder else -now,
+                    workspace = chatHistory.workspace
             )
         }
     }

@@ -35,7 +35,7 @@ class MessageProcessingDelegate(
         private val updateChatStatistics: () -> Unit,
         private val saveCurrentChat: () -> Unit,
         private val showErrorMessage: (String) -> Unit,
-        private val updateChatTitle: (String) -> Unit,
+        private val updateChatTitle: (chatId: String, title: String) -> Unit,
         private val onStreamComplete: () -> Unit
 ) {
     companion object {
@@ -84,6 +84,7 @@ class MessageProcessingDelegate(
     fun sendUserMessage(
             attachments: List<AttachmentInfo> = emptyList(),
             chatId: String? = null,
+            workspacePath: String? = null,
             promptFunctionType: PromptFunctionType = PromptFunctionType.CHAT
     ) {
         if (_userMessage.value.isBlank() && attachments.isEmpty()) return
@@ -97,14 +98,14 @@ class MessageProcessingDelegate(
 
         // 检查这是否是聊天中的第一条用户消息
         val isFirstMessage = getChatHistory().none { it.sender == "user" || it.sender == "ai" }
-        if (isFirstMessage) {
+        if (isFirstMessage && chatId != null) {
             val newTitle =
                     when {
                         messageText.isNotBlank() -> messageText
                         attachments.isNotEmpty() -> attachments.first().fileName
                         else -> "新对话"
                     }
-            updateChatTitle(newTitle)
+            updateChatTitle(chatId, newTitle)
         }
 
         Log.d(TAG, "开始处理用户消息：附件数量=${attachments.size}")
@@ -140,7 +141,7 @@ class MessageProcessingDelegate(
                         service.sendMessage(
                                 finalMessage,
                                 history,
-                                chatId,
+                                workspacePath,
                                 promptFunctionType = promptFunctionType
                         )
 
@@ -294,7 +295,7 @@ class MessageProcessingDelegate(
                     _inputProcessingMessage.value = state.message
                 }
                 is EnhancedInputProcessingState.Receiving -> {
-                    _isLoading.value = true
+                    _isLoading.value = false
                     _isProcessingInput.value = true
                     _inputProcessingMessage.value = state.message
                 }

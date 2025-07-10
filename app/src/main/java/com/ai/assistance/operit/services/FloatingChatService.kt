@@ -31,6 +31,7 @@ import com.ai.assistance.operit.services.floating.FloatingWindowCallback
 import com.ai.assistance.operit.services.floating.FloatingWindowManager
 import com.ai.assistance.operit.services.floating.FloatingWindowState
 import com.ai.assistance.operit.ui.features.chat.attachments.AttachmentManager
+import com.ai.assistance.operit.ui.floating.FloatingMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -236,6 +237,18 @@ class FloatingChatService : Service(), FloatingWindowCallback {
 
         try {
             acquireWakeLock()
+
+            // Handle initial mode from intent
+            intent?.getStringExtra("INITIAL_MODE")?.let { modeName ->
+                try {
+                    val mode = FloatingMode.valueOf(modeName)
+                    windowState.currentMode.value = mode
+                    Log.d(TAG, "Set mode from intent: $mode")
+                } catch (e: IllegalArgumentException) {
+                    Log.w(TAG, "Invalid mode name in intent: $modeName")
+                }
+            }
+
             if (intent?.hasExtra("CHAT_MESSAGES") == true) {
                 val messagesArray = intent.getParcelableArrayExtra("CHAT_MESSAGES")
                 if (messagesArray != null) {
@@ -403,5 +416,10 @@ class FloatingChatService : Service(), FloatingWindowCallback {
         } else {
             null
         }
+    }
+
+    fun switchToMode(mode: FloatingMode) {
+        windowState.currentMode.value = mode
+        Log.d(TAG, "Switching to mode: $mode")
     }
 }

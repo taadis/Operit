@@ -19,10 +19,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.PopupProperties
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.PromptProfile
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.PromptPreferencesManager
@@ -132,7 +134,7 @@ fun ModelPromptsSettingsScreen(
             ) {
                 Icon(
                     if (editMode) Icons.Default.Check else Icons.Default.Edit,
-                    contentDescription = if (editMode) "保存提示词" else "编辑提示词"
+                    contentDescription = if (editMode) stringResource(R.string.save_prompts) else stringResource(R.string.edit_preferences)
                 )
             }
         }
@@ -164,7 +166,7 @@ fun ModelPromptsSettingsScreen(
                         ) {
                             // 配置文件选择标签 - 更大的字体
                             Text(
-                                "请选择提示词配置",
+                                stringResource(R.string.select_prompt_config),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurface,
@@ -188,14 +190,14 @@ fun ModelPromptsSettingsScreen(
                                 )
                                 Spacer(modifier = Modifier.width(2.dp))
                                 Text(
-                                    "新建",
+                                    stringResource(R.string.create_new),
                                     fontSize = 12.sp,
                                     style = MaterialTheme.typography.labelSmall
                                 )
                             }
                         }
                         
-                        val selectedProfileName = profileNameMap[selectedProfileId] ?: "默认配置"
+                        val selectedProfileName = profileNameMap[selectedProfileId] ?: stringResource(R.string.unnamed_config)
                         
                         Surface(
                             modifier = Modifier
@@ -232,7 +234,7 @@ fun ModelPromptsSettingsScreen(
                                 ) { expanded ->
                                     Icon(
                                         if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                        contentDescription = "选择配置",
+                                        contentDescription = stringResource(R.string.select_model),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
@@ -253,13 +255,13 @@ fun ModelPromptsSettingsScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                                 Text(
-                                        text = "为功能分配提示词配置",
+                                        text = stringResource(R.string.manage_all_prompts),
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.Medium
                                 )
                                 Icon(
                                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                        contentDescription = "为功能分配提示词配置",
+                                        contentDescription = stringResource(R.string.manage_all_prompts),
                                         tint = MaterialTheme.colorScheme.primary
                                 )
                         }
@@ -290,7 +292,7 @@ fun ModelPromptsSettingsScreen(
                                         modifier = Modifier.size(16.dp)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("删除", fontSize = 14.sp)
+                                    Text(stringResource(R.string.delete_config), fontSize = 14.sp)
                                 }
                             }
                         }
@@ -304,7 +306,7 @@ fun ModelPromptsSettingsScreen(
                         properties = PopupProperties(focusable = true)
                     ) {
                         profileList.forEach { profileId ->
-                            val profileName = profileNameMap[profileId] ?: "未命名配置"
+                            val profileName = profileNameMap[profileId] ?: stringResource(R.string.unnamed_config)
                             val isSelected = profileId == selectedProfileId
                             
                             DropdownMenuItem(
@@ -374,14 +376,14 @@ fun ModelPromptsSettingsScreen(
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "自定义系统提示词",
+                                        text = stringResource(R.string.custom_system_prompts),
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
 
                                 Text(
-                                    text = "定制AI的行为和语气风格",
+                                    text = stringResource(R.string.customize_ai_behavior),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(bottom = 16.dp)
@@ -389,7 +391,7 @@ fun ModelPromptsSettingsScreen(
 
                                 // AI self-introduction prompt
                                 Text(
-                                    text = "AI自我介绍",
+                                    text = stringResource(R.string.ai_self_introduction),
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.padding(bottom = 4.dp)
@@ -400,7 +402,7 @@ fun ModelPromptsSettingsScreen(
                                                 if (editMode) introPromptInput
                                                 else profile.introPrompt,
                                     onValueChange = { if (editMode) introPromptInput = it },
-                                    label = { Text("自我介绍提示词") },
+                                    label = { Text(stringResource(R.string.intro_prompt)) },
                                     modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
                                     placeholder = { Text(defaultIntroPrompt) },
                                     minLines = 3,
@@ -409,7 +411,7 @@ fun ModelPromptsSettingsScreen(
 
                                 // AI tone and style prompt
                                 Text(
-                                    text = "AI语气风格",
+                                    text = stringResource(R.string.ai_tone_style),
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.padding(bottom = 4.dp, top = 8.dp)
@@ -420,7 +422,7 @@ fun ModelPromptsSettingsScreen(
                                                 if (editMode) tonePromptInput
                                                 else profile.tonePrompt,
                                     onValueChange = { if (editMode) tonePromptInput = it },
-                                    label = { Text("语气风格提示词") },
+                                    label = { Text(stringResource(R.string.tone_prompt)) },
                                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                                     placeholder = { Text(defaultTonePrompt) },
                                     minLines = 3,
@@ -437,7 +439,7 @@ fun ModelPromptsSettingsScreen(
                                                 introPromptInput = defaultIntroPrompt
                                                 tonePromptInput = defaultTonePrompt
                                             }
-                                        ) { Text("恢复默认提示词") }
+                                        ) { Text(stringResource(R.string.restore_default_prompts)) }
 
                                         Spacer(modifier = Modifier.width(8.dp))
 
@@ -445,7 +447,7 @@ fun ModelPromptsSettingsScreen(
                                             onClick = {
                                                 savePrompts()
                                             }
-                                        ) { Text("保存提示词") }
+                                        ) { Text(stringResource(R.string.save_prompts)) }
                                     }
                                 }
                             }
@@ -478,25 +480,31 @@ fun ModelPromptsSettingsScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "关于系统提示词",
+                                text = stringResource(R.string.about_system_prompts),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
                         }
 
                         Text(
-                            text = "系统提示词用于定义AI助手的行为和风格：",
+                            text = stringResource(R.string.system_prompts_desc),
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
 
                         Column(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-                            PromptInfoRow("自我介绍", "定义AI的身份和能力范围")
-                            PromptInfoRow("语气风格", "设置AI回复的语气和表达方式")
+                            PromptInfoRow(
+                                title = stringResource(R.string.ai_self_introduction), 
+                                description = stringResource(R.string.intro_prompt_desc)
+                            )
+                            PromptInfoRow(
+                                title = stringResource(R.string.ai_tone_style), 
+                                description = stringResource(R.string.tone_prompt_desc)
+                            )
                         }
                         
                         Text(
-                            text = "提示：有效的系统提示词能让AI助手更好地符合您的期望，但过长的提示词可能会消耗更多Token。",
+                            text = stringResource(R.string.prompt_tip),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -525,7 +533,7 @@ fun ModelPromptsSettingsScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "提示词已保存",
+                                text = stringResource(R.string.prompts_saved),
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Bold
                             )
@@ -550,7 +558,7 @@ fun ModelPromptsSettingsScreen(
             },
             title = {
                 Text(
-                    "新建提示词配置",
+                    stringResource(R.string.new_prompt_config_title),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -558,7 +566,7 @@ fun ModelPromptsSettingsScreen(
             text = {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        "创建新的提示词配置，个性化AI助手行为",
+                        stringResource(R.string.new_prompt_config_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -566,8 +574,8 @@ fun ModelPromptsSettingsScreen(
                     OutlinedTextField(
                         value = newProfileName,
                         onValueChange = { newProfileName = it },
-                        label = { Text("配置名称", fontSize = 12.sp) },
-                        placeholder = { Text("例如: 工作助手、学习助手...", fontSize = 12.sp) },
+                        label = { Text(stringResource(R.string.config_name), fontSize = 12.sp) },
+                        placeholder = { Text(stringResource(R.string.config_name_placeholder), fontSize = 12.sp) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(8.dp),
                         singleLine = true
@@ -590,7 +598,7 @@ fun ModelPromptsSettingsScreen(
                         }
                     },
                     shape = RoundedCornerShape(8.dp)
-                ) { Text("创建", fontSize = 13.sp) }
+                ) { Text(stringResource(R.string.create), fontSize = 13.sp) }
             },
             dismissButton = {
                 TextButton(
@@ -598,7 +606,7 @@ fun ModelPromptsSettingsScreen(
                         showAddProfileDialog = false
                         newProfileName = ""
                     }
-                ) { Text("取消", fontSize = 13.sp) }
+                ) { Text(stringResource(R.string.cancel), fontSize = 13.sp) }
             },
             shape = RoundedCornerShape(12.dp)
         )

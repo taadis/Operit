@@ -17,6 +17,7 @@ import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.model.toSerializable
 import com.ai.assistance.operit.data.preferences.PromptFunctionType
 import com.ai.assistance.operit.services.FloatingChatService
+import com.ai.assistance.operit.ui.floating.FloatingMode
 import com.ai.assistance.operit.util.stream.SharedStream
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -97,6 +98,41 @@ class FloatingWindowDelegate(
             context.stopService(Intent(context, FloatingChatService::class.java))
             floatingService = null
         }
+    }
+
+    /**
+     * 启动悬浮窗并指定一个初始模式
+     */
+    fun launchInMode(
+            mode: FloatingMode,
+            colorScheme: ColorScheme? = null,
+            typography: Typography? = null
+    ) {
+        if (_isFloatingMode.value && floatingService != null) {
+            // 如果服务已在运行，直接切换模式
+            floatingService?.switchToMode(mode)
+            Log.d(TAG, "悬浮窗已在运行，直接切换到模式: $mode")
+            return
+        }
+
+        _isFloatingMode.value = true
+
+        val intent = Intent(context, FloatingChatService::class.java)
+        // 添加初始模式参数
+        intent.putExtra("INITIAL_MODE", mode.name)
+
+        colorScheme?.let {
+            intent.putExtra("COLOR_SCHEME", it.toSerializable())
+        }
+        typography?.let {
+            intent.putExtra("TYPOGRAPHY", it.toSerializable())
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.startForegroundService(intent)
+        } else {
+            context.startService(intent)
+        }
+        context.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
     }
 
     /**

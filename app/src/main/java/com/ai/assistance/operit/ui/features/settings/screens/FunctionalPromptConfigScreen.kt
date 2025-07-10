@@ -16,8 +16,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.PromptProfile
 import com.ai.assistance.operit.data.preferences.FunctionalPromptManager
 import com.ai.assistance.operit.data.preferences.PromptFunctionType
@@ -125,7 +127,7 @@ fun FunctionalPromptConfigScreen(
                                                                                 Modifier.width(8.dp)
                                                                 )
                                                                 Text(
-                                                                        text = "功能提示词配置设置",
+                                                                        text = stringResource(R.string.functional_prompt_title),
                                                                         style =
                                                                                 MaterialTheme
                                                                                         .typography
@@ -135,8 +137,7 @@ fun FunctionalPromptConfigScreen(
                                                         }
 
                                                         Text(
-                                                                text =
-                                                                        "为不同功能设置单独的提示词配置，使每个功能都能使用最适合的提示词。",
+                                                                text = stringResource(R.string.functional_prompt_desc),
                                                                 style =
                                                                         MaterialTheme.typography
                                                                                 .bodyMedium,
@@ -174,8 +175,7 @@ fun FunctionalPromptConfigScreen(
                                                                         Arrangement.SpaceBetween
                                                         ) {
                                                                 Text(
-                                                                        text =
-                                                                                "管理所有提示词配置",
+                                                                        text = stringResource(R.string.manage_all_prompts),
                                                                         style =
                                                                                 MaterialTheme
                                                                                         .typography
@@ -188,8 +188,7 @@ fun FunctionalPromptConfigScreen(
                                                                                 Icons.AutoMirrored
                                                                                         .Filled
                                                                                         .ArrowForward,
-                                                                        contentDescription =
-                                                                                "管理提示词配置",
+                                                                        contentDescription = stringResource(R.string.manage_all_prompts),
                                                                         tint =
                                                                                 MaterialTheme
                                                                                         .colorScheme
@@ -256,7 +255,7 @@ fun FunctionalPromptConfigScreen(
                                                         modifier = Modifier.size(18.dp)
                                                 )
                                                 Spacer(modifier = Modifier.width(8.dp))
-                                                Text("重置所有功能至默认提示词配置")
+                                                Text(stringResource(R.string.reset_all_functions))
                                         }
 
                                         // 成功提示
@@ -297,7 +296,7 @@ fun FunctionalPromptConfigScreen(
                                                                                 Modifier.width(8.dp)
                                                                 )
                                                                 Text(
-                                                                        text = "配置已保存",
+                                                                        text = stringResource(R.string.config_saved),
                                                                         color =
                                                                                 MaterialTheme
                                                                                         .colorScheme
@@ -326,6 +325,7 @@ fun FunctionPromptCard(
         onProfileSelected: (String) -> Unit
 ) {
         var expanded by remember { mutableStateOf(false) }
+        val context = LocalContext.current
 
         Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -342,13 +342,13 @@ fun FunctionPromptCard(
                         // 功能标题和描述
                         Column(modifier = Modifier.padding(16.dp)) {
                                 Text(
-                                        text = getFunctionDisplayName(functionType),
+                                        text = getFunctionDisplayName(functionType, context),
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold
                                 )
 
                                 Text(
-                                        text = getFunctionDescription(functionType),
+                                        text = getFunctionDescription(functionType, context),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -374,8 +374,10 @@ fun FunctionPromptCard(
                                         ) {
                                                 Column {
                                                         Text(
-                                                                text =
-                                                                        "当前提示词配置: ${currentProfile?.name ?: "默认配置"}",
+                                                                text = stringResource(
+                                                                    R.string.current_prompt_config, 
+                                                                    currentProfile?.name ?: stringResource(R.string.unnamed_config)
+                                                                ),
                                                                 style =
                                                                         MaterialTheme.typography
                                                                                 .bodyMedium,
@@ -384,8 +386,10 @@ fun FunctionPromptCard(
 
                                                         if (currentProfile != null) {
                                                                 Text(
-                                                                        text =
-                                                                                "自我介绍: ${currentProfile.introPrompt.take(30)}...",
+                                                                        text = stringResource(
+                                                                            R.string.intro_preview, 
+                                                                            currentProfile.introPrompt.take(30)
+                                                                        ),
                                                                         style =
                                                                                 MaterialTheme
                                                                                         .typography
@@ -406,7 +410,7 @@ fun FunctionPromptCard(
                                                                 else
                                                                         Icons.Default
                                                                                 .KeyboardArrowDown,
-                                                        contentDescription = "展开",
+                                                        contentDescription = stringResource(R.string.expand),
                                                         tint =
                                                                 MaterialTheme.colorScheme
                                                                         .onSurfaceVariant
@@ -425,7 +429,7 @@ fun FunctionPromptCard(
                                                 )
                                 ) {
                                         Text(
-                                                text = "选择提示词配置",
+                                                text = stringResource(R.string.select_prompt_config_title),
                                                 style = MaterialTheme.typography.labelMedium,
                                                 fontWeight = FontWeight.Medium,
                                                 modifier = Modifier.padding(bottom = 8.dp)
@@ -490,8 +494,7 @@ fun FunctionPromptCard(
                                                                                 imageVector =
                                                                                         Icons.Default
                                                                                                 .Check,
-                                                                                contentDescription =
-                                                                                        "已选择",
+                                                                                contentDescription = stringResource(R.string.status_granted),
                                                                                 tint =
                                                                                         MaterialTheme
                                                                                                 .colorScheme
@@ -540,12 +543,10 @@ fun FunctionPromptCard(
                                                                         )
 
                                                                         Text(
-                                                                                text =
-                                                                                        profile.introPrompt
-                                                                                                .take(
-                                                                                                        30
-                                                                                                ) +
-                                                                                                "...",
+                                                                                text = stringResource(
+                                                                                    R.string.intro_preview, 
+                                                                                    profile.introPrompt.take(30)
+                                                                                ),
                                                                                 style =
                                                                                         MaterialTheme
                                                                                                 .typography
@@ -574,19 +575,19 @@ fun FunctionPromptCard(
 }
 
 // 获取功能类型的显示名称
-fun getFunctionDisplayName(functionType: PromptFunctionType): String {
+fun getFunctionDisplayName(functionType: PromptFunctionType, context: android.content.Context): String {
         return when (functionType) {
-                PromptFunctionType.CHAT -> "对话功能"
-                PromptFunctionType.VOICE -> "语音功能"
-                PromptFunctionType.DESKTOP_PET -> "桌宠功能"
+                PromptFunctionType.CHAT -> context.getString(R.string.chat_function)
+                PromptFunctionType.VOICE -> context.getString(R.string.voice_function)
+                PromptFunctionType.DESKTOP_PET -> context.getString(R.string.desktop_pet_function)
         }
 }
 
 // 获取功能类型的描述
-fun getFunctionDescription(functionType: PromptFunctionType): String {
+fun getFunctionDescription(functionType: PromptFunctionType, context: android.content.Context): String {
         return when (functionType) {
-                PromptFunctionType.CHAT -> "主要的对话功能，自定义聊天机器人的提示词配置"
-                PromptFunctionType.VOICE -> "语音互动功能，自定义语音助手的提示词配置"
-                PromptFunctionType.DESKTOP_PET -> "桌面宠物功能，自定义桌宠的性格和互动方式"
+                PromptFunctionType.CHAT -> context.getString(R.string.chat_function_desc)
+                PromptFunctionType.VOICE -> context.getString(R.string.voice_function_desc)
+                PromptFunctionType.DESKTOP_PET -> context.getString(R.string.desktop_pet_function_desc)
         }
 }

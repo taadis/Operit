@@ -17,12 +17,57 @@
     <string name="nav_about">About</string>
     <string name="nav_packages">Packages</string>
     <string name="nav_problem_library">Problem Library</string>
+    <string name="nav_assistant_config">Assistant Config</string>
     <string name="nav_terminal">Terminal</string>
     <string name="nav_toolbox">Toolbox</string>
     <string name="nav_item_agreement">User Agreement</string>
     <string name="nav_help">Help Center</string>
     <string name="menu">Menu</string>
     <string name="token_config">Get API Key</string>
+    
+    <!-- Assistant Config Screen -->
+    <string name="assistant_config_title">Assistant Config</string>
+    <string name="import_model">Import Model</string>
+    <string name="scan_user_models">Scan User Models</string>
+    <string name="operation_success">Operation Successful</string>
+    <string name="error_occurred_simple">Error Occurred</string>
+    <string name="function_config_title">Function Configuration</string>
+    <string name="function_config_desc">Chat, Voice and Desktop Pet will automatically select corresponding prompt configurations based on usage</string>
+    <string name="user_personality">User Personality</string>
+    <string name="not_configured">Not Configured</string>
+    <string name="function_prompt">Function Prompt</string>
+    <string name="function_model">Function Model</string>
+    <string name="importing_model">Importing model...</string>
+    <string name="processing">Processing...</string>
+    <string name="error_occurred">Error occurred: %1$s</string>
+    <string name="dragon_bones_config">DragonBones Config</string>
+    <string name="collapse">Collapse</string>
+    <string name="expand">Expand</string>
+    <string name="select_model">Select Model</string>
+    <string name="current_model">Current Model</string>
+    <string name="scale">Scale: %1$s</string>
+    <string name="x_translation">X Translation: %1$s</string>
+    <string name="y_translation">Y Translation: %1$s</string>
+    <string name="confirm_delete_model_title">Confirm Delete Model?</string>
+    <string name="confirm_delete_model_message">This action cannot be undone. Are you sure you want to delete this model?</string>
+    <string name="delete">Delete</string>
+    <string name="cancel">Cancel</string>
+    <string name="no_models_available">No models available</string>
+    <string name="please_select_model">Please select a model</string>
+    <string name="how_to_import">How to create and import models?</string>
+    <string name="enter">Enter</string>
+    <string name="dragon_bones_renamed">DragonBones has been renamed to LoongBones, and a new online editor has been launched.\nLoongBones supports professional animation features like IK, mesh deformation, and bone binding.</string>
+    <string name="making_models">1. Creating Models:</string>
+    <string name="making_models_desc">    · Recommended: Use the new online editor.\n    · Alternative: Download the old v5.6.3 offline editor from third-party archive sites.</string>
+    <string name="exporting_files">2. Exporting Files:</string>
+    <string name="exporting_files_desc">    · Regardless of which version you use, when exporting data, select JSON for type and version 5.5 (current version doesn\'t support 6.0 runtime).\n    · The core export files are: *_ske.json, *_tex.json, *_tex.png.</string>
+    <string name="configuring_interaction">3. Configuring Interaction:</string>
+    <string name="configuring_interaction_desc">    · For head tracking, add an IK constraint and name the target bone \"ik_target\".\n    · idle animation: Make sure you have an animation named \"idle\" as the base idle animation, which will automatically loop.\n    · Random animations: You can add animations like blink, shake_head, wag_tail, etc.,\n      the system will randomly trigger these animations to enrich the pet\'s expression.</string>
+    <string name="packaging_and_importing">4. Packaging and Importing:</string>
+    <string name="packaging_and_importing_desc">    · Package the three exported files into one .zip file for import.</string>
+    <string name="important_tip">Important Note: In the old editor download page, the Windows and Mac download links are reversed. Please make sure to select the correct link.</string>
+    <string name="download_old_editor">Download Old Editor</string>
+    <string name="visit_online_editor">Visit Online Editor</string>
     
     <!-- NavItem class identifiers -->
     <string name="shizuku_commands">Permissions</string>
@@ -340,7 +385,6 @@
     <string name="preferences_hint">Enter your personal introduction (max 100 characters)</string>
     <string name="enter_preferences">Enter your personal introduction here...</string>
     <string name="save">Save</string>
-    <string name="cancel">Cancel</string>
     <string name="edit_preferences">Edit Preferences</string>
     <string name="reset_preferences">Reset Preferences</string>
     <string name="set_preferences">Set Preferences</string>
@@ -454,7 +498,6 @@
     <string name="paste">Paste</string>
     <string name="share">Share</string>
     <string name="rename">Rename</string>
-    <string name="delete">Delete</string>
     <string name="loading_files">Loading files...</string>
 
     <!-- ErrorDialog -->
@@ -470,7 +513,6 @@
     <string name="secure_connection_failed">Secure connection failed</string>
     <string name="request_timeout">Request timeout, please try again later</string>
     <string name="network_transfer_failed">Network transfer failed, please check your connection</string>
-    <string name="error_occurred">Error occurred: %1$s</string>
     <string name="try_again_later">Request failed, please try again later</string>
 
     <!-- Permission Guide Screen -->
@@ -640,7 +682,7 @@
     <string name="shizuku_demo_termux_download_failed">Cannot open download link, please download and install Termux manually</string>
     <string name="shizuku_demo_termux_tuna_skipped">Skipped Tuna mirror configuration, you can configure the mirror in Termux later</string>
 
-    <!-- 权限级别卡片 -->
+    <!-- Permission Level Cards -->
     <string name="permission_level">Permission Level</string>
     <string name="permission_level_icon">Permission Level Icon</string>
     <string name="set_as_current_level">Set as Current Level</string>
@@ -727,4 +769,101 @@
     <string name="termux_manual_setting_failed">Cannot open Termux, please set manually</string>
     <string name="open_settings">Open Settings</string>
     <string name="cannot_open_settings">Cannot open settings</string>
+
+    <string name="text_to_speech_engine_initialized">Text-to-speech engine initialized</string>
+    <string name="text_to_speech_engine_init_failed">Failed to initialize text-to-speech engine</string>
+    <string name="text_to_speech_not_supported">Text-to-speech is not supported on this device</string>
+    <string name="speech_error_model_not_found">Speech model not found in assets: %s</string>
+    <string name="speech_error_init_failed">Failed to initialize speech recognition engine</string>
+    <string name="speech_error_not_initialized">Speech recognition engine not initialized</string>
+    <string name="title_activity_crash_report">Application Error</string>
+
+    <!-- Crash Report Screen -->
+    <string name="crash_report_header">The application has encountered an unrecoverable error and needs to restart.</string>
+    <string name="crash_report_restart_button">Restart Application</string>
+    <string name="crash_report_details_title">Error Details</string>
+    <string name="crash_report_copy_button">Copy</string>
+    <string name="crash_report_export_button">Export</string>
+    <string name="crash_report_copy_success">Copied to clipboard</string>
+    <string name="crash_report_export_success">Error report exported to\n%1$s</string>
+    <string name="crash_report_export_failed">Export failed: %1$s</string>
+    
+    <!-- Model Prompts Settings Screen -->
+    <string name="model_prompts_title">Prompt Settings</string>
+    <string name="select_prompt_config">Select Prompt Configuration</string>
+    <string name="create_new">New</string>
+    <string name="manage_all_prompts">Manage All Prompt Configurations</string>
+    <string name="custom_system_prompts">Custom System Prompts</string>
+    <string name="customize_ai_behavior">Customize AI Behavior and Tone</string>
+    <string name="ai_self_introduction">AI Self-Introduction</string>
+    <string name="intro_prompt">Introduction Prompt</string>
+    <string name="ai_tone_style">AI Tone &amp; Style</string>
+    <string name="tone_prompt">Tone &amp; Style Prompt</string>
+    <string name="restore_default_prompts">Restore Default Prompts</string>
+    <string name="save_prompts">Save Prompts</string>
+    <string name="about_system_prompts">About System Prompts</string>
+    <string name="system_prompts_desc">System prompts define AI assistant behavior and style:</string>
+    <string name="intro_prompt_desc">Defines AI identity and capabilities</string>
+    <string name="tone_prompt_desc">Sets tone and expression style of AI responses</string>
+    <string name="prompt_tip">Tip: Effective system prompts help the AI assistant better meet your expectations, but longer prompts may consume more tokens.</string>
+    <string name="prompts_saved">Prompts Saved</string>
+    <string name="new_prompt_config_title">New Prompt Configuration</string>
+    <string name="new_prompt_config_desc">Create a new prompt configuration to personalize AI assistant behavior</string>
+    <string name="config_name">Configuration Name</string>
+    <string name="config_name_placeholder">Example: Work Assistant, Study Assistant...</string>
+    <string name="create">Create</string>
+    <string name="unnamed_config">Unnamed Configuration</string>
+    <string name="delete_config">Delete</string>
+    
+    <!-- Functional Prompt Config Screen -->
+    <string name="functional_prompt_title">Functional Prompt Configuration</string>
+    <string name="functional_prompt_desc">Set separate prompt configurations for different functions, so each function can use the most suitable prompts.</string>
+    <string name="current_prompt_config">Current prompt config: %1$s</string>
+    <string name="intro_preview">Introduction: %1$s...</string>
+    <string name="select_prompt_config_title">Select Prompt Configuration</string>
+    <string name="reset_all_functions">Reset All Functions to Default Prompt Configurations</string>
+    <string name="config_saved">Configuration Saved</string>
+    <string name="chat_function">Chat Function</string>
+    <string name="chat_function_desc">Main conversation function, customize chatbot prompt configuration</string>
+    <string name="voice_function">Voice Function</string>
+    <string name="voice_function_desc">Voice interaction function, customize voice assistant prompt configuration</string>
+    <string name="desktop_pet_function">Desktop Pet Function</string>
+    <string name="desktop_pet_function_desc">Desktop pet function, customize pet personality and interaction style</string>
+    
+    <!-- Settings Screen Additional Strings -->
+    <string name="settings_prompt_section">Prompt Configuration</string>
+    <string name="settings_prompt_title">Prompt Configuration</string>
+    <string name="settings_prompt_desc">Customize AI assistant behavior and personality prompts</string>
+    <string name="settings_configure_prompt">Configure Prompts</string>
+    <string name="settings_functional_prompt_title">Functional Prompt Configuration</string>
+    <string name="settings_functional_prompt_desc">Set dedicated prompts for different functions (chat, voice, desktop pet)</string>
+    <string name="settings_configure_functional_prompt">Configure Functional Prompts</string>
+    <string name="settings_appearance_section">Appearance</string>
+
+    <!-- About Screen -->
+    <string name="check_for_updates">Check for Updates</string>
+    <string name="checking_updates">Checking...</string>
+    <string name="new_version_found">New Version Available</string>
+    <string name="check_complete">Check Complete</string>
+    <string name="check_failed">Check Failed</string>
+    <string name="update_check">Update Check</string>
+    <string name="current_version">Current version: %1$s</string>
+    <string name="new_version">Current version: %1$s\nNew version: %2$s</string>
+    <string name="update_content">Update Content:</string>
+    <string name="already_latest_version">Already on the latest version: %1$s</string>
+    <string name="download">Download</string>
+    <string name="ok">OK</string>
+    <string name="close">Close</string>
+    <string name="select_download_source">Select Download Source</string>
+    <string name="select_download_source_desc">Please select a download source suitable for your network:</string>
+    <string name="china_mirror">China Accelerated Mirror</string>
+    <string name="china_mirror_desc">Accelerated via ghfast.top, recommended for users in China</string>
+    <string name="github_source">GitHub Original Link</string>
+    <string name="github_source_desc">Download directly from GitHub official servers, may be slower</string>
+    <string name="developer">Developer</string>
+    <string name="contact">Contact</string>
+    <string name="project_url">Project URL</string>
+    <string name="open_source_licenses">Open Source Licenses</string>
+    <string name="license_format">License: %1$s</string>
+    <string name="visit_project">Visit Project</string>
 </resources> 

@@ -249,9 +249,6 @@ class EnhancedAIService private constructor(private val context: Context) {
     // Package manager for handling tool packages
     private val packageManager = PackageManager.getInstance(context, toolHandler)
 
-    // Current chat ID for web workspace
-    private var currentChatId: String? = null
-
     init {
         toolHandler.registerDefaultTools()
     }
@@ -397,7 +394,7 @@ class EnhancedAIService private constructor(private val context: Context) {
     suspend fun sendMessage(
             message: String,
             chatHistory: List<Pair<String, String>> = emptyList(),
-            chatId: String? = null,
+            workspacePath: String? = null,
             functionType: FunctionType = FunctionType.CHAT,
             promptFunctionType: PromptFunctionType = PromptFunctionType.CHAT
     ): Stream<String> {
@@ -411,9 +408,6 @@ class EnhancedAIService private constructor(private val context: Context) {
                 withContext(Dispatchers.IO) {
                     // 仅当会话首次启动时开启服务
                     startAiService()
-
-                    // Store the chat ID for web workspace
-                    currentChatId = chatId
 
                     // Mark conversation as active
                     isConversationActive.set(true)
@@ -433,6 +427,7 @@ class EnhancedAIService private constructor(private val context: Context) {
                             prepareConversationHistory(
                                     chatHistory,
                                     processedInput,
+                                    workspacePath,
                                     promptFunctionType
                             )
 
@@ -1168,12 +1163,13 @@ class EnhancedAIService private constructor(private val context: Context) {
     private suspend fun prepareConversationHistory(
             chatHistory: List<Pair<String, String>>,
             processedInput: String,
+            workspacePath: String?,
             promptFunctionType: PromptFunctionType
     ): MutableList<Pair<String, String>> {
         return conversationService.prepareConversationHistory(
                 chatHistory,
                 processedInput,
-                currentChatId,
+                workspacePath,
                 conversationHistory,
                 packageManager,
                 promptFunctionType

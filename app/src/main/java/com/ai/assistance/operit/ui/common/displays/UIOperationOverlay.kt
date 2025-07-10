@@ -19,6 +19,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,6 +31,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -43,12 +46,14 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.ai.assistance.operit.services.ServiceLifecycleOwner
+import java.util.UUID
 import kotlinx.coroutines.delay
 
 /**
@@ -61,17 +66,18 @@ class UIOperationOverlay(private val context: Context) {
     private var overlayView: ComposeView? = null
     private var lifecycleOwner: ServiceLifecycleOwner? = null
     
-    // UI状态
-    private val operationType = mutableStateOf<OperationType>(OperationType.None)
-    private val tapPosition = mutableStateOf(Pair(0, 0))
-    private val swipeStart = mutableStateOf(Pair(0, 0))
-    private val swipeEnd = mutableStateOf(Pair(0, 0))
-    private val textInputPosition = mutableStateOf(Pair(0, 0))
-    private val textValue = mutableStateOf("")
+    // 为每个操作定义一个带唯一ID的数据类
+    data class TapEvent(val x: Int, val y: Int, val id: UUID = UUID.randomUUID())
+    data class SwipeEvent(val startX: Int, val startY: Int, val endX: Int, val endY: Int, val id: UUID = UUID.randomUUID())
+    data class TextInputEvent(val x: Int, val y: Int, val text: String, val id: UUID = UUID.randomUUID())
+    
+    // UI状态：使用列表来管理可能同时发生的多个视觉效果
+    private val tapEvents = mutableStateListOf<TapEvent>()
+    private val swipeEvents = mutableStateListOf<SwipeEvent>()
+    private val textInputEvents = mutableStateListOf<TextInputEvent>()
     
     // 自动隐藏计时器
     private val handler = Handler(Looper.getMainLooper())
-    private val hideRunnable = Runnable { hide() }
     
     // 操作类型
     sealed class OperationType {
@@ -79,6 +85,15 @@ class UIOperationOverlay(private val context: Context) {
         object Tap : OperationType()
         object Swipe : OperationType()
         object TextInput : OperationType()
+    }
+    
+    private val statusBarHeight: Int by lazy {
+        val resourceId = context.resources.getIdentifier("status_bar_height", "dimen", "android")
+        if (resourceId > 0) {
+            context.resources.getDimensionPixelSize(resourceId)
+        } else {
+            0
+        }
     }
     
     /**
@@ -181,12 +196,9 @@ class UIOperationOverlay(private val context: Context) {
                 setContent {
                     MaterialTheme {
                         OperationFeedbackContent(
-                            operationType = operationType.value,
-                            tapPosition = tapPosition.value,
-                            swipeStart = swipeStart.value,
-                            swipeEnd = swipeEnd.value,
-                            textInputPosition = textInputPosition.value,
-                            textValue = textValue.value
+                            tapEvents = tapEvents,
+                            swipeEvents = swipeEvents,
+                            textInputEvents = textInputEvents
                         )
                     }
                 }
@@ -209,18 +221,13 @@ class UIOperationOverlay(private val context: Context) {
     fun showTap(x: Int, y: Int, autoHideDelayMs: Long = 1500) {
         Log.d(TAG, "Showing tap at ($x, $y)")
         
-        // 更新状态
-        tapPosition.value = Pair(x, y)
+        val newTapEvent = TapEvent(x, y - statusBarHeight)
         
         runOnMainThread {
-            // 先初始化悬浮窗
             initOverlay()
-            
-            // 更新操作类型
-            operationType.value = OperationType.Tap
-            
-            // 设置自动隐藏计时器
-            scheduleHide(autoHideDelayMs)
+            tapEvents.add(newTapEvent)
+            // 为这个特定的事件安排移除
+            handler.postDelayed({ tapEvents.remove(newTapEvent) }, autoHideDelayMs)
         }
     }
     
@@ -230,19 +237,12 @@ class UIOperationOverlay(private val context: Context) {
     fun showSwipe(startX: Int, startY: Int, endX: Int, endY: Int, autoHideDelayMs: Long = 1500) {
         Log.d(TAG, "Showing swipe from ($startX, $startY) to ($endX, $endY)")
         
-        // 更新状态
-        swipeStart.value = Pair(startX, startY)
-        swipeEnd.value = Pair(endX, endY)
-        
+        val newSwipeEvent = SwipeEvent(startX, startY - statusBarHeight, endX, endY - statusBarHeight)
+
         runOnMainThread {
-            // 先初始化悬浮窗
             initOverlay()
-            
-            // 更新操作类型
-            operationType.value = OperationType.Swipe
-            
-            // 设置自动隐藏计时器
-            scheduleHide(autoHideDelayMs)
+            swipeEvents.add(newSwipeEvent)
+            handler.postDelayed({ swipeEvents.remove(newSwipeEvent) }, autoHideDelayMs)
         }
     }
     
@@ -252,45 +252,29 @@ class UIOperationOverlay(private val context: Context) {
     fun showTextInput(x: Int, y: Int, text: String, autoHideDelayMs: Long = 2000) {
         Log.d(TAG, "Showing text input at ($x, $y): $text")
         
-        // 更新状态
-        textInputPosition.value = Pair(x, y)
-        textValue.value = text
+        val newTextInputEvent = TextInputEvent(x, y - statusBarHeight, text)
         
         runOnMainThread {
-            // 先初始化悬浮窗
             initOverlay()
-            
-            // 更新操作类型
-            operationType.value = OperationType.TextInput
-            
-            // 设置自动隐藏计时器
-            scheduleHide(autoHideDelayMs)
+            textInputEvents.add(newTextInputEvent)
+            handler.postDelayed({ textInputEvents.remove(newTextInputEvent) }, autoHideDelayMs)
         }
     }
     
     /**
-     * 安排自动隐藏
-     */
-    private fun scheduleHide(delayMs: Long) {
-        if (Looper.myLooper() != Looper.getMainLooper()) {
-            runOnMainThread { scheduleHide(delayMs) }
-            return
-        }
-        
-        handler.removeCallbacks(hideRunnable)
-        handler.postDelayed(hideRunnable, delayMs)
-    }
-    
-    /**
-     * 隐藏反馈悬浮窗
+     * 隐藏所有反馈悬浮窗
      */
     fun hide() {
         runOnMainThread {
             try {
-                handler.removeCallbacks(hideRunnable)
-                operationType.value = OperationType.None
-                
-                // 只在完全关闭时移除视图
+                // 清除所有待处理的移除任务
+                handler.removeCallbacksAndMessages(null)
+                // 清空所有事件列表
+                tapEvents.clear()
+                swipeEvents.clear()
+                textInputEvents.clear()
+
+                // 彻底移除视图
                 if (overlayView != null) {
                     lifecycleOwner?.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
                     lifecycleOwner?.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
@@ -319,12 +303,9 @@ class UIOperationOverlay(private val context: Context) {
  */
 @Composable
 private fun OperationFeedbackContent(
-    operationType: UIOperationOverlay.OperationType,
-    tapPosition: Pair<Int, Int>,
-    swipeStart: Pair<Int, Int>,
-    swipeEnd: Pair<Int, Int>,
-    textInputPosition: Pair<Int, Int>,
-    textValue: String
+    tapEvents: List<UIOperationOverlay.TapEvent>,
+    swipeEvents: List<UIOperationOverlay.SwipeEvent>,
+    textInputEvents: List<UIOperationOverlay.TextInputEvent>
 ) {
     // 获取屏幕密度用于坐标转换
     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -335,20 +316,22 @@ private fun OperationFeedbackContent(
         color = Color.Transparent
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            when (operationType) {
-                is UIOperationOverlay.OperationType.Tap -> TapIndicator(tapPosition.first, tapPosition.second, density)
-                is UIOperationOverlay.OperationType.Swipe -> SwipeIndicator(
-                    swipeStart.first, swipeStart.second,
-                    swipeEnd.first, swipeEnd.second,
-                    density
-                )
-                is UIOperationOverlay.OperationType.TextInput -> TextInputIndicator(
-                    textInputPosition.first,
-                    textInputPosition.second,
-                    textValue,
-                    density
-                )
-                else -> { /* 不显示任何内容 */ }
+            tapEvents.forEach { event ->
+                key(event.id) {
+                    TapIndicator(event.x, event.y, density)
+                }
+            }
+
+            swipeEvents.forEach { event ->
+                key(event.id) {
+                    SwipeIndicator(event.startX, event.startY, event.endX, event.endY, density)
+                }
+            }
+
+            textInputEvents.forEach { event ->
+                key(event.id) {
+                    TextInputIndicator(event.x, event.y, event.text, density)
+                }
             }
         }
     }
@@ -363,78 +346,35 @@ private fun TapIndicator(
     y: Int,
     density: androidx.compose.ui.unit.Density
 ) {
-    // 使用无限循环动画
-    val infiniteTransition = rememberInfiniteTransition(label = "tap")
-    
-    // 脉冲缩放动画
-    val scale by infiniteTransition.animateFloat(
-        initialValue = 0.7f,
-        targetValue = 2.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "scale"
-    )
-    
-    // 淡入淡出透明度动画
-    val alpha by infiniteTransition.animateFloat(
-        initialValue = 1.0f,
-        targetValue = 0.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "alpha"
-    )
-    
-    // 使用原始像素坐标，不转换为dp
+    val progress = remember { Animatable(0f) }
+
+    // This LaunchedEffect will run once when the composable enters the composition.
+    // The `key` in the parent composable ensures this is a new composition each time.
+    LaunchedEffect(Unit) {
+        progress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = 600, easing = FastOutSlowInEasing)
+        )
+    }
+
+    val p = progress.value
+    // 波纹扩散并消失
+    val radius = lerp(10.dp, 50.dp, p)
+    val alpha = (1f - p).coerceIn(0f, 1f)
+    val strokeWidth = lerp(6.dp, 0.dp, p)
+
     Canvas(modifier = Modifier.fillMaxSize()) {
-        with(density) {
-            // 使用原始像素坐标
-            val centerX = x.toFloat()
-            val centerY = y.toFloat()
-            val maxRadius = 60.dp.toPx()
-            
-            // 1. 绘制静态背景辐射效果
-            drawCircle(
-                brush = androidx.compose.ui.graphics.Brush.radialGradient(
-                    colors = listOf(
-                        Color(0x33FFFFFF),
-                        Color.Transparent
-                    ),
-                    center = Offset(centerX, centerY),
-                    radius = maxRadius * 1.5f
-                ),
-                radius = maxRadius * 1.5f,
-                center = Offset(centerX, centerY)
-            )
-            
-            // 2. 绘制动画外圈
-            drawCircle(
-                color = Color(0xFF2196F3), // 更鲜艳的蓝色
-                radius = maxRadius * scale,
-                center = Offset(centerX, centerY),
-                style = Stroke(width = 5.dp.toPx()),
-                alpha = alpha
-            )
-            
-            // 3. 绘制静态内圈
-            drawCircle(
-                color = Color(0xFF1976D2),
-                radius = 15.dp.toPx(),
-                center = Offset(centerX, centerY),
-                alpha = 0.8f
-            )
-            
-            // 4. 绘制静态中心点
-            drawCircle(
-                color = Color(0xFFFF9800), // 鲜艳的橙色中心点
-                radius = 6.dp.toPx(),
-                center = Offset(centerX, centerY),
-                alpha = 0.9f
-            )
-        }
+        val centerX = x.toFloat()
+        val centerY = y.toFloat()
+
+        // 扩散的涟漪效果
+        drawCircle(
+            color = Color(0xFF00BCD4), // 鲜艳的青色
+            radius = with(density) { radius.toPx() },
+            center = Offset(centerX, centerY),
+            style = Stroke(width = with(density) { strokeWidth.toPx() }),
+            alpha = alpha
+        )
     }
 }
 

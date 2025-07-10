@@ -9,6 +9,11 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.TextUnit.Companion.Unspecified
 import com.ai.assistance.operit.ui.common.markdown.StreamMarkdownRenderer
 import com.ai.assistance.operit.util.stream.stream
+import androidx.compose.material3.LocalContentColor
+import com.ai.assistance.operit.ui.common.markdown.StreamMarkdownRenderer
+import androidx.compose.ui.platform.LocalContext
+import android.content.Intent
+import android.net.Uri
 
 /** 新一代流式Markdown+LaTeX渲染器，完全替换原有实现。 兼容原有API，支持所有Markdown和LaTeX混排。 */
 @Composable
@@ -22,10 +27,14 @@ fun MarkdownTextComposable(
         onLinkClicked: ((String) -> Unit)? = null
 ) {
         // 直接使用新的、基于字符串的渲染器，以获得更好的性能
+        val context = LocalContext.current
         StreamMarkdownRenderer(
                 content = text,
                 modifier = modifier,
                 textColor = textColor,
-                onLinkClick = onLinkClicked
+                onLinkClick = { url ->
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                    context.startActivity(intent)
+                }
         )
 }

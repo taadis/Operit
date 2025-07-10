@@ -153,4 +153,11 @@ object FileFormatUtil {
         return (sourceExt in archiveTypes && targetExt in archiveTypes) ||
                 (sourceExt in archiveTypes && targetExt == "extract")
     }
+
+    /**
+     * Check if the file format is text-based
+     */
+    fun isTextBased(ext: String): Boolean {
+        return ext.lowercase() in listOf("txt", "md", "csv", "json", "xml", "html", "css", "js", "ts")
+    }
 } 

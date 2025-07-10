@@ -24,6 +24,7 @@ import com.ai.assistance.operit.ui.main.components.CollapsedDrawerContent
 import com.ai.assistance.operit.ui.main.components.DrawerContent
 import com.ai.assistance.operit.ui.main.screens.Screen
 import kotlinx.coroutines.CoroutineScope
+import androidx.compose.foundation.layout.RowScope
 
 /** Layout for tablet devices with a permanent side navigation drawer */
 @Composable
@@ -48,7 +49,8 @@ fun TabletLayout(
         navigateToTokenConfig: () -> Unit,
         canGoBack: Boolean,
         onGoBack: () -> Unit,
-        isNavigatingBack: Boolean = false
+        isNavigatingBack: Boolean = false,
+        topBarActions: @Composable RowScope.() -> Unit = {}
 ) {
         // 计算侧边栏的动画宽度，轻微调整动画时间为280ms，保持原有效果但稍快
         val animatedSidebarWidth by
@@ -152,7 +154,8 @@ fun TabletLayout(
                                 },
                                 canGoBack = canGoBack,
                                 onGoBack = onGoBack,
-                                isNavigatingBack = isNavigatingBack
+                                isNavigatingBack = isNavigatingBack,
+                                actions = topBarActions
                         )
                 }
 

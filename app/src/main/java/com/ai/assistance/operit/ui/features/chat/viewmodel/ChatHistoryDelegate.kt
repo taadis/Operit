@@ -180,24 +180,40 @@ class ChatHistoryDelegate(
         }
     }
 
-    /** 更新聊天标题 */
-    fun updateChatTitle(title: String) {
+    /** 绑定聊天到工作区 */
+    fun bindChatToWorkspace(chatId: String, workspace: String) {
         viewModelScope.launch {
-            _currentChatId.value?.let { chatId ->
-                // 更新数据库
-                chatHistoryManager.updateChatTitle(chatId, title)
+            // 1. Update the database
+            chatHistoryManager.updateChatWorkspace(chatId, workspace)
 
-                // 更新UI状态
-                val updatedHistories =
-                        _chatHistories.value.map {
-                            if (it.id == chatId) {
-                                it.copy(title = title, updatedAt = LocalDateTime.now())
-                            } else {
-                                it
-                            }
-                        }
-                _chatHistories.value = updatedHistories
+            // 2. Manually update the UI state to reflect the change immediately
+            val updatedHistories = _chatHistories.value.map {
+                if (it.id == chatId) {
+                    it.copy(workspace = workspace, updatedAt = LocalDateTime.now())
+                } else {
+                    it
+                }
             }
+            _chatHistories.value = updatedHistories
+        }
+    }
+
+    /** 更新聊天标题 */
+    fun updateChatTitle(chatId: String, title: String) {
+        viewModelScope.launch {
+            // 更新数据库
+            chatHistoryManager.updateChatTitle(chatId, title)
+
+            // 更新UI状态
+            val updatedHistories =
+                    _chatHistories.value.map {
+                        if (it.id == chatId) {
+                            it.copy(title = title, updatedAt = LocalDateTime.now())
+                        } else {
+                            it
+                        }
+                    }
+            _chatHistories.value = updatedHistories
         }
     }
 
@@ -285,6 +301,71 @@ class ChatHistoryDelegate(
         onChatHistoryLoaded(_chatHistory.value)
     }
 
+    /**
+     * 更新聊天记录的顺序和分组
+     * @param reorderedHistories 重新排序后的完整聊天历史列表
+     * @param movedItem 移动的聊天项
+     * @param targetGroup 目标分组的名称，如果拖拽到分组上
+     */
+    fun updateChatOrderAndGroup(
+        reorderedHistories: List<ChatHistory>,
+        movedItem: ChatHistory,
+        targetGroup: String?
+    ) {
+        viewModelScope.launch {
+            try {
+                // The list is already reordered. We just need to update displayOrder and group.
+                val updatedList = reorderedHistories.mapIndexed { index, history ->
+                    var newGroup = history.group
+                    if (history.id == movedItem.id && targetGroup != null) {
+                        newGroup = targetGroup
+                    }
+                    history.copy(displayOrder = index.toLong(), group = newGroup)
+                }
+
+                // Update UI immediately
+                _chatHistories.value = updatedList
+
+                // Persist changes
+                chatHistoryManager.updateChatOrderAndGroup(updatedList)
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to update chat order and group", e)
+                // Optionally revert UI changes or show an error
+            }
+        }
+    }
+
+    /** 重命名分组 */
+    fun updateGroupName(oldName: String, newName: String) {
+        viewModelScope.launch {
+            chatHistoryManager.updateGroupName(oldName, newName)
+        }
+    }
+
+    /** 删除分组 */
+    fun deleteGroup(groupName: String, deleteChats: Boolean) {
+        viewModelScope.launch {
+            chatHistoryManager.deleteGroup(groupName, deleteChats)
+        }
+    }
+
+    /** 创建新分组（通过创建新聊天实现） */
+    fun createGroup(groupName: String) {
+        viewModelScope.launch {
+            val (inputTokens, outputTokens) = getTokenCounts()
+            saveCurrentChat(inputTokens, outputTokens)
+
+            val newChat = chatHistoryManager.createNewChat(group = groupName)
+            _currentChatId.value = newChat.id
+            _chatHistory.value = newChat.messages
+
+            onChatHistoryLoaded(newChat.messages)
+            onTokenStatisticsLoaded(0, 0)
+            resetPlanItems()
+        }
+    }
+
     /** 检查是否应该生成总结 */
     fun shouldGenerateSummary(messages: List<ChatMessage>): Boolean {
         // 获取用户和AI消息
@@ -348,11 +429,21 @@ class ChatHistoryDelegate(
 
             Log.d(TAG, "将总结 ${messagesToSummarize.size} 条消息")
 
-            // 确保AI服务可用
-            ensureAiServiceAvailable()
+            try {
+                // 确保AI服务可用
+                ensureAiServiceAvailable()
+            } catch (e: Exception) {
+                Log.e(TAG, "确保AI服务可用时发生异常", e)
+                return
+            }
 
-            // 等待一段时间以允许创建AI服务
-            kotlinx.coroutines.delay(100)
+            try {
+                // 等待一段时间以允许创建AI服务
+                kotlinx.coroutines.delay(100)
+            } catch (e: Exception) {
+                Log.e(TAG, "等待AI服务创建时发生异常", e)
+                return
+            }
 
             // 获取API服务实例
             val enhancedAiService = getEnhancedAiService()
@@ -372,16 +463,20 @@ class ChatHistoryDelegate(
                 Log.d(TAG, "开始使用AI生成对话总结：总结 ${messagesToSummarize.size} 条消息")
 
                 // 如果有上一条摘要，传入它作为上下文
-                val summary =
-                        if (previousSummary != null) {
-                            Log.d(TAG, "使用上一条摘要作为上下文生成新的总结")
-                            enhancedAiService.generateSummary(
-                                    conversationToSummarize,
-                                    previousSummary
-                            )
-                        } else {
-                            enhancedAiService.generateSummary(conversationToSummarize)
-                        }
+                val summary = try {
+                    if (previousSummary != null) {
+                        Log.d(TAG, "使用上一条摘要作为上下文生成新的总结")
+                        enhancedAiService.generateSummary(
+                                conversationToSummarize,
+                                previousSummary
+                        )
+                    } else {
+                        enhancedAiService.generateSummary(conversationToSummarize)
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "AI生成总结过程中发生异常", e)
+                    return
+                }
 
                 Log.d(TAG, "AI生成总结完成: ${summary.take(50)}...")
 

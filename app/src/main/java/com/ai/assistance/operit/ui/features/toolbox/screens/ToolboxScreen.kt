@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.BuildCircle
 import androidx.compose.material.icons.rounded.Build
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Security
@@ -74,7 +75,8 @@ fun ToolboxScreen(
         onLogcatSelected: () -> Unit,
         onMarkdownDemoSelected: () -> Unit,
         onTextToSpeechSelected: () -> Unit,
-        onSpeechToTextSelected: () -> Unit
+        onSpeechToTextSelected: () -> Unit,
+        onToolTesterSelected: () -> Unit
 ) {
         // 屏幕配置信息，用于响应式布局
         val configuration = LocalConfiguration.current
@@ -93,6 +95,13 @@ fun ToolboxScreen(
 
         val tools =
                 listOf(
+                        Tool(
+                                name = "工具测试中心",
+                                icon = Icons.Default.BuildCircle,
+                                description = "测试AI工具的可用性和功能状态",
+                                category = ToolCategory.DEVELOPMENT,
+                                onClick = onToolTesterSelected
+                        ),
                         Tool(
                                 name = "万能格式转换",
                                 icon = Icons.Rounded.Transform,
@@ -511,6 +520,18 @@ fun LogcatToolScreen(navController: NavController) {
         Scaffold() { paddingValues ->
                 Box(modifier = Modifier.padding(paddingValues)) {
                         LogcatScreen(navController = navController)
+                }
+        }
+}
+
+/** 显示工具测试屏幕 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ToolTesterToolScreen(navController: NavController) {
+        Scaffold() { paddingValues ->
+                Box(modifier = Modifier.padding(paddingValues)) {
+                        com.ai.assistance.operit.ui.features.toolbox.screens.tooltester
+                                .ToolTesterScreen(navController = navController)
                 }
         }
 }

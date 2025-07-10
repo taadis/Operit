@@ -10,6 +10,7 @@ import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.preferences.PromptFunctionType
 import com.ai.assistance.operit.services.FloatingChatService
+import com.ai.assistance.operit.services.floating.FloatingWindowState
 import com.ai.assistance.operit.ui.floating.ui.window.ResizeEdge
 import kotlinx.coroutines.CoroutineScope
 
@@ -41,12 +42,13 @@ fun rememberFloatContext(
         attachments: List<AttachmentInfo> = emptyList(),
         onRemoveAttachment: ((String) -> Unit)? = null,
         onInputFocusRequest: ((Boolean) -> Unit)? = null,
-        chatService: FloatingChatService? = null
+        chatService: FloatingChatService? = null,
+        windowState: FloatingWindowState? = null
 ): FloatContext {
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
 
-    return remember(
+    val floatContext = remember(
             messages,
             width,
             height,
@@ -55,9 +57,6 @@ fun rememberFloatContext(
             ballSize,
             windowScale,
             onScaleChange,
-            currentMode,
-            previousMode,
-            onModeChange,
             onMove,
             snapToEdge,
             isAtEdge,
@@ -72,7 +71,8 @@ fun rememberFloatContext(
             attachments,
             onRemoveAttachment,
             onInputFocusRequest,
-            chatService
+            chatService,
+            windowState
     ) {
         FloatContext(
                 messages = messages,
@@ -102,9 +102,17 @@ fun rememberFloatContext(
                 onInputFocusRequest = onInputFocusRequest,
                 density = density,
                 coroutineScope = scope,
-                chatService = chatService
+                chatService = chatService,
+                windowState = windowState
         )
     }
+
+    LaunchedEffect(currentMode, previousMode) {
+        floatContext.currentMode = currentMode
+        floatContext.previousMode = previousMode
+    }
+
+    return floatContext
 }
 
 /** 简化的悬浮窗状态与回调上下文 */
@@ -117,8 +125,8 @@ class FloatContext(
         val ballSize: Dp,
         val windowScale: Float,
         val onScaleChange: (Float) -> Unit,
-        val currentMode: FloatingMode,
-        val previousMode: FloatingMode,
+        var currentMode: FloatingMode,
+        var previousMode: FloatingMode,
         val onModeChange: (FloatingMode) -> Unit,
         val onMove: (Float, Float, Float) -> Unit,
         val snapToEdge: (Boolean) -> Unit,
@@ -136,7 +144,8 @@ class FloatContext(
         val onInputFocusRequest: ((Boolean) -> Unit)?,
         val density: Density,
         val coroutineScope: CoroutineScope,
-        val chatService: FloatingChatService? = null
+        val chatService: FloatingChatService? = null,
+        val windowState: FloatingWindowState? = null
 ) {
     // 动画与转换相关状态
     val animatedAlpha = Animatable(1f)

@@ -1,7 +1,5 @@
 package com.ai.assistance.operit.ui.floating
 
-import androidx.compose.animation.core.*
-import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -9,11 +7,12 @@ import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.preferences.PromptFunctionType
 import com.ai.assistance.operit.services.FloatingChatService
+import com.ai.assistance.operit.services.floating.FloatingWindowState
 import com.ai.assistance.operit.ui.floating.ui.ball.FloatingChatBallMode
-import com.ai.assistance.operit.ui.floating.ui.ball.FloatingLive2dBallMode
+import com.ai.assistance.operit.ui.floating.ui.ball.FloatingDragonBonesBallMode
 import com.ai.assistance.operit.ui.floating.ui.ball.FloatingVoiceBallMode
 import com.ai.assistance.operit.ui.floating.ui.fullscreen.FloatingFullscreenMode
-import com.ai.assistance.operit.ui.floating.ui.live2d.FloatingLive2dMode
+import com.ai.assistance.operit.ui.floating.ui.pet.FloatingDragonBonesMode
 import com.ai.assistance.operit.ui.floating.ui.window.FloatingChatWindowMode
 
 /**
@@ -45,6 +44,7 @@ import com.ai.assistance.operit.ui.floating.ui.window.FloatingChatWindowMode
  * @param onRemoveAttachment 删除附件回调
  * @param onInputFocusRequest 请求输入焦点的回调，参数为true时请求获取焦点，false时释放焦点
  * @param chatService 聊天服务实例，用于访问音频焦点管理器
+ * @param windowState 窗口状态
  */
 @Composable
 fun FloatingChatWindow(
@@ -73,7 +73,8 @@ fun FloatingChatWindow(
         attachments: List<AttachmentInfo> = emptyList(),
         onRemoveAttachment: ((String) -> Unit)? = null,
         onInputFocusRequest: ((Boolean) -> Unit)? = null,
-        chatService: FloatingChatService? = null
+        chatService: FloatingChatService? = null,
+        windowState: FloatingWindowState? = null
 ) {
     val floatContext =
             rememberFloatContext(
@@ -102,7 +103,8 @@ fun FloatingChatWindow(
                     attachments = attachments,
                     onRemoveAttachment = onRemoveAttachment,
                     onInputFocusRequest = onInputFocusRequest,
-                    chatService = chatService
+                    chatService = chatService,
+                    windowState = windowState
             )
 
     // 将窗口缩放限制在合理范围内 - 已通过回调和状态源头处理，不再需要
@@ -127,13 +129,13 @@ fun FloatingChatWindow(
         FloatingMode.BALL -> {
             // 根据前一个模式决定显示哪种球
             when (floatContext.previousMode) {
-                FloatingMode.LIVE2D -> FloatingLive2dBallMode(floatContext = floatContext)
+                FloatingMode.DragonBones -> FloatingDragonBonesBallMode(floatContext = floatContext)
                 FloatingMode.VOICE_BALL -> FloatingVoiceBallMode(floatContext = floatContext)
                 else -> FloatingChatBallMode(floatContext = floatContext)
             }
         }
         FloatingMode.VOICE_BALL -> FloatingVoiceBallMode(floatContext = floatContext)
         FloatingMode.FULLSCREEN -> FloatingFullscreenMode(floatContext = floatContext)
-        FloatingMode.LIVE2D -> FloatingLive2dMode(floatContext = floatContext)
+        FloatingMode.DragonBones -> FloatingDragonBonesMode(floatContext = floatContext)
     }
 }

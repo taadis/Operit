@@ -25,6 +25,50 @@
     <string name="menu">菜单</string>
     <string name="token_config">获取密钥</string>
     
+    <!-- 助手配置界面 -->
+    <string name="assistant_config_title">助手配置</string>
+    <string name="import_model">导入模型</string>
+    <string name="scan_user_models">扫描用户模型</string>
+    <string name="operation_success">操作成功</string>
+    <string name="error_occurred_simple">发生错误</string>
+    <string name="function_config_title">功能配置</string>
+    <string name="function_config_desc">聊天 语音 桌宠将会根据使用情况自动选择对应的提示词配置</string>
+    <string name="user_personality">用户性格</string>
+    <string name="not_configured">未配置</string>
+    <string name="function_prompt">功能提示词</string>
+    <string name="function_model">功能模型</string>
+    <string name="importing_model">正在导入模型...</string>
+    <string name="processing">处理中...</string>
+    <string name="error_occurred">发生错误: %1$s</string>
+    <string name="dragon_bones_config">龙骨配置</string>
+    <string name="collapse">折叠</string>
+    <string name="expand">展开</string>
+    <string name="select_model">选择模型</string>
+    <string name="current_model">当前模型</string>
+    <string name="scale">缩放: %1$s</string>
+    <string name="x_translation">X轴位移: %1$s</string>
+    <string name="y_translation">Y轴位移: %1$s</string>
+    <string name="confirm_delete_model_title">确认删除模型？</string>
+    <string name="confirm_delete_model_message">删除后不可恢复，确定要删除该模型吗？</string>
+    <string name="delete">删除</string>
+    <string name="cancel">取消</string>
+    <string name="no_models_available">没有可用的模型</string>
+    <string name="please_select_model">请选择一个模型</string>
+    <string name="how_to_import">如何制作和导入模型?</string>
+    <string name="enter">进入</string>
+    <string name="dragon_bones_renamed">DragonBones现已更名为 LoongBones，并推出了新版在线编辑器。\nLoongBones支持IK反向动力学、网格形变、骨骼绑定等专业级动画功能。</string>
+    <string name="making_models">1. 制作模型：</string>
+    <string name="making_models_desc">    · 推荐：使用新版在线编辑器。\n    · 备选：从第三方存档网站下载旧版 v5.6.3 离线编辑器。</string>
+    <string name="exporting_files">2. 导出文件：</string>
+    <string name="exporting_files_desc">    · 无论使用哪个版本，导出数据时类型请选择 JSON，版本请选择 5.5（当前还不支持 6.0 运行时）。\n    · 导出的核心文件为：*_ske.json、*_tex.json、*_tex.png。</string>
+    <string name="configuring_interaction">3. 配置交互：</string>
+    <string name="configuring_interaction_desc">    · 如需实现头部跟随，请添加 IK 约束，并将其目标骨骼命名为 ik_target。\n    · idle 动画：请确保有一个命名为 idle 的动画，作为基础待机动画，会自动循环播放。\n    · 随机动画：可添加如 blink（眨眼）、shake_head（摇头）、wag_tail（摇尾巴）等动画，\n      系统会随机自动触发这些动画，丰富宠物表现。</string>
+    <string name="packaging_and_importing">4. 打包与导入：</string>
+    <string name="packaging_and_importing_desc">    · 将导出的三个文件打包成一个 .zip 文件后导入。</string>
+    <string name="important_tip">重要提示：旧版编辑器下载页面中，Windows和Mac的下载链接放反了，请注意选择正确的链接下载。</string>
+    <string name="download_old_editor">下载旧版编辑器</string>
+    <string name="visit_online_editor">访问在线编辑器</string>
+    
     <!-- 用于NavItem类的标识符 -->
     <string name="shizuku_commands">权限授予</string>
     <string name="tool_permissions">工具权限设置</string>
@@ -341,7 +385,6 @@
     <string name="preferences_hint">请输入您的个人介绍（最多100字）</string>
     <string name="enter_preferences">在此输入您的个人介绍...</string>
     <string name="save">保存</string>
-    <string name="cancel">取消</string>
     <string name="edit_preferences">编辑偏好介绍</string>
     <string name="reset_preferences">重置偏好设置</string>
     <string name="set_preferences">设置偏好</string>
@@ -455,7 +498,6 @@
     <string name="paste">粘贴</string>
     <string name="share">分享</string>
     <string name="rename">重命名</string>
-    <string name="delete">删除</string>
     <string name="loading_files">正在加载文件...</string>
 
     <!-- ErrorDialog -->
@@ -471,7 +513,6 @@
     <string name="secure_connection_failed">安全连接失败</string>
     <string name="request_timeout">请求超时，请稍后重试</string>
     <string name="network_transfer_failed">网络传输失败，请检查网络连接</string>
-    <string name="error_occurred">发生错误: %1$s</string>
     <string name="try_again_later">请求失败，请稍后再试</string>
 
     <!-- Permission Guide Screen -->
@@ -734,4 +775,94 @@
     <string name="speech_error_model_not_found">Speech model not found in assets: %s</string>
     <string name="speech_error_init_failed">Failed to initialize speech recognition engine</string>
     <string name="speech_error_not_initialized">Speech recognition engine not initialized</string>
+    <string name="title_activity_crash_report">Application Error</string>
+
+    <!-- Crash Report Screen -->
+    <string name="crash_report_header">应用遇到了一个无法恢复的错误，需要重启。</string>
+    <string name="crash_report_restart_button">重启应用</string>
+    <string name="crash_report_details_title">错误详情</string>
+    <string name="crash_report_copy_button">复制</string>
+    <string name="crash_report_export_button">导出</string>
+    <string name="crash_report_copy_success">已复制到剪贴板</string>
+    <string name="crash_report_export_success">错误报告已导出到\n%1$s</string>
+    <string name="crash_report_export_failed">导出失败: %1$s</string>
+    
+    <!-- 模型提示词设置屏幕 -->
+    <string name="model_prompts_title">提示词设置</string>
+    <string name="select_prompt_config">请选择提示词配置</string>
+    <string name="create_new">新建</string>
+    <string name="manage_all_prompts">管理所有提示词配置</string>
+    <string name="custom_system_prompts">自定义系统提示词</string>
+    <string name="customize_ai_behavior">定制AI的行为和语气风格</string>
+    <string name="ai_self_introduction">AI自我介绍</string>
+    <string name="intro_prompt">自我介绍提示词</string>
+    <string name="ai_tone_style">AI语气风格</string>
+    <string name="tone_prompt">语气风格提示词</string>
+    <string name="restore_default_prompts">恢复默认提示词</string>
+    <string name="save_prompts">保存提示词</string>
+    <string name="about_system_prompts">关于系统提示词</string>
+    <string name="system_prompts_desc">系统提示词用于定义AI助手的行为和风格：</string>
+    <string name="intro_prompt_desc">定义AI的身份和能力范围</string>
+    <string name="tone_prompt_desc">设置AI回复的语气和表达方式</string>
+    <string name="prompt_tip">提示：有效的系统提示词能让AI助手更好地符合您的期望，但过长的提示词可能会消耗更多Token。</string>
+    <string name="prompts_saved">提示词已保存</string>
+    <string name="new_prompt_config_title">新建提示词配置</string>
+    <string name="new_prompt_config_desc">创建新的提示词配置，个性化AI助手行为</string>
+    <string name="config_name">配置名称</string>
+    <string name="config_name_placeholder">例如: 工作助手、学习助手...</string>
+    <string name="create">创建</string>
+    <string name="unnamed_config">未命名配置</string>
+    <string name="delete_config">删除</string>
+    
+    <!-- 功能提示词配置屏幕 -->
+    <string name="functional_prompt_title">功能提示词配置设置</string>
+    <string name="functional_prompt_desc">为不同功能设置单独的提示词配置，使每个功能都能使用最适合的提示词。</string>
+    <string name="current_prompt_config">当前提示词配置: %1$s</string>
+    <string name="intro_preview">自我介绍: %1$s...</string>
+    <string name="select_prompt_config_title">选择提示词配置</string>
+    <string name="reset_all_functions">重置所有功能至默认提示词配置</string>
+    <string name="config_saved">配置已保存</string>
+    <string name="chat_function">对话功能</string>
+    <string name="chat_function_desc">主要的对话功能，自定义聊天机器人的提示词配置</string>
+    <string name="voice_function">语音功能</string>
+    <string name="voice_function_desc">语音互动功能，自定义语音助手的提示词配置</string>
+    <string name="desktop_pet_function">桌宠功能</string>
+    <string name="desktop_pet_function_desc">桌面宠物功能，自定义桌宠的性格和互动方式</string>
+    
+    <!-- 设置屏幕新增字符串 -->
+    <string name="settings_prompt_section">提示词配置</string>
+    <string name="settings_prompt_title">提示词配置</string>
+    <string name="settings_prompt_desc">自定义AI助手的行为和性格的提示词</string>
+    <string name="settings_configure_prompt">配置提示词</string>
+    <string name="settings_functional_prompt_title">功能提示词配置</string>
+    <string name="settings_functional_prompt_desc">为不同功能（对话、语音、桌宠）设置专用的提示词</string>
+    <string name="settings_configure_functional_prompt">配置功能提示词</string>
+    <string name="settings_appearance_section">外观设置</string>
+    
+    <!-- 关于屏幕 -->
+    <string name="check_for_updates">检查更新</string>
+    <string name="checking_updates">检查中...</string>
+    <string name="new_version_found">发现新版本</string>
+    <string name="check_complete">检查完成</string>
+    <string name="check_failed">检查失败</string>
+    <string name="update_check">更新检查</string>
+    <string name="current_version">当前版本: %1$s</string>
+    <string name="new_version">当前版本: %1$s\\n新版本: %2$s</string>
+    <string name="update_content">更新内容:</string>
+    <string name="already_latest_version">当前已是最新版本: %1$s</string>
+    <string name="download">去下载</string>
+    <string name="ok">确定</string>
+    <string name="close">关闭</string>
+    <string name="select_download_source">选择下载源</string>
+    <string name="select_download_source_desc">请选择适合您网络环境的下载源：</string>
+    <string name="china_mirror">国内加速镜像</string>
+    <string name="china_mirror_desc">通过ghfast.top加速，推荐国内用户使用</string>
+    <string name="github_source">GitHub原始链接</string>
+    <string name="github_source_desc">直接从GitHub官方服务器下载，速度可能较慢</string>
+    <string name="developer">开发者</string>
+    <string name="contact">联系方式</string>
+    <string name="project_url">项目地址</string>
+    <string name="open_source_licenses">开源许可声明</string>
+    <string name="license_format">许可: %1$s</string>
+    <string name="visit_project">访问项目</string>
 </resources>

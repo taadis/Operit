@@ -34,7 +34,9 @@ import com.ai.assistance.operit.core.tools.FileFormatConversionsResultData
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolParameter
 import java.io.File
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 // 根据文件扩展名获取分类
 fun getCategoryFromExtension(extension: String): String? {
@@ -48,9 +50,9 @@ fun getCategoryFromExtension(extension: String): String? {
     }
 }
 
-// 获取文件路径
-fun getFilePathFromUri(context: android.content.Context, uri: Uri): Pair<String?, String?> {
-    return try {
+// 获取文件路径 - 修改为挂起函数在IO线程执行
+suspend fun getFilePathFromUri(context: android.content.Context, uri: Uri): Pair<String?, String?> = withContext(Dispatchers.IO) {
+    return@withContext try {
         val cursor = context.contentResolver.query(uri, null, null, null, null)
         cursor?.use {
             if (it.moveToFirst()) {
@@ -145,6 +147,37 @@ fun replaceFileExtension(filePath: String, newExtension: String): String {
     }
 }
 
+// 清理缓存文件 - 修改为挂起函数在IO线程执行
+suspend fun cleanupCacheFile(context: android.content.Context, filePath: String?) = withContext(Dispatchers.IO) {
+    if (filePath != null) {
+        try {
+            val file = File(filePath)
+            if (file.exists() && file.absolutePath.startsWith(context.cacheDir.absolutePath)) {
+                if (file.delete()) {
+                    Log.d("FormatConverterScreen", "已删除缓存文件: $filePath")
+                } else {
+                    Log.w("FormatConverterScreen", "无法删除缓存文件: $filePath")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("FormatConverterScreen", "清理缓存文件时出错", e)
+        }
+    }
+}
+
+// 清理所有缓存文件 - 修改为挂起函数在IO线程执行
+suspend fun cleanupAllCacheFiles(context: android.content.Context) = withContext(Dispatchers.IO) {
+    try {
+        context.cacheDir.listFiles()?.forEach { file ->
+            if (file.isFile) {
+                file.delete()
+            }
+        }
+    } catch (e: Exception) {
+        Log.e("FormatConverterScreen", "清理缓存目录时出错", e)
+    }
+}
+
 /** 万能格式转换屏幕，用于各种文件格式之间的转换 */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -164,37 +197,12 @@ fun FormatConverterScreen(navController: NavController) {
     var error by remember { mutableStateOf<String?>(null) }
     var convertedFile by remember { mutableStateOf<String?>(null) }
 
-    // 清理缓存文件
-    fun cleanupCacheFile(filePath: String?) {
-        if (filePath != null) {
-            try {
-                val file = File(filePath)
-                if (file.exists() && file.absolutePath.startsWith(context.cacheDir.absolutePath)) {
-                    if (file.delete()) {
-                        Log.d("FormatConverterScreen", "已删除缓存文件: $filePath")
-                    } else {
-                        Log.w("FormatConverterScreen", "无法删除缓存文件: $filePath")
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e("FormatConverterScreen", "清理缓存文件时出错", e)
-            }
-        }
-    }
-
     // 组件销毁时清理缓存
     DisposableEffect(Unit) {
         onDispose {
-            selectedFile?.let { cleanupCacheFile(it) }
-            // 清理整个缓存目录中可能的遗留文件
-            try {
-                context.cacheDir.listFiles()?.forEach { file ->
-                    if (file.isFile) {
-                        file.delete()
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e("FormatConverterScreen", "清理缓存目录时出错", e)
+            coroutineScope.launch {
+                selectedFile?.let { cleanupCacheFile(context, it) }
+                cleanupAllCacheFiles(context)
             }
         }
     }
@@ -205,20 +213,28 @@ fun FormatConverterScreen(navController: NavController) {
                     contract = ActivityResultContracts.StartActivityForResult()
             ) { result ->
                 result.data?.data?.let { uri ->
-                    try {
-                        // 获取文件路径
-                        val (origFileName, cachePath) = getFilePathFromUri(context, uri)
-                        if (origFileName != null && cachePath != null) {
-                            originalFileName = origFileName
-                            selectedFile = cachePath
-                            // 根据文件扩展名自动选择分类
-                            val extension = origFileName.substringAfterLast('.', "").lowercase()
-                            selectedCategory = getCategoryFromExtension(extension)
-                        } else {
-                            error = "无法获取文件路径"
+                    // 显示加载状态
+                    isLoading = true
+                    error = null
+                    
+                    coroutineScope.launch {
+                        try {
+                            // 获取文件路径 - 在IO线程中处理
+                            val (origFileName, cachePath) = getFilePathFromUri(context, uri)
+                            if (origFileName != null && cachePath != null) {
+                                originalFileName = origFileName
+                                selectedFile = cachePath
+                                // 根据文件扩展名自动选择分类
+                                val extension = origFileName.substringAfterLast('.', "").lowercase()
+                                selectedCategory = getCategoryFromExtension(extension)
+                            } else {
+                                error = "无法获取文件路径"
+                            }
+                        } catch (e: Exception) {
+                            error = "选择文件失败: ${e.message}"
+                        } finally {
+                            isLoading = false
                         }
-                    } catch (e: Exception) {
-                        error = "选择文件失败: ${e.message}"
                     }
                 }
             }
@@ -237,7 +253,10 @@ fun FormatConverterScreen(navController: NavController) {
     LaunchedEffect(Unit) {
         try {
             val tool = AITool(name = "get_supported_conversions", parameters = emptyList())
-            val result = toolHandler.executeTool(tool)
+            // 使用withContext确保在IO线程执行
+            val result = withContext(Dispatchers.IO) {
+                toolHandler.executeTool(tool)
+            }
             if (result.success) {
                 val formatData = result.result as? FileFormatConversionsResultData
                 supportedFormats = formatData?.conversions ?: emptyMap()
@@ -273,16 +292,18 @@ fun FormatConverterScreen(navController: NavController) {
                                 selectedTargetFormat!!
                         )
 
-                // 确保目标目录存在
+                // 确保目标目录存在 - 在IO线程中执行
                 val makeDirectoryTool =
                         AITool(
                                 name = "make_directory",
                                 parameters =
                                         listOf(ToolParameter("path", "/sdcard/Document/Operit"))
                         )
-                toolHandler.executeTool(makeDirectoryTool)
+                withContext(Dispatchers.IO) {
+                    toolHandler.executeTool(makeDirectoryTool)
+                }
 
-                // 执行文件转换
+                // 执行文件转换 - 在IO线程中执行
                 val convertFileTool =
                         AITool(
                                 name = "convert_file",
@@ -297,7 +318,9 @@ fun FormatConverterScreen(navController: NavController) {
                                         )
                         )
 
-                val result = toolHandler.executeTool(convertFileTool)
+                val result = withContext(Dispatchers.IO) {
+                    toolHandler.executeTool(convertFileTool)
+                }
 
                 if (result.success) {
                     convertedFile = targetPath
@@ -310,7 +333,7 @@ fun FormatConverterScreen(navController: NavController) {
             } finally {
                 isLoading = false
                 // 无论成功还是失败，都清理缓存文件
-                cleanupCacheFile(currentCacheFile)
+                cleanupCacheFile(context, currentCacheFile)
             }
         }
     }
@@ -324,7 +347,10 @@ fun FormatConverterScreen(navController: NavController) {
                                 name = "open_file",
                                 parameters = listOf(ToolParameter("path", filePath))
                         )
-                val result = toolHandler.executeTool(openFileTool)
+                // 在IO线程中执行
+                val result = withContext(Dispatchers.IO) {
+                    toolHandler.executeTool(openFileTool)
+                }
 
                 if (!result.success) {
                     error = "无法打开文件: ${result.error}"
@@ -379,7 +405,8 @@ fun FormatConverterScreen(navController: NavController) {
                                         containerColor = MaterialTheme.colorScheme.primaryContainer,
                                         contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                                 ),
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(8.dp),
+                        enabled = !isLoading
                 ) {
                     Icon(
                             imageVector = Icons.Default.Add,

@@ -3,11 +3,10 @@ package com.ai.assistance.operit.ui.features.chat.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.PictureInPicture
-import androidx.compose.material.icons.filled.Web
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -22,9 +21,7 @@ fun ChatHeader(
         currentChatTitle: String?,
         modifier: Modifier = Modifier,
         onLaunchFloatingWindow: () -> Unit = {},
-        isFloatingMode: Boolean = false,
-        showWebView: Boolean = false,
-        onWebDevClick: () -> Unit = {}
+        isFloatingMode: Boolean = false
 ) {
         Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -32,14 +29,16 @@ fun ChatHeader(
                 modifier = modifier
         ) {
                 Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .background(
-                                color = if (showChatHistorySelector)
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                                else Color.Transparent,
-                                shape = CircleShape
-                            )
+                        modifier =
+                                Modifier.size(32.dp)
+                                        .background(
+                                                color =
+                                                        if (showChatHistorySelector)
+                                                                MaterialTheme.colorScheme.primary
+                                                                        .copy(alpha = 0.15f)
+                                                        else Color.Transparent,
+                                                shape = CircleShape
+                                        )
                 ) {
                         IconButton(
                                 onClick = onToggleChatHistorySelector,
@@ -47,10 +46,15 @@ fun ChatHeader(
                         ) {
                                 Icon(
                                         imageVector = Icons.Default.History,
-                                        contentDescription = if (showChatHistorySelector) "隐藏历史" else "显示历史",
-                                        tint = if (showChatHistorySelector)
-                                            MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                                        contentDescription =
+                                                if (showChatHistorySelector) "隐藏历史" else "显示历史",
+                                        tint =
+                                                if (showChatHistorySelector)
+                                                        MaterialTheme.colorScheme.primary
+                                                else
+                                                        MaterialTheme.colorScheme.onSurface.copy(
+                                                                alpha = 0.7f
+                                                        ),
                                         modifier = Modifier.size(20.dp)
                                 )
                         }
@@ -83,31 +87,6 @@ fun ChatHeader(
                                                         MaterialTheme.colorScheme.onSurface.copy(
                                                                 alpha = 0.7f
                                                         ),
-                                        modifier = Modifier.size(20.dp)
-                                )
-                        }
-                }
-                
-                Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .background(
-                                color = if (showWebView)
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                                else Color.Transparent,
-                                shape = CircleShape
-                            )
-                ) {
-                        IconButton(
-                                onClick = onWebDevClick,
-                                modifier = Modifier.matchParentSize()
-                        ) {
-                                Icon(
-                                        imageVector = Icons.Default.Web,
-                                        contentDescription = if (showWebView) "切换到聊天" else "打开网页",
-                                        tint = if (showWebView)
-                                            MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                                         modifier = Modifier.size(20.dp)
                                 )
                         }

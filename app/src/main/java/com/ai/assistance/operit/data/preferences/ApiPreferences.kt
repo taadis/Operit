@@ -67,13 +67,30 @@ class ApiPreferences(private val context: Context) {
         // Default values
         const val DEFAULT_API_ENDPOINT = "https://api.deepseek.com/v1/chat/completions"
         const val DEFAULT_MODEL_NAME = "deepseek-chat"
-        const val DEFAULT_API_KEY = "sk-e565390c164c4cfa8820624ef47d68bf"
+
+        // Obfuscated API Keys
+        private const val ENCODED_API_KEY_OLD = "c2stZTU2NTM5MGMxNjRjNGNmYTg4MjA2MjRlZjQ3ZDY4YmY="
+        private const val ENCODED_API_KEY = "c2stNmI4NTYyMjUzNmFjNDhjMDgwYzUwNDhhYjVmNWQxYmQ="
+
+        private fun decodeApiKey(encodedKey: String): String {
+            return try {
+                android.util.Base64.decode(encodedKey, android.util.Base64.NO_WRAP)
+                        .toString(Charsets.UTF_8)
+            } catch (e: Exception) {
+                Log.e("ApiPreferences", "Failed to decode API key", e)
+                ""
+            }
+        }
+
+        val DEFAULT_API_KEY_OLD: String by lazy { decodeApiKey(ENCODED_API_KEY_OLD) }
+        val DEFAULT_API_KEY: String by lazy { decodeApiKey(ENCODED_API_KEY) }
+
         const val DEFAULT_API_PROVIDER_TYPE = "DEEPSEEK"
         const val DEFAULT_MEMORY_OPTIMIZATION = true
         const val DEFAULT_SHOW_FPS_COUNTER = false
         const val DEFAULT_ENABLE_AI_PLANNING = false
         const val DEFAULT_AUTO_GRANT_ACCESSIBILITY = false
-        const val DEFAULT_SHOW_MODEL_SELECTOR = false
+        const val DEFAULT_SHOW_MODEL_SELECTOR = true
 
         // Default values for custom prompts
         const val DEFAULT_INTRO_PROMPT = "你是Operit，一个全能AI助手，旨在解决用户提出的任何任务。你有各种工具可以调用，以高效完成复杂的请求。"
@@ -100,7 +117,16 @@ class ApiPreferences(private val context: Context) {
 
     // Get API Key as Flow
     val apiKeyFlow: Flow<String> =
-            context.apiDataStore.data.map { preferences -> preferences[API_KEY] ?: DEFAULT_API_KEY }
+            context.apiDataStore.data.map { preferences ->
+                val savedApiKey = preferences[API_KEY] ?: DEFAULT_API_KEY
+
+                // 如果是旧API KEY，返回新的API KEY
+                if (savedApiKey == DEFAULT_API_KEY_OLD) {
+                    DEFAULT_API_KEY
+                } else {
+                    savedApiKey
+                }
+            }
 
     // Get API Endpoint as Flow
     val apiEndpointFlow: Flow<String> =

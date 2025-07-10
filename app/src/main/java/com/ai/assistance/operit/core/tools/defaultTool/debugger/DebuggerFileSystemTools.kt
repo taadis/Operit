@@ -8,6 +8,7 @@ import com.ai.assistance.operit.core.tools.FileContentData
 import com.ai.assistance.operit.core.tools.FileExistsData
 import com.ai.assistance.operit.core.tools.FileInfoData
 import com.ai.assistance.operit.core.tools.FileOperationData
+import com.ai.assistance.operit.core.tools.FilePartContentData
 import com.ai.assistance.operit.core.tools.FindFilesResultData
 import com.ai.assistance.operit.core.tools.StringResultData
 import com.ai.assistance.operit.core.tools.defaultTool.accessbility.AccessibilityFileSystemTools
@@ -33,7 +34,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
         private const val TAG = "DebuggerFileSystemTools"
 
         // Maximum allowed file size for operations
-        protected const val MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024 // 10MB
+        protected const val MAX_FILE_SIZE_BYTES = 32 * 1024 // 32k
     }
 
     /** List files in a directory */
@@ -55,7 +56,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
 
             // 使用ls -la命令获取详细的文件列表
             Log.d(TAG, "Using ls -la command for path: $normalizedPath")
-            val listResult = AndroidShellExecutor.executeShellCommand("ls -la \"$normalizedPath\"")
+            val listResult = AndroidShellExecutor.executeShellCommand("ls -la '$normalizedPath'")
 
             if (listResult.success) {
                 Log.d(TAG, "ls -la command output: ${listResult.stdout}")
@@ -331,6 +332,101 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
         }
     }
 
+    /**
+     * Reads the full content of a file as a new tool, handling different file types.
+     * This function does not enforce a size limit.
+     */
+    override suspend fun readFileFull(tool: AITool): ToolResult {
+        val path = tool.parameters.find { it.name == "path" }?.value ?: ""
+        if (path.isBlank()) {
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Path parameter is required"
+            )
+        }
+        
+        try {
+            // First check if the file exists using shell command
+            val existsResult =
+                    AndroidShellExecutor.executeShellCommand(
+                            "test -f '$path' && echo 'exists' || echo 'not exists'"
+                    )
+            if (existsResult.stdout.trim() != "exists") {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "File does not exist: $path"
+                )
+            }
+
+            // Check file extension
+            val fileExt = path.substringAfterLast('.', "").lowercase()
+
+            // Handle special file types by calling the parent's handler
+            val specialReadResult = super.handleSpecialFileRead(tool, path, fileExt)
+            if (specialReadResult != null) {
+                // If the parent handled it, return its result.
+                // But if it failed, we might want to fall back to shell `cat` for some types.
+                 if (specialReadResult.success) {
+                    return specialReadResult
+                }
+                 // Optional: Could add fallback logic here if superclass fails for some reason
+            }
+
+            // For standard text-based files, use shell `cat`
+            val supportedTextExtensions = listOf("csv", "txt", "json", "xml", "html", "js", "css", "md", "log", "kt", "java", "py", "sh")
+            if (fileExt in supportedTextExtensions) {
+                val result = AndroidShellExecutor.executeShellCommand("cat '$path'")
+                    if (result.success) {
+                        val sizeResult =
+                            AndroidShellExecutor.executeShellCommand("stat -c %s '$path'")
+                        val size =
+                                sizeResult.stdout.trim().toLongOrNull()
+                                        ?: result.stdout.length.toLong()
+
+                    return ToolResult(
+                                toolName = tool.name,
+                                success = true,
+                                result =
+                                        FileContentData(
+                                                path = path,
+                                                content = result.stdout,
+                                                size = size
+                                        ),
+                                error = ""
+                        )
+                    } else {
+                    return ToolResult(
+                                toolName = tool.name,
+                                success = false,
+                                result = StringResultData(""),
+                                error = "Failed to read file: ${result.stderr}"
+                        )
+                    }
+                }
+            
+            // If it's not a special file and not a standard text file, return unsupported
+            return ToolResult(
+                            toolName = tool.name,
+                            success = false,
+                            result = StringResultData(""),
+                            error = "Unsupported file format: .$fileExt"
+                    )
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error reading file", e)
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Error reading file: ${e.message}"
+            )
+        }
+    }
+
     /** Read file content */
     override suspend fun readFile(tool: AITool): ToolResult {
         val path = tool.parameters.find { it.name == "path" }?.value ?: ""
@@ -344,11 +440,102 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
             )
         }
 
+        try {
+            val fileExt = path.substringAfterLast('.', "").lowercase()
+
+            // For special types, full read then truncate text is the only way.
+            if (fileExt in listOf("doc", "docx", "pdf", "jpg", "jpeg", "png", "gif", "bmp")) {
+                val fullResult = readFileFull(tool)
+                if (!fullResult.success) return fullResult
+
+                val contentData = fullResult.result as FileContentData
+                var content = contentData.content
+                if (content.length > MAX_FILE_SIZE_BYTES) {
+                    content = content.substring(0, MAX_FILE_SIZE_BYTES) + "\n\n... (file content truncated) ..."
+                }
+                return ToolResult(
+                    toolName = tool.name,
+                    success = true,
+                    result = FileContentData(path = path, content = content, size = content.length.toLong()),
+                    error = ""
+                )
+            }
+
+            // For text-based files, read only the beginning.
+             val supportedTextExtensions = listOf("csv", "txt", "json", "xml", "html", "js", "css", "md", "log", "kt", "java", "py", "sh")
+            if (fileExt !in supportedTextExtensions) {
+                 return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Unsupported file format for partial read: .$fileExt. Use readFileFull tool for full content."
+                )
+            }
+
+            // Check file size to see if truncation is needed
+            val sizeResult = AndroidShellExecutor.executeShellCommand("stat -c %s '$path'")
+            val size = sizeResult.stdout.trim().toLongOrNull() ?: 0
+            val truncated = size > MAX_FILE_SIZE_BYTES
+
+            val readCommand = "head -c $MAX_FILE_SIZE_BYTES '$path'"
+            val readResult = AndroidShellExecutor.executeShellCommand(readCommand)
+
+            if (!readResult.success) {
+                 return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "Failed to read file: ${readResult.stderr}"
+                )
+            }
+
+            var content = readResult.stdout
+            if (truncated) {
+                content += "\n\n... (file content truncated) ..."
+            }
+
+            return ToolResult(
+                    toolName = tool.name,
+                    success = true,
+                    result =
+                            FileContentData(
+                                    path = path,
+                                    content = content,
+                                    size = content.length.toLong()
+                            ),
+                    error = ""
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error reading file", e)
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Error reading file: ${e.message}"
+            )
+        }
+    }
+
+    /** 分段读取文件内容 */
+    override suspend fun readFilePart(tool: AITool): ToolResult {
+        val path = tool.parameters.find { it.name == "path" }?.value ?: ""
+        val partIndex = tool.parameters.find { it.name == "partIndex" }?.value?.toIntOrNull() ?: 0
+        val partSize = 200
+
+        if (path.isBlank()) {
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Path parameter is required"
+            )
+        }
+
         return try {
-            // First check if the file exists
+            // 1. Check if file exists
             val existsResult =
                     AndroidShellExecutor.executeShellCommand(
-                            "test -f \"$path\" && echo 'exists' || echo 'not exists'"
+                            "test -f '$path' && echo 'exists' || echo 'not exists'"
                     )
             if (existsResult.stdout.trim() != "exists") {
                 return ToolResult(
@@ -359,210 +546,81 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
                 )
             }
 
-            // Check file size before reading
-            val sizeResult = AndroidShellExecutor.executeShellCommand("stat -c %s \"$path\"")
-            if (sizeResult.success) {
-                val size = sizeResult.stdout.trim().toLongOrNull() ?: 0
-                if (size > MAX_FILE_SIZE_BYTES) {
-                    return ToolResult(
-                            toolName = tool.name,
-                            success = false,
-                            result = StringResultData(""),
-                            error =
-                                    "File is too large (${size / 1024} KB). Maximum allowed size is ${MAX_FILE_SIZE_BYTES / 1024} KB."
-                    )
-                }
-            }
-
-            // 检查文件扩展名
-            val fileExt = path.substringAfterLast('.', "").lowercase()
-
-            // 如果是Word文档，先转换为文本
-            if (fileExt == "doc" || fileExt == "docx") {
-                Log.d(TAG, "Detected Word document, converting to text before reading")
-
-                // 创建临时文件路径用于存储转换后的文本
-                val tempFilePath = "${path}_converted_${System.currentTimeMillis()}.txt"
-
-                try {
-                    // 使用AIToolHandler获取并使用文件转换工具
-                    val fileConverterTool =
-                            AITool(
-                                    name = "convert_file",
-                                    parameters =
-                                            listOf(
-                                                    ToolParameter("source_path", path),
-                                                    ToolParameter("target_path", tempFilePath)
-                                            )
-                            )
-
-                    // 获取AIToolHandler实例
-                    val toolHandler = AIToolHandler.getInstance(context)
-
-                    // 执行文件转换
-                    val conversionResult = toolHandler.executeTool(fileConverterTool)
-
-                    if (conversionResult.success) {
-                        Log.d(TAG, "Successfully converted Word document to text")
-
-                        // 读取转换后的文本文件
-                        val textContent =
-                                AndroidShellExecutor.executeShellCommand("cat \"$tempFilePath\"")
-
-                        if (textContent.success) {
-                            // 创建结果
-                            val result =
-                                    ToolResult(
-                                            toolName = tool.name,
-                                            success = true,
-                                            result =
-                                                    FileContentData(
-                                                            path = path,
-                                                            content = textContent.stdout,
-                                                            size =
-                                                                    textContent.stdout.length
-                                                                            .toLong()
-                                                    ),
-                                            error = ""
-                                    )
-
-                            // 删除临时文件
-                            AndroidShellExecutor.executeShellCommand("rm -f \"$tempFilePath\"")
-
-                            return result
-                        }
-                    } else {
-                        Log.w(
-                                TAG,
-                                "Word conversion failed: ${conversionResult.error}, falling back to raw content"
-                        )
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error during Word document conversion", e)
-                    // 转换失败，继续尝试读取原始文件
-                }
-            } else if (fileExt == "jpg" ||
-                            fileExt == "jpeg" ||
-                            fileExt == "png" ||
-                            fileExt == "gif" ||
-                            fileExt == "bmp"
-            ) {
-                Log.d(TAG, "Detected image file, attempting to extract text using OCR")
-
-                try {
-                    // 使用BitmapFactory读取图片
-                    val bitmap = android.graphics.BitmapFactory.decodeFile(path)
-                    if (bitmap != null) {
-                        // 使用OCRUtils提取文本
-                        val ocrText =
-                                kotlinx.coroutines.runBlocking {
-                                    com.ai.assistance.operit.util.OCRUtils.recognizeText(
-                                            context,
-                                            bitmap
-                                    )
-                                }
-
-                        if (ocrText.isNotBlank()) {
-                            Log.d(TAG, "Successfully extracted text from image using OCR")
-
-                            // 返回提取的文本
-                            return ToolResult(
-                                    toolName = tool.name,
-                                    success = true,
-                                    result =
-                                            FileContentData(
-                                                    path = path,
-                                                    content = ocrText,
-                                                    size = ocrText.length.toLong()
-                                            ),
-                                    error = ""
-                            )
-                        } else {
-                            Log.w(
-                                    TAG,
-                                    "OCR extraction returned empty text, returning no text detected message"
-                            )
-
-                            // 直接返回未识别到文字的提示信息
-                            return ToolResult(
-                                    toolName = tool.name,
-                                    success = true,
-                                    result =
-                                            FileContentData(
-                                                    path = path,
-                                                    content = "No text detected in image.",
-                                                    size =
-                                                            "No text detected in image.".length
-                                                                    .toLong()
-                                            ),
-                                    error = ""
-                            )
-                        }
-                    } else {
-                        Log.w(TAG, "Failed to decode image file, returning error message")
-
-                        // 返回无法解码图片的提示信息
-                        return ToolResult(
-                                toolName = tool.name,
-                                success = true,
-                                result =
-                                        FileContentData(
-                                                path = path,
-                                                content = "Failed to decode image file.",
-                                                size =
-                                                        "Failed to decode image file.".length
-                                                                .toLong()
-                                        ),
-                                error = ""
-                        )
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error during OCR text extraction", e)
-                    // OCR提取失败，返回错误信息
-                    return ToolResult(
-                            toolName = tool.name,
-                            success = true,
-                            result =
-                                    FileContentData(
-                                            path = path,
-                                            content =
-                                                    "Error extracting text from image: ${e.message}",
-                                            size =
-                                                    "Error extracting text from image: ${e.message}"
-                                                            .length.toLong()
-                                    ),
-                            error = ""
-                    )
-                }
-            }
-
-            // 对于非Word文档或转换失败的情况，直接读取文件内容
-            val result = AndroidShellExecutor.executeShellCommand("cat \"$path\"")
-
-            if (result.success) {
-                val size = sizeResult.stdout.trim().toLongOrNull() ?: result.stdout.length.toLong()
-
-                return ToolResult(
-                        toolName = tool.name,
-                        success = true,
-                        result = FileContentData(path = path, content = result.stdout, size = size),
-                        error = ""
-                )
-            } else {
+            // 2. Get total number of lines
+            val wcResult = AndroidShellExecutor.executeShellCommand("cat '$path' | wc -l")
+            if (!wcResult.success) {
                 return ToolResult(
                         toolName = tool.name,
                         success = false,
                         result = StringResultData(""),
-                        error = "Failed to read file: ${result.stderr}"
+                        error = "Failed to count lines in file: ${wcResult.stderr}"
                 )
             }
+
+            val totalLines = wcResult.stdout.trim().split(" ")[0].toIntOrNull() ?: 0
+
+            // 3. Calculate part info
+            val totalParts = (totalLines + partSize - 1) / partSize
+            val validPartIndex = partIndex.coerceIn(0, if (totalParts > 0) totalParts - 1 else 0)
+
+            val startLine = validPartIndex * partSize + 1 // sed is 1-indexed
+            val endLine = minOf(startLine + partSize - 1, totalLines)
+
+            if (totalLines == 0 || startLine > endLine) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = true,
+                        result =
+                                FilePartContentData(
+                                        path = path,
+                                        content = "",
+                                        partIndex = validPartIndex,
+                                        totalParts = totalParts,
+                                        startLine = startLine - 1,
+                                        endLine = endLine,
+                                        totalLines = totalLines
+                                ),
+                        error = ""
+                )
+            }
+
+            // 4. Extract the specific part using sed
+            val sedCommand = "sed -n '${startLine},${endLine}p' '$path'"
+            val partResult = AndroidShellExecutor.executeShellCommand(sedCommand)
+
+            if (!partResult.success) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "Failed to read file part: ${partResult.stderr}"
+                )
+            }
+
+            val content = partResult.stdout
+
+            ToolResult(
+                    toolName = tool.name,
+                    success = true,
+                    result =
+                            FilePartContentData(
+                                    path = path,
+                                    content = content.trimEnd(),
+                                    partIndex = validPartIndex,
+                                    totalParts = totalParts,
+                                    startLine = startLine - 1, // To 0-indexed for response
+                                    endLine = endLine,
+                                    totalLines = totalLines
+                            ),
+                    error = ""
+            )
         } catch (e: Exception) {
-            Log.e(TAG, "Error reading file", e)
+            Log.e(TAG, "Error reading file part", e)
             return ToolResult(
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error = "Error reading file: ${e.message}"
+                    error = "Error reading file part: ${e.message}"
             )
         }
     }
@@ -769,7 +827,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
         }
 
         return try {
-            val deleteCommand = if (recursive) "rm -rf $path" else "rm -f $path"
+            val deleteCommand = if (recursive) "rm -rf '$path'" else "rm -f '$path'"
             val result = AndroidShellExecutor.executeShellCommand(deleteCommand)
 
             if (result.success) {
@@ -1239,7 +1297,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
             // Build the command with depth control if specified
             val depthOption = if (maxDepth >= 0) "-maxdepth $maxDepth" else ""
             val command =
-                    "find ${if(path.endsWith("/")) path else "$path/"} $depthOption $searchOption $patternForCommand"
+                    "find '${if(path.endsWith("/")) path else "$path/"}' $depthOption $searchOption $patternForCommand"
 
             val result = AndroidShellExecutor.executeShellCommand(command)
 

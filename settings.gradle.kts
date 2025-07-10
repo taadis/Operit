@@ -24,4 +24,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Operit"
 include(":app")
-include(":live2d")
+include(":dragonbones")

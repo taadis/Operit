@@ -19,9 +19,11 @@ import com.ai.assistance.operit.data.preferences.initAndroidPermissionPreference
 import com.ai.assistance.operit.data.preferences.initUserPreferencesManager
 import com.ai.assistance.operit.data.preferences.preferencesManager
 import com.ai.assistance.operit.ui.features.chat.webview.LocalWebServer
+import com.ai.assistance.operit.util.GlobalExceptionHandler
 import com.ai.assistance.operit.util.LocaleUtils
 import com.ai.assistance.operit.util.SerializationSetup
 import com.ai.assistance.operit.util.TextSegmenter
+import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -60,6 +62,9 @@ class OperitApplication : Application() {
         super.onCreate()
         instance = this
 
+        // 在所有其他初始化之前设置全局异常处理器
+        Thread.setDefaultUncaughtExceptionHandler(GlobalExceptionHandler(this))
+
         // Initialize the JSON serializer with our custom module
         json = Json {
             serializersModule = SerializationSetup.module
@@ -80,6 +85,9 @@ class OperitApplication : Application() {
 
         // 初始化AndroidShellExecutor上下文
         AndroidShellExecutor.setContext(applicationContext)
+
+        // 初始化PDFBox资源加载器
+        PDFBoxResourceLoader.init(getApplicationContext());
 
         // 初始化图片缓存
         MCPImageCache.initialize(applicationContext)
@@ -189,7 +197,7 @@ class OperitApplication : Application() {
             super.attachBaseContext(base)
         }
     }
-    
+
     override fun onTerminate() {
         super.onTerminate()
         // 在应用终止时关闭LocalWebServer服务器
