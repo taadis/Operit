@@ -20,12 +20,14 @@ import android.view.animation.TranslateAnimation
 import android.widget.FrameLayout
 import android.widget.Scroller
 import androidx.customview.view.AbsSavedState as BaseSavedState
+import android.util.Log
 
 /**
  * 具有弹性效果的全方向ScrollView,参考ScrollView与HorizontalScrollView源码
  */
 open class HVScrollView : FrameLayout {
     companion object {
+        const val TAG = "HVScrollView_DEBUG"
         const val ANIMATED_SCROLL_GAP = 250
         const val MAX_SCROLL_FACTOR = 0.5f
         private const val INVALID_POINTER = -1
@@ -129,6 +131,11 @@ open class HVScrollView : FrameLayout {
         mMaximumVelocity = configuration.scaledMaximumFlingVelocity * 2
     }
     
+    override fun requestDisallowInterceptTouchEvent(disallowIntercept: Boolean) {
+        Log.d(TAG, "requestDisallowInterceptTouchEvent(disallow: $disallowIntercept)")
+        super.requestDisallowInterceptTouchEvent(disallowIntercept)
+    }
+
     /**
      * 设置scroller是否可以滑动内容当触屏事件在chileview之外 default:false
      */
@@ -406,13 +413,14 @@ open class HVScrollView : FrameLayout {
     }
     
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+        Log.d(TAG, "onInterceptTouchEvent: received action=${ev.action}")
         // 这个方法只确定我们是否要拦截动作。
         // 如果我们返回true，onMotionEvent将被调用，我们在那里进行实际的滚动。
 
         // 快捷方式最常见的情况：用户处于拖动状态，他正在移动手指。
         // 我们想要拦截这个动作。
         val action = ev.action
-        if ((action == MotionEvent.ACTION_MOVE) && mIsBeingDragged) {
+        if (action == MotionEvent.ACTION_MOVE && mIsBeingDragged) {
             return true
         }
 
@@ -420,26 +428,22 @@ open class HVScrollView : FrameLayout {
             MotionEvent.ACTION_MOVE -> {
                 // mIsBeingDragged == false，否则快捷方式会捕获它。
                 // 检查用户是否已经从原始的向下触摸移动了足够远。
-
-                // 在本地进行绝对值。mLastMotionY设置为向下事件的y值。
                 val activePointerId = mActivePointerId
-                if (activePointerId == INVALID_POINTER) {
-                    // 如果我们没有有效的id，则向下触摸不在内容上。
-                    return false
-                }
+                if (activePointerId != INVALID_POINTER) {
+                    val pointerIndex = ev.findPointerIndex(activePointerId)
+                    if (pointerIndex != -1) {
+                        val y = ev.getY(pointerIndex)
+                        val yDiff = Math.abs(y - mLastMotionY).toInt()
+                        if (yDiff > mTouchSlop) {
+                            mIsBeingDragged = true
+                        }
 
-                val pointerIndex = ev.findPointerIndex(activePointerId)
-                val y = ev.getY(pointerIndex)
-                val yDiff = Math.abs(y - mLastMotionY).toInt()
-                if (yDiff > mTouchSlop) {
-                    mIsBeingDragged = true
-                    mLastMotionY = y
-                }
-                val x = ev.getX(pointerIndex)
-                val xDiff = Math.abs(x - mLastMotionX).toInt()
-                if (xDiff > mTouchSlop) {
-                    mIsBeingDragged = true
-                    mLastMotionX = x
+                        val x = ev.getX(pointerIndex)
+                        val xDiff = Math.abs(x - mLastMotionX).toInt()
+                        if (xDiff > mTouchSlop) {
+                            mIsBeingDragged = true
+                        }
+                    }
                 }
             }
 
@@ -448,17 +452,18 @@ open class HVScrollView : FrameLayout {
                 val y = ev.y
                 if (!inChild(x.toInt(), y.toInt())) {
                     mIsBeingDragged = false
-                    return false
+                } else {
+                    // 强制父视图不要拦截此手势序列
+                    parent?.requestDisallowInterceptTouchEvent(true)
+                    // 记住向下触摸的位置。ACTION_DOWN总是指向指针索引0。
+                    mLastMotionY = y
+                    mLastMotionX = x
+                    mActivePointerId = ev.getPointerId(0)
+
+                    // 如果正在抛掷并且用户触摸屏幕，启动拖动；否则不要。
+                    // mScroller.isFinished在抛掷时应该为false。
+                    mIsBeingDragged = !mScroller.isFinished
                 }
-
-                // 记住向下触摸的位置。ACTION_DOWN总是指向指针索引0。
-                mLastMotionY = y
-                mLastMotionX = x
-                mActivePointerId = ev.getPointerId(0)
-
-                // 如果正在抛掷并且用户触摸屏幕，启动拖动；否则不要。
-                // mScroller.isFinished在抛掷时应该为false。
-                mIsBeingDragged = !mScroller.isFinished
             }
 
             MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_UP -> {
@@ -470,6 +475,7 @@ open class HVScrollView : FrameLayout {
         }
 
         // 我们只想在拖动模式下拦截动作事件。
+        Log.d(TAG, "onInterceptTouchEvent: returning mIsBeingDragged=$mIsBeingDragged for action=${ev.action}")
         return mIsBeingDragged
     }
     
@@ -490,9 +496,13 @@ open class HVScrollView : FrameLayout {
             MotionEvent.ACTION_DOWN -> {
                 val x = ev.x
                 val y = ev.y
-                if (!(inChild(x.toInt(), y.toInt())) && !scrollableOutsideTouch) {
+
+                // Crucial logic from Java reference: assignment within the condition
+                mIsBeingDragged = inChild(x.toInt(), y.toInt())
+                if (!mIsBeingDragged && !scrollableOutsideTouch) {
                     return false
                 }
+
                 // 阻止测试人员暴力测试
                 if (System.currentTimeMillis() - lastEvenTime < 200) {
                     ev.action = MotionEvent.ACTION_CANCEL
@@ -509,7 +519,6 @@ open class HVScrollView : FrameLayout {
                 mLastMotionY = y
                 mLastMotionX = x
                 mActivePointerId = ev.getPointerId(0)
-                mIsBeingDragged = inChild(x.toInt(), y.toInt())
             }
             MotionEvent.ACTION_MOVE -> {
                 if (mIsBeingDragged || scrollableOutsideTouch) {

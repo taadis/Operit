@@ -19,6 +19,7 @@ import com.ai.assistance.operit.data.preferences.initAndroidPermissionPreference
 import com.ai.assistance.operit.data.preferences.initUserPreferencesManager
 import com.ai.assistance.operit.data.preferences.preferencesManager
 import com.ai.assistance.operit.ui.features.chat.webview.LocalWebServer
+import com.ai.assistance.operit.ui.features.chat.webview.workspace.editor.language.LanguageFactory
 import com.ai.assistance.operit.util.GlobalExceptionHandler
 import com.ai.assistance.operit.util.LocaleUtils
 import com.ai.assistance.operit.util.SerializationSetup
@@ -88,6 +89,9 @@ class OperitApplication : Application() {
 
         // 初始化PDFBox资源加载器
         PDFBoxResourceLoader.init(getApplicationContext());
+
+        // 初始化语言支持
+        LanguageFactory.init()
 
         // 初始化图片缓存
         MCPImageCache.initialize(applicationContext)

@@ -461,7 +461,7 @@ open class StandardFileSystemTools(protected val context: Context) {
             val content = file.bufferedReader().use {
                 val buffer = CharArray(MAX_FILE_SIZE_BYTES)
                 val charsRead = it.read(buffer, 0, MAX_FILE_SIZE_BYTES)
-                String(buffer, 0, charsRead)
+                if (charsRead > 0) String(buffer, 0, charsRead) else ""
             }
 
             val truncated = file.length() > MAX_FILE_SIZE_BYTES

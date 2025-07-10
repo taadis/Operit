@@ -302,8 +302,8 @@ fun FileBrowser(
                                             val newPath = File(currentPath, item.name).path
                                             loadDirectory(newPath)
                                         } else {
-                                            val filePath = File(currentPath, item.name).path
-                                            openFile(filePath)
+                                                val filePath = File(currentPath, item.name).path
+                                                openFile(filePath)
                                         }
                                     },
                                     onLongPress = {

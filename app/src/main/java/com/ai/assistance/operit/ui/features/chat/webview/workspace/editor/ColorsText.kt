@@ -20,11 +20,15 @@ import androidx.appcompat.widget.AppCompatEditText
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.HashMap
+import android.util.Log
 
 /**
  * 彩色文本编辑器，支持语法高亮和自定义绘制
  */
 open class ColorsText : AppCompatEditText {
+    companion object {
+        const val TAG = "ColorsText_DEBUG"
+    }
     private val colorLock = Any()
     
     // 代码高亮颜色数组
@@ -212,11 +216,12 @@ open class ColorsText : AppCompatEditText {
             val lineCount = lineCount
             mMaxLineNumber = 1
             
-            val textStr = text.toString()
+            val currentText = text
             for (i in 1 until lineCount) {
                 val charPos = layout.getLineStart(i)
                 // 添加安全检查，确保charPos > 0且小于文本长度
-                if (charPos > 0 && textStr.isNotEmpty() && charPos - 1 < textStr.length && textStr[charPos - 1] == '\n') {
+                // Directly access Editable which is a CharSequence, much more efficient
+                if (charPos > 0 && !currentText.isNullOrEmpty() && charPos - 1 < currentText.length && currentText[charPos - 1] == '\n') {
                     lineNumber++
                     maps[i] = lineNumber.toString()
                     mMaxLineNumber = lineNumber
@@ -406,6 +411,7 @@ open class ColorsText : AppCompatEditText {
         val layout = layout
         val selectLine = getSelectLine()
         val range = IntArray(4)
+        val currentText = text ?: return
         run {
             // 计算需要绘制的行号所需要的范围
             val clipLeft = 0
@@ -440,7 +446,7 @@ open class ColorsText : AppCompatEditText {
             // 语法检查
             Thread {
                 try {
-                    check.publicTest(text.toString())
+                    check.publicTest(currentText.toString())
                 } catch (e: Exception) {
                 }
                 errorShowSafe = check.getError()
@@ -450,7 +456,7 @@ open class ColorsText : AppCompatEditText {
             if (check is GrammarCheck.JSON) {
                 Thread {
                     try {
-                        jsonPath = (check as GrammarCheck.JSON).getSurface(text.toString().subSequence(0, selectionStart))
+                        jsonPath = (check as GrammarCheck.JSON).getSurface(currentText.toString().subSequence(0, selectionStart))
                     } catch (e: Exception) {
                     }
                 }.start()
@@ -497,14 +503,14 @@ open class ColorsText : AppCompatEditText {
                 )
             }
             
-            val textLength = length()
+            val textLength = currentText.length
             
             // 绘制文字
             if (start < textLength) {
                 // 计算需要绘制的文字位置
                 // 获取该行所有文字宽度
                 val widths = FloatArray(end - start + 1)
-                paint.getTextWidths(text.toString(), start, end, widths)
+                paint.getTextWidths(currentText, start, end, widths)
                 
                 // 计算获取看到的文字第一个位置，和对应的偏移x
                 val firstNeedDrawPos = getLineFirstCharPosForDraw(widths)
@@ -536,7 +542,8 @@ open class ColorsText : AppCompatEditText {
                         val finalColor = if (color == 0) defaultTextColor else color
                         paint.color = finalColor
                         
-                        check.setPaint(text.toString().subSequence(i, i + fontCount).toString(), fontWidths, paint)
+                        // The subsequence's toString() is acceptable as it's a small string.
+                        check.setPaint(currentText.subSequence(i, i + fontCount).toString(), fontWidths, paint)
                         errorShow = errorShowSafe
                         
                         if (errorShow != null) {
@@ -550,8 +557,9 @@ open class ColorsText : AppCompatEditText {
                             paint.isUnderlineText = false
                         }
                         
+                        // Use the overload that accepts a CharSequence
                         canvas.drawText(
-                            text.toString(),
+                            currentText,
                             i,
                             i + fontCount,
                             left + offsetX,
@@ -654,14 +662,17 @@ open class ColorsText : AppCompatEditText {
             MotionEvent.ACTION_UP -> {
                 if (event.y > height - paddingBottom) {
                     val len = length()
-                    if (len > 0 && text.toString()[len - 1] != '\n') {
+                    val currentText = text
+                    // More efficient
+                    if (len > 0 && currentText != null && currentText[len - 1] != '\n') {
                         // 可以在这里添加额外的处理
                     }
                     append("\n")
                 }
             }
         }
-        return super.onTouchEvent(event)
+        val result = super.onTouchEvent(event)
+        return result
     }
     
     override fun setTextSize(size: Float) {
