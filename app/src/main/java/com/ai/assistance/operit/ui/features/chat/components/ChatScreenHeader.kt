@@ -2,6 +2,7 @@ package com.ai.assistance.operit.ui.features.chat.components
 
 import android.annotation.SuppressLint
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -45,30 +46,20 @@ import com.ai.assistance.operit.ui.permissions.PermissionLevel
 import kotlinx.coroutines.launch
 
 @Composable
-fun useFloatingWindowLauncher(actualViewModel: ChatViewModel): () -> Unit {
-    val context = LocalContext.current
+fun useFloatingWindowLauncher(
+    actualViewModel: ChatViewModel,
+    permissionLauncher: ActivityResultLauncher<String>
+): () -> Unit {
     val colorScheme = MaterialTheme.colorScheme
     val typography = MaterialTheme.typography
 
-    val permissionLauncher =
-            rememberLauncherForActivityResult(
-                    contract = ActivityResultContracts.RequestPermission()
-            ) { isGranted ->
-                if (isGranted) {
-                    actualViewModel.launchFloatingModeIn(
-                            FloatingMode.WINDOW,
-                            colorScheme,
-                            typography
-                    )
-                } else {
-                    actualViewModel.showToast("麦克风权限被拒绝")
-                }
-            }
-
     return {
-        actualViewModel.launchFloatingWindowWithPermissionCheck(permissionLauncher) {
-            actualViewModel.launchFloatingModeIn(FloatingMode.WINDOW, colorScheme, typography)
-        }
+        actualViewModel.onFloatingButtonClick(
+            FloatingMode.WINDOW,
+            permissionLauncher,
+            colorScheme,
+            typography
+        )
     }
 }
 
@@ -87,7 +78,24 @@ fun ChatScreenHeader(
     val currentChatTitle = chatHistories.find { it.id == currentChatId }?.title
     val scope = rememberCoroutineScope()
 
-    val launchFloatingWindow = useFloatingWindowLauncher(actualViewModel)
+    // The permission launcher needs to be at a level where it can be remembered,
+    // usually the screen level, but we pass it down here.
+    val permissionLauncher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestPermission()
+        ) { isGranted ->
+            if (isGranted) {
+                // After permission is granted, the ViewModel's logic (which is already running) will proceed.
+                // We might need to re-trigger the action if the ViewModel doesn't handle this state internally.
+                // For now, we assume the ViewModel handles it.
+                actualViewModel.launchFloatingModeIn(FloatingMode.WINDOW, colorScheme, typography)
+            } else {
+                actualViewModel.showToast("麦克风权限被拒绝")
+            }
+        }
+
+
+    val launchFloatingWindow = useFloatingWindowLauncher(actualViewModel, permissionLauncher)
 
     // 获取是否显示模型选择器的设置
     val apiPreferences = remember { ApiPreferences(context) }

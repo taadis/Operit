@@ -13,6 +13,8 @@ import com.ai.assistance.operit.services.FloatingChatService
 import com.ai.assistance.operit.services.floating.FloatingWindowState
 import com.ai.assistance.operit.ui.floating.ui.window.ResizeEdge
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 /** 简化后的FloatContext类，移除了路由耦合逻辑 */
 @Composable
@@ -43,10 +45,12 @@ fun rememberFloatContext(
         onRemoveAttachment: ((String) -> Unit)? = null,
         onInputFocusRequest: ((Boolean) -> Unit)? = null,
         chatService: FloatingChatService? = null,
-        windowState: FloatingWindowState? = null
+        windowState: FloatingWindowState? = null,
+        isUiBusy: Boolean = false
 ): FloatContext {
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
+    val isUiBusyFlow = remember { MutableStateFlow(isUiBusy) }
 
     val floatContext = remember(
             messages,
@@ -72,7 +76,8 @@ fun rememberFloatContext(
             onRemoveAttachment,
             onInputFocusRequest,
             chatService,
-            windowState
+            windowState,
+            isUiBusyFlow
     ) {
         FloatContext(
                 messages = messages,
@@ -103,13 +108,19 @@ fun rememberFloatContext(
                 density = density,
                 coroutineScope = scope,
                 chatService = chatService,
-                windowState = windowState
+                windowState = windowState,
+                isUiBusy = isUiBusyFlow
         )
     }
 
     LaunchedEffect(currentMode, previousMode) {
         floatContext.currentMode = currentMode
         floatContext.previousMode = previousMode
+    }
+
+    // Update the StateFlow when isUiBusy changes
+    LaunchedEffect(isUiBusy) {
+        isUiBusyFlow.value = isUiBusy
     }
 
     return floatContext
@@ -145,7 +156,8 @@ class FloatContext(
         val density: Density,
         val coroutineScope: CoroutineScope,
         val chatService: FloatingChatService? = null,
-        val windowState: FloatingWindowState? = null
+        val windowState: FloatingWindowState? = null,
+        val isUiBusy: StateFlow<Boolean> = MutableStateFlow(false)
 ) {
     // 动画与转换相关状态
     val animatedAlpha = Animatable(1f)

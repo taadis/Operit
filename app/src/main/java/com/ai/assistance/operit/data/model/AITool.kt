@@ -17,7 +17,7 @@ data class AITool(
         val category: ToolCategory? = null
 )
 
-/** Represents a tool invocation that was extracted from an AI response */
+/** Represents an invocation of a tool in the AI's response */
 @Serializable
 data class ToolInvocation(
         val tool: AITool,
@@ -33,24 +33,6 @@ data class ToolResult(
         val success: Boolean,
         val result: ToolResultData,
         val error: String? = null
-)
-
-/** Represents possible states of tool execution */
-enum class ToolExecutionState {
-    IDLE,
-    EXTRACTING,
-    EXECUTING,
-    COMPLETED,
-    FAILED
-}
-
-/** Represents a progress update during tool execution */
-data class ToolExecutionProgress(
-        val state: ToolExecutionState,
-        val tool: AITool? = null,
-        val progress: Float = 0f, // 0.0 to 1.0
-        val message: String = "",
-        val result: ToolResult? = null
 )
 
 /** Represents the validation result for tool parameters */

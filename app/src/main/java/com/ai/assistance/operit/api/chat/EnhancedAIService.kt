@@ -16,11 +16,11 @@ import com.ai.assistance.operit.core.tools.packTool.PackageManager
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.model.InputProcessingState
 import com.ai.assistance.operit.data.model.PlanItem
-import com.ai.assistance.operit.data.model.ToolExecutionProgress
 import com.ai.assistance.operit.data.model.ToolInvocation
 import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.PromptFunctionType
+import com.ai.assistance.operit.ui.permissions.ToolCategory
 import com.ai.assistance.operit.util.stream.Stream
 import com.ai.assistance.operit.util.stream.StreamCollector
 import com.ai.assistance.operit.util.stream.plugins.StreamXmlPlugin
@@ -275,14 +275,9 @@ class EnhancedAIService private constructor(private val context: Context) {
         Companion.refreshAllServices(context)
     }
 
-    /** Get the tool progress flow for UI updates */
-    fun getToolProgressFlow(): StateFlow<ToolExecutionProgress> {
-        return toolHandler.toolProgress
-    }
-
     /** Process user input with a delay for UI feedback */
     suspend fun processUserInput(input: String): String {
-        _inputProcessingState.value = InputProcessingState.Processing("Processing input...")
+        _inputProcessingState.value = InputProcessingState.Processing("正在处理输入...")
         return InputProcessor.processUserInput(input)
     }
 
@@ -419,7 +414,7 @@ class EnhancedAIService private constructor(private val context: Context) {
                     // Update state to show we're processing
                     withContext(Dispatchers.Main) {
                         _inputProcessingState.value =
-                                InputProcessingState.Processing("Processing message...")
+                                InputProcessingState.Processing("正在处理消息...")
                     }
 
                     // Prepare conversation history with system prompt
@@ -434,7 +429,7 @@ class EnhancedAIService private constructor(private val context: Context) {
                     // Update UI state to connecting
                     withContext(Dispatchers.Main) {
                         _inputProcessingState.value =
-                                InputProcessingState.Connecting("Connecting to AI service...")
+                                InputProcessingState.Connecting("正在连接AI服务...")
                     }
 
                     // Get all model parameters from preferences (with enabled state)
@@ -470,7 +465,7 @@ class EnhancedAIService private constructor(private val context: Context) {
                         if (isFirstChunk) {
                             withContext(Dispatchers.Main) {
                                 _inputProcessingState.value =
-                                        InputProcessingState.Receiving("Receiving AI response...")
+                                        InputProcessingState.Receiving("正在接收AI响应...")
                             }
                             isFirstChunk = false
                             Log.d(TAG, "首次响应耗时: ${System.currentTimeMillis() - streamStartTime}ms")
@@ -523,7 +518,7 @@ class EnhancedAIService private constructor(private val context: Context) {
                     Log.e(TAG, "发送消息时发生错误: ${e.message}", e)
                     withContext(Dispatchers.Main) {
                         _inputProcessingState.value =
-                                InputProcessingState.Error(message = "Error: ${e.message}")
+                                InputProcessingState.Error(message = "错误: ${e.message}")
                     }
                 }
 
@@ -826,14 +821,15 @@ class EnhancedAIService private constructor(private val context: Context) {
             conversationMutex.withLock { conversationHistory.add(Pair("tool", warningMessage)) }
         }
 
-        // Start executing the tool
-        withContext(Dispatchers.Main) {
-            _inputProcessingState.value =
-                    InputProcessingState.Processing("Executing tool: ${invocation.tool.name}")
-        }
-
         // Get tool executor and execute
         val executor = toolHandler.getToolExecutor(invocation.tool.name)
+
+        // Start executing the tool
+        withContext(Dispatchers.Main) {
+            val category = executor?.getCategory() ?: ToolCategory.SYSTEM_OPERATION
+            _inputProcessingState.value =
+                    InputProcessingState.ExecutingTool(invocation.tool.name, category)
+        }
 
         if (executor == null) {
             // Tool not available handling
@@ -861,8 +857,8 @@ class EnhancedAIService private constructor(private val context: Context) {
                 // properly
                 val errorStatusContent =
                         ConversationMarkupManager.createErrorStatus(
-                                "Permission denied",
-                                "Operation '${invocation.tool.name}' was not authorized"
+                                "权限拒绝",
+                                "操作 '${invocation.tool.name}' 未授权"
                         )
                 roundManager.appendContent(errorStatusContent)
                 collector.emit(errorStatusContent)
@@ -876,7 +872,7 @@ class EnhancedAIService private constructor(private val context: Context) {
                                         success = false,
                                         result = StringResultData(""),
                                         error =
-                                                "Permission denied: Operation '${invocation.tool.name}' was not authorized"
+                                                "权限拒绝: 操作 '${invocation.tool.name}' 未授权"
                                 )
                         )
                 roundManager.appendContent(toolResultStatusContent)
@@ -921,9 +917,7 @@ class EnhancedAIService private constructor(private val context: Context) {
         // Add transition state
         withContext(Dispatchers.Main) {
             _inputProcessingState.value =
-                    InputProcessingState.Processing(
-                            "Tool execution completed, preparing further processing..."
-                    )
+                    InputProcessingState.ProcessingToolResult(result.toolName)
         }
 
         // Check if conversation is still active
@@ -950,7 +944,7 @@ class EnhancedAIService private constructor(private val context: Context) {
         // Clearly show we're preparing to send tool result to AI
         withContext(Dispatchers.Main) {
             _inputProcessingState.value =
-                    InputProcessingState.Processing("Preparing to process tool execution result...")
+                    InputProcessingState.ProcessingToolResult(result.toolName)
         }
 
         // Add short delay to make state change more visible
@@ -978,7 +972,7 @@ class EnhancedAIService private constructor(private val context: Context) {
                 withContext(Dispatchers.Main) {
                     _inputProcessingState.value =
                             InputProcessingState.Receiving(
-                                    "Receiving AI response after tool execution..."
+                                    "正在接收工具执行后的AI响应..."
                             )
                 }
 

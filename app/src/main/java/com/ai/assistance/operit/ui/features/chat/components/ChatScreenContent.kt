@@ -31,7 +31,6 @@ import androidx.core.content.FileProvider
 import com.ai.assistance.operit.data.model.ChatHistory
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.model.PlanItem
-import com.ai.assistance.operit.data.model.ToolExecutionProgress
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
@@ -45,7 +44,6 @@ fun ChatScreenContent(
         chatHistory: List<ChatMessage>,
         planItems: List<PlanItem>,
         enableAiPlanning: Boolean,
-        toolProgress: ToolExecutionProgress,
         isLoading: Boolean,
         userMessageColor: Color,
         aiMessageColor: Color,
@@ -92,6 +90,13 @@ fun ChatScreenContent(
     var exportFilePath by remember { mutableStateOf<String?>(null) }
     var exportErrorMessage by remember { mutableStateOf<String?>(null) }
     var webContentDir by remember { mutableStateOf<File?>(null) }
+
+    val onSelectMessageToEditCallback = remember(editingMessageIndex, editingMessageContent) {
+        { index: Int, message: ChatMessage ->
+            editingMessageIndex.value = index
+            editingMessageContent.value = message.content
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
         // 主聊天区域（包括顶部工具栏），确保它一直可见
@@ -165,7 +170,6 @@ fun ChatScreenContent(
                             scrollState = scrollState,
                             planItems = planItems,
                             enablePlanning = enableAiPlanning,
-                            toolProgress = toolProgress,
                             isLoading = isLoading,
                             userMessageColor = userMessageColor,
                             aiMessageColor = aiMessageColor,
@@ -178,10 +182,7 @@ fun ChatScreenContent(
                             hasBackgroundImage = hasBackgroundImage,
                             modifier = Modifier.fillMaxSize(),
                             isEditMode = isEditMode.value,
-                            onSelectMessageToEdit = { index, message ->
-                                editingMessageIndex.value = index
-                                editingMessageContent.value = message.content
-                            }
+                            onSelectMessageToEdit = onSelectMessageToEditCallback
                     )
 
                     // 编辑模式下的操作面板

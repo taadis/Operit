@@ -9,7 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -73,8 +73,9 @@ fun AIChatScreen(
                     contract = ActivityResultContracts.RequestPermission()
             ) { isGranted ->
                 if (isGranted) {
-                    // 权限已授予，启用悬浮窗
-                    actualViewModel.toggleFloatingMode(colorScheme)
+                    // This launcher is now used inside the ViewModel's permission check flow
+                    // It's kept here because it's tied to the composable lifecycle.
+                    // The actual logic is now triggered from within the ViewModel after the check.
                 } else {
                     // 权限被拒绝
                     android.widget.Toast.makeText(
@@ -104,9 +105,7 @@ fun AIChatScreen(
     val userMessage by actualViewModel.userMessage.collectAsState()
     val isLoading by actualViewModel.isLoading.collectAsState()
     val errorMessage by actualViewModel.errorMessage.collectAsState()
-    val toolProgress by actualViewModel.toolProgress.collectAsState()
-    val isProcessingInput by actualViewModel.isProcessingInput.collectAsState()
-    val inputProcessingMessage by actualViewModel.inputProcessingMessage.collectAsState()
+    val inputProcessingState by actualViewModel.inputProcessingState.collectAsState()
     val planItems by actualViewModel.planItems.collectAsState()
     val enableAiPlanning by actualViewModel.enableAiPlanning.collectAsState()
     val showChatHistorySelector by actualViewModel.showChatHistorySelector.collectAsState()
@@ -156,7 +155,9 @@ fun AIChatScreen(
 
     // 滚动状态
     var autoScrollToBottom by remember { mutableStateOf(true) }
+    val onAutoScrollToBottomChange = remember { { it: Boolean -> autoScrollToBottom = it } }
     var showScrollButton by remember { mutableStateOf(false) }
+    val onShowScrollButtonChange = remember { { it: Boolean -> showScrollButton = it } }
 
     // 核心滚动逻辑
     // 使用 LaunchedEffect(scrollState) 确保监听器在组件的整个生命周期内持续运行，
@@ -265,10 +266,13 @@ fun AIChatScreen(
 
     // 添加手势状态
     var chatScreenGestureConsumed by remember { mutableStateOf(false) }
+    val onChatScreenGestureConsumedChange = remember { { it: Boolean -> chatScreenGestureConsumed = it } }
 
     // 添加累计滑动距离变量
     var currentDrag by remember { mutableStateOf(0f) }
+    val onCurrentDragChange = remember { { it: Float -> currentDrag = it } }
     var verticalDrag by remember { mutableStateOf(0f) }
+    val onVerticalDragChange = remember { { it: Float -> verticalDrag = it } }
     val dragThreshold = 40f // 与PhoneLayout保持一致
 
     // 收集WebView显示状态
@@ -327,10 +331,10 @@ fun AIChatScreen(
     DisposableEffect(showWebView) {
         setTopBarActions {
             // Web开发模式切换按钮
-            IconButton(onClick = { actualViewModel.toggleWebView() }) {
+            IconButton(onClick = { actualViewModel.onWorkspaceButtonClick() }) {
                 Icon(
-                        imageVector = Icons.Default.Language,
-                        contentDescription = "Web开发",
+                        imageVector = Icons.Default.Code,
+                        contentDescription = "代码编辑器",
                         tint =
                                 if (showWebView) MaterialTheme.colorScheme.primaryContainer
                                 else MaterialTheme.colorScheme.onPrimary
@@ -391,8 +395,7 @@ fun AIChatScreen(
                                     },
                                     onCancelMessage = { actualViewModel.cancelCurrentMessage() },
                                     isLoading = isLoading,
-                                    isProcessingInput = isProcessingInput,
-                                    inputProcessingMessage = inputProcessingMessage,
+                                    inputState = inputProcessingState,
                                     allowTextInputWhileProcessing = true,
                                     onAttachmentRequest = { filePath ->
                                         // 处理附件 - 现在使用文件路径而不是Uri
@@ -482,7 +485,6 @@ fun AIChatScreen(
                         chatHistory = chatHistory,
                         planItems = planItems,
                         enableAiPlanning = enableAiPlanning,
-                        toolProgress = toolProgress,
                         isLoading = isLoading,
                         userMessageColor = userMessageColor,
                         aiMessageColor = aiMessageColor,
@@ -497,17 +499,17 @@ fun AIChatScreen(
                         editingMessageIndex = editingMessageIndex,
                         editingMessageContent = editingMessageContent,
                         chatScreenGestureConsumed = chatScreenGestureConsumed,
-                        onChatScreenGestureConsumed = { chatScreenGestureConsumed = it },
+                        onChatScreenGestureConsumed = onChatScreenGestureConsumedChange,
                         currentDrag = currentDrag,
-                        onCurrentDragChange = { currentDrag = it },
+                        onCurrentDragChange = onCurrentDragChange,
                         verticalDrag = verticalDrag,
-                        onVerticalDragChange = { verticalDrag = it },
+                        onVerticalDragChange = onVerticalDragChange,
                         dragThreshold = dragThreshold,
                         scrollState = scrollState,
                         showScrollButton = showScrollButton,
-                        onShowScrollButtonChange = { showScrollButton = it },
+                        onShowScrollButtonChange = onShowScrollButtonChange,
                         autoScrollToBottom = autoScrollToBottom,
-                        onAutoScrollToBottomChange = { autoScrollToBottom = it },
+                        onAutoScrollToBottomChange = onAutoScrollToBottomChange,
                         coroutineScope = coroutineScope,
                         chatHistories = chatHistories,
                         currentChatId = currentChatId ?: ""
@@ -655,6 +657,30 @@ fun AIChatScreen(
                 confirmButton = {
                     TextButton(onClick = { actualViewModel.clearPopupMessage() }) { Text("确定") }
                 }
+        )
+    }
+
+    // New Invitation Explanation Dialog
+    val showInvitationExplanation by actualViewModel.showInvitationExplanation.collectAsState()
+    if (showInvitationExplanation) {
+        InvitationExplanationDialog(
+            onDismiss = { actualViewModel.dismissInvitationExplanation() },
+            onConfirm = { actualViewModel.onInvitationExplanationConfirmed() }
+        )
+    }
+
+    // New Invitation Panel Dialog
+    val showInvitationPanel by actualViewModel.showInvitationPanel.collectAsState()
+    if (showInvitationPanel) {
+        val invitationCount by actualViewModel.invitationCount.collectAsState(initial = 0)
+        val invitationMessage by actualViewModel.generatedInvitationMessage.collectAsState()
+
+        InvitationPanelDialog(
+            invitationCount = invitationCount,
+            invitationMessage = invitationMessage,
+            onDismiss = { actualViewModel.dismissInvitationPanel() },
+            onShare = { message -> actualViewModel.shareInvitationMessage(message) },
+            onVerifyCode = { code -> actualViewModel.verifyAndHandleConfirmationCode(code) }
         )
     }
 

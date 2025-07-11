@@ -11,13 +11,14 @@ import androidx.compose.material3.Typography
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ai.assistance.operit.api.chat.EnhancedAIService
+import com.ai.assistance.operit.core.invitation.InvitationManager
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatHistory
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.model.PlanItem
-import com.ai.assistance.operit.data.model.ToolExecutionProgress
 import com.ai.assistance.operit.data.preferences.ApiPreferences
+import com.ai.assistance.operit.data.preferences.InvitationRepository
 import com.ai.assistance.operit.data.preferences.ModelConfigManager
 import com.ai.assistance.operit.data.preferences.PromptFunctionType
 import com.ai.assistance.operit.ui.features.chat.attachments.AttachmentManager
@@ -31,6 +32,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -40,6 +42,67 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     companion object {
         private const val TAG = "ChatViewModel"
     }
+
+    // Invitation and feature unlock management
+    private val invitationRepository = InvitationRepository(context)
+    private val invitationManager = InvitationManager(context)
+
+    val isWorkspaceUnlocked = invitationRepository.isWorkspaceUnlockedFlow
+    val isFloatingWindowUnlocked = invitationRepository.isFloatingWindowUnlockedFlow
+    val invitationCount = invitationRepository.invitationCountFlow
+
+    private val _showInvitationExplanation = MutableStateFlow(false)
+    val showInvitationExplanation = _showInvitationExplanation.asStateFlow()
+
+    private val _showInvitationPanel = MutableStateFlow(false)
+    val showInvitationPanel = _showInvitationPanel.asStateFlow()
+
+    private val _generatedInvitationMessage = MutableStateFlow("")
+    val generatedInvitationMessage = _generatedInvitationMessage.asStateFlow()
+
+    fun showInvitationPanel() {
+        _generatedInvitationMessage.value = invitationManager.generateInvitationMessage()
+        _showInvitationPanel.value = true
+    }
+
+    fun dismissInvitationPanel() {
+        _showInvitationPanel.value = false
+    }
+
+    fun onInvitationExplanationConfirmed() {
+        // After user confirms, hide explanation and show the main panel
+        _showInvitationExplanation.value = false
+        showInvitationPanel()
+    }
+
+    fun dismissInvitationExplanation() {
+        _showInvitationExplanation.value = false
+    }
+
+    fun shareInvitationMessage(message: String) {
+        val sendIntent: Intent = Intent().apply {
+            action = Intent.ACTION_SEND
+            putExtra(Intent.EXTRA_TEXT, message)
+            type = "text/plain"
+        }
+        val shareIntent = Intent.createChooser(sendIntent, null)
+        shareIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(shareIntent)
+    }
+
+    fun verifyAndHandleConfirmationCode(code: String) {
+        viewModelScope.launch {
+            val success = invitationManager.verifyConfirmationCode(code)
+            if (success) {
+                showToast("邀请成功！感谢你的助力！")
+                // Dismiss the panel on success
+                dismissInvitationPanel()
+            } else {
+                showToast("返回码无效，请检查后重试。")
+            }
+        }
+    }
+
 
     // 服务收集器设置状态跟踪
     private var serviceCollectorSetupComplete = false
@@ -109,11 +172,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     // 消息处理相关
     val userMessage: StateFlow<String> by lazy { messageProcessingDelegate.userMessage }
     val isLoading: StateFlow<Boolean> by lazy { messageProcessingDelegate.isLoading }
-    val isProcessingInput: StateFlow<Boolean> by lazy {
-        messageProcessingDelegate.isProcessingInput
-    }
-    val inputProcessingMessage: StateFlow<String> by lazy {
-        messageProcessingDelegate.inputProcessingMessage
+    val inputProcessingState: StateFlow<com.ai.assistance.operit.data.model.InputProcessingState> by lazy {
+        messageProcessingDelegate.inputProcessingState
     }
 
     val scrollToBottomEvent: SharedFlow<Unit> by lazy {
@@ -124,7 +184,6 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     val errorMessage: StateFlow<String?> by lazy { uiStateDelegate.errorMessage }
     val popupMessage: StateFlow<String?> by lazy { uiStateDelegate.popupMessage }
     val toastEvent: StateFlow<String?> by lazy { uiStateDelegate.toastEvent }
-    val toolProgress: StateFlow<ToolExecutionProgress> by lazy { uiStateDelegate.toolProgress }
     val masterPermissionLevel: StateFlow<PermissionLevel> by lazy {
         uiStateDelegate.masterPermissionLevel
     }
@@ -275,19 +334,6 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         if (enhancedAiService == null) {
             Log.d(TAG, "EnhancedAIService尚未初始化，跳过服务收集器设置")
             return
-        }
-
-        // 设置工具进度收集
-        viewModelScope.launch {
-            try {
-                enhancedAiService?.getToolProgressFlow()?.collect { progress ->
-                    uiStateDelegate.updateToolProgress(progress)
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "工具进度收集出错: ${e.message}", e)
-                // 修改：使用错误弹窗显示工具进度收集错误
-                uiStateDelegate.showErrorMessage("工具进度收集失败: ${e.message}")
-            }
         }
 
         // 设置输入处理状态收集
@@ -606,6 +652,28 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     fun clearToastEvent() = uiStateDelegate.clearToastEvent()
 
     // 悬浮窗相关方法
+    fun onFloatingButtonClick(mode: FloatingMode, permissionLauncher: ActivityResultLauncher<String>, colorScheme: ColorScheme, typography: Typography) {
+        viewModelScope.launch {
+            if (isFloatingWindowUnlocked.first()) {
+                when(mode) {
+                    FloatingMode.WINDOW -> launchFloatingWindowWithPermissionCheck(permissionLauncher) {
+                        launchFloatingModeIn(FloatingMode.WINDOW, colorScheme, typography)
+                    }
+                    FloatingMode.FULLSCREEN -> launchFullscreenVoiceModeWithPermissionCheck(permissionLauncher, colorScheme, typography)
+                    FloatingMode.BALL, 
+                    FloatingMode.VOICE_BALL,
+                    FloatingMode.DragonBones -> {
+                        // 这些模式暂时不处理，或者可以添加默认行为
+                        Log.d(TAG, "未实现的悬浮窗模式: $mode")
+                    }
+                }
+            } else {
+                _showInvitationExplanation.value = true
+            }
+        }
+    }
+
+
     fun toggleFloatingMode(colorScheme: ColorScheme? = null, typography: Typography? = null) {
         floatingWindowDelegate.toggleFloatingMode(colorScheme, typography)
     }
@@ -915,6 +983,11 @@ class ChatViewModel(private val context: Context) : ViewModel() {
 
         // 切换WebView显示状态
         _showWebView.value = !_showWebView.value
+        
+        // 每次切换时，标记需要刷新
+        if (_showWebView.value) {
+            _webViewNeedsRefresh.value = true
+        }
     }
 
     // 初始化本地Web服务器
@@ -1134,5 +1207,15 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     /** 删除分组 */
     fun deleteGroup(groupName: String, deleteChats: Boolean) {
         chatHistoryDelegate.deleteGroup(groupName, deleteChats)
+    }
+
+    fun onWorkspaceButtonClick() {
+        viewModelScope.launch {
+            if (isWorkspaceUnlocked.first()) {
+                toggleWebView()
+            } else {
+                _showInvitationExplanation.value = true
+            }
+        }
     }
 }

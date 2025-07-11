@@ -1032,7 +1032,7 @@ fun StableMarkdownNodeRenderer(
 
         // 添加XML块渲染支持
         MarkdownProcessorType.XML_BLOCK -> {
-            Log.d(TAG, "【渲染性能】渲染XML块: id=$rendererId, 内容长度=${content.length}")
+            // Log.d(TAG, "【渲染性能】渲染XML块: id=$rendererId, 内容长度=${content.length}")
             xmlRenderer.RenderXmlContent(
                     xmlContent = content,
                     modifier = Modifier.fillMaxWidth(),

@@ -1,5 +1,7 @@
 package com.ai.assistance.operit.ui.main.screens
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
@@ -162,7 +164,8 @@ sealed class Screen(
                     onMarkdownDemoSelected = { navigateTo(MarkdownDemo) },
                     onTextToSpeechSelected = { navigateTo(TextToSpeech) },
                     onSpeechToTextSelected = { navigateTo(SpeechToText) },
-                    onToolTesterSelected = { navigateTo(ToolTester) }
+                    onToolTesterSelected = { navigateTo(ToolTester) },
+                    onAgreementSelected = { navigateTo(Agreement) }
             )
         }
     }
@@ -238,6 +241,23 @@ sealed class Screen(
                 onGestureConsumed: (Boolean) -> Unit
         ) {
             AboutScreen()
+        }
+    }
+
+    data object Agreement : Screen(navItem = NavItem.Agreement) {
+        @RequiresApi(Build.VERSION_CODES.P)
+        @Composable
+        override fun Content(
+            navController: NavController,
+            navigateTo: ScreenNavigationHandler,
+            updateNavItem: NavItemChangeHandler,
+            onGoBack: () -> Unit,
+            hasBackgroundImage: Boolean,
+            onLoading: (Boolean) -> Unit,
+            onError: (String) -> Unit,
+            onGestureConsumed: (Boolean) -> Unit
+        ) {
+            com.ai.assistance.operit.ui.features.agreement.screens.AgreementScreen(onAgreementAccepted = onGoBack)
         }
     }
 
@@ -708,6 +728,7 @@ object OperitRouter {
             NavItem.TokenConfig -> Screen.TokenConfig
             NavItem.UserPreferencesGuide -> Screen.UserPreferencesGuide()
             NavItem.AssistantConfig -> Screen.AssistantConfig
+            NavItem.Agreement -> Screen.Agreement
             else -> Screen.AiChat
         }
     }

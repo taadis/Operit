@@ -29,8 +29,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.collectAsState
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.api.speech.SpeechServiceFactory
 import com.ai.assistance.operit.api.voice.VoiceServiceFactory
 import com.ai.assistance.operit.data.model.ChatMessage
@@ -59,6 +63,7 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
     val coroutineScope = rememberCoroutineScope()
     var activeMessage by remember { mutableStateOf<ChatMessage?>(null) }
     val isInitialLoad = remember { mutableStateOf(true) }
+    val isUiBusy by floatContext.isUiBusy.collectAsState()
     
     // 添加输入法服务引用
     val inputMethodManager = remember { 
@@ -271,87 +276,106 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
         }
     }
 
-    Box(
+    if (isUiBusy) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.5f))
+                .pointerInput(Unit) {}, // Consume touch events
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                CircularProgressIndicator(color = Color.White)
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = stringResource(R.string.ui_automation_in_progress),
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    } else {
+        Box(
             modifier =
-                    Modifier.fillMaxSize()
-                            .background(
-                                    brush =
-                                            Brush.verticalGradient(
-                                                    colorStops =
-                                                            arrayOf(
-                                                                    0.0f to Color.Transparent,
-                                                                    0.6f to
-                                                                            Color.Black.copy(
-                                                                                    alpha = 0.7f
-                                                                            ),
-                                                                    1.0f to
-                                                                            Color.Black.copy(
-                                                                                    alpha = 0.9f
-                                                                            )
-                                                            )
-                                            )
-                            )
-    ) {
-        // 居中消息区域
-        LazyColumn(
+            Modifier.fillMaxSize()
+                .background(
+                    brush =
+                    Brush.verticalGradient(
+                        colorStops =
+                        arrayOf(
+                            0.0f to Color.Transparent,
+                            0.6f to
+                                    Color.Black.copy(
+                                        alpha = 0.7f
+                                    ),
+                            1.0f to
+                                    Color.Black.copy(
+                                        alpha = 0.9f
+                                    )
+                        )
+                    )
+                )
+        ) {
+            // 居中消息区域
+            LazyColumn(
                 modifier =
-                        Modifier.align(Alignment.Center)
-                                .fillMaxWidth()
-                                .padding(horizontal = 32.dp, vertical = 160.dp),
+                Modifier.align(Alignment.Center)
+                    .fillMaxWidth()
+                    .padding(horizontal = 32.dp, vertical = 160.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
-        ) {
-            // 用户消息
-            if (userMessage.isNotEmpty()) {
-                item {
-                    Text(
+            ) {
+                // 用户消息
+                if (userMessage.isNotEmpty()) {
+                    item {
+                        Text(
                             text = userMessage,
                             style = MaterialTheme.typography.titleLarge,
                             color = Color.White.copy(alpha = 0.7f),
                             textAlign = TextAlign.Center
-                    )
+                        )
+                    }
+                    item { Spacer(modifier = Modifier.height(24.dp)) }
                 }
-                item { Spacer(modifier = Modifier.height(24.dp)) }
-            }
 
-            // AI消息
-            item {
-                Text(
+                // AI消息
+                item {
+                    Text(
                         text = aiMessage,
                         style = MaterialTheme.typography.headlineSmall,
                         textAlign = TextAlign.Center,
                         color = Color.White,
                         modifier = Modifier.animateContentSize() // 内容变化时有动画
+                    )
+                }
+            }
+
+            // Top right close button
+            IconButton(
+                onClick = { floatContext.onClose() },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+                    .size(42.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "关闭悬浮窗",
+                    tint = Color.White,
+                    modifier = Modifier.size(28.dp)
                 )
             }
-        }
 
-        // Top right close button
-        IconButton(
-            onClick = { floatContext.onClose() },
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(16.dp)
-                .size(42.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Close,
-                contentDescription = "关闭悬浮窗",
-                tint = Color.White,
-                modifier = Modifier.size(28.dp)
-            )
-        }
-
-        // 底部控制栏
-        Box(
+            // 底部控制栏
+            Box(
                 modifier =
-                        Modifier.align(Alignment.BottomCenter)
-                                .fillMaxWidth()
-                                .padding(bottom = 64.dp, start = 32.dp, end = 32.dp)
-        ) {
-            // 返回按钮 - 左侧 (纯图标)，切换到窗口模式
-            IconButton(
-                    onClick = { 
+                Modifier.align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(bottom = 64.dp, start = 32.dp, end = 32.dp)
+            ) {
+                // 返回按钮 - 左侧 (纯图标)，切换到窗口模式
+                IconButton(
+                    onClick = {
                         val targetMode = if (floatContext.previousMode == FloatingMode.FULLSCREEN || floatContext.previousMode == FloatingMode.VOICE_BALL) {
                             FloatingMode.WINDOW
                         } else {
@@ -359,214 +383,219 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
                         }
                         floatContext.onModeChange(targetMode)
                     },
-                    modifier = Modifier.align(Alignment.CenterStart).size(42.dp)
-            ) {
-                Icon(
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .size(42.dp)
+                ) {
+                    Icon(
                         imageVector = Icons.Default.KeyboardArrowDown,
                         contentDescription = "返回窗口模式",
                         tint = Color.White,
                         modifier = Modifier.size(28.dp)
-                )
-            }
+                    )
+                }
 
-            // 麦克风按钮 - 中间
-            var dragOffset by remember { mutableStateOf(0f) }
-            val isDraggingToCancel = remember { mutableStateOf(false) }
+                // 麦克风按钮 - 中间
+                var dragOffset by remember { mutableStateOf(0f) }
+                val isDraggingToCancel = remember { mutableStateOf(false) }
 
-            Box(
+                Box(
                     modifier =
-                            Modifier.align(Alignment.Center)
-                                    .size(80.dp)
-                                    .shadow(elevation = 8.dp, shape = CircleShape)
-                                    .clip(CircleShape)
-                                    .background(
-                                            brush =
-                                                    Brush.radialGradient(
-                                                            colors =
-                                                                    if (isRecording ||
-                                                                                    isProcessingSpeech
-                                                                    ) {
-                                                                        listOf(
-                                                                                MaterialTheme
-                                                                                        .colorScheme
-                                                                                        .secondary,
-                                                                                MaterialTheme
-                                                                                        .colorScheme
-                                                                                        .secondaryContainer
-                                                                        )
-                                                                    } else {
-                                                                        listOf(
-                                                                                MaterialTheme
-                                                                                        .colorScheme
-                                                                                        .primary
-                                                                                        .copy(
-                                                                                                alpha =
-                                                                                                        0.8f
-                                                                                        ),
-                                                                                MaterialTheme
-                                                                                        .colorScheme
-                                                                                        .primary
-                                                                        )
-                                                                    }
-                                                    )
+                    Modifier.align(Alignment.Center)
+                        .size(80.dp)
+                        .shadow(elevation = 8.dp, shape = CircleShape)
+                        .clip(CircleShape)
+                        .background(
+                            brush =
+                            Brush.radialGradient(
+                                colors =
+                                if (isRecording ||
+                                    isProcessingSpeech
+                                ) {
+                                    listOf(
+                                        MaterialTheme
+                                            .colorScheme
+                                            .secondary,
+                                        MaterialTheme
+                                            .colorScheme
+                                            .secondaryContainer
                                     )
-                                    .clickable(enabled = false, onClick = {}) // 为了让Box消费事件
-                                    .pointerInput(Unit) {
-                                        detectTapGestures(
-                                                onLongPress = {
-                                                    coroutineScope.launch {
-                                                        // 立即停止当前语音输出
-                                                        voiceService.stop()
+                                } else {
+                                    listOf(
+                                        MaterialTheme
+                                            .colorScheme
+                                            .primary
+                                            .copy(
+                                                alpha =
+                                                0.8f
+                                            ),
+                                        MaterialTheme
+                                            .colorScheme
+                                            .primary
+                                    )
+                                }
+                            )
+                        )
+                        .clickable(enabled = false, onClick = {}) // 为了让Box消费事件
+                        .pointerInput(Unit) {
+                            detectTapGestures(
+                                onLongPress = {
+                                    coroutineScope.launch {
+                                        // 立即停止当前语音输出
+                                        voiceService.stop()
 
-                                                        if (hasFocus) {
-                                                            timeoutJob?.cancel()
-                                                            isRecording = true
-                                                            userMessage = ""
-                                                            accumulatedText = ""
-                                                            latestPartialText = ""
-                                                            dragOffset = 0f
-                                                            isDraggingToCancel.value = false
-                                                            aiMessage = "正在聆听..."
+                                        if (hasFocus) {
+                                            timeoutJob?.cancel()
+                                            isRecording = true
+                                            userMessage = ""
+                                            accumulatedText = ""
+                                            latestPartialText = ""
+                                            dragOffset = 0f
+                                            isDraggingToCancel.value = false
+                                            aiMessage = "正在聆听..."
 
-                                                            // 取消可能正在进行的AI任务
-                                                            val lastMessage = floatContext.messages.lastOrNull()
-                                                            val isAiCurrentlyWorking =
-                                                                    lastMessage?.sender == "think" ||
-                                                                            (lastMessage?.sender == "ai" && lastMessage.contentStream != null)
+                                            // 取消可能正在进行的AI任务
+                                            val lastMessage = floatContext.messages.lastOrNull()
+                                            val isAiCurrentlyWorking =
+                                                lastMessage?.sender == "think" ||
+                                                        (lastMessage?.sender == "ai" && lastMessage.contentStream != null)
 
-                                                            if (isAiCurrentlyWorking) {
-                                                                floatContext.onCancelMessage?.invoke()
-                                                            }
+                                            if (isAiCurrentlyWorking) {
+                                                floatContext.onCancelMessage?.invoke()
+                                            }
 
-                                                            // 开始语音识别
-                                                            speechService.startRecognition(
-                                                                    languageCode = "zh-CN",
-                                                                    continuousMode = true,
-                                                                    partialResults = true
-                                                            )
-                                                        } else {
-                                                            aiMessage = "无法开始录音，无法获取焦点"
-                                                            voiceService.speak(aiMessage, rate = speed)
+                                            // 开始语音识别
+                                            speechService.startRecognition(
+                                                languageCode = "zh-CN",
+                                                continuousMode = true,
+                                                partialResults = true
+                                            )
+                                        } else {
+                                            aiMessage = "无法开始录音，无法获取焦点"
+                                            voiceService.speak(aiMessage, rate = speed)
+                                        }
+                                    }
+                                },
+                                onPress = {
+                                    try {
+                                        // 在onPress期间检测水平拖动，用于取消
+                                        withTimeoutOrNull(Long.MAX_VALUE) {
+                                            var previousPosition = Offset.Zero
+                                            awaitPointerEventScope {
+                                                while (true) {
+                                                    val event = awaitPointerEvent()
+                                                    val position =
+                                                        event.changes[0]
+                                                            .position
+                                                    if (previousPosition !=
+                                                        Offset.Zero
+                                                    ) {
+                                                        // 计算水平拖动距离
+                                                        val horizontalDrag =
+                                                            position.x -
+                                                                    previousPosition
+                                                                        .x
+                                                        dragOffset += horizontalDrag
+
+                                                        // 如果向右拖动超过阈值（60dp），标记为取消
+                                                        isDraggingToCancel.value =
+                                                            dragOffset > 60f
+
+                                                        if (isRecording &&
+                                                            isDraggingToCancel
+                                                                .value
+                                                        ) {
+                                                            // 不再显示文本提示，而是在UI中显示垃圾桶图标
                                                         }
                                                     }
-                                                },
-                                                onPress = {
-                                                    try {
-                                                        // 在onPress期间检测水平拖动，用于取消
-                                                        withTimeoutOrNull(Long.MAX_VALUE) {
-                                                            var previousPosition = Offset.Zero
-                                                            awaitPointerEventScope {
-                                                                while (true) {
-                                                                    val event = awaitPointerEvent()
-                                                                    val position =
-                                                                            event.changes[0]
-                                                                                    .position
-                                                                    if (previousPosition !=
-                                                                                    Offset.Zero
-                                                                    ) {
-                                                                        // 计算水平拖动距离
-                                                                        val horizontalDrag =
-                                                                                position.x -
-                                                                                        previousPosition
-                                                                                                .x
-                                                                        dragOffset += horizontalDrag
+                                                    previousPosition = position
 
-                                                                        // 如果向右拖动超过阈值（60dp），标记为取消
-                                                                        isDraggingToCancel.value =
-                                                                                dragOffset > 60f
-
-                                                                        if (isRecording &&
-                                                                                        isDraggingToCancel
-                                                                                                .value
-                                                                        ) {
-                                                                            // 不再显示文本提示，而是在UI中显示垃圾桶图标
-                                                                        }
-                                                                    }
-                                                                    previousPosition = position
-
-                                                                    // 检查是否抬起手指
-                                                                    if (event.changes[0].pressed
-                                                                                    .not()
-                                                                    ) {
-                                                                        break
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    } finally {
-                                                        if (isRecording) {
-                                                            speechService.stopRecognition()
-                                                            isRecording = false
-                                                            
-                                                            // 焦点在组件退出时统一释放，此处不再处理
-
-                                                            if (isDraggingToCancel.value) {
-                                                                // 取消操作
-                                                                isProcessingSpeech = false
-                                                                userMessage = ""
-                                                                accumulatedText = ""
-                                                                latestPartialText = ""
-                                                                aiMessage = "已取消"
-                                                            } else {
-                                                                // 正常处理
-                                                                isProcessingSpeech = true
-                                                                aiMessage = "识别中..."
-
-                                                                timeoutJob = coroutineScope.launch {
-                                                                    delay(1000)
-                                                                    if (isProcessingSpeech) {
-                                                                        isProcessingSpeech = false
-                                                                        val finalText = userMessage
-                                                                        if (finalText.isNotBlank()) {
-                                                                            floatContext.onSendMessage?.invoke(finalText, PromptFunctionType.VOICE)
-                                                                            aiMessage = "思考中..."
-                                                                        } else {
-                                                                            aiMessage = "没有听清，请再试一次"
-                                                                            voiceService.speak(aiMessage, rate = speed)
-                                                                        }
-                                                                        accumulatedText = ""
-                                                                        latestPartialText = ""
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
+                                                    // 检查是否抬起手指
+                                                    if (event.changes[0].pressed
+                                                            .not()
+                                                    ) {
+                                                        break
                                                     }
                                                 }
-                                        )
-                                    },
+                                            }
+                                        }
+                                    } finally {
+                                        if (isRecording) {
+                                            speechService.stopRecognition()
+                                            isRecording = false
+
+                                            // 焦点在组件退出时统一释放，此处不再处理
+
+                                            if (isDraggingToCancel.value) {
+                                                // 取消操作
+                                                isProcessingSpeech = false
+                                                userMessage = ""
+                                                accumulatedText = ""
+                                                latestPartialText = ""
+                                                aiMessage = "已取消"
+                                            } else {
+                                                // 正常处理
+                                                isProcessingSpeech = true
+                                                aiMessage = "识别中..."
+
+                                                timeoutJob = coroutineScope.launch {
+                                                    delay(1000)
+                                                    if (isProcessingSpeech) {
+                                                        isProcessingSpeech = false
+                                                        val finalText = userMessage
+                                                        if (finalText.isNotBlank()) {
+                                                            floatContext.onSendMessage?.invoke(finalText, PromptFunctionType.VOICE)
+                                                            aiMessage = "思考中..."
+                                                        } else {
+                                                            aiMessage = "没有听清，请再试一次"
+                                                            voiceService.speak(aiMessage, rate = speed)
+                                                        }
+                                                        accumulatedText = ""
+                                                        latestPartialText = ""
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            )
+                        },
                     contentAlignment = Alignment.Center
-            ) {
-                // 根据状态显示不同的图标
-                if (isRecording && isDraggingToCancel.value) {
-                    // 如果在拖动取消中，显示垃圾桶图标
-                    Icon(
+                ) {
+                    // 根据状态显示不同的图标
+                    if (isRecording && isDraggingToCancel.value) {
+                        // 如果在拖动取消中，显示垃圾桶图标
+                        Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = "取消录音",
                             tint = Color.White,
                             modifier = Modifier.size(40.dp)
-                    )
-                } else {
-                    // 正常情况显示麦克风图标
-                    Icon(
+                        )
+                    } else {
+                        // 正常情况显示麦克风图标
+                        Icon(
                             imageVector = Icons.Default.Mic,
                             contentDescription = "按住说话",
                             tint = Color.White,
                             modifier = Modifier.size(40.dp)
-                    )
+                        )
+                    }
                 }
-            }
 
-            // 缩小成悬浮球按钮 - 右侧 (纯图标)，切换到语音球模式
-            IconButton(
+                // 缩小成悬浮球按钮 - 右侧 (纯图标)，切换到语音球模式
+                IconButton(
                     onClick = { floatContext.onModeChange(FloatingMode.VOICE_BALL) },
-                    modifier = Modifier.align(Alignment.CenterEnd).size(42.dp)
-            ) {
-                Icon(
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .size(42.dp)
+                ) {
+                    Icon(
                         imageVector = Icons.Default.Chat,
                         contentDescription = "缩小成语音球",
                         tint = Color.White,
                         modifier = Modifier.size(24.dp)
-                )
+                    )
+                }
             }
         }
     }

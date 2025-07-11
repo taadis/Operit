@@ -19,6 +19,9 @@ import com.ai.assistance.operit.data.preferences.PromptFunctionType
 import com.ai.assistance.operit.services.FloatingChatService
 import com.ai.assistance.operit.ui.floating.FloatingMode
 import com.ai.assistance.operit.util.stream.SharedStream
+import com.ai.assistance.operit.api.chat.EnhancedAIService
+import com.ai.assistance.operit.data.model.InputProcessingState
+import com.ai.assistance.operit.ui.permissions.ToolCategory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -66,6 +69,7 @@ class FloatingWindowDelegate(
 
     init {
         // 不再需要注册广播接收器
+        setupInputStateCollection()
     }
 
     /** 切换悬浮窗模式 */
@@ -148,6 +152,27 @@ class FloatingWindowDelegate(
                 Log.e(TAG, "服务可能已解绑: ${e.message}")
             }
             floatingService = null
+        }
+    }
+
+    private fun setupInputStateCollection() {
+        viewModelScope.launch {
+            val service = EnhancedAIService.getInstance(context)
+            service.inputProcessingState.collect { state ->
+                val isUiToolExecuting = state is InputProcessingState.ExecutingTool &&
+                        state.category == ToolCategory.UI_AUTOMATION
+
+                // Update UI busy state directly on the window state
+                floatingService?.windowState?.isUiBusy?.value = isUiToolExecuting
+
+                if (isUiToolExecuting) {
+                    Log.d(TAG, "UI tool executing, disabling window interaction.")
+                    floatingService?.setWindowInteraction(false)
+                } else {
+                    Log.d(TAG, "State is ${state::class.simpleName}, enabling window interaction.")
+                    floatingService?.setWindowInteraction(true)
+                }
+            }
         }
     }
 

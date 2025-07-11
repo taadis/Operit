@@ -1,41 +1,31 @@
 package com.ai.assistance.operit.data.model
 
-/**
- * Represents different states of input processing in the EnhancedAIService
- * This is a public model class that can be used by UI components
- */
+import com.ai.assistance.operit.ui.permissions.ToolCategory
+
+
+/** UI状态，用于显示AI服务在做什么 */
 sealed class InputProcessingState {
-    /**
-     * System is idle, not processing any input
-     */
+    /** 空闲状态 */
     object Idle : InputProcessingState()
-    
-    /**
-     * System is processing input
-     * @param message Message describing the current processing action
-     */
+
+    /** 正在处理，例如准备请求或解析响应 */
     data class Processing(val message: String) : InputProcessingState()
-    
-    /**
-     * System is connecting to the AI service
-     * @param message Message describing the connection status
-     */
+
+    /** 正在连接到AI服务 */
     data class Connecting(val message: String) : InputProcessingState()
-    
-    /**
-     * System is receiving response from the AI service
-     * @param message Message describing the receiving status
-     */
+
+    /** 正在从AI服务接收数据 */
     data class Receiving(val message: String) : InputProcessingState()
-    
-    /**
-     * Processing has completed
-     */
+
+    /** 新增：正在执行工具 */
+    data class ExecutingTool(val toolName: String, val category: ToolCategory) : InputProcessingState()
+
+    /** 新增：正在处理工具结果 */
+    data class ProcessingToolResult(val toolName: String) : InputProcessingState()
+
+    /** 处理完成 */
     object Completed : InputProcessingState()
-    
-    /**
-     * Processing encountered an error
-     * @param message Error message describing what went wrong
-     */
+
+    /** 发生错误 */
     data class Error(val message: String) : InputProcessingState()
 } 

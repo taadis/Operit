@@ -48,11 +48,8 @@ class MessageProcessingDelegate(
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    private val _isProcessingInput = MutableStateFlow(false)
-    val isProcessingInput: StateFlow<Boolean> = _isProcessingInput.asStateFlow()
-
-    private val _inputProcessingMessage = MutableStateFlow("")
-    val inputProcessingMessage: StateFlow<String> = _inputProcessingMessage.asStateFlow()
+    private val _inputProcessingState = MutableStateFlow<EnhancedInputProcessingState>(EnhancedInputProcessingState.Idle)
+    val inputProcessingState: StateFlow<EnhancedInputProcessingState> = _inputProcessingState.asStateFlow()
 
     private val _scrollToBottomEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val scrollToBottomEvent = _scrollToBottomEvent.asSharedFlow()
@@ -93,8 +90,7 @@ class MessageProcessingDelegate(
         val messageText = _userMessage.value.trim()
         _userMessage.value = ""
         _isLoading.value = true
-        _isProcessingInput.value = true
-        _inputProcessingMessage.value = "正在处理消息..."
+        _inputProcessingState.value = EnhancedInputProcessingState.Processing("正在处理消息...")
 
         // 检查这是否是聊天中的第一条用户消息
         val isFirstMessage = getChatHistory().none { it.sender == "user" || it.sender == "ai" }
@@ -119,7 +115,7 @@ class MessageProcessingDelegate(
                 if (!NetworkUtils.isNetworkAvailable(context)) {
                     withContext(Dispatchers.Main) { showErrorMessage("网络连接不可用") }
                     _isLoading.value = false
-                    _isProcessingInput.value = false
+                    _inputProcessingState.value = EnhancedInputProcessingState.Idle
                     return@launch
                 }
 
@@ -128,7 +124,7 @@ class MessageProcessingDelegate(
                                 ?: run {
                                     withContext(Dispatchers.Main) { showErrorMessage("AI服务未初始化") }
                                     _isLoading.value = false
-                                    _isProcessingInput.value = false
+                                    _inputProcessingState.value = EnhancedInputProcessingState.Idle
                                     return@launch
                                 }
 
@@ -252,8 +248,7 @@ class MessageProcessingDelegate(
     fun cancelCurrentMessage() {
         viewModelScope.launch {
             _isLoading.value = false
-            _isProcessingInput.value = false
-            _inputProcessingMessage.value = ""
+            _inputProcessingState.value = EnhancedInputProcessingState.Idle
 
             // 取消正在进行的流收集
             streamCollectionJob?.cancel()
@@ -268,8 +263,11 @@ class MessageProcessingDelegate(
     }
 
     fun setInputProcessingState(isProcessing: Boolean, message: String) {
-        _isProcessingInput.value = isProcessing
-        _inputProcessingMessage.value = message
+        if(isProcessing) {
+            _inputProcessingState.value = EnhancedInputProcessingState.Processing(message)
+        } else {
+            _inputProcessingState.value = EnhancedInputProcessingState.Idle
+        }
     }
 
     /**
@@ -278,37 +276,15 @@ class MessageProcessingDelegate(
      */
     fun handleInputProcessingState(state: EnhancedInputProcessingState) {
         viewModelScope.launch(Dispatchers.Main) {
+            _inputProcessingState.value = state
+            _isLoading.value = state !is EnhancedInputProcessingState.Idle && state !is EnhancedInputProcessingState.Completed
+
             when (state) {
-                is EnhancedInputProcessingState.Idle -> {
-                    _isLoading.value = false
-                    _isProcessingInput.value = false
-                    _inputProcessingMessage.value = ""
-                }
-                is EnhancedInputProcessingState.Processing -> {
-                    _isLoading.value = true
-                    _isProcessingInput.value = true
-                    _inputProcessingMessage.value = state.message
-                }
-                is EnhancedInputProcessingState.Connecting -> {
-                    _isLoading.value = true
-                    _isProcessingInput.value = true
-                    _inputProcessingMessage.value = state.message
-                }
-                is EnhancedInputProcessingState.Receiving -> {
-                    _isLoading.value = false
-                    _isProcessingInput.value = true
-                    _inputProcessingMessage.value = state.message
-                }
-                is EnhancedInputProcessingState.Completed -> {
-                    _isLoading.value = false
-                    _isProcessingInput.value = false
-                    _inputProcessingMessage.value = ""
-                }
                 is EnhancedInputProcessingState.Error -> {
                     showErrorMessage(state.message)
-                    _isLoading.value = false
-                    _isProcessingInput.value = false
-                    _inputProcessingMessage.value = ""
+                }
+                else -> {
+                    // Do nothing for other states as they are handled by the state flow itself
                 }
             }
         }

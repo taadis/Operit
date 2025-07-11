@@ -3,6 +3,7 @@ package com.ai.assistance.operit.ui.features.chat.components
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.StartOffset
@@ -23,6 +24,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -39,7 +41,6 @@ import androidx.compose.ui.unit.times
 import com.ai.assistance.operit.data.model.AiReference
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.model.PlanItem
-import com.ai.assistance.operit.data.model.ToolExecutionProgress
 
 @Composable
 fun ChatArea(
@@ -48,7 +49,6 @@ fun ChatArea(
         aiReferences: List<AiReference> = emptyList(),
         planItems: List<PlanItem> = emptyList(),
         enablePlanning: Boolean = false,
-        toolProgress: ToolExecutionProgress,
         isLoading: Boolean,
         userMessageColor: Color,
         aiMessageColor: Color,
@@ -77,9 +77,6 @@ fun ChatArea(
         } else {
             // 删除全部不必要的诊断日志
         }
-
-        // Tool progress bar
-        ToolProgressBar(toolProgress = toolProgress, modifier = Modifier.fillMaxWidth())
 
         // 改用普通Column替代LazyColumn，避免复杂的回收逻辑带来的性能问题
         Column(

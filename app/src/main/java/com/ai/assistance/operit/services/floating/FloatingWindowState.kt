@@ -28,6 +28,9 @@ class FloatingWindowState(context: Context) {
     // DragonBones pet mode lock state
     var isPetModeLocked = mutableStateOf(false)
 
+    // UI Busy state for tool execution
+    val isUiBusy = mutableStateOf(false)
+
     // Transition state
     var lastWindowPositionX: Int = 0
     var lastWindowPositionY: Int = 0

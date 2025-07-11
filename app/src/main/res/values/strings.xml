@@ -280,6 +280,7 @@
     <string name="tool_calculator">计算器</string>
     <string name="tool_web_search">网络搜索</string>
     <string name="enhanced_service_not_initialized">增强AI服务未初始化，请检查设置</string>
+    <string name="ui_automation_in_progress">正在执行界面任务...</string>
     
     <!-- Settings Screen -->
     <string name="settings">设置</string>
@@ -465,16 +466,24 @@
     <string name="language_changed">语言已更改，正在重启应用</string>
     
     <!-- 用户协议界面 -->
-    <string name="agreement_title">用户协议及隐私政策</string>
-    <string name="agreement_subtitle">请在使用我们的应用前，仔细阅读以下协议</string>
-    <string name="agreement_user_title">用户协议</string>
-    <string name="agreement_privacy_title">隐私政策</string>
-    <string name="agreement_accept">我已阅读并同意以上协议</string>
-    <string name="agreement_wait">请先阅读协议 (%1$d)</string>
+    <string name="agreement_title">用户协议与隐私政策</string>
+    <string name="agreement_subtitle">请在使用前仔细阅读并同意以下条款。</string>
+    <string name="agreement_human_readable_title">人话版协议（非法律版本）</string>
+    <string name="agreement_human_readable_content">我们和你一样，不喜欢冗长乏味的协议。简单来说：\n\nOperitAI 是一款基于 LGPLv3 修改版协议的免费开源软件。你可以自由使用它，但我们不对你使用软件造成的任何后果负责。</string>
+    <string name="agreement_serious_title">严谨版法律协议</string>
+    <string name="agreement_serious_content">
+        欢迎使用 OperitAI。本软件是根据 GNU 宽通用公共许可证第三版（LGPLv3）的条款进行修改和分发的。<br/><br/>
+        1.  <b>无担保声明</b>：本软件按"原样"提供，不附带任何形式的明示或暗示的保证，包括但不限于对适销性、特定用途适用性或不侵权的保证。所有与软件质量和性能相关的风险均由您承担。<br/><br/>
+        2.  <b>责任限制</b>：在任何情况下，除非适用法律要求或书面同意，否则任何贡献者均不对因使用或无法使用本软件而造成的任何直接、间接、偶然、特殊、惩戒性或后果性损害（包括但不限于采购替代商品或服务、数据或利润损失、或业务中断）承担责任，无论此等损害是如何引起的，也不论其责任理论是合同、严格责任或侵权（包括疏忽或其他原因），即使已被告知发生此类损害的可能性。<br/><br/>
+        3.  <b>用户责任</b>：您对通过本软件进行的任何操作、生成的内容以及由此产生的所有后果负全部责任。您同意，对于您因使用本软件而对第三方造成的任何损害，您将自行承担赔偿责任。
+    </string>
+    <string name="agreement_disclaimer">若"人话版"与"严谨版"协议存在任何不一致或冲突，一切以中文"严谨版"为准。我们保留对本协议的最终解释权。</string>
+    <string name="agreement_accept">我已阅读并同意</string>
+    <string name="agreement_wait">请稍候... (%1$d)</string>
     
-    <string name="agreement_user_content">感谢您选择使用我们的应用！在开始使用前，请务必仔细阅读以下重要声明：\n\n1. 免责声明\n   本软件具有强大的功能，可能存在潜在破坏力。用户使用本软件进行的任何操作及其后果，均与开发者无关，我们不承担任何责任。\n\n2. 官方下载渠道\n   为确保您的安全，请务必从我们的官方GitHub仓库下载本软件。从其他渠道下载可能存在安全风险，我们不对此负责。\n\n3. 开源协议\n   本软件是开源项目，遵循GPL（GNU通用公共许可证）协议。用户可以自由使用、修改和分发本软件，但必须遵守GPL协议的相关条款。\n\n4. 第三方使用\n   我们不对第三方如何使用、修改或分发本软件负责。任何基于本软件的衍生作品或相关行为与原开发者无关。\n\n5. 用户行为\n   用户应自行承担使用本软件的全部风险和法律责任。请确保您的使用行为符合当地法律法规。\n\n6. 终止条款\n   我们保留在用户违反协议时终止其使用权的权利。\n\n7. 无保证声明\n   本软件按"现状"提供，不提供任何形式的保证，包括但不限于适用性、可靠性或准确性。\n\n8. 责任限制\n   在法律允许的最大范围内，我们不对因使用本软件造成的任何直接或间接损失负责。\n\n9. 协议修改\n   我们可能会不时修改本协议，修改后的协议将在发布时生效。\n\n10. 适用法律\n    本协议受中华人民共和国法律管辖。</string>
-    
-    <string name="agreement_privacy_content">关于您的隐私，请了解以下重要信息：\n\n1. 无数据收集\n   我们不会主动收集您的任何个人信息或使用数据。本应用的设计理念是尊重用户隐私，不进行任何形式的数据收集。\n\n2. 本地处理\n   所有数据处理均在您的设备本地完成，不会上传到我们的服务器或任何第三方服务器。因此，您的隐私数据安全完全由您自己控制。\n\n3. 第三方服务\n   如果本应用集成了任何第三方服务或库，其数据处理行为不在我们的控制范围内。请参阅相关第三方的隐私政策。\n\n4. 权限说明\n   本应用可能需要某些系统权限才能正常运行。这些权限仅用于应用功能实现，不会用于收集您的个人信息。\n\n5. 开源透明\n   作为一个开源项目，我们的代码对所有人公开透明。您可以在GitHub上查看源代码，验证我们的隐私声明。\n\n6. 无责任声明\n   由于我们不收集、不存储用户数据，因此对于用户数据泄露、丢失或被盗用的情况不承担责任。\n\n7. 政策更新\n   我们可能会更新本隐私政策，更新后的政策将在GitHub发布并在应用中更新。\n\n8. 联系我们\n   如果您对隐私政策有任何疑问，请通过GitHub项目页面联系我们。</string>
+    <!-- Sherpa -->
+    <string name="sherpa_k2_ncnn_init_failed">实时语音识别引擎初始化失败</string>
+    <string name="sherpa_k2_ncnn_init_success">实时语音识别引擎初始化成功</string>
     
     <!-- File Manager -->
     <string name="files_selected">已选择 %1$d 个文件</string>

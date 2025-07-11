@@ -2,8 +2,6 @@ package com.ai.assistance.operit.ui.features.chat.viewmodel
 
 import android.content.Intent
 import com.ai.assistance.operit.data.model.AiReference
-import com.ai.assistance.operit.data.model.ToolExecutionProgress
-import com.ai.assistance.operit.data.model.ToolExecutionState
 import com.ai.assistance.operit.ui.permissions.PermissionLevel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,10 +18,6 @@ class UiStateDelegate {
 
     private val _toastEvent = MutableStateFlow<String?>(null)
     val toastEvent: StateFlow<String?> = _toastEvent.asStateFlow()
-
-    private val _toolProgress =
-            MutableStateFlow(ToolExecutionProgress(state = ToolExecutionState.IDLE))
-    val toolProgress: StateFlow<ToolExecutionProgress> = _toolProgress.asStateFlow()
 
     private val _masterPermissionLevel = MutableStateFlow(PermissionLevel.ASK)
     val masterPermissionLevel: StateFlow<PermissionLevel> = _masterPermissionLevel.asStateFlow()
@@ -70,11 +64,6 @@ class UiStateDelegate {
     /** 清除Toast消息 */
     fun clearToastEvent() {
         _toastEvent.value = null
-    }
-
-    /** 更新工具执行进度 */
-    fun updateToolProgress(progress: ToolExecutionProgress) {
-        _toolProgress.value = progress
     }
 
     /** 更新主权限级别 */
