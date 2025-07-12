@@ -108,21 +108,7 @@ fun UserMessageComposable(message: ChatMessage, backgroundColor: Color, textColo
                 // Message bubble
                 Card(
                         modifier =
-                                Modifier.fillMaxWidth()
-                                        .combinedClickable(
-                                                interactionSource =
-                                                        remember { MutableInteractionSource() },
-                                                indication = null,
-                                                onClick = { /* Do nothing on normal click */},
-                                                onLongClick = {
-                                                        clipboardManager.setText(
-                                                                AnnotatedString(message.content)
-                                                        )
-                                                        haptic.performHapticFeedback(
-                                                                HapticFeedbackType.LongPress
-                                                        )
-                                                }
-                                        ),
+                                Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = backgroundColor),
                         shape = RoundedCornerShape(8.dp)
                 ) {

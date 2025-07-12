@@ -74,7 +74,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import ru.noties.jlatexmath.JLatexMathDrawable
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.forEachGesture
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 
 private const val TAG = "MarkdownRenderer"
 private const val RENDER_INTERVAL_MS = 100L // 渲染间隔 0.1 秒
@@ -789,13 +791,20 @@ fun StableMarkdownNodeRenderer(
                     Text(
                             text = inlineContent,
                             modifier = Modifier.fillMaxWidth().pointerInput(onLinkClick) {
-                                detectTapGestures { offset ->
-                                    textLayoutResult?.let { layoutResult ->
-                                        val position = layoutResult.getOffsetForPosition(offset)
-                                        inlineContent.getStringAnnotations("URL", position, position)
-                                            .firstOrNull()?.let { annotation ->
-                                                onLinkClick?.invoke(annotation.item)
+                                forEachGesture {
+                                    awaitPointerEventScope {
+                                        val down = awaitFirstDown(requireUnconsumed = false)
+                                        val up = waitForUpOrCancellation()
+                                        if (up != null) {
+                                            textLayoutResult?.let { layoutResult ->
+                                                val position = layoutResult.getOffsetForPosition(up.position)
+                                                inlineContent.getStringAnnotations("URL", position, position)
+                                                    .firstOrNull()?.let { annotation ->
+                                                        up.consume()
+                                                        onLinkClick?.invoke(annotation.item)
+                                                    }
                                             }
+                                        }
                                     }
                                 }
                             },
@@ -1087,13 +1096,20 @@ fun StableMarkdownNodeRenderer(
             Text(
                     text = inlineContent,
                     modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp).pointerInput(onLinkClick) {
-                        detectTapGestures { offset ->
-                            textLayoutResult?.let { layoutResult ->
-                                val position = layoutResult.getOffsetForPosition(offset)
-                                inlineContent.getStringAnnotations("URL", position, position)
-                                    .firstOrNull()?.let { annotation ->
-                                        onLinkClick?.invoke(annotation.item)
+                        forEachGesture {
+                            awaitPointerEventScope {
+                                val down = awaitFirstDown(requireUnconsumed = false)
+                                val up = waitForUpOrCancellation()
+                                if (up != null) {
+                                    textLayoutResult?.let { layoutResult ->
+                                        val position = layoutResult.getOffsetForPosition(up.position)
+                                        inlineContent.getStringAnnotations("URL", position, position)
+                                            .firstOrNull()?.let { annotation ->
+                                                up.consume()
+                                                onLinkClick?.invoke(annotation.item)
+                                            }
                                     }
+                                }
                             }
                         }
                     },
@@ -1126,13 +1142,20 @@ fun StableMarkdownNodeRenderer(
             Text(
                     text = inlineContent,
                     modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp).pointerInput(onLinkClick) {
-                        detectTapGestures { offset ->
-                            textLayoutResult?.let { layoutResult ->
-                                val position = layoutResult.getOffsetForPosition(offset)
-                                inlineContent.getStringAnnotations("URL", position, position)
-                                    .firstOrNull()?.let { annotation ->
-                                        onLinkClick?.invoke(annotation.item)
+                        forEachGesture {
+                            awaitPointerEventScope {
+                                val down = awaitFirstDown(requireUnconsumed = false)
+                                val up = waitForUpOrCancellation()
+                                if (up != null) {
+                                    textLayoutResult?.let { layoutResult ->
+                                        val position = layoutResult.getOffsetForPosition(up.position)
+                                        inlineContent.getStringAnnotations("URL", position, position)
+                                            .firstOrNull()?.let { annotation ->
+                                                up.consume()
+                                                onLinkClick?.invoke(annotation.item)
+                                            }
                                     }
+                                }
                             }
                         }
                     },
@@ -1261,10 +1284,10 @@ private fun AnnotatedString.Builder.appendStyledText(
                                     background = Color.LightGray.copy(alpha = 0.15f),
                                     fontSize = 14.sp
                             )
-                    ) { 
+                    ) {
                         append("$$")
                         append(latexContent)
-                        append("$$") 
+                        append("$$")
                     }
                 }
             }

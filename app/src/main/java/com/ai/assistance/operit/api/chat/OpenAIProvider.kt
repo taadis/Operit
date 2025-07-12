@@ -111,6 +111,11 @@ class OpenAIProvider(
         )
     }
 
+    override suspend fun testConnection(): Result<String> {
+        val result = getModelsList()
+        return result.map { "连接成功！" }
+    }
+
     // 解析服务器返回的内容，不再需要处理<think>标签
     private fun parseResponse(content: String): String {
         return content

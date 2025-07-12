@@ -69,8 +69,7 @@ fun ChatScreenHeader(
         actualViewModel: ChatViewModel,
         showChatHistorySelector: Boolean,
         chatHistories: List<ChatHistory>,
-        currentChatId: String,
-        isEditMode: MutableState<Boolean>
+        currentChatId: String
 ) {
     val context = LocalContext.current
     val colorScheme = MaterialTheme.colorScheme
@@ -141,43 +140,6 @@ fun ChatScreenHeader(
                     isFloatingMode = actualViewModel.isFloatingMode.value,
                     onLaunchFloatingWindow = launchFloatingWindow
             )
-
-            // 添加编辑按钮 - 使用与悬浮窗按钮相同的样式
-            Box(
-                    modifier =
-                            Modifier.size(32.dp)
-                                    .background(
-                                            color =
-                                                    if (isEditMode.value)
-                                                            MaterialTheme.colorScheme.primary.copy(
-                                                                    alpha = 0.15f
-                                                            )
-                                                    else Color.Transparent,
-                                            shape = CircleShape
-                                    )
-            ) {
-                IconButton(
-                        onClick = {
-                            isEditMode.value = !isEditMode.value
-                            if (!isEditMode.value) {
-                                // 退出编辑模式时清空状态
-                                // 直接在这里更新会引起组件内循环依赖，需要通过回调通知父组件
-                            }
-                        },
-                        modifier = Modifier.matchParentSize()
-                ) {
-                    Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription =
-                                    if (isEditMode.value) stringResource(R.string.exit_edit_mode)
-                                    else stringResource(R.string.enter_edit_mode),
-                            tint =
-                                    if (isEditMode.value) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                            modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
         }
 
         // 右侧：模型选择器和统计信息，水平排列

@@ -94,7 +94,6 @@ fun AIChatScreen(
     val hasBackgroundImage = useBackgroundImage && backgroundImageUri != null
 
     // 添加编辑按钮和编辑状态
-    val isEditMode = remember { mutableStateOf(false) }
     val editingMessageIndex = remember { mutableStateOf<Int?>(null) }
     val editingMessageContent = remember { mutableStateOf("") }
 
@@ -495,7 +494,6 @@ fun AIChatScreen(
                         thinkingBackgroundColor = thinkingBackgroundColor,
                         thinkingTextColor = thinkingTextColor,
                         hasBackgroundImage = hasBackgroundImage,
-                        isEditMode = isEditMode,
                         editingMessageIndex = editingMessageIndex,
                         editingMessageContent = editingMessageContent,
                         chatScreenGestureConsumed = chatScreenGestureConsumed,

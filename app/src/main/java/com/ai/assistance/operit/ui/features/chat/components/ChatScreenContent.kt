@@ -35,6 +35,13 @@ import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.TextFieldDefaults
 
 @Composable
 fun ChatScreenContent(
@@ -54,7 +61,6 @@ fun ChatScreenContent(
         thinkingBackgroundColor: Color,
         thinkingTextColor: Color,
         hasBackgroundImage: Boolean,
-        isEditMode: MutableState<Boolean>,
         editingMessageIndex: MutableState<Int?>,
         editingMessageContent: MutableState<String>,
         chatScreenGestureConsumed: Boolean,
@@ -90,11 +96,13 @@ fun ChatScreenContent(
     var exportFilePath by remember { mutableStateOf<String?>(null) }
     var exportErrorMessage by remember { mutableStateOf<String?>(null) }
     var webContentDir by remember { mutableStateOf<File?>(null) }
+    var editingMessageType by remember { mutableStateOf<String?>(null) }
 
-    val onSelectMessageToEditCallback = remember(editingMessageIndex, editingMessageContent) {
-        { index: Int, message: ChatMessage ->
+    val onSelectMessageToEditCallback = remember(editingMessageIndex, editingMessageContent, editingMessageType) {
+        { index: Int, message: ChatMessage, senderType: String ->
             editingMessageIndex.value = index
             editingMessageContent.value = message.content
+            editingMessageType = senderType
         }
     }
 
@@ -159,7 +167,6 @@ fun ChatScreenContent(
                         showChatHistorySelector = showChatHistorySelector,
                         chatHistories = chatHistories,
                         currentChatId = currentChatId,
-                        isEditMode = isEditMode
                 )
 
                 // 聊天对话区域
@@ -181,17 +188,17 @@ fun ChatScreenContent(
                             thinkingTextColor = thinkingTextColor,
                             hasBackgroundImage = hasBackgroundImage,
                             modifier = Modifier.fillMaxSize(),
-                            isEditMode = isEditMode.value,
                             onSelectMessageToEdit = onSelectMessageToEditCallback
                     )
 
                     // 编辑模式下的操作面板
-                    if (isEditMode.value && editingMessageIndex.value != null) {
+                    if (editingMessageIndex.value != null) {
                         MessageEditPanel(
                                 editingMessageContent = editingMessageContent,
                                 onCancel = {
                                     editingMessageIndex.value = null
                                     editingMessageContent.value = ""
+                                    editingMessageType = null
                                 },
                                 onSave = {
                                     val index = editingMessageIndex.value
@@ -205,7 +212,7 @@ fun ChatScreenContent(
                                         // 重置编辑状态
                                         editingMessageIndex.value = null
                                         editingMessageContent.value = ""
-                                        isEditMode.value = false
+                                        editingMessageType = null
                                     }
                                 },
                                 onResend = {
@@ -219,9 +226,10 @@ fun ChatScreenContent(
                                         // 重置编辑状态
                                         editingMessageIndex.value = null
                                         editingMessageContent.value = ""
-                                        isEditMode.value = false
+                                        editingMessageType = null
                                     }
-                                }
+                                },
+                                showResendButton = editingMessageType == "user"
                         )
                     }
 
@@ -416,6 +424,84 @@ fun ScrollToBottomButton(onClick: () -> Unit) {
                 modifier = Modifier.size(18.dp)
         )
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MessageEditPanel(
+    editingMessageContent: MutableState<String>,
+    onCancel: () -> Unit,
+    onSave: () -> Unit,
+    onResend: () -> Unit,
+    showResendButton: Boolean
+) {
+    var textFieldValue by remember { mutableStateOf(TextFieldValue(editingMessageContent.value)) }
+
+    LaunchedEffect(editingMessageContent.value) {
+        if (textFieldValue.text != editingMessageContent.value) {
+            textFieldValue = textFieldValue.copy(text = editingMessageContent.value)
+        }
+    }
+
+    // 根据是否显示重发按钮来确定标题文本
+    val titleText = if (showResendButton) "编辑消息" else "修改记忆"
+    val saveButtonText = if (showResendButton) "保存" else "更新记忆"
+
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text(titleText) },
+        text = {
+            OutlinedTextField(
+                value = textFieldValue,
+                onValueChange = {
+                    textFieldValue = it
+                    editingMessageContent.value = it.text
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 150.dp, max = 250.dp),
+                shape = RoundedCornerShape(8.dp),
+                colors = TextFieldDefaults.outlinedTextFieldColors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                    cursorColor = MaterialTheme.colorScheme.primary
+                )
+            )
+        },
+        confirmButton = {
+            if (showResendButton) {
+                TextButton(
+                    onClick = onResend,
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Text("重新发送")
+                }
+            }
+            TextButton(
+                onClick = onSave,
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Text(saveButtonText)
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onCancel,
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            ) {
+                Text("取消")
+            }
+        },
+        containerColor = MaterialTheme.colorScheme.surface,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        shape = RoundedCornerShape(16.dp)
+    )
 }
 
 @Composable

@@ -381,4 +381,9 @@ class ClaudeProvider(
                 apiProviderType = ApiProviderType.ANTHROPIC
         )
     }
+
+    override suspend fun testConnection(): Result<String> {
+        val result = getModelsList()
+        return result.map { "连接成功！" }
+    }
 }

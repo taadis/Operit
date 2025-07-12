@@ -202,7 +202,11 @@
     <string name="plugin_complete_success">Startup completed, success rate: %1$d%%</string>
     <string name="plugin_no_plugins_to_start">No plugins to start</string>
     <string name="plugin_copyright">© 2023 AI Assistance</string>
-    
+
+    <!-- Context Menu -->
+    <string name="copy_message">Copy Message</string>
+    <string name="edit_and_resend">Edit &amp; Resend</string>
+
     <!-- Theme Settings Screen -->
     <string name="theme_title_mode">Theme Mode</string>
     <string name="theme_system_title">System Theme</string>
@@ -466,15 +470,24 @@
     
     <!-- User Agreement Screen -->
     <string name="agreement_title">User Agreement and Privacy Policy</string>
-    <string name="agreement_subtitle">Please read the following agreement carefully before using our app</string>
-    <string name="agreement_user_title">User Agreement</string>
-    <string name="agreement_privacy_title">Privacy Policy</string>
-    <string name="agreement_accept">I have read and agree to the agreement</string>
-    <string name="agreement_wait">Please read the agreement (%1$d)</string>
-    
-    <string name="agreement_user_content">Thank you for choosing our application! Before you start using it, please carefully read the following important statement:\n\n1. Disclaimer\n   This software has powerful features that may have potential destructive capabilities. The developer is not responsible for any operations performed by users or their consequences.\n\n2. Official Download Channel\n   For your safety, please download this software only from our official GitHub repository. We are not responsible for security risks from other download sources.\n\n3. Open Source License\n   This software is an open-source project under the GPL (GNU General Public License). Users can freely use, modify, and distribute this software, but must comply with the GPL license terms.\n\n4. Third-Party Use\n   We are not responsible for how third parties use, modify, or distribute this software. Any derivative works or related actions are not associated with the original developers.\n\n5. User Behavior\n   Users bear all risks and legal responsibilities for using this software. Please ensure your usage complies with local laws and regulations.\n\n6. Termination Clause\n   We reserve the right to terminate usage rights if users violate this agreement.\n\n7. No Warranty Statement\n   This software is provided \"as is\" without any form of warranty, including but not limited to suitability, reliability, or accuracy.\n\n8. Limitation of Liability\n   To the maximum extent permitted by law, we are not responsible for any direct or indirect losses caused by using this software.\n\n9. Agreement Modification\n   We may modify this agreement from time to time, and modified terms will take effect upon publication.\n\n10. Applicable Law\n    This agreement is governed by the laws of the People\'s Republic of China.</string>
-    
-    <string name="agreement_privacy_content">Regarding your privacy, please understand the following important information:\n\n1. No Data Collection\n   We do not actively collect any of your personal information or usage data. The design philosophy of this application is to respect user privacy and not engage in any form of data collection.\n\n2. Local Processing\n   All data processing is completed locally on your device and will not be uploaded to our servers or any third-party servers. Therefore, your private data security is entirely under your control.\n\n3. Third-Party Services\n   If this application integrates any third-party services or libraries, their data processing behavior is beyond our control. Please refer to the privacy policies of relevant third parties.\n\n4. Permission Statement\n   This application may require certain system permissions to function properly. These permissions are only used for implementing application features and not for collecting your personal information.\n\n5. Open Source Transparency\n   As an open source project, our code is publicly transparent to everyone. You can view the source code on GitHub to verify our privacy statement.\n\n6. No Liability Statement\n   Since we do not collect or store user data, we are not responsible for any user data leakage, loss, or misuse.\n\n7. Policy Updates\n   We may update this privacy policy, and updated policies will be published on GitHub and updated in the application.\n\n8. Contact Us\n   If you have any questions about the privacy policy, please contact us through the GitHub project page.</string>
+    <string name="agreement_subtitle">Please read and agree to the following terms before use.</string>
+    <string name="agreement_human_readable_title">Plain Language Version (Not a legal document)</string>
+    <string name="agreement_human_readable_content">Like you, we don\'t like long and tedious agreements. Simply put:\n\nOperitAI is a free and open-source software. Its automation features are powerful, so please use them only for personal learning and daily assistance, not for any commercial or prohibited purposes.\n\nYou are responsible for all your actions. We are not responsible for any extensions you add or modifications you make to the software.\n\nRegarding privacy: Your voice processing is done locally on your device, which is secure. AI chat data is sent directly to the AI service provider, and we do not handle it.</string>
+    <string name="agreement_serious_title">Formal Legal Agreement</string>
+    <string name="agreement_serious_content"><![CDATA[
+        <p>Welcome to OperitAI. This software is modified and distributed under the terms of the GNU Lesser General Public License, version 3 (LGPLv3).</p>
+        <p><b>1. No Warranty</b><br>This software is provided "as is" without any warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. The entire risk as to the quality and performance of the software is with you.</p>
+        <p><b>2. Limitation of Liability</b><br>In no event unless required by applicable law or agreed to in writing will any contributor be liable to you for damages, including any general, special, incidental, or consequential damages arising out of the use or inability to use the software. <b>Furthermore, the development team is not responsible for any consequences arising from user-installed extension packages (such as MCPs) or from modifications made to this software.</b></p>
+        <p><b>3. User Responsibility and Usage Restrictions</b><br>You are fully responsible for any operations conducted through this software and for all their consequences. You agree to use this software for lawful and proper personal purposes and agree that:<br>
+        a. The automation features included in this software are intended for personal learning, research, and daily assistance only.<br>
+        b. <b>It is strictly prohibited to use this software and its features for any form of commercial or for-profit activities, or for large-scale automated operations that may improperly affect third-party services.</b><br>
+        c. You will be solely responsible for compensating any damages caused to third parties resulting from your use of this software. The community reserves the right to hold you accountable for any misuse.</p>
+        <p><b>4. Privacy Protection</b><br>We respect and protect the privacy of all our users. We commit to the following:<br>a. <b>Local Processing:</b> The voice recognition and speech synthesis features of this application operate entirely on your device. Related data will not be uploaded to any cloud servers.<br>b. <b>Third-Party AI Services:</b> The AI chat service used by this application is supported by third-party large model providers (such as DeepSeek). When you use this feature, your conversation data is sent directly to the respective service provider and does not pass through or get stored on our servers. We recommend that you also review and understand the privacy policies of the respective AI service providers.<br>c. <b>Data Security:</b> Apart from the cases mentioned above, we do not actively collect or store any of your personal information and will take reasonable data security measures to protect the local data necessary for the application\'s operation.</p>
+        <p><b>5. Agreement Modification</b><br>We reserve the right to modify these terms at any time. You can review the most current version of the agreement within the application. Your continued use of the service constitutes your acceptance of the revised terms.</p>
+    ]]></string>
+    <string name="agreement_disclaimer">If there is any inconsistency or conflict between the "Plain Language Version" and the "Formal Legal Agreement", the "Formal Legal Agreement" in Chinese shall prevail. We reserve the final right of interpretation.</string>
+    <string name="agreement_accept">I have read and agree</string>
+    <string name="agreement_wait">Please wait... (%1$d)</string>
     
     <!-- File Manager -->
     <string name="files_selected">%1$d files selected</string>
