@@ -253,7 +253,7 @@ class AIToolHandler private constructor(private val context: Context) {
                 // 只处理 XML 部分
                 if (group.tag is com.ai.assistance.operit.util.stream.plugins.StreamXmlPlugin) {
                     // 检查是否是工具调用 XML (<tool>)
-                    if (chunkString.contains("<tool") && chunkString.contains("</tool>")) {
+                    if (chunkString.startsWith("<tool") && chunkString.contains("</tool>")) {
                         // 提取工具名称
                         val nameMatch = MessageContentParser.namePattern.find(chunkString)
                         val toolName = nameMatch?.groupValues?.get(1) ?: return@collect

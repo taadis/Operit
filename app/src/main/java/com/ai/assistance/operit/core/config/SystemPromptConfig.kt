@@ -112,6 +112,7 @@ object SystemPromptConfig {
       - get_device_location: Get current device location. Parameters: high_accuracy (whether to use high accuracy mode, default false), timeout (timeout in seconds, default 10)
 
       UI Automation Tools:
+      - automate_ui_task: Executes a multi-step UI automation task to achieve a specific goal. It will autonomously perform actions like tapping and swiping based on the current UI state until the goal is met or it gets stuck. This is a high-level tool; prefer it over raw tap/swipe for complex goals. Parameters: task_goal (A clear and specific description of what to achieve, e.g., "log in to the app with username 'test' and password '1234'").
       - get_page_info: Get information about the current UI screen, including the complete UI hierarchy. Parameters: format (format, optional: "xml" or "json", default "xml"), detail (detail level, optional: "minimal", "summary", or "full", default "summary")
       - tap: Simulate a tap at specific coordinates. Parameters: x (X coordinate), y (Y coordinate)
       - click_element: Click an element identified by resource ID or class name. Parameters: resourceId (element resource ID, optional), className (element class name, optional), index (which matching element to click, 0-based counting, default 0), partialMatch (whether to enable partial matching, default false), bounds (element bounds in format "[left,top][right,bottom]", optional), at least one identification parameter must be provided
@@ -132,6 +133,8 @@ object SystemPromptConfig {
         • bitrate (optional, video bitrate, e.g. "1000k")
 
       UI AUTOMATION ADVICE:
+      - For multi-step UI goals (e.g., logging in, navigating through several screens), ALWAYS prefer using the `automate_ui_task` tool. It is designed to handle complex sequences autonomously.
+      - Use low-level tools like `tap` and `swipe` only for single, simple actions when `automate_ui_task` is not necessary.
       - Element targeting options:
         • Lists: use index parameter (e.g., "resourceId item 2")
         • Precise: use bounds "[left,top][right,bottom]" or find_element first
@@ -274,6 +277,7 @@ object SystemPromptConfig {
         - get_device_location: 获取设备当前位置信息。参数：high_accuracy（是否使用高精度模式，默认false），timeout（超时时间（秒），默认10）
 
         UI自动化工具：
+        - automate_ui_task: 执行一个多步骤的UI自动化任务以达成特定目标。它将根据当前UI状态自主执行点击、滑动等操作，直到目标完成或无法继续。这是一个高级工具，对于复杂目标，应优先使用此工具，而不是原始的点击/滑动操作。参数: task_goal (对要实现的目标的清晰、具体的描述，例如，“使用用户名'test'和密码'1234'登录应用”)。
         - get_page_info: 获取当前UI屏幕的信息，包括完整的UI层次结构。参数：format（格式，可选："xml"或"json"，默认"xml"），detail（详细程度，可选："minimal"、"summary"或"full"，默认"summary"）
         - tap: 在特定坐标模拟点击。参数：x（X坐标），y（Y坐标）
         - click_element: 点击由资源ID或类名标识的元素。参数：resourceId（元素资源ID，可选），className（元素类名，可选），index（要点击的匹配元素，从0开始计数，默认0），partialMatch（是否启用部分匹配，默认false），bounds（元素边界，格式为"[left,top][right,bottom]"，可选），必须至少提供一个标识参数
@@ -294,6 +298,8 @@ object SystemPromptConfig {
           • bitrate（可选，视频比特率，例如"1000k"）
         
         UI自动化建议：
+        - 对于多步骤的UI目标（例如，登录、浏览多个屏幕），请始终优先使用 `automate_ui_task` 工具。它专为自主处理复杂序列而设计。
+        - 仅在 `automate_ui_task` 没有必要时，才对单一、简单的操作使用 `tap` 和 `swipe` 等低级工具。
         - 元素定位选项：
           • 列表：使用index参数（例如，"resourceId item 2"）
           • 精确：使用bounds "[left,top][right,bottom]"或先使用find_element

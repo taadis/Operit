@@ -3,9 +3,15 @@ package com.ai.assistance.operit.api.chat.enhance
 import android.content.Context
 import android.util.Log
 import com.ai.assistance.operit.core.config.SystemPromptConfig
+import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.core.tools.packTool.PackageManager
+import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.model.PreferenceProfile
+import com.ai.assistance.operit.data.model.ToolParameter
+import com.ai.assistance.operit.data.model.UiControllerCommand
+import com.ai.assistance.operit.core.tools.UIPageResultData
+import com.ai.assistance.operit.core.tools.SimplifiedUINode
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.FunctionalPromptManager
 import com.ai.assistance.operit.data.preferences.PromptFunctionType
@@ -17,10 +23,15 @@ import com.ai.assistance.operit.util.stream.stream
 import com.github.difflib.DiffUtils
 import com.github.difflib.UnifiedDiffUtils
 import java.util.Calendar
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.json.JSONArray
+import org.json.JSONException
+import org.json.JSONObject
 
 /** 处理会话相关功能的服务类，包括会话总结、偏好处理和对话切割准备 */
 class ConversationService(private val context: Context) {
@@ -760,5 +771,305 @@ class ConversationService(private val context: Context) {
             Log.e(TAG, "Failed to apply custom loose text patch.", e)
             return Pair(false, originalContent)
         }
+    }
+
+    /**
+     * Gets a UI control command from the specialized AI model.
+     *
+     * @param uiState A description of the current UI elements.
+     * @param taskGoal The objective for the current step.
+     * @param history A list of previous commands and their outcomes.
+     * @param multiServiceManager The service manager for AI communication.
+     * @return A raw string response from the AI.
+     */
+    suspend fun getUiControllerCommand(
+        uiState: String,
+        taskGoal: String,
+        history: List<Pair<String, String>>,
+        multiServiceManager: MultiServiceManager
+    ): String {
+        val systemPrompt = """
+You are a UI automation AI. Your task is to return a single JSON command based on the UI state, task goal, and execution history.
+
+**Output format:**
+- A single, raw JSON object: `{"type": "action_type", "arg": ...}`.
+- NO MARKDOWN or explanations.
+
+**Actions and `arg` formats:**
+The `arg` value depends on the `type`:
+- `tap`: `arg` is `{"x": int, "y": int}`
+- `swipe`: `arg` is `{"start_x": int, "start_y": int, "end_x": int, "end_y": int}`
+- `set_input_text`: `arg` is `{"text": "string"}`. Inputs into the focused element. Use `tap` first if needed.
+- `press_key`: `arg` is `{"key_code": "KEYCODE_STRING"}` (e.g., "KEYCODE_HOME").
+- `complete`: `arg` is a string explaining why.
+- `interrupt`: `arg` is a string explaining why. (Use if stuck or target element is missing. This is a request for help, not a failure).
+
+**Inputs:**
+1.  `Current UI State`: List of UI elements and their properties.
+2.  `Task Goal`: The specific objective for this step.
+3.  `Execution History`: Log of past commands, results, and errors. Analyze it to avoid repeating mistakes. If you see an 'error' entry, it means your last JSON was invalid. Correct it.
+
+Analyze the inputs and choose the best action to achieve the `Task Goal`. Use element `bounds` to calculate coordinates.
+""".trimIndent()
+
+        val userPrompt = """
+**Current UI State:**
+```json
+$uiState
+```
+
+**Task Goal:**
+"$taskGoal"
+
+**Execution History:**
+```json
+$history
+```
+
+Provide the next action as a single JSON object.
+""".trimIndent()
+
+        val modelParameters = runBlocking { apiPreferences.getAllModelParameters() }
+        val uiControllerService =
+            multiServiceManager.getServiceForFunction(FunctionType.UI_CONTROLLER)
+
+        val contentBuilder = StringBuilder()
+        val stream = uiControllerService.sendMessage(
+            message = userPrompt,
+            chatHistory = listOf(Pair("system", systemPrompt)),
+            modelParameters = modelParameters
+        )
+
+        stream.collect { content -> contentBuilder.append(content) }
+
+        return ChatUtils.removeThinkingContent(contentBuilder.toString().trim())
+    }
+
+    /**
+     * Executes a full UI automation task by repeatedly querying the AI and executing its commands.
+     *
+     * @param initialUiState The initial description of the UI.
+     * @param taskGoal The high-level goal for the entire task.
+     * @param multiServiceManager The service manager to get the correct AI service.
+     * @param toolHandler The handler to execute UI commands.
+     * @return A Flow of UiControllerCommands representing the actions taken.
+     */
+    suspend fun executeUiAutomationTask(
+        initialUiState: String,
+        taskGoal: String,
+        multiServiceManager: MultiServiceManager,
+        toolHandler: AIToolHandler
+    ): Flow<UiControllerCommand> = flow {
+        var currentUiState = initialUiState
+        val executionHistory = mutableListOf<Pair<String, String>>()
+        val maxAttempts = 5
+
+        for (attempt in 1..maxAttempts) {
+            var commandJson = getUiControllerCommand(
+                currentUiState,
+                taskGoal,
+                executionHistory,
+                multiServiceManager
+            )
+
+            Log.d(TAG, "AI command response (attempt $attempt): $commandJson")
+
+            // Attempt to extract JSON from markdown code blocks
+            if (commandJson.contains("```")) {
+                val startIndex = commandJson.indexOf('{')
+                val endIndex = commandJson.lastIndexOf('}')
+                if (startIndex != -1 && endIndex != -1 && startIndex < endIndex) {
+                    commandJson = commandJson.substring(startIndex, endIndex + 1)
+                }
+            }
+
+            try {
+                val command = JSONObject(commandJson)
+                val type = command.getString("type")
+                
+                // Robustly find the arguments, whether they are in an "arg" object or at the top level.
+                var rawArg = command.opt("arg")
+                if (rawArg == null) {
+                    val potentialArgKeys = setOf("x", "y", "start_x", "start_y", "end_x", "end_y", "text", "key_code")
+                    val argObject = JSONObject()
+                    var keyFoundInRoot = false
+                    command.keys().forEach { key ->
+                        if (potentialArgKeys.contains(key)) {
+                            argObject.put(key, command.get(key))
+                            keyFoundInRoot = true
+                        }
+                    }
+                    if (keyFoundInRoot) {
+                        rawArg = argObject
+                        Log.d(TAG, "Reconstructed 'arg' from root: $rawArg")
+                    } else if (command.has("type") && command.length() == 1) {
+                         // This case handles simple commands like `{"type": "complete"}` that have no args.
+                         // Do nothing, rawArg remains null, which will become an empty string.
+                    }
+                }
+
+                val arg: Any = when (rawArg) {
+                    is JSONObject -> rawArg.toMap()
+                    else -> rawArg?.toString() ?: ""
+                }
+
+                val uiCommand = UiControllerCommand(type, arg)
+                Log.d(TAG, "Parsed UI Command: $uiCommand")
+                emit(uiCommand)
+
+                executionHistory.add(Pair("command", commandJson))
+
+                when (type) {
+                    "complete", "interrupt" -> {
+                        Log.d(TAG, "Task flow ending due to '$type' command.")
+                        return@flow
+                    }
+                    "tap", "swipe", "set_input_text", "press_key" -> {
+                        val tool = createToolFromJson(type, arg)
+                        Log.d(TAG, "Executing tool: ${tool.name} with params: ${tool.parameters}")
+                        val result = toolHandler.executeTool(tool)
+                        Log.d(TAG, "Tool execution result: $result")
+                        executionHistory.add(Pair("result", result.toString()))
+
+                        if (!result.success) {
+                            emit(UiControllerCommand("interrupt", "Action failed: ${result.error}"))
+                            return@flow
+                        }
+
+                        val pageInfoResult = toolHandler.executeTool(AITool("get_page_info", emptyList()))
+                        if (pageInfoResult.success && pageInfoResult.result is UIPageResultData) {
+                            currentUiState = flattenUiInfo(pageInfoResult.result)
+                            Log.d(TAG, "Successfully updated UI state.")
+                        } else {
+                            Log.w(TAG, "Failed to get updated UI state after action.")
+                            emit(UiControllerCommand("interrupt", "Failed to get updated UI state."))
+                            return@flow
+                        }
+                    }
+                    else -> {
+                        Log.w(TAG, "Unknown command type '$type' received.")
+                        emit(UiControllerCommand("interrupt", "Unknown command type '$type' received from AI."))
+                        return@flow
+                    }
+                }
+            } catch (e: JSONException) {
+                val errorMessage = "Failed to parse AI response as JSON. Raw response: \"$commandJson\". Error: ${e.message}"
+                Log.e(TAG, errorMessage)
+                executionHistory.add(Pair("error", errorMessage))
+                // Continue to the next attempt, allowing the AI to correct itself.
+            }
+        }
+
+        Log.w(TAG, "Task flow ending due to max attempts reached.")
+        emit(UiControllerCommand("interrupt", "Reached max attempts ($maxAttempts)."))
+    }
+
+    /**
+     * Flattens the hierarchical UI node structure into a simple, flat list of key elements.
+     * This provides a much cleaner context for the AI to make decisions.
+     */
+    private fun flattenUiInfo(pageInfo: UIPageResultData): String {
+        val clickableElements = mutableListOf<String>()
+        val screenTexts = mutableListOf<String>()
+
+        fun traverse(node: SimplifiedUINode) {
+            // If the node is clickable, treat it as an atomic unit and don't traverse its children.
+            if (node.isClickable) {
+                val parts = mutableListOf<String>()
+                // Format: [id: com.app/login, text: "Login", class: Button, bounds: [0,100][200,200]]
+                node.resourceId?.takeIf { it.isNotBlank() }?.let { parts.add("id: $it") }
+                node.text?.takeIf { it.isNotBlank() }?.let { parts.add("text: \"${it.replace("\"", "'").take(50)}\"") }
+                node.contentDesc?.takeIf { it.isNotBlank() }?.let { parts.add("desc: \"${it.replace("\"", "'").take(50)}\"") }
+                node.className?.let { parts.add("class: ${it.substringAfterLast('.')}") }
+                node.bounds?.let { parts.add("bounds: ${it.replace(' ', ',')}") }
+
+                // Only add if it has some identifiable information.
+                if (parts.isNotEmpty()) {
+                    clickableElements.add("[${parts.joinToString(", ")}]")
+                }
+            } else {
+                // If not clickable, add its text for context and continue traversal.
+                node.text?.takeIf { it.isNotBlank() }?.let {
+                    screenTexts.add("\"${it.replace("\"", "'").take(70)}\"")
+                }
+                node.children.forEach(::traverse)
+            }
+        }
+
+        traverse(pageInfo.uiElements)
+
+        // Use distinct to remove duplicate text entries from non-clickable elements.
+        val distinctScreenTexts = screenTexts.distinct()
+
+        return """
+        Package: ${pageInfo.packageName}
+        Activity: ${pageInfo.activityName}
+        Clickable Elements:
+        ${clickableElements.joinToString("\n")}
+        Screen Text (for context):
+        ${distinctScreenTexts.joinToString("\n")}
+        """.trimIndent()
+    }
+
+    private fun JSONObject.toMap(): Map<String, Any> {
+        val map = mutableMapOf<String, Any>()
+        val keysItr = this.keys()
+        while (keysItr.hasNext()) {
+            val key = keysItr.next()
+            var value = this.get(key)
+            if (value is JSONObject) {
+                value = value.toMap()
+            }
+            if (value is JSONArray) {
+                value = value.toList()
+            }
+            map[key] = value
+        }
+        return map
+    }
+
+    private fun JSONArray.toList(): List<Any> {
+        val list = mutableListOf<Any>()
+        for (i in 0 until this.length()) {
+            var value = this.get(i)
+            if (value is JSONObject) {
+                value = value.toMap()
+            }
+            if (value is JSONArray) {
+                value = value.toList()
+            }
+            list.add(value)
+        }
+        return list
+    }
+
+    private fun createToolFromJson(type: String, arg: Any): AITool {
+        val parameters = mutableListOf<ToolParameter>()
+        when (arg) {
+            is Map<*, *> -> {
+                arg.forEach { (key, value) ->
+                    val stringValue = when (value) {
+                        is Double -> {
+                            // If the double has no fractional part, convert to Int string to avoid parse errors.
+                            if (value % 1.0 == 0.0) {
+                                value.toInt().toString()
+                            } else {
+                                value.toString()
+                            }
+                        }
+                        else -> value.toString()
+                    }
+                    parameters.add(ToolParameter(key.toString(), stringValue))
+                }
+            }
+            is String -> {
+                 // Fallback for when the AI returns a raw string instead of a JSON object.
+                 when (type) {
+                     "press_key" -> parameters.add(ToolParameter("key_code", arg))
+                     "set_input_text" -> parameters.add(ToolParameter("text", arg))
+                 }
+            }
+        }
+        return AITool(type, parameters)
     }
 }

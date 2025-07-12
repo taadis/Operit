@@ -1,11 +1,17 @@
 package com.ai.assistance.operit.core.tools.defaultTool.standard
 
 import android.content.Context
+import com.ai.assistance.operit.api.chat.EnhancedAIService
 import com.ai.assistance.operit.core.tools.SimplifiedUINode
 import com.ai.assistance.operit.core.tools.StringResultData
+import com.ai.assistance.operit.core.tools.UIPageResultData
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.ui.common.displays.UIOperationOverlay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.runBlocking
 
 /** Base class for UI automation tools - standard version does not support UI operations */
 open class StandardUITools(protected val context: Context) {
@@ -115,6 +121,57 @@ open class StandardUITools(protected val context: Context) {
                     result = StringResultData(""),
                 error = OPERATION_NOT_SUPPORTED
         )
+    }
+
+    /**
+     * Executes a full UI automation task to achieve a specific goal.
+     * This is a high-level tool that orchestrates smaller UI actions.
+     */
+    open fun automateUiTask(tool: AITool): Flow<ToolResult> {
+        val taskGoal = tool.parameters.find { it.name == "task_goal" }?.value
+        if (taskGoal.isNullOrBlank()) {
+            return flowOf(
+                ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Parameter 'task_goal' is missing."
+                )
+            )
+        }
+
+        // We must use runBlocking here as we are in a non-suspend context but need to call a suspend function
+        val initialPageInfoResult = runBlocking { getPageInfo(AITool("get_page_info", emptyList())) }
+
+        if (!initialPageInfoResult.success) {
+            return flowOf(
+                ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "Failed to get initial UI state: ${initialPageInfoResult.error}"
+                )
+            )
+        }
+
+        val initialUiState = (initialPageInfoResult.result as? UIPageResultData)?.toString()
+            ?: initialPageInfoResult.result.toString()
+
+        val service = EnhancedAIService.getInstance(context)
+        
+        return runBlocking {
+            service.executeUiAutomationTask(initialUiState, taskGoal).map { uiCommand ->
+                // An interrupt is a valid, successful outcome of a step, signaling a need for escalation.
+                // The tool step itself did not fail, so success is always true.
+                ToolResult(
+                    toolName = tool.name,
+                    success = true,
+                    // The result now clearly states the outcome of the step.
+                    result = StringResultData("Step Result: ${uiCommand.type}. Details: ${uiCommand.arg}"),
+                    error = null // No technical error occurred during the step.
+                )
+            }
+        }
     }
 
     // 保留一些实用的辅助方法，供子类使用

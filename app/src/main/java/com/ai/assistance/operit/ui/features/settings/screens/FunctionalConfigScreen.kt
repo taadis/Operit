@@ -509,16 +509,18 @@ fun getFunctionDisplayName(functionType: FunctionType): String {
         FunctionType.SUMMARY -> "对话总结"
         FunctionType.PROBLEM_LIBRARY -> "问题库管理"
         FunctionType.FILE_BINDING -> "文件绑定处理"
+        FunctionType.UI_CONTROLLER -> "UI 控制器"
     }
 }
 
 // 获取功能类型的描述
 fun getFunctionDescription(functionType: FunctionType): String {
-    return when (functionType) {
+    return  when (functionType) {
         FunctionType.CHAT -> "主要的对话功能，用于与用户进行日常对话交互"
         FunctionType.SUMMARY -> "生成对话总结，方便追踪重要信息"
         FunctionType.PROBLEM_LIBRARY -> "用于问题库的分析和管理"
         FunctionType.FILE_BINDING ->
                 "处理文件内容的智能绑定与混合，提供更精确的代码处理能力。建议使用快速的廉价模型如Gemini Flash，不建议使用DeepSeek R1"
+        FunctionType.UI_CONTROLLER -> "用于UI界面的自动遍历与操作，会被主模型调用。建议使用廉价快速模型。"
     }
 }

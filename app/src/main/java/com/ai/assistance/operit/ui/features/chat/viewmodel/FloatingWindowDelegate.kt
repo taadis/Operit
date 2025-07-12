@@ -75,9 +75,9 @@ class FloatingWindowDelegate(
     /** 切换悬浮窗模式 */
     fun toggleFloatingMode(colorScheme: ColorScheme? = null, typography: Typography? = null) {
         val newMode = !_isFloatingMode.value
-        _isFloatingMode.value = newMode
 
         if (newMode) {
+            _isFloatingMode.value = true
             // 启动并绑定服务
             val intent = Intent(context, FloatingChatService::class.java)
             colorScheme?.let {
@@ -93,14 +93,8 @@ class FloatingWindowDelegate(
             }
             context.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
         } else {
-            // 解绑并停止服务
-            try {
-                context.unbindService(serviceConnection)
-            } catch (e: Exception) {
-                Log.e(TAG, "解绑服务失败", e)
-            }
-            context.stopService(Intent(context, FloatingChatService::class.java))
-            floatingService = null
+            // 统一调用关闭逻辑，确保服务被正确关闭
+            floatingService?.onClose()
         }
     }
 

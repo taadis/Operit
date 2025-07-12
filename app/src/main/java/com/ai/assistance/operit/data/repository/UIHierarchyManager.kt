@@ -135,15 +135,17 @@ object UIHierarchyManager {
      * @return a boolean indicating if the service is ready.
      */
     private suspend fun ensureBound(context: Context): Boolean {
-        if (!_isBound.value) {
-            Log.w(TAG, "服务未绑定，尝试自动重新绑定...")
+        if (!_isBound.value || accessibilityProvider == null) {
+            Log.w(TAG, "服务未绑定或提供者为null，尝试自动重新绑定...")
             val bound = bindToService(context)
             if (!bound) {
                 Log.e(TAG, "自动重新绑定失败")
                 return false
             }
         }
-        return true
+        // A final check to protect against race conditions where the service disconnects
+        // right after the check or during the binding process.
+        return _isBound.value && accessibilityProvider != null
     }
 
     /**
@@ -192,7 +194,7 @@ object UIHierarchyManager {
                 connectionContinuation = null
             }
         }
-        }
+    }
 
     /**
      * 解绑服务

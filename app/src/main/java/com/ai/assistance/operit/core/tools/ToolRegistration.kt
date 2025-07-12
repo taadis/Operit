@@ -6,8 +6,12 @@ import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.ui.permissions.ToolCategory
 import kotlinx.coroutines.flow.last
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
+import com.ai.assistance.operit.api.chat.EnhancedAIService
+import com.google.gson.Gson
+import kotlinx.coroutines.flow.map
 
 /**
  * This file contains all tool registrations centralized for easier maintenance and integration It
@@ -20,6 +24,36 @@ import org.json.JSONArray
  * @param context Application context for tools that need it
  */
 fun registerAllTools(handler: AIToolHandler, context: Context) {
+    // 新增：UI自动化任务工具
+    handler.registerTool(
+        name = "automate_ui_task",
+        category = ToolCategory.UI_AUTOMATION,
+        dangerCheck = { true }, // 高度危险，因为它执行多个自主操作
+        descriptionGenerator = { tool ->
+            val taskGoal = tool.parameters.find { it.name == "task_goal" }?.value ?: ""
+            "执行UI自动化任务: $taskGoal"
+        },
+        executor = object : ToolExecutor {
+            override fun invoke(tool: AITool): ToolResult {
+                return runBlocking {
+                    val flow = invokeAndStream(tool)
+                    val resultsList = flow.toList()
+                    resultsList.lastOrNull() ?: ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "Automation task did not produce any result."
+                    )
+                }
+            }
+
+            override fun invokeAndStream(tool: AITool): kotlinx.coroutines.flow.Flow<ToolResult> {
+                val uiTools = ToolGetter.getUITools(context)
+                return uiTools.automateUiTask(tool)
+            }
+        }
+    )
+
     // 不在提示词加入的工具
     handler.registerTool(
             name = "execute_shell",

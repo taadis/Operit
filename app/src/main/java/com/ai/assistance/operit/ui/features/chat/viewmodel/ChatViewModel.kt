@@ -654,6 +654,12 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     // 悬浮窗相关方法
     fun onFloatingButtonClick(mode: FloatingMode, permissionLauncher: ActivityResultLauncher<String>, colorScheme: ColorScheme, typography: Typography) {
         viewModelScope.launch {
+            // 如果悬浮窗已经开启，则关闭它
+            if (isFloatingMode.value) {
+                toggleFloatingMode()
+                return@launch
+            }
+
             if (isFloatingWindowUnlocked.first()) {
                 when(mode) {
                     FloatingMode.WINDOW -> launchFloatingWindowWithPermissionCheck(permissionLauncher) {

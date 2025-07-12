@@ -33,6 +33,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
@@ -41,6 +42,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import com.ai.assistance.operit.data.model.UiControllerCommand
 
 /**
  * Enhanced AI service that provides advanced conversational capabilities by integrating various
@@ -1259,6 +1261,46 @@ class EnhancedAIService private constructor(private val context: Context) {
                 originalContent,
                 aiGeneratedCode,
                 multiServiceManager
+        )
+    }
+
+    /**
+     * Get the next UI command from the AI for UI automation.
+     *
+     * @param uiState A description of the current UI elements.
+     * @param taskGoal The objective for the current step.
+     * @param history A list of previous commands and results for context.
+     * @return A JSON string representing the AI's command.
+     */
+    suspend fun getUiControllerCommand(
+        uiState: String,
+        taskGoal: String,
+        history: List<Pair<String, String>>
+    ): String {
+        return conversationService.getUiControllerCommand(
+            uiState,
+            taskGoal,
+            history,
+            multiServiceManager
+        )
+    }
+
+    /**
+     * Executes a full UI automation task by repeatedly querying the AI and executing its commands.
+     *
+     * @param initialUiState The initial description of the UI.
+     * @param taskGoal The high-level goal for the entire task.
+     * @return A Flow of strings logging each step of the automation process.
+     */
+    suspend fun executeUiAutomationTask(
+        initialUiState: String,
+        taskGoal: String
+    ): Flow<UiControllerCommand> {
+        return conversationService.executeUiAutomationTask(
+            initialUiState,
+            taskGoal,
+            multiServiceManager,
+            toolHandler
         )
     }
 }
