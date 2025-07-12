@@ -63,7 +63,7 @@ object TermuxDemoUtil {
     // =========================================================================================
 
     /** 刷新应用权限和组件状态 */
-    fun refreshPermissionsAndStatus(
+    suspend fun refreshPermissionsAndStatus(
             context: Context,
             updateShizukuInstalled: (Boolean) -> Unit,
             updateShizukuRunning: (Boolean) -> Unit,
@@ -74,6 +74,7 @@ object TermuxDemoUtil {
             updateLocationPermission: (Boolean) -> Unit,
             updateOverlayPermission: (Boolean) -> Unit,
             updateBatteryOptimizationExemption: (Boolean) -> Unit,
+            updateAccessibilityProviderInstalled: (Boolean) -> Unit,
             updateAccessibilityServiceEnabled: (Boolean) -> Unit
     ) {
         Log.d(TAG, "刷新应用权限状态...")
@@ -135,7 +136,16 @@ object TermuxDemoUtil {
                 powerManager.isIgnoringBatteryOptimizations(context.packageName)
         updateBatteryOptimizationExemption(hasBatteryOptimizationExemption)
 
-        // 检查无障碍服务状态
+        // 检查无障碍服务提供者和服务的状态
+        val isProviderInstalled = UIHierarchyManager.isProviderAppInstalled(context)
+        updateAccessibilityProviderInstalled(isProviderInstalled)
+
+        // 只有在提供者安装后才尝试绑定并检查服务状态
+        if (isProviderInstalled) {
+            // 确保服务已绑定
+            UIHierarchyManager.bindToService(context)
+        }
+
         val hasAccessibilityServiceEnabled =
                 UIHierarchyManager.isAccessibilityServiceEnabled(context)
         updateAccessibilityServiceEnabled(hasAccessibilityServiceEnabled)

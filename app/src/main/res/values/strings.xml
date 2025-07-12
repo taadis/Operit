@@ -874,4 +874,17 @@
     <string name="open_source_licenses">开源许可声明</string>
     <string name="license_format">许可: %1$s</string>
     <string name="visit_project">访问项目</string>
+    
+    <!-- AccessibilityWizardCard -->
+    <string name="accessibility_wizard_title">无障碍服务设置向导</string>
+    <string name="accessibility_wizard_step1">步骤1：安装服务提供者应用</string>
+    <string name="accessibility_wizard_step2">步骤2：启用无障碍服务</string>
+    <string name="accessibility_wizard_completed">无障碍服务已配置完成</string>
+    <string name="accessibility_wizard_install_message">无障碍服务提供者是一个独立的应用，它提供了无障碍服务功能，可以帮助AI分析和操作屏幕内容。</string>
+    <string name="accessibility_wizard_install_provider">安装服务提供者</string>
+    <string name="accessibility_wizard_enable_message">服务提供者已安装，现在需要在系统设置中启用无障碍服务。</string>
+    <string name="accessibility_wizard_enable_note">注意事项：</string>
+    <string name="accessibility_wizard_enable_note_details">1. 在系统设置中找到"无障碍服务提供者"\n2. 点击开启服务\n3. 在弹出的确认对话框中选择"允许"</string>
+    <string name="accessibility_wizard_open_settings">打开无障碍设置</string>
+    <string name="accessibility_wizard_success_message">恭喜！无障碍服务已成功配置，现在AI可以分析和操作屏幕内容。</string>
 </resources>

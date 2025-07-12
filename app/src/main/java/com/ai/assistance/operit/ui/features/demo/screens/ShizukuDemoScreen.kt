@@ -26,8 +26,10 @@ import com.ai.assistance.operit.core.tools.system.AndroidPermissionLevel
 import com.ai.assistance.operit.core.tools.system.ShizukuAuthorizer
 import com.ai.assistance.operit.core.tools.system.ShizukuInstaller
 import com.ai.assistance.operit.core.tools.system.termux.TermuxInstaller
+import com.ai.assistance.operit.data.repository.UIHierarchyManager
 import com.ai.assistance.operit.ui.features.demo.components.*
 import com.ai.assistance.operit.ui.features.demo.viewmodel.ShizukuDemoViewModel
+import com.ai.assistance.operit.ui.features.demo.wizards.AccessibilityWizardCard
 import com.ai.assistance.operit.ui.features.demo.wizards.RootWizardCard
 import com.ai.assistance.operit.ui.features.demo.wizards.ShizukuWizardCard
 import com.ai.assistance.operit.ui.features.demo.wizards.TermuxWizardCard
@@ -140,6 +142,7 @@ fun ShizukuDemoScreen(
                 isTermuxFullyConfigured = viewModel.isTermuxFullyConfigured.value,
                 isDeviceRooted = uiState.isDeviceRooted.value,
                 hasRootAccess = uiState.hasRootAccess.value,
+                isAccessibilityProviderInstalled = uiState.isAccessibilityProviderInstalled.value,
                 isRefreshing = uiState.isRefreshing.value,
                 onRefresh = { scope.launch(Dispatchers.IO) { viewModel.refreshStatus(context) } },
                 onStoragePermissionClick = {
@@ -200,6 +203,17 @@ fun ShizukuDemoScreen(
                         context.startActivity(intent)
                     } catch (e: Exception) {
                         Toast.makeText(context, "无法打开无障碍服务设置", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                onInstallAccessibilityProviderClick = {
+                    scope.launch(Dispatchers.IO) {
+                        if (!UIHierarchyManager.isProviderAppInstalled(context)) {
+                            UIHierarchyManager.launchProviderInstall(context)
+                        } else {
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(context, "服务提供者已安装", Toast.LENGTH_SHORT).show()
+                            }
+                        }
                     }
                 },
                 onLocationPermissionClick = {
@@ -291,7 +305,12 @@ fun ShizukuDemoScreen(
                 currentDisplayedPermissionLevel == AndroidPermissionLevel.ROOT &&
                         (!uiState.hasRootAccess.value)
 
-        val needSetupGuide = needTermuxSetupGuide || needShizukuSetupGuide || needRootSetupGuide
+        val needAccessibilitySetupGuide =
+            currentDisplayedPermissionLevel == AndroidPermissionLevel.ACCESSIBILITY &&
+                    (!uiState.isAccessibilityProviderInstalled.value || !uiState.hasAccessibilityServiceEnabled.value)
+
+
+        val needSetupGuide = needTermuxSetupGuide || needShizukuSetupGuide || needRootSetupGuide || needAccessibilitySetupGuide
 
         if (needSetupGuide) {
             Spacer(modifier = Modifier.height(16.dp))
@@ -323,6 +342,31 @@ fun ShizukuDemoScreen(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
             )
+
+            // Accessibility向导卡片
+            if (needAccessibilitySetupGuide) {
+                AccessibilityWizardCard(
+                    isProviderInstalled = uiState.isAccessibilityProviderInstalled.value,
+                    isServiceEnabled = uiState.hasAccessibilityServiceEnabled.value,
+                    showWizard = uiState.showAccessibilityWizard.value,
+                    onToggleWizard = { viewModel.toggleAccessibilityWizard() },
+                    onInstallProvider = {
+                        scope.launch(Dispatchers.IO) {
+                            UIHierarchyManager.launchProviderInstall(context)
+                        }
+                    },
+                    onOpenAccessibilitySettings = {
+                        try {
+                            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "无法打开无障碍服务设置", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
 
             // Root向导卡片 - 如果当前浏览的是ROOT权限级别且Root未获取
             if (needRootSetupGuide) {

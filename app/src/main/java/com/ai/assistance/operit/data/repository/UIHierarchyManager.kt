@@ -1,183 +1,352 @@
 package com.ai.assistance.operit.data.repository
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.provider.Settings
+import android.content.ServiceConnection
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.os.IBinder
+import android.os.RemoteException
 import android.util.Log
-import com.ai.assistance.operit.services.UIAccessibilityService
-import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
-import com.ai.assistance.operit.core.tools.system.ShizukuAuthorizer
-import java.util.concurrent.atomic.AtomicBoolean
+import android.widget.Toast
+import androidx.core.content.FileProvider
+import com.ai.assistance.operit.R
+import com.ai.assistance.operit.provider.IAccessibilityProvider
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
+import org.xmlpull.v1.XmlPullParser
+import org.xmlpull.v1.XmlPullParserFactory
+import java.io.File
+import java.io.FileOutputStream
+import java.io.StringReader
+import kotlin.coroutines.resume
 
 /**
  * UI层次结构管理器
- * 负责管理UI层次结构的获取、缓存和服务状态
+ * 负责与独立的无障碍服务提供者App进行通信，获取UI层次结构。
  */
 object UIHierarchyManager {
     private const val TAG = "UIHierarchyManager"
 
-    // 服务运行状态
-    private val isServiceRunning = AtomicBoolean(false)
+    // 新的无障碍服务提供者应用的包名
+    private const val PROVIDER_PACKAGE_NAME = "com.ai.assistance.operit.provider"
+    // 无障碍服务提供者APK的文件名
+    private const val PROVIDER_APK_NAME = "accessibility.apk"
+    // 用于绑定的自定义Action，必须与服务提供者应用中的声明一致
+    private const val PROVIDER_ACTION = "com.ai.assistance.operit.provider.IAccessibilityProvider"
+    // TODO: 如果你不在Google Play上发布，可以将其更改为直接下载的URL
+    private const val PROVIDER_MARKET_URL = "market://details?id=$PROVIDER_PACKAGE_NAME"
 
-    // 最后获取的UI层次结构及其时间戳
-    private var lastUiHierarchy: String = ""
-    private var lastUiTimestamp: Long = 0
+    private var accessibilityProvider: IAccessibilityProvider? = null
 
-    // 缓存有效期（毫秒）
-    private const val CACHE_TTL = 500L
+    private val _isBound = MutableStateFlow(false)
+    val isBound = _isBound.asStateFlow()
 
-    /**
-     * 检查无障碍服务是否已启用
-     */
-    fun isAccessibilityServiceEnabled(context: Context): Boolean {
-        val serviceString = "${context.packageName}/${UIAccessibilityService::class.java.canonicalName}"
-        val enabledServices = Settings.Secure.getString(
-            context.contentResolver,
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        ) ?: ""
+    private var connectionContinuation: ((Boolean) -> Unit)? = null
 
-        val accessibilityEnabled = Settings.Secure.getInt(
-            context.contentResolver,
-            Settings.Secure.ACCESSIBILITY_ENABLED, 0
-        ) == 1
-
-        return accessibilityEnabled && enabledServices.contains(serviceString)
-    }
-
-    /**
-     * 打开无障碍服务设置页面
-     */
-    fun openAccessibilitySettings(context: Context) {
-        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        context.startActivity(intent)
-    }
-
-    /**
-     * 设置无障碍服务运行状态
-     */
-    fun setAccessibilityServiceRunning(running: Boolean) {
-        isServiceRunning.set(running)
-        Log.d(TAG, "无障碍服务状态更新: $running")
-    }
-
-    /**
-     * 获取UI层次结构（优先使用无障碍服务，失败时返回空字符串）
-     */
-    fun getUIHierarchy(context: Context, forceFresh: Boolean = false): String {
-        // 检查缓存是否可用
-        val now = System.currentTimeMillis()
-        if (!forceFresh && now - lastUiTimestamp < CACHE_TTL && lastUiHierarchy.isNotEmpty()) {
-            Log.d(TAG, "使用缓存的UI层次结构")
-            return lastUiHierarchy
+    private val serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            Log.d(TAG, "无障碍服务提供者已连接")
+            accessibilityProvider = IAccessibilityProvider.Stub.asInterface(service)
+            _isBound.value = true
+            connectionContinuation?.invoke(true)
+            connectionContinuation = null
         }
 
-        // 尝试从无障碍服务获取
-        if (isServiceRunning.get()) {
-            val service = UIAccessibilityService.getInstance()
-            if (service != null) {
-                try {
-                    val hierarchy = service.getUIHierarchy()
-                    if (hierarchy.isNotEmpty()) {
-                        // 更新缓存
-                        lastUiHierarchy = hierarchy
-                        lastUiTimestamp = now
-                        return hierarchy
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "从无障碍服务获取UI层次结构失败", e)
+        override fun onServiceDisconnected(name: ComponentName?) {
+            Log.d(TAG, "无障碍服务提供者已断开")
+            accessibilityProvider = null
+            _isBound.value = false
+            connectionContinuation?.invoke(false)
+            connectionContinuation = null
+        }
+    }
+
+    /**
+     * 从应用内assets目录中提取无障碍服务提供者APK文件。
+     * @param context Context
+     * @return 提取出的APK文件，如果失败则返回null。
+     */
+    private fun extractProviderApkFromAssets(context: Context): File? {
+        return try {
+            val apkFile = File(context.cacheDir, PROVIDER_APK_NAME)
+            // 如果文件已存在且大小匹配，可以跳过提取，但为了简单起见，这里总是覆盖
+            context.assets.open(PROVIDER_APK_NAME).use { inputStream ->
+                FileOutputStream(apkFile).use { outputStream ->
+                    inputStream.copyTo(outputStream)
                 }
+            }
+            Log.d(TAG, "无障碍服务APK已提取到: ${apkFile.absolutePath}")
+            apkFile
+        } catch (e: Exception) {
+            Log.e(TAG, "从assets提取无障碍服务APK失败", e)
+            null
+        }
+    }
+
+    /**
+     * 启动安装流程来安装提供者应用
+     */
+    suspend fun launchProviderInstall(context: Context) {
+        val apkFile = extractProviderApkFromAssets(context)
+        if (apkFile == null) {
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, context.getString(R.string.toast_apk_extract_failed), Toast.LENGTH_SHORT).show()
+            }
+            return
+        }
+
+        val apkUri =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    apkFile
+                )
+            } else {
+                Uri.fromFile(apkFile)
+            }
+
+        val installIntent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(apkUri, "application/vnd.android.package-archive")
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
         }
 
-        // 如果无障碍服务不可用或获取失败，返回空字符串
-        return ""
+        withContext(Dispatchers.Main) {
+            try {
+                context.startActivity(installIntent)
+            } catch (e: Exception) {
+                Log.e(TAG, "启动安装界面失败", e)
+                Toast.makeText(context, context.getString(R.string.toast_operation_failed, e.message ?: ""), Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     /**
-     * 清除UI层次结构缓存
+     * 确保服务已绑定，如果未绑定则尝试自动重新绑定。
+     * @return a boolean indicating if the service is ready.
      */
-    fun clearCache() {
-        lastUiHierarchy = ""
-        lastUiTimestamp = 0
-        Log.d(TAG, "UI层次结构缓存已清除")
-    }
-
-    /**
-     * 通过ADB/Shizuku启用无障碍服务
-     * @param context Android上下文
-     * @return 操作是否成功
-     */
-    suspend fun enableAccessibilityServiceViaAdb(context: Context): Boolean {
-        try {
-            // 检查Shizuku服务是否正常运行并有权限
-            if (!ShizukuAuthorizer.isShizukuServiceRunning() ||
-                !ShizukuAuthorizer.hasShizukuPermission()
-            ) {
-                Log.d(TAG, "Shizuku服务未运行或无权限，无法启用无障碍服务")
+    private suspend fun ensureBound(context: Context): Boolean {
+        if (!_isBound.value) {
+            Log.w(TAG, "服务未绑定，尝试自动重新绑定...")
+            val bound = bindToService(context)
+            if (!bound) {
+                Log.e(TAG, "自动重新绑定失败")
                 return false
             }
+        }
+        return true
+    }
 
-            val serviceString = "${context.packageName}/${UIAccessibilityService::class.java.canonicalName}"
-
-            // 获取当前已启用的服务列表
-            val currentServices = Settings.Secure.getString(
-                context.contentResolver,
-                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-            ) ?: ""
-
-            // 检查服务是否已经在列表中
-            if (currentServices.contains(serviceString)) {
-                Log.d(TAG, "无障碍服务已在启用列表中")
-
-                // 确保无障碍总开关已启用
-                if (Settings.Secure.getInt(
-                        context.contentResolver,
-                        Settings.Secure.ACCESSIBILITY_ENABLED, 0
-                    ) != 1) {
-                    // 启用无障碍总开关
-                    return executeAdbCommand("settings put secure accessibility_enabled 1")
-                }
-
-                return true
-            }
-
-            // 构建新的服务列表
-            val newServices = if (currentServices.isEmpty()) {
-                serviceString
-            } else {
-                "$currentServices:$serviceString"
-            }
-
-            // 通过ADB命令启用服务
-            val result1 = executeAdbCommand("settings put secure enabled_accessibility_services $newServices")
-            val result2 = executeAdbCommand("settings put secure accessibility_enabled 1")
-
-            Log.d(TAG, "启用无障碍服务的ADB命令执行结果: $result1, $result2")
-
-            // 短暂延迟，等待设置生效
-            kotlinx.coroutines.delay(500)
-
-            // 验证设置是否生效
-            return isAccessibilityServiceEnabled(context)
-        } catch (e: Exception) {
-            Log.e(TAG, "通过ADB启用无障碍服务出错", e)
-            return false
+    /**
+     * 检查无障碍服务提供者应用是否已安装
+     */
+    fun isProviderAppInstalled(context: Context): Boolean {
+        return try {
+            context.packageManager.getPackageInfo(PROVIDER_PACKAGE_NAME, 0)
+            true
+        } catch (e: PackageManager.NameNotFoundException) {
+            false
         }
     }
 
     /**
-     * 执行ADB命令
+     * 绑定到外部无障碍服务。
+     * 这是一个挂起函数，它会等待服务连接成功或失败。
+     * @return a boolean indicating if the binding was successful.
      */
-    private suspend fun executeAdbCommand(command: String): Boolean {
+    suspend fun bindToService(context: Context): Boolean {
+        if (_isBound.value || !isProviderAppInstalled(context)) {
+            if (!_isBound.value) Log.w(TAG, "无法绑定：服务已绑定或提供者应用未安装")
+            return _isBound.value
+        }
+
+        val intent = Intent(PROVIDER_ACTION).apply {
+            setPackage(PROVIDER_PACKAGE_NAME)
+        }
+
+        return suspendCancellableCoroutine { continuation ->
+            this.connectionContinuation = { success ->
+                if (continuation.isActive) {
+                    continuation.resume(success)
+                }
+            }
+            try {
+                val bound = context.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+                if (!bound) {
+                    Log.e(TAG, "bindService返回false，绑定失败")
+                    connectionContinuation?.invoke(false)
+                    connectionContinuation = null
+                }
+            } catch (e: SecurityException) {
+                Log.e(TAG, "绑定服务时出现安全异常", e)
+                connectionContinuation?.invoke(false)
+                connectionContinuation = null
+            }
+        }
+        }
+
+    /**
+     * 解绑服务
+     */
+    fun unbindFromService(context: Context) {
+        if (_isBound.value) {
+            context.unbindService(serviceConnection)
+            _isBound.value = false
+            accessibilityProvider = null
+            Log.d(TAG, "服务已解绑")
+        }
+    }
+
+    /**
+     * 从外部服务获取UI层次结构。
+     * 如果服务未绑定，会尝试自动重新绑定一次。
+     */
+    suspend fun getUIHierarchy(context: Context): String {
+        if (!ensureBound(context)) {
+            Log.e(TAG, "绑定失败，无法获取UI层次结构")
+            return ""
+        }
         return try {
-            val result = AndroidShellExecutor.executeShellCommand(command)
-            Log.d(TAG, "执行命令结果: ${result.stdout}")
-            !result.stdout.contains("error", ignoreCase = true) &&
-            !result.stdout.contains("Exception", ignoreCase = true) &&
-            result.exitCode == 0
+            accessibilityProvider?.uiHierarchy ?: ""
+        } catch (e: RemoteException) {
+            Log.e(TAG, "从提供者获取UI层次结构失败", e)
+            // Consider re-binding or notifying the user
+            ""
+        }
+    }
+
+    /**
+     * 从UI层次结构的XML中解析出窗口信息（包名和类名）。
+     * @param xmlHierarchy UI层次结构的XML字符串
+     * @return 一个Pair，第一个元素是包名，第二个是类名。
+     */
+    fun extractWindowInfo(xmlHierarchy: String): Pair<String?, String?> {
+        if (xmlHierarchy.isEmpty()) {
+            return Pair(null, null)
+        }
+        return try {
+            val factory = XmlPullParserFactory.newInstance()
+            factory.isNamespaceAware = false
+            val parser = factory.newPullParser()
+            parser.setInput(StringReader(xmlHierarchy))
+
+            while (parser.eventType != XmlPullParser.END_DOCUMENT) {
+                // 我们只关心第一个 <node> 标签，它通常代表根节点/窗口
+                if (parser.eventType == XmlPullParser.START_TAG && parser.name == "node") {
+                    val packageName = parser.getAttributeValue(null, "package")
+                    val className = parser.getAttributeValue(null, "class")
+                    return Pair(packageName, className)
+                }
+                parser.next()
+            }
+            Pair(null, null)
         } catch (e: Exception) {
-            Log.e(TAG, "执行命令出错", e)
+            Log.e(TAG, "解析窗口信息时出错", e)
+            Pair(null, null)
+        }
+    }
+
+    /**
+     * 请求远程服务在指定坐标执行点击。
+     */
+    suspend fun performClick(context: Context, x: Int, y: Int): Boolean {
+        if (!ensureBound(context)) {
+            Log.w(TAG, "绑定失败，无法执行点击")
+            return false
+        }
+        return try {
+            accessibilityProvider?.performClick(x, y) ?: false
+        } catch (e: RemoteException) {
+            Log.e(TAG, "请求点击操作失败", e)
+            false
+        }
+    }
+
+    /**
+     * 请求远程服务执行滑动。
+     */
+    suspend fun performSwipe(context: Context, startX: Int, startY: Int, endX: Int, endY: Int, duration: Long): Boolean {
+        if (!ensureBound(context)) {
+            Log.w(TAG, "绑定失败，无法执行滑动")
+                return false
+            }
+        return try {
+            accessibilityProvider?.performSwipe(startX, startY, endX, endY, duration) ?: false
+        } catch (e: RemoteException) {
+            Log.e(TAG, "请求滑动操作失败", e)
+            false
+        }
+    }
+
+    /**
+     * 请求远程服务执行全局操作。
+     */
+    suspend fun performGlobalAction(context: Context, actionId: Int): Boolean {
+        if (!ensureBound(context)) {
+            Log.w(TAG, "绑定失败，无法执行全局操作")
+            return false
+        }
+        return try {
+            accessibilityProvider?.performGlobalAction(actionId) ?: false
+        } catch (e: RemoteException) {
+            Log.e(TAG, "请求全局操作失败", e)
+            false
+        }
+    }
+
+    /**
+     * 请求远程服务查找有焦点的节点的ID。
+     */
+    suspend fun findFocusedNodeId(context: Context): String? {
+        if (!ensureBound(context)) {
+            Log.w(TAG, "绑定失败，无法查找焦点节点")
+            return null
+        }
+        return try {
+            accessibilityProvider?.findFocusedNodeId()
+        } catch (e: RemoteException) {
+            Log.e(TAG, "请求查找焦点节点ID失败", e)
+            null
+        }
+    }
+
+    /**
+     * 请求远程服务在指定ID的节点上设置文本。
+     */
+    suspend fun setTextOnNode(context: Context, nodeId: String, text: String): Boolean {
+        if (!ensureBound(context)) {
+            Log.w(TAG, "绑定失败，无法设置文本")
+            return false
+        }
+        return try {
+            accessibilityProvider?.setTextOnNode(nodeId, text) ?: false
+        } catch (e: RemoteException) {
+            Log.e(TAG, "请求设置文本失败", e)
+            false
+        }
+    }
+
+    /**
+     * 检查远程无障碍服务是否已在系统设置中启用。
+     */
+    suspend fun isAccessibilityServiceEnabled(context: Context): Boolean {
+        if (!ensureBound(context)) {
+            Log.w(TAG, "绑定失败，无法检查无障碍服务状态")
+            return false
+        }
+        return try {
+            accessibilityProvider?.isAccessibilityServiceEnabled ?: false
+        } catch (e: RemoteException) {
+            Log.e(TAG, "检查无障碍服务状态失败", e)
             false
         }
     }

@@ -111,7 +111,7 @@ fun CodeEditor(
                                             showCompletions = false
                                         }
                                         
-                                        override fun isCompletionVisible(): Boolean {
+                                       override fun isCompletionVisible(): Boolean {
                                             return showCompletions
                                         }
                                     })

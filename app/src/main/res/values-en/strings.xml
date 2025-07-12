@@ -497,7 +497,6 @@
     <string name="cut">Cut</string>
     <string name="paste">Paste</string>
     <string name="share">Share</string>
-    <string name="rename">Rename</string>
     <string name="loading_files">Loading files...</string>
 
     <!-- ErrorDialog -->
@@ -866,4 +865,17 @@
     <string name="open_source_licenses">Open Source Licenses</string>
     <string name="license_format">License: %1$s</string>
     <string name="visit_project">Visit Project</string>
+
+    <!-- Accessibility Wizard -->
+    <string name="accessibility_wizard_title">Accessibility Service Setup</string>
+    <string name="accessibility_wizard_step1">1. Install Provider App</string>
+    <string name="accessibility_wizard_step2">2. Enable Service</string>
+    <string name="accessibility_wizard_completed">Setup Complete</string>
+    <string name="accessibility_wizard_install_message">First, you need to install the Accessibility Service Provider app. This separate app handles all accessibility service functions.</string>
+    <string name="accessibility_wizard_install_provider">Install Provider App</string>
+    <string name="accessibility_wizard_enable_message">Now, enable the accessibility service in your device settings. This allows the provider app to analyze screen content.</string>
+    <string name="accessibility_wizard_enable_note">Important Note:</string>
+    <string name="accessibility_wizard_enable_note_details">You must select and enable \"Operit Accessibility Provider\" from the list of services.</string>
+    <string name="accessibility_wizard_open_settings">Open Accessibility Settings</string>
+    <string name="accessibility_wizard_success_message">Accessibility service is properly configured and ready to use!</string>
 </resources> 
