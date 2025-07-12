@@ -2,8 +2,11 @@ package com.ai.assistance.operit.core.tools
 
 import android.content.Context
 import com.ai.assistance.operit.core.tools.defaultTool.ToolGetter
+import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.ui.permissions.ToolCategory
+import kotlinx.coroutines.flow.last
+import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
 
 /**
@@ -465,9 +468,18 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
                 val path = tool.parameters.find { it.name == "path" }?.value ?: ""
                 "智能合并AI代码到文件: $path"
             },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking { fileSystemTools.applyFile(tool) }
-            }
+            executor =
+                    object : ToolExecutor {
+                        override fun invoke(tool: AITool): ToolResult {
+                            return runBlocking { fileSystemTools.applyFile(tool).last() }
+                        }
+
+                        override fun invokeAndStream(
+                                tool: AITool
+                        ): kotlinx.coroutines.flow.Flow<ToolResult> {
+                            return fileSystemTools.applyFile(tool)
+                        }
+                    }
     )
 
     // 压缩文件/目录

@@ -38,6 +38,8 @@ import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolParameter
 import com.ai.assistance.operit.data.model.ToolResult
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -59,7 +61,13 @@ fun ScriptExecutionDialog(
     var paramValues by
             remember(tool) { mutableStateOf(tool.parameters.associate { it.name to "" }) }
     var executing by remember { mutableStateOf(false) }
-    var executionResult by remember { mutableStateOf(initialResult) }
+    var executionResults by remember { mutableStateOf<List<ToolResult>>(emptyList()) }
+
+    LaunchedEffect(initialResult) {
+        if (initialResult != null) {
+            executionResults = listOf(initialResult)
+        }
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -141,48 +149,57 @@ fun ScriptExecutionDialog(
                     }
 
                     // Result area
-                    if (executionResult != null) {
+                    if (executionResults.isNotEmpty()) {
                         Text(
-                                text = "Execution Result:" + ":",
+                                text = "Execution Results:" + ":",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                         )
 
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        Surface(
+                        LazyColumn(
                                 modifier =
                                         Modifier.fillMaxWidth()
+                                                .heightIn(max = 240.dp)
                                                 .border(
                                                         width = 1.dp,
                                                         color = MaterialTheme.colorScheme.outline,
                                                         shape = RoundedCornerShape(8.dp)
-                                                ),
-                                shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant
+                                                )
+                                                .padding(vertical = 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Row(
-                                    modifier = Modifier.padding(12.dp).fillMaxWidth(),
-                                    verticalAlignment = Alignment.Top
-                            ) {
-                                val success = executionResult!!.success
-                                Icon(
-                                        imageVector =
-                                                if (success) Icons.Filled.CheckCircle
-                                                else Icons.Filled.Error,
-                                        contentDescription = if (success) "Success" else "Error",
-                                        tint =
-                                                if (success) Color(0xFF4CAF50)
-                                                else Color(0xFFF44336)
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                        text =
-                                                if (executionResult!!.success)
-                                                        executionResult!!.result.toString()
-                                                else "Error: ${executionResult!!.error}",
-                                        style = MaterialTheme.typography.bodyMedium
-                                )
+                            items(executionResults) { result ->
+                                Surface(
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = MaterialTheme.colorScheme.surfaceVariant
+                                ) {
+                                    Row(
+                                            modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                                            verticalAlignment = Alignment.Top
+                                    ) {
+                                        val success = result.success
+                                        Icon(
+                                                imageVector =
+                                                        if (success) Icons.Filled.CheckCircle
+                                                        else Icons.Filled.Error,
+                                                contentDescription =
+                                                        if (success) "Success" else "Error",
+                                                tint =
+                                                        if (success) Color(0xFF4CAF50)
+                                                        else Color(0xFFF44336)
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(
+                                                text =
+                                                        if (result.success) result.result.toString()
+                                                        else "Error: ${result.error}",
+                                                style = MaterialTheme.typography.bodyMedium
+                                        )
+                                    }
+                                }
                             }
                         }
 
@@ -199,6 +216,7 @@ fun ScriptExecutionDialog(
                     Button(
                             onClick = {
                                 executing = true
+                                executionResults = emptyList() // Clear previous results
                                 scope.launch(Dispatchers.IO) {
                                     try {
                                         // Check for required parameters
@@ -209,17 +227,18 @@ fun ScriptExecutionDialog(
                                                         .filter { paramValues[it].isNullOrEmpty() }
 
                                         if (missingParams.isNotEmpty()) {
+                                            val missingResult =
+                                                    ToolResult(
+                                                            toolName =
+                                                                    "${packageName}:${tool.name}",
+                                                            success = false,
+                                                            result = StringResultData(""),
+                                                            error =
+                                                                    "Missing parameters: ${missingParams.joinToString(", ")}"
+                                                    )
                                             withContext(Dispatchers.Main) {
-                                                executionResult =
-                                                        ToolResult(
-                                                                toolName =
-                                                                        "${packageName}:${tool.name}",
-                                                                success = false,
-                                                                result = StringResultData(""),
-                                                                error =
-                                                                        "Missing parameters: ${missingParams.joinToString(", ")}"
-                                                        )
-                                                onExecuted(executionResult!!)
+                                                executionResults = listOf(missingResult)
+                                                onExecuted(missingResult)
                                             }
                                         } else {
                                             // Create the tool with parameters
@@ -241,19 +260,42 @@ fun ScriptExecutionDialog(
                                                             packageManager
                                                     )
 
-                                            // Execute the script - directly call the suspending
-                                            // function
-                                            // Since we're already in a coroutine context with
-                                            // Dispatchers.IO,
-                                            // we can just call the suspending function directly
-                                            val result =
-                                                    interpreter.executeScript(scriptText, aiTool)
-
-                                            // 切换回主线程更新UI
-                                            withContext(Dispatchers.Main) {
-                                                executionResult = result
-                                                onExecuted(result)
-                                            }
+                                            // Execute the script and collect results from the flow
+                                            interpreter
+                                                    .executeScript(scriptText, aiTool)
+                                                    .catch { e ->
+                                                        Log.e(
+                                                                "ScriptExecutionDialog",
+                                                                "Flow collection error",
+                                                                e
+                                                        )
+                                                        val errorResult =
+                                                                ToolResult(
+                                                                        toolName =
+                                                                                "${packageName}:${tool.name}",
+                                                                        success = false,
+                                                                        result = StringResultData(""),
+                                                                        error =
+                                                                                "Execution flow error: ${e.message}"
+                                                                )
+                                                        withContext(Dispatchers.Main) {
+                                                            executionResults =
+                                                                    executionResults + errorResult
+                                                            onExecuted(errorResult)
+                                                        }
+                                                    }
+                                                    .onCompletion {
+                                                        withContext(Dispatchers.Main) {
+                                                            executing = false
+                                                        }
+                                                    }
+                                                    .collect { result ->
+                                                        withContext(Dispatchers.Main) {
+                                                            executionResults =
+                                                                    executionResults + result
+                                                            onExecuted(result)
+                                                        }
+                                                    }
                                         }
                                     } catch (e: Exception) {
                                         Log.e(
@@ -262,9 +304,9 @@ fun ScriptExecutionDialog(
                                                 e
                                         )
 
-                                        // 切换回主线程更新UI
+                                        // Final catch-all for unexpected errors
                                         withContext(Dispatchers.Main) {
-                                            executionResult =
+                                            val finalError =
                                                     ToolResult(
                                                             toolName =
                                                                     "${packageName}:${tool.name}",
@@ -272,10 +314,10 @@ fun ScriptExecutionDialog(
                                                             result = StringResultData(""),
                                                             error = "Execution error: ${e.message}"
                                                     )
-                                            onExecuted(executionResult!!)
+                                            executionResults = executionResults + finalError
+                                            onExecuted(finalError)
                                         }
                                     } finally {
-                                        // 切换回主线程更新UI状态
                                         withContext(Dispatchers.Main) { executing = false }
                                     }
                                 }

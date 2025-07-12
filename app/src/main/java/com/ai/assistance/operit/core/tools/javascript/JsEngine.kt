@@ -59,6 +59,7 @@ class JsEngine(private val context: Context) {
 
     // 结果回调
     private var resultCallback: CompletableFuture<Any?>? = null
+    private var intermediateResultCallback: ((Any?) -> Unit)? = null
 
     // 用于生成唯一ID的计数器
     private var callbackCounter = 0
@@ -433,6 +434,29 @@ class JsEngine(private val context: Context) {
                     }
                 }
             }
+
+            function sendIntermediateResult(result) {
+                try {
+                    if (window._hasCompleted) {
+                        console.warn("sendIntermediateResult called after execution was completed. Ignoring.");
+                        return;
+                    }
+                    
+                    let serializedResult;
+                    try {
+                        serializedResult = JSON.stringify(result);
+                    } catch (serializeError) {
+                        console.error("Failed to serialize intermediate result:", serializeError);
+                        serializedResult = JSON.stringify({
+                            error: "Failed to serialize result",
+                            message: String(serializeError)
+                        });
+                    }
+                    NativeInterface.sendIntermediateResult(serializedResult);
+                } catch (error) {
+                    console.error("Error in sendIntermediateResult function:", error);
+                }
+            }
             
             // 加载第三方库支持
             ${getJsThirdPartyLibraries()}
@@ -570,10 +594,12 @@ class JsEngine(private val context: Context) {
     fun executeScriptFunction(
             script: String,
             functionName: String,
-            params: Map<String, String>
+            params: Map<String, String>,
+            onIntermediateResult: ((Any?) -> Unit)? = null
     ): Any? {
         // Reset any previous state
         resetState()
+        this.intermediateResultCallback = onIntermediateResult
 
         initWebView()
 
@@ -798,8 +824,9 @@ class JsEngine(private val context: Context) {
             } catch (e: Exception) {
                 Log.e(TAG, "Error completing previous callback: ${e.message}", e)
             }
-            resultCallback = null
         }
+        resultCallback = null
+        intermediateResultCallback = null
 
         // 清理所有待处理的工具调用回调
         toolCallbacks.forEach { (_, future) ->
@@ -837,6 +864,18 @@ class JsEngine(private val context: Context) {
     /** JavaScript 接口，提供 Native 调用方法 */
     @Keep
     inner class JsToolCallInterface {
+
+        @JavascriptInterface
+        fun sendIntermediateResult(result: String) {
+            try {
+                Log.d(TAG, "Received intermediate result from JS: ${result.take(200)}")
+                ContextCompat.getMainExecutor(context).execute {
+                    intermediateResultCallback?.invoke(result)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error processing intermediate result: ${e.message}", e)
+            }
+        }
 
         /** 同步工具调用（旧版本，保留兼容性） */
         @JavascriptInterface
@@ -1295,6 +1334,7 @@ class JsEngine(private val context: Context) {
             // 确保任何挂起的回调被完成
             resultCallback?.complete("Engine destroyed")
             resultCallback = null
+            intermediateResultCallback = null
 
             // 清理所有待处理的工具调用回调
             toolCallbacks.forEach { (_, future) ->

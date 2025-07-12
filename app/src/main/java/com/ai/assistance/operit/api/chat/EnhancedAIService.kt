@@ -34,7 +34,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -413,8 +412,7 @@ class EnhancedAIService private constructor(private val context: Context) {
 
                     // Update state to show we're processing
                     withContext(Dispatchers.Main) {
-                        _inputProcessingState.value =
-                                InputProcessingState.Processing("正在处理消息...")
+                        _inputProcessingState.value = InputProcessingState.Processing("正在处理消息...")
                     }
 
                     // Prepare conversation history with system prompt
@@ -428,8 +426,7 @@ class EnhancedAIService private constructor(private val context: Context) {
 
                     // Update UI state to connecting
                     withContext(Dispatchers.Main) {
-                        _inputProcessingState.value =
-                                InputProcessingState.Connecting("正在连接AI服务...")
+                        _inputProcessingState.value = InputProcessingState.Connecting("正在连接AI服务...")
                     }
 
                     // Get all model parameters from preferences (with enabled state)
@@ -871,8 +868,7 @@ class EnhancedAIService private constructor(private val context: Context) {
                                         toolName = invocation.tool.name,
                                         success = false,
                                         result = StringResultData(""),
-                                        error =
-                                                "权限拒绝: 操作 '${invocation.tool.name}' 未授权"
+                                        error = "权限拒绝: 操作 '${invocation.tool.name}' 未授权"
                                 )
                         )
                 roundManager.appendContent(toolResultStatusContent)
@@ -887,22 +883,50 @@ class EnhancedAIService private constructor(private val context: Context) {
 
             // Execute the tool
             val toolStartTime = System.currentTimeMillis()
-            result = ToolExecutionManager.executeToolSafely(invocation, executor)
-            val executionTime = System.currentTimeMillis() - toolStartTime
-            Log.d(TAG, "工具执行完成，耗时: ${executionTime}ms，结果: ${if (result.success) "成功" else "失败"}")
+            val allToolResults = mutableListOf<ToolResult>()
 
-            // Display tool execution result
-            val toolResultString =
-                    if (result.success) result.result.toString() else "${result.error}"
-            val toolResultStatusContent =
-                    ConversationMarkupManager.formatToolResultForMessage(result)
-            roundManager.appendContent(toolResultStatusContent)
-            collector.emit(toolResultStatusContent)
+            ToolExecutionManager.executeToolSafely(invocation, executor).collect { result ->
+                allToolResults.add(result)
+
+                val executionTime = System.currentTimeMillis() - toolStartTime
+                Log.d(
+                        TAG,
+                        "工具中间结果收到，耗时: ${executionTime}ms，结果: ${if (result.success) "成功" else "失败"}"
+                )
+
+                // Display intermediate tool execution result
+                val toolResultStatusContent =
+                        ConversationMarkupManager.formatToolResultForMessage(result)
+                roundManager.appendContent(toolResultStatusContent)
+                collector.emit(toolResultStatusContent)
+            }
+
+            if (allToolResults.isNotEmpty()) {
+                val lastResult = allToolResults.last()
+                val combinedResultString =
+                        allToolResults.joinToString("\n") { res ->
+                            if (res.success) {
+                                res.result.toString()
+                            } else {
+                                "Error in step: ${res.error ?: "Unknown error"}"
+                            }
+                        }
+
+                val finalResult =
+                        ToolResult(
+                                toolName = invocation.tool.name,
+                                success = lastResult.success,
+                                result = StringResultData(combinedResultString),
+                                error = lastResult.error
+                        )
+
+                Log.d(TAG, "所有工具结果收集完毕，准备最终处理。")
+                processToolResult(finalResult, functionType, collector)
+            }
         }
 
         // Process the tool result
         Log.d(TAG, "工具调用处理耗时: ${System.currentTimeMillis() - startTime}ms")
-        processToolResult(result, functionType, collector)
     }
 
     /** Process tool execution result - simplified version without callbacks */
@@ -916,8 +940,7 @@ class EnhancedAIService private constructor(private val context: Context) {
 
         // Add transition state
         withContext(Dispatchers.Main) {
-            _inputProcessingState.value =
-                    InputProcessingState.ProcessingToolResult(result.toolName)
+            _inputProcessingState.value = InputProcessingState.ProcessingToolResult(result.toolName)
         }
 
         // Check if conversation is still active
@@ -943,8 +966,7 @@ class EnhancedAIService private constructor(private val context: Context) {
 
         // Clearly show we're preparing to send tool result to AI
         withContext(Dispatchers.Main) {
-            _inputProcessingState.value =
-                    InputProcessingState.ProcessingToolResult(result.toolName)
+            _inputProcessingState.value = InputProcessingState.ProcessingToolResult(result.toolName)
         }
 
         // Add short delay to make state change more visible
@@ -971,9 +993,7 @@ class EnhancedAIService private constructor(private val context: Context) {
                 // 更新状态为接收中
                 withContext(Dispatchers.Main) {
                     _inputProcessingState.value =
-                            InputProcessingState.Receiving(
-                                    "正在接收工具执行后的AI响应..."
-                            )
+                            InputProcessingState.Receiving("正在接收工具执行后的AI响应...")
                 }
 
                 // 处理流

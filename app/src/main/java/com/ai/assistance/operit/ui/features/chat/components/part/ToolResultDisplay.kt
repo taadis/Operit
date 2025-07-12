@@ -55,12 +55,12 @@ fun ToolResultDisplay(
     Row(
             modifier =
                     Modifier.fillMaxWidth()
-                            .padding(start = 24.dp, end = 16.dp, top = 0.dp, bottom = 4.dp)
+                            .padding(start = 24.dp, end = 16.dp, top = 0.dp, bottom = 0.dp)
                             .clip(RoundedCornerShape(4.dp))
                             .clickable(enabled = hasContent) {
                                 if (hasContent) showDetailDialog = true
                             }
-                            .padding(vertical = 4.dp),
+                            .padding(vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically
     ) {
         // 子目录箭头图标，表示这是上个工具的执行结果

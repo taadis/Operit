@@ -3,8 +3,12 @@ package com.ai.assistance.operit.api.chat.enhance
 import android.util.Log
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.core.tools.StringResultData
+import com.ai.assistance.operit.core.tools.ToolExecutor
 import com.ai.assistance.operit.data.model.ToolInvocation
 import com.ai.assistance.operit.data.model.ToolResult
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flow
 
 /** Utility class for managing tool executions */
 object ToolExecutionManager {
@@ -17,29 +21,30 @@ object ToolExecutionManager {
      * @param executor The tool executor to use
      * @return The result of the tool execution
      */
-    fun executeToolSafely(
-            invocation: ToolInvocation,
-            executor: com.ai.assistance.operit.core.tools.ToolExecutor
-    ): ToolResult {
-        return try {
-            val validationResult = executor.validateParameters(invocation.tool)
-            if (!validationResult.valid) {
-                ToolResult(
-                        toolName = invocation.tool.name,
-                        success = false,
-                        result = StringResultData(""),
-                        error = "参数无效: ${validationResult.errorMessage}"
+    fun executeToolSafely(invocation: ToolInvocation, executor: ToolExecutor): Flow<ToolResult> {
+        val validationResult = executor.validateParameters(invocation.tool)
+        if (!validationResult.valid) {
+            return flow {
+                emit(
+                        ToolResult(
+                                toolName = invocation.tool.name,
+                                success = false,
+                                result = StringResultData(""),
+                                error = "参数无效: ${validationResult.errorMessage}"
+                        )
                 )
-            } else {
-                executor.invoke(invocation.tool)
             }
-        } catch (e: Exception) {
+        }
+
+        return executor.invokeAndStream(invocation.tool).catch { e ->
             Log.e(TAG, "工具执行错误: ${invocation.tool.name}", e)
-            ToolResult(
-                    toolName = invocation.tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "工具执行错误: ${e.message}"
+            emit(
+                    ToolResult(
+                            toolName = invocation.tool.name,
+                            success = false,
+                            result = StringResultData(""),
+                            error = "工具执行错误: ${e.message}"
+                    )
             )
         }
     }

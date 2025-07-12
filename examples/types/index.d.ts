@@ -114,6 +114,9 @@ declare global {
     // Complete function
     function complete<T>(result: T): void;
 
+    // Send intermediate result function
+    function sendIntermediateResult<T>(result: T): void;
+
     // Utility objects
     const _: {
         isEmpty(value: any): boolean;
