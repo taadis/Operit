@@ -203,6 +203,15 @@
     <string name="plugin_no_plugins_to_start">No plugins to start</string>
     <string name="plugin_copyright">© 2023 AI Assistance</string>
 
+    <!-- Permission Guide Screen -->
+    <string name="permission_guide_intro_1_title">Voice-Driven UI Automation</string>
+    <string name="permission_guide_intro_1_desc">Converse naturally with the AI using on-device speech recognition and synthesis. Your voice is the command, enabling it to perform screen taps, app navigations, and other complex tasks, completely hands-free.</string>
+    <string name="permission_guide_intro_2_title">A Powerful Toolbox for Geeks and Developers</string>
+    <string name="permission_guide_intro_2_desc">With over 40 built-in professional tools for file management, web requests, script execution, and system control. Combined with a robust plugin system, you can automate tasks, and take deep control of your device.</string>
+    <string name="permission_guide_intro_3_title">Unleash Creativity, Always on Standby</string>
+    <string name="permission_guide_intro_3_desc">Whether designing web pages, processing media files, or accessing the AI via its floating window, Operit provides a powerful, flexible, and secure environment for creation and assistance. Your data, your control.</string>
+    <string name="permission_guide_intro_page_indicator">Feature Tour %1$d/%2$d</string>
+
     <!-- Context Menu -->
     <string name="copy_message">Copy Message</string>
     <string name="edit_and_resend">Edit &amp; Resend</string>
@@ -562,6 +571,8 @@
     <string name="permission_guide_level_desc">Please select your preferred permission level, which will determine the range of features the app can use</string>
     <string name="permission_guide_standard_title">Standard Permissions</string>
     <string name="permission_guide_standard_desc">Basic app operation permissions, no special permissions required</string>
+    <string name="permission_guide_accessibility_title">Accessibility Permissions</string>
+    <string name="permission_guide_accessibility_desc">Enables screen content analysis and operation simulation via accessibility service</string>
     <string name="permission_guide_debugger_title">Debug Permissions</string>
     <string name="permission_guide_debugger_desc">Provides ADB-level system access through Shizuku</string>
     <string name="permission_guide_root_title">Root Permissions</string>

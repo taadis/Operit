@@ -12,14 +12,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** Manages free API usage limits */
+/** Manages free API usage limits based on a cumulative waiting period. */
 class FreeUsagePreferences(private val context: Context) {
     private val PREFS_NAME = "free_usage_preferences"
-    private val KEY_LAST_USAGE_DATE = "last_usage_date"
-    private val KEY_DAILY_USAGE_COUNT = "daily_usage_count"
     private val KEY_TOTAL_USAGE_COUNT = "total_usage_count"
     private val KEY_NEXT_AVAILABLE_DATE = "next_available_date"
-    private val MAX_DAILY_USAGE = 1
 
     // 外部文件存储相关
     private val EXTERNAL_VERIFY_FILENAME = "usage_verification.dat"
@@ -28,17 +25,11 @@ class FreeUsagePreferences(private val context: Context) {
     private val prefs: SharedPreferences =
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    private val _dailyUsageCountFlow = MutableStateFlow(getDailyUsageCount())
-    val dailyUsageCountFlow: StateFlow<Int> = _dailyUsageCountFlow.asStateFlow()
-
-    private val _remainingUsagesFlow = MutableStateFlow(getRemainingUsages())
-    val remainingUsagesFlow: StateFlow<Int> = _remainingUsagesFlow.asStateFlow()
-
     private val _nextAvailableDateFlow = MutableStateFlow(getNextAvailableDate())
     val nextAvailableDateFlow: StateFlow<LocalDate> = _nextAvailableDateFlow.asStateFlow()
 
     init {
-        // 初始化时检查外部验证文件
+        // 初始化时检查外部验证文件，确保状态一致性
         checkExternalVerification()
     }
 
@@ -48,6 +39,7 @@ class FreeUsagePreferences(private val context: Context) {
         return if (dateStr.isNotBlank()) {
             LocalDate.parse(dateStr, DateTimeFormatter.ISO_LOCAL_DATE)
         } else {
+            // 默认是今天，意味着新用户可以直接使用
             LocalDate.now()
         }
     }
@@ -60,48 +52,37 @@ class FreeUsagePreferences(private val context: Context) {
             if (externalFile.exists()) {
                 val externalData = FileInputStream(externalFile).use { it.readBytes() }
                 val totalUsage = prefs.getInt(KEY_TOTAL_USAGE_COUNT, 0)
-                val lastDate = prefs.getString(KEY_LAST_USAGE_DATE, "") ?: ""
                 val nextDate = prefs.getString(KEY_NEXT_AVAILABLE_DATE, "") ?: ""
 
-                val expectedHash = generateVerificationHash(totalUsage, lastDate, nextDate)
+                val expectedHash = generateVerificationHash(totalUsage, nextDate)
                 val actualHash = externalData.toString(Charsets.UTF_8)
 
-                // 如果哈希不匹配，可能是用户清除了应用数据
+                // 如果哈希不匹配，可能是用户清除了应用数据，进行恢复
                 if (actualHash != expectedHash) {
-                    // 使用外部文件的数据恢复
                     val parts = actualHash.split("|")
-                    if (parts.size >= 3) {
+                    if (parts.size >= 2) {
                         val extTotalUsage = parts[0].toIntOrNull() ?: 0
-                        val extLastDate = parts[1]
-                        val extNextDate = parts[2]
+                        val extNextDate = parts[1]
 
-                        // 用更严格的数据更新SharedPreferences
                         val currentTotalUsage = prefs.getInt(KEY_TOTAL_USAGE_COUNT, 0)
                         val updatedTotalUsage = maxOf(extTotalUsage, currentTotalUsage)
 
-                        // 更新SharedPreferences
                         prefs.edit()
                                 .putInt(KEY_TOTAL_USAGE_COUNT, updatedTotalUsage)
-                                .putString(KEY_LAST_USAGE_DATE, extLastDate)
                                 .putString(KEY_NEXT_AVAILABLE_DATE, extNextDate)
                                 .apply()
 
-                        // 更新Flow
-                        _dailyUsageCountFlow.value = getDailyUsageCount()
-                        _remainingUsagesFlow.value = getRemainingUsages()
                         _nextAvailableDateFlow.value = getNextAvailableDate()
                     }
                 }
             } else {
-                // 如果文件不存在，创建它
                 updateExternalVerificationFile()
             }
         } catch (e: Exception) {
-            // 出错时尝试重新创建验证文件
             try {
                 updateExternalVerificationFile()
             } catch (ex: Exception) {
-                // 忽略错误，应用仍然可以运行
+                // Ignore errors
             }
         }
     }
@@ -121,10 +102,9 @@ class FreeUsagePreferences(private val context: Context) {
     private fun updateExternalVerificationFile() {
         try {
             val totalUsage = prefs.getInt(KEY_TOTAL_USAGE_COUNT, 0)
-            val lastDate = prefs.getString(KEY_LAST_USAGE_DATE, "") ?: ""
             val nextDate = prefs.getString(KEY_NEXT_AVAILABLE_DATE, "") ?: ""
 
-            val hash = generateVerificationHash(totalUsage, lastDate, nextDate)
+            val hash = generateVerificationHash(totalUsage, nextDate)
 
             val externalFile = getExternalVerificationFile()
             FileOutputStream(externalFile).use {
@@ -132,118 +112,43 @@ class FreeUsagePreferences(private val context: Context) {
                 it.flush()
             }
         } catch (e: Exception) {
-            // 忽略错误，应用仍然可以运行
+            // Ignore errors
         }
     }
 
     /** 生成验证哈希值 */
-    private fun generateVerificationHash(
-            totalUsage: Int,
-            lastDate: String,
-            nextDate: String
-    ): String {
-        // 简单存储为分隔的字符串
-        val dataString = "$totalUsage|$lastDate|$nextDate"
-        return dataString
+    private fun generateVerificationHash(totalUsage: Int, nextDate: String): String {
+        return "$totalUsage|$nextDate"
     }
 
-    /** Check if the user has used the free API today and how many times */
-    private fun getDailyUsageCount(): Int {
-        val today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val lastUsageDate = prefs.getString(KEY_LAST_USAGE_DATE, "") ?: ""
-
-        // If last usage was not today, reset count
-        if (lastUsageDate != today) {
-            prefs.edit()
-                    .putString(KEY_LAST_USAGE_DATE, today)
-                    .putInt(KEY_DAILY_USAGE_COUNT, 0)
-                    .apply()
-            return 0
-        }
-
-        return prefs.getInt(KEY_DAILY_USAGE_COUNT, 0)
-    }
-
-    /** Get remaining free usages for today */
-    fun getRemainingUsages(): Int {
-        // 检查今天是否是下次可用日期
-        val today = LocalDate.now()
-        val nextAvailableDate = getNextAvailableDate()
-
-        // 如果今天不是可用日期，返回0
-        if (today.isBefore(nextAvailableDate)) {
-            return 0
-        }
-
-        // 如果今天可用，正常返回剩余次数
-        return MAX_DAILY_USAGE - getDailyUsageCount()
-    }
-
-    /** Check if the user can still use the free API today */
+    /** Check if the user can use the free API. */
     fun canUseFreeTier(): Boolean {
-        // 检查今天是否是下次可用日期
         val today = LocalDate.now()
         val nextAvailableDate = getNextAvailableDate()
-
-        // 如果今天在可用日期之前，不能使用
-        if (today.isBefore(nextAvailableDate)) {
-            return false
-        }
-
-        // 如果今天可用，检查是否还有剩余使用次数
-        return getRemainingUsages() > 0
+        // 如果今天在下次可用日期之前，则不能使用
+        return !today.isBefore(nextAvailableDate)
     }
 
     /**
-     * Record a usage of the free API
-     * @return The number of remaining usages
+     * Records a usage of the free API and calculates the next available date.
      */
-    fun recordUsage(): Int {
-        val today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val lastUsageDate = prefs.getString(KEY_LAST_USAGE_DATE, "") ?: ""
-        var count = prefs.getInt(KEY_DAILY_USAGE_COUNT, 0)
-
-        // If last usage was not today, reset daily count
-        if (lastUsageDate != today) {
-            count = 0
-        }
-
-        // Increment usage count
-        count++
-
-        // 获取并增加总使用次数
+    fun recordUsage() {
         val totalUsageCount = prefs.getInt(KEY_TOTAL_USAGE_COUNT, 0) + 1
 
-        // 计算下次可用日期（第1次后等1天，第2次后等2天，第3次后等4天...）
-        val waitDays = if (totalUsageCount == 1) 1 else (1 shl (totalUsageCount - 1)) / 2
-        val nextAvailableDate =
-                LocalDate.now().plusDays(waitDays.toLong()).format(DateTimeFormatter.ISO_LOCAL_DATE)
+        // 计算下次可用日期（指数退避）
+        // 第1次使用后等1天, 第2次等2天, 第3次等4天...
+        val waitDays = 1L shl (totalUsageCount - 1)
+        val nextAvailableDate = LocalDate.now().plusDays(waitDays)
 
         // Update preferences
         prefs.edit()
-                .putString(KEY_LAST_USAGE_DATE, today)
-                .putInt(KEY_DAILY_USAGE_COUNT, count)
                 .putInt(KEY_TOTAL_USAGE_COUNT, totalUsageCount)
-                .putString(KEY_NEXT_AVAILABLE_DATE, nextAvailableDate)
+                .putString(KEY_NEXT_AVAILABLE_DATE, nextAvailableDate.format(DateTimeFormatter.ISO_LOCAL_DATE))
                 .apply()
 
-        // 更新外部验证文件
+        // 更新外部验证文件和Flow
         updateExternalVerificationFile()
-
-        // Update flows
-        _dailyUsageCountFlow.value = count
-        _nextAvailableDateFlow.value =
-                LocalDate.parse(nextAvailableDate, DateTimeFormatter.ISO_LOCAL_DATE)
-
-        val remaining = if (count >= MAX_DAILY_USAGE) 0 else MAX_DAILY_USAGE - count
-        _remainingUsagesFlow.value = remaining
-
-        return remaining
-    }
-
-    /** Get the maximum allowed usages per day */
-    fun getMaxDailyUsage(): Int {
-        return MAX_DAILY_USAGE
+        _nextAvailableDateFlow.value = nextAvailableDate
     }
 
     /** 获取下次可使用日期 */
@@ -255,18 +160,12 @@ class FreeUsagePreferences(private val context: Context) {
     /** 重置使用记录（仅用于调试） */
     fun resetUsage() {
         prefs.edit()
-                .putString(KEY_LAST_USAGE_DATE, "")
-                .putInt(KEY_DAILY_USAGE_COUNT, 0)
                 .putInt(KEY_TOTAL_USAGE_COUNT, 0)
                 .putString(KEY_NEXT_AVAILABLE_DATE, "")
                 .apply()
 
-        // 更新外部验证文件
+        // 更新外部验证文件和Flow
         updateExternalVerificationFile()
-
-        // 更新Flow
-        _dailyUsageCountFlow.value = 0
-        _remainingUsagesFlow.value = MAX_DAILY_USAGE
         _nextAvailableDateFlow.value = LocalDate.now()
     }
 
@@ -275,7 +174,7 @@ class FreeUsagePreferences(private val context: Context) {
         val today = LocalDate.now()
         val nextAvailable = getNextAvailableDate()
 
-        if (today.isEqual(nextAvailable) || today.isAfter(nextAvailable)) {
+        if (!today.isBefore(nextAvailable)) {
             return 0
         }
 

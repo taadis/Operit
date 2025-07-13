@@ -46,26 +46,16 @@ These built-in tools, combined with a rich plugin system, allow Operit to handle
 
 ## 🚀 Core Feature Showcase
 
-### 🎮 Game Creation Functionality
+### 🗣️ Voice-Driven UI Automation
 
-Operit AI lets you create and play games directly on your phone, from concept to completion in one go.
+Operit AI now supports seamless integration of **local voice conversations** with **UI automation**. You can talk to the AI while watching it perform on-screen actions for you automatically. This isn't just about voice commands; it's about "say and see," completing complex tasks as easily as having a conversation.
 
 <div align="center">
   <div style="margin: 20px 0;">
-    <figure style="display: inline-block; margin: 0 5px; vertical-align: top;">
-      <img src="docx/assets/game_maker_chat.jpg" style="height: 300px; width: auto; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.15);" alt="Game Maker Chat">
-      <figcaption style="font-size:0.8em; text-align:center; color:#555; margin-top: 5px;">1. Describe game logic in chat.</figcaption>
-    </figure>
-    <figure style="display: inline-block; margin: 0 5px; vertical-align: top;">
-      <img src="docx/assets/game_maker_show.jpg" style="height: 300px; width: auto; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.15);" alt="Game Maker Showcase">
-      <figcaption style="font-size:0.8em; text-align:center; color:#555; margin-top: 5px;">2. The AI generates and runs the game.</figcaption>
-    </figure>
-    <figure style="display: inline-block; margin: 0 5px; vertical-align: top;">
-      <img src="docx/assets/game_maker_packer.jpg" style="height: 300px; width: auto; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.15);" alt="Game Maker Packer">
-      <figcaption style="font-size:0.8em; text-align:center; color:#555; margin-top: 5px;">3. The game is packaged into an APK.</figcaption>
-    </figure>
+    <!-- GIF placeholder -->
+    <p style="text-align: center; color: #888;">[A GIF demonstrating voice-driven UI automation should be here]</p>
   </div>
-  <p>👆 Just describe your game idea, and the AI can help you design, implement, and package it into a shareable game.</p>
+  <p>👆 Perform screen taps, app navigations, and other complex operations just by speaking, completely freeing your hands.</p>
 </div>
 
 ### 🌐 Web Development Functionality
@@ -177,7 +167,7 @@ For full license details, please see the [LICENSE](LICENSE) file. If you plan to
 
 Here are the features we are planning:
 
-- Add TTS and speech recognition models to further enhance the conversational system.
+- Enhance the voice conversation system with support for continuous dialogue and a richer variety of TTS voices.
 - Implement a more user-friendly interactive interface.
 - Address the excellent suggestions in the issues.
 - Promotion! Promotion! Promotion!

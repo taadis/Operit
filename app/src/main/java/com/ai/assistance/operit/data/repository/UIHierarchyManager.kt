@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
 import java.io.File
@@ -32,6 +33,7 @@ import kotlin.coroutines.resume
  */
 object UIHierarchyManager {
     private const val TAG = "UIHierarchyManager"
+    private const val BIND_SERVICE_TIMEOUT_MS = 3000L // 3秒超时
 
     // 新的无障碍服务提供者应用的包名
     private const val PROVIDER_PACKAGE_NAME = "com.ai.assistance.operit.provider"
@@ -175,25 +177,45 @@ object UIHierarchyManager {
             setPackage(PROVIDER_PACKAGE_NAME)
         }
 
-        return suspendCancellableCoroutine { continuation ->
-            this.connectionContinuation = { success ->
-                if (continuation.isActive) {
-                    continuation.resume(success)
+        val result = withTimeoutOrNull(BIND_SERVICE_TIMEOUT_MS) {
+            suspendCancellableCoroutine { continuation ->
+                connectionContinuation = { success ->
+                    if (continuation.isActive) {
+                        continuation.resume(success)
+                    }
                 }
-            }
-            try {
-                val bound = context.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
-                if (!bound) {
-                    Log.e(TAG, "bindService返回false，绑定失败")
-                    connectionContinuation?.invoke(false)
+                try {
+                    val bound = context.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+                    if (!bound) {
+                        Log.e(TAG, "bindService返回false，绑定失败")
+                        if (continuation.isActive) {
+                            continuation.resume(false)
+                        }
+                        connectionContinuation = null
+                    }
+                } catch (e: SecurityException) {
+                    Log.e(TAG, "绑定服务时出现安全异常", e)
+                    if (continuation.isActive) {
+                        continuation.resume(false)
+                    }
                     connectionContinuation = null
                 }
-            } catch (e: SecurityException) {
-                Log.e(TAG, "绑定服务时出现安全异常", e)
-                connectionContinuation?.invoke(false)
-                connectionContinuation = null
             }
         }
+
+        if (result == null) {
+            Log.e(TAG, "绑定服务超时 (${BIND_SERVICE_TIMEOUT_MS}ms). 无障碍服务提供者可能未响应或崩溃.")
+            connectionContinuation = null
+            _isBound.value = false
+            try {
+                context.unbindService(serviceConnection)
+            } catch (e: Exception) {
+                // Ignore: service was likely not bound anyway
+            }
+            return false
+        }
+
+        return result
     }
 
     /**

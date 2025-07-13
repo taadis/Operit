@@ -70,11 +70,6 @@ fun SettingsScreen(
                                 initial = ApiPreferences.DEFAULT_SHOW_FPS_COUNTER
                         )
                         .value
-        val autoGrantAccessibility =
-                apiPreferences.autoGrantAccessibilityFlow.collectAsState(
-                                initial = ApiPreferences.DEFAULT_AUTO_GRANT_ACCESSIBILITY
-                        )
-                        .value
 
         // Mutable state for editing
         var apiKeyInput by remember { mutableStateOf(apiKey) }
@@ -82,7 +77,6 @@ fun SettingsScreen(
         var modelNameInput by remember { mutableStateOf(modelName) }
         var memoryOptimizationInput by remember { mutableStateOf(memoryOptimization) }
         var showFpsCounterInput by remember { mutableStateOf(showFpsCounter) }
-        var autoGrantAccessibilityInput by remember { mutableStateOf(autoGrantAccessibility) }
         var showSaveSuccessMessage by remember { mutableStateOf(false) }
 
         // Add state for endpoint warning
@@ -109,15 +103,13 @@ fun SettingsScreen(
                 apiEndpoint,
                 modelName,
                 memoryOptimization,
-                showFpsCounter,
-                autoGrantAccessibility
+                showFpsCounter
         ) {
                 apiKeyInput = apiKey
                 apiEndpointInput = apiEndpoint
                 modelNameInput = modelName
                 memoryOptimizationInput = memoryOptimization
                 showFpsCounterInput = showFpsCounter
-                autoGrantAccessibilityInput = autoGrantAccessibility
         }
 
         Column(
@@ -298,30 +290,6 @@ fun SettingsScreen(
                                                 showFpsCounterInput = it
                                                 scope.launch {
                                                         apiPreferences.saveShowFpsCounter(it)
-                                                        showSaveSuccessMessage = true
-                                                }
-                                        }
-                                )
-
-                                // 自动授予无障碍权限开关
-                                SettingsToggle(
-                                        title =
-                                                stringResource(
-                                                        id = R.string.settings_auto_accessibility
-                                                ),
-                                        description =
-                                                stringResource(
-                                                        id =
-                                                                R.string
-                                                                        .settings_auto_accessibility_desc
-                                                ),
-                                        checked = autoGrantAccessibilityInput,
-                                        onCheckedChange = {
-                                                autoGrantAccessibilityInput = it
-                                                scope.launch {
-                                                        apiPreferences.saveAutoGrantAccessibility(
-                                                                it
-                                                        )
                                                         showSaveSuccessMessage = true
                                                 }
                                         }

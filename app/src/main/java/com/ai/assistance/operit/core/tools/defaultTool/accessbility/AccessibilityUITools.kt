@@ -14,21 +14,68 @@ import java.io.StringReader
 import org.json.JSONObject
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
+import kotlinx.coroutines.delay
 
 /** 无障碍级别的UI工具，使用Android无障碍服务API实现UI操作 */
 open class AccessibilityUITools(context: Context) : StandardUITools(context) {
 
     companion object {
         private const val TAG = "AccessibilityUITools"
+        private const val MAX_RETRY_COUNT = 3
+        private const val RETRY_DELAY_MS = 300L
+    }
+
+    /**
+     * 检查无障碍服务是否正在运行
+     */
+    private suspend fun isAccessibilityServiceEnabled(): Boolean {
+        return UIHierarchyManager.isAccessibilityServiceEnabled(context)
+    }
+
+    /**
+     * 为需要无障碍服务的工具创建一个前置检查的包装器
+     */
+    private suspend fun <T> withAccessibilityCheck(tool: AITool, block: suspend () -> T): T {
+        if (!isAccessibilityServiceEnabled()) {
+            throw IllegalStateException("Accessibility Service is not enabled. Please enable it in system settings to use this feature.")
+        }
+        return block()
+    }
+    
+    /**
+     * 获取UI层次结构，失败时重试
+     * @return UI层次结构XML字符串，获取失败返回空字符串
+     */
+    private suspend fun getUIHierarchyWithRetry(): String {
+        var retryCount = 0
+        var uiXml = ""
+
+        while (retryCount < MAX_RETRY_COUNT) {
+            uiXml = UIHierarchyManager.getUIHierarchy(context)
+            if (uiXml.isNotEmpty()) {
+                return uiXml
+            }
+            
+            retryCount++
+            if (retryCount < MAX_RETRY_COUNT) {
+                Log.d(TAG, "获取UI层次结构失败，正在重试 #$retryCount")
+                delay(RETRY_DELAY_MS)
+            }
+        }
+        
+        Log.w(TAG, "获取UI层次结构失败，已重试${MAX_RETRY_COUNT}次")
+        return uiXml
     }
 
     /** Gets the current UI page/window information */
     override suspend fun getPageInfo(tool: AITool): ToolResult {
+        return try {
+            withAccessibilityCheck(tool) {
         val format = tool.parameters.find { it.name == "format" }?.value ?: "xml"
         val detail = tool.parameters.find { it.name == "detail" }?.value ?: "summary"
 
         if (format !in listOf("xml", "json")) {
-            return ToolResult(
+                    return@withAccessibilityCheck ToolResult(
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
@@ -36,11 +83,10 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
             )
         }
 
-        return try {
-            // 使用无障碍服务获取UI数据
-            val uiXml = UIHierarchyManager.getUIHierarchy(context)
+            // 使用无障碍服务获取UI数据（带重试）
+            val uiXml = getUIHierarchyWithRetry()
             if (uiXml.isEmpty()) {
-                return ToolResult(
+                    return@withAccessibilityCheck ToolResult(
                         toolName = tool.name,
                         success = false,
                         result = StringResultData(""),
@@ -63,6 +109,7 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
                     )
 
             ToolResult(toolName = tool.name, success = true, result = resultData, error = "")
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error getting page info", e)
             ToolResult(
@@ -78,8 +125,8 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
     private suspend fun extractFocusInfoFromAccessibility(): FocusInfo {
         val focusInfo = FocusInfo()
         try {
-            // 1. 获取UI层次结构的XML快照
-            val hierarchyXml = UIHierarchyManager.getUIHierarchy(context)
+            // 1. 获取UI层次结构的XML快照（带重试）
+            val hierarchyXml = getUIHierarchyWithRetry()
             if (hierarchyXml.isEmpty()) {
                 Log.w(TAG, "无法获取UI层次结构XML，使用默认值。")
                 focusInfo.packageName = "android"
@@ -169,31 +216,31 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
 
     /** 点击元素 */
     override suspend fun clickElement(tool: AITool): ToolResult {
+        return try {
+            withAccessibilityCheck(tool) {
         val resourceId = tool.parameters.find { it.name == "resourceId" }?.value
         val className = tool.parameters.find { it.name == "className" }?.value
         val index = tool.parameters.find { it.name == "index" }?.value?.toIntOrNull() ?: 0
         val bounds = tool.parameters.find { it.name == "bounds" }?.value
 
         if (resourceId == null && className == null && bounds == null) {
-            return ToolResult(
+                    return@withAccessibilityCheck ToolResult(
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error =
-                            "Missing element identifier. Provide at least one of 'resourceId', 'className', or 'bounds'."
+                        error = "Missing element identifier. Provide at least one of 'resourceId', 'className', or 'bounds'."
             )
         }
 
-        try {
             // 如果提供了边界坐标，直接解析并点击中心点
             if (bounds != null) {
-                return handleClickByBounds(tool, bounds)
+                    return@withAccessibilityCheck handleClickByBounds(tool, bounds)
             }
 
-            // 获取UI层次结构XML
-            val uiXml = UIHierarchyManager.getUIHierarchy(context)
+            // 获取UI层次结构XML（带重试）
+            val uiXml = getUIHierarchyWithRetry()
             if (uiXml.isEmpty()) {
-                return ToolResult(toolName = tool.name, success = false, result = StringResultData(""), error = "Unable to get UI hierarchy.")
+                    return@withAccessibilityCheck ToolResult(toolName = tool.name, success = false, result = StringResultData(""), error = "Unable to get UI hierarchy.")
                     }
 
             // 在XML中查找匹配的节点
@@ -204,12 +251,12 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
             }
 
             if (matchedNodes.isEmpty()) {
-                return ToolResult(toolName = tool.name, success = false, result = StringResultData(""), error = "No matching element found.")
+                    return@withAccessibilityCheck ToolResult(toolName = tool.name, success = false, result = StringResultData(""), error = "No matching element found.")
                     }
 
             // 检查索引是否有效
             if (index < 0 || index >= matchedNodes.size) {
-                    return ToolResult(
+                    return@withAccessibilityCheck ToolResult(
                             toolName = tool.name,
                             success = false,
                             result = StringResultData(""),
@@ -220,16 +267,16 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
             // 获取目标节点的bounds
             val targetNodeBounds = matchedNodes[index].bounds
             if (targetNodeBounds == null) {
-                return ToolResult(toolName = tool.name, success = false, result = StringResultData(""), error = "Target element has no bounds.")
+                    return@withAccessibilityCheck ToolResult(toolName = tool.name, success = false, result = StringResultData(""), error = "Target element has no bounds.")
             }
 
             // 解析bounds并点击
-            return handleClickByBounds(tool, targetNodeBounds)
-
+                handleClickByBounds(tool, targetNodeBounds)
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error clicking element", e)
             operationOverlay.hide()
-                return ToolResult(
+            ToolResult(
                         toolName = tool.name,
                         success = false,
                         result = StringResultData(""),
@@ -297,13 +344,14 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
 
     /** 设置输入文本 */
     override suspend fun setInputText(tool: AITool): ToolResult {
+        return try {
+            withAccessibilityCheck(tool) {
         val text = tool.parameters.find { it.name == "text" }?.value ?: ""
 
-        try {
             // 通过UIHierarchyManager请求远程服务找到焦点节点的ID
             val focusedNodeId = UIHierarchyManager.findFocusedNodeId(context)
             if (focusedNodeId.isNullOrEmpty()) {
-                return ToolResult(
+                    return@withAccessibilityCheck ToolResult(
                         toolName = tool.name,
                         success = false,
                         result = StringResultData(""),
@@ -320,7 +368,7 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
             // 通过UIHierarchyManager请求远程服务设置文本
             val result = UIHierarchyManager.setTextOnNode(context, focusedNodeId, text)
 
-            return if (result) {
+                if (result) {
                 ToolResult(
                         toolName = tool.name,
                         success = true,
@@ -340,11 +388,12 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
                         result = StringResultData(""),
                         error = "Failed to set text via accessibility service."
                 )
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error setting input text", e)
             operationOverlay.hide()
-            return ToolResult(
+            ToolResult(
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
@@ -355,27 +404,27 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
 
     /** 执行轻触操作 */
     override suspend fun tap(tool: AITool): ToolResult {
+        return try {
+            withAccessibilityCheck(tool) {
         val x = tool.parameters.find { it.name == "x" }?.value?.toIntOrNull()
         val y = tool.parameters.find { it.name == "y" }?.value?.toIntOrNull()
 
         if (x == null || y == null) {
-            return ToolResult(
+                    return@withAccessibilityCheck ToolResult(
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error =
-                            "Missing or invalid coordinates. Both 'x' and 'y' must be valid integers."
+                        error = "Missing or invalid coordinates. Both 'x' and 'y' must be valid integers."
             )
         }
 
-        try {
             // 显示点击反馈
             operationOverlay.showTap(x, y)
 
             // 使用无障碍服务执行点击
             val result = performAccessibilityClick(x, y)
 
-            return if (result) {
+                if (result) {
                 ToolResult(
                         toolName = tool.name,
                         success = true,
@@ -396,11 +445,12 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
                         result = StringResultData(""),
                         error = "Failed to tap at coordinates via accessibility service."
                 )
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error tapping at coordinates", e)
             operationOverlay.hide()
-            return ToolResult(
+            ToolResult(
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
@@ -411,6 +461,8 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
 
     /** 执行滑动操作 */
     override suspend fun swipe(tool: AITool): ToolResult {
+        return try {
+            withAccessibilityCheck(tool) {
         val startX = tool.parameters.find { it.name == "start_x" }?.value?.toIntOrNull()
         val startY = tool.parameters.find { it.name == "start_y" }?.value?.toIntOrNull()
         val endX = tool.parameters.find { it.name == "end_x" }?.value?.toIntOrNull()
@@ -418,23 +470,21 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
         val duration = tool.parameters.find { it.name == "duration" }?.value?.toIntOrNull() ?: 300
 
         if (startX == null || startY == null || endX == null || endY == null) {
-            return ToolResult(
+                    return@withAccessibilityCheck ToolResult(
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error =
-                            "Missing or invalid coordinates. 'start_x', 'start_y', 'end_x', and 'end_y' must be valid integers."
+                        error = "Missing or invalid coordinates. 'start_x', 'start_y', 'end_x', and 'end_y' must be valid integers."
             )
         }
 
-        try {
             // 显示滑动反馈
             operationOverlay.showSwipe(startX, startY, endX, endY)
 
             // 使用无障碍服务执行滑动
             val result = performAccessibilitySwipe(startX, startY, endX, endY, duration)
 
-            return if (result) {
+                if (result) {
                 ToolResult(
                         toolName = tool.name,
                         success = true,
@@ -454,11 +504,12 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
                         result = StringResultData(""),
                         error = "Failed to perform swipe via accessibility service."
                 )
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error performing swipe", e)
             operationOverlay.hide()
-            return ToolResult(
+            ToolResult(
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
@@ -582,9 +633,9 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
         }
 
         try {
-            // 获取当前UI层次结构
-            val uiHierarchy = UIHierarchyManager.getUIHierarchy(context)
-            if (uiHierarchy.isNullOrEmpty()) {
+            // 获取当前UI层次结构（带重试）
+            val uiHierarchy = getUIHierarchyWithRetry()
+            if (uiHierarchy.isEmpty()) {
                 return ToolResult(
                         toolName = tool.name,
                         success = false,

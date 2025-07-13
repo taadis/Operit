@@ -39,7 +39,6 @@ class ApiPreferences(private val context: Context) {
                 intPreferencesKey("preference_analysis_output_tokens")
         val SHOW_FPS_COUNTER = booleanPreferencesKey("show_fps_counter")
         val ENABLE_AI_PLANNING = booleanPreferencesKey("enable_ai_planning")
-        val AUTO_GRANT_ACCESSIBILITY = booleanPreferencesKey("auto_grant_accessibility")
         val SHOW_MODEL_SELECTOR = booleanPreferencesKey("show_model_selector")
 
         // Custom Prompt Settings
@@ -89,7 +88,6 @@ class ApiPreferences(private val context: Context) {
         const val DEFAULT_MEMORY_OPTIMIZATION = true
         const val DEFAULT_SHOW_FPS_COUNTER = false
         const val DEFAULT_ENABLE_AI_PLANNING = false
-        const val DEFAULT_AUTO_GRANT_ACCESSIBILITY = false
         const val DEFAULT_SHOW_MODEL_SELECTOR = true
 
         // Default values for custom prompts
@@ -250,12 +248,6 @@ class ApiPreferences(private val context: Context) {
                 preferences[ENABLE_AI_PLANNING] ?: DEFAULT_ENABLE_AI_PLANNING
             }
 
-    // Get Auto Grant Accessibility setting as Flow
-    val autoGrantAccessibilityFlow: Flow<Boolean> =
-            context.apiDataStore.data.map { preferences ->
-                preferences[AUTO_GRANT_ACCESSIBILITY] ?: DEFAULT_AUTO_GRANT_ACCESSIBILITY
-            }
-
     // 添加模型选择器显示设置的Flow
     val showModelSelectorFlow: Flow<Boolean> =
             context.apiDataStore.data.map { preferences ->
@@ -358,17 +350,8 @@ class ApiPreferences(private val context: Context) {
     }
 
     // Save AI Planning setting
-    suspend fun saveEnableAiPlanning(enablePlanning: Boolean) {
-        context.apiDataStore.edit { preferences ->
-            preferences[ENABLE_AI_PLANNING] = enablePlanning
-        }
-    }
-
-    // Save Auto Grant Accessibility setting
-    suspend fun saveAutoGrantAccessibility(autoGrantAccessibility: Boolean) {
-        context.apiDataStore.edit { preferences ->
-            preferences[AUTO_GRANT_ACCESSIBILITY] = autoGrantAccessibility
-        }
+    suspend fun saveEnableAiPlanning(isEnabled: Boolean) {
+        context.apiDataStore.edit { preferences -> preferences[ENABLE_AI_PLANNING] = isEnabled }
     }
 
     // Save all settings at once
@@ -396,23 +379,19 @@ class ApiPreferences(private val context: Context) {
     }
 
     // 保存模型选择器显示设置
-    suspend fun saveShowModelSelector(showModelSelector: Boolean) {
-        context.apiDataStore.edit { preferences ->
-            preferences[SHOW_MODEL_SELECTOR] = showModelSelector
-        }
+    suspend fun saveShowModelSelector(show: Boolean) {
+        context.apiDataStore.edit { preferences -> preferences[SHOW_MODEL_SELECTOR] = show }
     }
 
     // 保存显示和行为设置的方法，不会影响模型参数
     suspend fun saveDisplaySettings(
             memoryOptimization: Boolean,
             showFpsCounter: Boolean,
-            autoGrantAccessibility: Boolean,
             showModelSelector: Boolean = DEFAULT_SHOW_MODEL_SELECTOR
     ) {
         context.apiDataStore.edit { preferences ->
             preferences[MEMORY_OPTIMIZATION] = memoryOptimization
             preferences[SHOW_FPS_COUNTER] = showFpsCounter
-            preferences[AUTO_GRANT_ACCESSIBILITY] = autoGrantAccessibility
             preferences[SHOW_MODEL_SELECTOR] = showModelSelector
         }
     }
@@ -425,7 +404,6 @@ class ApiPreferences(private val context: Context) {
             memoryOptimization: Boolean,
             showFpsCounter: Boolean,
             enableAiPlanning: Boolean,
-            autoGrantAccessibility: Boolean = DEFAULT_AUTO_GRANT_ACCESSIBILITY,
             modelParameters: List<ModelParameter<*>> = emptyList()
     ) {
         context.apiDataStore.edit { preferences ->
@@ -435,7 +413,6 @@ class ApiPreferences(private val context: Context) {
             preferences[MEMORY_OPTIMIZATION] = memoryOptimization
             preferences[SHOW_FPS_COUNTER] = showFpsCounter
             preferences[ENABLE_AI_PLANNING] = enableAiPlanning
-            preferences[AUTO_GRANT_ACCESSIBILITY] = autoGrantAccessibility
 
             // Save all model parameters
             for (param in modelParameters) {

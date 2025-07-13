@@ -5,7 +5,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -18,32 +17,22 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 /**
- * Dialog that confirms free API usage and shows cute messages to users
+ * Dialog that confirms free API usage and shows messages to users.
  *
- * @param onDismiss Callback when the user cancels
- * @param onConfirm Callback when the user confirms usage
- * @param remainingUsages The number of remaining usages for today
- * @param maxDailyUsage The maximum allowed usages per day
- * @param nextAvailableDate 下次可用的日期（如果今天不可用）
- * @param waitDays 需要等待的天数
+ * @param onDismiss Callback when the user cancels.
+ * @param onConfirm Callback when the user confirms usage.
+ * @param canUseToday Whether the user is eligible to use the free tier today.
+ * @param nextAvailableDate The next available date if today is not available.
+ * @param waitDays The number of days to wait.
  */
 @Composable
 fun FreeUsageConfirmDialog(
         onDismiss: () -> Unit,
         onConfirm: () -> Unit,
-        remainingUsages: Int,
-        maxDailyUsage: Int,
+        canUseToday: Boolean,
         nextAvailableDate: LocalDate? = null,
         waitDays: Int = 0
 ) {
-    // 获取Context
-    val context = LocalContext.current
-
-    // 确定是否可以今天使用
-    val canUseToday =
-            remainingUsages > 0 &&
-                    (nextAvailableDate == null || !LocalDate.now().isBefore(nextAvailableDate))
-
     // Generate a random cute message from resources
     val cuteMessageIds =
             listOf(
@@ -79,33 +68,17 @@ fun FreeUsageConfirmDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Cute message
-                Text(
-                        text = stringResource(id = randomMessageId),
-                        style = MaterialTheme.typography.bodyLarge,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.9f)
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
                 // 根据是否可以使用显示不同的信息
                 if (canUseToday) {
-                    // Usage counter
-                    val usedCount = maxDailyUsage - remainingUsages
+                    // Cute message
                     Text(
-                            text =
-                                    stringResource(
-                                            id = R.string.free_usage_counter,
-                                            usedCount,
-                                            remainingUsages
-                                    ),
-                            style = MaterialTheme.typography.bodyMedium,
+                            text = stringResource(id = randomMessageId),
+                            style = MaterialTheme.typography.bodyLarge,
                             textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.error.copy(alpha = 0.9f)
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     // 可爱提示
                     Text(
@@ -116,51 +89,48 @@ fun FreeUsageConfirmDialog(
                             fontSize = 12.sp
                     )
                 } else {
-                    // 显示等待信息
-                    nextAvailableDate?.let {
-                        val formattedDate = it.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
-
+                    // 根据等待天数和可用性显示不同的信息
+                    if (waitDays > 0) {
+                        // 场景：需要等待
+                        val formattedDate = nextAvailableDate?.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
                         Text(
-                                text =
-                                        if (waitDays > 0)
-                                                stringResource(
-                                                        id = R.string.free_usage_wait_days,
-                                                        waitDays
-                                                )
-                                        else stringResource(id = R.string.free_usage_used_today),
+                                text = stringResource(id = R.string.free_usage_wait_days, waitDays),
                                 style = MaterialTheme.typography.bodyMedium,
                                 textAlign = TextAlign.Center,
                                 color = MaterialTheme.colorScheme.error
                         )
-
                         Spacer(modifier = Modifier.height(8.dp))
-
-                        Text(
-                                text =
-                                        stringResource(
-                                                id = R.string.free_usage_next_available,
-                                                formattedDate
-                                        ),
-                                style = MaterialTheme.typography.bodyMedium,
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
+                        if (formattedDate != null) {
+                            Text(
+                                    text = stringResource(id = R.string.free_usage_next_available, formattedDate),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    textAlign = TextAlign.Center,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         Spacer(modifier = Modifier.height(8.dp))
-
-                        // 根据等待天数显示不同的提示
                         Text(
-                                text =
-                                        if (waitDays == 1)
-                                                stringResource(id = R.string.free_usage_first_tip)
-                                        else
-                                                stringResource(
-                                                        id = R.string.free_usage_later_tip,
-                                                        waitDays
-                                                ),
+                                text = if (waitDays == 1) stringResource(id = R.string.free_usage_first_tip)
+                                else stringResource(id = R.string.free_usage_later_tip, waitDays),
                                 style = MaterialTheme.typography.bodySmall,
                                 textAlign = TextAlign.Center,
                                 color = MaterialTheme.colorScheme.tertiary,
+                                fontSize = 12.sp
+                        )
+                    } else {
+                        // 场景：今日额度用完(理论上在简化逻辑后此场景较少出现，但作为兜底)
+                        Text(
+                                text = stringResource(id = R.string.free_usage_used_today),
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.error
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                                text = stringResource(id = R.string.free_usage_tip),
+                                style = MaterialTheme.typography.bodySmall,
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.error,
                                 fontSize = 12.sp
                         )
                     }
@@ -171,34 +141,26 @@ fun FreeUsageConfirmDialog(
                 // Action buttons
                 Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
-                        Text(stringResource(id = R.string.free_usage_cancel))
+                    if (canUseToday) {
+                        TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
+                            Text(stringResource(id = R.string.free_usage_cancel))
+                        }
+                        Button(
+                                onClick = onConfirm,
+                                modifier = Modifier.weight(1f),
+                        ) {
+                            Text(stringResource(id = R.string.free_usage_confirm))
+                        }
+                    } else {
+                        Button(
+                                onClick = onDismiss,
+                                modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(stringResource(id = android.R.string.ok))
+                        }
                     }
-
-                    Button(
-                            onClick = onConfirm,
-                            modifier = Modifier.weight(1f),
-                            enabled = canUseToday
-                    ) {
-                        Text(
-                                if (canUseToday) stringResource(id = R.string.free_usage_confirm)
-                                else stringResource(id = R.string.free_usage_depleted)
-                        )
-                    }
-                }
-
-                // Show tip if no usages left
-                if (!canUseToday) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                            text = stringResource(id = R.string.free_usage_tip),
-                            style = MaterialTheme.typography.bodySmall,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.error,
-                            fontSize = 12.sp
-                    )
                 }
             }
         }

@@ -842,6 +842,16 @@ Provide the next action as a single JSON object.
 
         stream.collect { content -> contentBuilder.append(content) }
 
+        try {
+            val inputTokens = uiControllerService.inputTokenCount
+            val outputTokens = uiControllerService.outputTokenCount
+            Log.d(TAG, "UI Controller使用了输入token: $inputTokens, 输出token: $outputTokens")
+            apiPreferences.updatePreferenceAnalysisTokens(inputTokens, outputTokens)
+            Log.d(TAG, "已将UI Controller token统计添加到用户偏好分析token计数中")
+        } catch (e: Exception) {
+            Log.e(TAG, "更新token统计失败", e)
+        }
+
         return ChatUtils.removeThinkingContent(contentBuilder.toString().trim())
     }
 
@@ -1006,7 +1016,8 @@ Provide the next action as a single JSON object.
         Activity: ${pageInfo.activityName}
         Clickable Elements:
         ${clickableElements.joinToString("\n")}
-        Screen Text (for context):
+        Screen Text (
+        for context):
         ${distinctScreenTexts.joinToString("\n")}
         """.trimIndent()
     }

@@ -395,12 +395,16 @@ fun PermissionLevelCard(
                                             isShizukuInstalled = isShizukuInstalled,
                                             isShizukuRunning = isShizukuRunning,
                                             hasShizukuPermission = hasShizukuPermission,
+                                            isAccessibilityProviderInstalled = isAccessibilityProviderInstalled,
+                                            hasAccessibilityServiceEnabled = hasAccessibilityServiceEnabled,
                                             onStoragePermissionClick = onStoragePermissionClick,
                                             onOverlayPermissionClick = onOverlayPermissionClick,
                                             onBatteryOptimizationClick = onBatteryOptimizationClick,
                                             onLocationPermissionClick = onLocationPermissionClick,
                                             onTermuxClick = onTermuxClick,
-                                            onShizukuClick = onShizukuClick
+                                            onShizukuClick = onShizukuClick,
+                                            onAccessibilityClick = onAccessibilityClick,
+                                            onInstallAccessibilityProviderClick = onInstallAccessibilityProviderClick
                                     )
                                 }
                         )
@@ -920,12 +924,16 @@ private fun DebuggerPermissionSection(
         isShizukuInstalled: Boolean,
         isShizukuRunning: Boolean,
         hasShizukuPermission: Boolean,
+        isAccessibilityProviderInstalled: Boolean,
+        hasAccessibilityServiceEnabled: Boolean,
         onStoragePermissionClick: () -> Unit,
         onOverlayPermissionClick: () -> Unit,
         onBatteryOptimizationClick: () -> Unit,
         onLocationPermissionClick: () -> Unit,
         onTermuxClick: () -> Unit,
-        onShizukuClick: () -> Unit
+        onShizukuClick: () -> Unit,
+        onAccessibilityClick: () -> Unit,
+        onInstallAccessibilityProviderClick: () -> Unit
 ) {
     // 获取当前上下文
     val context = LocalContext.current
@@ -1082,6 +1090,96 @@ private fun DebuggerPermissionSection(
                                         isShizukuUpdateNeeded -> Color(0xFFFF9800) // 琥珀色表示待更新
                                         else -> MaterialTheme.colorScheme.primary
                                     }
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+                text = "无障碍备用方案",
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                modifier = Modifier.padding(bottom = 4.dp)
+        )
+
+        Surface(
+                color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f),
+                shape = RoundedCornerShape(8.dp)
+        ) {
+            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onTertiaryContainer
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                        text = "调试模式优先使用Shell命令进行ui自动化。仅当Shell操作失败时，才会尝试使用此无障碍服务作为后备。非必要不建议启用。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                shape = RoundedCornerShape(8.dp)
+        ) {
+            Column(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            ) {
+                val isFullyEnabled = isAccessibilityProviderInstalled && hasAccessibilityServiceEnabled
+                val onClickAction =
+                        if (!isAccessibilityProviderInstalled) {
+                            onInstallAccessibilityProviderClick
+                        } else {
+                            onAccessibilityClick
+                        }
+
+                Row(
+                        modifier =
+                        Modifier.fillMaxWidth()
+                                .clickable(onClick = onClickAction)
+                                .padding(vertical = 6.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                                modifier =
+                                Modifier.size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                                if (isFullyEnabled) MaterialTheme.colorScheme.primary
+                                                else MaterialTheme.colorScheme.error
+                                        )
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                                text = "无障碍服务",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    val statusText =
+                            when {
+                                !isAccessibilityProviderInstalled ->
+                                        stringResource(R.string.status_not_installed)
+                                !hasAccessibilityServiceEnabled ->
+                                        stringResource(R.string.status_not_granted)
+                                else -> stringResource(R.string.status_granted)
+                            }
+
+                    Text(
+                            text = statusText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color =
+                            if (isFullyEnabled) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.error
                     )
                 }
             }

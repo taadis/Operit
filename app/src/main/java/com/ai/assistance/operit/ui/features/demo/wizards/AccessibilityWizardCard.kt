@@ -5,12 +5,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.assistance.operit.R
@@ -34,6 +36,10 @@ fun AccessibilityWizardCard(
     onInstallProvider: () -> Unit,
     onOpenAccessibilitySettings: () -> Unit
 ) {
+    var showWarningDialog by remember { mutableStateOf(false) }
+    var confirmText by remember { mutableStateOf("") }
+    var isError by remember { mutableStateOf(false) }
+    
     Surface(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
         color = MaterialTheme.colorScheme.surface,
@@ -150,7 +156,7 @@ fun AccessibilityWizardCard(
                             Spacer(modifier = Modifier.height(16.dp))
 
                             Button(
-                                onClick = onInstallProvider,
+                                onClick = { showWarningDialog = true },
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(8.dp),
                                 contentPadding = PaddingValues(vertical = 12.dp)
@@ -241,5 +247,80 @@ fun AccessibilityWizardCard(
                 }
             }
         }
+    }
+    
+    // 警告对话框
+    if (showWarningDialog) {
+        AlertDialog(
+            onDismissRequest = { showWarningDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error
+                )
+            },
+            title = {
+                Text(
+                    text = "安全警告",
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold
+                    )
+                )
+            },
+            text = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "警告：无障碍模式可能被某些应用（如微信）检测，使用风险自负。我们不对任何损失负责。\n\n提示：【调试】模式已包含屏幕点击功能。仅当调试模式失灵时，才需安装此独立服务作为备用。建议用完后立即卸载此服务，以确保安全。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    OutlinedTextField(
+                        value = confirmText,
+                        onValueChange = { 
+                            confirmText = it
+                            isError = false
+                        },
+                        label = { Text("请输入\"明白\"或\"ok\"确认") },
+                        isError = isError,
+                        supportingText = if (isError) {
+                            { Text("请输入\"明白\"或\"ok\"确认您已了解风险") }
+                        } else null,
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (confirmText.trim().equals("明白", ignoreCase = true) || 
+                            confirmText.trim().equals("ok", ignoreCase = true)) {
+                            showWarningDialog = false
+                            onInstallProvider()
+                        } else {
+                            isError = true
+                        }
+                    }
+                ) {
+                    Text("确认继续")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { 
+                        showWarningDialog = false
+                        confirmText = ""
+                        isError = false
+                    }
+                ) {
+                    Text("取消")
+                }
+            }
+        )
     }
 } 

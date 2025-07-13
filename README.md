@@ -46,17 +46,16 @@ Operit内置超过40种强大工具，使AI助手能够与您的设备深度交�
 
 ## 🚀 核心功能展示
 
-### 🎮 游戏制作功能
+### 🗣️ 语音驱动的UI自动化
 
-Operit AI 让您直接在手机上创建和玩游戏，从构思到实现一气呵成。
+Operit AI 现已支持**本地语音对话**与**UI自动化**的无缝结合。您可以一边与AI对话，一边看着它为您自动执行屏幕操作。这不仅仅是语音指令，而是真正意义上的“说到做到”，让复杂任务在谈笑间完成。
 
 <div align="center">
   <div style="margin: 20px 0;">
-    <img src="docx/assets/game_maker_chat.jpg" style="height: 300px; width: auto; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); margin: 0 5px; display: inline-block;">
-    <img src="docx/assets/game_maker_show.jpg" style="height: 300px; width: auto; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); margin: 0 5px; display: inline-block;">
-    <img src="docx/assets/game_maker_packer.jpg" style="height: 300px; width: auto; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); margin: 0 5px; display: inline-block;">
+    <!-- GIF placeholder -->
+    <p style="text-align: center; color: #888;">[此处应有语音驱动UI操作的演示GIF]</p>
   </div>
-  <p>👆 只需描述您的游戏创意，AI就能帮您设计、实现并打包成可分享的游戏</p>
+  <p>👆 动动嘴，就能完成屏幕点击、应用跳转等复杂操作，彻底解放双手</p>
 </div>
 
 ### 🌐 Web开发功能
@@ -151,7 +150,7 @@ Operit AI 提供丰富的插件生态，配合内置工具可实现从日常生�
 
 以下是我们正在计划的功能：
 
-- 加入tts和语音识别模型。同时进一步实现对话系统。
+- 完善语音对话系统，支持连续对话与更丰富的TTS音色。
 - 实现更友好的交互界面。
 - issue里面有很多不错的建议，把他们全部解决。
 - 推广！推广！推广！

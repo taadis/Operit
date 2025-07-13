@@ -306,7 +306,8 @@ fun ShizukuDemoScreen(
                         (!uiState.hasRootAccess.value)
 
         val needAccessibilitySetupGuide =
-            currentDisplayedPermissionLevel == AndroidPermissionLevel.ACCESSIBILITY &&
+            (currentDisplayedPermissionLevel == AndroidPermissionLevel.ACCESSIBILITY ||
+             currentDisplayedPermissionLevel == AndroidPermissionLevel.DEBUGGER) &&
                     (!uiState.isAccessibilityProviderInstalled.value || !uiState.hasAccessibilityServiceEnabled.value)
 
 

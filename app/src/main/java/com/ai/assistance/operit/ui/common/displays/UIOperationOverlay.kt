@@ -389,53 +389,58 @@ private fun SwipeIndicator(
     endY: Int,
     density: androidx.compose.ui.unit.Density
 ) {
-    var progress by remember { mutableStateOf(0f) }
-    
-    LaunchedEffect(startX, startY, endX, endY) {
-        // 动画滑动轨迹
-        progress = 0f
-        while (progress < 1f) {
-            progress += 0.02f
-            delay(10)
-        }
+    val progress = remember { Animatable(0f) }
+
+    // 使用LaunchedEffect来驱动一个基于Animatable的、可控的动画
+    // `key(Unit)` 确保动画只在 Composable 首次进入组合时运行一次
+    LaunchedEffect(Unit) {
+        progress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = 1000, easing = FastOutSlowInEasing)
+        )
     }
+
+    val p = progress.value
+    // 将整个动画分为两个阶段：
+    // 1. 滑动动画（p: 0.0 -> 0.8），彗星沿轨迹移动
+    val swipeProgress = (p / 0.8f).coerceIn(0f, 1f)
+    // 2. 淡出动画（p: 0.6 -> 1.0），整体效果逐渐消失
+    val alpha = ((1f - p) / 0.4f).coerceIn(0f, 1f)
     
     Canvas(modifier = Modifier.fillMaxSize()) {
         with(density) {
-            // 计算动画位置
-            val currentEndX = startX + (endX - startX) * progress
-            val currentEndY = startY + (endY - startY) * progress
-            
-            // 绘制滑动轨迹背景（增强可见性）
-            drawLine(
-                color = Color(0x33FFFFFF),
-                start = Offset(startX.toFloat(), startY.toFloat()),
-                end = Offset(endX.toFloat(), endY.toFloat()),
-                strokeWidth = 12.dp.toPx(),
-                cap = StrokeCap.Round
+            val startOffset = Offset(startX.toFloat(), startY.toFloat())
+
+            // 计算彗星头的当前位置
+            val currentOffset = Offset(
+                x = startX + (endX - startX) * swipeProgress,
+                y = startY + (endY - startY) * swipeProgress
             )
             
-            // 绘制滑动轨迹
+            // 1. 绘制彗星的尾巴（轨迹）
             drawLine(
-                color = Color(0xFFFFA726).copy(alpha = 0.8f),
-                start = Offset(startX.toFloat(), startY.toFloat()),
-                end = Offset(currentEndX.toFloat(), currentEndY.toFloat()),
-                strokeWidth = 8.dp.toPx(),
-                cap = StrokeCap.Round
+                color = Color(0xFFFFA726), // 鲜艳的橙色
+                start = startOffset,
+                end = currentOffset,
+                strokeWidth = 10.dp.toPx(),
+                cap = StrokeCap.Round,
+                alpha = alpha
             )
             
-            // 绘制起点圆点
+            // 2. 绘制彗星的头部
             drawCircle(
-                color = Color(0xFFEF6C00).copy(alpha = 0.9f),
+                color = Color(0xFFFFE0B2), // 更亮的头部颜色
+                radius = 15.dp.toPx(),
+                center = currentOffset,
+                alpha = alpha
+            )
+            
+            // 3. 绘制一个在滑动开始时可见，然后迅速消失的起点光环
+            drawCircle(
+                color = Color(0xFFEF6C00),
                 radius = 12.dp.toPx(),
-                center = Offset(startX.toFloat(), startY.toFloat())
-            )
-            
-            // 绘制当前位置
-            drawCircle(
-                color = Color(0xFFFF9800),
-                radius = 16.dp.toPx(),
-                center = Offset(currentEndX.toFloat(), currentEndY.toFloat())
+                center = startOffset,
+                alpha = alpha * (1 - swipeProgress) // 随着滑动进程快速淡出
             )
         }
     }
