@@ -802,9 +802,6 @@ class EnhancedAIService private constructor(private val context: Context) {
         // Only process the first tool invocation, show warning if there are multiple
         val invocation = toolInvocations.first()
 
-        // 创建工具结果变量
-        var result: ToolResult
-
         if (toolInvocations.size > 1) {
             Log.w(TAG, "发现多个工具调用(${toolInvocations.size})，但只处理第一个: ${invocation.tool.name}")
             val warningContent =
@@ -831,20 +828,51 @@ class EnhancedAIService private constructor(private val context: Context) {
         }
 
         if (executor == null) {
-            // Tool not available handling
+            val toolName = invocation.tool.name
+            val errorMessage = when {
+                // 检查 packName.toolname 的错误格式
+                toolName.contains('.') && !toolName.contains(':') -> {
+                    val parts = toolName.split('.', limit = 2)
+                    "工具调用语法错误: 对于工具包中的工具，应使用 'packName:toolName' 格式，而不是 '${toolName}'。您可能想调用 '${parts.getOrNull(0)}:${parts.getOrNull(1)}'。"
+                }
+                // 检查 packName:toolname 格式
+                toolName.contains(':') -> {
+                    val parts = toolName.split(':', limit = 2)
+                    val packName = parts[0]
+                    val packageManager = toolHandler.getOrCreatePackageManager()
+                    
+                     // val isImported = packageManager.isPackageImported(packName)
+                    val isAvailable = packageManager.getAvailablePackages().containsKey(packName)
+
+                    when {
+                        // Imported and available, but not active (since executor is null)
+                         isAvailable ->
+                             "工具包 '$packName' 已导入但未在当前会话中激活。请先使用 'use_package' 命令来激活它。"
+                         
+                        // Not imported and not available
+                        else ->
+                            "工具包 '$packName' 不存在。"
+                    }
+                }
+                else -> "工具 '${toolName}' 不可用或不存在。如果这是一个工具包中的工具，请使用 'packName:toolName' 格式调用。"
+            }
+
+
             val notAvailableContent =
-                    ConversationMarkupManager.createToolNotAvailableError(invocation.tool.name)
+                ConversationMarkupManager.createToolNotAvailableError(toolName, errorMessage)
             roundManager.appendContent(notAvailableContent)
             collector.emit(notAvailableContent)
 
-            // Create error result
-            result =
+            // Create and process the error result immediately
+            val errorResult =
                     ToolResult(
-                            toolName = invocation.tool.name,
+                            toolName = toolName,
                             success = false,
                             result = StringResultData(""),
-                            error = "Tool '${invocation.tool.name}' not available"
+                            error = errorMessage
                     )
+            processToolResult(errorResult, functionType, collector)
+            return
         } else {
             // Check permissions before execution
             val (hasPermission, errorResult) =

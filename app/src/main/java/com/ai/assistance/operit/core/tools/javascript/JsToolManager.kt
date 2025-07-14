@@ -20,7 +20,7 @@ class JsToolManager
 private constructor(private val context: Context, private val packageManager: PackageManager) {
     companion object {
         private const val TAG = "JsToolManager"
-        private const val SCRIPT_TIMEOUT_MS = 60000L // 60 seconds timeout
+        private const val SCRIPT_TIMEOUT_MS = 120000L // 120 seconds timeout
 
         @Volatile private var INSTANCE: JsToolManager? = null
 

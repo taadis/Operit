@@ -104,10 +104,12 @@ class ConversationMarkupManager {
          * Creates a message for when a tool is not available.
          *
          * @param toolName The name of the unavailable tool
+         * @param details Optional detailed error message
          * @return The formatted error message
          */
-        fun createToolNotAvailableError(toolName: String): String {
-            return createToolErrorStatus(toolName, "The tool `$toolName` is not available.")
+        fun createToolNotAvailableError(toolName: String, details: String? = null): String {
+            val errorMessage = details ?: "The tool `$toolName` is not available."
+            return createToolErrorStatus(toolName, errorMessage)
         }
 
         /**
