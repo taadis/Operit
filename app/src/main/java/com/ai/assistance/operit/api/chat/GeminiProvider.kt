@@ -671,7 +671,26 @@ class GeminiProvider(
     }
 
     override suspend fun testConnection(): Result<String> {
-        val result = getModelsList()
-        return result.map { "连接成功！" }
+        return try {
+            // 通过发送一条短消息来测试完整的连接、认证和API端点。
+            // 这比getModelsList更可靠，因为它直接命中了聊天API。
+            // 提供一个通用的系统提示，以防止某些需要它的模型出现错误。
+            val testHistory = listOf("system" to "You are a helpful assistant.")
+            val stream = sendMessage("Hi", testHistory, emptyList())
+
+            // 消耗流以确保连接有效。
+            // 对 "Hi" 的响应应该很短，所以这会很快完成。
+            var hasReceivedData = false
+            stream.collect {
+                hasReceivedData = true
+            }
+
+            // 某些情况下，即使连接成功，也可能不会返回任何数据（例如，如果模型只处理了提示而没有生成响应）。
+            // 因此，只要不抛出异常，我们就认为连接成功。
+            Result.success("连接成功！")
+        } catch (e: Exception) {
+            logError("连接测试失败", e)
+            Result.failure(IOException("连接测试失败: ${e.message}", e))
+        }
     }
 }

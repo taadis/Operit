@@ -19,6 +19,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -54,7 +55,7 @@ fun ToolTesterScreen(navController: NavController) {
 
     suspend fun runTest(toolTest: ToolTest) {
         // UI preparation phase on Main thread
-        if (toolTest.id == "set_input_text") {
+        if (toolTest.id == "set_input_text" || toolTest.id == "click_element") {
             // If the dialog is showing for a single test run, dismiss it first.
             if (showDialog) {
                 showDialog = false
@@ -98,6 +99,7 @@ fun ToolTesterScreen(navController: NavController) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(focusRequester)
+                        .testTag("tool_tester_input")
                 )
 
                 Button(
@@ -323,6 +325,7 @@ private fun getFinalToolTestGroups(): List<ToolGroup> {
             ToolTest("get_page_info", "页面信息", "获取当前屏幕的UI结构", emptyList()),
             ToolTest("press_key", "模拟按键", "模拟按下音量+", listOf(ToolParameter("key_code", "KEYCODE_VOLUME_UP"))),
             ToolTest("set_input_text", "文本输入", "在上方测试框输入文本", listOf(ToolParameter("text", "Hello from Operit!"))),
+            ToolTest("click_element", "点击输入框(ID)", "通过为输入框设置的testTag作为ID进行点击，预期成功。", listOf(ToolParameter("resourceId", "tool_tester_input"))),
             ToolTest("tap", "模拟点击", "在(1,1)处点击，预期失败", listOf(ToolParameter("x", "1"), ToolParameter("y", "1"))),
             ToolTest("swipe", "模拟滑动", "在屏幕中央短距离滑动", listOf(ToolParameter("start_x", "500"), ToolParameter("start_y", "1000"), ToolParameter("end_x", "500"), ToolParameter("end_y", "1200")))
         )),

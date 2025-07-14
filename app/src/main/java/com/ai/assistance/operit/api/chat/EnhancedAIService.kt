@@ -43,6 +43,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import com.ai.assistance.operit.data.model.UiControllerCommand
+import com.ai.assistance.operit.api.chat.enhance.AutomationStepResult
 
 /**
  * Enhanced AI service that provides advanced conversational capabilities by integrating various
@@ -1318,12 +1319,12 @@ class EnhancedAIService private constructor(private val context: Context) {
      *
      * @param initialUiState The initial description of the UI.
      * @param taskGoal The high-level goal for the entire task.
-     * @return A Flow of strings logging each step of the automation process.
+     * @return A Flow of automation step results, including explanations and final UI state.
      */
     suspend fun executeUiAutomationTask(
         initialUiState: String,
         taskGoal: String
-    ): Flow<UiControllerCommand> {
+    ): Flow<AutomationStepResult> {
         return conversationService.executeUiAutomationTask(
             initialUiState,
             taskGoal,

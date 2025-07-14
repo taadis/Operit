@@ -30,10 +30,8 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
     /** 使用Shell命令实现点击操作 */
     override suspend fun tap(tool: AITool): ToolResult {
         if (UIHierarchyManager.isAccessibilityServiceEnabled(context)) {
-            Log.d(TAG, "无障碍服务已启用，优先使用无障碍点击")
-            val result = super.tap(tool)
-            if (result.success) return result
-            Log.w(TAG, "无障碍点击失败，回退到Shell命令: ${result.error}")
+            Log.d(TAG, "无障碍服务已启用，使用无障碍点击")
+            return super.tap(tool)
         }
 
         val x = tool.parameters.find { it.name == "x" }?.value?.toIntOrNull()
@@ -102,10 +100,8 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
     /** 使用Shell命令实现滑动操作 */
     override suspend fun swipe(tool: AITool): ToolResult {
         if (UIHierarchyManager.isAccessibilityServiceEnabled(context)) {
-            Log.d(TAG, "无障碍服务已启用，优先使用无障碍滑动")
-            val result = super.swipe(tool)
-            if (result.success) return result
-            Log.w(TAG, "无障碍滑动失败，回退到Shell命令: ${result.error}")
+            Log.d(TAG, "无障碍服务已启用，使用无障碍滑动")
+            return super.swipe(tool)
         }
 
         val startX = tool.parameters.find { it.name == "start_x" }?.value?.toIntOrNull()
@@ -177,10 +173,8 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
     /** 使用Shell命令点击元素 */
     override suspend fun clickElement(tool: AITool): ToolResult {
         if (UIHierarchyManager.isAccessibilityServiceEnabled(context)) {
-            Log.d(TAG, "无障碍服务已启用，优先使用无障碍点击元素")
-            val result = super.clickElement(tool)
-            if (result.success) return result
-            Log.w(TAG, "无障碍点击元素失败，回退到Shell命令: ${result.error}")
+            Log.d(TAG, "无障碍服务已启用，使用无障碍点击元素")
+            return super.clickElement(tool)
         }
 
         val resourceId = tool.parameters.find { it.name == "resourceId" }?.value
@@ -260,10 +254,8 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
     /** 使用Shell命令设置输入文本 */
     override suspend fun setInputText(tool: AITool): ToolResult {
         if (UIHierarchyManager.isAccessibilityServiceEnabled(context)) {
-            Log.d(TAG, "无障碍服务已启用，优先使用无障碍设置文本")
-            val result = super.setInputText(tool)
-            if (result.success) return result
-            Log.w(TAG, "无障碍设置文本失败，回退到Shell命令: ${result.error}")
+            Log.d(TAG, "无障碍服务已启用，使用无障碍设置文本")
+            return super.setInputText(tool)
         }
 
         val text = tool.parameters.find { it.name == "text" }?.value ?: ""
@@ -355,13 +347,8 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
     /** 使用Shell命令实现按键操作 */
     override suspend fun pressKey(tool: AITool): ToolResult {
         if (UIHierarchyManager.isAccessibilityServiceEnabled(context)) {
-            Log.d(TAG, "无障碍服务已启用，优先使用无障碍按键")
-            val result = super.pressKey(tool)
-            // 只有在无障碍明确表示不支持此按键时才回退
-            if (result.success || result.error?.contains("not supported", ignoreCase = true) == false) {
-                return result
-            }
-            Log.w(TAG, "无障碍按键操作失败或不受支持，回退到Shell命令: ${result.error}")
+            Log.d(TAG, "无障碍服务已启用，使用无障碍按键")
+            return super.pressKey(tool)
         }
 
         val keyCode = tool.parameters.find { it.name == "key_code" }?.value
@@ -414,10 +401,8 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
     /** 查找UI元素 */
     override suspend fun findElement(tool: AITool): ToolResult {
         if (UIHierarchyManager.isAccessibilityServiceEnabled(context)) {
-            Log.d(TAG, "无障碍服务已启用，优先使用无障碍查找元素")
-            val result = super.findElement(tool)
-            if (result.success) return result
-            Log.w(TAG, "无障碍查找元素失败，回退到Shell命令: ${result.error}")
+            Log.d(TAG, "无障碍服务已启用，使用无障碍查找元素")
+            return super.findElement(tool)
         }
 
         val resourceId = tool.parameters.find { it.name == "resourceId" }?.value
@@ -443,10 +428,8 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
     /** 使用Shell命令获取页面信息 */
     override suspend fun getPageInfo(tool: AITool): ToolResult {
         if (UIHierarchyManager.isAccessibilityServiceEnabled(context)) {
-            Log.d(TAG, "无障碍服务已启用，优先使用无障碍获取页面信息")
-            val result = super.getPageInfo(tool)
-            if (result.success) return result
-            Log.w(TAG, "无障碍获取页面信息失败，回退到Shell命令: ${result.error}")
+            Log.d(TAG, "无障碍服务已启用，使用无障碍获取页面信息")
+            return super.getPageInfo(tool)
         }
 
         val format = tool.parameters.find { it.name == "format" }?.value ?: "xml"

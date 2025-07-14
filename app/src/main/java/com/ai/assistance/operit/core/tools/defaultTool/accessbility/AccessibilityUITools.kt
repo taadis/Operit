@@ -247,7 +247,7 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
             val matchedNodes = findNodesInXml(uiXml) { nodeParser ->
                 val nodeId = nodeParser.getAttributeValue(null, "resource-id")
                 val nodeClass = nodeParser.getAttributeValue(null, "class")
-                (resourceId != null && nodeId == resourceId) || (className != null && nodeClass != null && nodeClass.contains(className))
+                (resourceId != null && nodeId != null && nodeId.endsWith(resourceId)) || (className != null && nodeClass != null && nodeClass.contains(className))
             }
 
             if (matchedNodes.isEmpty()) {

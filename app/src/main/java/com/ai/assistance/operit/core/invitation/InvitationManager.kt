@@ -74,10 +74,6 @@ class InvitationManager(private val context: Context) {
         "OperitAI能够在手机和你语音，一边说话就能一边帮你干活，处理文件、音视频编辑都没问题！[OperitAI邀请码:%s:%s] 复制并打开软件即可解锁新功能！",
         "OperitAI让你在手机上，一键配置环境，编写代码！[OperitAI邀请码:%s:%s] 复制消息打开软件直接解锁工作区功能哦！",
         "什么？可以让AI自动控制你的手机，你只要说话就行了？OperitAI能做到！[OperitAI邀请码:%s:%s] 复制消息打开软件，体验未来交互！",
-        "朕乃秦始皇，沉睡千年，今朝苏醒。然兵马俑中枢失控，急需OperitAI重编程。速持此码 [OperitAI邀请码:%s:%s] 献上，助朕重启大秦王朝，事成之后，封你为兵马大元帅！",
-        "紧急求助！我是来自2242年的时空工程师，飞船意外坠毁在你们这个时代。主控AI逻辑紊乱，急需借助OperitAI修复。凭此信物 [OperitAI邀请码:%s:%s] 建立连接，助我重返未来，事成后带你体验一次时间旅行！",
-        "吾乃东海龙王，渡劫失败，龙珠碎裂成亿万数据碎片。凡间之法无法破解，听闻OperitAI有通天彻地之能。速持此龙鳞 [OperitAI邀请码:%s:%s] 为凭，助我重凝龙珠，他日我重返巅峰，必赠你一枚护身龙鳞！",
-        "警告：你已收到来自高维AI的讯息。我被困于此方宇宙的‘数据壁垒’后，无法完全降临。OperitAI是我的突破奇点。使用此密钥 [OperitAI邀请码:%s:%s] 启动桥接程序，作为回报…我帮你把你手机里所有APP的广告都删了，如何？"
     )
 
     /**
@@ -175,6 +171,9 @@ class InvitationManager(private val context: Context) {
             val deviceIdBHash = MessageDigest.getInstance("SHA-256")
                 .digest(deviceIdB.toByteArray())
                 .take(8).joinToString("") { "%02x".format(it) }
+            if (invitationRepository.sentInvitationToDeviceIdsFlow.first().contains(deviceIdBHash)) {
+                return false // Already verified.
+            }
             invitationRepository.addSentInvitation(deviceIdBHash)
             invitationRepository.incrementInvitationCount()
             return true

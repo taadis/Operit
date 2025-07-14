@@ -160,15 +160,21 @@ open class StandardUITools(protected val context: Context) {
         val service = EnhancedAIService.getInstance(context)
         
         return runBlocking {
-            service.executeUiAutomationTask(initialUiState, taskGoal).map { uiCommand ->
-                // An interrupt is a valid, successful outcome of a step, signaling a need for escalation.
-                // The tool step itself did not fail, so success is always true.
+            service.executeUiAutomationTask(initialUiState, taskGoal)
+                .map { stepResult ->
+                // The tool step itself is considered successful as it's reporting progress.
+                // The final step will either be the last explanation or the final UI state.
+                val resultData = when {
+                    stepResult.finalUiState != null -> stepResult.finalUiState
+                    stepResult.explanation != null -> StringResultData("Step: ${stepResult.explanation}")
+                    else -> StringResultData("Unknown step result.")
+                }
+
                 ToolResult(
                     toolName = tool.name,
                     success = true,
-                    // The result now clearly states the outcome of the step.
-                    result = StringResultData("Step Result: ${uiCommand.type}. Details: ${uiCommand.arg}"),
-                    error = null // No technical error occurred during the step.
+                    result = resultData,
+                    error = null
                 )
             }
         }

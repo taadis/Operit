@@ -33,6 +33,16 @@ import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 
+/** Represents the result of a single step in a UI automation task. */
+data class AutomationStepResult(
+    /** A natural language explanation of the action taken. Null for the final state report. */
+    val explanation: String?,
+    /** The actual command executed. Null for the final state report. */
+    val command: UiControllerCommand?,
+    /** The final UI page info. Only present for the very last event in the flow. */
+    val finalUiState: UIPageResultData? = null
+)
+
 /** 处理会话相关功能的服务类，包括会话总结、偏好处理和对话切割准备 */
 class ConversationService(private val context: Context) {
 
@@ -789,27 +799,38 @@ class ConversationService(private val context: Context) {
         multiServiceManager: MultiServiceManager
     ): String {
         val systemPrompt = """
-You are a UI automation AI. Your task is to return a single JSON command based on the UI state, task goal, and execution history.
+You are a UI automation AI. Your task is to analyze the UI state and task goal, then decide on the next single action. You must return a single JSON object containing your reasoning and the command to execute.
 
 **Output format:**
-- A single, raw JSON object: `{"type": "action_type", "arg": ...}`.
-- NO MARKDOWN or explanations.
+- A single, raw JSON object: `{"explanation": "Your reasoning for the action.", "command": {"type": "action_type", "arg": ...}}`.
+- NO MARKDOWN or other text outside the JSON.
 
-**Actions and `arg` formats:**
-The `arg` value depends on the `type`:
-- `tap`: `arg` is `{"x": int, "y": int}`
-- `swipe`: `arg` is `{"start_x": int, "start_y": int, "end_x": int, "end_y": int}`
-- `set_input_text`: `arg` is `{"text": "string"}`. Inputs into the focused element. Use `tap` first if needed.
-- `press_key`: `arg` is `{"key_code": "KEYCODE_STRING"}` (e.g., "KEYCODE_HOME").
-- `complete`: `arg` is a string explaining why.
-- `interrupt`: `arg` is a string explaining why. (Use if stuck or target element is missing. This is a request for help, not a failure).
+**'explanation' field:**
+- A concise, one-sentence description of what you are about to do and why. Example: "Tapping the 'Settings' icon to open the system settings."
+- For `complete` or `interrupt` actions, this field should explain the reason.
+
+**'command' field:**
+- An object containing the action `type` and its `arg`.
+- Available `type` values:
+    - **UI Interaction**: `tap`, `swipe`, `set_input_text`, `press_key`.
+    - **App Management**: `start_app`, `list_installed_apps`.
+    - **Task Control**: `complete`, `interrupt`.
+- `arg` format depends on `type`:
+  - `tap`: `{"x": int, "y": int}`
+  - `swipe`: `{"start_x": int, "start_y": int, "end_x": int, "end_y": int}`
+  - `set_input_text`: `{"text": "string"}`. Inputs into the focused element. Use `tap` first if needed.
+  - `press_key`: `{"key_code": "KEYCODE_STRING"}` (e.g., "KEYCODE_HOME").
+  - `start_app`: `{"package_name": "string"}`. Use this to launch an app directly. This is often more reliable than tapping icons on the home screen.
+  - `list_installed_apps`: `{"include_system_apps": boolean}` (optional, default `false`). Use this to find an app's package name if you don't know it.
+  - `complete`: `arg` must be an empty string. The reason goes in the `explanation` field.
+  - `interrupt`: `arg` must be an empty string. The reason goes in the `explanation` field.
 
 **Inputs:**
 1.  `Current UI State`: List of UI elements and their properties.
 2.  `Task Goal`: The specific objective for this step.
-3.  `Execution History`: Log of past commands, results, and errors. Analyze it to avoid repeating mistakes. If you see an 'error' entry, it means your last JSON was invalid. Correct it.
+3.  `Execution History`: A log of your previous actions (your explanations) and their outcomes. Analyze it to avoid repeating mistakes.
 
-Analyze the inputs and choose the best action to achieve the `Task Goal`. Use element `bounds` to calculate coordinates.
+Analyze the inputs, choose the best action to achieve the `Task Goal`, and formulate your response in the specified JSON format. Use element `bounds` to calculate coordinates for UI actions.
 """.trimIndent()
 
         val userPrompt = """
@@ -822,7 +843,7 @@ $uiState
 "$taskGoal"
 
 **Execution History:**
-```json
+```
 $history
 ```
 
@@ -869,12 +890,15 @@ Provide the next action as a single JSON object.
         taskGoal: String,
         multiServiceManager: MultiServiceManager,
         toolHandler: AIToolHandler
-    ): Flow<UiControllerCommand> = flow {
+    ): Flow<AutomationStepResult> = flow {
         var currentUiState = initialUiState
         val executionHistory = mutableListOf<Pair<String, String>>()
         val maxAttempts = 5
+        var loopShouldBreak = false
 
         for (attempt in 1..maxAttempts) {
+            if (loopShouldBreak) break
+
             var commandJson = getUiControllerCommand(
                 currentUiState,
                 taskGoal,
@@ -894,13 +918,15 @@ Provide the next action as a single JSON object.
             }
 
             try {
-                val command = JSONObject(commandJson)
+                val responseJson = JSONObject(commandJson)
+                val explanation = responseJson.getString("explanation")
+                val command = responseJson.getJSONObject("command")
                 val type = command.getString("type")
                 
                 // Robustly find the arguments, whether they are in an "arg" object or at the top level.
                 var rawArg = command.opt("arg")
                 if (rawArg == null) {
-                    val potentialArgKeys = setOf("x", "y", "start_x", "start_y", "end_x", "end_y", "text", "key_code")
+                    val potentialArgKeys = setOf("x", "y", "start_x", "start_y", "end_x", "end_y", "text", "key_code", "package_name", "include_system_apps")
                     val argObject = JSONObject()
                     var keyFoundInRoot = false
                     command.keys().forEach { key ->
@@ -924,42 +950,49 @@ Provide the next action as a single JSON object.
                 }
 
                 val uiCommand = UiControllerCommand(type, arg)
-                Log.d(TAG, "Parsed UI Command: $uiCommand")
-                emit(uiCommand)
+                Log.d(TAG, "Parsed UI Command: $uiCommand, Explanation: $explanation")
+                // Always emit the step result.
+                emit(AutomationStepResult(explanation, uiCommand))
 
-                executionHistory.add(Pair("command", commandJson))
+                executionHistory.add(Pair("action", explanation))
 
                 when (type) {
                     "complete", "interrupt" -> {
-                        Log.d(TAG, "Task flow ending due to '$type' command.")
-                        return@flow
+                        Log.d(TAG, "Task flow ending due to '$type' command. Reason: $explanation")
+                        loopShouldBreak = true // Set flag to break after this iteration.
                     }
-                    "tap", "swipe", "set_input_text", "press_key" -> {
+                    "tap", "swipe", "set_input_text", "press_key", "start_app", "list_installed_apps" -> {
                         val tool = createToolFromJson(type, arg)
                         Log.d(TAG, "Executing tool: ${tool.name} with params: ${tool.parameters}")
                         val result = toolHandler.executeTool(tool)
                         Log.d(TAG, "Tool execution result: $result")
-                        executionHistory.add(Pair("result", result.toString()))
+
+                        val outcomeDescription = if (result.success) {
+                            "Outcome: Success. ${result.result?.toString()?.take(150)}" // Truncate long results
+                        } else {
+                            "Outcome: Failed. ${result.error}"
+                        }
+                        executionHistory.add(Pair("outcome", outcomeDescription))
 
                         if (!result.success) {
-                            emit(UiControllerCommand("interrupt", "Action failed: ${result.error}"))
-                            return@flow
-                        }
-
-                        val pageInfoResult = toolHandler.executeTool(AITool("get_page_info", emptyList()))
-                        if (pageInfoResult.success && pageInfoResult.result is UIPageResultData) {
-                            currentUiState = flattenUiInfo(pageInfoResult.result)
-                            Log.d(TAG, "Successfully updated UI state.")
+                            emit(AutomationStepResult("Action failed: ${result.error}", UiControllerCommand("interrupt", "Action failed: ${result.error}")))
+                            loopShouldBreak = true
                         } else {
-                            Log.w(TAG, "Failed to get updated UI state after action.")
-                            emit(UiControllerCommand("interrupt", "Failed to get updated UI state."))
-                            return@flow
+                             val pageInfoResult = toolHandler.executeTool(AITool("get_page_info", emptyList()))
+                             if (pageInfoResult.success && pageInfoResult.result is UIPageResultData) {
+                                 currentUiState = flattenUiInfo(pageInfoResult.result)
+                                 Log.d(TAG, "Successfully updated UI state.")
+                             } else {
+                                 Log.w(TAG, "Failed to get updated UI state after action.")
+                                 emit(AutomationStepResult("Failed to get updated UI state.", UiControllerCommand("interrupt", "Failed to get updated UI state.")))
+                                 loopShouldBreak = true
+                             }
                         }
                     }
                     else -> {
                         Log.w(TAG, "Unknown command type '$type' received.")
-                        emit(UiControllerCommand("interrupt", "Unknown command type '$type' received from AI."))
-                        return@flow
+                        emit(AutomationStepResult("Unknown command type '$type' received from AI.", UiControllerCommand("interrupt", "Unknown command type '$type' received from AI.")))
+                        loopShouldBreak = true
                     }
                 }
             } catch (e: JSONException) {
@@ -970,8 +1003,24 @@ Provide the next action as a single JSON object.
             }
         }
 
-        Log.w(TAG, "Task flow ending due to max attempts reached.")
-        emit(UiControllerCommand("interrupt", "Reached max attempts ($maxAttempts)."))
+        // If the loop finished due to max attempts, emit a final interrupt step.
+        if (!loopShouldBreak) {
+            Log.w(TAG, "Task flow ending due to max attempts reached.")
+            emit(AutomationStepResult("Reached max attempts ($maxAttempts).", UiControllerCommand("interrupt", "Reached max attempts ($maxAttempts).")))
+        }
+
+        // --- Final Step: Always report the final UI state ---
+        Log.d(TAG, "Automation flow finished. Getting final page info.")
+        val finalPageInfoResult = toolHandler.executeTool(AITool("get_page_info", emptyList()))
+        if (finalPageInfoResult.success && finalPageInfoResult.result is UIPageResultData) {
+            // Emit the final UI state as the last item in the flow.
+            emit(AutomationStepResult(explanation = "Final screen state.", command = null, finalUiState = finalPageInfoResult.result))
+        } else {
+            Log.w(TAG, "Failed to get final UI state: ${finalPageInfoResult.error}")
+            // Emit a final failure state.
+            val finalUiState = UIPageResultData("Unknown", "Unknown", SimplifiedUINode(null, "Failed to get final state: ${finalPageInfoResult.error}", null, null, null, false, emptyList()))
+            emit(AutomationStepResult(explanation = "Could not get final screen state.", command = null, finalUiState = finalUiState))
+        }
     }
 
     /**
@@ -983,22 +1032,42 @@ Provide the next action as a single JSON object.
         val screenTexts = mutableListOf<String>()
 
         fun traverse(node: SimplifiedUINode) {
-            // If the node is clickable, treat it as an atomic unit and don't traverse its children.
+            // If the node is clickable, treat it as an atomic unit. We'll gather all text from
+            // its entire subtree to form a comprehensive description for the AI.
             if (node.isClickable) {
                 val parts = mutableListOf<String>()
-                // Format: [id: com.app/login, text: "Login", class: Button, bounds: [0,100][200,200]]
+                
+                // Start by collecting standard properties like resource ID, class, and bounds.
                 node.resourceId?.takeIf { it.isNotBlank() }?.let { parts.add("id: $it") }
-                node.text?.takeIf { it.isNotBlank() }?.let { parts.add("text: \"${it.replace("\"", "'").take(50)}\"") }
-                node.contentDesc?.takeIf { it.isNotBlank() }?.let { parts.add("desc: \"${it.replace("\"", "'").take(50)}\"") }
+
+                // --- NEW: Recursively find all text and content descriptions in the subtree ---
+                val descriptiveTexts = mutableListOf<String>()
+                fun findTextsRecursively(n: SimplifiedUINode) {
+                    n.text?.takeIf { it.isNotBlank() }?.let { descriptiveTexts.add(it) }
+                    n.contentDesc?.takeIf { it.isNotBlank() }?.let { descriptiveTexts.add(it) }
+                    n.children.forEach(::findTextsRecursively)
+                }
+                findTextsRecursively(node)
+
+                // Combine all found texts into a single descriptive string. This is crucial for
+                // elements where the text label is in a child node of the clickable area.
+                val combinedText = descriptiveTexts.distinct().joinToString(" | ")
+                if (combinedText.isNotBlank()) {
+                    // Using "desc" to signify this is a constructed description. Increased length.
+                    parts.add("desc: \"${combinedText.replace("\"", "'").take(80)}\"")
+                }
+                // --- END NEW ---
+
                 node.className?.let { parts.add("class: ${it.substringAfterLast('.')}") }
                 node.bounds?.let { parts.add("bounds: ${it.replace(' ', ',')}") }
 
-                // Only add if it has some identifiable information.
+                // Only add the element if it has some identifiable information.
                 if (parts.isNotEmpty()) {
                     clickableElements.add("[${parts.joinToString(", ")}]")
                 }
+                // Once an element is identified as clickable, we don't process its children separately.
             } else {
-                // If not clickable, add its text for context and continue traversal.
+                // If the node is not clickable, add its text for general context and continue traversal.
                 node.text?.takeIf { it.isNotBlank() }?.let {
                     screenTexts.add("\"${it.replace("\"", "'").take(70)}\"")
                 }
@@ -1078,6 +1147,7 @@ Provide the next action as a single JSON object.
                  when (type) {
                      "press_key" -> parameters.add(ToolParameter("key_code", arg))
                      "set_input_text" -> parameters.add(ToolParameter("text", arg))
+                     "start_app" -> parameters.add(ToolParameter("package_name", arg))
                  }
             }
         }
