@@ -262,7 +262,7 @@ fun AccessibilityWizardCard(
             },
             title = {
                 Text(
-                    text = "安全警告",
+                    text = stringResource(R.string.accessibility_risk_warning_title),
                     textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold
@@ -272,7 +272,8 @@ fun AccessibilityWizardCard(
             text = {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "警告：无障碍模式可能被某些应用（如微信）检测，使用风险自负。我们不对任何损失负责。\n\n提示：【调试】模式已包含屏幕点击功能。仅当调试模式失灵时，才需安装此独立服务作为备用。建议用完后立即卸载此服务，以确保安全。",
+                        text = stringResource(R.string.accessibility_risk_warning_message) + "\n\n" +
+                               stringResource(R.string.accessibility_risk_warning_additional),
                         style = MaterialTheme.typography.bodyMedium,
                         textAlign = TextAlign.Center
                     )
@@ -285,10 +286,10 @@ fun AccessibilityWizardCard(
                             confirmText = it
                             isError = false
                         },
-                        label = { Text("请输入\"明白\"或\"ok\"确认") },
+                        label = { Text(stringResource(R.string.accessibility_risk_warning_input)) },
                         isError = isError,
                         supportingText = if (isError) {
-                            { Text("请输入\"明白\"或\"ok\"确认您已了解风险") }
+                            { Text(stringResource(R.string.accessibility_risk_warning_input_error)) }
                         } else null,
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
@@ -307,7 +308,7 @@ fun AccessibilityWizardCard(
                         }
                     }
                 ) {
-                    Text("确认继续")
+                    Text(stringResource(R.string.accessibility_risk_warning_confirm))
                 }
             },
             dismissButton = {
@@ -318,7 +319,7 @@ fun AccessibilityWizardCard(
                         isError = false
                     }
                 ) {
-                    Text("取消")
+                    Text(stringResource(R.string.accessibility_risk_warning_cancel))
                 }
             }
         )

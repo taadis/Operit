@@ -1098,7 +1098,7 @@ private fun DebuggerPermissionSection(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-                text = "无障碍备用方案",
+                text = stringResource(id = R.string.debugger_accessibility_fallback_title),
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                 modifier = Modifier.padding(bottom = 4.dp)
         )
@@ -1115,7 +1115,7 @@ private fun DebuggerPermissionSection(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                        text = "调试模式优先使用Shell命令进行ui自动化。仅当Shell操作失败时，才会尝试使用此无障碍服务作为后备。非必要不建议启用。",
+                        text = stringResource(id = R.string.debugger_accessibility_fallback_description),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onTertiaryContainer
                 )
@@ -1159,7 +1159,7 @@ private fun DebuggerPermissionSection(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                                text = "无障碍服务",
+                                text = stringResource(id = R.string.accessibility_service),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurface
                         )

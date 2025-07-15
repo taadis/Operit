@@ -968,7 +968,11 @@ Provide the next action as a single JSON object.
                         Log.d(TAG, "Tool execution result: $result")
 
                         val outcomeDescription = if (result.success) {
-                            "Outcome: Success. ${result.result?.toString()?.take(150)}" // Truncate long results
+                            val resultString = result.result?.toString()
+                            // For app lists, allow more content to ensure the AI gets full context.
+                            val maxLength = if (type == "list_installed_apps") 2000 else 150
+                            val truncatedResult = resultString?.take(maxLength)
+                            "Outcome: Success. ${truncatedResult}"
                         } else {
                             "Outcome: Failed. ${result.error}"
                         }

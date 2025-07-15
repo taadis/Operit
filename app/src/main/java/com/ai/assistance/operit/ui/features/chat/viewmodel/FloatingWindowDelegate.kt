@@ -1,10 +1,8 @@
 package com.ai.assistance.operit.ui.features.chat.viewmodel
 
-import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.os.Build
 import android.os.IBinder
@@ -14,13 +12,11 @@ import androidx.compose.material3.Typography
 import androidx.lifecycle.viewModelScope
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatMessage
+import com.ai.assistance.operit.data.model.InputProcessingState
 import com.ai.assistance.operit.data.model.toSerializable
 import com.ai.assistance.operit.data.preferences.PromptFunctionType
 import com.ai.assistance.operit.services.FloatingChatService
 import com.ai.assistance.operit.ui.floating.FloatingMode
-import com.ai.assistance.operit.util.stream.SharedStream
-import com.ai.assistance.operit.api.chat.EnhancedAIService
-import com.ai.assistance.operit.data.model.InputProcessingState
 import com.ai.assistance.operit.ui.permissions.ToolCategory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,7 +31,8 @@ class FloatingWindowDelegate(
         private val onMessageReceived: (String, PromptFunctionType) -> Unit,
         private val onAttachmentRequested: (String) -> Unit,
         private val onAttachmentRemoveRequested: (String) -> Unit,
-        private val onCancelMessageRequested: () -> Unit
+        private val onCancelMessageRequested: () -> Unit,
+        private val inputProcessingState: StateFlow<InputProcessingState>
 ) {
     companion object {
         private const val TAG = "FloatingWindowDelegate"
@@ -151,8 +148,7 @@ class FloatingWindowDelegate(
 
     private fun setupInputStateCollection() {
         viewModelScope.launch {
-            val service = EnhancedAIService.getInstance(context)
-            service.inputProcessingState.collect { state ->
+            inputProcessingState.collect { state ->
                 val isUiToolExecuting = state is InputProcessingState.ExecutingTool &&
                         state.category == ToolCategory.UI_AUTOMATION
 

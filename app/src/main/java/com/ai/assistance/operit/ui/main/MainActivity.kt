@@ -41,6 +41,7 @@ import com.ai.assistance.operit.ui.features.permission.screens.PermissionGuideSc
 import com.ai.assistance.operit.ui.features.startup.screens.PluginLoadingScreenWithState
 import com.ai.assistance.operit.ui.features.startup.screens.PluginLoadingState
 import com.ai.assistance.operit.ui.theme.OperitTheme
+import com.ai.assistance.operit.util.AnrMonitor
 import com.ai.assistance.operit.util.LocaleUtils
 import java.util.*
 import kotlinx.coroutines.delay
@@ -57,6 +58,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var agreementPreferences: AgreementPreferences
     private lateinit var invitationManager: InvitationManager // Add InvitationManager instance
     private var updateCheckPerformed = false
+    private lateinit var anrMonitor: AnrMonitor
 
     // ======== 对话框状态 ========
     private var showConfirmationDialogState by mutableStateOf<String?>(null)
@@ -117,6 +119,7 @@ class MainActivity : ComponentActivity() {
         // 语言设置已在Application中初始化，这里无需重复
 
         initializeComponents()
+        anrMonitor.start()
         setupPreferencesListener()
         configureDisplaySettings()
 
@@ -265,18 +268,25 @@ class MainActivity : ComponentActivity() {
 
     private fun checkClipboardForInvitation() {
         lifecycleScope.launch {
+            // 等待一小段时间，确保应用完全获得焦点，避免因Android 10+剪贴板限制导致读取失败
+            delay(500)
+
+            Log.d(TAG, "检查剪贴板中的邀请码...")
             val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
             val clipData = clipboard?.primaryClip
             if (clipData != null && clipData.itemCount > 0) {
                 val text = clipData.getItemAt(0).coerceToText(this@MainActivity).toString()
                 if (text.isNotBlank()) {
+                    Log.d(TAG, "剪贴板内容: '$text'")
                     when (val result = invitationManager.processInvitationFromText(text)) {
                         is ProcessInvitationResult.Success -> {
+                            Log.d(TAG, "邀请码处理成功: ${result.confirmationCode}")
                             // Clear clipboard to prevent re-triggering
                             clipboard.setPrimaryClip(ClipData.newPlainText("", ""))
                             showConfirmationDialogState = result.confirmationCode
                         }
                         is ProcessInvitationResult.Reminder -> {
+                            Log.d(TAG, "邀请码提醒: ${result.confirmationCode}")
                             // Clear clipboard to prevent re-triggering
                             clipboard.setPrimaryClip(ClipData.newPlainText("", ""))
                             showReminderDialogState = result.confirmationCode
@@ -284,7 +294,11 @@ class MainActivity : ComponentActivity() {
                         is ProcessInvitationResult.Failure -> Log.d(TAG, "Clipboard check failed: ${result.reason}")
                         is ProcessInvitationResult.AlreadyInvited -> Log.d(TAG, "Device already invited by someone else.")
                     }
+                } else {
+                    Log.d(TAG, "剪贴板内容为空白。")
                 }
+            } else {
+                Log.d(TAG, "剪贴板为空或无项目。")
             }
         }
     }
@@ -298,6 +312,8 @@ class MainActivity : ComponentActivity() {
 
         // 确保隐藏加载界面
         pluginLoadingState.hide()
+
+        anrMonitor.stop()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -316,6 +332,8 @@ class MainActivity : ComponentActivity() {
 
         // Initialize InvitationManager
         invitationManager = InvitationManager(this)
+
+        anrMonitor = AnrMonitor(this, lifecycleScope)
 
         // 初始化用户偏好管理器并直接检查初始化状态
         preferencesManager = UserPreferencesManager(this)

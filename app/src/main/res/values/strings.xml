@@ -907,4 +907,17 @@
     <string name="permission_guide_intro_3_title">释放创造力，随时待命</string>
     <string name="permission_guide_intro_3_desc">无论是设计网页、处理媒体文件，还是通过悬浮窗随时唤醒AI，Operit都为您提供强大、灵活且安全的创作与辅助环境。您的数据，由您掌控。</string>
     <string name="permission_guide_intro_page_indicator">功能介绍 %1$d/%2$d</string>
+
+    <!-- 调试模式 -->
+    <string name="debugger_accessibility_fallback_title">无障碍加速方案 (高风险)</string>
+    <string name="debugger_accessibility_fallback_description">调试模式默认通过Shell执行UI操作。启用无障碍服务可大幅加速UI自动化，但会显著增加被部分应用检测并导致封号的风险。除非您追求极致的操作速度，否则不建议开启。</string>
+
+    <string name="accessibility_risk_warning_title">无障碍服务风险提示</string>
+    <string name="accessibility_risk_warning_message">启用无障碍服务虽然可以加速UI操作，但某些应用可能会检测到此服务并采取限制措施，包括封号。请仅在了解并接受相关风险后开启。</string>
+    
+    <string name="accessibility_risk_warning_additional">请注意: 调试模式默认已具备UI操作能力，开启无障碍服务仅用于加速UI操作，但会增加被封号风险。若无极速需求，建议不要开启。若已开启，建议用完后立即关闭。</string>
+    <string name="accessibility_risk_warning_input">请输入\"明白\"或\"ok\"确认</string>
+    <string name="accessibility_risk_warning_input_error">请输入\"明白\"或\"ok\"确认您已了解风险</string>
+    <string name="accessibility_risk_warning_confirm">确认继续</string>
+    <string name="accessibility_risk_warning_cancel">取消</string>
 </resources>

@@ -295,7 +295,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                         onCancelMessageRequested = {
                             // 取消当前消息
                             cancelCurrentMessage()
-                        }
+                        },
+                        inputProcessingState = this.inputProcessingState
                 )
     }
 

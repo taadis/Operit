@@ -902,4 +902,17 @@
     <string name="accessibility_wizard_enable_note_details">You must select and enable \"Operit Accessibility Provider\" from the list of services.</string>
     <string name="accessibility_wizard_open_settings">Open Accessibility Settings</string>
     <string name="accessibility_wizard_success_message">Accessibility service is properly configured and ready to use!</string>
+
+    <!-- Debugger Mode -->
+    <string name="debugger_accessibility_fallback_title">Accessibility Acceleration (High Risk)</string>
+    <string name="debugger_accessibility_fallback_description">Debugger mode performs UI operations via Shell by default. Enabling the accessibility service can significantly accelerate UI automation, but it also substantially increases the risk of being detected and banned by some applications. It is not recommended unless you require maximum operational speed.</string>
+
+    <string name="accessibility_risk_warning_title">Accessibility Service Risk Warning</string>
+    <string name="accessibility_risk_warning_message">While enabling the accessibility service can speed up UI operations, some apps may detect this service and impose restrictions, including account bans. Please enable only after understanding and accepting the associated risks.</string>
+    
+    <string name="accessibility_risk_warning_additional">Please note: Debug mode already has UI operation capabilities. Enabling the accessibility service only accelerates UI operations but increases the risk of account bans. Unless you need maximum speed, it\'s not recommended. If enabled, please disable it immediately after use.</string>
+    <string name="accessibility_risk_warning_input">Type \"ok\" to confirm</string>
+    <string name="accessibility_risk_warning_input_error">Please type \"ok\" to confirm you understand the risks</string>
+    <string name="accessibility_risk_warning_confirm">Confirm</string>
+    <string name="accessibility_risk_warning_cancel">Cancel</string>
 </resources> 
