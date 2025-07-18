@@ -116,7 +116,6 @@ class FloatingWindowManager(
 
     @Composable
     private fun FloatingChatUi() {
-        val isUiBusy = state.isUiBusy.value
         FloatingChatWindow(
                 messages = callback.getMessages(),
                 width = state.windowWidth.value,
@@ -149,8 +148,7 @@ class FloatingWindowManager(
                 onAttachmentRequest = { callback.onAttachmentRequest(it) },
                 onRemoveAttachment = { callback.onRemoveAttachment(it) },
                 chatService = context as? FloatingChatService,
-                windowState = state,
-                isUiBusy = isUiBusy
+                windowState = state
         )
     }
 

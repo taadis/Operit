@@ -53,6 +53,9 @@ interface SpeechService {
 
     /** 识别错误Flow */
     val recognitionErrorFlow: StateFlow<RecognitionError>
+    
+    /** 音量级别Flow，范围为0.0-1.0，代表当前麦克风输入的音量级别 */
+    val volumeLevelFlow: StateFlow<Float>
 
     /**
      * 初始化语音识别引擎

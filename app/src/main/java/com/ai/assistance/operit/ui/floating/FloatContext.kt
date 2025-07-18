@@ -45,12 +45,10 @@ fun rememberFloatContext(
         onRemoveAttachment: ((String) -> Unit)? = null,
         onInputFocusRequest: ((Boolean) -> Unit)? = null,
         chatService: FloatingChatService? = null,
-        windowState: FloatingWindowState? = null,
-        isUiBusy: Boolean = false
+        windowState: FloatingWindowState? = null
 ): FloatContext {
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
-    val isUiBusyFlow = remember { MutableStateFlow(isUiBusy) }
 
     val floatContext = remember(
             messages,
@@ -76,8 +74,7 @@ fun rememberFloatContext(
             onRemoveAttachment,
             onInputFocusRequest,
             chatService,
-            windowState,
-            isUiBusyFlow
+            windowState
     ) {
         FloatContext(
                 messages = messages,
@@ -108,19 +105,13 @@ fun rememberFloatContext(
                 density = density,
                 coroutineScope = scope,
                 chatService = chatService,
-                windowState = windowState,
-                isUiBusy = isUiBusyFlow
+                windowState = windowState
         )
     }
 
     LaunchedEffect(currentMode, previousMode) {
         floatContext.currentMode = currentMode
         floatContext.previousMode = previousMode
-    }
-
-    // Update the StateFlow when isUiBusy changes
-    LaunchedEffect(isUiBusy) {
-        isUiBusyFlow.value = isUiBusy
     }
 
     return floatContext
@@ -156,8 +147,7 @@ class FloatContext(
         val density: Density,
         val coroutineScope: CoroutineScope,
         val chatService: FloatingChatService? = null,
-        val windowState: FloatingWindowState? = null,
-        val isUiBusy: StateFlow<Boolean> = MutableStateFlow(false)
+        val windowState: FloatingWindowState? = null
 ) {
     // 动画与转换相关状态
     val animatedAlpha = Animatable(1f)

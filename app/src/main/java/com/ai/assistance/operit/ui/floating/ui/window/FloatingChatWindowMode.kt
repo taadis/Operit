@@ -92,7 +92,7 @@ fun FloatingChatWindowMode(floatContext: FloatContext) {
     var isDragging by remember { mutableStateOf(false) }
     
     // 获取isUiBusy的当前值
-    val isUiBusy by floatContext.isUiBusy.collectAsState()
+    // 删除 isUiBusy 相关内容
 
     // Effect to sync local state with the source of truth from floatContext
     // when the user is not actively dragging.

@@ -153,7 +153,7 @@ class FloatingWindowDelegate(
                         state.category == ToolCategory.UI_AUTOMATION
 
                 // Update UI busy state directly on the window state
-                floatingService?.windowState?.isUiBusy?.value = isUiToolExecuting
+                // floatingService?.windowState?.isUiBusy?.value = isUiToolExecuting
 
                 if (isUiToolExecuting) {
                     Log.d(TAG, "UI tool executing, disabling window interaction.")

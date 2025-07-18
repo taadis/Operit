@@ -74,8 +74,7 @@ fun FloatingChatWindow(
         onRemoveAttachment: ((String) -> Unit)? = null,
         onInputFocusRequest: ((Boolean) -> Unit)? = null,
         chatService: FloatingChatService? = null,
-        windowState: FloatingWindowState? = null,
-        isUiBusy: Boolean = false
+        windowState: FloatingWindowState? = null
 ) {
     val floatContext =
             rememberFloatContext(
@@ -105,8 +104,7 @@ fun FloatingChatWindow(
                     onRemoveAttachment = onRemoveAttachment,
                     onInputFocusRequest = onInputFocusRequest,
                     chatService = chatService,
-                    windowState = windowState,
-                    isUiBusy = isUiBusy
+                    windowState = windowState
             )
 
     // 将窗口缩放限制在合理范围内 - 已通过回调和状态源头处理，不再需要

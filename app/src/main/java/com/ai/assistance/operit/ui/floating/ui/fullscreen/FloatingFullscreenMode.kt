@@ -4,7 +4,18 @@ import android.content.Context
 import android.media.AudioManager
 import android.util.Log
 import android.view.inputmethod.InputMethodManager
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -22,6 +33,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
@@ -39,6 +51,7 @@ import com.ai.assistance.operit.api.speech.SpeechServiceFactory
 import com.ai.assistance.operit.api.voice.VoiceServiceFactory
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.preferences.PromptFunctionType
+import com.ai.assistance.operit.ui.common.WaveVisualizer
 import com.ai.assistance.operit.ui.floating.FloatContext
 import com.ai.assistance.operit.ui.floating.FloatingMode
 import kotlinx.coroutines.Job
@@ -47,6 +60,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.absoluteValue
 
 private const val TAG = "FloatingFullscreenMode"
 
@@ -59,11 +73,15 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
     var userMessage by remember { mutableStateOf("") }
     var accumulatedText by remember { mutableStateOf("") }
     var latestPartialText by remember { mutableStateOf("") }
-    var aiMessage by remember { mutableStateOf("长按麦克风开始说话") }
+    var aiMessage by remember { mutableStateOf("长按下方麦克风开始说话") }
     val coroutineScope = rememberCoroutineScope()
     var activeMessage by remember { mutableStateOf<ChatMessage?>(null) }
     val isInitialLoad = remember { mutableStateOf(true) }
-    val isUiBusy by floatContext.isUiBusy.collectAsState()
+    
+    // 波浪可视化相关状态
+    var isWaveActive by remember { mutableStateOf(false) }
+    var showBottomControls by remember { mutableStateOf(true) }
+    var silenceTimeoutJob by remember { mutableStateOf<Job?>(null) }
     
     // 添加输入法服务引用
     val inputMethodManager = remember { 
@@ -81,39 +99,136 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
                 SpeechServiceFactory.SpeechServiceType.SHERPA_NCNN
         )
     }
+    
+    // 获取音量流
+    val volumeLevel by speechService.volumeLevelFlow.collectAsState()
 
     val voiceService = remember { VoiceServiceFactory.getInstance(context) }
+    
+    val sendCurrentUtteranceAndContinue = {
+        coroutineScope.launch {
+            val finalText = userMessage
+            if (finalText.isNotBlank()) {
+                Log.d(TAG, "Wave mode: sending utterance due to silence: '$finalText'")
+                floatContext.onSendMessage?.invoke(finalText, PromptFunctionType.VOICE)
+                aiMessage = "思考中..."
+            }
+            // Reset text buffers for the next utterance
+            userMessage = ""
+            accumulatedText = ""
+            latestPartialText = ""
+        }
+    }
+
+    // 启动和停止语音识别的通用函数
+    val startVoiceCapture = {
+        coroutineScope.launch {
+            voiceService.stop()
+            if (hasFocus) {
+                timeoutJob?.cancel()
+                isRecording = true
+                userMessage = ""
+                accumulatedText = ""
+                latestPartialText = ""
+                aiMessage = "正在聆听..."
+
+                // Restore the check to only cancel if the AI is actually busy
+                val lastMessage = floatContext.messages.lastOrNull()
+                val isAiCurrentlyWorking =
+                    lastMessage?.sender == "think" ||
+                            (lastMessage?.sender == "ai" && lastMessage.contentStream != null)
+
+                if (isAiCurrentlyWorking) {
+                    floatContext.onCancelMessage?.invoke()
+                }
+
+                speechService.startRecognition(
+                    languageCode = "zh-CN",
+                    continuousMode = true,
+                    partialResults = true
+                )
+            } else {
+                aiMessage = "无法开始录音，无法获取焦点"
+                voiceService.speak(aiMessage, rate = speed)
+            }
+        }
+    }
+
+    val stopVoiceCapture = { isCancel: Boolean ->
+        coroutineScope.launch {
+            if (isRecording) {
+                isRecording = false
+                
+                silenceTimeoutJob?.cancel()
+
+                if (isCancel) {
+                    speechService.cancelRecognition()
+                    isProcessingSpeech = false
+                    userMessage = ""
+                    accumulatedText = ""
+                    latestPartialText = ""
+                    aiMessage = "长按下方麦克风开始说话" // Revert to default prompt on cancel
+                } else {
+                    isProcessingSpeech = true
+                    aiMessage = "识别中..."
+                    speechService.stopRecognition()
+
+                    // 设置一个备用超时，以防最终结果由于某种原因从未到达
+                    timeoutJob = coroutineScope.launch {
+                        delay(3000) // 3秒后超时
+                        if (isProcessingSpeech) {
+                            Log.w(TAG, "Fallback timeout: Final result not received. Sending current message.")
+                            isProcessingSpeech = false
+                            val finalText = userMessage
+                            if (finalText.isNotBlank()) {
+                                floatContext.onSendMessage?.invoke(finalText, PromptFunctionType.VOICE)
+                                aiMessage = "思考中..."
+                            } else {
+                                aiMessage = "没有听清，请再试一次"
+                                voiceService.speak(aiMessage, rate = speed)
+                            }
+                            accumulatedText = ""
+                            latestPartialText = ""
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     // 监听语音识别结果
     LaunchedEffect(speechService) {
         speechService.recognitionResultFlow.collectLatest { result ->
-            // Log.d(TAG, "Result: $result, isRecording: $isRecording, accumulated:
-            // '$accumulatedText'")
             if (isRecording) {
                 if (result.text.isNotBlank()) {
-                    // Heuristic: if the new text doesn't build on the old one, a new utterance has
-                    // started.
-                    // Commit the previous utterance to accumulatedText.
-                    if (latestPartialText.isNotEmpty() && !result.text.startsWith(latestPartialText)
-                    ) {
+                    // Barge-in: If the user starts speaking, stop the AI's TTS output.
+                    if (userMessage.isBlank()) {
+                        voiceService.stop()
+                    }
+
+                    if (latestPartialText.isNotEmpty() && !result.text.startsWith(latestPartialText)) {
                         if (accumulatedText.isNotEmpty()) {
                             accumulatedText += "。"
                         }
                         accumulatedText += latestPartialText
                     }
                     latestPartialText = result.text
+
+                    // 在波浪模式下，每当有新文本时，重置静默超时
+                    if (isWaveActive) {
+                        silenceTimeoutJob?.cancel()
+                        silenceTimeoutJob = coroutineScope.launch {
+                            delay(2000) // 2秒静默后自动发送
+                            Log.d(TAG, "Wave mode silence timeout. Sending message.")
+                            sendCurrentUtteranceAndContinue()
+                        }
+                    }
                 }
-                val separator =
-                        if (accumulatedText.isEmpty() || latestPartialText.isEmpty()) "" else "。"
+                val separator = if (accumulatedText.isEmpty() || latestPartialText.isEmpty()) "" else "。"
                 userMessage = accumulatedText + separator + latestPartialText
-                // Log.d(TAG, "During recording - userMessage: '$userMessage', accumulated:
-                // '$accumulatedText', latestPartial: '$latestPartialText'")
             } else if (isProcessingSpeech) {
-                // This branch executes after the user releases the button (isRecording becomes
-                // false)
-                // and the ASR provides a final result.
                 if (result.isFinal) {
-                    timeoutJob?.cancel()
+                    timeoutJob?.cancel() // 收到最终结果，取消备用超时
                     isProcessingSpeech = false
 
                     var finalText = accumulatedText
@@ -128,7 +243,7 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
 
                     if (finalText.isNotBlank()) {
                         userMessage = finalText
-                        Log.d(TAG, "Sending final text: '$finalText'")
+                        Log.d(TAG, "Sending final text from collector: '$finalText'")
                         floatContext.onSendMessage?.invoke(finalText, PromptFunctionType.VOICE)
                         aiMessage = "思考中..."
                     } else {
@@ -136,7 +251,6 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
                         aiMessage = "没有听清，请再试一次"
                         voiceService.speak(aiMessage, rate = speed)
                     }
-                    // Reset for next time
                     accumulatedText = ""
                     latestPartialText = ""
                 }
@@ -151,10 +265,13 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
         userMessage = ""
         accumulatedText = ""
         latestPartialText = ""
-        aiMessage = "长按麦克风开始说话"
+        aiMessage = "长按下方麦克风开始说话"
         activeMessage = null
         isInitialLoad.value = true // 确保每次进入都重置
         timeoutJob?.cancel()
+        silenceTimeoutJob?.cancel()
+        isWaveActive = false
+        showBottomControls = true
 
         // 初始化语音服务
         speechService.initialize()
@@ -175,6 +292,10 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
             Log.w(TAG, "无法获取 composeView 以请求输入法焦点")
         }
     }
+    
+    // 根据isWaveActive状态来控制语音识别的启停
+    // DELETED: This effect was causing the aggressive start when entering wave mode.
+    // The logic is now handled directly in the onToggleActive lambda.
 
     // 监听最新的AI消息
     LaunchedEffect(floatContext.messages) {
@@ -263,6 +384,7 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
     DisposableEffect(Unit) {
         onDispose {
             timeoutJob?.cancel()
+            silenceTimeoutJob?.cancel()
             // 确保释放输入法焦点
             floatContext.chatService?.getComposeView()?.let { view ->
                 inputMethodManager.hideSoftInputFromWindow(view.windowToken, 0)
@@ -276,101 +398,158 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
         }
     }
 
-    if (isUiBusy) {
+    Box(
+        modifier =
+        Modifier.fillMaxSize()
+            .background(
+                brush =
+                Brush.verticalGradient(
+                    colorStops =
+                    arrayOf(
+                        0.0f to Color.Transparent,
+                        0.6f to
+                                Color.Black.copy(
+                                    alpha = 0.7f
+                                ),
+                        1.0f to
+                                Color.Black.copy(
+                                    alpha = 0.9f
+                                )
+                    )
+                )
+            )
+    ) {
+        // Top right close button
+        IconButton(
+            onClick = { floatContext.onClose() },
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(16.dp)
+                .size(42.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "关闭悬浮窗",
+                tint = Color.White,
+                modifier = Modifier.size(28.dp)
+            )
+        }
+
+        // This is the content area, which changes based on wave mode.
+        // We'll use a shared wave visualizer that animates position for a smoother transition
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.5f))
-                .pointerInput(Unit) {}, // Consume touch events
-            contentAlignment = Alignment.Center
+                .padding(bottom = if (showBottomControls) 120.dp else 32.dp)
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                CircularProgressIndicator(color = Color.White)
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = stringResource(R.string.ui_automation_in_progress),
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold
+            // Animated positions for the wave visualizer
+            val waveSize by animateDpAsState(
+                targetValue = if (isWaveActive) 200.dp else 120.dp,
+                animationSpec = tween(500), label = "waveSize"
+            )
+            
+            val waveOffsetY by animateDpAsState(
+                targetValue = if (isWaveActive) 0.dp else (-100).dp,
+                animationSpec = tween(500), label = "waveOffsetY"
+            )
+            
+            // This Wave Visualizer stays persistent across modes for a smooth transition
+            Box(
+                modifier = Modifier
+                    .align(if (isWaveActive) Alignment.Center else Alignment.Center)
+                    .offset(y = waveOffsetY)
+            ) {
+                WaveVisualizer(
+                    modifier = Modifier.size(waveSize),
+                    isActive = isWaveActive,
+                    volumeFlow = if (isWaveActive && isRecording) speechService.volumeLevelFlow else null,
+                    waveColor = Color.White.copy(alpha = 0.7f),
+                    activeWaveColor = MaterialTheme.colorScheme.primary,
+                    onToggleActive = {
+                        if (isWaveActive) {
+                            // === User is EXITING wave mode ===
+                            stopVoiceCapture(true) // true = isCancel
+                            isWaveActive = false
+                            showBottomControls = true
+                        } else {
+                            // === User is ENTERING wave mode ===
+                            // Perform a "gentle" start that doesn't cancel the AI.
+                            coroutineScope.launch {
+                                if (hasFocus) {
+                                    isRecording = true
+                                    userMessage = ""
+                                    accumulatedText = ""
+                                    latestPartialText = ""
+                                    aiMessage = "正在聆听..."
+                                    // We do NOT call voiceService.stop() or floatContext.onCancelMessage?.invoke() here.
+                                    // Barge-in logic will handle TTS cutoff when user speaks.
+                                    speechService.startRecognition(
+                                        languageCode = "zh-CN",
+                                        continuousMode = true,
+                                        partialResults = true
+                                    )
+
+                                    // Update the state to reflect the new mode
+                                    isWaveActive = true
+                                    showBottomControls = false
+                                } else {
+                                    aiMessage = "无法开始录音，无法获取焦点"
+                                    voiceService.speak(aiMessage, rate = speed)
+                                }
+                            }
+                        }
+                    }
                 )
             }
-        }
-    } else {
-        Box(
-            modifier =
-            Modifier.fillMaxSize()
-                .background(
-                    brush =
-                    Brush.verticalGradient(
-                        colorStops =
-                        arrayOf(
-                            0.0f to Color.Transparent,
-                            0.6f to
-                                    Color.Black.copy(
-                                        alpha = 0.7f
-                                    ),
-                            1.0f to
-                                    Color.Black.copy(
-                                        alpha = 0.9f
-                                    )
-                        )
-                    )
-                )
-        ) {
-            // 居中消息区域
-            LazyColumn(
-                modifier =
-                Modifier.align(Alignment.Center)
-                    .fillMaxWidth()
-                    .padding(horizontal = 32.dp, vertical = 160.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                // 用户消息
-                if (userMessage.isNotEmpty()) {
-                    item {
-                        Text(
-                            text = userMessage,
-                            style = MaterialTheme.typography.titleLarge,
-                            color = Color.White.copy(alpha = 0.7f),
-                            textAlign = TextAlign.Center
+            
+            // AnimatedContent for messages only
+            AnimatedContent(
+                targetState = isWaveActive,
+                transitionSpec = {
+                    fadeIn(animationSpec = tween(300, 150)) togetherWith
+                    fadeOut(animationSpec = tween(300))
+                },
+                label = "MessageTransition",
+                modifier = Modifier.fillMaxSize()
+            ) { targetIsWaveActive ->
+                if (targetIsWaveActive) {
+                    // WAVE MODE LAYOUT: Text at bottom
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        MessageDisplay(
+                            userMessage,
+                            aiMessage,
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .fillMaxWidth()
+                                .padding(horizontal = 32.dp)
+                                .padding(bottom = 64.dp)
                         )
                     }
-                    item { Spacer(modifier = Modifier.height(24.dp)) }
-                }
-
-                // AI消息
-                item {
-                    Text(
-                        text = aiMessage,
-                        style = MaterialTheme.typography.headlineSmall,
-                        textAlign = TextAlign.Center,
-                        color = Color.White,
-                        modifier = Modifier.animateContentSize() // 内容变化时有动画
-                    )
+                } else {
+                    // NORMAL MODE LAYOUT: Text below wave
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        MessageDisplay(
+                            userMessage,
+                            aiMessage,
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .offset(y = 80.dp)
+                                .fillMaxWidth()
+                                .padding(horizontal = 32.dp)
+                        )
+                    }
                 }
             }
+        }
 
-            // Top right close button
-            IconButton(
-                onClick = { floatContext.onClose() },
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(16.dp)
-                    .size(42.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "关闭悬浮窗",
-                    tint = Color.White,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-
-            // 底部控制栏
+        // 底部控制栏 - 只在showBottomControls为true时显示
+        AnimatedVisibility(
+            visible = showBottomControls,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        ) {
             Box(
                 modifier =
-                Modifier.align(Alignment.BottomCenter)
-                    .fillMaxWidth()
+                Modifier.fillMaxWidth()
                     .padding(bottom = 64.dp, start = 32.dp, end = 32.dp)
             ) {
                 // 返回按钮 - 左侧 (纯图标)，切换到窗口模式
@@ -439,41 +618,18 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
                         .clickable(enabled = false, onClick = {}) // 为了让Box消费事件
                         .pointerInput(Unit) {
                             detectTapGestures(
+                                onTap = {
+                                    // 添加单击事件以激活波浪模式
+                                    isWaveActive = true
+                                    showBottomControls = false
+                                },
                                 onLongPress = {
+                                    // Reset drag state for the new gesture before starting.
+                                    dragOffset = 0f
+                                    isDraggingToCancel.value = false
+                                    
                                     coroutineScope.launch {
-                                        // 立即停止当前语音输出
-                                        voiceService.stop()
-
-                                        if (hasFocus) {
-                                            timeoutJob?.cancel()
-                                            isRecording = true
-                                            userMessage = ""
-                                            accumulatedText = ""
-                                            latestPartialText = ""
-                                            dragOffset = 0f
-                                            isDraggingToCancel.value = false
-                                            aiMessage = "正在聆听..."
-
-                                            // 取消可能正在进行的AI任务
-                                            val lastMessage = floatContext.messages.lastOrNull()
-                                            val isAiCurrentlyWorking =
-                                                lastMessage?.sender == "think" ||
-                                                        (lastMessage?.sender == "ai" && lastMessage.contentStream != null)
-
-                                            if (isAiCurrentlyWorking) {
-                                                floatContext.onCancelMessage?.invoke()
-                                            }
-
-                                            // 开始语音识别
-                                            speechService.startRecognition(
-                                                languageCode = "zh-CN",
-                                                continuousMode = true,
-                                                partialResults = true
-                                            )
-                                        } else {
-                                            aiMessage = "无法开始录音，无法获取焦点"
-                                            voiceService.speak(aiMessage, rate = speed)
-                                        }
+                                        startVoiceCapture()
                                     }
                                 },
                                 onPress = {
@@ -497,9 +653,9 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
                                                                         .x
                                                         dragOffset += horizontalDrag
 
-                                                        // 如果向右拖动超过阈值（60dp），标记为取消
+                                                        // 如果水平拖动距离的绝对值超过阈值（60dp），标记为取消
                                                         isDraggingToCancel.value =
-                                                            dragOffset > 60f
+                                                            dragOffset.absoluteValue > 60f
 
                                                         if (isRecording &&
                                                             isDraggingToCancel
@@ -520,41 +676,8 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
                                             }
                                         }
                                     } finally {
-                                        if (isRecording) {
-                                            speechService.stopRecognition()
-                                            isRecording = false
-
-                                            // 焦点在组件退出时统一释放，此处不再处理
-
-                                            if (isDraggingToCancel.value) {
-                                                // 取消操作
-                                                isProcessingSpeech = false
-                                                userMessage = ""
-                                                accumulatedText = ""
-                                                latestPartialText = ""
-                                                aiMessage = "已取消"
-                                            } else {
-                                                // 正常处理
-                                                isProcessingSpeech = true
-                                                aiMessage = "识别中..."
-
-                                                timeoutJob = coroutineScope.launch {
-                                                    delay(1000)
-                                                    if (isProcessingSpeech) {
-                                                        isProcessingSpeech = false
-                                                        val finalText = userMessage
-                                                        if (finalText.isNotBlank()) {
-                                                            floatContext.onSendMessage?.invoke(finalText, PromptFunctionType.VOICE)
-                                                            aiMessage = "思考中..."
-                                                        } else {
-                                                            aiMessage = "没有听清，请再试一次"
-                                                            voiceService.speak(aiMessage, rate = speed)
-                                                        }
-                                                        accumulatedText = ""
-                                                        latestPartialText = ""
-                                                    }
-                                                }
-                                            }
+                                        if (isRecording && !isWaveActive) { // 波浪模式下不响应抬起事件
+                                            stopVoiceCapture(isDraggingToCancel.value)
                                         }
                                     }
                                 }
@@ -596,6 +719,41 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
                         modifier = Modifier.size(24.dp)
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MessageDisplay(userMessage: String, aiMessage: String, modifier: Modifier = Modifier) {
+    LazyColumn(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Bottom
+    ) {
+        // 用户消息
+        if (userMessage.isNotEmpty()) {
+            item {
+                Text(
+                    text = userMessage,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Color.White.copy(alpha = 0.7f),
+                    textAlign = TextAlign.Center
+                )
+            }
+            item { Spacer(modifier = Modifier.height(24.dp)) }
+        }
+
+        // AI消息
+        if (aiMessage.isNotBlank()) {
+            item {
+                Text(
+                    text = aiMessage,
+                    style = MaterialTheme.typography.headlineSmall,
+                    textAlign = TextAlign.Center,
+                    color = Color.White,
+                    modifier = Modifier.animateContentSize()
+                )
             }
         }
     }
