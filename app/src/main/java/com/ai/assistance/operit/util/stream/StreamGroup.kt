@@ -1,5 +1,7 @@
 package com.ai.assistance.operit.util.stream
 
+import android.util.Log
+
 /**
  * 流处理器接口，定义了如何处理流数据
  * @param T 输入数据类型
@@ -202,6 +204,7 @@ class StreamInterceptor<T, R>(
         sourceStream.collect { value ->
             emit(onEach(value))
         }
+        Log.d("StreamInterceptor", "上游流收集完成")
     }
 
     fun setOnEach(onEach: (T) -> R) {

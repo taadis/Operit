@@ -446,6 +446,17 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     fun showChatHistorySelector(show: Boolean) {
         chatHistoryDelegate.showChatHistorySelector(show)
     }
+
+    /** 删除单条消息 */
+    fun deleteMessage(index: Int) {
+        chatHistoryDelegate.deleteMessage(index)
+    }
+
+    /** 从指定索引删除后续所有消息 */
+    fun deleteMessagesFrom(index: Int) {
+        chatHistoryDelegate.deleteMessagesFrom(index)
+    }
+
     fun saveCurrentChat() {
         val (inputTokens, outputTokens) = tokenStatsDelegate.getCurrentTokenCounts()
         chatHistoryDelegate.saveCurrentChat(inputTokens, outputTokens)

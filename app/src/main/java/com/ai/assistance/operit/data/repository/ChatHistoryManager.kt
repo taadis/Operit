@@ -287,6 +287,35 @@ class ChatHistoryManager private constructor(private val context: Context) {
         }
     }
 
+    /**
+     * 删除单条消息.
+     * @param chatId 聊天ID
+     * @param timestamp 消息时间戳
+     */
+    suspend fun deleteMessage(chatId: String, timestamp: Long) {
+        mutex.withLock {
+            try {
+                // This assumes a method in MessageDao to delete by timestamp, which is a reasonable
+                // assumption to fix the current compilation error.
+                messageDao.deleteMessageByTimestamp(chatId, timestamp)
+
+                // Update chat metadata
+                chatDao.getChatById(chatId)?.let { chat ->
+                    chatDao.updateChatMetadata(
+                            chatId = chatId,
+                            title = chat.title,
+                            timestamp = System.currentTimeMillis(),
+                            inputTokens = chat.inputTokens,
+                            outputTokens = chat.outputTokens
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to delete message with timestamp $timestamp for chat $chatId", e)
+                throw e
+            }
+        }
+    }
+
     // 更新现有消息
     suspend fun updateMessage(chatId: String, message: ChatMessage) {
         mutex.withLock {

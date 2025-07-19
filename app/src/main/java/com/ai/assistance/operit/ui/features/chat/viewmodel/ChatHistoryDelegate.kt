@@ -161,6 +161,44 @@ class ChatHistoryDelegate(
         }
     }
 
+    /** 删除单条消息 */
+    fun deleteMessage(index: Int) {
+        viewModelScope.launch {
+            historyUpdateMutex.withLock {
+                _currentChatId.value?.let { chatId ->
+                    val currentMessages = _chatHistory.value.toMutableList()
+                    if (index >= 0 && index < currentMessages.size) {
+                        val messageToDelete = currentMessages[index]
+
+                        // 从数据库删除
+                        chatHistoryManager.deleteMessage(chatId, messageToDelete.timestamp)
+
+                        // 从内存中删除
+                        currentMessages.removeAt(index)
+                        _chatHistory.value = currentMessages
+                        onChatHistoryLoaded(currentMessages)
+                    }
+                }
+            }
+        }
+    }
+
+    /** 从指定索引删除后续所有消息 */
+    fun deleteMessagesFrom(index: Int) {
+        viewModelScope.launch {
+            historyUpdateMutex.withLock {
+                val currentMessages = _chatHistory.value
+                if (index >= 0 && index < currentMessages.size) {
+                    val messageToStartDeletingFrom = currentMessages[index]
+                    val newHistory = currentMessages.subList(0, index)
+
+                    // 这个方法会处理数据库和内存的更新
+                    truncateChatHistory(newHistory, messageToStartDeletingFrom.timestamp)
+                }
+            }
+        }
+    }
+
     /** 清空当前聊天 */
     fun clearCurrentChat() {
         viewModelScope.launch {

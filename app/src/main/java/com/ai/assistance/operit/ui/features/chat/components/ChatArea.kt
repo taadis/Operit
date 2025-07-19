@@ -76,6 +76,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteSweep
 
 @Composable
 fun ChatArea(
@@ -97,6 +99,8 @@ fun ChatArea(
     modifier: Modifier = Modifier,
     onSelectMessageToEdit: ((Int, ChatMessage, String) -> Unit)? = null,
     onCopyMessage: ((ChatMessage) -> Unit)? = null,
+    onDeleteMessage: ((Int) -> Unit)? = null,
+    onDeleteMessagesFrom: ((Int) -> Unit)? = null,
     messagesPerPage: Int = 10, // 每页显示的消息数量
 ) {
     // 记住当前深度状态，但当chatHistory发生变化时重置为1
@@ -162,6 +166,8 @@ fun ChatArea(
                         thinkingTextColor = thinkingTextColor,
                         onSelectMessageToEdit = onSelectMessageToEdit,
                         onCopyMessage = onCopyMessage,
+                        onDeleteMessage = onDeleteMessage,
+                        onDeleteMessagesFrom = onDeleteMessagesFrom
                     )
                 }
 
@@ -201,6 +207,8 @@ private fun MessageItem(
     thinkingTextColor: Color,
     onSelectMessageToEdit: ((Int, ChatMessage, String) -> Unit)?,
     onCopyMessage: ((ChatMessage) -> Unit)?,
+    onDeleteMessage: ((Int) -> Unit)?,
+    onDeleteMessagesFrom: ((Int) -> Unit)?
 ) {
     val context = LocalContext.current
     var showContextMenu by remember { mutableStateOf(false) }
@@ -345,6 +353,54 @@ private fun MessageItem(
                     modifier = Modifier.height(36.dp)
                 )
             }
+
+            // 删除
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        "删除",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontSize = 13.sp
+                    )
+                },
+                onClick = {
+                    onDeleteMessage?.invoke(index)
+                    showContextMenu = false
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "删除",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp)
+                    )
+                },
+                modifier = Modifier.height(36.dp)
+            )
+
+            // 删除到此
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        "删除到此",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontSize = 13.sp
+                    )
+                },
+                onClick = {
+                    onDeleteMessagesFrom?.invoke(index)
+                    showContextMenu = false
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.DeleteSweep,
+                        contentDescription = "删除到此",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp)
+                    )
+                },
+                modifier = Modifier.height(36.dp)
+            )
         }
 
         if (showSelectableCopyDialog) {

@@ -8,6 +8,8 @@ import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.coroutineScope
 
 /** 共享Stream接口，类似于SharedFlow */
 interface SharedStream<T> : Stream<T> {
@@ -65,6 +67,7 @@ class MutableSharedStreamImpl<T>(
         onBufferOverflow: BufferOverflow = BufferOverflow.SUSPEND
 ) : MutableSharedStream<T> {
     internal val internalFlow = MutableSharedFlow<T>(replay, extraBufferCapacity, onBufferOverflow)
+    private val completion = CompletableDeferred<Throwable?>()
 
     // 热流不需要锁定机制，所以这里提供默认实现
     override val isLocked: Boolean = false
@@ -103,8 +106,22 @@ class MutableSharedStreamImpl<T>(
         internalFlow.resetReplayCache()
     }
 
+    fun close(cause: Throwable? = null) {
+        completion.complete(cause)
+    }
+
     override suspend fun collect(collector: StreamCollector<T>) {
-        internalFlow.collect { value -> collector.emit(value) }
+        coroutineScope {
+            val collectJob = launch {
+                internalFlow.collect { value -> collector.emit(value) }
+            }
+
+            val cause = completion.await()
+            collectJob.cancel()
+            if (cause != null) {
+                throw cause
+            }
+        }
     }
 }
 
@@ -201,6 +218,7 @@ fun <T> Stream<T>.share(
                             // 但由于SharedFlow本身不会"关闭"，依赖协程的结构化并发来清理是最好的方式。
                             // 此处的finally确保了协程在任何情况下（完成、取消、异常）都能结束。
                             StreamLogger.d("Stream.share", "上游流收集完成或取消，共享流协程结束。")
+                            sharedStream.close() // 关闭流以允许收集器完成
                             onComplete()
                         }
                     }
@@ -219,6 +237,7 @@ fun <T> Stream<T>.share(
                                             }
                                         } finally {
                                             StreamLogger.d("Stream.share", "上游流(LAZILY)收集完成或取消。")
+                                            sharedStream.close() // 关闭流以允许收集器完成
                                             onComplete()
                                         }
                                     }
@@ -238,6 +257,7 @@ fun <T> Stream<T>.share(
                         try {
                             this@share.collect { value -> sharedStream.emit(value) }
                         } finally {
+                            sharedStream.close() // 关闭流以允许收集器完成
                             onComplete()
                         }
                     }

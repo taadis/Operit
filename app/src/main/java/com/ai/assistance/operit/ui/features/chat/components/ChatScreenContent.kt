@@ -188,7 +188,9 @@ fun ChatScreenContent(
                             thinkingTextColor = thinkingTextColor,
                             hasBackgroundImage = hasBackgroundImage,
                             modifier = Modifier.fillMaxSize(),
-                            onSelectMessageToEdit = onSelectMessageToEditCallback
+                            onSelectMessageToEdit = onSelectMessageToEditCallback,
+                            onDeleteMessage = { index -> actualViewModel.deleteMessage(index) },
+                            onDeleteMessagesFrom = { index -> actualViewModel.deleteMessagesFrom(index) }
                     )
 
                     // 编辑模式下的操作面板
