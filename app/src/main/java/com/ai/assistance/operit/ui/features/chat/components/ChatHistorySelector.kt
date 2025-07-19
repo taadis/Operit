@@ -548,8 +548,14 @@ fun ChatHistorySelector(
                 items = flatItems,
                 key = {
                     when (it) {
-                        is HistoryListItem.Header -> it.name
-                        is HistoryListItem.Item -> it.history.id
+                        is HistoryListItem.Header -> "header_${it.name}"
+                        is HistoryListItem.Item -> "item_${it.history.id}"
+                    }
+                },
+                contentType = {
+                    when (it) {
+                        is HistoryListItem.Header -> "header"
+                        is HistoryListItem.Item -> "item"
                     }
                 }
             ) { item ->

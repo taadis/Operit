@@ -101,7 +101,7 @@ class ChatHistoryManager private constructor(private val context: Context) {
                         ChatHistory(
                                 id = chatEntity.id,
                                 title = chatEntity.title,
-                                messages = emptyList(), // 不加载消息，提高性能
+                                messages = emptyList(), // 关键改动：不加载完整消息，以提高侧边栏性能
                                 createdAt = createdAt,
                                 updatedAt = updatedAt,
                                 inputTokens = chatEntity.inputTokens,
