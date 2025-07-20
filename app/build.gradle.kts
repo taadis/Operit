@@ -2,8 +2,9 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.serialization)
-    id("kotlin-kapt")
-    id("kotlin-parcelize")
+    alias(libs.plugins.kotlin.kapt)
+    alias(libs.plugins.kotlin.parcelize)
+    id("io.objectbox")
 }
 
 android {
@@ -194,6 +195,10 @@ dependencies {
     implementation(libs.room.ktx) // Kotlin扩展和协程支持
     kapt(libs.room.compiler) // 使用kapt代替ksp
 
+    // ObjectBox
+    implementation(libs.objectbox.kotlin)
+    kapt(libs.objectbox.processor)
+
     // Archive/compression libraries
     implementation(libs.commons.compress.v2)
     implementation(libs.junrar)
@@ -278,4 +283,8 @@ dependencies {
     // Coroutine
     implementation(libs.coroutines.core)
     implementation(libs.coroutines.android)
+
+    // ObjectBox
+    implementation(libs.objectbox.kotlin)
+    kapt(libs.objectbox.processor)
 }

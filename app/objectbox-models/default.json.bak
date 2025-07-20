@@ -1,0 +1,140 @@
+{
+  "_note1": "KEEP THIS FILE! Check it into a version control system (VCS) like git.",
+  "_note2": "ObjectBox manages crucial IDs for your object model. See docs for details.",
+  "_note3": "If you have VCS merge conflicts, you must resolve them according to ObjectBox docs.",
+  "entities": [
+    {
+      "id": "1:3015017296726870297",
+      "lastPropertyId": "9:7185553541639749982",
+      "name": "KnowledgeNodeEntity",
+      "properties": [
+        {
+          "id": "1:1940647235700273513",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:2412965363825052999",
+          "name": "uuid",
+          "type": 9
+        },
+        {
+          "id": "3:3149806980936469536",
+          "name": "type",
+          "type": 9
+        },
+        {
+          "id": "4:2689796447843210346",
+          "name": "content",
+          "type": 9
+        },
+        {
+          "id": "5:7339617231687137802",
+          "name": "createdAt",
+          "type": 10
+        },
+        {
+          "id": "6:1375003699015322118",
+          "name": "updatedAt",
+          "type": 10
+        }
+      ],
+      "relations": [
+        {
+          "id": "1:2961462061983856503",
+          "name": "properties",
+          "targetId": "2:2371808178914362039"
+        },
+        {
+          "id": "3:4992380263407154808",
+          "name": "outgoingRelations",
+          "targetId": "3:7303162624392191315"
+        }
+      ]
+    },
+    {
+      "id": "2:2371808178914362039",
+      "lastPropertyId": "4:3641165640543996630",
+      "name": "KnowledgePropertyEntity",
+      "properties": [
+        {
+          "id": "1:741906909884084804",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:3414578134244268362",
+          "name": "key",
+          "type": 9
+        },
+        {
+          "id": "3:4413493036707601949",
+          "name": "value",
+          "type": 9
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "3:7303162624392191315",
+      "lastPropertyId": "8:8972713598784715909",
+      "name": "KnowledgeRelationEntity",
+      "properties": [
+        {
+          "id": "1:7363072162048251886",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:7892885264860284289",
+          "name": "type",
+          "type": 9
+        },
+        {
+          "id": "3:2469282520423252207",
+          "name": "targetId",
+          "indexId": "1:8537956615928798451",
+          "type": 11,
+          "flags": 520,
+          "relationTarget": "KnowledgeNodeEntity"
+        },
+        {
+          "id": "8:8972713598784715909",
+          "name": "sourceId",
+          "indexId": "3:2114848062254476220",
+          "type": 11,
+          "flags": 520,
+          "relationTarget": "KnowledgeNodeEntity"
+        }
+      ],
+      "relations": []
+    }
+  ],
+  "lastEntityId": "3:7303162624392191315",
+  "lastIndexId": "3:2114848062254476220",
+  "lastRelationId": "3:4992380263407154808",
+  "lastSequenceId": "0:0",
+  "modelVersion": 5,
+  "modelVersionParserMinimum": 5,
+  "retiredEntityUids": [],
+  "retiredIndexUids": [
+    940585234846813461
+  ],
+  "retiredPropertyUids": [
+    6278166147518139018,
+    5070462809919582750,
+    8857493737826062480,
+    1632721718098964895,
+    3641165640543996630,
+    5253739313434677413,
+    4083479397641731110,
+    7185553541639749982
+  ],
+  "retiredRelationUids": [
+    747146155049420289
+  ],
+  "version": 1
+}

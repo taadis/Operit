@@ -13,6 +13,7 @@ import coil.disk.DiskCache
 import coil.request.CachePolicy
 import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
 import com.ai.assistance.operit.data.db.AppDatabase
+import com.ai.assistance.operit.data.db.ObjectBox
 import com.ai.assistance.operit.data.mcp.MCPImageCache
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.data.preferences.initAndroidPermissionPreferences
@@ -62,6 +63,9 @@ class OperitApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+
+        // 初始化ObjectBox
+        ObjectBox.init(this)
 
         // 在所有其他初始化之前设置全局异常处理器
         Thread.setDefaultUncaughtExceptionHandler(GlobalExceptionHandler(this))

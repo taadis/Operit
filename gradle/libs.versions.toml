@@ -65,6 +65,7 @@ mockito = "5.2.0"
 mockito-kotlin = "5.1.0"
 reorderable = "2.5.1"
 swipe = "1.2.0"
+objectbox = "3.8.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -215,8 +216,14 @@ mockito-android = { group = "org.mockito", name = "mockito-android", version.ref
 # UI components
 reorderable = { group = "sh.calvin.reorderable", name = "reorderable", version.ref = "reorderable" }
 swipe = { group = "me.saket.swipe", name = "swipe", version.ref = "swipe" }
+# ObjectBox
+objectbox-kotlin = { group = "io.objectbox", name = "objectbox-kotlin", version.ref = "objectbox" }
+objectbox-processor = { group = "io.objectbox", name = "objectbox-processor", version.ref = "objectbox" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin-serialization" }
+objectbox = { id = "io.objectbox", version.ref = "objectbox" }
+kotlin-kapt = { id = "org.jetbrains.kotlin.kapt", version.ref = "kotlin" }
+kotlin-parcelize = { id = "org.jetbrains.kotlin.plugin.parcelize", version.ref = "kotlin" }

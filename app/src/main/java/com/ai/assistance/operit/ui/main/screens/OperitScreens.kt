@@ -13,7 +13,7 @@ import com.ai.assistance.operit.ui.features.chat.screens.AIChatScreen
 import com.ai.assistance.operit.ui.features.demo.screens.ShizukuDemoScreen
 import com.ai.assistance.operit.ui.features.help.screens.HelpScreen
 import com.ai.assistance.operit.ui.features.packages.screens.PackageManagerScreen
-import com.ai.assistance.operit.ui.features.problems.screens.ProblemLibraryScreen
+import com.ai.assistance.operit.ui.features.memory.screens.MemoryScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ChatHistorySettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.FunctionalConfigScreen
 import com.ai.assistance.operit.ui.features.settings.screens.FunctionalPromptConfigScreen
@@ -106,7 +106,7 @@ sealed class Screen(
         }
     }
 
-    data object ProblemLibrary : Screen(navItem = NavItem.ProblemLibrary) {
+    data object MemoryBase : Screen(navItem = NavItem.MemoryBase, titleRes = "记忆库") {
         @Composable
         override fun Content(
                 navController: NavController,
@@ -118,7 +118,7 @@ sealed class Screen(
                 onError: (String) -> Unit,
                 onGestureConsumed: (Boolean) -> Unit
         ) {
-            ProblemLibraryScreen()
+            MemoryScreen()
         }
     }
 
@@ -718,7 +718,7 @@ object OperitRouter {
     fun getScreenForNavItem(navItem: NavItem): Screen {
         return when (navItem) {
             NavItem.AiChat -> Screen.AiChat
-            NavItem.ProblemLibrary -> Screen.ProblemLibrary
+            NavItem.MemoryBase -> Screen.MemoryBase
             NavItem.Packages -> Screen.Packages
             NavItem.Toolbox -> Screen.Toolbox
             NavItem.ShizukuCommands -> Screen.ShizukuCommands
