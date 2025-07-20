@@ -13,6 +13,10 @@ import io.objectbox.kotlin.boxFor
 import io.objectbox.kotlin.query
 import io.objectbox.query.QueryBuilder
 import androidx.compose.ui.graphics.Color
+import io.objectbox.Box
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.util.Date
 
 /**
  * 仓库类，用于管理 Memory 实体和相关对象的数据库操作。
@@ -136,6 +140,13 @@ class MemoryRepository {
         val contentCondition = Memory_.content.contains(query, io.objectbox.query.QueryBuilder.StringOrder.CASE_INSENSITIVE)
         
         return memoryBox.query(titleCondition.or(contentCondition)).build().find()
+    }
+
+    /**
+     * Retrieves a single memory by its UUID.
+     */
+    suspend fun getMemoryByUuid(uuid: String): Memory? = withContext(Dispatchers.IO) {
+        memoryBox.query(Memory_.uuid.equal(uuid)).build().findUnique()
     }
 
     // --- Sample Data ---

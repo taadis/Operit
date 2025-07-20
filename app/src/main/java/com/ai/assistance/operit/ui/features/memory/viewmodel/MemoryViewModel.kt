@@ -20,6 +20,7 @@ data class MemoryUiState(
     val memories: List<Memory> = emptyList(), // Keep for potential list view
     val graph: Graph = Graph(emptyList(), emptyList()),
     val selectedMemory: Memory? = null,
+    val selectedNodeId: String? = null,
     val isLoading: Boolean = false,
     val searchQuery: String = "",
     val error: String? = null
@@ -96,10 +97,28 @@ class MemoryViewModel(private val repository: MemoryRepository) : ViewModel() {
     }
 
     /**
+     * Selects a node in the graph.
+     * Fetches the full memory details for the selected node.
+     */
+    fun selectNode(node: com.ai.assistance.operit.ui.features.memory.screens.graph.model.Node) {
+        viewModelScope.launch {
+            // No full-screen loading for this, to prevent UI flashing.
+            // The operation should be fast enough.
+            val memory = repository.getMemoryByUuid(node.id)
+            _uiState.update {
+                it.copy(
+                    selectedNodeId = node.id,
+                    selectedMemory = memory
+                )
+            }
+        }
+    }
+
+    /**
      * Clears the selected memory, returning to the list view.
      */
     fun clearSelectedMemory() {
-        _uiState.update { it.copy(selectedMemory = null) }
+        _uiState.update { it.copy(selectedMemory = null, selectedNodeId = null) }
     }
     
     /**

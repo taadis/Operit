@@ -1,7 +1,8 @@
 package com.ai.assistance.operit.ui.features.memory.screens
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
@@ -14,22 +15,28 @@ import androidx.compose.ui.text.*
 import androidx.compose.ui.unit.sp
 import com.ai.assistance.operit.ui.features.memory.screens.graph.model.Graph
 import com.ai.assistance.operit.ui.features.memory.screens.graph.model.Node
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlin.math.cos
 import kotlin.math.sin
-import kotlin.random.Random
 
 @OptIn(ExperimentalTextApi::class)
 @Composable
-fun GraphVisualizer(graph: Graph, modifier: Modifier = Modifier) {
+fun GraphVisualizer(
+    graph: Graph,
+    modifier: Modifier = Modifier,
+    selectedNodeId: String? = null,
+    onNodeClick: (Node) -> Unit
+) {
     val textMeasurer = rememberTextMeasurer()
     var nodePositions by remember { mutableStateOf(mapOf<String, Offset>()) }
-    var draggedNode by remember { mutableStateOf<Node?>(null) }
+    var scale by remember { mutableStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val width = constraints.maxWidth.toFloat()
         val height = constraints.maxHeight.toFloat()
 
-        // Initialize positions on first composition
         LaunchedEffect(graph, width, height) {
             if (nodePositions.isEmpty() && graph.nodes.isNotEmpty()) {
                 val newPositions = mutableMapOf<String, Offset>()
@@ -37,7 +44,6 @@ fun GraphVisualizer(graph: Graph, modifier: Modifier = Modifier) {
                 val radius = (width.coerceAtMost(height) / 2) * 0.8f
                 graph.nodes.forEachIndexed { index, node ->
                     if (!newPositions.containsKey(node.id)) {
-                        // Arrange nodes in a circle
                         val angle = 2 * Math.PI * index / graph.nodes.size
                         val x = center.x + radius * cos(angle).toFloat()
                         val y = center.y + radius * sin(angle).toFloat()
@@ -51,48 +57,60 @@ fun GraphVisualizer(graph: Graph, modifier: Modifier = Modifier) {
         Canvas(modifier = Modifier
             .fillMaxSize()
             .pointerInput(Unit) {
-                detectDragGestures(
-                    onDragStart = { startOffset ->
-                        val tappedNode = nodePositions.minByOrNull { (_, pos) ->
-                            (pos - startOffset).getDistanceSquared()
-                        }?.key
-                        
-                        draggedNode = graph.nodes.find { it.id == tappedNode }
-                    },
-                    onDragEnd = {
-                        draggedNode = null
-                    },
-                    onDrag = { change, dragAmount ->
-                        draggedNode?.let { node ->
-                            nodePositions = nodePositions.toMutableMap().apply {
-                                val currentPos = this[node.id] ?: Offset.Zero
-                                this[node.id] = currentPos + dragAmount
-                            }
+                coroutineScope {
+                    launch {
+                        detectTransformGestures { centroid, pan, zoom, _ ->
+                            val oldScale = scale
+                            val newScale = (scale * zoom).coerceIn(0.2f, 5f)
+                            // The transformation model is: view_pos = graph_pos * scale + offset
+                            offset = (offset - centroid) * (newScale / oldScale) + centroid + pan
+                            scale = newScale
                         }
-                        change.consume()
                     }
-                )
+                    launch {
+                        detectTapGestures(
+                            onTap = { tapOffset ->
+                                val clickedNode = graph.nodes.find { node ->
+                                    nodePositions[node.id]?.let { pos ->
+                                        val viewPos = pos * scale + offset
+                                        val distanceInView = (tapOffset - viewPos).getDistance()
+                                        val radiusInView = 60f * scale
+                                        distanceInView <= radiusInView
+                                    } ?: false
+                                }
+                                clickedNode?.let(onNodeClick)
+                            }
+                        )
+                    }
+                }
             }
         ) {
-            // Draw edges
+            // Edges
             graph.edges.forEach { edge ->
                 val sourcePos = nodePositions[edge.sourceId]
                 val targetPos = nodePositions[edge.targetId]
                 if (sourcePos != null && targetPos != null) {
                     drawLine(
                         color = Color.Gray,
-                        start = sourcePos,
-                        end = targetPos,
+                        start = sourcePos * scale + offset,
+                        end = targetPos * scale + offset,
                         strokeWidth = 2f
                     )
                 }
             }
 
-            // Draw nodes
+            // Nodes
             graph.nodes.forEach { node ->
                 val position = nodePositions[node.id]
                 if (position != null) {
-                    drawNode(node, position, textMeasurer)
+                    val isSelected = node.id == selectedNodeId
+                    drawNode(
+                        node = node,
+                        position = position * scale + offset, // Apply transform here
+                        radius = 60f * scale, // Apply scale to radius
+                        textMeasurer = textMeasurer,
+                        isSelected = isSelected
+                    )
                 }
             }
         }
@@ -103,12 +121,14 @@ fun GraphVisualizer(graph: Graph, modifier: Modifier = Modifier) {
 private fun DrawScope.drawNode(
     node: Node,
     position: Offset,
-    textMeasurer: TextMeasurer
+    radius: Float,
+    textMeasurer: TextMeasurer,
+    isSelected: Boolean
 ) {
-    val nodeRadius = 60f
+    val color = if (isSelected) Color.Yellow else node.color
     drawCircle(
-        color = node.color,
-        radius = nodeRadius,
+        color = color,
+        radius = radius,
         center = position
     )
     
