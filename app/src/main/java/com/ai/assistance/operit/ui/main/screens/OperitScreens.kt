@@ -245,7 +245,6 @@ sealed class Screen(
     }
 
     data object Agreement : Screen(navItem = NavItem.Agreement) {
-        @RequiresApi(Build.VERSION_CODES.P)
         @Composable
         override fun Content(
             navController: NavController,

@@ -107,7 +107,13 @@ fun AgreementScreen(onAgreementAccepted: () -> Unit) {
                                                 android.widget.TextView(context).apply {
                                                         setTextColor(textColor.toArgb())
                                                         textSize = typography.fontSize.value
-                                                        lineHeight = (typography.lineHeight.value * context.resources.displayMetrics.scaledDensity).toInt()
+                                                        val lineHeightInPixels = (typography.lineHeight.value * context.resources.displayMetrics.scaledDensity).toInt()
+                                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                                                lineHeight = lineHeightInPixels
+                                                        } else {
+                                                                // Fallback for older APIs
+                                                                setLineSpacing(lineHeightInPixels - paint.fontMetricsInt.descent + paint.fontMetricsInt.ascent.toFloat(), 1.0f)
+                                                        }
                                                 }
                                         },
                                         update = { textView ->
