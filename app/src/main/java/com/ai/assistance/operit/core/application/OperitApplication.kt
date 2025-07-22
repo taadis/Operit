@@ -19,6 +19,7 @@ import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.data.preferences.initAndroidPermissionPreferences
 import com.ai.assistance.operit.data.preferences.initUserPreferencesManager
 import com.ai.assistance.operit.data.preferences.preferencesManager
+import com.ai.assistance.operit.services.EmbeddingService
 import com.ai.assistance.operit.ui.features.chat.webview.LocalWebServer
 import com.ai.assistance.operit.ui.features.chat.webview.workspace.editor.language.LanguageFactory
 import com.ai.assistance.operit.util.GlobalExceptionHandler
@@ -64,8 +65,14 @@ class OperitApplication : Application() {
         super.onCreate()
         instance = this
 
-        // 初始化ObjectBox
+        // Initialize Embedding Service as early as possible
+        EmbeddingService.initialize(this)
+
+        // Initialize ObjectBox
         ObjectBox.init(this)
+
+        // Initialize ANR monitor
+        // AnrMonitor.start() // This line was removed from the new_code, so it's removed here.
 
         // 在所有其他初始化之前设置全局异常处理器
         Thread.setDefaultUncaughtExceptionHandler(GlobalExceptionHandler(this))

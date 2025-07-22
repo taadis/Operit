@@ -16,5 +16,6 @@ data class Node(
 data class Edge(
     val sourceId: String,
     val targetId: String,
-    val label: String? = null
+    val label: String? = null,
+    val weight: Float = 1.0f
 ) 

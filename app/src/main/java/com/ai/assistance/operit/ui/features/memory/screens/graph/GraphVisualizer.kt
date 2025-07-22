@@ -15,8 +15,12 @@ import androidx.compose.ui.text.*
 import androidx.compose.ui.unit.sp
 import com.ai.assistance.operit.ui.features.memory.screens.graph.model.Graph
 import com.ai.assistance.operit.ui.features.memory.screens.graph.model.Node
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -37,20 +41,105 @@ fun GraphVisualizer(
         val width = constraints.maxWidth.toFloat()
         val height = constraints.maxHeight.toFloat()
 
-        LaunchedEffect(graph, width, height) {
-            if (nodePositions.isEmpty() && graph.nodes.isNotEmpty()) {
-                val newPositions = mutableMapOf<String, Offset>()
+        // Force-directed layout simulation
+        LaunchedEffect(graph.nodes, width, height) {
+            if (graph.nodes.isNotEmpty()) {
+                // Initialize positions randomly across the canvas to avoid "explosion"
+                val initialPositions = mutableMapOf<String, Offset>()
                 val center = Offset(width / 2, height / 2)
-                val radius = (width.coerceAtMost(height) / 2) * 0.8f
-                graph.nodes.forEachIndexed { index, node ->
-                    if (!newPositions.containsKey(node.id)) {
-                        val angle = 2 * Math.PI * index / graph.nodes.size
-                        val x = center.x + radius * cos(angle).toFloat()
-                        val y = center.y + radius * sin(angle).toFloat()
-                        newPositions[node.id] = Offset(x, y)
+                graph.nodes.forEach { node ->
+                    initialPositions[node.id] = Offset(
+                        (Math.random() * width).toFloat(),
+                        (Math.random() * height).toFloat()
+                    )
+                }
+                withContext(Dispatchers.Main) {
+                    nodePositions = initialPositions
+                }
+
+                // Run simulation in a background coroutine
+                launch(Dispatchers.Default) {
+                    val positions = initialPositions.toMutableMap()
+                    val velocities = mutableMapOf<String, Offset>()
+                    graph.nodes.forEach { node -> velocities[node.id] = Offset.Zero }
+
+                    // Tuned parameters for a more stable and visually pleasing layout
+                    val iterations = 300
+                    val repulsionStrength = 150000f  // Stronger repulsion to prevent clumping
+                    val attractionStrength = 0.05f   // Weaker spring force
+                    val idealEdgeLength = 300f       // Longer ideal distance for edges
+                    val gravityStrength = 0.02f      // Weaker gravity to allow graph to spread out
+                    val maxSpeed = 50f
+                    val damping = 0.95f
+
+                    for (i in 0 until iterations) {
+                        val forces = mutableMapOf<String, Offset>()
+                        graph.nodes.forEach { node -> forces[node.id] = Offset.Zero }
+
+                        // Repulsive forces between all pairs of nodes
+                        for (n1 in graph.nodes) {
+                            for (n2 in graph.nodes) {
+                                if (n1.id == n2.id) continue
+                                val p1 = positions[n1.id] ?: continue
+                                val p2 = positions[n2.id] ?: continue
+                                val delta = p1 - p2
+                                val distance = delta.getDistance().coerceAtLeast(1f)
+                                val force = repulsionStrength / (distance * distance)
+                                val direction = if (distance > 0) delta / distance else Offset.Zero
+                                forces[n1.id] = forces[n1.id]!! + direction * force
+                            }
+                        }
+
+                        // Attractive forces (spring model) along edges
+                        for (edge in graph.edges) {
+                            val sourcePos = positions[edge.sourceId]
+                            val targetPos = positions[edge.targetId]
+                            if (sourcePos != null && targetPos != null) {
+                                val delta = targetPos - sourcePos
+                                val distance = delta.getDistance().coerceAtLeast(1f)
+                                // Spring force: k * (x - ideal_length)
+                                val force = attractionStrength * (distance - idealEdgeLength)
+                                val direction = if (distance > 0) delta / distance else Offset.Zero
+                                forces[edge.sourceId] = forces[edge.sourceId]!! + direction * force
+                                forces[edge.targetId] = forces[edge.targetId]!! - direction * force
+                            }
+                        }
+                        
+                        // Gravity force towards the center
+                        for (node in graph.nodes) {
+                            val p = positions[node.id] ?: continue
+                            val delta = center - p
+                            val distance = delta.getDistance().coerceAtLeast(1f)
+                            val direction = if (distance > 0) delta / distance else Offset.Zero
+                            forces[node.id] = forces[node.id]!! + direction * gravityStrength * distance
+                        }
+
+                        // Update positions based on forces
+                        for (node in graph.nodes) {
+                            val nodeForce = forces[node.id]!!
+                            var nodeVelocity = velocities[node.id]!!
+                            nodeVelocity = (nodeVelocity + nodeForce) * damping
+
+                            val speed = nodeVelocity.getDistance()
+                            if (speed > maxSpeed) {
+                                nodeVelocity = nodeVelocity * (maxSpeed / speed)
+                            }
+
+                            velocities[node.id] = nodeVelocity
+                            positions[node.id] = positions[node.id]!! + nodeVelocity
+                        }
+
+                        // Update UI
+                        withContext(Dispatchers.Main) {
+                            nodePositions = positions.toMap()
+                        }
+                        delay(16)
                     }
                 }
-                nodePositions = newPositions
+            } else {
+                 withContext(Dispatchers.Main) {
+                    nodePositions = emptyMap()
+                }
             }
         }
 
@@ -62,7 +151,6 @@ fun GraphVisualizer(
                         detectTransformGestures { centroid, pan, zoom, _ ->
                             val oldScale = scale
                             val newScale = (scale * zoom).coerceIn(0.2f, 5f)
-                            // The transformation model is: view_pos = graph_pos * scale + offset
                             offset = (offset - centroid) * (newScale / oldScale) + centroid + pan
                             scale = newScale
                         }
@@ -70,7 +158,7 @@ fun GraphVisualizer(
                     launch {
                         detectTapGestures(
                             onTap = { tapOffset ->
-                                val clickedNode = graph.nodes.find { node ->
+                                val clickedNode = graph.nodes.findLast { node -> // findLast to prioritize top node
                                     nodePositions[node.id]?.let { pos ->
                                         val viewPos = pos * scale + offset
                                         val distanceInView = (tapOffset - viewPos).getDistance()
@@ -79,8 +167,8 @@ fun GraphVisualizer(
                                     } ?: false
                                 }
                                 clickedNode?.let(onNodeClick)
-                            }
-                        )
+                    }
+                )
                     }
                 }
             }
@@ -90,12 +178,36 @@ fun GraphVisualizer(
                 val sourcePos = nodePositions[edge.sourceId]
                 val targetPos = nodePositions[edge.targetId]
                 if (sourcePos != null && targetPos != null) {
+                    val start = sourcePos * scale + offset
+                    val end = targetPos * scale + offset
+                    
                     drawLine(
                         color = Color.Gray,
-                        start = sourcePos * scale + offset,
-                        end = targetPos * scale + offset,
-                        strokeWidth = 2f
+                        start = start,
+                        end = end,
+                        strokeWidth = (edge.weight * 2f).coerceIn(1f, 8f)
                     )
+                    
+                    edge.label?.let { label ->
+                        val center = (start + end) / 2f
+                        val angle = atan2(end.y - start.y, end.x - start.x)
+                        
+                        val textLayoutResult = textMeasurer.measure(
+                            text = AnnotatedString(label),
+                            style = TextStyle(fontSize = 10.sp, color = Color.DarkGray)
+                        )
+                        
+                        // Simple collision avoidance for label, could be improved
+                        val labelOffset = if (angle > -Math.PI / 2 && angle < Math.PI / 2) -textLayoutResult.size.height.toFloat() else 0f
+                        
+                        drawText(
+                            textLayoutResult = textLayoutResult,
+                            topLeft = Offset(
+                                x = center.x - textLayoutResult.size.width / 2,
+                                y = center.y + labelOffset
+                            )
+                        )
+                    }
                 }
             }
 
@@ -106,8 +218,8 @@ fun GraphVisualizer(
                     val isSelected = node.id == selectedNodeId
                     drawNode(
                         node = node,
-                        position = position * scale + offset, // Apply transform here
-                        radius = 60f * scale, // Apply scale to radius
+                        position = position * scale + offset,
+                        radius = 60f * scale,
                         textMeasurer = textMeasurer,
                         isSelected = isSelected
                     )

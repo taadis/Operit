@@ -43,7 +43,7 @@ gson = "2.10.1"
 hjson = "3.0.0"
 jieba = "1.0.2"
 hnswlib = "0.0.46"
-tensorflow = "2.8.0"
+tensorflow = "2.10.0"
 room = "2.6.1"
 commons-compress-v2 = "1.24.0"
 junrar = "7.5.5"
@@ -66,6 +66,7 @@ mockito-kotlin = "5.1.0"
 reorderable = "2.5.1"
 swipe = "1.2.0"
 objectbox = "3.8.0"
+mediapipe = "0.10.11"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -159,6 +160,7 @@ hnswlib-utils = { group = "com.github.jelmerk", name = "hnswlib-utils", version.
 
 # Machine learning
 tensorflow-lite = { group = "org.tensorflow", name = "tensorflow-lite", version.ref = "tensorflow" }
+mediapipe-tasks-text = { group = "com.google.mediapipe", name = "tasks-text", version.ref = "mediapipe" }
 
 # Database
 room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }

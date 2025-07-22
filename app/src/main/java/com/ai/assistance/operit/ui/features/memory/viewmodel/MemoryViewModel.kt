@@ -61,23 +61,28 @@ class MemoryViewModel(private val repository: MemoryRepository) : ViewModel() {
     }
 
     /**
-     * Searches memories based on the current query.
-     * If the query is empty, it fetches all memories.
+     * Searches memories and updates the graph with the results.
+     * If the query is empty, it reloads the full graph.
      */
-    fun searchMemories(query: String = _uiState.value.searchQuery) {
+    fun searchMemories() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             try {
-                val result = repository.searchMemories(query)
+                val query = _uiState.value.searchQuery
+                val memories = if (query.isBlank()) {
+                    repository.searchMemories("") // Get all
+                } else {
+                    repository.searchMemories(query)
+                }
+                val graphData = repository.getGraphForMemories(memories)
                 _uiState.update {
                     it.copy(
-                        memories = result,
-                        isLoading = false,
-                        searchQuery = query
+                        graph = graphData,
+                        isLoading = false
                     )
                 }
             } catch (e: Exception) {
-                _uiState.update { it.copy(isLoading = false, error = "Failed to load memories: ${e.message}") }
+                _uiState.update { it.copy(isLoading = false, error = "Failed to search memories: ${e.message}") }
             }
         }
     }

@@ -23,10 +23,12 @@ android {
             useSupportLibrary = true
         }
         
-        // ndk {
-        //     // 只使用armeabi-v7a架构，因为只有这个架构有libsherpa-ncnn-jni.so库
-        //     abiFilters.add("armeabi-v7a")
-        // }
+        ndk {
+            // Explicitly specify the ABIs to support. This ensures that native libraries
+            // for both 32-bit and 64-bit ARM devices are included in the APK,
+            // resolving conflicts between dependencies with different native library sets.
+            abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a"))
+        }
     }
 
     buildTypes {
@@ -87,6 +89,9 @@ android {
             pickFirsts += "**/*.so"
         }
     }
+//    aaptOptions {
+//        noCompress += "tflite"
+//    }
 }
 
 dependencies {
@@ -189,6 +194,7 @@ dependencies {
     
     // 用于向量嵌入的TF Lite (如果需要自定义嵌入)
     implementation(libs.tensorflow.lite)
+    implementation(libs.mediapipe.tasks.text)
 
     // Room 数据库
     implementation(libs.room.runtime)

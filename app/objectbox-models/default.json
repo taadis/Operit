@@ -5,7 +5,7 @@
   "entities": [
     {
       "id": "4:436170976169106389",
-      "lastPropertyId": "11:1513942998779540591",
+      "lastPropertyId": "12:5077695122889486559",
       "name": "Memory",
       "properties": [
         {
@@ -63,6 +63,11 @@
           "id": "11:1513942998779540591",
           "name": "lastAccessedAt",
           "type": 10
+        },
+        {
+          "id": "12:5077695122889486559",
+          "name": "embedding",
+          "type": 23
         }
       ],
       "relations": [

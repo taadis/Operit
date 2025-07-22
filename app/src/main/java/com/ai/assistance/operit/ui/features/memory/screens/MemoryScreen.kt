@@ -1,28 +1,31 @@
 package com.ai.assistance.operit.ui.features.memory.screens
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ai.assistance.operit.data.model.Memory
 import com.ai.assistance.operit.data.repository.MemoryRepository
 import com.ai.assistance.operit.ui.features.memory.viewmodel.MemoryViewModel
 import com.ai.assistance.operit.ui.features.memory.viewmodel.MemoryViewModelFactory
 import com.ai.assistance.operit.ui.features.memory.viewmodel.MemoryUiState
 import java.text.SimpleDateFormat
 import java.util.*
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.unit.dp
-import com.ai.assistance.operit.data.model.Memory
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MemoryScreen() {
     val repository = remember { MemoryRepository() }
@@ -30,16 +33,30 @@ fun MemoryScreen() {
         factory = MemoryViewModelFactory(repository)
     )
     val uiState by viewModel.uiState.collectAsState()
+    val keyboardController = LocalSoftwareKeyboardController.current
 
     Scaffold(
         topBar = {
-            MemoryAppBar(
-                uiState = uiState,
-                onBack = { viewModel.clearSelectedMemory() }
-            )
+            Column {
+                MemoryAppBar(
+                    uiState = uiState,
+                    onBack = { viewModel.clearSelectedMemory() }
+                )
+                SearchBar(
+                    query = uiState.searchQuery,
+                    onQueryChange = { viewModel.onSearchQueryChange(it) },
+                    onSearch = {
+                        keyboardController?.hide()
+                        viewModel.searchMemories()
+                    },
+                    onClear = {
+                        viewModel.onSearchQueryChange("")
+                        viewModel.loadMemoryGraph()
+                    }
+                )
+            }
         },
         floatingActionButton = {
-            // This button now generates data for the graph
             FloatingActionButton(onClick = { viewModel.createSampleMemories() }) {
                 Icon(Icons.Default.Add, contentDescription = "Generate Sample Memories")
             }
@@ -59,7 +76,6 @@ fun MemoryScreen() {
                 )
             }
 
-            // Show dialog when a memory is selected
             uiState.selectedMemory?.let { memory ->
                 MemoryInfoDialog(
                     memory = memory,
@@ -68,6 +84,34 @@ fun MemoryScreen() {
             }
         }
     }
+}
+
+@Composable
+fun SearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onSearch: () -> Unit,
+    onClear: () -> Unit
+) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        label = { Text("Search Memories") },
+        leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search Icon") },
+        trailingIcon = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = onClear) {
+                    Icon(Icons.Default.Clear, contentDescription = "Clear Search")
+                }
+            }
+        },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(onSearch = { onSearch() })
+    )
 }
 
 @Composable

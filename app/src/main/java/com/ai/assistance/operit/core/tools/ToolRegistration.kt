@@ -99,7 +99,7 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
                 "查询问题库: $query"
             },
             executor = { tool ->
-                val problemLibraryTool = ToolGetter.getProblemLibraryToolExecutor(context)
+                val problemLibraryTool = ToolGetter.getMemoryQueryToolExecutor(context)
                 problemLibraryTool.invoke(tool)
             }
     )

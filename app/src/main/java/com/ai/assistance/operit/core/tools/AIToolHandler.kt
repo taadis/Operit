@@ -2,7 +2,6 @@ package com.ai.assistance.operit.core.tools
 
 import android.content.Context
 import android.util.Log
-import com.ai.assistance.operit.api.chat.library.ProblemLibraryTool
 import com.ai.assistance.operit.core.tools.packTool.PackageManager
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolInvocation
@@ -16,8 +15,6 @@ import com.ai.assistance.operit.util.stream.splitBy
 import com.ai.assistance.operit.util.stream.stream
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
 
 /**
  * Handles the extraction and execution of AI tools from responses Supports real-time streaming
@@ -43,34 +40,6 @@ class AIToolHandler private constructor(private val context: Context) {
 
     // Tool permission system
     private val toolPermissionSystem = ToolPermissionSystem.getInstance(context)
-
-    // 问题库工具实例（在工具注册时设置）
-    private var problemLibraryTool: ProblemLibraryTool? = null
-
-    /**
-     * 设置问题库工具实例
-     * @param tool 问题库工具实例
-     */
-    fun setProblemLibraryTool(tool: ProblemLibraryTool) {
-        this.problemLibraryTool = tool
-    }
-
-    /**
-     * 获取问题库工具实例
-     * @return 问题库工具实例，如果没有则返回null
-     */
-    fun getProblemLibraryTool(): ProblemLibraryTool? {
-        // 如果还没有设置过问题库工具，则自动创建一个
-        if (problemLibraryTool == null) {
-            synchronized(this) {
-                if (problemLibraryTool == null) {
-                    problemLibraryTool = ProblemLibraryTool.getInstance(context)
-                    Log.d(TAG, "自动创建并设置了ProblemLibraryTool实例")
-                }
-            }
-        }
-        return problemLibraryTool
-    }
 
     /** Get the tool permission system for UI use */
     fun getToolPermissionSystem(): ToolPermissionSystem {

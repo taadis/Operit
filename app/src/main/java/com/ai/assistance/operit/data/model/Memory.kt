@@ -1,6 +1,7 @@
 package com.ai.assistance.operit.data.model
 
 import io.objectbox.annotation.Backlink
+import io.objectbox.annotation.Convert
 import io.objectbox.annotation.Entity
 import io.objectbox.annotation.Id
 import io.objectbox.relation.ToMany
@@ -26,6 +27,10 @@ data class Memory(
     var source: String = "unknown", // 来源 (e.g., "user_input", "chat_summary", "web_scrape")
     var credibility: Float = 0.5f, // 可信度 (0.0 to 1.0)
     var importance: Float = 0.5f,  // 重要性 (0.0 to 1.0)
+
+    // 文本内容的向量嵌入
+    @Convert(converter = EmbeddingConverter::class, dbType = ByteArray::class)
+    var embedding: Embedding? = null,
 
     // --- 时间戳 (Timestamps) ---
     var createdAt: Date = Date(),
