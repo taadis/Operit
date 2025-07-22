@@ -26,6 +26,7 @@ import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import com.ai.assistance.operit.util.FileUtils
 
 /** 调试者级别的文件系统工具，继承无障碍级别，使用ADB命令实现 */
 open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTools(context) {
@@ -377,8 +378,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
             }
 
             // For standard text-based files, use shell `cat`
-            val supportedTextExtensions = listOf("csv", "txt", "json", "xml", "html", "js", "css", "md", "log", "kt", "java", "py", "sh")
-            if (fileExt in supportedTextExtensions) {
+            if (FileUtils.isTextBasedExtension(fileExt)) {
                 val result = AndroidShellExecutor.executeShellCommand("cat '$path'")
                 if (result.success) {
                     val sizeResult =
@@ -462,8 +462,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
             }
 
             // For text-based files, read only the beginning.
-             val supportedTextExtensions = listOf("csv", "txt", "json", "xml", "html", "js", "css", "md", "log", "kt", "java", "py", "sh")
-            if (fileExt !in supportedTextExtensions) {
+            if (!FileUtils.isTextBasedExtension(fileExt)) {
                  return ToolResult(
                     toolName = tool.name,
                     success = false,

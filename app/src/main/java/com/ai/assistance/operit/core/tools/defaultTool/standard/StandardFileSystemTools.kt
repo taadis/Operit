@@ -30,6 +30,7 @@ import java.util.Locale
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
+import com.ai.assistance.operit.util.FileUtils
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
@@ -450,41 +451,26 @@ open class StandardFileSystemTools(protected val context: Context) {
                                 return specialReadResult
                         }
 
-                        return when (fileExt) {
-                                "csv",
-                                "txt",
-                                "json",
-                                "xml",
-                                "html",
-                                "js",
-                                "css",
-                                "md",
-                                "log",
-                                "kt",
-                                "java",
-                                "py",
-                                "sh" -> {
-                                        val content = file.readText()
-                                        ToolResult(
-                                                toolName = tool.name,
-                                                success = true,
-                                                result =
-                                                        FileContentData(
-                                                                path = path,
-                                                                content = content,
-                                                                size = file.length()
-                                                        ),
-                                                error = ""
-                                        )
-                                }
-                                else -> {
-                                        ToolResult(
-                                                toolName = tool.name,
-                                                success = false,
-                                                result = StringResultData(""),
-                                                error = "Unsupported file format: .$fileExt"
-                                        )
-                                }
+                        if (FileUtils.isTextBasedExtension(fileExt)) {
+                                val content = file.readText()
+                                return ToolResult(
+                                        toolName = tool.name,
+                                        success = true,
+                                        result =
+                                                FileContentData(
+                                                        path = path,
+                                                        content = content,
+                                                        size = file.length()
+                                                ),
+                                        error = ""
+                                )
+                        } else {
+                                return ToolResult(
+                                        toolName = tool.name,
+                                        success = false,
+                                        result = StringResultData(""),
+                                        error = "Unsupported file format: .$fileExt"
+                                )
                         }
                 } catch (e: Exception) {
                         Log.e(TAG, "Error reading file (full)", e)
@@ -560,23 +546,7 @@ open class StandardFileSystemTools(protected val context: Context) {
                         }
 
                         // For text-based files, read only the beginning.
-                        val supportedTextExtensions =
-                                listOf(
-                                        "csv",
-                                        "txt",
-                                        "json",
-                                        "xml",
-                                        "html",
-                                        "js",
-                                        "css",
-                                        "md",
-                                        "log",
-                                        "kt",
-                                        "java",
-                                        "py",
-                                        "sh"
-                                )
-                        if (fileExt !in supportedTextExtensions) {
+                        if (!FileUtils.isTextBasedExtension(fileExt)) {
                                 return ToolResult(
                                         toolName = tool.name,
                                         success = false,
@@ -2110,7 +2080,7 @@ open class StandardFileSystemTools(protected val context: Context) {
 
                 // 2. 读取原始文件内容
                 val readResult =
-                        readFile(AITool(name = "read_file", parameters = listOf(ToolParameter("path", path))))
+                        readFile(AITool(name = "read_file_full", parameters = listOf(ToolParameter("path", path))))
 
                 if (!readResult.success) {
                         emit(

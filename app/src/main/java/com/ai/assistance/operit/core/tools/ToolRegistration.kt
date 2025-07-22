@@ -266,6 +266,17 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             }
     )
 
+    // 读取完整文件内容
+    handler.registerTool(
+            name = "read_file_full",
+            category = ToolCategory.FILE_READ,
+            descriptionGenerator = { tool ->
+                val path = tool.parameters.find { it.name == "path" }?.value ?: ""
+                "读取完整文件内容: $path"
+            },
+            executor = { tool -> kotlinx.coroutines.runBlocking { fileSystemTools.readFileFull(tool) } }
+    )
+
     // 写入文件
     handler.registerTool(
             name = "write_file",
