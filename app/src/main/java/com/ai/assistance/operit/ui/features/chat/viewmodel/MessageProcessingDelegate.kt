@@ -4,8 +4,8 @@ import android.content.Context
 import android.util.Log
 import androidx.lifecycle.viewModelScope
 import com.ai.assistance.operit.api.chat.EnhancedAIService
-import com.ai.assistance.operit.data.model.AttachmentInfo
-import com.ai.assistance.operit.data.model.ChatMessage
+import com.ai.assistance.operit.core.tools.AIToolHandler
+import com.ai.assistance.operit.data.model.*
 import com.ai.assistance.operit.data.model.InputProcessingState as EnhancedInputProcessingState
 import com.ai.assistance.operit.data.preferences.PromptFunctionType
 import com.ai.assistance.operit.util.NetworkUtils
@@ -36,7 +36,8 @@ class MessageProcessingDelegate(
         private val saveCurrentChat: () -> Unit,
         private val showErrorMessage: (String) -> Unit,
         private val updateChatTitle: (chatId: String, title: String) -> Unit,
-        private val onStreamComplete: () -> Unit
+        private val onStreamComplete: () -> Unit,
+        private val toolHandler: AIToolHandler
 ) {
     companion object {
         private const val TAG = "MessageProcessingDelegate"
@@ -92,6 +93,7 @@ class MessageProcessingDelegate(
         _isLoading.value = true
         _inputProcessingState.value = EnhancedInputProcessingState.Processing("正在处理消息...")
 
+        viewModelScope.launch(Dispatchers.IO) {
         // 检查这是否是聊天中的第一条用户消息
         val isFirstMessage = getChatHistory().none { it.sender == "user" || it.sender == "ai" }
         if (isFirstMessage && chatId != null) {
@@ -106,10 +108,42 @@ class MessageProcessingDelegate(
 
         Log.d(TAG, "开始处理用户消息：附件数量=${attachments.size}")
 
-        val finalMessage = buildFinalMessage(messageText, attachments)
+            // 1. 自动查询知识库并构建memory标签
+            var memoryTag = ""
+            if (messageText.isNotBlank() && !messageText.contains("<memory>", ignoreCase = true)) {
+                val queryTool = AITool(
+                        name = "query_problem_library",
+                        parameters = listOf(ToolParameter("query", messageText))
+                )
+                val result = toolHandler.executeTool(queryTool)
+                if (result.success && result.result.toString().isNotBlank()) {
+                    val instruction = "你不用刻意去针对memory进行回复，仅针对用户说的话回答即可"
+                    val memoryContent = result.result.toString()
+                    memoryTag = "<memory>${instruction}\n---\n${memoryContent}</memory>"
+                }
+            }
+
+            // 2. 构建附件标签
+            val attachmentTags = if (attachments.isNotEmpty()) {
+                attachments.joinToString(" ") { attachment ->
+                    "<attachment " +
+                            "id=\"${attachment.filePath}\" " +
+                            "filename=\"${attachment.fileName}\" " +
+                            "type=\"${attachment.mimeType}\" " +
+                            (if (attachment.fileSize > 0) "size=\"${attachment.fileSize}\" " else "") +
+                            (if (attachment.content.isNotEmpty()) "content=\"${attachment.content}\" " else "") +
+                            "/>"
+                }
+            } else ""
+
+            // 3. 组合最终消息
+            val finalMessage = listOf(messageText, attachmentTags, memoryTag)
+                    .filter { it.isNotBlank() }
+                    .joinToString(" ")
+
         addMessageToChat(ChatMessage(sender = "user", content = finalMessage))
 
-        viewModelScope.launch(Dispatchers.IO) {
+
             lateinit var aiMessage: ChatMessage
             try {
                 if (!NetworkUtils.isNetworkAvailable(context)) {
@@ -223,26 +257,6 @@ class MessageProcessingDelegate(
                 }
             }
         }
-    }
-
-    private fun buildFinalMessage(messageText: String, attachments: List<AttachmentInfo>): String {
-        if (attachments.isEmpty()) return messageText
-
-        val attachmentTexts =
-                attachments.joinToString(" ") { attachment ->
-                    "<attachment " +
-                            "id=\"${attachment.filePath}\" " +
-                            "filename=\"${attachment.fileName}\" " +
-                            "type=\"${attachment.mimeType}\" " +
-                            (if (attachment.fileSize > 0) "size=\"${attachment.fileSize}\" "
-                            else "") +
-                            (if (attachment.content.isNotEmpty())
-                                    "content=\"${attachment.content}\" "
-                            else "") +
-                            "/>"
-                }
-        val result = if (messageText.isBlank()) attachmentTexts else "$messageText $attachmentTexts"
-        return result
     }
 
     fun cancelCurrentMessage() {

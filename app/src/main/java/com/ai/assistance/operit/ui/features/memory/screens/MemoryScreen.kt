@@ -7,30 +7,55 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ai.assistance.operit.data.model.Memory
+import com.ai.assistance.operit.data.preferences.preferencesManager
 import com.ai.assistance.operit.data.repository.MemoryRepository
 import com.ai.assistance.operit.ui.features.memory.viewmodel.MemoryViewModel
 import com.ai.assistance.operit.ui.features.memory.viewmodel.MemoryViewModelFactory
 import com.ai.assistance.operit.ui.features.memory.viewmodel.MemoryUiState
+import kotlinx.coroutines.flow.first
 import java.text.SimpleDateFormat
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MemoryScreen() {
-    val repository = remember { MemoryRepository() }
+    val context = LocalContext.current
+    val profileList by preferencesManager.profileListFlow.collectAsState(initial = emptyList())
+    val activeProfileId by preferencesManager.activeProfileIdFlow.collectAsState(initial = "default")
+    
+    // 获取所有配置文件的名称映射(id -> name)
+    val profileNameMap = remember { mutableStateMapOf<String, String>() }
+
+    // 加载所有配置文件名称
+    LaunchedEffect(profileList) {
+        profileList.forEach { profileId ->
+            val profile = preferencesManager.getUserPreferencesFlow(profileId).first()
+            profileNameMap[profileId] = profile.name
+        }
+    }
+
+    var selectedProfileId by remember { mutableStateOf(activeProfileId) }
+    
+    LaunchedEffect(activeProfileId) {
+        selectedProfileId = activeProfileId
+    }
+
     val viewModel: MemoryViewModel = viewModel(
-        factory = MemoryViewModelFactory(repository)
+        key = selectedProfileId, // Recreate ViewModel when profile changes
+        factory = MemoryViewModelFactory(context, selectedProfileId)
     )
     val uiState by viewModel.uiState.collectAsState()
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -39,8 +64,12 @@ fun MemoryScreen() {
         topBar = {
             Column {
                 MemoryAppBar(
-                    uiState = uiState,
-                    onBack = { viewModel.clearSelectedMemory() }
+                    profileList = profileList,
+                    profileNameMap = profileNameMap,
+                    selectedProfileId = selectedProfileId,
+                    onProfileSelected = { profileId ->
+                        selectedProfileId = profileId 
+                    }
                 )
                 SearchBar(
                     query = uiState.searchQuery,
@@ -151,23 +180,42 @@ fun MemoryInfoDialog(memory: Memory, onDismiss: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MemoryAppBar(
-    uiState: MemoryUiState,
-    onBack: () -> Unit,
+    profileList: List<String>,
+    profileNameMap: Map<String, String>,
+    selectedProfileId: String,
+    onProfileSelected: (String) -> Unit
 ) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedProfileName = profileNameMap[selectedProfileId] ?: selectedProfileId
+
     TopAppBar(
         title = {
-             Text("AI Memory Graph")
+             Row(verticalAlignment = Alignment.CenterVertically) {
+                 Text("AI Memory Graph")
+                 Box {
+                     IconButton(onClick = { expanded = true }) {
+                         Icon(Icons.Default.ArrowDropDown, contentDescription = "Select Profile")
+                     }
+                     DropdownMenu(
+                         expanded = expanded,
+                         onDismissRequest = { expanded = false }
+                     ) {
+                         profileList.forEach { profileId ->
+                             val profileName = profileNameMap[profileId] ?: profileId
+                             DropdownMenuItem(
+                                 text = { Text(profileName) },
+                                 onClick = {
+                                     onProfileSelected(profileId)
+                                     expanded = false
+                                 }
+                             )
+                         }
+                     }
+                 }
+             }
         },
-        navigationIcon = {
-            // The back button is not needed here anymore as we use a dialog.
-            // If we were navigating to a separate screen, this would be appropriate.
-            /*
-            if (uiState.selectedMemory != null) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                }
-            }
-            */
+        actions = {
+            Text(text = "Profile: $selectedProfileName", modifier = Modifier.padding(end = 16.dp))
         }
     )
 } 

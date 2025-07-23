@@ -59,7 +59,6 @@ fun ChatInputSection(
         onAttachScreenContent: () -> Unit = {},
         onAttachNotifications: () -> Unit = {},
         onAttachLocation: () -> Unit = {},
-        onAttachProblemMemory: (String, String) -> Unit = { _, _ -> },
         hasBackgroundImage: Boolean = false,
         modifier: Modifier = Modifier,
         externalAttachmentPanelState: Boolean? = null,
@@ -353,7 +352,6 @@ fun ChatInputSection(
                                 onAttachScreenContent = onAttachScreenContent,
                                 onAttachNotifications = onAttachNotifications,
                                 onAttachLocation = onAttachLocation,
-                                onAttachProblemMemory = onAttachProblemMemory,
                                 userQuery = userMessage,
                                 onDismiss = { setShowAttachmentPanel(false) }
                         )

@@ -10,9 +10,11 @@ import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.data.model.ToolValidationResult
 import com.ai.assistance.operit.data.repository.MemoryRepository
 import com.ai.assistance.operit.ui.permissions.ToolCategory
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import java.text.SimpleDateFormat
 import java.util.*
+import com.ai.assistance.operit.data.preferences.preferencesManager
 
 /**
  * Executes queries against the AI's memory graph.
@@ -23,7 +25,10 @@ class MemoryQueryToolExecutor(private val context: Context) : ToolExecutor {
         private const val TAG = "MemoryQueryToolExecutor"
     }
 
-    private val memoryRepository = MemoryRepository()
+    private val memoryRepository by lazy {
+        val profileId = runBlocking { preferencesManager.activeProfileIdFlow.first() }
+        MemoryRepository(context, profileId)
+    }
 
     override fun invoke(tool: AITool): ToolResult {
         val query = tool.parameters.find { it.name == "query" }?.value ?: ""
@@ -34,10 +39,10 @@ class MemoryQueryToolExecutor(private val context: Context) : ToolExecutor {
         Log.d(TAG, "Executing memory query: $query")
 
         return try {
-            val results = runBlocking {
-                memoryRepository.searchMemories(query)
-            }
-            val formattedResult = formatResults(results.take(5)) // Take top 5 results
+            val results =
+                memoryRepository.searchMemoriesPrecise(query)
+            
+            val formattedResult = formatResults(results.take(3)) // Take top 3 results
             ToolResult(toolName = tool.name, success = true, result = StringResultData(formattedResult))
         } catch (e: Exception) {
             Log.e(TAG, "Memory query failed", e)

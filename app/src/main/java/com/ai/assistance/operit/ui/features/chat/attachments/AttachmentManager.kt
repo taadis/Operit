@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
+import android.provider.DocumentsContract
 
 /**
  * Manages attachment operations for the chat feature Handles adding, removing, and referencing
@@ -403,67 +404,6 @@ class AttachmentManager(private val context: Context, private val toolHandler: A
                 } catch (e: Exception) {
                     _toastEvent.emit("获取位置失败: ${e.message}")
                     Log.e(TAG, "Error capturing location", e)
-                }
-            }
-
-    /** 添加问题记忆附件 确保在IO线程中执行 */
-    suspend fun attachProblemMemory(content: String, filename: String) =
-            withContext(Dispatchers.IO) {
-                try {
-                    // 生成唯一ID
-                    val captureId = "problem_memory_${System.currentTimeMillis()}"
-
-                    // 创建附件信息
-                    val attachmentInfo =
-                            AttachmentInfo(
-                                    filePath = captureId,
-                                    fileName = filename,
-                                    mimeType = "text/plain",
-                                    fileSize = content.length.toLong(),
-                                    content = content
-                            )
-
-                    // 添加到附件列表
-                    val currentList = _attachments.value
-                    _attachments.value = currentList + attachmentInfo
-
-                    _toastEvent.emit("已添加问题记忆: $filename")
-                } catch (e: Exception) {
-                    _toastEvent.emit("添加问题记忆失败: ${e.message}")
-                    Log.e(TAG, "Error attaching problem memory", e)
-                }
-            }
-
-    /** 查询问题记忆库并添加结果作为附件 确保在IO线程中执行 */
-    suspend fun queryProblemMemory(query: String): Pair<String, String> =
-            withContext(Dispatchers.IO) {
-                try {
-                    // 创建查询问题库的工具
-                    val queryTool =
-                            AITool(
-                                    name = "query_problem_library",
-                                    parameters = listOf(ToolParameter("query", query))
-                            )
-
-                    // 执行工具查询问题库
-                    val result = toolHandler.executeTool(queryTool)
-
-                    if (result.success) {
-                        // 查询成功，获取结果
-                        val queryResult = result.result.toString()
-                        // 创建文件名
-                        val fileName = "问题库查询结果.txt"
-                        return@withContext Pair(queryResult, fileName)
-                    } else {
-                        // 查询失败，返回错误信息
-                        val errorMsg = "查询问题库失败: ${result.error ?: "未知错误"}"
-                        return@withContext Pair(errorMsg, "查询错误.txt")
-                    }
-                } catch (e: Exception) {
-                    // 处理异常
-                    val errorMsg = "查询问题库出错: ${e.message}"
-                    Log.e(TAG, "查询问题库出错", e)
-                    return@withContext Pair(errorMsg, "查询错误.txt")
                 }
             }
 

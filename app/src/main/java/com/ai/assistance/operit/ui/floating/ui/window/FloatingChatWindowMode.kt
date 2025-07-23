@@ -984,16 +984,6 @@ fun FloatingChatWindowMode(floatContext: FloatContext) {
                                 floatContext.showAttachmentPanel = false
                             }
                         },
-                        onAttachProblemMemory = {
-                            floatContext.coroutineScope.launch {
-                                // 问题记忆附件 - 在service层处理
-                                        floatContext.onAttachmentRequest?.invoke("problem_memory")
-                                // 允许附件面板关闭，但稍后再刷新附件列表
-                                delay(500) // 给Service一点时间处理附件
-                                // 保持附件面板关闭状态，但内容已更新
-                                floatContext.showAttachmentPanel = false
-                            }
-                        },
                         onDismiss = { floatContext.showAttachmentPanel = false }
                     )
                 }

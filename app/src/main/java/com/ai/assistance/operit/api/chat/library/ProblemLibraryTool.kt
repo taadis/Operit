@@ -52,7 +52,7 @@ class ProblemLibraryTool private constructor(private val context: Context) {
     )
 
     // 使用MemoryRepository代替直接数据库访问
-    private val memoryRepository = MemoryRepository()
+    private val memoryRepository = MemoryRepository(context, "default")
 
     // 将ProblemRecord转换为Memory
     private fun convertToMemory(record: ProblemRecord): Memory {

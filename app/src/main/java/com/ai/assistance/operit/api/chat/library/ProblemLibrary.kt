@@ -13,6 +13,7 @@ import com.ai.assistance.operit.util.ChatUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -25,7 +26,6 @@ object ProblemLibrary {
     private const val TAG = "ProblemLibrary"
     private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var apiPreferences: ApiPreferences? = null
-    private val memoryRepository = MemoryRepository()
 
     @Volatile private var isInitialized = false
 
@@ -62,6 +62,7 @@ object ProblemLibrary {
         coroutineScope.launch {
             try {
                 saveProblem(
+                    context,
                     toolHandler,
                     conversationHistory,
                     content,
@@ -83,11 +84,15 @@ object ProblemLibrary {
      * Analyzes conversation and saves it as a structured Memory graph.
      */
     private suspend fun saveProblem(
+            context: Context,
             toolHandler: AIToolHandler,
             conversationHistory: List<Pair<String, String>>,
             content: String,
             aiService: AIService
     ) {
+        val profileId = preferencesManager.activeProfileIdFlow.first()
+        val memoryRepository = MemoryRepository(context, profileId)
+
         if (conversationHistory.isEmpty()) {
             Log.w(TAG, "会话历史为空，跳过保存问题记录")
             return
@@ -100,7 +105,7 @@ object ProblemLibrary {
         }
 
         // Generate the graph analysis from the conversation
-        val analysis = generateAnalysis(aiService, query, content, conversationHistory)
+        val analysis = generateAnalysis(aiService, query, content, conversationHistory, memoryRepository)
 
         // Update user preferences (this logic remains)
         if (analysis.userPreferences.isNotEmpty()) {
@@ -207,7 +212,8 @@ object ProblemLibrary {
             aiService: AIService,
             query: String,
             solution: String,
-            conversationHistory: List<Pair<String, String>>
+            conversationHistory: List<Pair<String, String>>,
+            memoryRepository: MemoryRepository
     ): ParsedAnalysis {
         try {
             val currentPreferences = withContext(Dispatchers.IO) {

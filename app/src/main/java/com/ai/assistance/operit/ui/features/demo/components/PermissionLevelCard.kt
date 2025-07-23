@@ -745,7 +745,7 @@ private fun AccessibilityPermissionSection(
                         isAccessibilityProviderInstalled && hasAccessibilityServiceEnabled
                 val onClickAction =
                         if (!isAccessibilityProviderInstalled) {
-                            onInstallAccessibilityProviderClick
+                            {}
                         } else {
                             onAccessibilityClick
                         }
@@ -1134,7 +1134,7 @@ private fun DebuggerPermissionSection(
                 val isFullyEnabled = isAccessibilityProviderInstalled && hasAccessibilityServiceEnabled
                 val onClickAction =
                         if (!isAccessibilityProviderInstalled) {
-                            onInstallAccessibilityProviderClick
+                            {}
                         } else {
                             onAccessibilityClick
                         }

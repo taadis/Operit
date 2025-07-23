@@ -1,6 +1,7 @@
 package com.ai.assistance.operit.data.repository
 
-import com.ai.assistance.operit.data.db.ObjectBox
+import android.content.Context
+import com.ai.assistance.operit.data.db.ObjectBoxManager
 import com.ai.assistance.operit.data.model.Memory
 import com.ai.assistance.operit.data.model.MemoryLink
 import com.ai.assistance.operit.data.model.MemoryTag
@@ -23,11 +24,12 @@ import java.util.Date
  * Repository for handling Memory data operations.
  * It abstracts the data source (ObjectBox) from the rest of the application.
  */
-class MemoryRepository {
+class MemoryRepository(context: Context, profileId: String) {
 
-    private val memoryBox: Box<Memory> = ObjectBox.store.boxFor()
-    private val tagBox = ObjectBox.store.boxFor<MemoryTag>()
-    private val linkBox = ObjectBox.store.boxFor<MemoryLink>()
+    private val store = ObjectBoxManager.get(context, profileId)
+    private val memoryBox: Box<Memory> = store.boxFor()
+    private val tagBox = store.boxFor<MemoryTag>()
+    private val linkBox = store.boxFor<MemoryLink>()
 
     // --- Memory CRUD Operations ---
 
@@ -210,6 +212,36 @@ class MemoryRepository {
 
         // 5. Semantic Deduplication
         return deduplicateBySemantics(sortedMemories)
+    }
+
+    /**
+     * Searches memories using a strict semantic-only approach to find highly relevant results.
+     * @param query The search query string.
+     * @param similarityThreshold The minimum cosine similarity required for a result to be included.
+     * @return A list of matching Memory objects, sorted by relevance.
+     */
+    fun searchMemoriesPrecise(query: String, similarityThreshold: Float = 0.75f): List<Memory> {
+        if (query.isBlank()) return emptyList()
+
+        val queryEmbedding = EmbeddingService.generateEmbedding(query) ?: return emptyList()
+
+        val allMemoriesWithEmbedding = memoryBox.all.filter { it.embedding != null }
+
+        val semanticResults = allMemoriesWithEmbedding
+            .mapNotNull { memory ->
+                memory.embedding?.let { memoryEmbedding ->
+                    val similarity = EmbeddingService.cosineSimilarity(queryEmbedding, memoryEmbedding)
+                    if (similarity >= similarityThreshold) {
+                        Pair(memory, similarity)
+                    } else {
+                        null
+                    }
+                }
+            }
+            .sortedByDescending { it.second }
+            .map { it.first }
+
+        return semanticResults
     }
 
     /**

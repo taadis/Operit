@@ -246,13 +246,16 @@ data class MessageParseResult(
  * in the text Extracts trailing attachments that appear at the end of the message
  */
 private fun parseMessageContent(content: String): MessageParseResult {
+        // First, strip out any <memory> tags so they are not displayed in the UI.
+        val cleanedContent = content.replace(Regex("<memory>.*?</memory>", RegexOption.DOT_MATCHES_ALL), "").trim()
+
         val attachments = mutableListOf<AttachmentData>()
         val trailingAttachments = mutableListOf<AttachmentData>()
         val messageText = StringBuilder()
 
         // 先用简单的分割方式检测有没有附件标签
-        if (!content.contains("<attachment")) {
-                return MessageParseResult(content, emptyList())
+        if (!cleanedContent.contains("<attachment")) {
+                return MessageParseResult(cleanedContent, emptyList())
         }
 
         try {
@@ -264,14 +267,14 @@ private fun parseMessageContent(content: String): MessageParseResult {
                         )
 
                 // Get all matches
-                val matches = attachmentPattern.findAll(content).toList()
+                val matches = attachmentPattern.findAll(cleanedContent).toList()
                 if (matches.isEmpty()) {
-                        return MessageParseResult(content, emptyList())
+                        return MessageParseResult(cleanedContent, emptyList())
                 }
 
                 // Find the last non-whitespace character after the last attachment
                 val lastMatch = matches.last()
-                val contentAfterLastMatch = content.substring(lastMatch.range.last + 1).trim()
+                val contentAfterLastMatch = cleanedContent.substring(lastMatch.range.last + 1).trim()
 
                 // Process all attachments
                 var lastIndex = 0
@@ -279,7 +282,7 @@ private fun parseMessageContent(content: String): MessageParseResult {
                         // Add text before this attachment
                         val startIndex = matchResult.range.first
                         if (startIndex > lastIndex) {
-                                messageText.append(content.substring(lastIndex, startIndex))
+                                messageText.append(cleanedContent.substring(lastIndex, startIndex))
                         }
 
                         // Extract attachment data
@@ -322,15 +325,15 @@ private fun parseMessageContent(content: String): MessageParseResult {
                 }
 
                 // Add any remaining text
-                if (lastIndex < content.length) {
-                        messageText.append(content.substring(lastIndex))
+                if (lastIndex < cleanedContent.length) {
+                        messageText.append(cleanedContent.substring(lastIndex))
                 }
 
                 return MessageParseResult(messageText.toString(), trailingAttachments)
         } catch (e: Exception) {
                 // 如果解析失败，返回原始内容
                 android.util.Log.e("UserMessageComposable", "解析消息内容失败", e)
-                return MessageParseResult(content, emptyList())
+                return MessageParseResult(cleanedContent, emptyList())
         }
 }
 

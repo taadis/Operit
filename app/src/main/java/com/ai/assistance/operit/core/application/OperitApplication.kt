@@ -13,7 +13,6 @@ import coil.disk.DiskCache
 import coil.request.CachePolicy
 import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
 import com.ai.assistance.operit.data.db.AppDatabase
-import com.ai.assistance.operit.data.db.ObjectBox
 import com.ai.assistance.operit.data.mcp.MCPImageCache
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.data.preferences.initAndroidPermissionPreferences
@@ -67,9 +66,6 @@ class OperitApplication : Application() {
 
         // Initialize Embedding Service as early as possible
         EmbeddingService.initialize(this)
-
-        // Initialize ObjectBox
-        ObjectBox.init(this)
 
         // Initialize ANR monitor
         // AnrMonitor.start() // This line was removed from the new_code, so it's removed here.

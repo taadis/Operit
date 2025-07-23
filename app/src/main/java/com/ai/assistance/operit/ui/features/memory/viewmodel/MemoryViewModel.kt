@@ -6,11 +6,13 @@ import androidx.lifecycle.viewModelScope
 import com.ai.assistance.operit.data.model.Memory
 import com.ai.assistance.operit.data.repository.MemoryRepository
 import com.ai.assistance.operit.ui.features.memory.screens.graph.model.Graph
+import com.ai.assistance.operit.ui.features.memory.screens.graph.model.Node
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import android.content.Context
 
 /**
  * Memory UI State
@@ -30,7 +32,9 @@ data class MemoryUiState(
  * ViewModel for the Memory/Knowledge Base screen.
  * It handles the business logic for interacting with the MemoryRepository.
  */
-class MemoryViewModel(private val repository: MemoryRepository) : ViewModel() {
+class MemoryViewModel(
+    private val repository: MemoryRepository
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MemoryUiState())
     val uiState: StateFlow<MemoryUiState> = _uiState.asStateFlow()
@@ -162,12 +166,16 @@ class MemoryViewModel(private val repository: MemoryRepository) : ViewModel() {
 /**
  * Factory for creating MemoryViewModel instances with dependencies.
  */
-class MemoryViewModelFactory(private val repository: MemoryRepository) : ViewModelProvider.Factory {
-    @Suppress("UNCHECKED_CAST")
+class MemoryViewModelFactory(
+    private val context: Context,
+    private val profileId: String
+) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(MemoryViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            val repository = MemoryRepository(context, profileId)
             return MemoryViewModel(repository) as T
         }
-        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+        throw IllegalArgumentException("Unknown ViewModel class")
     }
 } 

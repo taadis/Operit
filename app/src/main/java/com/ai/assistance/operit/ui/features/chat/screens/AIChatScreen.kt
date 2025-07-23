@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalView
 import android.view.WindowManager
+import androidx.compose.material.icons.filled.MoreVert
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.preferences.ApiPreferences
@@ -42,6 +43,8 @@ import java.io.File
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -370,16 +373,11 @@ fun AIChatScreen(
                     // 只在不显示配置界面时显示底部输入框
                     if (!shouldShowConfig) {
                         Column {
-                            // 添加优化和计划模式开关到输入框上方
                             ChatSettingsBar(
-                                    actualViewModel = actualViewModel,
-                                    memoryOptimization =
-                                            actualViewModel.memoryOptimization.collectAsState()
-                                                    .value,
-                                    masterPermissionLevel =
-                                            actualViewModel.masterPermissionLevel.collectAsState()
-                                                    .value,
-                                    enableAiPlanning = enableAiPlanning
+                                enableAiPlanning = enableAiPlanning,
+                                onToggleAiPlanning = { actualViewModel.toggleAiPlanning() },
+                                permissionLevel = actualViewModel.masterPermissionLevel.collectAsState().value,
+                                onTogglePermission = { actualViewModel.toggleMasterPermission() }
                             )
 
                             // 原有输入框区域
@@ -420,10 +418,6 @@ fun AIChatScreen(
                                     onAttachLocation = {
                                         // 添加当前位置附件
                                         actualViewModel.captureLocation()
-                                    },
-                                    onAttachProblemMemory = { content, filename ->
-                                        // 添加问题记忆附件
-                                        actualViewModel.attachProblemMemory(content, filename)
                                     },
                                     hasBackgroundImage = hasBackgroundImage,
                                     // 传递附件面板状态

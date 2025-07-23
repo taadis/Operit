@@ -278,7 +278,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                         },
                         onStreamComplete = {
                             // 流完成后不再需要特殊处理，UI会自动更新
-                        }
+                        },
+                        toolHandler = toolHandler
                 )
 
         // Finally initialize floating window delegate
@@ -416,7 +417,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     }
     fun toggleAiPlanning() {
         apiConfigDelegate.toggleAiPlanning()
-        uiStateDelegate.showToast(if (enableAiPlanning.value) "AI计划模式已关闭" else "AI计划模式已开启")
+        // 移除Toast提示
     }
     // 聊天历史相关方法
     fun createNewChat() {
@@ -715,13 +716,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                     }
             toolPermissionSystem.saveMasterSwitch(newLevel)
 
-            uiStateDelegate.showToast(
-                    if (newLevel == PermissionLevel.ALLOW) {
-                        "已开启自动批准，工具执行将不再询问"
-                    } else {
-                        "已恢复询问模式，工具执行将询问批准"
-                    }
-            )
+            // 移除Toast提示
         }
     }
 
@@ -745,19 +740,6 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                     request == "location_capture" -> {
                         // 捕获位置
                         captureLocation()
-                    }
-                    request == "problem_memory" -> {
-                        // 查询问题记忆 - 使用当前消息作为查询
-                        val userQuery = userMessage.value
-                        if (userQuery.isNotBlank()) {
-                            messageProcessingDelegate.setInputProcessingState(true, "正在搜索问题记忆...")
-                            val result = attachmentManager.queryProblemMemory(userQuery)
-                            attachProblemMemory(result.first, result.second)
-                        } else {
-                            // 修改：轻微错误使用 Toast，保持原样
-                            uiStateDelegate.showToast("请先输入搜索问题的内容")
-                            messageProcessingDelegate.setInputProcessingState(false, "")
-                        }
                     }
                     else -> {
                         // 处理普通文件附件
@@ -892,40 +874,6 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 messageProcessingDelegate.setInputProcessingState(false, "")
             }
         }
-    }
-
-    /** 添加问题记忆附件 */
-    fun attachProblemMemory(content: String, filename: String) {
-        viewModelScope.launch {
-            try {
-                messageProcessingDelegate.updateUserMessage("")
-                // 显示问题记忆添加进度
-                messageProcessingDelegate.setInputProcessingState(true, "正在添加问题记忆...")
-                uiStateDelegate.showToast("正在添加问题记忆...")
-
-                // 将实际处理委托给AttachmentManager
-                attachmentManager.attachProblemMemory(content, filename)
-
-                // 完成后立即更新悬浮窗中的附件列表
-                updateFloatingWindowAttachments()
-
-                // 清除进度显示
-                messageProcessingDelegate.setInputProcessingState(false, "")
-            } catch (e: Exception) {
-                Log.e(TAG, "添加问题记忆失败", e)
-                // 修改: 使用错误弹窗而不是 Toast 显示问题记忆添加错误
-                uiStateDelegate.showErrorMessage("添加问题记忆失败: ${e.message}")
-                // 发生错误时也需要清除进度显示
-                messageProcessingDelegate.setInputProcessingState(false, "")
-            }
-        }
-    }
-
-    /** 搜索问题记忆 */
-    fun searchProblemMemory() {
-        // 此方法已被 attachProblemMemory 替代
-        // 保留此方法以确保向后兼容性
-        uiStateDelegate.showToast("请使用新的问题记忆功能")
     }
 
     /** 确保AI服务可用，如果当前实例为空则创建一个默认实例 */

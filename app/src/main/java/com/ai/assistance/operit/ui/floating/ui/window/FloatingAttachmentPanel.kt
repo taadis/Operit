@@ -51,7 +51,6 @@ fun FloatingAttachmentPanel(
     onAttachScreenContent: () -> Unit,
     onAttachNotifications: () -> Unit,
     onAttachLocation: () -> Unit,
-    onAttachProblemMemory: () -> Unit,
     onDismiss: () -> Unit
 ) {
     // 定义附件选项列表，便于使用LazyRow
@@ -71,11 +70,6 @@ fun FloatingAttachmentPanel(
                 icon = Icons.Default.LocationOn,
                 label = "当前位置",
                 onClick = onAttachLocation
-            ),
-            AttachmentOptionData(
-                icon = Icons.Default.Memory,
-                label = "问题记忆",
-                onClick = onAttachProblemMemory
             )
         )
     }
