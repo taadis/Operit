@@ -21,6 +21,7 @@ import com.ai.assistance.operit.ui.features.settings.screens.LanguageSettingsScr
 import com.ai.assistance.operit.ui.features.settings.screens.ModelConfigScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ModelPromptsSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.SettingsScreen
+import com.ai.assistance.operit.ui.features.settings.screens.SpeechServicesSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ThemeSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ToolPermissionSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.UserPreferencesGuideScreen
@@ -207,7 +208,8 @@ sealed class Screen(
                     navigateToFunctionalPrompts = { navigateTo(FunctionalPromptConfig) },
                     navigateToFunctionalConfig = { navigateTo(FunctionalConfig) },
                     navigateToChatHistorySettings = { navigateTo(ChatHistorySettings) },
-                    navigateToLanguageSettings = { navigateTo(LanguageSettings) }
+                    navigateToLanguageSettings = { navigateTo(LanguageSettings) },
+                    navigateToSpeechServicesSettings = { navigateTo(SpeechServicesSettings) }
             )
         }
     }
@@ -379,9 +381,9 @@ sealed class Screen(
             ModelConfigScreen(onBackPressed = onGoBack)
         }
     }
-
-    data object ModelPromptsSettings :
-            Screen(parentScreen = Settings, navItem = NavItem.Settings, titleRes = "模型提示词设置") {
+    // 添加SpeechServicesSettings屏幕定义
+    data object SpeechServicesSettings :
+            Screen(parentScreen = Settings, navItem = NavItem.Settings, titleRes = "语音服务设置") {
         @Composable
         override fun Content(
                 navController: NavController,
@@ -393,14 +395,58 @@ sealed class Screen(
                 onError: (String) -> Unit,
                 onGestureConsumed: (Boolean) -> Unit
         ) {
-            ModelPromptsSettingsScreen(
+            SpeechServicesSettingsScreen(onBackPressed = onGoBack)
+        }
+    }
+    
+    // 添加FunctionalPromptConfig屏幕定义 - 放在FunctionalConfig之后
+    data object FunctionalPromptConfig :
+            Screen(parentScreen = Settings, navItem = NavItem.Settings, titleRes = "功能提示词配置") {
+        @Composable
+        override fun Content(
+                navController: NavController,
+                navigateTo: ScreenNavigationHandler,
+                updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
+                hasBackgroundImage: Boolean,
+                onLoading: (Boolean) -> Unit,
+                onError: (String) -> Unit,
+                onGestureConsumed: (Boolean) -> Unit
+        ) {
+            // 检查是否是从助手配置界面导航过来的
+            val fromAssistant =
+                    navController.previousBackStackEntry?.destination?.route?.contains(
+                            "AssistantConfig"
+                    ) == true
+    
+            com.ai.assistance.operit.ui.features.settings.screens.FunctionalPromptConfigScreen(
                     onBackPressed = onGoBack,
-                    onNavigateToFunctionalPrompts = { navigateTo(FunctionalPromptConfig) }
+                    onNavigateToModelPrompts = { navigateTo(ModelPromptsSettings) }
             )
         }
     }
 
-    data object FunctionalConfig :
+    data object ModelPromptsSettings :
+            Screen(parentScreen = Settings, navItem = NavItem.Settings, titleRes = "模型提示词设置") {
+                @Composable
+                override fun Content(
+                    navController: NavController,
+                    navigateTo: ScreenNavigationHandler,
+                    updateNavItem: NavItemChangeHandler,
+                    onGoBack: () -> Unit,
+                    hasBackgroundImage: Boolean,
+                    onLoading: (Boolean) -> Unit,
+                    onError: (String) -> Unit,
+                    onGestureConsumed: (Boolean) -> Unit
+                    ) {
+                        ModelPromptsSettingsScreen(
+                            onBackPressed = onGoBack,
+                            onNavigateToFunctionalPrompts = { navigateTo(FunctionalPromptConfig) }
+                            )
+                        }
+                    }
+                    
+                    data object FunctionalConfig :
             Screen(parentScreen = Settings, navItem = NavItem.Settings, titleRes = "功能模型配置") {
         @Composable
         override fun Content(
@@ -739,29 +785,3 @@ object GestureStateHolder {
     var isChatScreenGestureConsumed: Boolean = false
 }
 
-// 添加FunctionalPromptConfig屏幕定义 - 放在FunctionalConfig之后
-data object FunctionalPromptConfig :
-        Screen(parentScreen = Settings, navItem = NavItem.Settings, titleRes = "功能提示词配置") {
-    @Composable
-    override fun Content(
-            navController: NavController,
-            navigateTo: ScreenNavigationHandler,
-            updateNavItem: NavItemChangeHandler,
-            onGoBack: () -> Unit,
-            hasBackgroundImage: Boolean,
-            onLoading: (Boolean) -> Unit,
-            onError: (String) -> Unit,
-            onGestureConsumed: (Boolean) -> Unit
-    ) {
-        // 检查是否是从助手配置界面导航过来的
-        val fromAssistant =
-                navController.previousBackStackEntry?.destination?.route?.contains(
-                        "AssistantConfig"
-                ) == true
-
-        FunctionalPromptConfigScreen(
-                onBackPressed = onGoBack,
-                onNavigateToModelPrompts = { navigateTo(ModelPromptsSettings) }
-        )
-    }
-}

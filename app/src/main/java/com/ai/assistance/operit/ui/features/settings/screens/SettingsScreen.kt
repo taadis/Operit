@@ -32,7 +32,8 @@ fun SettingsScreen(
         navigateToFunctionalPrompts: () -> Unit,
         navigateToFunctionalConfig: () -> Unit,
         navigateToChatHistorySettings: () -> Unit,
-        navigateToLanguageSettings: () -> Unit
+        navigateToLanguageSettings: () -> Unit,
+        navigateToSpeechServicesSettings: () -> Unit
 ) {
         val context = LocalContext.current
         val apiPreferences = remember { ApiPreferences(context) }
@@ -137,6 +138,15 @@ fun SettingsScreen(
                 SettingsSectionTitle(
                         title = stringResource(id = R.string.settings_section_ai_model),
                         icon = Icons.Default.Settings
+                )
+
+                // 语音服务配置
+                SettingsCard(
+                    title = "语音服务配置",
+                    description = "配置文本转语音(TTS)和语音转文本(STT)的服务类型和API参数。",
+                    onClick = navigateToSpeechServicesSettings,
+                    buttonText = "配置语音服务",
+                    icon = Icons.Default.RecordVoiceOver
                 )
 
                 // 模型与参数配置卡片

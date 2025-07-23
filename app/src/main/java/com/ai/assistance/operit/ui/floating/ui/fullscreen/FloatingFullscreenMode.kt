@@ -95,8 +95,7 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
     // 创建语音识别和TTS服务
     val speechService = remember {
         SpeechServiceFactory.getInstance(
-                context,
-                SpeechServiceFactory.SpeechServiceType.SHERPA_NCNN
+                context
         )
     }
     

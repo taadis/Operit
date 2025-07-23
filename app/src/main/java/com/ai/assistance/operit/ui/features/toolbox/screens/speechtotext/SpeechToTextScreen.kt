@@ -119,7 +119,7 @@ fun SpeechToTextScreen(navController: NavController) {
 
     // speechService 实例仅在 recognitionMode 改变时重新创建
     val speechService = remember(recognitionMode) {
-        SpeechServiceFactory.createSpeechService(context, recognitionMode)
+        SpeechServiceFactory.createSpeechService(context)
     }
 
     // 保证在服务实例被替换或屏幕离开时，旧的服务实例被正确关闭
