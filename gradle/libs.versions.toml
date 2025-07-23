@@ -67,8 +67,9 @@ reorderable = "2.5.1"
 swipe = "1.2.0"
 objectbox = "3.8.0"
 mediapipe = "0.10.11"
+ uiTextAndroid = "1.6.2"
 
-[libraries]
+ [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
@@ -221,8 +222,9 @@ swipe = { group = "me.saket.swipe", name = "swipe", version.ref = "swipe" }
 # ObjectBox
 objectbox-kotlin = { group = "io.objectbox", name = "objectbox-kotlin", version.ref = "objectbox" }
 objectbox-processor = { group = "io.objectbox", name = "objectbox-processor", version.ref = "objectbox" }
+ androidx-ui-text-android = { group = "androidx.compose.ui", name = "ui-text-android", version.ref = "uiTextAndroid" }
 
-[plugins]
+ [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin-serialization" }

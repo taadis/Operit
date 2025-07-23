@@ -267,27 +267,6 @@ fun SettingsScreen(
                                         }
                                 )
 
-                                // 模型显示开关
-                                val showModelSelector =
-                                        apiPreferences.showModelSelectorFlow.collectAsState(
-                                                        initial =
-                                                                ApiPreferences
-                                                                        .DEFAULT_SHOW_MODEL_SELECTOR
-                                                )
-                                                .value
-                                SettingsToggle(
-                                        title = stringResource(R.string.model_selector_toggle),
-                                        description =
-                                                stringResource(R.string.model_selector_toggle_desc),
-                                        checked = showModelSelector,
-                                        onCheckedChange = {
-                                                scope.launch {
-                                                        apiPreferences.saveShowModelSelector(it)
-                                                        showSaveSuccessMessage = true
-                                                }
-                                        }
-                                )
-
                                 // 帧率显示开关
                                 SettingsToggle(
                                         title = stringResource(id = R.string.show_fps_counter),

@@ -21,7 +21,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /** OpenAI API格式的实现，支持标准OpenAI接口和兼容此格式的其他提供商 */
-class OpenAIProvider(
+open class OpenAIProvider(
         private val apiEndpoint: String,
         private val apiKey: String,
         private val modelName: String
@@ -33,7 +33,7 @@ class OpenAIProvider(
                     .writeTimeout(1000, TimeUnit.SECONDS)
                     .build()
 
-    private val JSON = "application/json; charset=utf-8".toMediaType()
+    protected val JSON = "application/json; charset=utf-8".toMediaType()
 
     // 当前活跃的Call对象，用于取消流式传输
     private var activeCall: Call? = null
@@ -64,7 +64,7 @@ class OpenAIProvider(
     }
 
     // 工具函数：分块打印大型文本日志
-    private fun logLargeString(tag: String, message: String, prefix: String = "") {
+    protected fun logLargeString(tag: String, message: String, prefix: String = "") {
         // 设置单次日志输出的最大长度（Android日志上限约为4000字符）
         val maxLogSize = 3000
 
@@ -136,11 +136,24 @@ class OpenAIProvider(
     }
 
     // 创建请求体
-    private fun createRequestBody(
+    protected open fun createRequestBody(
             message: String,
             chatHistory: List<Pair<String, String>>,
-            modelParameters: List<ModelParameter<*>> = emptyList()
+            modelParameters: List<ModelParameter<*>> = emptyList(),
+            enableThinking: Boolean = false
     ): RequestBody {
+        val jsonString = createRequestBodyInternal(message, chatHistory, modelParameters)
+        return jsonString.toRequestBody(JSON)
+    }
+
+    /**
+     * 内部方法，用于构建请求体的JSON字符串，以便子类可以重用和扩展。
+     */
+    protected fun createRequestBodyInternal(
+        message: String,
+        chatHistory: List<Pair<String, String>>,
+        modelParameters: List<ModelParameter<*>> = emptyList()
+    ): String {
         val jsonObject = JSONObject()
         jsonObject.put("model", modelName)
         jsonObject.put("stream", true) // 启用流式响应
@@ -229,7 +242,7 @@ class OpenAIProvider(
 
         // 使用分块日志函数记录完整的请求体
         logLargeString("AIService", jsonObject.toString(4), "请求体: ")
-        return jsonObject.toString().toRequestBody(JSON)
+        return jsonObject.toString()
     }
 
     // 创建请求
@@ -245,7 +258,8 @@ class OpenAIProvider(
     override suspend fun sendMessage(
             message: String,
             chatHistory: List<Pair<String, String>>,
-            modelParameters: List<ModelParameter<*>>
+            modelParameters: List<ModelParameter<*>>,
+            enableThinking: Boolean
     ): Stream<String> = stream {
         // 重置token计数
         _inputTokenCount = 0
@@ -268,7 +282,7 @@ class OpenAIProvider(
                 "AIService",
                 "【发送消息】准备构建请求体，模型参数数量: ${modelParameters.size}，已启用参数: ${modelParameters.count { it.isEnabled }}"
         )
-        val requestBody = createRequestBody(message, standardizedHistory, modelParameters)
+        val requestBody = createRequestBody(message, standardizedHistory, modelParameters, enableThinking)
         val request = createRequest(requestBody)
         Log.d("AIService", "【发送消息】请求体构建完成，目标模型: $modelName，API端点: $apiEndpoint")
 

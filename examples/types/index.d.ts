@@ -12,7 +12,8 @@ import {
     _AppOperationData, _AppListData, _DeviceInfoResultData, _UIPageResultData,
     _UIActionResultData, _SimplifiedUINode, _FileOperationData, _DirectoryListingData,
     _FileContentData, _FileExistsData, _FindFilesResultData, _FileInfoData,
-    _HttpResponseData, _VisitWebResultData, _CombinedOperationResultData
+    _HttpResponseData, _VisitWebResultData, _CombinedOperationResultData,
+    _FilePartContentData, _FileApplyResultData, _UiAutomationTaskResultData
 } from './results';
 import { Intent as AndroidIntent, IntentFlag as AndroidIntentFlag, IntentAction as AndroidIntentAction, IntentCategory as AndroidIntentCategory } from './android';
 import { UINode as UINodeClass, UI as UINamespace } from './ui';
@@ -32,11 +33,13 @@ import { Net as NetType } from './network';
 import { System as SystemType } from './system';
 import { UI as UIType } from './ui';
 import { FFmpeg as FFmpegType } from './ffmpeg';
+import { Query as QueryType } from './query';
 
 export { Net } from './network';
 export { System } from './system';
 export { UI, UINode } from './ui';
 export { FFmpegVideoCodec, FFmpegAudioCodec, FFmpegResolution, FFmpegBitrate } from './ffmpeg';
+export { Query } from './query';
 
 // Export Android utilities
 export {
@@ -93,6 +96,9 @@ declare global {
     type HttpResponseData = _HttpResponseData;
     type VisitWebResultData = _VisitWebResultData;
     type CombinedOperationResultData = _CombinedOperationResultData;
+    type FilePartContentData = _FilePartContentData;
+    type FileApplyResultData = _FileApplyResultData;
+    type UiAutomationTaskResultData = _UiAutomationTaskResultData;
 
     // Global interface definitions
     interface ToolParams {
@@ -142,6 +148,7 @@ declare global {
         System: typeof SystemType;
         UI: typeof UIType;
         FFmpeg: typeof FFmpegType;
+        Query: typeof QueryType;
         calc: (expression: string) => Promise<CalculationResultData>;
     };
 

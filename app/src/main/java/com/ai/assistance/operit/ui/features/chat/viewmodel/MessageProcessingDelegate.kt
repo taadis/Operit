@@ -83,7 +83,9 @@ class MessageProcessingDelegate(
             attachments: List<AttachmentInfo> = emptyList(),
             chatId: String? = null,
             workspacePath: String? = null,
-            promptFunctionType: PromptFunctionType = PromptFunctionType.CHAT
+            promptFunctionType: PromptFunctionType = PromptFunctionType.CHAT,
+            enableThinking: Boolean = false,
+            thinkingGuidance: Boolean = false
     ) {
         if (_userMessage.value.isBlank() && attachments.isEmpty()) return
         if (_isLoading.value) return
@@ -112,7 +114,7 @@ class MessageProcessingDelegate(
             var memoryTag = ""
             if (messageText.isNotBlank() && !messageText.contains("<memory>", ignoreCase = true)) {
                 val queryTool = AITool(
-                        name = "query_problem_library",
+                        name = "query_knowledge_library",
                         parameters = listOf(ToolParameter("query", messageText))
                 )
                 val result = toolHandler.executeTool(queryTool)
@@ -172,7 +174,9 @@ class MessageProcessingDelegate(
                                 finalMessage,
                                 history,
                                 workspacePath,
-                                promptFunctionType = promptFunctionType
+                                promptFunctionType = promptFunctionType,
+                                enableThinking = enableThinking, // 将参数传递给服务层
+                                thinkingGuidance = thinkingGuidance // 将参数传递给服务层
                         )
 
                 // 将字符串流共享，以便多个收集器可以使用

@@ -93,19 +93,31 @@ object ProblemLibrary {
         val profileId = preferencesManager.activeProfileIdFlow.first()
         val memoryRepository = MemoryRepository(context, profileId)
 
-        if (conversationHistory.isEmpty()) {
-            Log.w(TAG, "会话历史为空，跳过保存问题记录")
+        // Process conversation history: remove system messages and clean user messages
+        val processedHistory = conversationHistory
+            .filter { it.first != "system" }
+            .map { (role, msgContent) ->
+                if (role == "user") {
+                    // Remove <memory> tags from user messages, similar to UserMessageComposable
+                    role to msgContent.replace(Regex("<memory>.*?</memory>", RegexOption.DOT_MATCHES_ALL), "").trim()
+                } else {
+                    role to msgContent
+                }
+            }
+
+        if (processedHistory.isEmpty()) {
+            Log.w(TAG, "处理后的会话历史为空，跳过保存问题记录")
             return
         }
 
-        val query = conversationHistory.lastOrNull { it.first == "user" }?.second ?: ""
+        val query = processedHistory.lastOrNull { it.first == "user" }?.second ?: ""
         if (query.isEmpty()) {
             Log.w(TAG, "未找到用户查询消息，跳过保存")
             return
         }
 
         // Generate the graph analysis from the conversation
-        val analysis = generateAnalysis(aiService, query, content, conversationHistory, memoryRepository)
+        val analysis = generateAnalysis(aiService, query, content, processedHistory, memoryRepository)
 
         // Update user preferences (this logic remains)
         if (analysis.userPreferences.isNotEmpty()) {

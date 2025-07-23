@@ -37,7 +37,8 @@ interface AIService {
     suspend fun sendMessage(
             message: String,
             chatHistory: List<Pair<String, String>> = emptyList(),
-            modelParameters: List<ModelParameter<*>> = emptyList()
+            modelParameters: List<ModelParameter<*>> = emptyList(),
+            enableThinking: Boolean = false
     ): Stream<String>
 
     /**

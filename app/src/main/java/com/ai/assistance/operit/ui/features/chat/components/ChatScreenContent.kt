@@ -42,6 +42,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.ui.tooling.preview.Preview
 
 @Composable
 fun ChatScreenContent(
@@ -416,7 +417,7 @@ fun ChatScreenContent(
 fun ScrollToBottomButton(onClick: () -> Unit) {
     SmallFloatingActionButton(
             onClick = onClick,
-            modifier = Modifier.padding(end = 16.dp),
+            modifier = Modifier.padding(end = 34.dp,bottom = 10.dp),
             containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.85f),
             contentColor = MaterialTheme.colorScheme.onSecondary
     ) {

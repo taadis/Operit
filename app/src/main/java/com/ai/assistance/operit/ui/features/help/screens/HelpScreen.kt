@@ -135,7 +135,7 @@ fun HelpScreen(onBackPressed: () -> Unit = {}) {
                                         "sleep: 短暂暂停执行",
                                         "device_info: 获取设备详细信息",
                                         "use_package: 激活扩展包",
-                                        "query_problem_library: 查询问题库"
+                                        "query_knowledge_library: 查询问题库"
                                 )
                 )
 

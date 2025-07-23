@@ -538,7 +538,7 @@ When you ask the AI to write software, the performance of the software depends o
 | `sleep` | Pauses execution for a short period. |
 | `device_info` | Gets detailed device information including model, OS version, memory, storage, network status, and more. |
 | `use_package` | Activates an extension package. |
-| `query_problem_library` | Queries the problem library for similar past solutions, user style preferences, and user information. |
+| `query_knowledge_library` | Queries the problem library for similar past solutions, user style preferences, and user information. |
 
 File System Tools:
 

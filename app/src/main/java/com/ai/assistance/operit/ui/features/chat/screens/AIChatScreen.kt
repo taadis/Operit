@@ -110,6 +110,8 @@ fun AIChatScreen(
     val inputProcessingState by actualViewModel.inputProcessingState.collectAsState()
     val planItems by actualViewModel.planItems.collectAsState()
     val enableAiPlanning by actualViewModel.enableAiPlanning.collectAsState()
+    val enableThinkingMode by actualViewModel.enableThinkingMode.collectAsState() // 收集思考模式状态
+    val enableThinkingGuidance by actualViewModel.enableThinkingGuidance.collectAsState() // 收集思考引导状态
     val showChatHistorySelector by actualViewModel.showChatHistorySelector.collectAsState()
     val chatHistories by actualViewModel.chatHistories.collectAsState()
     val currentChatId by actualViewModel.currentChatId.collectAsState()
@@ -372,15 +374,7 @@ fun AIChatScreen(
                 bottomBar = {
                     // 只在不显示配置界面时显示底部输入框
                     if (!shouldShowConfig) {
-                        Column {
-                            ChatSettingsBar(
-                                enableAiPlanning = enableAiPlanning,
-                                onToggleAiPlanning = { actualViewModel.toggleAiPlanning() },
-                                permissionLevel = actualViewModel.masterPermissionLevel.collectAsState().value,
-                                onTogglePermission = { actualViewModel.toggleMasterPermission() }
-                            )
-
-                            // 原有输入框区域
+                        // ChatInputSection is back in the bottomBar to reserve space
                             ChatInputSection(
                                     actualViewModel = actualViewModel,
                                     userMessage = userMessage,
@@ -426,7 +420,6 @@ fun AIChatScreen(
                                         actualViewModel.updateAttachmentPanelState(newState)
                                     }
                             )
-                        }
                     }
                 },
                 floatingActionButton = {
@@ -470,9 +463,14 @@ fun AIChatScreen(
                         onNavigateToSettings = onNavigateToSettings
                 )
             } else {
-                // 使用提取出来的聊天内容组件
+                // The main content area is now a Box to allow overlaying.
+                // It respects the padding from the Scaffold's bottomBar.
+                Box(modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)) {
+                    // ChatScreenContent now fills this Box, and has the overlay on top of it.
                 ChatScreenContent(
-                        paddingValues = paddingValues,
+                            paddingValues = PaddingValues(), // Padding is already handled by the parent Box
                         actualViewModel = actualViewModel,
                         showChatHistorySelector = showChatHistorySelector,
                         chatHistory = chatHistory,
@@ -506,6 +504,21 @@ fun AIChatScreen(
                         chatHistories = chatHistories,
                         currentChatId = currentChatId ?: ""
                 )
+
+                    // The settings bar is aligned to the bottom-end of the parent Box,
+                    // effectively overlaying the chat content just above the input section.
+                    ChatSettingsBar(
+                        modifier = Modifier.align(Alignment.BottomEnd),
+                        enableAiPlanning = enableAiPlanning,
+                        onToggleAiPlanning = { actualViewModel.toggleAiPlanning() },
+                        permissionLevel = actualViewModel.masterPermissionLevel.collectAsState().value,
+                        onTogglePermission = { actualViewModel.toggleMasterPermission() },
+                        enableThinkingMode = enableThinkingMode,
+                        onToggleThinkingMode = { actualViewModel.toggleThinkingMode() },
+                        enableThinkingGuidance = enableThinkingGuidance,
+                        onToggleThinkingGuidance = { actualViewModel.toggleThinkingGuidance() }
+                    )
+                }
             }
         }
 

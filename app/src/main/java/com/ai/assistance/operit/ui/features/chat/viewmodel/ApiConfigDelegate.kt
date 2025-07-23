@@ -40,6 +40,13 @@ class ApiConfigDelegate(
     private val _memoryOptimization = MutableStateFlow(ApiPreferences.DEFAULT_MEMORY_OPTIMIZATION)
     val memoryOptimization: StateFlow<Boolean> = _memoryOptimization.asStateFlow()
 
+    private val _enableThinkingMode = MutableStateFlow(ApiPreferences.DEFAULT_ENABLE_THINKING_MODE)
+    val enableThinkingMode: StateFlow<Boolean> = _enableThinkingMode.asStateFlow()
+
+    private val _enableThinkingGuidance =
+            MutableStateFlow(ApiPreferences.DEFAULT_ENABLE_THINKING_GUIDANCE)
+    val enableThinkingGuidance: StateFlow<Boolean> = _enableThinkingGuidance.asStateFlow()
+
     // 为了兼容现有代码，添加API密钥状态流
     private val _apiKey = MutableStateFlow("")
     val apiKey: StateFlow<String> = _apiKey.asStateFlow()
@@ -79,6 +86,20 @@ class ApiConfigDelegate(
         viewModelScope.launch {
             apiPreferences.enableAiPlanningFlow.collect { enableAiPlanningValue ->
                 _enableAiPlanning.value = enableAiPlanningValue
+            }
+        }
+
+        // Collect thinking mode setting
+        viewModelScope.launch {
+            apiPreferences.enableThinkingModeFlow.collect { enabled ->
+                _enableThinkingMode.value = enabled
+            }
+        }
+
+        // Collect thinking guidance setting
+        viewModelScope.launch {
+            apiPreferences.enableThinkingGuidanceFlow.collect { enabled ->
+                _enableThinkingGuidance.value = enabled
             }
         }
 
@@ -152,6 +173,24 @@ class ApiConfigDelegate(
             val newValue = !_enableAiPlanning.value
             apiPreferences.saveEnableAiPlanning(newValue)
             _enableAiPlanning.value = newValue
+        }
+    }
+
+    /** 切换思考模式 */
+    fun toggleThinkingMode() {
+        viewModelScope.launch {
+            val newValue = !_enableThinkingMode.value
+            apiPreferences.saveEnableThinkingMode(newValue)
+            _enableThinkingMode.value = newValue
+        }
+    }
+
+    /** 切换思考引导 */
+    fun toggleThinkingGuidance() {
+        viewModelScope.launch {
+            val newValue = !_enableThinkingGuidance.value
+            apiPreferences.saveEnableThinkingGuidance(newValue)
+            _enableThinkingGuidance.value = newValue
         }
     }
 }

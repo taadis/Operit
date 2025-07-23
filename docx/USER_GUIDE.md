@@ -541,7 +541,7 @@
 | `sleep` | 短暂暂停执行 |
 | `device_info` | 获取设备详细信息 |
 | `use_package` | 激活扩展包 |
-| `query_problem_library` | 查询问题库，获取类似的过去解决方案、用户风格偏好和用户信息 |
+| `query_knowledge_library` | 查询问题库，获取类似的过去解决方案、用户风格偏好和用户信息 |
 
 文件系统工具：
 

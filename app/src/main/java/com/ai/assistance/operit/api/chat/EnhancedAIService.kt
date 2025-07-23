@@ -393,9 +393,14 @@ class EnhancedAIService private constructor(private val context: Context) {
             chatHistory: List<Pair<String, String>> = emptyList(),
             workspacePath: String? = null,
             functionType: FunctionType = FunctionType.CHAT,
-            promptFunctionType: PromptFunctionType = PromptFunctionType.CHAT
+            promptFunctionType: PromptFunctionType = PromptFunctionType.CHAT,
+            enableThinking: Boolean = false,
+            thinkingGuidance: Boolean = false
     ): Stream<String> {
-        Log.d(TAG, "sendMessage调用开始: 功能类型=$functionType, 提示词类型=$promptFunctionType")
+        Log.d(
+                TAG,
+                "sendMessage调用开始: 功能类型=$functionType, 提示词类型=$promptFunctionType, 思考引导=$thinkingGuidance"
+        )
         accumulatedInputTokenCount = 0
         accumulatedOutputTokenCount = 0
 
@@ -424,7 +429,8 @@ class EnhancedAIService private constructor(private val context: Context) {
                                     chatHistory,
                                     processedInput,
                                     workspacePath,
-                                    promptFunctionType
+                                    promptFunctionType,
+                                    thinkingGuidance
                             )
 
                     // Update UI state to connecting
@@ -444,7 +450,8 @@ class EnhancedAIService private constructor(private val context: Context) {
                             serviceForFunction.sendMessage(
                                     message = processedInput,
                                     chatHistory = preparedHistory,
-                                    modelParameters = modelParameters
+                                    modelParameters = modelParameters,
+                                    enableThinking = enableThinking
                             )
 
                     // 收到第一个响应，更新状态
@@ -529,7 +536,7 @@ class EnhancedAIService private constructor(private val context: Context) {
             } finally {
                 // 确保流处理完成后调用
                 val collector = this
-                withContext(Dispatchers.IO) { processStreamCompletion(functionType, collector) }
+                withContext(Dispatchers.IO) { processStreamCompletion(functionType, collector, enableThinking) }
             }
         }
     }
@@ -629,7 +636,8 @@ class EnhancedAIService private constructor(private val context: Context) {
     /** 在处理完流后调用，使用增强的工具检测功能 */
     private suspend fun processStreamCompletion(
             functionType: FunctionType = FunctionType.CHAT,
-            collector: StreamCollector<String>
+            collector: StreamCollector<String>,
+            enableThinking: Boolean = false
     ) {
         try {
             val startTime = System.currentTimeMillis()
@@ -719,7 +727,8 @@ class EnhancedAIService private constructor(private val context: Context) {
                         toolInvocations,
                         roundManager.getDisplayContent(),
                         functionType,
-                        collector
+                        collector,
+                        enableThinking
                 )
                 return
             }
@@ -797,7 +806,8 @@ class EnhancedAIService private constructor(private val context: Context) {
             toolInvocations: List<ToolInvocation>,
             displayContent: String,
             functionType: FunctionType = FunctionType.CHAT,
-            collector: StreamCollector<String>
+            collector: StreamCollector<String>,
+            enableThinking: Boolean = false
     ) {
         val startTime = System.currentTimeMillis()
         // Only process the first tool invocation, show warning if there are multiple
@@ -872,7 +882,7 @@ class EnhancedAIService private constructor(private val context: Context) {
                             result = StringResultData(""),
                             error = errorMessage
                     )
-            processToolResult(errorResult, functionType, collector)
+            processToolResult(errorResult, functionType, collector, enableThinking)
             return
         } else {
             // Check permissions before execution
@@ -907,7 +917,7 @@ class EnhancedAIService private constructor(private val context: Context) {
 
                 // Process error result and exit
                 if (errorResult != null) {
-                    processToolResult(errorResult, functionType, collector)
+                    processToolResult(errorResult, functionType, collector, enableThinking)
                 }
                 return
             }
@@ -952,7 +962,7 @@ class EnhancedAIService private constructor(private val context: Context) {
                         )
 
                 Log.d(TAG, "所有工具结果收集完毕，准备最终处理。")
-                processToolResult(finalResult, functionType, collector)
+                processToolResult(finalResult, functionType, collector, enableThinking)
             }
         }
 
@@ -964,7 +974,8 @@ class EnhancedAIService private constructor(private val context: Context) {
     private suspend fun processToolResult(
             result: ToolResult,
             functionType: FunctionType = FunctionType.CHAT,
-            collector: StreamCollector<String>
+            collector: StreamCollector<String>,
+            enableThinking: Boolean = false
     ) {
         val startTime = System.currentTimeMillis()
         Log.d(TAG, "开始处理工具结果: ${result.toolName}, 成功: ${result.success}")
@@ -1018,7 +1029,8 @@ class EnhancedAIService private constructor(private val context: Context) {
                         serviceForFunction.sendMessage(
                                 message = toolResultMessage,
                                 chatHistory = currentChatHistory,
-                                modelParameters = modelParameters
+                                modelParameters = modelParameters,
+                                enableThinking = enableThinking
                         )
 
                 // 更新状态为接收中
@@ -1065,7 +1077,7 @@ class EnhancedAIService private constructor(private val context: Context) {
                 Log.d(TAG, "工具结果AI处理完成，收到 $totalChars 字符，耗时: ${processingTime}ms")
 
                 // 流处理完成，处理完成逻辑
-                processStreamCompletion(functionType, collector)
+                processStreamCompletion(functionType, collector, enableThinking)
             } catch (e: Exception) {
                 Log.e(TAG, "处理工具执行结果时出错", e)
                 withContext(Dispatchers.Main) {
@@ -1209,7 +1221,8 @@ class EnhancedAIService private constructor(private val context: Context) {
             chatHistory: List<Pair<String, String>>,
             processedInput: String,
             workspacePath: String?,
-            promptFunctionType: PromptFunctionType
+            promptFunctionType: PromptFunctionType,
+            thinkingGuidance: Boolean
     ): MutableList<Pair<String, String>> {
         return conversationService.prepareConversationHistory(
                 chatHistory,
@@ -1217,7 +1230,8 @@ class EnhancedAIService private constructor(private val context: Context) {
                 workspacePath,
                 conversationHistory,
                 packageManager,
-                promptFunctionType
+                promptFunctionType,
+                thinkingGuidance
         )
     }
 

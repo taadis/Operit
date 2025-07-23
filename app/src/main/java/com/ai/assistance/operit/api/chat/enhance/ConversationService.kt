@@ -188,7 +188,8 @@ class ConversationService(private val context: Context) {
             workspacePath: String?,
             conversationHistory: MutableList<Pair<String, String>>,
             packageManager: PackageManager,
-            promptFunctionType: PromptFunctionType
+            promptFunctionType: PromptFunctionType,
+            thinkingGuidance: Boolean = false
     ): MutableList<Pair<String, String>> {
         conversationMutex.withLock {
             conversationHistory.clear()
@@ -206,12 +207,14 @@ class ConversationService(private val context: Context) {
                         functionalPromptManager.getPromptForFunction(promptFunctionType)
 
                 // 获取系统提示词，现在传入workspacePath
-                val systemPrompt = SystemPromptConfig.getSystemPromptWithCustomPrompts(
+                val systemPrompt =
+                        SystemPromptConfig.getSystemPromptWithCustomPrompts(
                         packageManager,
                         workspacePath,
                         planningEnabled,
                         introPrompt,
-                        tonePrompt
+                                tonePrompt,
+                                thinkingGuidance
                 )
 
                 if (preferencesText.isNotEmpty()) {

@@ -161,6 +161,10 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     val enableAiPlanning: StateFlow<Boolean> by lazy { apiConfigDelegate.enableAiPlanning }
     val memoryOptimization: StateFlow<Boolean> by lazy { apiConfigDelegate.memoryOptimization }
 
+    // 思考模式和思考引导状态现在由ApiConfigDelegate管理
+    val enableThinkingMode: StateFlow<Boolean> by lazy { apiConfigDelegate.enableThinkingMode }
+    val enableThinkingGuidance: StateFlow<Boolean> by lazy { apiConfigDelegate.enableThinkingGuidance }
+
     // 聊天历史相关
     val chatHistory: StateFlow<List<ChatMessage>> by lazy { chatHistoryDelegate.chatHistory }
     val showChatHistorySelector: StateFlow<Boolean> by lazy {
@@ -419,6 +423,17 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         apiConfigDelegate.toggleAiPlanning()
         // 移除Toast提示
     }
+
+    // 切换思考模式的方法现在委托给ApiConfigDelegate
+    fun toggleThinkingMode() {
+        apiConfigDelegate.toggleThinkingMode()
+    }
+
+    // 切换思考引导的方法现在委托给ApiConfigDelegate
+    fun toggleThinkingGuidance() {
+        apiConfigDelegate.toggleThinkingGuidance()
+    }
+
     // 聊天历史相关方法
     fun createNewChat() {
         chatHistoryDelegate.createNewChat()
@@ -630,7 +645,9 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 attachments = currentAttachments,
                 chatId = chatId,
                 workspacePath = workspacePath,
-                promptFunctionType = promptFunctionType
+                promptFunctionType = promptFunctionType,
+                enableThinking = enableThinkingMode.value, // 传递思考模式的状态
+                thinkingGuidance = enableThinkingGuidance.value // 传递思考引导的状态
         )
 
         if (chatHistoryDelegate.shouldGenerateSummary(chatHistoryDelegate.chatHistory.value)) {

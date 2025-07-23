@@ -77,7 +77,8 @@ class ClaudeProvider(
     private fun createRequestBody(
             message: String,
             chatHistory: List<Pair<String, String>>,
-            modelParameters: List<ModelParameter<*>> = emptyList()
+            modelParameters: List<ModelParameter<*>> = emptyList(),
+            enableThinking: Boolean
     ): RequestBody {
         val jsonObject = JSONObject()
         jsonObject.put("model", modelName)
@@ -180,20 +181,9 @@ class ClaudeProvider(
         }
 
         // 添加extended thinking支持
-        val thinkingParam = modelParameters.find { it.apiName == "thinking" }
-        if (thinkingParam != null && thinkingParam.isEnabled) {
-            // 通过thinking参数启用extended thinking
+        if (enableThinking) {
             val thinkingObject = JSONObject()
             thinkingObject.put("type", "enabled")
-            thinkingObject.put("budget_tokens", 8000) // 使用合理的默认值
-
-            // 如果提供了具体的budget_tokens值，则使用该值
-            val budgetTokensParam = modelParameters.find { it.apiName == "budget_tokens" }
-            if (budgetTokensParam != null && budgetTokensParam.isEnabled) {
-                val budgetTokens = (budgetTokensParam.currentValue as? Number)?.toInt() ?: 8000
-                thinkingObject.put("budget_tokens", budgetTokens)
-            }
-
             jsonObject.put("thinking", thinkingObject)
             Log.d("AIService", "启用Claude的extended thinking功能")
         }
@@ -267,7 +257,8 @@ class ClaudeProvider(
     override suspend fun sendMessage(
             message: String,
             chatHistory: List<Pair<String, String>>,
-            modelParameters: List<ModelParameter<*>>
+            modelParameters: List<ModelParameter<*>>,
+            enableThinking: Boolean
     ): Stream<String> = stream {
         // 重置token计数
         _inputTokenCount = 0
@@ -277,7 +268,7 @@ class ClaudeProvider(
         var retryCount = 0
         var lastException: Exception? = null
 
-        val requestBody = createRequestBody(message, chatHistory, modelParameters)
+        val requestBody = createRequestBody(message, chatHistory, modelParameters, enableThinking)
         val request = createRequest(requestBody)
 
         Log.d("AIService", "准备连接到Claude AI服务...")
@@ -388,7 +379,7 @@ class ClaudeProvider(
             // 这比getModelsList更可靠，因为它直接命中了聊天API。
             // 提供一个通用的系统提示，以防止某些需要它的模型出现错误。
             val testHistory = listOf("system" to "You are a helpful assistant.")
-            val stream = sendMessage("Hi", testHistory, emptyList())
+            val stream = sendMessage("Hi", testHistory, emptyList(), false)
 
             // 消耗流以确保连接有效。
             // 对 "Hi" 的响应应该很短，所以这会很快完成。

@@ -125,8 +125,12 @@ class GeminiProvider(
     override suspend fun sendMessage(
             message: String,
             chatHistory: List<Pair<String, String>>,
-            modelParameters: List<ModelParameter<*>>
+            modelParameters: List<ModelParameter<*>>,
+            enableThinking: Boolean
     ): Stream<String> = stream {
+        if (enableThinking) {
+            Log.w(TAG, "Gemini API当前不支持“思考模式”，该参数将被忽略。")
+        }
         val requestId = System.currentTimeMillis().toString()
         // 重置token计数
         resetTokenCounts()
@@ -676,7 +680,7 @@ class GeminiProvider(
             // 这比getModelsList更可靠，因为它直接命中了聊天API。
             // 提供一个通用的系统提示，以防止某些需要它的模型出现错误。
             val testHistory = listOf("system" to "You are a helpful assistant.")
-            val stream = sendMessage("Hi", testHistory, emptyList())
+            val stream = sendMessage("Hi", testHistory, emptyList(), false)
 
             // 消耗流以确保连接有效。
             // 对 "Hi" 的响应应该很短，所以这会很快完成。

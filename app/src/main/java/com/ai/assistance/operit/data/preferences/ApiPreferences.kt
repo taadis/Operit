@@ -39,7 +39,10 @@ class ApiPreferences(private val context: Context) {
                 intPreferencesKey("preference_analysis_output_tokens")
         val SHOW_FPS_COUNTER = booleanPreferencesKey("show_fps_counter")
         val ENABLE_AI_PLANNING = booleanPreferencesKey("enable_ai_planning")
-        val SHOW_MODEL_SELECTOR = booleanPreferencesKey("show_model_selector")
+
+        // Keys for Thinking Mode and Thinking Guidance
+        val ENABLE_THINKING_MODE = booleanPreferencesKey("enable_thinking_mode")
+        val ENABLE_THINKING_GUIDANCE = booleanPreferencesKey("enable_thinking_guidance")
 
         // Custom Prompt Settings
         val CUSTOM_INTRO_PROMPT = stringPreferencesKey("custom_intro_prompt")
@@ -88,7 +91,10 @@ class ApiPreferences(private val context: Context) {
         const val DEFAULT_MEMORY_OPTIMIZATION = true
         const val DEFAULT_SHOW_FPS_COUNTER = false
         const val DEFAULT_ENABLE_AI_PLANNING = false
-        const val DEFAULT_SHOW_MODEL_SELECTOR = true
+
+        // Default values for Thinking Mode and Thinking Guidance
+        const val DEFAULT_ENABLE_THINKING_MODE = false
+        const val DEFAULT_ENABLE_THINKING_GUIDANCE = false
 
         // Default values for custom prompts
         const val DEFAULT_INTRO_PROMPT = "你是Operit，一个全能AI助手，旨在解决用户提出的任何任务。你有各种工具可以调用，以高效完成复杂的请求。"
@@ -248,10 +254,16 @@ class ApiPreferences(private val context: Context) {
                 preferences[ENABLE_AI_PLANNING] ?: DEFAULT_ENABLE_AI_PLANNING
             }
 
-    // 添加模型选择器显示设置的Flow
-    val showModelSelectorFlow: Flow<Boolean> =
-            context.apiDataStore.data.map { preferences ->
-                preferences[SHOW_MODEL_SELECTOR] ?: DEFAULT_SHOW_MODEL_SELECTOR
+    // Flow for Thinking Mode
+    val enableThinkingModeFlow: Flow<Boolean> =
+        context.apiDataStore.data.map { preferences ->
+            preferences[ENABLE_THINKING_MODE] ?: DEFAULT_ENABLE_THINKING_MODE
+        }
+
+    // Flow for Thinking Guidance
+    val enableThinkingGuidanceFlow: Flow<Boolean> =
+        context.apiDataStore.data.map { preferences ->
+            preferences[ENABLE_THINKING_GUIDANCE] ?: DEFAULT_ENABLE_THINKING_GUIDANCE
             }
 
     // Custom Prompt Flows
@@ -354,6 +366,18 @@ class ApiPreferences(private val context: Context) {
         context.apiDataStore.edit { preferences -> preferences[ENABLE_AI_PLANNING] = isEnabled }
     }
 
+    // Save Thinking Mode setting
+    suspend fun saveEnableThinkingMode(isEnabled: Boolean) {
+        context.apiDataStore.edit { preferences -> preferences[ENABLE_THINKING_MODE] = isEnabled }
+    }
+
+    // Save Thinking Guidance setting
+    suspend fun saveEnableThinkingGuidance(isEnabled: Boolean) {
+        context.apiDataStore.edit { preferences ->
+            preferences[ENABLE_THINKING_GUIDANCE] = isEnabled
+        }
+    }
+
     // Save all settings at once
     suspend fun saveApiSettings(apiKey: String, endpoint: String, modelName: String) {
         context.apiDataStore.edit { preferences ->
@@ -378,21 +402,14 @@ class ApiPreferences(private val context: Context) {
         }
     }
 
-    // 保存模型选择器显示设置
-    suspend fun saveShowModelSelector(show: Boolean) {
-        context.apiDataStore.edit { preferences -> preferences[SHOW_MODEL_SELECTOR] = show }
-    }
-
     // 保存显示和行为设置的方法，不会影响模型参数
     suspend fun saveDisplaySettings(
             memoryOptimization: Boolean,
-            showFpsCounter: Boolean,
-            showModelSelector: Boolean = DEFAULT_SHOW_MODEL_SELECTOR
+            showFpsCounter: Boolean
     ) {
         context.apiDataStore.edit { preferences ->
             preferences[MEMORY_OPTIMIZATION] = memoryOptimization
             preferences[SHOW_FPS_COUNTER] = showFpsCounter
-            preferences[SHOW_MODEL_SELECTOR] = showModelSelector
         }
     }
 

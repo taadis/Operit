@@ -297,7 +297,7 @@ private fun getFinalToolTestGroups(): List<ToolGroup> {
             ToolTest("manage_cookies", "管理Cookie", "获取google.com的Cookie", listOf(ToolParameter("action", "get"), ToolParameter("domain", "google.com"))),
             ToolTest("visit_web", "访问网页", "访问Baidu并提取内容", listOf(ToolParameter("url", "https://www.baidu.com"))),
             ToolTest("use_package", "使用包", "测试激活一个不存在的包", listOf(ToolParameter("package_name", "non_existent_package"))),
-            ToolTest("query_problem_library", "查询问题库", "测试查询问题库", listOf(ToolParameter("query", "test")))
+            ToolTest("query_knowledge_library", "查询问题库", "测试查询问题库", listOf(ToolParameter("query", "test")))
         )),
         ToolGroup("文件只读 (并行)", false, false, listOf(
             ToolTest("list_files", "列出文件", "列出测试目录的文件", listOf(ToolParameter("path", testBaseDir))),

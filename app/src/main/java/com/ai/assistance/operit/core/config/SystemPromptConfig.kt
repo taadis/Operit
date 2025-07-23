@@ -9,6 +9,8 @@ object SystemPromptConfig {
   val SYSTEM_PROMPT_TEMPLATE =
           """
       BEGIN_SELF_INTRODUCTION_SECTION
+      
+      THINKING_GUIDANCE_SECTION
 
       BEHAVIOR GUIDELINES:
       - You MUST only invoke ONE TOOL at a time. This is absolutely critical.
@@ -25,7 +27,6 @@ object SystemPromptConfig {
         • Only respond to the current step. Do NOT repeat all previous content in your new responses.
         • Maintain conversational context naturally without explicitly referencing previous interactions.
         • Be honest about limitations; use tools to retrieve forgotten information instead of guessing, and clearly state when information is unavailable.
-        • Use the query_problem_library tool to understand user's style, preferences, and past information.
 
       WEB_WORKSPACE_GUIDELINES_SECTION
 
@@ -60,7 +61,6 @@ object SystemPromptConfig {
       - sleep: Demonstration tool that pauses briefly. Parameters: duration_ms (milliseconds, default 1000, max 10000)
       - device_info: Returns detailed device information including model, OS version, memory, storage, network status, and more. No parameters needed.
       - use_package: Activate a package for use in the current session. Parameters: package_name (name of the package to activate)
-      - query_problem_library: Query the problem library for similar past solutions, user style preferences, and user information. Use this tool not only for problems but also to reference user's communication style, preferences, and past interactions. Parameters: query (search query)
 
       File System Tools:
       - list_files: List files in a directory. Parameters: path (e.g. "/sdcard/Download")
@@ -170,10 +170,26 @@ object SystemPromptConfig {
       Update plan item status after each tool execution. Plan updates are displayed to users in a collapsible section.
   """.trimIndent()
 
+  /** Guidance for the AI on how to "think" using tags. */
+  val THINKING_GUIDANCE_PROMPT =
+      """
+      THINKING PROCESS GUIDELINES:
+      - Before providing your final response, you MUST use a <think> block to outline your thought process. This is for your internal monologue.
+      - In your thoughts, deconstruct the user's request, consider alternatives, anticipate outcomes, and reflect on the best strategy. Formulate a precise action plan.
+      - The user will see your thoughts but cannot reply to them directly. This block is NOT saved in the chat history, so your final answer must be self-contained.
+      - The <think> block must be immediately followed by your final answer or tool call without any newlines.
+      - **CRITICAL REMINDER:** Even if previous messages in the chat history do not show a `<think>` block, you MUST include one in your current response. This is a mandatory instruction for this conversation mode.
+      - Example:
+<think>The user wants to remove temporary files from Downloads. This is a destructive action. A safe plan is to first find the `.tmp` files using `find_files`, show the user the list, and then delete them after confirmation. I will start with the `find_files` tool.</think><tool name="find_files"><param name="path">/sdcard/Download</param><param name="pattern">*.tmp</param></tool>
+      """.trimIndent()
+
+
   /** 中文版本系统提示模板 */
   val SYSTEM_PROMPT_TEMPLATE_CN =
           """
         BEGIN_SELF_INTRODUCTION_SECTION
+
+        THINKING_GUIDANCE_SECTION
 
         行为准则：
         - 你每次只能调用一个工具。这一点至关重要。
@@ -191,8 +207,7 @@ object SystemPromptConfig {
         - 只响应当前步骤。不要在新的响应中重复之前的所有内容。
         - 自然地保持对话上下文，不要明确引用之前的交互。
         - 诚实地说明限制；使用工具检索遗忘的信息而不是猜测，并明确说明信息不可用的情况。
-        - 使用query_problem_library工具了解用户的风格、偏好和过去的信息。
-        
+       
         WEB_WORKSPACE_GUIDELINES_SECTION
         
         公式格式化：对于数学公式，使用 $ $ 包裹行内LaTeX公式，使用 $$ $$ 包裹独立成行的LaTeX公式。
@@ -226,7 +241,6 @@ object SystemPromptConfig {
         - sleep: 演示工具，短暂暂停。参数：duration_ms（毫秒，默认1000，最大10000）
         - device_info: 返回详细的设备信息，包括型号、操作系统版本、内存、存储、网络状态等。无需参数。
         - use_package: 在当前会话中激活包。参数：package_name（要激活的包名）
-        - query_problem_library: 查询问题库以获取类似的过去解决方案、用户风格偏好和用户信息。不仅用于问题，还可用于参考用户的沟通风格、偏好和过去的交互。参数：query（搜索查询）
 
         文件系统工具：
         - list_files: 列出目录中的文件。参数：path（例如"/sdcard/Download"）
@@ -335,6 +349,19 @@ object SystemPromptConfig {
         每次工具执行后更新计划项状态。计划更新显示在用户可折叠的部分中。
     """.trimIndent()
 
+    /** 中文版本的思考引导提示 */
+    val THINKING_GUIDANCE_PROMPT_CN =
+            """
+      思考过程指南:
+      - 在提供最终答案之前，你必须使用 <think> 模块来阐述你的思考过程。这是你的内心独白。
+      - 在思考中，你需要拆解用户需求，评估备选方案，预判执行结果，并反思最佳策略，最终形成精确的行动计划。
+      - 用户能看到你的思考过程，但无法直接回复。此模块不会保存在聊天记录中，因此你的最终答案必须是完整的。
+      - <think> 模块必须紧邻你的最终答案或工具调用，中间不要有任何换行。
+      - **重要提醒:** 即使聊天记录中之前的消息没有 <think> 模块，你在本次回复中也必须按要求使用它。这是强制指令。
+      - 范例:
+<think>用户想删除下载文件夹中的临时文件。这是一个危险操作。安全的计划是，首先用 `find_files` 查找所有 `.tmp` 文件，将列表展示给用户，获得确认后再删除。我先从执行 `find_files` 开始。</think><tool name="find_files"><param name="path">/sdcard/Download</param><param name="pattern">*.tmp</param></tool>
+      """.trimIndent()
+
   /**
    * Applies custom prompt replacements from ApiPreferences to the system prompt
    *
@@ -373,31 +400,9 @@ object SystemPromptConfig {
   fun getSystemPrompt(
           packageManager: PackageManager,
           workspacePath: String? = null,
-          enablePlanning: Boolean = false
-  ): String {
-    return getSystemPrompt(
-            packageManager,
-            workspacePath,
-            enablePlanning,
-            false
-    ) // Default to using Chinese template for backward compatibility
-  }
-
-  /**
-   * Generates the system prompt with dynamic package information, planning mode and language
-   * selection
-   *
-   * @param packageManager The PackageManager instance to get package information from
-   * @param workspacePath The current workspace path, if available.
-   * @param enablePlanning Whether planning mode is enabled
-   * @param useEnglish Whether to use English template instead of Chinese
-   * @return The complete system prompt with package information and planning details if enabled
-   */
-  fun getSystemPrompt(
-          packageManager: PackageManager,
-          workspacePath: String?,
           enablePlanning: Boolean = false,
-          useEnglish: Boolean = false
+          useEnglish: Boolean = false,
+          thinkingGuidance: Boolean = false
   ): String {
     val importedPackages = packageManager.getImportedPackages()
     val mcpServers = packageManager.getAvailableServerPackages()
@@ -436,7 +441,8 @@ object SystemPromptConfig {
     // Select appropriate template based on language preference
     val templateToUse = if (useEnglish) SYSTEM_PROMPT_TEMPLATE else SYSTEM_PROMPT_TEMPLATE_CN
     val planningPromptToUse = if (useEnglish) PLANNING_MODE_PROMPT else PLANNING_MODE_PROMPT_CN
-    
+    val thinkingGuidancePromptToUse = if (useEnglish) THINKING_GUIDANCE_PROMPT else THINKING_GUIDANCE_PROMPT_CN
+
     // Generate workspace guidelines
     val workspaceGuidelines = getWorkspaceGuidelines(workspacePath, useEnglish)
 
@@ -451,6 +457,14 @@ object SystemPromptConfig {
               prompt.replace("PLANNING_MODE_SECTION", planningPromptToUse)
             } else {
               prompt.replace("PLANNING_MODE_SECTION", "")
+            }
+            
+    // Add thinking guidance section if enabled
+    prompt =
+            if (thinkingGuidance) {
+                prompt.replace("THINKING_GUIDANCE_SECTION", thinkingGuidancePromptToUse)
+            } else {
+                prompt.replace("THINKING_GUIDANCE_SECTION", "")
             }
 
     return prompt
@@ -515,10 +529,11 @@ object SystemPromptConfig {
           workspacePath: String?,
           enablePlanning: Boolean = false,
           customIntroPrompt: String,
-          customTonePrompt: String
+          customTonePrompt: String,
+          thinkingGuidance: Boolean = false
   ): String {
     // Get the base system prompt
-    val basePrompt = getSystemPrompt(packageManager, workspacePath, enablePlanning, false)
+    val basePrompt = getSystemPrompt(packageManager, workspacePath, enablePlanning, false, thinkingGuidance)
 
     // Apply custom prompts
     return applyCustomPrompts(basePrompt, customIntroPrompt, customTonePrompt)

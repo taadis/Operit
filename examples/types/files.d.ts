@@ -4,7 +4,8 @@
 
 import {
     DirectoryListingData, FileContentData, FileOperationData, FileExistsData,
-    FindFilesResultData, FileInfoData, FileConversionResultData, FileFormatConversionsResultData
+    FindFilesResultData, FileInfoData, FileConversionResultData, FileFormatConversionsResultData,
+    FilePartContentData, FileApplyResultData
 } from './results';
 import { FFmpegVideoCodec, FFmpegAudioCodec, FFmpegResolution, FFmpegBitrate } from './ffmpeg';
 
@@ -23,6 +24,19 @@ export namespace Files {
      * @param path - Path to file
      */
     function read(path: string): Promise<FileContentData>;
+
+    /**
+     * Read file contents by parts
+     * @param path - Path to file
+     * @param partIndex - Index of the part to read
+     */
+    function readPart(path: string, partIndex: number): Promise<FilePartContentData>;
+
+    /**
+     * Read complete file contents
+     * @param path - Path to file
+     */
+    function readFull(path: string): Promise<FileContentData>;
 
     /**
      * Write content to file
@@ -75,6 +89,13 @@ export namespace Files {
      * @param path - File path
      */
     function info(path: string): Promise<FileInfoData>;
+
+    /**
+     * Apply AI-generated content to a file with intelligent merging
+     * @param path - Path to file
+     * @param content - Content to apply
+     */
+    function apply(path: string, content: string): Promise<FileApplyResultData>;
 
     /**
      * Zip files/directories

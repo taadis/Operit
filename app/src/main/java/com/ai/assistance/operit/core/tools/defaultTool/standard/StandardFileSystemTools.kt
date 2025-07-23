@@ -34,6 +34,10 @@ import com.ai.assistance.operit.util.FileUtils
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import androidx.core.content.FileProvider
+import android.webkit.MimeTypeMap
 
 /**
  * Collection of file system operation tools for the AI assistant These tools use Java File APIs for
@@ -2380,20 +2384,79 @@ open class StandardFileSystemTools(protected val context: Context) {
                         )
                 }
 
-                return ToolResult(
-                        toolName = tool.name,
-                        success = false,
-                        result =
-                                FileOperationData(
-                                        operation = "open",
-                                        path = path,
-                                        successful = false,
-                                        details =
-                                                "Opening files with system apps requires Android Intent functionality and is not supported in standard file operations"
-                                ),
-                        error =
-                                "Opening files with system apps requires Android Intent functionality and is not supported in standard file operations"
-                )
+                return try {
+                        val file = File(path)
+                        if (!file.exists()) {
+                                return ToolResult(
+                                        toolName = tool.name,
+                                        success = false,
+                                        result =
+                                                FileOperationData(
+                                                        "open",
+                                                        path,
+                                                        false,
+                                                        "File does not exist: $path"
+                                                ),
+                                        error = "File does not exist: $path"
+                                )
+                        }
+
+                        val authority = "${context.packageName}.fileprovider"
+                        val uri = FileProvider.getUriForFile(context, authority, file)
+                        val mimeType =
+                                MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.extension)
+                                        ?: "*/*"
+
+                        val intent =
+                                Intent(Intent.ACTION_VIEW).apply {
+                                        setDataAndType(uri, mimeType)
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+
+                        context.startActivity(intent)
+
+                        ToolResult(
+                                toolName = tool.name,
+                                success = true,
+                                result =
+                                        FileOperationData(
+                                                "open",
+                                                path,
+                                                true,
+                                                "Request to open file sent to system: $path"
+                                        ),
+                                error = ""
+                        )
+                } catch (e: ActivityNotFoundException) {
+                        Log.e(TAG, "No activity found to handle opening file: $path", e)
+                        ToolResult(
+                                toolName = tool.name,
+                                success = false,
+                                result =
+                                        FileOperationData(
+                                                "open",
+                                                path,
+                                                false,
+                                                "No application found to open this file type."
+                                        ),
+                                error = "No application found to open this file type."
+                        )
+                } catch (e: Exception) {
+                        Log.e(TAG, "Error opening file", e)
+                        ToolResult(
+                                toolName = tool.name,
+                                success = false,
+                                result =
+                                        FileOperationData(
+                                                "open",
+                                                path,
+                                                false,
+                                                "Error opening file: ${e.message}"
+                                        ),
+                                error = "Error opening file: ${e.message}"
+                        )
+                }
         }
 
         /** Share file via system share dialog */
@@ -2416,19 +2479,83 @@ open class StandardFileSystemTools(protected val context: Context) {
                         )
                 }
 
-                return ToolResult(
-                        toolName = tool.name,
-                        success = false,
-                        result =
-                                FileOperationData(
-                                        operation = "share",
-                                        path = path,
-                                        successful = false,
-                                        details =
-                                                "Sharing files requires Android Intent functionality and is not supported in standard file operations"
-                                ),
-                        error =
-                                "Sharing files requires Android Intent functionality and is not supported in standard file operations"
-                )
+                return try {
+                        val file = File(path)
+                        if (!file.exists()) {
+                                return ToolResult(
+                                        toolName = tool.name,
+                                        success = false,
+                                        result =
+                                                FileOperationData(
+                                                        "share",
+                                                        path,
+                                                        false,
+                                                        "File does not exist: $path"
+                                                ),
+                                        error = "File does not exist: $path"
+                                )
+                        }
+
+                        val authority = "${context.packageName}.fileprovider"
+                        val uri = FileProvider.getUriForFile(context, authority, file)
+                        val mimeType =
+                                MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.extension)
+                                        ?: "*/*"
+
+                        val intent =
+                                Intent(Intent.ACTION_SEND).apply {
+                                        type = mimeType
+                                        putExtra(Intent.EXTRA_STREAM, uri)
+                                        putExtra(Intent.EXTRA_SUBJECT, title)
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+
+                        val chooser =
+                                Intent.createChooser(intent, title).apply {
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                        context.startActivity(chooser)
+
+                        ToolResult(
+                                toolName = tool.name,
+                                success = true,
+                                result =
+                                        FileOperationData(
+                                                "share",
+                                                path,
+                                                true,
+                                                "Share dialog for file opened: $path"
+                                        ),
+                                error = ""
+                        )
+                } catch (e: ActivityNotFoundException) {
+                        Log.e(TAG, "No activity found to handle sharing file: $path", e)
+                        ToolResult(
+                                toolName = tool.name,
+                                success = false,
+                                result =
+                                        FileOperationData(
+                                                "share",
+                                                path,
+                                                false,
+                                                "No application found to share this file type."
+                                        ),
+                                error = "No application found to share this file type."
+                        )
+                } catch (e: Exception) {
+                        Log.e(TAG, "Error sharing file", e)
+                        ToolResult(
+                                toolName = tool.name,
+                                success = false,
+                                result =
+                                        FileOperationData(
+                                                "share",
+                                                path,
+                                                false,
+                                                "Error sharing file: ${e.message}"
+                                        ),
+                                error = "Error sharing file: ${e.message}"
+                        )
+                }
         }
 }

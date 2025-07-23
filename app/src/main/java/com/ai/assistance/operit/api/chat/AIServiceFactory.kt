@@ -32,10 +32,12 @@ object AIServiceFactory {
             // LM Studio使用OpenAI兼容格式
             ApiProviderType.LMSTUDIO -> OpenAIProvider(apiEndpoint, apiKey, modelName)
 
+            // 阿里云（通义千问）使用专用的QwenProvider
+            ApiProviderType.ALIYUN -> QwenAIProvider(apiEndpoint, apiKey, modelName)
+
             // 其他中文服务商，当前使用OpenAI Provider (大多数兼容OpenAI格式)
             // 后续可根据需要实现专用Provider
             ApiProviderType.BAIDU -> OpenAIProvider(apiEndpoint, apiKey, modelName)
-            ApiProviderType.ALIYUN -> OpenAIProvider(apiEndpoint, apiKey, modelName)
             ApiProviderType.XUNFEI -> OpenAIProvider(apiEndpoint, apiKey, modelName)
             ApiProviderType.ZHIPU -> OpenAIProvider(apiEndpoint, apiKey, modelName)
             ApiProviderType.BAICHUAN -> OpenAIProvider(apiEndpoint, apiKey, modelName)
