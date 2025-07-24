@@ -47,6 +47,9 @@ class ApiConfigDelegate(
             MutableStateFlow(ApiPreferences.DEFAULT_ENABLE_THINKING_GUIDANCE)
     val enableThinkingGuidance: StateFlow<Boolean> = _enableThinkingGuidance.asStateFlow()
 
+    private val _contextLength = MutableStateFlow(ApiPreferences.DEFAULT_CONTEXT_LENGTH)
+    val contextLength: StateFlow<Float> = _contextLength.asStateFlow()
+
     // 为了兼容现有代码，添加API密钥状态流
     private val _apiKey = MutableStateFlow("")
     val apiKey: StateFlow<String> = _apiKey.asStateFlow()
@@ -107,6 +110,13 @@ class ApiConfigDelegate(
         viewModelScope.launch {
             apiPreferences.memoryOptimizationFlow.collect { enabled ->
                 _memoryOptimization.value = enabled
+            }
+        }
+
+        // Collect context length setting
+        viewModelScope.launch {
+            apiPreferences.contextLengthFlow.collect { length ->
+                _contextLength.value = length
             }
         }
     }
@@ -191,6 +201,14 @@ class ApiConfigDelegate(
             val newValue = !_enableThinkingGuidance.value
             apiPreferences.saveEnableThinkingGuidance(newValue)
             _enableThinkingGuidance.value = newValue
+        }
+    }
+
+    /** 更新上下文长度 */
+    fun updateContextLength(length: Float) {
+        viewModelScope.launch {
+            apiPreferences.saveContextLength(length)
+            _contextLength.value = length
         }
     }
 }

@@ -106,6 +106,7 @@ class ChatHistoryManager private constructor(private val context: Context) {
                                 updatedAt = updatedAt,
                                 inputTokens = chatEntity.inputTokens,
                                 outputTokens = chatEntity.outputTokens,
+                                currentWindowSize = chatEntity.currentWindowSize,
                                 group = chatEntity.group, // 映射group字段
                                 displayOrder = chatEntity.displayOrder,
                                 workspace = chatEntity.workspace // 映射workspace字段
@@ -216,7 +217,8 @@ class ChatHistoryManager private constructor(private val context: Context) {
                             title = chat.title,
                             timestamp = System.currentTimeMillis(),
                             inputTokens = chat.inputTokens,
-                            outputTokens = chat.outputTokens
+                            outputTokens = chat.outputTokens,
+                            currentWindowSize = chat.currentWindowSize
                     )
                 }
             } catch (e: Exception) {
@@ -306,7 +308,8 @@ class ChatHistoryManager private constructor(private val context: Context) {
                             title = chat.title,
                             timestamp = System.currentTimeMillis(),
                             inputTokens = chat.inputTokens,
-                            outputTokens = chat.outputTokens
+                            outputTokens = chat.outputTokens,
+                            currentWindowSize = chat.currentWindowSize
                     )
                 }
             } catch (e: Exception) {
@@ -335,7 +338,8 @@ class ChatHistoryManager private constructor(private val context: Context) {
                                 title = chat.title,
                                 timestamp = System.currentTimeMillis(),
                                 inputTokens = chat.inputTokens,
-                                outputTokens = chat.outputTokens
+                                outputTokens = chat.outputTokens,
+                                currentWindowSize = chat.currentWindowSize
                         )
                     }
                 } else {
@@ -368,7 +372,8 @@ class ChatHistoryManager private constructor(private val context: Context) {
                             title = chat.title,
                             timestamp = System.currentTimeMillis(),
                             inputTokens = chat.inputTokens,
-                            outputTokens = chat.outputTokens
+                            outputTokens = chat.outputTokens,
+                            currentWindowSize = chat.currentWindowSize
                     )
                 }
             } catch (e: Exception) {
@@ -398,7 +403,8 @@ class ChatHistoryManager private constructor(private val context: Context) {
                             title = chat.title,
                             timestamp = System.currentTimeMillis(),
                             inputTokens = 0,
-                            outputTokens = 0
+                            outputTokens = 0,
+                            currentWindowSize = 0
                     )
                 }
             } catch (e: Exception) {
@@ -421,7 +427,12 @@ class ChatHistoryManager private constructor(private val context: Context) {
     }
 
     // 更新聊天的token计数
-    suspend fun updateChatTokenCounts(chatId: String, inputTokens: Int, outputTokens: Int) {
+    suspend fun updateChatTokenCounts(
+        chatId: String,
+        inputTokens: Int,
+        outputTokens: Int,
+        currentWindowSize: Int
+    ) {
         mutex.withLock {
             try {
                 val chat = chatDao.getChatById(chatId)
@@ -431,7 +442,8 @@ class ChatHistoryManager private constructor(private val context: Context) {
                             title = chat.title,
                             timestamp = System.currentTimeMillis(),
                             inputTokens = inputTokens,
-                            outputTokens = outputTokens
+                            outputTokens = outputTokens,
+                            currentWindowSize = currentWindowSize
                     )
                 }
             } catch (e: Exception) {

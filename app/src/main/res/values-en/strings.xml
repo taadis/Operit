@@ -16,7 +16,6 @@
     <string name="nav_tool_permissions">Tool Permissions</string>
     <string name="nav_about">About</string>
     <string name="nav_packages">Packages</string>
-    <string name="nav_problem_library">Problem Library</string>
     <string name="nav_assistant_config">Assistant Config</string>
     <string name="nav_terminal">Terminal</string>
     <string name="nav_toolbox">Toolbox</string>

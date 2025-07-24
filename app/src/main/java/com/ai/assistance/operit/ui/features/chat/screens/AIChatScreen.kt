@@ -516,7 +516,9 @@ fun AIChatScreen(
                         enableThinkingMode = enableThinkingMode,
                         onToggleThinkingMode = { actualViewModel.toggleThinkingMode() },
                         enableThinkingGuidance = enableThinkingGuidance,
-                        onToggleThinkingGuidance = { actualViewModel.toggleThinkingGuidance() }
+                        onToggleThinkingGuidance = { actualViewModel.toggleThinkingGuidance() },
+                        maxWindowSizeInK = actualViewModel.maxWindowSizeInK.collectAsState().value,
+                        onContextLengthChange = { actualViewModel.updateContextLength(it) }
                     )
                 }
             }

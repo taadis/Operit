@@ -32,6 +32,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.api.chat.EnhancedAIService
 import com.ai.assistance.operit.data.model.ChatHistory
@@ -44,6 +45,9 @@ import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
 import com.ai.assistance.operit.ui.floating.FloatingMode
 import com.ai.assistance.operit.ui.permissions.PermissionLevel
 import kotlinx.coroutines.launch
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.text.font.FontWeight
 
 @Composable
 fun useFloatingWindowLauncher(
@@ -120,46 +124,53 @@ fun ChatScreenHeader(
                 modifier = Modifier.align(Alignment.CenterEnd)
         ) {
             // 统计信息
-            val contextWindowSize = actualViewModel.contextWindowSize.value
+            val currentWindowSize = actualViewModel.currentWindowSize.value
+            val maxWindowSizeInK = actualViewModel.maxWindowSizeInK.value
+            val maxWindowSize = (maxWindowSizeInK * 1000).toInt()
+
             val inputTokenCount = actualViewModel.inputTokenCount.value
             val outputTokenCount = actualViewModel.outputTokenCount.value
             val totalTokenCount = inputTokenCount + outputTokenCount
+            val contextUsagePercentage =
+                    if (maxWindowSize > 0) {
+                        (currentWindowSize.toFloat() / maxWindowSize) * 100
+                    } else {
+                        0f
+                    }
 
             // 使用一个状态来跟踪是否显示详细信息
             val (showDetailedStats, setShowDetailedStats) = remember { mutableStateOf(false) }
 
             Box {
-                // 主要显示（只有总计）
-                Row(
-                        modifier =
-                                Modifier.background(
-                                                color =
-                                                        MaterialTheme.colorScheme.surface.copy(
-                                                                alpha = 0.8f
-                                                        ),
-                                                shape = RoundedCornerShape(4.dp)
-                                        )
-                                        .clickable { setShowDetailedStats(!showDetailedStats) }
-                                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    StatItem(
-                            label = stringResource(R.string.total),
-                            value = "$totalTokenCount",
-                            isHighlighted = true
-                    )
+                // 主要显示（圆环进度）
+                val progress = contextUsagePercentage / 100f
+                val animatedProgress by animateFloatAsState(targetValue = progress, label = "TokenProgressAnimation")
+                val progressColor = when {
+                    contextUsagePercentage > 90 -> MaterialTheme.colorScheme.error
+                    contextUsagePercentage > 75 -> MaterialTheme.colorScheme.tertiary
+                    else -> MaterialTheme.colorScheme.primary
+                }
 
-                    // 添加一个小图标指示可展开
-                    Icon(
-                            imageVector =
-                                    if (showDetailedStats) Icons.Filled.KeyboardArrowUp
-                                    else Icons.Filled.KeyboardArrowDown,
-                            contentDescription =
-                                    if (showDetailedStats) stringResource(R.string.wizard_collapse)
-                                    else stringResource(R.string.wizard_expand),
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                Box(
+                    modifier = Modifier
+                        .clickable { setShowDetailedStats(!showDetailedStats) }
+                        .size(32.dp)
+                        .padding(3.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        progress = animatedProgress,
+                        modifier = Modifier.fillMaxSize(),
+                        color = progressColor,
+                        strokeWidth = 1.dp,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                    )
+                    Text(
+                        text = "${contextUsagePercentage.toInt()}",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = progressColor
                     )
                 }
 
@@ -173,7 +184,7 @@ fun ChatScreenHeader(
                 ) {
                     DropdownMenuItem(
                             text = {
-                                Text(stringResource(R.string.context_window, contextWindowSize))
+                                Text(stringResource(R.string.context_window, currentWindowSize))
                             },
                             onClick = {},
                             enabled = false
@@ -236,103 +247,5 @@ fun StatItem(label: String, value: String, isHighlighted: Boolean = false) {
                         if (isHighlighted) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.onSurface
         )
-    }
-}
-
-@Composable
-fun ChatSettingsBar(
-        actualViewModel: ChatViewModel,
-        memoryOptimization: Boolean,
-        masterPermissionLevel: PermissionLevel,
-        enableAiPlanning: Boolean
-) {
-    Row(
-            modifier =
-                    Modifier.fillMaxWidth()
-                            .background(
-                                    color =
-                                            MaterialTheme.colorScheme.surfaceVariant.copy(
-                                                    alpha = 0.1f
-                                            )
-                            )
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.CenterVertically
-    ) {
-        // 自动批准开关 - 左侧第一个开关
-        Row(
-                modifier =
-                        Modifier.background(
-                                        color =
-                                                if (masterPermissionLevel == PermissionLevel.ALLOW)
-                                                        MaterialTheme.colorScheme.primary.copy(
-                                                                alpha = 0.2f
-                                                        )
-                                                else MaterialTheme.colorScheme.surface,
-                                        shape = RoundedCornerShape(4.dp)
-                                )
-                                .padding(horizontal = 4.dp, vertical = 2.dp)
-                                .clickable { actualViewModel.toggleMasterPermission() },
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            Text(
-                    text = stringResource(R.string.auto_approve),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-            )
-            Text(
-                    text =
-                            if (masterPermissionLevel == PermissionLevel.ALLOW)
-                                    stringResource(R.string.enabled)
-                            else stringResource(R.string.ask),
-                    style =
-                            MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                            ),
-                    color =
-                            if (masterPermissionLevel == PermissionLevel.ALLOW)
-                                    MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        // AI计划模式开关 - 更详细的文本
-        Row(
-                modifier =
-                        Modifier.background(
-                                        color =
-                                                if (enableAiPlanning)
-                                                        MaterialTheme.colorScheme.primary.copy(
-                                                                alpha = 0.2f
-                                                        )
-                                                else MaterialTheme.colorScheme.surface,
-                                        shape = RoundedCornerShape(4.dp)
-                                )
-                                .padding(horizontal = 4.dp, vertical = 2.dp)
-                                .clickable { actualViewModel.toggleAiPlanning() },
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            Text(
-                    text = stringResource(R.string.ai_planning_mode),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-            )
-            Text(
-                    text =
-                            if (enableAiPlanning) stringResource(R.string.enabled)
-                            else stringResource(R.string.disabled),
-                    style =
-                            MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                            ),
-                    color =
-                            if (enableAiPlanning) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
     }
 }

@@ -220,7 +220,7 @@ class MemoryRepository(context: Context, profileId: String) {
      * @param similarityThreshold The minimum cosine similarity required for a result to be included.
      * @return A list of matching Memory objects, sorted by relevance.
      */
-    fun searchMemoriesPrecise(query: String, similarityThreshold: Float = 0.75f): List<Memory> {
+    fun searchMemoriesPrecise(query: String, similarityThreshold: Float = 0.85f): List<Memory> {
         if (query.isBlank()) return emptyList()
 
         val queryEmbedding = EmbeddingService.generateEmbedding(query) ?: return emptyList()

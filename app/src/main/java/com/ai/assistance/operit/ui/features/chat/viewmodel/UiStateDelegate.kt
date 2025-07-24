@@ -23,8 +23,8 @@ class UiStateDelegate {
     val masterPermissionLevel: StateFlow<PermissionLevel> = _masterPermissionLevel.asStateFlow()
 
     // 聊天统计信息
-    private val _contextWindowSize = MutableStateFlow(0)
-    val contextWindowSize: StateFlow<Int> = _contextWindowSize.asStateFlow()
+    private val _currentWindowSize = MutableStateFlow(0)
+    val currentWindowSize: StateFlow<Int> = _currentWindowSize.asStateFlow()
 
     private val _inputTokenCount = MutableStateFlow(0)
     val inputTokenCount: StateFlow<Int> = _inputTokenCount.asStateFlow()
@@ -72,10 +72,14 @@ class UiStateDelegate {
     }
 
     /** 更新聊天统计信息 */
-    fun updateChatStatistics(contextSize: Int, inputTokens: Int, outputTokens: Int) {
-        _contextWindowSize.value = contextSize
+    fun updateTokenCounts(inputTokens: Int, outputTokens: Int) {
         _inputTokenCount.value = inputTokens
         _outputTokenCount.value = outputTokens
+    }
+
+    /** 更新上下文窗口大小 */
+    fun updateCurrentWindowSize(currentSize: Int) {
+        _currentWindowSize.value = currentSize
     }
 
     /** 请求文件选择器 */

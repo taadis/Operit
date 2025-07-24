@@ -44,6 +44,9 @@ class ApiPreferences(private val context: Context) {
         val ENABLE_THINKING_MODE = booleanPreferencesKey("enable_thinking_mode")
         val ENABLE_THINKING_GUIDANCE = booleanPreferencesKey("enable_thinking_guidance")
 
+        // Key for Context Length
+        val CONTEXT_LENGTH = floatPreferencesKey("context_length")
+
         // Custom Prompt Settings
         val CUSTOM_INTRO_PROMPT = stringPreferencesKey("custom_intro_prompt")
         val CUSTOM_TONE_PROMPT = stringPreferencesKey("custom_tone_prompt")
@@ -95,6 +98,9 @@ class ApiPreferences(private val context: Context) {
         // Default values for Thinking Mode and Thinking Guidance
         const val DEFAULT_ENABLE_THINKING_MODE = false
         const val DEFAULT_ENABLE_THINKING_GUIDANCE = false
+
+        // Default value for Context Length (in K)
+        const val DEFAULT_CONTEXT_LENGTH = 8.0f
 
         // Default values for custom prompts
         const val DEFAULT_INTRO_PROMPT = "你是Operit，一个全能AI助手，旨在解决用户提出的任何任务。你有各种工具可以调用，以高效完成复杂的请求。"
@@ -266,6 +272,12 @@ class ApiPreferences(private val context: Context) {
             preferences[ENABLE_THINKING_GUIDANCE] ?: DEFAULT_ENABLE_THINKING_GUIDANCE
             }
 
+    // Flow for Context Length
+    val contextLengthFlow: Flow<Float> =
+        context.apiDataStore.data.map { preferences ->
+            preferences[CONTEXT_LENGTH] ?: DEFAULT_CONTEXT_LENGTH
+        }
+
     // Custom Prompt Flows
     val customIntroPromptFlow: Flow<String> =
             context.apiDataStore.data.map { preferences ->
@@ -375,6 +387,13 @@ class ApiPreferences(private val context: Context) {
     suspend fun saveEnableThinkingGuidance(isEnabled: Boolean) {
         context.apiDataStore.edit { preferences ->
             preferences[ENABLE_THINKING_GUIDANCE] = isEnabled
+        }
+    }
+
+    // Save Context Length
+    suspend fun saveContextLength(length: Float) {
+        context.apiDataStore.edit { preferences ->
+            preferences[CONTEXT_LENGTH] = length
         }
     }
 

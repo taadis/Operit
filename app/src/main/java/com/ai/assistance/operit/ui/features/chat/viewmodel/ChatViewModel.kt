@@ -124,9 +124,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     private val tokenStatsDelegate =
             TokenStatisticsDelegate(
                     getEnhancedAiService = { enhancedAiService },
-                    updateUiStatistics = { contextSize, inputTokens, outputTokens ->
-                        uiStateDelegate.updateChatStatistics(contextSize, inputTokens, outputTokens)
-                    }
+                    updateUiTokenCounts = uiStateDelegate::updateTokenCounts
             )
     private val apiConfigDelegate =
             ApiConfigDelegate(
@@ -165,6 +163,9 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     val enableThinkingMode: StateFlow<Boolean> by lazy { apiConfigDelegate.enableThinkingMode }
     val enableThinkingGuidance: StateFlow<Boolean> by lazy { apiConfigDelegate.enableThinkingGuidance }
 
+    // 上下文长度
+    val maxWindowSizeInK: StateFlow<Float> by lazy { apiConfigDelegate.contextLength }
+
     // 聊天历史相关
     val chatHistory: StateFlow<List<ChatMessage>> by lazy { chatHistoryDelegate.chatHistory }
     val showChatHistorySelector: StateFlow<Boolean> by lazy {
@@ -193,7 +194,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     }
 
     // 聊天统计相关
-    val contextWindowSize: StateFlow<Int> by lazy { uiStateDelegate.contextWindowSize }
+    val currentWindowSize: StateFlow<Int> by lazy { uiStateDelegate.currentWindowSize }
     val inputTokenCount: StateFlow<Int> by lazy { uiStateDelegate.inputTokenCount }
     val outputTokenCount: StateFlow<Int> by lazy { uiStateDelegate.outputTokenCount }
 
@@ -242,6 +243,17 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                             ) {
                                 floatingWindowDelegate.updateFloatingWindowMessages(messages)
                             }
+
+                            // 当聊天记录加载时，更新实际的上下文窗口大小
+                            val currentChat = chatHistories.value.find { it.id == currentChatId.value }
+                            val currentSize = currentChat?.currentWindowSize ?: 0
+                            if (currentSize > 0) {
+                                uiStateDelegate.updateCurrentWindowSize(currentSize)
+                            } else {
+                                // 如果没有存储实际大小，则使用预设值
+                                val presetSize = (maxWindowSizeInK.value * 1000).toInt()
+                                uiStateDelegate.updateCurrentWindowSize(presetSize)
+                            }
                         },
                         onTokenStatisticsLoaded = { inputTokens: Int, outputTokens: Int ->
                             tokenStatsDelegate.setTokenCounts(inputTokens, outputTokens)
@@ -269,12 +281,28 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                         updateChatStatistics = {
                             val (inputTokens, outputTokens) =
                                     tokenStatsDelegate.updateChatStatistics()
-                            chatHistoryDelegate.saveCurrentChat(inputTokens, outputTokens)
+                            val currentWindowSize =
+                                    tokenStatsDelegate.getLastCurrentWindowSize()
+                            chatHistoryDelegate.saveCurrentChat(
+                                inputTokens,
+                                outputTokens,
+                                currentWindowSize
+                            )
+                            // 立即更新UI上的实际窗口大小
+                            if (currentWindowSize > 0) {
+                                uiStateDelegate.updateCurrentWindowSize(currentWindowSize)
+                            }
                         },
                         saveCurrentChat = {
                             val (inputTokens, outputTokens) =
                                     tokenStatsDelegate.getCurrentTokenCounts()
-                            chatHistoryDelegate.saveCurrentChat(inputTokens, outputTokens)
+                            val currentWindowSize =
+                                    tokenStatsDelegate.getLastCurrentWindowSize()
+                            chatHistoryDelegate.saveCurrentChat(
+                                inputTokens,
+                                outputTokens,
+                                currentWindowSize
+                            )
                         },
                         showErrorMessage = { message -> uiStateDelegate.showErrorMessage(message) },
                         updateChatTitle = { chatId, title ->
@@ -434,6 +462,11 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         apiConfigDelegate.toggleThinkingGuidance()
     }
 
+    // 更新上下文长度
+    fun updateContextLength(length: Float) {
+        apiConfigDelegate.updateContextLength(length)
+    }
+
     // 聊天历史相关方法
     fun createNewChat() {
         chatHistoryDelegate.createNewChat()
@@ -475,7 +508,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
 
     fun saveCurrentChat() {
         val (inputTokens, outputTokens) = tokenStatsDelegate.getCurrentTokenCounts()
-        chatHistoryDelegate.saveCurrentChat(inputTokens, outputTokens)
+        val currentWindowSize = tokenStatsDelegate.getLastCurrentWindowSize()
+        chatHistoryDelegate.saveCurrentChat(inputTokens, outputTokens, currentWindowSize)
     }
 
     // 添加消息编辑方法
@@ -503,7 +537,12 @@ class ChatViewModel(private val context: Context) : ViewModel() {
 
                 // 更新统计信息并保存
                 val (inputTokens, outputTokens) = tokenStatsDelegate.updateChatStatistics()
-                chatHistoryDelegate.saveCurrentChat(inputTokens, outputTokens)
+                val currentWindowSize = tokenStatsDelegate.getLastCurrentWindowSize()
+                chatHistoryDelegate.saveCurrentChat(
+                    inputTokens,
+                    outputTokens,
+                    currentWindowSize
+                )
 
                 // 显示成功提示
                 uiStateDelegate.showToast("消息已更新")

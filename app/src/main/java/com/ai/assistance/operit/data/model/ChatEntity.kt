@@ -14,6 +14,7 @@ data class ChatEntity(
         val updatedAt: Long = System.currentTimeMillis(),
         val inputTokens: Int = 0,
         val outputTokens: Int = 0,
+        val currentWindowSize: Int = 0,
         val group: String? = null,
         val displayOrder: Long = -createdAt,
         val workspace: String? = null
@@ -28,6 +29,7 @@ data class ChatEntity(
                 updatedAt = LocalDateTime.now(), // 需要进一步转换
                 inputTokens = inputTokens,
                 outputTokens = outputTokens,
+                currentWindowSize = currentWindowSize,
                 group = group,
                 displayOrder = displayOrder,
                 workspace = workspace
@@ -55,6 +57,7 @@ data class ChatEntity(
                                     ?: now,
                     inputTokens = chatHistory.inputTokens,
                     outputTokens = chatHistory.outputTokens,
+                    currentWindowSize = chatHistory.currentWindowSize,
                     group = chatHistory.group,
                     displayOrder = if (chatHistory.displayOrder != 0L) chatHistory.displayOrder else -now,
                     workspace = chatHistory.workspace

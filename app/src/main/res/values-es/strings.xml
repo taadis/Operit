@@ -9,7 +9,6 @@
     <string name="nav_tool_permissions">Permisos de herramientas</string>
     <string name="nav_about">Acerca de</string>
     <string name="nav_packages">Gestión de paquetes</string>
-    <string name="nav_problem_library">Biblioteca de problemas</string>
     <string name="nav_terminal">Terminal</string>
     <string name="nav_toolbox">Caja de herramientas</string>
     <string name="nav_item_agreement">Acuerdo de usuario</string>

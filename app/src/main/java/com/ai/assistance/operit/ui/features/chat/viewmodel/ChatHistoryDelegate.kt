@@ -121,7 +121,7 @@ class ChatHistoryDelegate(
     fun createNewChat() {
         viewModelScope.launch {
             val (inputTokens, outputTokens) = getTokenCounts()
-            saveCurrentChat(inputTokens, outputTokens)
+            saveCurrentChat(inputTokens, outputTokens, 0) // 新聊天，实际窗口大小为0
 
             val newChat = chatHistoryManager.createNewChat()
             _currentChatId.value = newChat.id
@@ -137,7 +137,7 @@ class ChatHistoryDelegate(
     fun switchChat(chatId: String) {
         viewModelScope.launch {
             val (inputTokens, outputTokens) = getTokenCounts()
-            saveCurrentChat(inputTokens, outputTokens)
+            saveCurrentChat(inputTokens, outputTokens, 0) // 切换前保存，但此时没有新的实际窗口大小
 
             chatHistoryManager.setCurrentChatId(chatId)
             _currentChatId.value = chatId
@@ -208,11 +208,20 @@ class ChatHistoryDelegate(
     }
 
     /** 保存当前聊天到持久存储 */
-    fun saveCurrentChat(inputTokens: Int = 0, outputTokens: Int = 0) {
+    fun saveCurrentChat(
+        inputTokens: Int = 0,
+        outputTokens: Int = 0,
+        actualContextWindowSize: Int = 0
+    ) {
         viewModelScope.launch {
             _currentChatId.value?.let { chatId ->
                 if (_chatHistory.value.isNotEmpty()) {
-                    chatHistoryManager.updateChatTokenCounts(chatId, inputTokens, outputTokens)
+                    chatHistoryManager.updateChatTokenCounts(
+                        chatId,
+                        inputTokens,
+                        outputTokens,
+                        actualContextWindowSize
+                    )
                 }
             }
         }
