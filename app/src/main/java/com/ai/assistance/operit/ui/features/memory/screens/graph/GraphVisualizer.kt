@@ -9,10 +9,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.*
 import androidx.compose.ui.unit.sp
+import com.ai.assistance.operit.ui.features.memory.screens.graph.model.Edge
 import com.ai.assistance.operit.ui.features.memory.screens.graph.model.Graph
 import com.ai.assistance.operit.ui.features.memory.screens.graph.model.Node
 import kotlinx.coroutines.Dispatchers
@@ -30,7 +33,10 @@ fun GraphVisualizer(
     graph: Graph,
     modifier: Modifier = Modifier,
     selectedNodeId: String? = null,
-    onNodeClick: (Node) -> Unit
+    linkingNodeIds: List<String> = emptyList(),
+    selectedEdgeId: Long? = null,
+    onNodeClick: (Node) -> Unit,
+    onEdgeClick: (Edge) -> Unit
 ) {
     val textMeasurer = rememberTextMeasurer()
     var nodePositions by remember { mutableStateOf(mapOf<String, Offset>()) }
@@ -44,22 +50,26 @@ fun GraphVisualizer(
         // Force-directed layout simulation
         LaunchedEffect(graph.nodes, width, height) {
             if (graph.nodes.isNotEmpty()) {
-                // Initialize positions randomly across the canvas to avoid "explosion"
-                val initialPositions = mutableMapOf<String, Offset>()
+                // 智能地更新位置：保留现有节点位置，只为新节点分配位置
+                val currentPositions = nodePositions
+                val newPositions = mutableMapOf<String, Offset>()
                 val center = Offset(width / 2, height / 2)
+
                 graph.nodes.forEach { node ->
-                    initialPositions[node.id] = Offset(
-                        (Math.random() * width).toFloat(),
-                        (Math.random() * height).toFloat()
+                    // 如果节点已经存在，则保留其位置；否则，在中心附近随机放置新节点
+                    newPositions[node.id] = currentPositions[node.id] ?: Offset(
+                        (center.x + (Math.random() * 200 - 100)).toFloat(),
+                        (center.y + (Math.random() * 200 - 100)).toFloat()
                     )
                 }
+
                 withContext(Dispatchers.Main) {
-                    nodePositions = initialPositions
+                    nodePositions = newPositions
                 }
 
                 // Run simulation in a background coroutine
                 launch(Dispatchers.Default) {
-                    val positions = initialPositions.toMutableMap()
+                    val positions = newPositions.toMutableMap()
                     val velocities = mutableMapOf<String, Offset>()
                     graph.nodes.forEach { node -> velocities[node.id] = Offset.Zero }
 
@@ -158,17 +168,31 @@ fun GraphVisualizer(
                     launch {
                         detectTapGestures(
                             onTap = { tapOffset ->
-                                val clickedNode = graph.nodes.findLast { node -> // findLast to prioritize top node
+                                val clickedNode = graph.nodes.findLast { node ->
                                     nodePositions[node.id]?.let { pos ->
                                         val viewPos = pos * scale + offset
-                                        val distanceInView = (tapOffset - viewPos).getDistance()
-                                        val radiusInView = 60f * scale
-                                        distanceInView <= radiusInView
+                                        (tapOffset - viewPos).getDistance() <= 60f * scale
                                     } ?: false
                                 }
-                                clickedNode?.let(onNodeClick)
-                    }
-                )
+                                val clickedEdge = if (clickedNode == null) {
+                                    graph.edges.find { edge ->
+                                        val sourcePos = nodePositions[edge.sourceId]
+                                        val targetPos = nodePositions[edge.targetId]
+                                        if (sourcePos != null && targetPos != null) {
+                                            val start = sourcePos * scale + offset
+                                            val end = targetPos * scale + offset
+                                            distanceToSegment(tapOffset, start, end) < 20f
+                                        } else false
+                                    }
+                                } else null
+
+                                if (clickedNode != null) {
+                                    onNodeClick(clickedNode)
+                                } else if (clickedEdge != null) {
+                                    onEdgeClick(clickedEdge)
+                                }
+                            }
+                        )
                     }
                 }
             }
@@ -182,10 +206,10 @@ fun GraphVisualizer(
                     val end = targetPos * scale + offset
                     
                     drawLine(
-                        color = Color.Gray,
+                        color = if (edge.id == selectedEdgeId) Color.Red else Color.Gray,
                         start = start,
                         end = end,
-                        strokeWidth = (edge.weight * 2f).coerceIn(1f, 8f)
+                        strokeWidth = (edge.weight * 3f).coerceIn(1f, 12f)
                     )
                     
                     edge.label?.let { label ->
@@ -216,17 +240,28 @@ fun GraphVisualizer(
                 val position = nodePositions[node.id]
                 if (position != null) {
                     val isSelected = node.id == selectedNodeId
+                    val isLinkingCandidate = node.id in linkingNodeIds
                     drawNode(
                         node = node,
                         position = position * scale + offset,
                         radius = 60f * scale,
                         textMeasurer = textMeasurer,
-                        isSelected = isSelected
+                        isSelected = isSelected,
+                        isLinkingCandidate = isLinkingCandidate
                     )
                 }
             }
         }
     }
+}
+
+private fun distanceToSegment(p: Offset, start: Offset, end: Offset): Float {
+    val l2 = (start - end).getDistanceSquared()
+    if (l2 == 0f) return (p - start).getDistance()
+    val t = ((p.x - start.x) * (end.x - start.x) + (p.y - start.y) * (end.y - start.y)) / l2
+    val tClamped = t.coerceIn(0f, 1f)
+    val projection = start + (end - start) * tClamped
+    return (p - projection).getDistance()
 }
 
 @OptIn(ExperimentalTextApi::class)
@@ -235,7 +270,8 @@ private fun DrawScope.drawNode(
     position: Offset,
     radius: Float,
     textMeasurer: TextMeasurer,
-    isSelected: Boolean
+    isSelected: Boolean,
+    isLinkingCandidate: Boolean
 ) {
     val color = if (isSelected) Color.Yellow else node.color
     drawCircle(
@@ -243,6 +279,14 @@ private fun DrawScope.drawNode(
         radius = radius,
         center = position
     )
+    if (isLinkingCandidate) {
+        drawCircle(
+            color = Color.Red,
+            radius = radius,
+            center = position,
+            style = Stroke(width = 8f, cap = StrokeCap.Round)
+        )
+    }
     
     val textLayoutResult = textMeasurer.measure(
         text = AnnotatedString(node.label),

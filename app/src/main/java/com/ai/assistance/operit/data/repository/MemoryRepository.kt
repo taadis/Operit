@@ -57,12 +57,12 @@ class MemoryRepository(context: Context, profileId: String) {
      * @param memory The memory object to be saved.
      * @return The ID of the saved memory.
      */
-    fun saveMemory(memory: Memory): Long {
+    suspend fun saveMemory(memory: Memory): Long = withContext(Dispatchers.IO){
         // Generate embedding before saving
         if (memory.content.isNotBlank()) {
             memory.embedding = EmbeddingService.generateEmbedding(memory.content)
         }
-        return memoryBox.put(memory)
+        memoryBox.put(memory)
     }
 
     /**
@@ -70,8 +70,8 @@ class MemoryRepository(context: Context, profileId: String) {
      * @param id The ID of the memory to find.
      * @return The found Memory object, or null if not found.
      */
-    fun findMemoryById(id: Long): Memory? {
-        return memoryBox.get(id)
+    suspend fun findMemoryById(id: Long): Memory? = withContext(Dispatchers.IO) {
+        memoryBox.get(id)
     }
 
     /**
@@ -79,8 +79,8 @@ class MemoryRepository(context: Context, profileId: String) {
      * @param uuid The UUID of the memory to find.
      * @return The found Memory object, or null if not found.
      */
-    fun findMemoryByUuid(uuid: String): Memory? {
-        return memoryBox.query(Memory_.uuid.equal(uuid)).build().findFirst()
+    suspend fun findMemoryByUuid(uuid: String): Memory? = withContext(Dispatchers.IO) {
+        memoryBox.query(Memory_.uuid.equal(uuid)).build().findFirst()
     }
 
     /**
@@ -88,8 +88,8 @@ class MemoryRepository(context: Context, profileId: String) {
      * @param title The title of the memory to find.
      * @return The found Memory object, or null if not found.
      */
-    fun findMemoryByTitle(title: String): Memory? {
-        return memoryBox.query(Memory_.title.equal(title)).build().findFirst()
+    suspend fun findMemoryByTitle(title: String): Memory? = withContext(Dispatchers.IO) {
+        memoryBox.query(Memory_.title.equal(title)).build().findFirst()
     }
 
     /**
@@ -98,13 +98,51 @@ class MemoryRepository(context: Context, profileId: String) {
      * @param memoryId The ID of the memory to delete.
      * @return True if deletion was successful, false otherwise.
      */
-    fun deleteMemory(memoryId: Long): Boolean {
-        val memory = findMemoryById(memoryId) ?: return false
+    suspend fun deleteMemory(memoryId: Long): Boolean = withContext(Dispatchers.IO) {
+        val memory = findMemoryById(memoryId) ?: return@withContext false
         // Before deleting the memory, we must clean up its links.
         // This prevents dangling references.
         memory.links.forEach { linkBox.remove(it) }
         memory.backlinks.forEach { linkBox.remove(it) }
-        return memoryBox.remove(memory)
+        memoryBox.remove(memory)
+    }
+
+    // --- Link CRUD Operations ---
+    suspend fun findLinkById(linkId: Long): MemoryLink? = withContext(Dispatchers.IO) {
+        linkBox.get(linkId)
+    }
+
+    suspend fun updateLink(linkId: Long, type: String, weight: Float, description: String): MemoryLink? = withContext(Dispatchers.IO) {
+        val link = findLinkById(linkId) ?: return@withContext null
+        val sourceMemory = link.source.target
+
+        link.type = type
+        link.weight = weight
+        link.description = description
+        linkBox.put(link)
+
+        // 在更新link后，同样put其所属的source memory。
+        // 这是为了向ObjectBox明确指出，这个父实体的关系集合“脏了”，
+        // 以此来避免后续查询时拿到缓存的旧数据。
+        if (sourceMemory != null) {
+            memoryBox.put(sourceMemory)
+        }
+
+        link
+    }
+
+    suspend fun deleteLink(linkId: Long): Boolean = withContext(Dispatchers.IO) {
+        // 为了健壮性，在删除链接后，也更新其父实体。
+        val link = findLinkById(linkId)
+        val sourceMemory = link?.source?.target
+
+        val wasRemoved = linkBox.remove(linkId)
+
+        if (wasRemoved && sourceMemory != null) {
+            // 通过put源实体，我们确保它的ToMany关系缓存在其他线程或未来的查询中得到更新。
+            memoryBox.put(sourceMemory)
+        }
+        wasRemoved
     }
 
     // --- Tagging Operations ---
@@ -115,7 +153,7 @@ class MemoryRepository(context: Context, profileId: String) {
      * @param tagName The name of the tag.
      * @return The MemoryTag object.
      */
-    fun addTagToMemory(memory: Memory, tagName: String): MemoryTag {
+    suspend fun addTagToMemory(memory: Memory, tagName: String): MemoryTag = withContext(Dispatchers.IO) {
         // Find existing tag or create a new one
         val tag =
                 tagBox.query()
@@ -128,7 +166,7 @@ class MemoryRepository(context: Context, profileId: String) {
             memory.tags.add(tag)
             memoryBox.put(memory)
         }
-        return tag
+        tag
     }
 
     // --- Linking Operations ---
@@ -141,13 +179,13 @@ class MemoryRepository(context: Context, profileId: String) {
      * @param weight The strength of the link.
      * @param description A description of the link.
      */
-    fun linkMemories(
+    suspend fun linkMemories(
             source: Memory,
             target: Memory,
             type: String,
             weight: Float = 1.0f,
             description: String = ""
-    ) {
+    ) = withContext(Dispatchers.IO) {
         val link = MemoryLink(type = type, weight = weight, description = description)
         link.source.target = source
         link.target.target = target
@@ -157,15 +195,15 @@ class MemoryRepository(context: Context, profileId: String) {
     }
 
     /** Gets all outgoing links from a memory. */
-    fun getOutgoingLinks(memoryId: Long): List<MemoryLink> {
+    suspend fun getOutgoingLinks(memoryId: Long): List<MemoryLink> = withContext(Dispatchers.IO) {
         val memory = findMemoryById(memoryId)
-        return memory?.links ?: emptyList()
+        memory?.links ?: emptyList()
     }
 
     /** Gets all incoming links to a memory. */
-    fun getIncomingLinks(memoryId: Long): List<MemoryLink> {
+    suspend fun getIncomingLinks(memoryId: Long): List<MemoryLink> = withContext(Dispatchers.IO) {
         val memory = findMemoryById(memoryId)
-        return memory?.backlinks ?: emptyList()
+        memory?.backlinks ?: emptyList()
     }
 
     // --- Complex Queries ---
@@ -176,8 +214,8 @@ class MemoryRepository(context: Context, profileId: String) {
      * @param query The search query string.
      * @return A list of matching Memory objects, sorted by relevance.
      */
-    fun searchMemories(query: String): List<Memory> {
-        if (query.isBlank()) return memoryBox.all
+    suspend fun searchMemories(query: String): List<Memory> = withContext(Dispatchers.IO) {
+        if (query.isBlank()) return@withContext memoryBox.all
 
         val scores = mutableMapOf<Long, Double>()
         val k = 60.0 // RRF constant for result fusion
@@ -233,7 +271,7 @@ class MemoryRepository(context: Context, profileId: String) {
 
         // 4. Fuse results using RRF and return sorted list
         if (scores.isEmpty()) {
-            return emptyList()
+            return@withContext emptyList()
         }
         val sortedMemoryIds = scores.entries.sortedByDescending { it.value }.map { it.key }
 
@@ -241,26 +279,26 @@ class MemoryRepository(context: Context, profileId: String) {
         val sortedMemories = memoryBox.get(sortedMemoryIds)
 
         // 5. Semantic Deduplication
-        return deduplicateBySemantics(sortedMemories)
+        deduplicateBySemantics(sortedMemories)
     }
 
-    fun addMemoryToIndex(memory: Memory) {
+    suspend fun addMemoryToIndex(memory: Memory) = withContext(Dispatchers.IO) {
         if (memory.embedding != null) {
             vectorIndexManager.addItem(MemoryItem(memory.uuid, memory.embedding!!.vector, memory))
         }
     }
-    fun removeMemoryFromIndex(memory: Memory) {
+    suspend fun removeMemoryFromIndex(memory: Memory) = withContext(Dispatchers.IO) {
         // hnswlib支持removeEnabled时可用，若不支持可忽略
         // vectorIndexManager.removeItem(memory.uuid)
     }
 
     /** 使用HNSW索引的高效语义检索。 */
-    fun searchMemoriesPrecise(query: String, similarityThreshold: Float = 0.95f): List<Memory> {
-        if (query.isBlank()) return emptyList()
-        val queryEmbedding = EmbeddingService.generateEmbedding(query) ?: return emptyList()
+    suspend fun searchMemoriesPrecise(query: String, similarityThreshold: Float = 0.95f): List<Memory> = withContext(Dispatchers.IO) {
+        if (query.isBlank()) return@withContext emptyList()
+        val queryEmbedding = EmbeddingService.generateEmbedding(query) ?: return@withContext emptyList()
         // 取前100个最相近的记忆，再按阈值过滤
         val candidates = vectorIndexManager.findNearest(queryEmbedding.vector, 100)
-        return candidates.map { it.memoryRef }
+        candidates.map { it.memoryRef }
             .filter { it.embedding != null && EmbeddingService.cosineSimilarity(queryEmbedding, it.embedding!!) >= similarityThreshold }
     }
 
@@ -315,7 +353,7 @@ class MemoryRepository(context: Context, profileId: String) {
      * @param memories The list of memories to include in the graph.
      * @return A Graph object.
      */
-    fun getGraphForMemories(memories: List<Memory>): Graph {
+    suspend fun getGraphForMemories(memories: List<Memory>): Graph = withContext(Dispatchers.IO) {
         // Expand the initial list of memories to include direct neighbors
         val expandedMemories = mutableSetOf<Memory>()
         expandedMemories.addAll(memories)
@@ -331,7 +369,7 @@ class MemoryRepository(context: Context, profileId: String) {
                 "MemoryRepo",
                 "Initial memories: ${memories.size}, Expanded memories: ${expandedMemories.size}"
         )
-        return buildGraphFromMemories(expandedMemories.toList())
+        buildGraphFromMemories(expandedMemories.toList())
     }
 
     /** Retrieves a single memory by its UUID. */
@@ -343,8 +381,8 @@ class MemoryRepository(context: Context, profileId: String) {
     /**
      * 创建新记忆并自动生成embedding，保存到数据库并同步索引。
      */
-    fun createMemory(title: String, content: String, contentType: String = "text/plain", source: String = "user_input"): Memory? {
-        val embedding = EmbeddingService.generateEmbedding(content) ?: return null
+    suspend fun createMemory(title: String, content: String, contentType: String = "text/plain", source: String = "user_input"): Memory? = withContext(Dispatchers.IO) {
+        val embedding = EmbeddingService.generateEmbedding(content) ?: return@withContext null
         val memory = Memory(
             title = title,
             content = content,
@@ -354,14 +392,14 @@ class MemoryRepository(context: Context, profileId: String) {
         )
         saveMemory(memory)
         addMemoryToIndex(memory)
-        return memory
+        memory
     }
 
     /**
      * 更新已有记忆内容（title/content等），自动更新embedding和索引。
      */
-    fun updateMemory(memory: Memory, newTitle: String, newContent: String, newContentType: String = memory.contentType): Memory? {
-        val newEmbedding = EmbeddingService.generateEmbedding(newContent) ?: return null
+    suspend fun updateMemory(memory: Memory, newTitle: String, newContent: String, newContentType: String = memory.contentType): Memory? = withContext(Dispatchers.IO) {
+        val newEmbedding = EmbeddingService.generateEmbedding(newContent) ?: return@withContext null
         val updated = memory.copy(
             title = newTitle,
             content = newContent,
@@ -371,23 +409,23 @@ class MemoryRepository(context: Context, profileId: String) {
         )
         saveMemory(updated)
         addMemoryToIndex(updated)
-        return updated
+        updated
     }
 
     /**
      * 删除记忆并同步索引。
      */
-    fun deleteMemoryAndIndex(memoryId: Long): Boolean {
-        val memory = findMemoryById(memoryId) ?: return false
+    suspend fun deleteMemoryAndIndex(memoryId: Long): Boolean = withContext(Dispatchers.IO) {
+        val memory = findMemoryById(memoryId) ?: return@withContext false
         removeMemoryFromIndex(memory)
-        return deleteMemory(memoryId)
+        deleteMemory(memoryId)
     }
 
     // --- Graph Export ---
 
     /** Fetches all memories and their links, and converts them into a Graph data structure. */
-    fun getMemoryGraph(): Graph {
-        return buildGraphFromMemories(memoryBox.all)
+    suspend fun getMemoryGraph(): Graph = withContext(Dispatchers.IO) {
+        buildGraphFromMemories(memoryBox.all)
     }
 
     /**
@@ -413,22 +451,25 @@ class MemoryRepository(context: Context, profileId: String) {
 
         val edges = mutableListOf<Edge>()
         memories.forEach { memory ->
+            // 关键：重置关系缓存，确保获取最新的连接信息
+            memory.links.reset()
             memory.links.forEach { link ->
                 val sourceId = link.source.target?.uuid
                 val targetId = link.target.target?.uuid
                 // Only add edges if both source and target are in the filtered list
                 if (sourceId != null &&
-                                targetId != null &&
-                                sourceId in memoryUuids &&
-                                targetId in memoryUuids
+                    targetId != null &&
+                    sourceId in memoryUuids &&
+                    targetId in memoryUuids
                 ) {
                     edges.add(
-                            Edge(
-                                    sourceId = sourceId,
-                                    targetId = targetId,
-                                    label = link.type,
-                                    weight = link.weight
-                            )
+                        Edge(
+                            id = link.id,
+                            sourceId = sourceId,
+                            targetId = targetId,
+                            label = link.type,
+                            weight = link.weight
+                        )
                     )
                 } else if (sourceId != null && targetId != null) {
                     // Log discarded edges for debugging

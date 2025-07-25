@@ -14,6 +14,7 @@ data class Node(
 )
 
 data class Edge(
+    val id: Long,
     val sourceId: String,
     val targetId: String,
     val label: String? = null,

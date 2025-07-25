@@ -58,6 +58,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.material.icons.outlined.Portrait
+import androidx.compose.material.icons.rounded.Link
 
 @Composable
 fun ChatSettingsBar(
@@ -71,7 +72,9 @@ fun ChatSettingsBar(
     enableThinkingGuidance: Boolean,
     onToggleThinkingGuidance: () -> Unit,
     maxWindowSizeInK: Float,
-    onContextLengthChange: (Float) -> Unit
+    onContextLengthChange: (Float) -> Unit,
+    enableMemoryAttachment: Boolean,
+    onToggleMemoryAttachment: () -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
     val iconScale by animateFloatAsState(
@@ -171,6 +174,14 @@ fun ChatSettingsBar(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                AnimatedVisibility(visible = enableMemoryAttachment) {
+                    Icon(
+                        imageVector = Icons.Rounded.Link,
+                        contentDescription = "记忆附着已激活",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
                 AnimatedVisibility(visible = enableThinkingMode) {
                     Icon(
                         imageVector = Icons.Rounded.Psychology,
@@ -274,6 +285,19 @@ fun ChatSettingsBar(
                                 onExpandedChange = { showMemoryDropdown = it },
                                 onInfoClick = {
                                     infoPopupContent = "记忆" to "记忆选择包括了用户偏好和该偏好下的记忆库。如果想要新的记忆库，可以去设置新建一个用户偏好并在这里选择"
+                                    showMenu = false
+                                }
+                            )
+
+                            // 记忆附着
+                            SettingItem(
+                                title = "记忆附着",
+                                icon = if (enableMemoryAttachment) Icons.Rounded.Link else Icons.Outlined.LinkOff,
+                                iconTint = if (enableMemoryAttachment) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                isChecked = enableMemoryAttachment,
+                                onToggle = onToggleMemoryAttachment,
+                                onInfoClick = {
+                                    infoPopupContent = "记忆附着" to "开启后，发送消息时会自动从记忆库中检索并附加相关内容，但这可能会影响AI回答的焦点。"
                                     showMenu = false
                                 }
                             )

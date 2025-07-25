@@ -75,9 +75,9 @@ data class MemoryTag(
 @Entity
 data class MemoryLink(
     @Id var id: Long = 0,
-    var type: String = "related_to", // 关联类型 (e.g., "causes", "precedes", "contains", "explains")
-    var weight: Float = 1.0f, // 关联强度
-    var description: String = "" // 对关联的描述
+    var type: String = "related", // 关联类型 (e.g., "causes", "explains", "part_of")
+    var weight: Float = 1.0f, // 关联强度 (0.0 to 1.0)
+    var description: String = "" // 关联的详细描述
 ) {
     // 关联的源头和目标
     lateinit var source: ToOne<Memory>

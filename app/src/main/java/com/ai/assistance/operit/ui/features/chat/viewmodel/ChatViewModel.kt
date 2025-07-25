@@ -162,6 +162,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     // 思考模式和思考引导状态现在由ApiConfigDelegate管理
     val enableThinkingMode: StateFlow<Boolean> by lazy { apiConfigDelegate.enableThinkingMode }
     val enableThinkingGuidance: StateFlow<Boolean> by lazy { apiConfigDelegate.enableThinkingGuidance }
+    val enableMemoryAttachment: StateFlow<Boolean> by lazy { apiConfigDelegate.enableMemoryAttachment }
 
     // 上下文长度
     val maxWindowSizeInK: StateFlow<Float> by lazy { apiConfigDelegate.contextLength }
@@ -462,6 +463,11 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         apiConfigDelegate.toggleThinkingGuidance()
     }
 
+    // 切换记忆附着的方法现在委托给ApiConfigDelegate
+    fun toggleMemoryAttachment() {
+        apiConfigDelegate.toggleMemoryAttachment()
+    }
+
     // 更新上下文长度
     fun updateContextLength(length: Float) {
         apiConfigDelegate.updateContextLength(length)
@@ -686,7 +692,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 workspacePath = workspacePath,
                 promptFunctionType = promptFunctionType,
                 enableThinking = enableThinkingMode.value, // 传递思考模式的状态
-                thinkingGuidance = enableThinkingGuidance.value // 传递思考引导的状态
+                thinkingGuidance = enableThinkingGuidance.value, // 传递思考引导的状态
+                enableMemoryAttachment = enableMemoryAttachment.value // 传递记忆附着的状态
         )
 
         if (chatHistoryDelegate.shouldGenerateSummary(chatHistoryDelegate.chatHistory.value)) {

@@ -47,6 +47,10 @@ class ApiConfigDelegate(
             MutableStateFlow(ApiPreferences.DEFAULT_ENABLE_THINKING_GUIDANCE)
     val enableThinkingGuidance: StateFlow<Boolean> = _enableThinkingGuidance.asStateFlow()
 
+    private val _enableMemoryAttachment =
+            MutableStateFlow(ApiPreferences.DEFAULT_ENABLE_MEMORY_ATTACHMENT)
+    val enableMemoryAttachment: StateFlow<Boolean> = _enableMemoryAttachment.asStateFlow()
+
     private val _contextLength = MutableStateFlow(ApiPreferences.DEFAULT_CONTEXT_LENGTH)
     val contextLength: StateFlow<Float> = _contextLength.asStateFlow()
 
@@ -103,6 +107,13 @@ class ApiConfigDelegate(
         viewModelScope.launch {
             apiPreferences.enableThinkingGuidanceFlow.collect { enabled ->
                 _enableThinkingGuidance.value = enabled
+            }
+        }
+
+        // Collect memory attachment setting
+        viewModelScope.launch {
+            apiPreferences.enableMemoryAttachmentFlow.collect { enabled ->
+                _enableMemoryAttachment.value = enabled
             }
         }
 
@@ -201,6 +212,15 @@ class ApiConfigDelegate(
             val newValue = !_enableThinkingGuidance.value
             apiPreferences.saveEnableThinkingGuidance(newValue)
             _enableThinkingGuidance.value = newValue
+        }
+    }
+
+    /** 切换记忆附着 */
+    fun toggleMemoryAttachment() {
+        viewModelScope.launch {
+            val newValue = !_enableMemoryAttachment.value
+            apiPreferences.saveEnableMemoryAttachment(newValue)
+            _enableMemoryAttachment.value = newValue
         }
     }
 

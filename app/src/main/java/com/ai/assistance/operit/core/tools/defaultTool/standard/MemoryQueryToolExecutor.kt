@@ -2,6 +2,7 @@ package com.ai.assistance.operit.core.tools.defaultTool.standard
 
 import android.content.Context
 import android.util.Log
+import com.ai.assistance.operit.core.tools.MemoryQueryResultData
 import com.ai.assistance.operit.core.tools.StringResultData
 import com.ai.assistance.operit.core.tools.ToolExecutor
 import com.ai.assistance.operit.data.model.AITool
@@ -30,40 +31,38 @@ class MemoryQueryToolExecutor(private val context: Context) : ToolExecutor {
         MemoryRepository(context, profileId)
     }
 
-    override fun invoke(tool: AITool): ToolResult {
+    override fun invoke(tool: AITool): ToolResult = runBlocking {
         val query = tool.parameters.find { it.name == "query" }?.value ?: ""
         if (query.isBlank()) {
-            return ToolResult(toolName = tool.name, success = false, result = StringResultData(""), error = "Query parameter cannot be empty.")
+            return@runBlocking ToolResult(toolName = tool.name, success = false, result = StringResultData(""), error = "Query parameter cannot be empty.")
         }
 
         Log.d(TAG, "Executing memory query: $query")
 
-        return try {
+        return@runBlocking try {
             val results =
                 memoryRepository.searchMemoriesPrecise(query)
             
-            val formattedResult = formatResults(results.take(3)) // Take top 3 results
-            ToolResult(toolName = tool.name, success = true, result = StringResultData(formattedResult))
+            val formattedResult = buildResultData(results.take(3)) // Take top 3 results
+            ToolResult(toolName = tool.name, success = true, result = formattedResult)
         } catch (e: Exception) {
             Log.e(TAG, "Memory query failed", e)
             ToolResult(toolName = tool.name, success = false, result = StringResultData(""), error = "Failed to execute memory query: ${e.message}")
         }
     }
 
-    private fun formatResults(memories: List<Memory>): String {
-        if (memories.isEmpty()) {
-            return "No relevant memories found."
-        }
+    private fun buildResultData(memories: List<Memory>): MemoryQueryResultData {
         val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-        return memories.joinToString("\n---\n") { memory ->
-            """
-            Title: ${memory.title}
-            Content: ${memory.content.take(200)}...
-            Source: ${memory.source}
-            Tags: ${memory.tags.joinToString(", ") { it.name }}
-            Created: ${sdf.format(memory.createdAt)}
-            """.trimIndent()
+        val memoryInfos = memories.map { memory ->
+            MemoryQueryResultData.MemoryInfo(
+                title = memory.title,
+                content = memory.content,
+                source = memory.source,
+                tags = memory.tags.map { it.name },
+                createdAt = sdf.format(memory.createdAt)
+            )
         }
+        return MemoryQueryResultData(memories = memoryInfos)
     }
 
 

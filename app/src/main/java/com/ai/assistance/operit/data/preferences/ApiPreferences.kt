@@ -44,6 +44,9 @@ class ApiPreferences(private val context: Context) {
         val ENABLE_THINKING_MODE = booleanPreferencesKey("enable_thinking_mode")
         val ENABLE_THINKING_GUIDANCE = booleanPreferencesKey("enable_thinking_guidance")
 
+        // Key for Memory Attachment
+        val ENABLE_MEMORY_ATTACHMENT = booleanPreferencesKey("enable_memory_attachment")
+
         // Key for Context Length
         val CONTEXT_LENGTH = floatPreferencesKey("context_length")
 
@@ -98,6 +101,9 @@ class ApiPreferences(private val context: Context) {
         // Default values for Thinking Mode and Thinking Guidance
         const val DEFAULT_ENABLE_THINKING_MODE = false
         const val DEFAULT_ENABLE_THINKING_GUIDANCE = false
+
+        // Default value for Memory Attachment
+        const val DEFAULT_ENABLE_MEMORY_ATTACHMENT = true
 
         // Default value for Context Length (in K)
         const val DEFAULT_CONTEXT_LENGTH = 8.0f
@@ -272,6 +278,12 @@ class ApiPreferences(private val context: Context) {
             preferences[ENABLE_THINKING_GUIDANCE] ?: DEFAULT_ENABLE_THINKING_GUIDANCE
             }
 
+    // Flow for Memory Attachment
+    val enableMemoryAttachmentFlow: Flow<Boolean> =
+        context.apiDataStore.data.map { preferences ->
+            preferences[ENABLE_MEMORY_ATTACHMENT] ?: DEFAULT_ENABLE_MEMORY_ATTACHMENT
+        }
+
     // Flow for Context Length
     val contextLengthFlow: Flow<Float> =
         context.apiDataStore.data.map { preferences ->
@@ -387,6 +399,13 @@ class ApiPreferences(private val context: Context) {
     suspend fun saveEnableThinkingGuidance(isEnabled: Boolean) {
         context.apiDataStore.edit { preferences ->
             preferences[ENABLE_THINKING_GUIDANCE] = isEnabled
+        }
+    }
+
+    // Save Memory Attachment setting
+    suspend fun saveEnableMemoryAttachment(isEnabled: Boolean) {
+        context.apiDataStore.edit { preferences ->
+            preferences[ENABLE_MEMORY_ATTACHMENT] = isEnabled
         }
     }
 

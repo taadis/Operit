@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.lifecycle.viewModelScope
 import com.ai.assistance.operit.api.chat.EnhancedAIService
 import com.ai.assistance.operit.core.tools.AIToolHandler
+import com.ai.assistance.operit.core.tools.MemoryQueryResultData
 import com.ai.assistance.operit.data.model.*
 import com.ai.assistance.operit.data.model.InputProcessingState as EnhancedInputProcessingState
 import com.ai.assistance.operit.data.preferences.PromptFunctionType
@@ -85,7 +86,8 @@ class MessageProcessingDelegate(
             workspacePath: String? = null,
             promptFunctionType: PromptFunctionType = PromptFunctionType.CHAT,
             enableThinking: Boolean = false,
-            thinkingGuidance: Boolean = false
+            thinkingGuidance: Boolean = false,
+            enableMemoryAttachment: Boolean = true // 新增参数
     ) {
         if (_userMessage.value.isBlank() && attachments.isEmpty()) return
         if (_isLoading.value) return
@@ -110,18 +112,24 @@ class MessageProcessingDelegate(
 
         Log.d(TAG, "开始处理用户消息：附件数量=${attachments.size}")
 
-            // 1. 自动查询知识库并构建memory标签
+            // 1. 根据新开关决定是否查询知识库
             var memoryTag = ""
-            if (messageText.isNotBlank() && !messageText.contains("<memory>", ignoreCase = true)) {
+            if (enableMemoryAttachment && messageText.isNotBlank() && !messageText.contains("<memory>", ignoreCase = true)) {
                 val queryTool = AITool(
                         name = "query_knowledge_library",
                         parameters = listOf(ToolParameter("query", messageText))
                 )
                 val result = toolHandler.executeTool(queryTool)
-                if (result.success && result.result.toString().isNotBlank()) {
-                    val instruction = "你不用刻意去针对memory进行回复，仅针对用户说的话回答即可"
-                    val memoryContent = result.result.toString()
-                    memoryTag = "<memory>${instruction}\n---\n${memoryContent}</memory>"
+
+                // 检查结果是否是结构化数据且包含记忆
+                if (result.success && result.result is MemoryQueryResultData) {
+                    val memoryData = result.result as MemoryQueryResultData
+                    if (memoryData.memories.isNotEmpty()) {
+                        val instruction = "你不用刻意去针对memory进行回复，仅针对用户说的话回答即可"
+                        // 使用结构化数据的toString()方法来格式化内容
+                        val memoryContent = memoryData.toString()
+                        memoryTag = "<memory>${instruction}\n---\n${memoryContent}</memory>"
+                    }
                 }
             }
 

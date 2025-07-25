@@ -112,6 +112,7 @@ fun AIChatScreen(
     val enableAiPlanning by actualViewModel.enableAiPlanning.collectAsState()
     val enableThinkingMode by actualViewModel.enableThinkingMode.collectAsState() // 收集思考模式状态
     val enableThinkingGuidance by actualViewModel.enableThinkingGuidance.collectAsState() // 收集思考引导状态
+    val enableMemoryAttachment by actualViewModel.enableMemoryAttachment.collectAsState()
     val showChatHistorySelector by actualViewModel.showChatHistorySelector.collectAsState()
     val chatHistories by actualViewModel.chatHistories.collectAsState()
     val currentChatId by actualViewModel.currentChatId.collectAsState()
@@ -518,7 +519,9 @@ fun AIChatScreen(
                         enableThinkingGuidance = enableThinkingGuidance,
                         onToggleThinkingGuidance = { actualViewModel.toggleThinkingGuidance() },
                         maxWindowSizeInK = actualViewModel.maxWindowSizeInK.collectAsState().value,
-                        onContextLengthChange = { actualViewModel.updateContextLength(it) }
+                        onContextLengthChange = { actualViewModel.updateContextLength(it) },
+                        enableMemoryAttachment = enableMemoryAttachment,
+                        onToggleMemoryAttachment = { actualViewModel.toggleMemoryAttachment() }
                     )
                 }
             }
