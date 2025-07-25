@@ -104,7 +104,7 @@ fun MemoryScreen() {
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "记忆库与用户偏好配置绑定，新建请到\"设置→用户偏好\"，激活可在聊天菜单设置",
+                                text = "记忆库与用户偏好配置绑定，新建请到\"设置→用户偏好\"，激活可在聊天菜单设置。老的问题库目前仍可在设置中进行导出，建议尽快操作。",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
