@@ -5,8 +5,8 @@ import android.util.Log
 import com.ai.assistance.operit.api.chat.library.ProblemLibraryTool
 import com.ai.assistance.operit.data.db.AppDatabase
 import com.ai.assistance.operit.data.db.ProblemEntity
-import com.github.jelmerk.knn.Item
-import com.github.jelmerk.knn.SearchResult
+import com.github.jelmerk.hnswlib.core.Item
+import com.github.jelmerk.hnswlib.core.SearchResult
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -34,7 +34,7 @@ class VectorDatabaseHelper(private val context: Context) {
 
     // 记录项实现
     data class ProblemItem(val id: String, private val vector: FloatArray) :
-            Item<String, FloatArray> {
+        Item<String, FloatArray> {
         override fun id(): String = id
         override fun vector(): FloatArray = vector
 

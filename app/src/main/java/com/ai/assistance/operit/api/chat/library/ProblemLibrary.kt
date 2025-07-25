@@ -336,11 +336,11 @@ object ProblemLibrary {
         messageBuilder.appendLine("解决方案:")
         messageBuilder.appendLine(solution.take(3000))
         messageBuilder.appendLine()
-        val recentHistory = conversationHistory.takeLast(15)
+        val recentHistory = conversationHistory.takeLast(10)
         if (recentHistory.isNotEmpty()) {
             messageBuilder.appendLine("历史记录:")
             recentHistory.forEachIndexed { index, (role, content) ->
-                messageBuilder.appendLine("#${index + 1} $role: ${content.take(300)}")
+                messageBuilder.appendLine("#${index + 1} $role: ${content.take(4000)}")
             }
         }
         return messageBuilder.toString()

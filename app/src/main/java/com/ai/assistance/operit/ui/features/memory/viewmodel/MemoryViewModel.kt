@@ -25,7 +25,9 @@ data class MemoryUiState(
     val selectedNodeId: String? = null,
     val isLoading: Boolean = false,
     val searchQuery: String = "",
-    val error: String? = null
+    val error: String? = null,
+    val editingMemory: Memory? = null, // 新增：用于编辑/新建
+    val isEditing: Boolean = false // 新增：是否处于编辑/新建状态
 )
 
 /**
@@ -130,36 +132,52 @@ class MemoryViewModel(
         _uiState.update { it.copy(selectedMemory = null, selectedNodeId = null) }
     }
     
-    /**
-     * Deletes a memory.
-     */
-    fun deleteMemory(memoryId: Long) {
-        viewModelScope.launch {
-             _uiState.update { it.copy(isLoading = true) }
-            try {
-                repository.deleteMemory(memoryId)
-                // Refresh the graph after deletion
-                loadMemoryGraph()
-            } catch (e: Exception) {
-                 _uiState.update { it.copy(isLoading = false, error = "Failed to delete memory: ${e.message}") }
-            }
-        }
-    }
-
-    /**
-     * Creates sample memories and refreshes the list.
-     */
-    fun createSampleMemories() {
+    /** 新建记忆 */
+    fun createMemory(title: String, content: String, contentType: String = "text/plain") {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             try {
-                repository.createSampleMemories()
-                // Refresh the graph to show the new memories
+                repository.createMemory(title, content, contentType)
                 loadMemoryGraph()
+                _uiState.update { it.copy(isLoading = false, isEditing = false, editingMemory = null) }
             } catch (e: Exception) {
-                _uiState.update { it.copy(isLoading = false, error = "Failed to create sample memories: ${e.message}") }
+                _uiState.update { it.copy(isLoading = false, error = "Failed to create memory: ${e.message}") }
             }
         }
+    }
+    /** 编辑记忆 */
+    fun updateMemory(memory: Memory, newTitle: String, newContent: String, newContentType: String = memory.contentType) {
+        viewModelScope.launch {
+             _uiState.update { it.copy(isLoading = true) }
+            try {
+                repository.updateMemory(memory, newTitle, newContent, newContentType)
+                loadMemoryGraph()
+                _uiState.update { it.copy(isLoading = false, isEditing = false, editingMemory = null) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(isLoading = false, error = "Failed to update memory: ${e.message}") }
+            }
+        }
+    }
+    /** 删除记忆 */
+    fun deleteMemory(memoryId: Long) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            try {
+                repository.deleteMemoryAndIndex(memoryId)
+                loadMemoryGraph()
+                _uiState.update { it.copy(isLoading = false, selectedMemory = null, selectedNodeId = null) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(isLoading = false, error = "Failed to delete memory: ${e.message}") }
+            }
+        }
+    }
+    /** 进入新建/编辑状态 */
+    fun startEditing(memory: Memory? = null) {
+        _uiState.update { it.copy(isEditing = true, editingMemory = memory) }
+    }
+    /** 取消编辑 */
+    fun cancelEditing() {
+        _uiState.update { it.copy(isEditing = false, editingMemory = null) }
     }
 }
 

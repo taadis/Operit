@@ -162,7 +162,7 @@ fun ChatScreenHeader(
                         progress = animatedProgress,
                         modifier = Modifier.fillMaxSize(),
                         color = progressColor,
-                        strokeWidth = 1.dp,
+                        strokeWidth = 3.dp,
                         trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
                     )
                     Text(

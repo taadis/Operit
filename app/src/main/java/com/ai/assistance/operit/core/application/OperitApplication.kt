@@ -14,6 +14,7 @@ import coil.request.CachePolicy
 import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
 import com.ai.assistance.operit.data.db.AppDatabase
 import com.ai.assistance.operit.data.mcp.MCPImageCache
+import com.ai.assistance.operit.data.preferences.FunctionalPromptManager
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.data.preferences.initAndroidPermissionPreferences
 import com.ai.assistance.operit.data.preferences.initUserPreferencesManager
@@ -87,6 +88,11 @@ class OperitApplication : Application() {
 
         // 初始化Android权限偏好管理器
         initAndroidPermissionPreferences(applicationContext)
+
+        // 初始化功能提示词管理器
+        applicationScope.launch {
+            FunctionalPromptManager(applicationContext).initializeIfNeeded()
+        }
 
         // 在最早时机初始化并应用语言设置
         initializeAppLanguage()
