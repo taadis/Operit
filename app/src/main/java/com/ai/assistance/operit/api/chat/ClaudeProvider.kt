@@ -258,7 +258,8 @@ class ClaudeProvider(
             message: String,
             chatHistory: List<Pair<String, String>>,
             modelParameters: List<ModelParameter<*>>,
-            enableThinking: Boolean
+            enableThinking: Boolean,
+            onTokensUpdated: suspend (input: Int, output: Int) -> Unit
     ): Stream<String> = stream {
         // 重置token计数
         _inputTokenCount = 0
@@ -269,6 +270,7 @@ class ClaudeProvider(
         var lastException: Exception? = null
 
         val requestBody = createRequestBody(message, chatHistory, modelParameters, enableThinking)
+        onTokensUpdated(_inputTokenCount, _outputTokenCount)
         val request = createRequest(requestBody)
 
         Log.d("AIService", "准备连接到Claude AI服务...")
@@ -315,6 +317,7 @@ class ClaudeProvider(
 
                                         if (content.isNotEmpty()) {
                                             _outputTokenCount += estimateTokenCount(content)
+                                            onTokensUpdated(_inputTokenCount, _outputTokenCount)
                                             emit(content)
                                         }
                                     } catch (e: Exception) {
@@ -379,7 +382,7 @@ class ClaudeProvider(
             // 这比getModelsList更可靠，因为它直接命中了聊天API。
             // 提供一个通用的系统提示，以防止某些需要它的模型出现错误。
             val testHistory = listOf("system" to "You are a helpful assistant.")
-            val stream = sendMessage("Hi", testHistory, emptyList(), false)
+            val stream = sendMessage("Hi", testHistory, emptyList(), false) { _, _ -> }
 
             // 消耗流以确保连接有效。
             // 对 "Hi" 的响应应该很短，所以这会很快完成。

@@ -33,11 +33,10 @@ class MessageProcessingDelegate(
         private val getChatHistory: () -> List<ChatMessage>,
         private val getMemory: (Boolean) -> List<Pair<String, String>>,
         private val addMessageToChat: (ChatMessage) -> Unit,
-        private val updateChatStatistics: () -> Unit,
         private val saveCurrentChat: () -> Unit,
         private val showErrorMessage: (String) -> Unit,
         private val updateChatTitle: (chatId: String, title: String) -> Unit,
-        private val onStreamComplete: () -> Unit,
+        private val onTurnComplete: () -> Unit,
         private val toolHandler: AIToolHandler
 ) {
     companion object {
@@ -199,7 +198,6 @@ class MessageProcessingDelegate(
                                             "共享流完成，耗时: ${System.currentTimeMillis() - startTime}ms"
                                     )
                                     currentResponseStream = null // 清除本地引用
-                                    onStreamComplete() // 通知外部流已完成
                                 }
                         )
 
@@ -264,8 +262,7 @@ class MessageProcessingDelegate(
                     // _isProcessingInput.value = false
 
                     // 即使流处理完成，也需要保存一次聊天记录
-                    updateChatStatistics()
-                    saveCurrentChat()
+                    onTurnComplete()
                 }
             }
         }

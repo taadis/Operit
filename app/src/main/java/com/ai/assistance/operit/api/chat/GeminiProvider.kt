@@ -126,7 +126,8 @@ class GeminiProvider(
             message: String,
             chatHistory: List<Pair<String, String>>,
             modelParameters: List<ModelParameter<*>>,
-            enableThinking: Boolean
+            enableThinking: Boolean,
+            onTokensUpdated: suspend (input: Int, output: Int) -> Unit
     ): Stream<String> = stream {
         if (enableThinking) {
             Log.w(TAG, "Gemini API当前不支持“思考模式”，该参数将被忽略。")
@@ -134,6 +135,7 @@ class GeminiProvider(
         val requestId = System.currentTimeMillis().toString()
         // 重置token计数
         resetTokenCounts()
+        onTokensUpdated(_inputTokenCount, _outputTokenCount)
 
         Log.d(TAG, "发送消息到Gemini API, 模型: $modelName")
 
@@ -142,6 +144,7 @@ class GeminiProvider(
         var lastException: Exception? = null
 
         val requestBody = createRequestBody(message, chatHistory, modelParameters)
+        onTokensUpdated(_inputTokenCount, _outputTokenCount)
         val request = createRequest(requestBody, true, requestId) // 使用流式请求
 
         // 状态更新函数 - 在Stream中我们使用emit来传递连接状态
@@ -173,7 +176,7 @@ class GeminiProvider(
                     }
 
                     // 处理响应
-                    processStreamingResponse(response, this, requestId)
+                    processStreamingResponse(response, this, requestId, onTokensUpdated)
                 }
 
                 activeCall = null
@@ -381,7 +384,8 @@ class GeminiProvider(
     private suspend fun processStreamingResponse(
             response: Response,
             streamBuilder: StreamCollector<String>,
-            requestId: String
+            requestId: String,
+            onTokensUpdated: suspend (input: Int, output: Int) -> Unit
     ) {
         Log.d(TAG, "开始处理响应流")
         val responseBody = response.body ?: throw IOException("响应为空")
@@ -424,7 +428,7 @@ class GeminiProvider(
                             val json = JSONObject(data)
                             jsonCount++
 
-                            val content = extractContentFromJson(json, requestId)
+                            val content = extractContentFromJson(json, requestId, onTokensUpdated)
                             if (content.isNotEmpty()) {
                                 contentCount++
                                 logDebug("提取SSE内容，长度: ${content.length}")
@@ -484,7 +488,8 @@ class GeminiProvider(
                                                     val content =
                                                             extractContentFromJson(
                                                                     jsonObject,
-                                                                    requestId
+                                                                    requestId,
+                                                                    onTokensUpdated
                                                             )
                                                     if (content.isNotEmpty()) {
                                                         contentCount++
@@ -502,7 +507,7 @@ class GeminiProvider(
                                             // 处理JSON对象
                                             jsonCount++
                                             val content =
-                                                    extractContentFromJson(jsonContent, requestId)
+                                                    extractContentFromJson(jsonContent, requestId, onTokensUpdated)
                                             if (content.isNotEmpty()) {
                                                 contentCount++
                                                 logDebug("从JSON对象提取内容，长度: ${content.length}")
@@ -555,7 +560,7 @@ class GeminiProvider(
                             for (i in 0 until jsonContent.length()) {
                                 val jsonObject = jsonContent.optJSONObject(i) ?: continue
                                 jsonCount++
-                                val content = extractContentFromJson(jsonObject, requestId)
+                                val content = extractContentFromJson(jsonObject, requestId, onTokensUpdated)
                                 if (content.isNotEmpty()) {
                                     contentCount++
                                     logDebug("从最终JSON数组[$i]提取内容，长度: ${content.length}")
@@ -565,7 +570,7 @@ class GeminiProvider(
                         }
                         is JSONObject -> {
                             jsonCount++
-                            val content = extractContentFromJson(jsonContent, requestId)
+                            val content = extractContentFromJson(jsonContent, requestId, onTokensUpdated)
                             if (content.isNotEmpty()) {
                                 contentCount++
                                 logDebug("从最终JSON对象提取内容，长度: ${content.length}")
@@ -592,7 +597,11 @@ class GeminiProvider(
     }
 
     /** 从Gemini响应JSON中提取内容 */
-    private fun extractContentFromJson(json: JSONObject, requestId: String): String {
+    private suspend fun extractContentFromJson(
+        json: JSONObject,
+        requestId: String,
+        onTokensUpdated: suspend (input: Int, output: Int) -> Unit
+    ): String {
         val contentBuilder = StringBuilder()
 
         try {
@@ -645,6 +654,7 @@ class GeminiProvider(
                     // 估算token
                     val tokens = estimateTokenCount(text)
                     _outputTokenCount += tokens
+                    onTokensUpdated(_inputTokenCount, _outputTokenCount)
                     logDebug("提取文本，长度=${text.length}, tokens=$tokens")
                 }
             }
@@ -680,7 +690,7 @@ class GeminiProvider(
             // 这比getModelsList更可靠，因为它直接命中了聊天API。
             // 提供一个通用的系统提示，以防止某些需要它的模型出现错误。
             val testHistory = listOf("system" to "You are a helpful assistant.")
-            val stream = sendMessage("Hi", testHistory, emptyList(), false)
+            val stream = sendMessage("Hi", testHistory, emptyList(), false) { _, _ -> }
 
             // 消耗流以确保连接有效。
             // 对 "Hi" 的响应应该很短，所以这会很快完成。

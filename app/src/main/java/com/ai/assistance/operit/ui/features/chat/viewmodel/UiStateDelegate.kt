@@ -22,16 +22,6 @@ class UiStateDelegate {
     private val _masterPermissionLevel = MutableStateFlow(PermissionLevel.ASK)
     val masterPermissionLevel: StateFlow<PermissionLevel> = _masterPermissionLevel.asStateFlow()
 
-    // 聊天统计信息
-    private val _currentWindowSize = MutableStateFlow(0)
-    val currentWindowSize: StateFlow<Int> = _currentWindowSize.asStateFlow()
-
-    private val _inputTokenCount = MutableStateFlow(0)
-    val inputTokenCount: StateFlow<Int> = _inputTokenCount.asStateFlow()
-
-    private val _outputTokenCount = MutableStateFlow(0)
-    val outputTokenCount: StateFlow<Int> = _outputTokenCount.asStateFlow()
-
     // 文件选择器请求
     private val _fileChooserRequest = MutableStateFlow<Intent?>(null)
     val fileChooserRequest: StateFlow<Intent?> = _fileChooserRequest.asStateFlow()
@@ -69,17 +59,6 @@ class UiStateDelegate {
     /** 更新主权限级别 */
     fun updateMasterPermissionLevel(level: PermissionLevel) {
         _masterPermissionLevel.value = level
-    }
-
-    /** 更新聊天统计信息 */
-    fun updateTokenCounts(inputTokens: Int, outputTokens: Int) {
-        _inputTokenCount.value = inputTokens
-        _outputTokenCount.value = outputTokens
-    }
-
-    /** 更新上下文窗口大小 */
-    fun updateCurrentWindowSize(currentSize: Int) {
-        _currentWindowSize.value = currentSize
     }
 
     /** 请求文件选择器 */

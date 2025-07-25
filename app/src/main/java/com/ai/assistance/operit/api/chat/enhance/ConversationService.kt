@@ -177,23 +177,21 @@ class ConversationService(private val context: Context) {
      * @param chatHistory 原始聊天历史
      * @param processedInput 处理后的用户输入
      * @param workspacePath 当前绑定的工作区路径，可以为null
-     * @param conversationHistory 存储修改后的对话历史
      * @param packageManager 包管理器
      * @param promptFunctionType 提示函数类型
+     * @param thinkingGuidance 是否需要思考指导
      * @return 准备好的对话历史列表
      */
     suspend fun prepareConversationHistory(
             chatHistory: List<Pair<String, String>>,
             processedInput: String,
             workspacePath: String?,
-            conversationHistory: MutableList<Pair<String, String>>,
             packageManager: PackageManager,
             promptFunctionType: PromptFunctionType,
             thinkingGuidance: Boolean = false
-    ): MutableList<Pair<String, String>> {
+    ): List<Pair<String, String>> {
+        val preparedHistory = mutableListOf<Pair<String, String>>()
         conversationMutex.withLock {
-            conversationHistory.clear()
-
             // Add system prompt if not already present
             if (!chatHistory.any { it.first == "system" }) {
                 val activeProfile = preferencesManager.getUserPreferencesFlow().first()
@@ -218,7 +216,7 @@ class ConversationService(private val context: Context) {
                 )
 
                 if (preferencesText.isNotEmpty()) {
-                    conversationHistory.add(
+                    preparedHistory.add(
                             0,
                             Pair(
                                     "system",
@@ -226,7 +224,7 @@ class ConversationService(private val context: Context) {
                             )
                     )
                 } else {
-                    conversationHistory.add(0, Pair("system", systemPrompt))
+                    preparedHistory.add(0, Pair("system", systemPrompt))
                 }
             }
 
@@ -240,18 +238,18 @@ class ConversationService(private val context: Context) {
                     val xmlTags = splitXmlTag(content)
                     if (xmlTags.isNotEmpty()) {
                         // Process the message with tool results
-                        processChatMessageWithTools(content, xmlTags, conversationHistory)
+                        processChatMessageWithTools(content, xmlTags, preparedHistory)
                     } else {
                         // Add the message as is
-                        conversationHistory.add(message)
+                        preparedHistory.add(message)
                     }
                 } else {
                     // Add user or system messages as is
-                    conversationHistory.add(message)
+                    preparedHistory.add(message)
                 }
             }
         }
-        return conversationHistory
+        return preparedHistory
     }
 
     /**

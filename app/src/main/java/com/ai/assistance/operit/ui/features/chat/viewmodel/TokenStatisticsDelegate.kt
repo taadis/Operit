@@ -2,84 +2,103 @@ package com.ai.assistance.operit.ui.features.chat.viewmodel
 
 import android.util.Log
 import com.ai.assistance.operit.api.chat.EnhancedAIService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 
 /** 委托类，负责管理token统计相关功能 */
 class TokenStatisticsDelegate(
-        private val getEnhancedAiService: () -> EnhancedAIService?,
-        private val updateUiTokenCounts: (inputTokens: Int, outputTokens: Int) -> Unit
+    private val viewModelScope: CoroutineScope,
+    private val getEnhancedAiService: () -> EnhancedAIService?
 ) {
     companion object {
         private const val TAG = "TokenStatisticsDelegate"
     }
 
-    // 累计token计数
-    private var cumulativeInputTokens = 0
-    private var cumulativeOutputTokens = 0
+    // --- UI State Flows ---
+    private val _cumulativeInputTokens = MutableStateFlow(0)
+    val cumulativeInputTokensFlow: StateFlow<Int> = _cumulativeInputTokens.asStateFlow()
+
+    private val _cumulativeOutputTokens = MutableStateFlow(0)
+    val cumulativeOutputTokensFlow: StateFlow<Int> = _cumulativeOutputTokens.asStateFlow()
+
+    private val _currentWindowSize = MutableStateFlow(0)
+    val currentWindowSizeFlow: StateFlow<Int> = _currentWindowSize.asStateFlow()
+
+    private val _perRequestTokenCount = MutableStateFlow<Pair<Int, Int>?>(null)
+    val perRequestTokenCountFlow: StateFlow<Pair<Int, Int>?> = _perRequestTokenCount.asStateFlow()
+
+    // --- Internal State ---
     private var lastCurrentWindowSize = 0
+    private var tokenCollectorJob: Job? = null
+
+
+    fun setupCollectors() {
+        tokenCollectorJob?.cancel() // Cancel previous collector if any
+        val service = getEnhancedAiService() ?: return // Service not ready
+        tokenCollectorJob = viewModelScope.launch(Dispatchers.IO) {
+            service.perRequestTokenCounts.collect { counts ->
+                _perRequestTokenCount.value = counts
+                counts?.let {
+                    _currentWindowSize.value = it.first
+                    lastCurrentWindowSize = it.first
+                }
+            }
+        }
+    }
 
     /** 重置token统计 */
     fun resetTokenStatistics() {
-        cumulativeInputTokens = 0
-        cumulativeOutputTokens = 0
+        _cumulativeInputTokens.value = 0
+        _cumulativeOutputTokens.value = 0
+        _currentWindowSize.value = 0
+        _perRequestTokenCount.value = null
+        lastCurrentWindowSize = 0
 
         // 同时重置服务中的token计数
         getEnhancedAiService()?.resetTokenCounters()
-
-        // 更新UI
-        updateUiTokenCounts(0, 0)
-
         Log.d(TAG, "token统计已重置")
     }
 
-    /** 更新token统计信息 */
-    fun updateChatStatistics(): Pair<Int, Int> {
+    /** 更新累计的token统计信息 */
+    fun updateCumulativeStatistics() {
         val service = getEnhancedAiService()
-
         service?.let {
             try {
                 // 从AI服务获取最新的token统计
                 val currentInputTokens = it.getCurrentInputTokenCount()
                 val currentOutputTokens = it.getCurrentOutputTokenCount()
-                lastCurrentWindowSize = currentInputTokens // 实际窗口大小是输入token数
 
                 // 更新累计token数
-                cumulativeInputTokens += currentInputTokens
-                cumulativeOutputTokens += currentOutputTokens
-
-                // 更新UI
-                updateUiTokenCounts(
-                        cumulativeInputTokens,
-                        cumulativeOutputTokens
-                )
+                _cumulativeInputTokens.value += currentInputTokens
+                _cumulativeOutputTokens.value += currentOutputTokens
 
                 Log.d(
                         TAG,
-                        "Token stats updated - " +
-                                "Cumulative Input: $cumulativeInputTokens, Output: $cumulativeOutputTokens"
+                    "Cumulative token stats updated - " +
+                            "Input: ${_cumulativeInputTokens.value}, Output: ${_cumulativeOutputTokens.value}"
                 )
-
-                return Pair(cumulativeInputTokens, cumulativeOutputTokens)
             } catch (e: Exception) {
-                Log.e(TAG, "获取token计数时出错: ${e.message}", e)
+                Log.e(TAG, "获取累计token计数时出错: ${e.message}", e)
             }
         }
-
-        return Pair(cumulativeInputTokens, cumulativeOutputTokens)
     }
 
     /** 设置累计token计数 */
     fun setTokenCounts(inputTokens: Int, outputTokens: Int, windowSize: Int) {
-        cumulativeInputTokens = inputTokens
-        cumulativeOutputTokens = outputTokens
+        _cumulativeInputTokens.value = inputTokens
+        _cumulativeOutputTokens.value = outputTokens
+        _currentWindowSize.value = windowSize
         lastCurrentWindowSize = windowSize
-
-        // 更新UI
-        updateUiTokenCounts(inputTokens, outputTokens)
     }
 
     /** 获取当前累计token计数 */
-    fun getCurrentTokenCounts(): Pair<Int, Int> {
-        return Pair(cumulativeInputTokens, cumulativeOutputTokens)
+    fun getCumulativeTokenCounts(): Pair<Int, Int> {
+        return Pair(_cumulativeInputTokens.value, _cumulativeOutputTokens.value)
     }
 
     /** 获取最近一次的实际上下文窗口大小 */

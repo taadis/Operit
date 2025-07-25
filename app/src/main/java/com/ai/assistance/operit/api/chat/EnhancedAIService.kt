@@ -44,6 +44,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import com.ai.assistance.operit.data.model.UiControllerCommand
 import com.ai.assistance.operit.api.chat.enhance.AutomationStepResult
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * Enhanced AI service that provides advanced conversational capabilities by integrating various
@@ -219,6 +220,10 @@ class EnhancedAIService private constructor(private val context: Context) {
     private val _inputProcessingState =
             MutableStateFlow<InputProcessingState>(InputProcessingState.Idle)
     val inputProcessingState = _inputProcessingState.asStateFlow()
+
+    // Per-request token counts
+    private val _perRequestTokenCounts = MutableStateFlow<Pair<Int, Int>?>(null)
+    val perRequestTokenCounts: StateFlow<Pair<Int, Int>?> = _perRequestTokenCounts.asStateFlow()
 
     // Plan items tracking
     private val _planItems = MutableStateFlow<List<PlanItem>>(emptyList())
@@ -414,9 +419,20 @@ class EnhancedAIService private constructor(private val context: Context) {
                     // Mark conversation as active
                     isConversationActive.set(true)
 
+                    // 在新一轮对话开始时，重置并初始化内部对话历史
+                    conversationMutex.withLock {
+                        conversationHistory.clear()
+                        conversationHistory.addAll(chatHistory)
+                    }
+
                     // Process the input message for any conversation markup (e.g., for AI planning)
                     val startTime = System.currentTimeMillis()
                     val processedInput = InputProcessor.processUserInput(message)
+
+                    // 将当前用户输入添加到内部历史记录中，以便进行后续处理
+                    conversationMutex.withLock {
+                        conversationHistory.add(Pair("user", processedInput))
+                    }
 
                     // Update state to show we're processing
                     withContext(Dispatchers.Main) {
@@ -426,12 +442,18 @@ class EnhancedAIService private constructor(private val context: Context) {
                     // Prepare conversation history with system prompt
                     val preparedHistory =
                             prepareConversationHistory(
-                                    chatHistory,
+                                    conversationHistory, // 始终使用内部历史记录
                                     processedInput,
                                     workspacePath,
                                     promptFunctionType,
                                     thinkingGuidance
                             )
+                    
+                    // 关键修复：用准备好的历史记录（包含了系统提示）去同步更新内部的 conversationHistory 状态
+                    conversationMutex.withLock {
+                        conversationHistory.clear()
+                        conversationHistory.addAll(preparedHistory)
+                    }
 
                     // Update UI state to connecting
                     withContext(Dispatchers.Main) {
@@ -444,6 +466,9 @@ class EnhancedAIService private constructor(private val context: Context) {
                     // 获取对应功能类型的AIService实例
                     val serviceForFunction = getAIServiceForFunction(functionType)
 
+                    // 清空之前的单次请求token计数
+                    _perRequestTokenCounts.value = null
+
                     // 使用新的Stream API
                     Log.d(TAG, "调用AI服务，处理时间: ${System.currentTimeMillis() - startTime}ms")
                     val stream =
@@ -451,7 +476,10 @@ class EnhancedAIService private constructor(private val context: Context) {
                                     message = processedInput,
                                     chatHistory = preparedHistory,
                                     modelParameters = modelParameters,
-                                    enableThinking = enableThinking
+                                    enableThinking = enableThinking,
+                                    onTokensUpdated = { input, output ->
+                                        _perRequestTokenCounts.value = Pair(input, output)
+                                    }
                             )
 
                     // 收到第一个响应，更新状态
@@ -1020,6 +1048,9 @@ class EnhancedAIService private constructor(private val context: Context) {
         // 获取对应功能类型的AIService实例
         val serviceForFunction = getAIServiceForFunction(functionType)
 
+        // 清空之前的单次请求token计数
+        _perRequestTokenCounts.value = null
+
         // 使用新的Stream API处理工具执行结果
         withContext(Dispatchers.IO) {
             try {
@@ -1030,7 +1061,10 @@ class EnhancedAIService private constructor(private val context: Context) {
                                 message = toolResultMessage,
                                 chatHistory = currentChatHistory,
                                 modelParameters = modelParameters,
-                                enableThinking = enableThinking
+                                enableThinking = enableThinking,
+                                onTokensUpdated = { input, output ->
+                                    _perRequestTokenCounts.value = Pair(input, output)
+                                }
                         )
 
                 // 更新状态为接收中
@@ -1068,6 +1102,7 @@ class EnhancedAIService private constructor(private val context: Context) {
                 // Update accumulated token counts
                 accumulatedInputTokenCount += serviceForFunction.inputTokenCount
                 accumulatedOutputTokenCount += serviceForFunction.outputTokenCount
+                
                 Log.d(
                         TAG,
                         "Token count updated after tool result. Input: ${serviceForFunction.inputTokenCount}, Output: ${serviceForFunction.outputTokenCount}. Accumulated: $accumulatedInputTokenCount, $accumulatedOutputTokenCount"
@@ -1223,12 +1258,11 @@ class EnhancedAIService private constructor(private val context: Context) {
             workspacePath: String?,
             promptFunctionType: PromptFunctionType,
             thinkingGuidance: Boolean
-    ): MutableList<Pair<String, String>> {
+    ): List<Pair<String, String>> {
         return conversationService.prepareConversationHistory(
                 chatHistory,
                 processedInput,
                 workspacePath,
-                conversationHistory,
                 packageManager,
                 promptFunctionType,
                 thinkingGuidance
@@ -1252,6 +1286,9 @@ class EnhancedAIService private constructor(private val context: Context) {
 
         // Reset input processing state
         _inputProcessingState.value = InputProcessingState.Idle
+
+        // Reset per-request token counts
+        _perRequestTokenCounts.value = null
 
         // Clear callback references
         currentResponseCallback = null

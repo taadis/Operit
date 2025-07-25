@@ -183,12 +183,11 @@ fun ChatScreenHeader(
                                         .background(MaterialTheme.colorScheme.surface)
                 ) {
                     DropdownMenuItem(
-                            text = {
-                                Text(stringResource(R.string.context_window, currentWindowSize))
-                            },
-                            onClick = {},
-                            enabled = false
+                        text = { Text(stringResource(R.string.context_window, currentWindowSize)) },
+                        onClick = {},
+                        enabled = false
                     )
+                    
                     DropdownMenuItem(
                             text = { Text(stringResource(R.string.input_tokens, inputTokenCount)) },
                             onClick = {},
@@ -217,6 +216,7 @@ fun ChatScreenHeader(
                             onClick = {},
                             enabled = false
                     )
+                    
                 }
             }
         }

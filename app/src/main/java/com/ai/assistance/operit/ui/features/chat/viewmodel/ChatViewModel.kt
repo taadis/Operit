@@ -123,8 +123,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     val uiStateDelegate = UiStateDelegate()
     private val tokenStatsDelegate =
             TokenStatisticsDelegate(
-                    getEnhancedAiService = { enhancedAiService },
-                    updateUiTokenCounts = uiStateDelegate::updateTokenCounts
+                    viewModelScope = viewModelScope,
+                    getEnhancedAiService = { enhancedAiService }
             )
     private val apiConfigDelegate =
             ApiConfigDelegate(
@@ -138,6 +138,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                             serviceCollectorSetupComplete = false
                             Log.d(TAG, "API配置变更，重置服务收集器状态并重新设置")
                             setupServiceCollectors()
+                            tokenStatsDelegate.setupCollectors()
                         }
                     }
             )
@@ -195,9 +196,10 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     }
 
     // 聊天统计相关
-    val currentWindowSize: StateFlow<Int> by lazy { uiStateDelegate.currentWindowSize }
-    val inputTokenCount: StateFlow<Int> by lazy { uiStateDelegate.inputTokenCount }
-    val outputTokenCount: StateFlow<Int> by lazy { uiStateDelegate.outputTokenCount }
+    val currentWindowSize: StateFlow<Int> by lazy { tokenStatsDelegate.currentWindowSizeFlow }
+    val inputTokenCount: StateFlow<Int> by lazy { tokenStatsDelegate.cumulativeInputTokensFlow }
+    val outputTokenCount: StateFlow<Int> by lazy { tokenStatsDelegate.cumulativeOutputTokensFlow }
+    val perRequestTokenCount: StateFlow<Pair<Int, Int>?> by lazy { tokenStatsDelegate.perRequestTokenCountFlow }
 
     // 计划项相关
     val planItems: StateFlow<List<PlanItem>> by lazy { planItemsDelegate.planItems }
@@ -249,7 +251,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                             // 修复：直接使用从数据库加载的窗口大小，即使是0也不回退到最大值
                             val currentChat = chatHistories.value.find { it.id == currentChatId.value }
                             val currentSize = currentChat?.currentWindowSize ?: 0
-                            uiStateDelegate.updateCurrentWindowSize(currentSize)
+                            // uiStateDelegate.updateCurrentWindowSize(currentSize) // Removed
                         },
                         onTokenStatisticsLoaded = { inputTokens, outputTokens, windowSize ->
                             tokenStatsDelegate.setTokenCounts(inputTokens, outputTokens, windowSize)
@@ -258,7 +260,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                         getEnhancedAiService = { enhancedAiService },
                         ensureAiServiceAvailable = { ensureAiServiceAvailable() },
                         getChatStatistics = {
-                            val (inputTokens, outputTokens) = tokenStatsDelegate.getCurrentTokenCounts()
+                            val (inputTokens, outputTokens) = tokenStatsDelegate.getCumulativeTokenCounts()
                             val windowSize = tokenStatsDelegate.getLastCurrentWindowSize()
                             Triple(inputTokens, outputTokens, windowSize)
                         },
@@ -278,9 +280,9 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                         addMessageToChat = { message ->
                             chatHistoryDelegate.addMessageToChat(message)
                         },
-                        updateChatStatistics = {
+                        saveCurrentChat = {
                             val (inputTokens, outputTokens) =
-                                    tokenStatsDelegate.updateChatStatistics()
+                                    tokenStatsDelegate.getCumulativeTokenCounts()
                             val currentWindowSize =
                                     tokenStatsDelegate.getLastCurrentWindowSize()
                             chatHistoryDelegate.saveCurrentChat(
@@ -290,26 +292,20 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                             )
                             // 立即更新UI上的实际窗口大小
                             if (currentWindowSize > 0) {
-                                uiStateDelegate.updateCurrentWindowSize(currentWindowSize)
+                                // uiStateDelegate.updateCurrentWindowSize(currentWindowSize)
                             }
-                        },
-                        saveCurrentChat = {
-                            val (inputTokens, outputTokens) =
-                                    tokenStatsDelegate.getCurrentTokenCounts()
-                            val currentWindowSize =
-                                    tokenStatsDelegate.getLastCurrentWindowSize()
-                            chatHistoryDelegate.saveCurrentChat(
-                                inputTokens,
-                                outputTokens,
-                                currentWindowSize
-                            )
                         },
                         showErrorMessage = { message -> uiStateDelegate.showErrorMessage(message) },
                         updateChatTitle = { chatId, title ->
                             chatHistoryDelegate.updateChatTitle(chatId, title)
                         },
-                        onStreamComplete = {
-                            // 流完成后不再需要特殊处理，UI会自动更新
+                        onTurnComplete = {
+                            // 轮次完成后，更新累计统计并保存聊天
+                            tokenStatsDelegate.updateCumulativeStatistics()
+                            val (inputTokens, outputTokens) =
+                                tokenStatsDelegate.getCumulativeTokenCounts()
+                            val windowSize = tokenStatsDelegate.getLastCurrentWindowSize()
+                            chatHistoryDelegate.saveCurrentChat(inputTokens, outputTokens, windowSize)
                         },
                         toolHandler = toolHandler
                 )
@@ -381,6 +377,23 @@ class ChatViewModel(private val context: Context) : ViewModel() {
             } catch (e: Exception) {
                 Log.e(TAG, "输入处理状态收集出错: ${e.message}", e)
                 uiStateDelegate.showErrorMessage("输入处理状态收集失败: ${e.message}")
+            }
+        }
+
+        // 设置单次请求Token计数器收集
+        viewModelScope.launch {
+            try {
+                enhancedAiService?.perRequestTokenCounts?.collect { counts ->
+                    // uiStateDelegate.updatePerRequestTokenCount(counts) // Removed
+                    // 当收到新的单次请求token数时，更新TokenStatisticsDelegate中的lastCurrentWindowSize
+                    counts?.let {
+                        // tokenStatsDelegate.updateLastWindowSize(it.first) // Removed
+                        // uiStateDelegate.updateCurrentWindowSize(it.first) // Removed
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "单次请求Token计数收集出错: ${e.message}", e)
+                uiStateDelegate.showErrorMessage("单次请求Token计数收集失败: ${e.message}")
             }
         }
 
@@ -512,7 +525,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     }
 
     fun saveCurrentChat() {
-        val (inputTokens, outputTokens) = tokenStatsDelegate.getCurrentTokenCounts()
+        val (inputTokens, outputTokens) = tokenStatsDelegate.getCumulativeTokenCounts()
         val currentWindowSize = tokenStatsDelegate.getLastCurrentWindowSize()
         chatHistoryDelegate.saveCurrentChat(inputTokens, outputTokens, currentWindowSize)
     }
@@ -541,7 +554,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 chatHistoryDelegate.addMessageToChat(editedMessage)
 
                 // 更新统计信息并保存
-                val (inputTokens, outputTokens) = tokenStatsDelegate.updateChatStatistics()
+                tokenStatsDelegate.updateCumulativeStatistics()
+                val (inputTokens, outputTokens) = tokenStatsDelegate.getCumulativeTokenCounts()
                 val currentWindowSize = tokenStatsDelegate.getLastCurrentWindowSize()
                 chatHistoryDelegate.saveCurrentChat(
                     inputTokens,

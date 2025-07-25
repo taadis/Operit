@@ -187,6 +187,9 @@ fun ChatArea(
                     }
                 }
             }
+
+            // 添加额外的空白区域，防止消息被输入框遮挡
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }

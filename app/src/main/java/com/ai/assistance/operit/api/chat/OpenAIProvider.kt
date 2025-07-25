@@ -117,7 +117,7 @@ open class OpenAIProvider(
             // 这比getModelsList更可靠，因为它直接命中了聊天API。
             // 提供一个通用的系统提示，以防止某些需要它的模型出现错误。
             val testHistory = listOf("system" to "You are a helpful assistant.")
-            val stream = sendMessage("Hi", testHistory, emptyList())
+            val stream = sendMessage("Hi", testHistory, emptyList(), enableThinking = false) { _, _ -> }
 
             // 消耗流以确保连接有效。
             // 对 "Hi" 的响应应该很短，所以这会很快完成。
@@ -259,11 +259,13 @@ open class OpenAIProvider(
             message: String,
             chatHistory: List<Pair<String, String>>,
             modelParameters: List<ModelParameter<*>>,
-            enableThinking: Boolean
+            enableThinking: Boolean,
+            onTokensUpdated: suspend (input: Int, output: Int) -> Unit
     ): Stream<String> = stream {
         // 重置token计数
         _inputTokenCount = 0
         _outputTokenCount = 0
+        onTokensUpdated(_inputTokenCount, _outputTokenCount)
 
         Log.d(
                 "AIService",
@@ -283,6 +285,7 @@ open class OpenAIProvider(
                 "【发送消息】准备构建请求体，模型参数数量: ${modelParameters.size}，已启用参数: ${modelParameters.count { it.isEnabled }}"
         )
         val requestBody = createRequestBody(message, standardizedHistory, modelParameters, enableThinking)
+        onTokensUpdated(_inputTokenCount, _outputTokenCount)
         val request = createRequest(requestBody)
         Log.d("AIService", "【发送消息】请求体构建完成，目标模型: $modelName，API端点: $apiEndpoint")
 
@@ -383,6 +386,7 @@ open class OpenAIProvider(
                                                                     estimateTokenCount(
                                                                             reasoningContent
                                                                     )
+                                                            onTokensUpdated(_inputTokenCount, _outputTokenCount)
                                                         }
                                                         // 处理常规内容
                                                         else if (regularContent.isNotEmpty() &&
@@ -411,6 +415,7 @@ open class OpenAIProvider(
                                                                     estimateTokenCount(
                                                                             regularContent
                                                                     )
+                                                            onTokensUpdated(_inputTokenCount, _outputTokenCount)
 
                                                             // 发射内容
                                                             emit(regularContent)
@@ -443,6 +448,7 @@ open class OpenAIProvider(
                                                                         estimateTokenCount(
                                                                                 reasoningContent
                                                                         )
+                                                                onTokensUpdated(_inputTokenCount, _outputTokenCount)
                                                             }
 
                                                             // 然后处理常规内容
@@ -454,6 +460,7 @@ open class OpenAIProvider(
                                                                         estimateTokenCount(
                                                                                 regularContent
                                                                         )
+                                                                onTokensUpdated(_inputTokenCount, _outputTokenCount)
                                                             }
                                                         }
                                                     }
