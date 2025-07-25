@@ -618,6 +618,12 @@ class MainActivity : ComponentActivity() {
             try {
                 val tempDir = java.io.File("/sdcard/Download/Operit/cleanOnExit")
                 if (tempDir.exists() && tempDir.isDirectory) {
+                    // 确保.nomedia文件存在
+                    val noMediaFile = java.io.File(tempDir, ".nomedia")
+                    if (!noMediaFile.exists()) {
+                        noMediaFile.createNewFile()
+                    }
+                    
                     Log.d(TAG, "开始清理临时文件目录: ${tempDir.absolutePath}")
                     val files = tempDir.listFiles()
                     var deletedCount = 0

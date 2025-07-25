@@ -232,6 +232,12 @@ class AttachmentManager(private val context: Context, private val toolHandler: A
                         externalDir.mkdirs()
                     }
 
+                    // 确保.nomedia文件存在，防止媒体扫描
+                    val noMediaFile = java.io.File(externalDir, ".nomedia")
+                    if (!noMediaFile.exists()) {
+                        noMediaFile.createNewFile()
+                    }
+
                     val tempFile =
                             java.io.File(
                                     externalDir,
