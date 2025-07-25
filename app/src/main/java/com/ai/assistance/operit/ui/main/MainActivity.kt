@@ -629,7 +629,7 @@ class MainActivity : ComponentActivity() {
                     var deletedCount = 0
 
                     files?.forEach { file ->
-                        if (file.isFile && file.delete()) {
+                        if (file.isFile && file.name != ".nomedia" && file.delete()) {
                             deletedCount++
                         }
                     }
