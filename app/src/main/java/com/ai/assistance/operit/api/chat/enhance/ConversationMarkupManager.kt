@@ -42,13 +42,7 @@ class ConversationMarkupManager {
          * @return The formatted status element
          */
         fun createToolErrorStatus(toolName: String, errorMessage: String): String {
-            return """
-            <tool_result name="${toolName}" status="error">
-            <content>
-            <error>${errorMessage}</error>
-            </content>
-            </tool_result>
-            """.trimIndent()
+            return """<tool_result name="${toolName}" status="error"><content><error>${errorMessage}</error></content></tool_result>""".trimIndent()
         }
 
         /**
@@ -69,21 +63,9 @@ class ConversationMarkupManager {
          */
         fun formatToolResultForMessage(result: ToolResult): String {
             return if (result.success) {
-                """
-                <tool_result name="${result.toolName}" status="success">
-                <content>
-                ${result.result}
-                </content>
-                </tool_result>
-                """.trimIndent()
+                """<tool_result name="${result.toolName}" status="success"><content>${result.result}</content></tool_result>""".trimIndent()
             } else {
-                """
-                <tool_result name="${result.toolName}" status="error">
-                <content>
-                <error>${result.error ?: "Unknown error"}</error>
-                </content>
-                </tool_result>
-            """.trimIndent()
+                """<tool_result name="${result.toolName}" status="error"><content><error>${result.error ?: "Unknown error"}</error></content></tool_result>""".trimIndent()
             }
         }
 

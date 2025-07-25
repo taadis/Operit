@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ai.assistance.operit.data.model.Memory
@@ -38,7 +40,7 @@ fun MemoryScreen() {
     val profileList by preferencesManager.profileListFlow.collectAsState(initial = emptyList())
     val activeProfileId by
             preferencesManager.activeProfileIdFlow.collectAsState(initial = "default")
-
+    
     // 获取所有配置文件的名称映射(id -> name)
     val profileNameMap = remember { mutableStateMapOf<String, String>() }
 
@@ -51,61 +53,91 @@ fun MemoryScreen() {
     }
 
     var selectedProfileId by remember { mutableStateOf(activeProfileId) }
-
+    
     LaunchedEffect(activeProfileId) { selectedProfileId = activeProfileId }
 
     val viewModel: MemoryViewModel =
             viewModel(
-                    key = selectedProfileId, // Recreate ViewModel when profile changes
-                    factory = MemoryViewModelFactory(context, selectedProfileId)
-            )
+        key = selectedProfileId, // Recreate ViewModel when profile changes
+        factory = MemoryViewModelFactory(context, selectedProfileId)
+    )
     val uiState by viewModel.uiState.collectAsState()
     val keyboardController = LocalSoftwareKeyboardController.current
 
     Scaffold(
-            topBar = {
-                Column {
-                    MemoryAppBar(
-                            profileList = profileList,
-                            profileNameMap = profileNameMap,
-                            selectedProfileId = selectedProfileId,
-                            onProfileSelected = { profileId -> selectedProfileId = profileId }
-                    )
-                    SearchBar(
-                            query = uiState.searchQuery,
-                            onQueryChange = { viewModel.onSearchQueryChange(it) },
-                            onSearch = {
-                                keyboardController?.hide()
-                                viewModel.searchMemories()
-                            },
-                            onClear = {
-                                viewModel.onSearchQueryChange("")
-                                viewModel.loadMemoryGraph()
-                            }
-                    )
-                }
-            },
-            floatingActionButton = {
+        topBar = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                MemoryAppBar(
+                    profileList = profileList,
+                    profileNameMap = profileNameMap,
+                    selectedProfileId = selectedProfileId,
+                            onProfileSelected = { profileId -> selectedProfileId = profileId },
+                    query = uiState.searchQuery,
+                    onQueryChange = { viewModel.onSearchQueryChange(it) },
+                    onSearch = {
+                        keyboardController?.hide()
+                        viewModel.searchMemories()
+                    },
+                    onClear = {
+                        viewModel.onSearchQueryChange("")
+                        viewModel.loadMemoryGraph()
+                    }
+                )
+
+                    // 紧凑的说明卡片
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = "信息",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "记忆库与用户偏好配置绑定，新建请到\"设置→用户偏好\"，激活可在聊天菜单设置",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+            }
+        },
+        floatingActionButton = {
                 Column(
                     horizontalAlignment = Alignment.End,
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     FloatingActionButton(
                         onClick = { viewModel.toggleLinkingMode(!uiState.isLinkingMode) },
-                        containerColor = if (uiState.isLinkingMode) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primaryContainer
+                        containerColor = if (uiState.isLinkingMode) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(Icons.Default.Link, contentDescription = "Toggle Linking Mode")
                     }
-                    FloatingActionButton(onClick = { viewModel.startEditing(null) }) {
+                    FloatingActionButton(
+                        onClick = { viewModel.startEditing(null) },
+                        modifier = Modifier.size(48.dp)
+                    ) {
                         Icon(Icons.Default.Add, contentDescription = "Create Memory")
                     }
-                }
             }
+        }
     ) { padding ->
         Box(modifier = Modifier.padding(padding).fillMaxSize()) {
             if (uiState.isLoading) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             } else {
+                // 直接使用GraphVisualizer占满整个空间
                 GraphVisualizer(
                     graph = uiState.graph,
                     modifier = Modifier.fillMaxSize(),
@@ -185,29 +217,97 @@ fun MemoryScreen() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SearchBar(
+fun MemoryAppBar(
+    profileList: List<String>,
+    profileNameMap: Map<String, String>,
+    selectedProfileId: String,
+        onProfileSelected: (String) -> Unit,
         query: String,
         onQueryChange: (String) -> Unit,
         onSearch: () -> Unit,
         onClear: () -> Unit
 ) {
-    OutlinedTextField(
-            value = query,
-            onValueChange = onQueryChange,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            label = { Text("Search Memories") },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search Icon") },
-            trailingIcon = {
-                if (query.isNotEmpty()) {
-                    IconButton(onClick = onClear) {
-                        Icon(Icons.Default.Clear, contentDescription = "Clear Search")
-                    }
-                }
+    var expanded by remember { mutableStateOf(false) }
+    val selectedProfileName = profileNameMap[selectedProfileId] ?: selectedProfileId
+
+    TopAppBar(
+        title = {
+                Text("记忆库", style = MaterialTheme.typography.titleMedium)
             },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(onSearch = { onSearch() })
+            actions = {
+                // 集成搜索栏
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = onQueryChange,
+                    modifier = Modifier
+                        .width(180.dp)
+                        .height(46.dp),
+                    placeholder = { Text("搜索记忆", style = MaterialTheme.typography.bodySmall) },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.Search,
+                            contentDescription = "Search Icon",
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    trailingIcon = {
+                        if (query.isNotEmpty()) {
+                            IconButton(
+                                onClick = onClear,
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Clear,
+                                    contentDescription = "Clear Search",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { onSearch() }),
+                    colors = TextFieldDefaults.outlinedTextFieldColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant
+                    ),
+                    textStyle = MaterialTheme.typography.bodySmall
+                )
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // 用户偏好选择器
+                Box {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable { expanded = true }
+                    ) {
+                        Text(
+                            text = selectedProfileName,
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.widthIn(max = 100.dp)
+                        )
+                         Icon(Icons.Default.ArrowDropDown, contentDescription = "Select Profile")
+                     }
+
+                    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                         profileList.forEach { profileId ->
+                             val profileName = profileNameMap[profileId] ?: profileId
+                             DropdownMenuItem(
+                                 text = { Text(profileName) },
+                                 onClick = {
+                                     onProfileSelected(profileId)
+                                     expanded = false
+                                 }
+                             )
+                         }
+                     }
+                 }
+             }
     )
 }
 
@@ -224,33 +324,33 @@ fun MemoryInfoDialog(
 
     AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text(text = "Memory Details") },
+            title = { Text(text = "记忆详情") },
             text = {
                 Column(
                         modifier = Modifier.verticalScroll(scrollState),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("Title: ${memory.title}", style = MaterialTheme.typography.titleMedium)
+                    Text("标题: ${memory.title}", style = MaterialTheme.typography.titleMedium)
                     Divider()
-                    Text("Content:", style = MaterialTheme.typography.titleSmall)
+                    Text("内容:", style = MaterialTheme.typography.titleSmall)
                     Text(memory.content)
                     Divider()
                     Text("UUID: ${memory.uuid}", style = MaterialTheme.typography.bodySmall)
-                    Text("Source: ${memory.source}", style = MaterialTheme.typography.bodySmall)
+                    Text("来源: ${memory.source}", style = MaterialTheme.typography.bodySmall)
                     Text(
-                            "Importance: ${String.format("%.2f", memory.importance)}",
+                            "重要性: ${String.format("%.2f", memory.importance)}",
                             style = MaterialTheme.typography.bodySmall
                     )
                     Text(
-                            "Credibility: ${String.format("%.2f", memory.credibility)}",
+                            "可信度: ${String.format("%.2f", memory.credibility)}",
                             style = MaterialTheme.typography.bodySmall
                     )
                     Text(
-                            "Created: ${dateFormat.format(memory.createdAt)}",
+                            "创建时间: ${dateFormat.format(memory.createdAt)}",
                             style = MaterialTheme.typography.bodySmall
                     )
                     Text(
-                            "Updated: ${dateFormat.format(memory.updatedAt)}",
+                            "更新时间: ${dateFormat.format(memory.updatedAt)}",
                             style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -261,59 +361,16 @@ fun MemoryInfoDialog(
                         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                         verticalArrangement = Arrangement.Center
                 ) {
-                    Button(onClick = onEdit) { Text("Edit") }
+                    Button(onClick = onEdit) { Text("编辑") }
                     Button(
                             onClick = onDelete,
                             colors =
                                     ButtonDefaults.buttonColors(
                                             containerColor = MaterialTheme.colorScheme.error
                                     )
-                    ) { Text("Delete") }
-                    OutlinedButton(onClick = onDismiss) { Text("Close") }
+                    ) { Text("删除") }
+                    OutlinedButton(onClick = onDismiss) { Text("关闭") }
                 }
-            }
-    )
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun MemoryAppBar(
-        profileList: List<String>,
-        profileNameMap: Map<String, String>,
-        selectedProfileId: String,
-        onProfileSelected: (String) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val selectedProfileName = profileNameMap[selectedProfileId] ?: selectedProfileId
-
-    TopAppBar(
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("AI Memory Graph")
-                    Box {
-                        IconButton(onClick = { expanded = true }) {
-                            Icon(Icons.Default.ArrowDropDown, contentDescription = "Select Profile")
-                        }
-                        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                            profileList.forEach { profileId ->
-                                val profileName = profileNameMap[profileId] ?: profileId
-                                DropdownMenuItem(
-                                        text = { Text(profileName) },
-                                        onClick = {
-                                            onProfileSelected(profileId)
-                                            expanded = false
-                                        }
-                                )
-                            }
-                        }
-                    }
-                }
-            },
-            actions = {
-                Text(
-                        text = "Profile: $selectedProfileName",
-                        modifier = Modifier.padding(end = 16.dp)
-                )
             }
     )
 }
@@ -329,31 +386,31 @@ fun EditMemoryDialog(
     var contentType by remember { mutableStateOf(memory?.contentType ?: "text/plain") }
     AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text(if (memory == null) "Create Memory" else "Edit Memory") },
+            title = { Text(if (memory == null) "创建记忆" else "编辑记忆") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                             value = title,
                             onValueChange = { title = it },
-                            label = { Text("Title") }
+                            label = { Text("标题") }
                     )
                     OutlinedTextField(
                             value = content,
                             onValueChange = { content = it },
-                            label = { Text("Content") },
+                            label = { Text("内容") },
                             minLines = 3
                     )
                     OutlinedTextField(
                             value = contentType,
                             onValueChange = { contentType = it },
-                            label = { Text("Content Type") }
+                            label = { Text("内容类型") }
                     )
                 }
             },
             confirmButton = {
-                Button(onClick = { onSave(title, content, contentType) }) { Text("Save") }
+                Button(onClick = { onSave(title, content, contentType) }) { Text("保存") }
             },
-            dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Cancel") } }
+            dismissButton = { OutlinedButton(onClick = onDismiss) { Text("取消") } }
     )
 }
 
@@ -371,14 +428,14 @@ fun EdgeInfoDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Link Details") },
+        title = { Text("连接详情") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("From: ${sourceNode?.label ?: "Unknown"}")
-                Text("To: ${targetNode?.label ?: "Unknown"}")
+                Text("从: ${sourceNode?.label ?: "未知"}")
+                Text("到: ${targetNode?.label ?: "未知"}")
                 Divider()
-                Text("Type: ${edge.label}")
-                Text("Weight: ${edge.weight}")
+                Text("类型: ${edge.label}")
+                Text("权重: ${edge.weight}")
                 // 这里可以显示description，如果MemoryLink里有的话
             }
         },
@@ -388,12 +445,12 @@ fun EdgeInfoDialog(
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                 verticalArrangement = Arrangement.Center
             ) {
-                Button(onClick = onEdit) { Text("Edit") }
+                Button(onClick = onEdit) { Text("编辑") }
                 Button(
                     onClick = onDelete,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) { Text("Delete") }
-                OutlinedButton(onClick = onDismiss) { Text("Close") }
+                ) { Text("删除") }
+                OutlinedButton(onClick = onDismiss) { Text("关闭") }
             }
         }
     )
@@ -411,20 +468,20 @@ fun EditEdgeDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit Link") },
+        title = { Text("编辑连接") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = type, onValueChange = { type = it }, label = { Text("Type") })
-                OutlinedTextField(value = weight, onValueChange = { weight = it }, label = { Text("Weight") })
-                OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Description") })
+                OutlinedTextField(value = type, onValueChange = { type = it }, label = { Text("类型") })
+                OutlinedTextField(value = weight, onValueChange = { weight = it }, label = { Text("权重") })
+                OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("描述") })
             }
         },
         confirmButton = {
             Button(onClick = {
                 onSave(type, weight.toFloatOrNull() ?: 1.0f, description)
-            }) { Text("Save") }
+            }) { Text("保存") }
         },
-        dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { OutlinedButton(onClick = onDismiss) { Text("取消") } }
     )
 }
 
@@ -440,23 +497,23 @@ fun LinkMemoryDialog(
     var description by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Link '$sourceNodeLabel' to '$targetNodeLabel'") },
+        title = { Text("连接 '$sourceNodeLabel' 到 '$targetNodeLabel'") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = type,
                     onValueChange = { type = it },
-                    label = { Text("Type") }
+                    label = { Text("类型") }
                 )
                 OutlinedTextField(
                     value = weight,
                     onValueChange = { weight = it },
-                    label = { Text("Weight") }
+                    label = { Text("权重") }
                 )
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
-                    label = { Text("Description") }
+                    label = { Text("描述") }
                 )
             }
         },
@@ -466,9 +523,9 @@ fun LinkMemoryDialog(
                     val w = weight.toFloatOrNull() ?: 1.0f
                     onLink(type, w, description)
                 }
-            ) { Text("Create Link") }
+            ) { Text("创建连接") }
         },
-        dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { OutlinedButton(onClick = onDismiss) { Text("取消") } }
     )
 }
 
@@ -495,7 +552,7 @@ fun DropdownMenuBox(
                 value = selectedLabel,
                 onValueChange = {},
                 label = { Text(label) },
-                placeholder = { Text("Select...")},
+                placeholder = { Text("选择...")},
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
         )
         ExposedDropdownMenu(

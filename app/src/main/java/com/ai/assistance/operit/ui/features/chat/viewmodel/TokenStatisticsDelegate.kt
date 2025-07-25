@@ -68,9 +68,10 @@ class TokenStatisticsDelegate(
     }
 
     /** 设置累计token计数 */
-    fun setTokenCounts(inputTokens: Int, outputTokens: Int) {
+    fun setTokenCounts(inputTokens: Int, outputTokens: Int, windowSize: Int) {
         cumulativeInputTokens = inputTokens
         cumulativeOutputTokens = outputTokens
+        lastCurrentWindowSize = windowSize
 
         // 更新UI
         updateUiTokenCounts(inputTokens, outputTokens)

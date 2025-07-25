@@ -246,23 +246,22 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                             }
 
                             // 当聊天记录加载时，更新实际的上下文窗口大小
+                            // 修复：直接使用从数据库加载的窗口大小，即使是0也不回退到最大值
                             val currentChat = chatHistories.value.find { it.id == currentChatId.value }
                             val currentSize = currentChat?.currentWindowSize ?: 0
-                            if (currentSize > 0) {
-                                uiStateDelegate.updateCurrentWindowSize(currentSize)
-                            } else {
-                                // 如果没有存储实际大小，则使用预设值
-                                val presetSize = (maxWindowSizeInK.value * 1000).toInt()
-                                uiStateDelegate.updateCurrentWindowSize(presetSize)
-                            }
+                            uiStateDelegate.updateCurrentWindowSize(currentSize)
                         },
-                        onTokenStatisticsLoaded = { inputTokens: Int, outputTokens: Int ->
-                            tokenStatsDelegate.setTokenCounts(inputTokens, outputTokens)
+                        onTokenStatisticsLoaded = { inputTokens, outputTokens, windowSize ->
+                            tokenStatsDelegate.setTokenCounts(inputTokens, outputTokens, windowSize)
                         },
                         resetPlanItems = { planItemsDelegate.clearPlanItems() },
                         getEnhancedAiService = { enhancedAiService },
                         ensureAiServiceAvailable = { ensureAiServiceAvailable() },
-                        getTokenCounts = { tokenStatsDelegate.getCurrentTokenCounts() },
+                        getChatStatistics = {
+                            val (inputTokens, outputTokens) = tokenStatsDelegate.getCurrentTokenCounts()
+                            val windowSize = tokenStatsDelegate.getLastCurrentWindowSize()
+                            Triple(inputTokens, outputTokens, windowSize)
+                        },
                         onScrollToBottom = { messageProcessingDelegate.scrollToBottom() }
                 )
 

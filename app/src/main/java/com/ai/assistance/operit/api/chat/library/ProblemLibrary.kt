@@ -32,10 +32,12 @@ object ProblemLibrary {
     // --- Data classes for parsing the new structured analysis ---
     private data class ParsedLink(val sourceTitle: String, val targetTitle: String, val type: String, val description: String)
     private data class ParsedEntity(val title: String, val content: String, val tags: List<String>, val aliasFor: String?)
+    private data class ParsedUpdate(val titleToUpdate: String, val newContent: String, val reason: String)
     private data class ParsedAnalysis(
         val mainProblem: ParsedEntity?,
         val extractedEntities: List<ParsedEntity> = emptyList(),
         val links: List<ParsedLink> = emptyList(),
+        val updatedEntities: List<ParsedUpdate> = emptyList(),
         val userPreferences: String = ""
     )
 
@@ -118,6 +120,24 @@ object ProblemLibrary {
 
         // Generate the graph analysis from the conversation
         val analysis = generateAnalysis(aiService, query, content, processedHistory, memoryRepository)
+
+        // First, apply any updates to existing memories
+        if (analysis.updatedEntities.isNotEmpty()) {
+            Log.d(TAG, "开始更新 ${analysis.updatedEntities.size} 个现有记忆...")
+            analysis.updatedEntities.forEach { update ->
+                val memoryToUpdate = memoryRepository.findMemoryByTitle(update.titleToUpdate)
+                if (memoryToUpdate != null) {
+                    Log.d(TAG, "正在更新记忆: '${update.titleToUpdate}'. 原因: ${update.reason}")
+                    memoryRepository.updateMemory(
+                            memory = memoryToUpdate,
+                            newTitle = memoryToUpdate.title, // For now, let's not change the title
+                            newContent = update.newContent
+                    )
+                } else {
+                    Log.w(TAG, "想要更新的记忆未找到: '${update.titleToUpdate}'")
+                }
+            }
+        }
 
         // Update user preferences (this logic remains)
         if (analysis.userPreferences.isNotEmpty()) {
@@ -258,6 +278,7 @@ object ProblemLibrary {
                 2.  **定义实体间的关系**: 找出这些实体之间是如何关联的。
                 3.  **总结核心知识**: 将本次对话学习到的最核心的知识点作为一个中心记忆节点。
                 4.  **更新用户偏好**: 根据对话内容，增量更新对用户的了解。
+                5.  **修正现有记忆**: 如果你发现 `$existingMemoriesPrompt` 中列出的某个记忆包含事实性错误或过时的信息，请提出修改建议。
 
                 你需要返回一个固定格式的JSON对象，包含以下字段：
                 {
@@ -272,6 +293,13 @@ object ProblemLibrary {
                       "content": "关于此实体的具体信息、定义或关键属性的详细描述。",
                       "tags": ["实体类型", "例如: Concept, Person, Technology"],
                       "alias_for": "如果此实体与上方列出的“已有记忆”中的某一个语义完全相同，请在此处填入那个已有记忆的【确切标题】。如果这是一个全新的实体，【必须】将此字段的值设为 JSON null，或者完全省略此字段，【绝对禁止】使用字符串 \"null\"。"
+                    }
+                  ],
+                  "updated_entities": [
+                    {
+                      "title_to_update": "需要更新的现有记忆的【确切标题】",
+                      "updated_content": "修正后的完整、详细的内容。",
+                      "reason_for_update": "简要说明为什么需要更新 (例如：'信息已过时，XX已更新为YY')。"
                     }
                   ],
                   "links": [
@@ -295,13 +323,14 @@ object ProblemLibrary {
                 【重要指南】:
                 - `main_problem`: 这是AI学到的核心知识，作为一个中心记忆节点。它的 `title` 和 `content` 应该聚焦于知识本身，而不是用户的提问行为。
                 - `extracted_entities`: 【极其重要】为每个提取的实体做出判断。如果它与提供的“已有记忆”列表中的某一项实质上是同一个东西，必须在 `alias_for` 字段中填写已有记忆的标题。否则，此字段的值必须是 JSON null 或被省略，【严禁】使用字符串 "null"。
+                - `updated_entities`: **【谨慎操作】** 只有在你对信息的正确性有**高度自信**时才提出修改。优先创建新记忆。如果只是补充信息，请创建一个新的相关实体并与之链接，而不是修改现有实体。仅在现有实体内容**明确错误**时才进行修改。
                 - `links`: 定义实体之间的关系。`source_title` 和 `target_title` 必须对应 `main_problem` 或 `extracted_entities` 中的 `title`。关系类型 (type) 应该使用大写字母和下划线 (e.g., `IS_A`, `PART_OF`, `LEADS_TO`)。
                 - `user_preferences`: 【特别重要】用结构化JSON格式表示，在现有偏好的基础上进行小幅增量更新。
                   现有用户偏好：$currentPreferences
                   对于没有新发现的字段，使用"<UNCHANGED>"特殊标记表示保持不变。
 
                 只返回格式正确的JSON对象，不要添加任何其他内容。
-            """.trimIndent()
+                """.trimIndent()
 
             val analysisMessage = buildAnalysisMessage(query, solution, conversationHistory)
             val messages = listOf(Pair("system", systemPrompt), Pair("user", analysisMessage))
@@ -409,6 +438,19 @@ object ProblemLibrary {
                 }
             } else emptyList()
 
+            // Parse updated_entities
+            val updatesJson = json.optJSONArray("updated_entities")
+            val updatedEntities = if (updatesJson != null) {
+                List(updatesJson.length()) { i ->
+                    val updateJson = updatesJson.getJSONObject(i)
+                    ParsedUpdate(
+                            titleToUpdate = updateJson.getString("title_to_update"),
+                            newContent = updateJson.getString("updated_content"),
+                            reason = updateJson.getString("reason_for_update")
+                    )
+                }
+            } else emptyList()
+
 
             val userPreferences = if (json.has("user_preferences") && json.get("user_preferences") is JSONObject) {
                 val preferencesObj = json.getJSONObject("user_preferences")
@@ -422,6 +464,7 @@ object ProblemLibrary {
                 mainProblem = mainProblem,
                 extractedEntities = extractedEntities,
                 links = links,
+                updatedEntities = updatedEntities,
                 userPreferences = userPreferences
             )
         } catch (e: Exception) {

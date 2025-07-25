@@ -537,7 +537,7 @@ class ConversationService(private val context: Context) {
             val normalizedAiGeneratedCode = aiGeneratedCode.replace("\r\n", "\n").trim()
 
             val systemPrompt =
-                    """
+                """
                 You are a code editing assistant. Your task is to transform the 'Original File' based on the 'AI-Generated Code' by creating a custom patch file. The placeholder `// ... existing code ...` in the AI code represents the entire original content.
 
                 **CRITICAL RULES:**
@@ -560,20 +560,17 @@ class ConversationService(private val context: Context) {
                 """.trimIndent()
 
             val userPrompt =
-                    """
-                **Original File Content:**
-                ```
-                $normalizedOriginalContent
-                ```
-
-                **AI-Generated Code (with placeholders):**
-                ```
-                $normalizedAiGeneratedCode
-                ```
-
-                Now, generate ONLY the patch in the custom format.
-                """.trimIndent()
-
+"""
+**Original File Content:**
+```
+$normalizedOriginalContent
+```
+**AI-Generated Code (with placeholders):**
+```
+$normalizedAiGeneratedCode
+```
+Now, generate ONLY the patch in the custom format.
+""".trimIndent()
             val modelParameters = runBlocking { apiPreferences.getAllModelParameters() }
             val fileBindingService =
                     multiServiceManager.getServiceForFunction(FunctionType.FILE_BINDING)
@@ -628,7 +625,7 @@ class ConversationService(private val context: Context) {
             val normalizedOriginalContent = originalContent.replace("\r\n", "\n")
             val normalizedAiGeneratedCode = aiGeneratedCode.replace("\r\n", "\n").trim()
             val mergeSystemPrompt =
-                    """
+                """
                 You are an expert programmer. Your task is to create the final, complete content of a file by merging the 'Original File Content' with the 'Intended Changes'.
 
                 The 'Intended Changes' block uses a special placeholder, `// ... existing code ...`, which you MUST replace with the complete and verbatim 'Original File Content'.
@@ -644,19 +641,17 @@ class ConversationService(private val context: Context) {
                 """.trimIndent()
 
             val mergeUserPrompt =
-                    """
-                **Original File Content:**
-                ```
-                $normalizedOriginalContent
-                ```
-
-                **AI-Generated Code (with placeholders):**
-                ```
-                $normalizedAiGeneratedCode
-                ```
-
-                Now, generate ONLY the complete and final merged file content.
-                """.trimIndent()
+"""
+**Original File Content:**
+```
+$normalizedOriginalContent
+```
+**AI-Generated Code (with placeholders):**
+```
+$normalizedAiGeneratedCode
+```
+Now, generate ONLY the complete and final merged file content.
+""".trimIndent()
 
             val modelParameters = runBlocking { apiPreferences.getAllModelParameters() }
             val fileBindingService =

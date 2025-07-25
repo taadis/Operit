@@ -25,11 +25,11 @@ class ChatHistoryDelegate(
         private val context: Context,
         private val viewModelScope: CoroutineScope,
         private val onChatHistoryLoaded: (List<ChatMessage>) -> Unit,
-        private val onTokenStatisticsLoaded: (Int, Int) -> Unit,
+        private val onTokenStatisticsLoaded: (inputTokens: Int, outputTokens: Int, windowSize: Int) -> Unit,
         private val resetPlanItems: () -> Unit,
         private val getEnhancedAiService: () -> EnhancedAIService?,
         private val ensureAiServiceAvailable: () -> Unit = {}, // 确保AI服务可用的回调
-        private val getTokenCounts: () -> Pair<Int, Int> = { Pair(0, 0) }, // 获取当前token统计数据的回调
+        private val getChatStatistics: () -> Triple<Int, Int, Int> = { Triple(0, 0, 0) }, // 获取（输入token, 输出token, 窗口大小）
         private val onScrollToBottom: () -> Unit = {} // 滚动到底部事件回调
 ) {
     companion object {
@@ -98,7 +98,7 @@ class ChatHistoryDelegate(
             // 查找聊天元数据，更新token统计
             val selectedChat = _chatHistories.value.find { it.id == chatId }
             if (selectedChat != null) {
-                onTokenStatisticsLoaded(selectedChat.inputTokens, selectedChat.outputTokens)
+                onTokenStatisticsLoaded(selectedChat.inputTokens, selectedChat.outputTokens, selectedChat.currentWindowSize)
 
                 // 清空并重新提取计划项
                 resetPlanItems()
@@ -120,15 +120,15 @@ class ChatHistoryDelegate(
     /** 创建新的聊天 */
     fun createNewChat() {
         viewModelScope.launch {
-            val (inputTokens, outputTokens) = getTokenCounts()
-            saveCurrentChat(inputTokens, outputTokens, 0) // 新聊天，实际窗口大小为0
+            val (inputTokens, outputTokens, windowSize) = getChatStatistics()
+            saveCurrentChat(inputTokens, outputTokens, windowSize) // 使用获取到的完整统计数据
 
             val newChat = chatHistoryManager.createNewChat()
             _currentChatId.value = newChat.id
             _chatHistory.value = newChat.messages
 
             onChatHistoryLoaded(newChat.messages)
-            onTokenStatisticsLoaded(0, 0)
+            onTokenStatisticsLoaded(0, 0, 0)
             resetPlanItems()
         }
     }
@@ -136,8 +136,8 @@ class ChatHistoryDelegate(
     /** 切换聊天 */
     fun switchChat(chatId: String) {
         viewModelScope.launch {
-            val (inputTokens, outputTokens) = getTokenCounts()
-            saveCurrentChat(inputTokens, outputTokens, 0) // 切换前保存，但此时没有新的实际窗口大小
+            val (inputTokens, outputTokens, windowSize) = getChatStatistics()
+            saveCurrentChat(inputTokens, outputTokens, windowSize) // 切换前使用正确的窗口大小保存
 
             chatHistoryManager.setCurrentChatId(chatId)
             _currentChatId.value = chatId
@@ -400,15 +400,15 @@ class ChatHistoryDelegate(
     /** 创建新分组（通过创建新聊天实现） */
     fun createGroup(groupName: String) {
         viewModelScope.launch {
-            val (inputTokens, outputTokens) = getTokenCounts()
-            saveCurrentChat(inputTokens, outputTokens)
+            val (inputTokens, outputTokens, windowSize) = getChatStatistics()
+            saveCurrentChat(inputTokens, outputTokens, windowSize)
 
             val newChat = chatHistoryManager.createNewChat(group = groupName)
             _currentChatId.value = newChat.id
             _chatHistory.value = newChat.messages
 
             onChatHistoryLoaded(newChat.messages)
-            onTokenStatisticsLoaded(0, 0)
+            onTokenStatisticsLoaded(0, 0, 0)
             resetPlanItems()
         }
     }
@@ -629,6 +629,7 @@ class ChatHistoryDelegate(
     /** 通过回调获取当前token统计数据 */
     private fun getCurrentTokenCounts(): Pair<Int, Int> {
         // 使用构造函数中传入的回调获取当前token统计数据
-        return getTokenCounts()
+        val stats = getChatStatistics()
+        return Pair(stats.first, stats.second)
     }
 }

@@ -102,6 +102,7 @@ dependencies {
     implementation(files("libs\\arsc.jar"))
     implementation(libs.androidx.runtime.android)
     implementation(libs.androidx.ui.text.android)
+    implementation(libs.androidx.animation.android)
 
     // Desugaring support for modern Java APIs on older Android
     coreLibraryDesugaring(libs.desugar.jdk)
