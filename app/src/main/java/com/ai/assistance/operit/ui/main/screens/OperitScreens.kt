@@ -1,8 +1,7 @@
 package com.ai.assistance.operit.ui.main.screens
 
-import android.os.Build
-import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
@@ -12,14 +11,15 @@ import com.ai.assistance.operit.ui.features.assistant.screens.AssistantConfigScr
 import com.ai.assistance.operit.ui.features.chat.screens.AIChatScreen
 import com.ai.assistance.operit.ui.features.demo.screens.ShizukuDemoScreen
 import com.ai.assistance.operit.ui.features.help.screens.HelpScreen
-import com.ai.assistance.operit.ui.features.packages.screens.PackageManagerScreen
 import com.ai.assistance.operit.ui.features.memory.screens.MemoryScreen
+import com.ai.assistance.operit.ui.features.packages.screens.PackageManagerScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ChatHistorySettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.FunctionalConfigScreen
 import com.ai.assistance.operit.ui.features.settings.screens.FunctionalPromptConfigScreen
 import com.ai.assistance.operit.ui.features.settings.screens.LanguageSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ModelConfigScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ModelPromptsSettingsScreen
+import com.ai.assistance.operit.ui.features.settings.screens.PromptMarketScreen
 import com.ai.assistance.operit.ui.features.settings.screens.SettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.SpeechServicesSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ThemeSettingsScreen
@@ -41,12 +41,6 @@ import com.ai.assistance.operit.ui.features.toolbox.screens.ffmpegtoolbox.FFmpeg
 import com.ai.assistance.operit.ui.features.toolbox.screens.speechtotext.SpeechToTextToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.texttospeech.TextToSpeechToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.tooltester.ToolTesterScreen
-import androidx.compose.foundation.layout.RowScope
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 
 // 路由配置类
 typealias ScreenNavigationHandler = (Screen) -> Unit
@@ -100,6 +94,9 @@ sealed class Screen(
                         navigateTo(Settings)
                         updateNavItem(NavItem.Settings)
                     },
+                    onNavigateToUserPreferences = { navigateTo(UserPreferencesSettings) },
+                    onNavigateToModelConfig = { navigateTo(ModelConfig) },
+                    onNavigateToModelPrompts = { navigateTo(ModelPromptsSettings) },
                     onLoading = onLoading,
                     onError = onError,
                     onGestureConsumed = onGestureConsumed
@@ -258,7 +255,9 @@ sealed class Screen(
             onError: (String) -> Unit,
             onGestureConsumed: (Boolean) -> Unit
         ) {
-            com.ai.assistance.operit.ui.features.agreement.screens.AgreementScreen(onAgreementAccepted = onGoBack)
+            com.ai.assistance.operit.ui.features.agreement.screens.AgreementScreen(
+                    onAgreementAccepted = onGoBack
+            )
         }
     }
 
@@ -426,6 +425,23 @@ sealed class Screen(
         }
     }
 
+    data object PromptMarket :
+        Screen(parentScreen = ModelPromptsSettings, navItem = NavItem.Settings, titleRes = "提示词市场") {
+        @Composable
+        override fun Content(
+            navController: NavController,
+            navigateTo: ScreenNavigationHandler,
+            updateNavItem: NavItemChangeHandler,
+            onGoBack: () -> Unit,
+            hasBackgroundImage: Boolean,
+            onLoading: (Boolean) -> Unit,
+            onError: (String) -> Unit,
+            onGestureConsumed: (Boolean) -> Unit
+        ) {
+            PromptMarketScreen(onBackPressed = onGoBack)
+        }
+    }
+
     data object ModelPromptsSettings :
             Screen(parentScreen = Settings, navItem = NavItem.Settings, titleRes = "模型提示词设置") {
                 @Composable
@@ -441,7 +457,8 @@ sealed class Screen(
                     ) {
                         ModelPromptsSettingsScreen(
                             onBackPressed = onGoBack,
-                            onNavigateToFunctionalPrompts = { navigateTo(FunctionalPromptConfig) }
+                    onNavigateToFunctionalPrompts = { navigateTo(FunctionalPromptConfig) },
+                    onNavigateToMarket = { navigateTo(PromptMarket) }
                             )
                         }
                     }
@@ -784,4 +801,3 @@ object GestureStateHolder {
     // 聊天界面手势是否被消费的状态
     var isChatScreenGestureConsumed: Boolean = false
 }
-

@@ -7,14 +7,19 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Portrait
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Psychology
 import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.TipsAndUpdates
@@ -25,8 +30,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -37,28 +47,17 @@ import com.ai.assistance.operit.api.chat.EnhancedAIService
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.model.ModelConfigSummary
 import com.ai.assistance.operit.data.model.PreferenceProfile
-import com.ai.assistance.operit.data.preferences.FunctionalConfigManager
-import com.ai.assistance.operit.data.preferences.ModelConfigManager
-import com.ai.assistance.operit.ui.permissions.PermissionLevel
-import kotlinx.coroutines.launch
 import com.ai.assistance.operit.data.model.PromptProfile
+import com.ai.assistance.operit.data.preferences.FunctionalConfigManager
 import com.ai.assistance.operit.data.preferences.FunctionalPromptManager
+import com.ai.assistance.operit.data.preferences.ModelConfigManager
 import com.ai.assistance.operit.data.preferences.PromptFunctionType
 import com.ai.assistance.operit.data.preferences.PromptPreferencesManager
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
-import kotlinx.coroutines.flow.first
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.material.icons.outlined.History
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.input.ImeAction
+import com.ai.assistance.operit.ui.permissions.PermissionLevel
 import java.text.DecimalFormat
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.material.icons.outlined.Portrait
-import androidx.compose.material.icons.rounded.Link
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 @Composable
 fun ChatSettingsBar(
@@ -74,13 +73,14 @@ fun ChatSettingsBar(
     maxWindowSizeInK: Float,
     onContextLengthChange: (Float) -> Unit,
     enableMemoryAttachment: Boolean,
-    onToggleMemoryAttachment: () -> Unit
+        onToggleMemoryAttachment: () -> Unit,
+        onNavigateToUserPreferences: () -> Unit,
+        onNavigateToModelConfig: () -> Unit,
+        onNavigateToModelPrompts: () -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
-    val iconScale by animateFloatAsState(
-        targetValue = if (showMenu) 1.2f else 1f,
-        label = "iconScale"
-    )
+    val iconScale by
+            animateFloatAsState(targetValue = if (showMenu) 1.2f else 1f, label = "iconScale")
 
     // 用于显示详情说明的状态，现在使用一个Pair来保存标题和内容
     var infoPopupContent by remember { mutableStateOf<Pair<String, String>?>(null) }
@@ -93,61 +93,52 @@ fun ChatSettingsBar(
     val scope = rememberCoroutineScope()
     val functionalConfigManager = remember { FunctionalConfigManager(context) }
     val modelConfigManager = remember { ModelConfigManager(context) }
-    val configMapping by functionalConfigManager.functionConfigMappingFlow.collectAsState(initial = emptyMap())
+    val configMapping by
+            functionalConfigManager.functionConfigMappingFlow.collectAsState(initial = emptyMap())
     var configSummaries by remember { mutableStateOf<List<ModelConfigSummary>>(emptyList()) }
-    LaunchedEffect(Unit) {
-        configSummaries = modelConfigManager.getAllConfigSummaries()
-    }
-    val currentConfigId = configMapping[FunctionType.CHAT] ?: FunctionalConfigManager.DEFAULT_CONFIG_ID
+    LaunchedEffect(Unit) { configSummaries = modelConfigManager.getAllConfigSummaries() }
+    val currentConfigId =
+            configMapping[FunctionType.CHAT] ?: FunctionalConfigManager.DEFAULT_CONFIG_ID
 
     // 将提示词选择逻辑封装到组件内部
     val functionalPromptManager = remember { FunctionalPromptManager(context) }
     val promptPreferencesManager = remember { PromptPreferencesManager(context) }
-    val promptMapping by functionalPromptManager.functionPromptMappingFlow.collectAsState(initial = emptyMap())
+    val promptMapping by
+            functionalPromptManager.functionPromptMappingFlow.collectAsState(initial = emptyMap())
     var promptProfiles by remember { mutableStateOf<List<PromptProfile>>(emptyList()) }
     LaunchedEffect(Unit) {
         val profileIds = promptPreferencesManager.profileListFlow.first()
-        promptProfiles = profileIds.map { id ->
-            promptPreferencesManager.getPromptProfileFlow(id).first()
-        }
+        promptProfiles =
+                profileIds.map { id -> promptPreferencesManager.getPromptProfileFlow(id).first() }
     }
-    val currentPromptProfileId = promptMapping[PromptFunctionType.CHAT] ?: FunctionalPromptManager.getDefaultProfileIdForFunction(PromptFunctionType.CHAT)
+    val currentPromptProfileId =
+            promptMapping[PromptFunctionType.CHAT]
+                    ?: FunctionalPromptManager.getDefaultProfileIdForFunction(
+                            PromptFunctionType.CHAT
+                    )
 
     // 新增：用户偏好（记忆）选择逻辑
     val userPreferencesManager = remember { UserPreferencesManager(context) }
-    val activeProfileId by userPreferencesManager.activeProfileIdFlow.collectAsState(initial = "default")
+    val activeProfileId by
+            userPreferencesManager.activeProfileIdFlow.collectAsState(initial = "default")
     var preferenceProfiles by remember { mutableStateOf<List<PreferenceProfile>>(emptyList()) }
     LaunchedEffect(Unit) {
         val profileIds = userPreferencesManager.profileListFlow.first()
-        preferenceProfiles = profileIds.map { id ->
-            userPreferencesManager.getUserPreferencesFlow(id).first()
-        }
+        preferenceProfiles =
+                profileIds.map { id -> userPreferencesManager.getUserPreferencesFlow(id).first() }
     }
-
 
     val onSelectModel: (String) -> Unit = { selectedId ->
         scope.launch {
-            functionalConfigManager.setConfigForFunction(
-                FunctionType.CHAT,
-                selectedId
-            )
-            EnhancedAIService.refreshServiceForFunction(
-                context,
-                FunctionType.CHAT
-            )
+            functionalConfigManager.setConfigForFunction(FunctionType.CHAT, selectedId)
+            EnhancedAIService.refreshServiceForFunction(context, FunctionType.CHAT)
         }
     }
     
     val onSelectPrompt: (String) -> Unit = { selectedId ->
         scope.launch {
-            functionalPromptManager.setPromptProfileForFunction(
-                PromptFunctionType.CHAT,
-                selectedId
-            )
-            EnhancedAIService.refreshServiceForFunction(
-                context,
-                FunctionType.CHAT
-            )
+            functionalPromptManager.setPromptProfileForFunction(PromptFunctionType.CHAT, selectedId)
+            EnhancedAIService.refreshServiceForFunction(context, FunctionType.CHAT)
         }
     }
 
@@ -155,10 +146,7 @@ fun ChatSettingsBar(
         scope.launch {
             userPreferencesManager.setActiveProfile(selectedId)
             // 用户偏好和记忆库绑定，可能影响AI行为，所以刷新服务
-            EnhancedAIService.refreshServiceForFunction(
-                context,
-                FunctionType.CHAT
-            )
+            EnhancedAIService.refreshServiceForFunction(context, FunctionType.CHAT)
         }
     }
 
@@ -215,10 +203,7 @@ fun ChatSettingsBar(
                     )
                 }
 
-                IconButton(
-                    onClick = { showMenu = !showMenu },
-                    modifier = Modifier.size(28.dp)
-                ) {
+                IconButton(onClick = { showMenu = !showMenu }, modifier = Modifier.size(28.dp)) {
                     Icon(
                         imageVector = Icons.Outlined.Tune,
                         contentDescription = "设置选项",
@@ -238,7 +223,8 @@ fun ChatSettingsBar(
                     showPromptDropdown = false
                     showMemoryDropdown = false
                 },
-                properties = PopupProperties(
+                    properties =
+                            PopupProperties(
                     focusable = true,
                     dismissOnBackPress = true,
                     dismissOnClickOutside = true
@@ -248,14 +234,18 @@ fun ChatSettingsBar(
                     Card(
                         modifier = Modifier.width(220.dp), // 加宽一级菜单
                         shape = RoundedCornerShape(8.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+                            colors =
+                                    CardDefaults.cardColors(
+                                            containerColor =
+                                                    MaterialTheme.colorScheme.surface.copy(
+                                                            alpha = 0.95f
+                                                    )
                         ),
                         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                     ) {
                         Column(
-                            modifier = Modifier
-                                .padding(vertical = 4.dp)
+                                modifier =
+                                        Modifier.padding(vertical = 4.dp)
                                 .verticalScroll(rememberScrollState())
                         ) {
                             // 模型选择器
@@ -264,7 +254,16 @@ fun ChatSettingsBar(
                                 currentConfigId = currentConfigId,
                                 onSelectModel = onSelectModel,
                                 expanded = showModelDropdown,
-                                onExpandedChange = { showModelDropdown = it }
+                                    onExpandedChange = { showModelDropdown = it },
+                                    onManageClick = {
+                                        onNavigateToModelConfig()
+                                        showMenu = false
+                                    },
+                                    onInfoClick = {
+                                        infoPopupContent =
+                                                "模型配置" to "在这里选择一个已经配置好的模型，或者点击下方的管理配置去新建或修改模型"
+                                        showMenu = false
+                                    }
                             )
 
                             // 提示词选择器
@@ -273,7 +272,16 @@ fun ChatSettingsBar(
                                 currentProfileId = currentPromptProfileId,
                                 onSelectPrompt = onSelectPrompt,
                                 expanded = showPromptDropdown,
-                                onExpandedChange = { showPromptDropdown = it }
+                                    onExpandedChange = { showPromptDropdown = it },
+                                    onManageClick = {
+                                        onNavigateToModelPrompts()
+                                        showMenu = false
+                                    },
+                                    onInfoClick = {
+                                        infoPopupContent =
+                                                "提示词" to "在这里选择一个已经配置好的提示词，或者点击下方的管理配置去新建或修改提示词"
+                                        showMenu = false
+                                    }
                             )
 
                             // 记忆选择器
@@ -284,7 +292,13 @@ fun ChatSettingsBar(
                                 expanded = showMemoryDropdown,
                                 onExpandedChange = { showMemoryDropdown = it },
                                 onInfoClick = {
-                                    infoPopupContent = "记忆" to "记忆选择包括了用户偏好和该偏好下的记忆库。如果想要新的记忆库，可以去设置新建一个用户偏好并在这里选择"
+                                        infoPopupContent =
+                                                "记忆" to
+                                                        "记忆选择包括了用户偏好和该偏好下的记忆库。如果想要新的记忆库，可以去设置新建一个用户偏好并在这里选择"
+                                        showMenu = false
+                                    },
+                                    onManageClick = {
+                                        onNavigateToUserPreferences()
                                     showMenu = false
                                 }
                             )
@@ -292,12 +306,22 @@ fun ChatSettingsBar(
                             // 记忆附着
                             SettingItem(
                                 title = "记忆附着",
-                                icon = if (enableMemoryAttachment) Icons.Rounded.Link else Icons.Outlined.LinkOff,
-                                iconTint = if (enableMemoryAttachment) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    icon =
+                                            if (enableMemoryAttachment) Icons.Rounded.Link
+                                            else Icons.Outlined.LinkOff,
+                                    iconTint =
+                                            if (enableMemoryAttachment)
+                                                    MaterialTheme.colorScheme.primary
+                                            else
+                                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                                            alpha = 0.7f
+                                                    ),
                                 isChecked = enableMemoryAttachment,
                                 onToggle = onToggleMemoryAttachment,
                                 onInfoClick = {
-                                    infoPopupContent = "记忆附着" to "开启后，发送消息时会自动从记忆库中检索并附加相关内容，但这可能会影响AI回答的焦点。"
+                                        infoPopupContent =
+                                                "记忆附着" to
+                                                        "开启后，发送消息时会自动从记忆库中检索并附加相关内容，但这可能会影响AI回答的焦点。"
                                     showMenu = false
                                 }
                             )
@@ -307,7 +331,9 @@ fun ChatSettingsBar(
                                 maxWindowSizeInK = maxWindowSizeInK,
                                 onContextLengthChange = onContextLengthChange,
                                 onInfoClick = {
-                                    infoPopupContent = "上下文长度" to "控制模型记忆的对话长度（单位：千tokens）。较短的长度可以节省Token，但可能会忘记早期对话内容。"
+                                        infoPopupContent =
+                                                "上下文长度" to
+                                                        "控制模型记忆的对话长度（单位：千tokens）。较短的长度可以节省Token，但可能会忘记早期对话内容。"
                                     showMenu = false
                                 }
                             )
@@ -315,17 +341,28 @@ fun ChatSettingsBar(
                             Divider(
                                 modifier = Modifier.padding(vertical = 2.dp),
                                 thickness = 0.5.dp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
+                                    color =
+                                            MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                                    alpha = 0.2f
+                                            )
                             )
                             // AI计划模式
                             SettingItem(
                                 title = "AI计划模式",
-                                icon = if (enableAiPlanning) Icons.Rounded.AutoAwesome else Icons.Outlined.AutoAwesome,
-                                iconTint = if (enableAiPlanning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    icon =
+                                            if (enableAiPlanning) Icons.Rounded.AutoAwesome
+                                            else Icons.Outlined.AutoAwesome,
+                                    iconTint =
+                                            if (enableAiPlanning) MaterialTheme.colorScheme.primary
+                                            else
+                                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                                            alpha = 0.7f
+                                                    ),
                                 isChecked = enableAiPlanning,
                                 onToggle = onToggleAiPlanning,
                                 onInfoClick = {
-                                    infoPopupContent = "AI计划模式" to "能够生成一系列计划进行执行（效果一般，不建议启用，未来将会进行替换）。"
+                                        infoPopupContent =
+                                                "AI计划模式" to "能够生成一系列计划进行执行（效果一般，不建议启用，未来将会进行替换）。"
                                     showMenu = false
                                 }
                             )
@@ -333,18 +370,32 @@ fun ChatSettingsBar(
                             Divider(
                                 modifier = Modifier.padding(vertical = 2.dp),
                                 thickness = 0.5.dp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
+                                    color =
+                                            MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                                    alpha = 0.2f
+                                            )
                             )
 
                             // 自动批准
                             SettingItem(
                                 title = "自动批准",
-                                icon = if (permissionLevel == PermissionLevel.ALLOW) Icons.Rounded.Security else Icons.Outlined.Security,
-                                iconTint = if (permissionLevel == PermissionLevel.ALLOW) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    icon =
+                                            if (permissionLevel == PermissionLevel.ALLOW)
+                                                    Icons.Rounded.Security
+                                            else Icons.Outlined.Security,
+                                    iconTint =
+                                            if (permissionLevel == PermissionLevel.ALLOW)
+                                                    MaterialTheme.colorScheme.primary
+                                            else
+                                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                                            alpha = 0.7f
+                                                    ),
                                 isChecked = permissionLevel == PermissionLevel.ALLOW,
                                 onToggle = onTogglePermission,
                                 onInfoClick = {
-                                    infoPopupContent = "自动批准" to "将会自动把较为安全的工具直接执行而不询问。对于具体的分组批准，请前往设置-工具权限管理进行操作。"
+                                        infoPopupContent =
+                                                "自动批准" to
+                                                        "将会自动把较为安全的工具直接执行而不询问。对于具体的分组批准，请前往设置-工具权限管理进行操作。"
                                     showMenu = false
                                 }
                             )
@@ -352,14 +403,25 @@ fun ChatSettingsBar(
                             Divider(
                                 modifier = Modifier.padding(vertical = 2.dp),
                                 thickness = 0.5.dp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
+                                    color =
+                                            MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                                    alpha = 0.2f
+                                            )
                             )
 
                             // 思考模式
                             SettingItem(
                                 title = "思考模式",
-                                icon = if (enableThinkingMode) Icons.Rounded.Psychology else Icons.Outlined.Psychology,
-                                iconTint = if (enableThinkingMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    icon =
+                                            if (enableThinkingMode) Icons.Rounded.Psychology
+                                            else Icons.Outlined.Psychology,
+                                    iconTint =
+                                            if (enableThinkingMode)
+                                                    MaterialTheme.colorScheme.primary
+                                            else
+                                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                                            alpha = 0.7f
+                                                    ),
                                 isChecked = enableThinkingMode,
                                 onToggle = onToggleThinkingMode,
                                 onInfoClick = {
@@ -371,18 +433,30 @@ fun ChatSettingsBar(
                             Divider(
                                 modifier = Modifier.padding(vertical = 2.dp),
                                 thickness = 0.5.dp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
+                                    color =
+                                            MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                                    alpha = 0.2f
+                                            )
                             )
 
                             // 思考引导
                             SettingItem(
                                 title = "思考引导",
-                                icon = if (enableThinkingGuidance) Icons.Rounded.TipsAndUpdates else Icons.Outlined.TipsAndUpdates,
-                                iconTint = if (enableThinkingGuidance) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    icon =
+                                            if (enableThinkingGuidance) Icons.Rounded.TipsAndUpdates
+                                            else Icons.Outlined.TipsAndUpdates,
+                                    iconTint =
+                                            if (enableThinkingGuidance)
+                                                    MaterialTheme.colorScheme.primary
+                                            else
+                                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                                            alpha = 0.7f
+                                                    ),
                                 isChecked = enableThinkingGuidance,
                                 onToggle = onToggleThinkingGuidance,
                                 onInfoClick = {
-                                    infoPopupContent = "思考引导" to "能够让不能思考的模型强制进行思考。该选项不建议对思考模型开启。"
+                                        infoPopupContent =
+                                                "思考引导" to "能够让不能思考的模型强制进行思考。该选项不建议对思考模型开启。"
                                     showMenu = false
                                 }
                             )
@@ -397,20 +471,30 @@ fun ChatSettingsBar(
             Popup(
                 alignment = Alignment.TopStart, // 将弹窗对齐到父布局的左上角
                 onDismissRequest = { infoPopupContent = null },
-                properties = PopupProperties(
+                    properties =
+                            PopupProperties(
                     focusable = true,
                     dismissOnBackPress = true,
                     dismissOnClickOutside = true
                 )
             ) {
                 Box(
-                    modifier = Modifier.padding(top = 0.dp, bottom = 76.dp, end = 40.dp) // 调整边距，使其显示在左侧
+                        modifier =
+                                Modifier.padding(
+                                        top = 0.dp,
+                                        bottom = 76.dp,
+                                        end = 40.dp
+                                ) // 调整边距，使其显示在左侧
                 ) {
                     Card(
                         modifier = Modifier.width(220.dp),
                         shape = RoundedCornerShape(8.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+                            colors =
+                                    CardDefaults.cardColors(
+                                            containerColor =
+                                                    MaterialTheme.colorScheme.surface.copy(
+                                                            alpha = 0.95f
+                                                    )
                         ),
                         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                     ) {
@@ -430,7 +514,10 @@ fun ChatSettingsBar(
 
                             Divider(
                                 thickness = 0.5.dp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                                    color =
+                                            MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                                    alpha = 0.3f
+                                            )
                             )
 
                             Spacer(modifier = Modifier.height(8.dp))
@@ -480,10 +567,7 @@ private fun SettingItem(
         )
 
         // 详情按钮
-        IconButton(
-            onClick = onInfoClick,
-            modifier = Modifier.size(24.dp)
-        ) {
+        IconButton(onClick = onInfoClick, modifier = Modifier.size(24.dp)) {
             Icon(
                 imageVector = Icons.Outlined.Info,
                 contentDescription = "详情",
@@ -497,7 +581,8 @@ private fun SettingItem(
             checked = isChecked,
             onCheckedChange = { onToggle() },
             modifier = Modifier.scale(0.65f),
-            colors = SwitchDefaults.colors(
+                colors =
+                        SwitchDefaults.colors(
                 checkedThumbColor = MaterialTheme.colorScheme.primary,
                 checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
                 uncheckedThumbColor = MaterialTheme.colorScheme.outline,
@@ -525,10 +610,7 @@ private fun ContextLengthSettingItem(
     }
 
     Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Icon(
                 imageVector = Icons.Outlined.History,
                 contentDescription = "上下文长度",
@@ -550,30 +632,35 @@ private fun ContextLengthSettingItem(
                 value = textValue,
                 onValueChange = { newText ->
                     textValue = newText
-                    newText.toFloatOrNull()?.let {
-                        sliderValue = it.coerceIn(1f, 1024f)
-                    }
+                        newText.toFloatOrNull()?.let { sliderValue = it.coerceIn(1f, 1024f) }
                 },
-                modifier = Modifier
-                    .width(50.dp)
+                    modifier =
+                            Modifier.width(50.dp)
                     .background(
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                            MaterialTheme.colorScheme.surfaceVariant.copy(
+                                                    alpha = 0.5f
+                                            ),
                         RoundedCornerShape(4.dp)
                     )
                     .padding(horizontal = 4.dp, vertical = 2.dp),
-                textStyle = TextStyle(
+                    textStyle =
+                            TextStyle(
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp,
                     textAlign = TextAlign.Center
                 ),
-                keyboardOptions = KeyboardOptions(
+                    keyboardOptions =
+                            KeyboardOptions(
                     keyboardType = KeyboardType.Number,
                     imeAction = ImeAction.Done
                 ),
-                keyboardActions = KeyboardActions(
+                    keyboardActions =
+                            KeyboardActions(
                     onDone = {
-                        val finalValue = textValue.toFloatOrNull()?.coerceIn(1f, 1024f) ?: sliderValue
+                                        val finalValue =
+                                                textValue.toFloatOrNull()?.coerceIn(1f, 1024f)
+                                                        ?: sliderValue
                         onContextLengthChange(finalValue)
                         textValue = df.format(finalValue) // 格式化并同步显示
                         focusManager.clearFocus()
@@ -590,11 +677,7 @@ private fun ContextLengthSettingItem(
                 modifier = Modifier.padding(start = 2.dp, end = 4.dp)
             )
 
-
-            IconButton(
-                onClick = onInfoClick,
-                modifier = Modifier.size(24.dp)
-            ) {
+            IconButton(onClick = onInfoClick, modifier = Modifier.size(24.dp)) {
                 Icon(
                     imageVector = Icons.Outlined.Info,
                     contentDescription = "详情",
@@ -610,16 +693,13 @@ private fun ContextLengthSettingItem(
                 sliderValue = it
                 textValue = df.format(it)
             },
-            onValueChangeFinished = {
-                onContextLengthChange(sliderValue)
-            },
+                onValueChangeFinished = { onContextLengthChange(sliderValue) },
             valueRange = 1f..1024f,
             steps = 1022,
             modifier = Modifier.fillMaxWidth().height(24.dp)
         )
     }
 }
-
 
 @Composable
 private fun MemorySelectorItem(
@@ -628,14 +708,15 @@ private fun MemorySelectorItem(
     onSelectMemory: (String) -> Unit,
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
-    onInfoClick: () -> Unit
+        onInfoClick: () -> Unit,
+        onManageClick: () -> Unit
 ) {
     val currentProfile = preferenceProfiles.find { it.id == currentProfileId }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
+                modifier =
+                        Modifier.fillMaxWidth()
                 .height(36.dp)
                 .clickable { onExpandedChange(!expanded) }
                 .padding(horizontal = 12.dp),
@@ -649,9 +730,7 @@ private fun MemorySelectorItem(
             )
 
             Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 8.dp),
+                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
@@ -671,10 +750,7 @@ private fun MemorySelectorItem(
                 )
             }
 
-            IconButton(
-                onClick = onInfoClick,
-                modifier = Modifier.size(24.dp)
-            ) {
+            IconButton(onClick = onInfoClick, modifier = Modifier.size(24.dp)) {
                 Icon(
                     imageVector = Icons.Outlined.Info,
                     contentDescription = "详情",
@@ -684,7 +760,9 @@ private fun MemorySelectorItem(
             }
 
             Icon(
-                imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                    imageVector =
+                            if (expanded) Icons.Filled.KeyboardArrowUp
+                            else Icons.Filled.KeyboardArrowDown,
                 contentDescription = if (expanded) "收起" else "展开",
                 modifier = Modifier.size(20.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
@@ -693,18 +771,26 @@ private fun MemorySelectorItem(
 
         if (expanded) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
+                    modifier =
+                            Modifier.fillMaxWidth()
+                                    .background(
+                                            MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
+                                    )
                     .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
                 preferenceProfiles.forEach { profile ->
                     val isSelected = profile.id == currentProfileId
                     Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
+                            modifier =
+                                    Modifier.fillMaxWidth()
                             .clip(RoundedCornerShape(4.dp))
-                            .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.Transparent)
+                                            .background(
+                                                    if (isSelected)
+                                                            MaterialTheme.colorScheme.primary.copy(
+                                                                    alpha = 0.1f
+                                                            )
+                                                    else Color.Transparent
+                                            )
                             .clickable {
                                 onSelectMemory(profile.id)
                                 onExpandedChange(false)
@@ -714,7 +800,9 @@ private fun MemorySelectorItem(
                         Text(
                             text = profile.name,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                color =
+                                        if (isSelected) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurface,
                             fontSize = 13.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -723,6 +811,20 @@ private fun MemorySelectorItem(
                     if (preferenceProfiles.last() != profile) {
                         Spacer(modifier = Modifier.height(4.dp))
                     }
+                }
+                Divider(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        thickness = 0.5.dp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(30.dp)
+                        .clickable(onClick = onManageClick),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("管理配置", color = MaterialTheme.colorScheme.primary, fontSize = 13.sp)
                 }
             }
         }
@@ -735,14 +837,16 @@ private fun ModelSelectorItem(
     currentConfigId: String,
     onSelectModel: (String) -> Unit,
     expanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit
+        onExpandedChange: (Boolean) -> Unit,
+        onManageClick: () -> Unit,
+        onInfoClick: () -> Unit
 ) {
     val currentConfig = configSummaries.find { it.id == currentConfigId }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
+                modifier =
+                        Modifier.fillMaxWidth()
                 .height(36.dp)
                 .clickable { onExpandedChange(!expanded) }
                 .padding(horizontal = 12.dp),
@@ -756,9 +860,7 @@ private fun ModelSelectorItem(
             )
 
             Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 8.dp),
+                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
@@ -778,9 +880,19 @@ private fun ModelSelectorItem(
                 )
             }
 
+            IconButton(onClick = onInfoClick, modifier = Modifier.size(24.dp)) {
+                Icon(
+                        imageVector = Icons.Outlined.Info,
+                        contentDescription = "详情",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier.size(16.dp)
+                )
+            }
 
             Icon(
-                imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                    imageVector =
+                            if (expanded) Icons.Filled.KeyboardArrowUp
+                            else Icons.Filled.KeyboardArrowDown,
                 contentDescription = if (expanded) "收起" else "展开",
                 modifier = Modifier.size(20.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
@@ -789,18 +901,26 @@ private fun ModelSelectorItem(
 
         if (expanded) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
+                    modifier =
+                            Modifier.fillMaxWidth()
+                                    .background(
+                                            MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
+                                    )
                     .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
                 configSummaries.forEach { config ->
                     val isSelected = config.id == currentConfigId
                     Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
+                            modifier =
+                                    Modifier.fillMaxWidth()
                             .clip(RoundedCornerShape(4.dp))
-                            .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.Transparent)
+                                            .background(
+                                                    if (isSelected)
+                                                            MaterialTheme.colorScheme.primary.copy(
+                                                                    alpha = 0.1f
+                                                            )
+                                                    else Color.Transparent
+                                            )
                             .clickable {
                                 onSelectModel(config.id)
                                 onExpandedChange(false)
@@ -813,8 +933,11 @@ private fun ModelSelectorItem(
                         ) {
                             Text(
                                 text = config.name,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                    fontWeight =
+                                            if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color =
+                                            if (isSelected) MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.onSurface,
                                 fontSize = 13.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -835,6 +958,20 @@ private fun ModelSelectorItem(
                         Spacer(modifier = Modifier.height(4.dp))
                     }
                 }
+                Divider(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        thickness = 0.5.dp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(30.dp)
+                        .clickable(onClick = onManageClick),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("管理配置", color = MaterialTheme.colorScheme.primary, fontSize = 13.sp)
+                }
             }
         }
     }
@@ -846,14 +983,16 @@ private fun PromptSelectorItem(
     currentProfileId: String,
     onSelectPrompt: (String) -> Unit,
     expanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit
+        onExpandedChange: (Boolean) -> Unit,
+        onManageClick: () -> Unit,
+        onInfoClick: () -> Unit
 ) {
     val currentProfile = promptProfiles.find { it.id == currentProfileId }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
+                modifier =
+                        Modifier.fillMaxWidth()
                 .height(36.dp)
                 .clickable { onExpandedChange(!expanded) }
                 .padding(horizontal = 12.dp),
@@ -867,9 +1006,7 @@ private fun PromptSelectorItem(
             )
 
             Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 8.dp),
+                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
@@ -889,9 +1026,19 @@ private fun PromptSelectorItem(
                 )
             }
 
+            IconButton(onClick = onInfoClick, modifier = Modifier.size(24.dp)) {
+                Icon(
+                        imageVector = Icons.Outlined.Info,
+                        contentDescription = "详情",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier.size(16.dp)
+                )
+            }
 
             Icon(
-                imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                    imageVector =
+                            if (expanded) Icons.Filled.KeyboardArrowUp
+                            else Icons.Filled.KeyboardArrowDown,
                 contentDescription = if (expanded) "收起" else "展开",
                 modifier = Modifier.size(20.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
@@ -900,18 +1047,26 @@ private fun PromptSelectorItem(
 
         if (expanded) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
+                    modifier =
+                            Modifier.fillMaxWidth()
+                                    .background(
+                                            MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
+                                    )
                     .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
                 promptProfiles.forEach { profile ->
                     val isSelected = profile.id == currentProfileId
                     Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
+                            modifier =
+                                    Modifier.fillMaxWidth()
                             .clip(RoundedCornerShape(4.dp))
-                            .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.Transparent)
+                                            .background(
+                                                    if (isSelected)
+                                                            MaterialTheme.colorScheme.primary.copy(
+                                                                    alpha = 0.1f
+                                                            )
+                                                    else Color.Transparent
+                                            )
                             .clickable {
                                 onSelectPrompt(profile.id)
                                 onExpandedChange(false)
@@ -921,7 +1076,9 @@ private fun PromptSelectorItem(
                         Text(
                             text = profile.name,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                color =
+                                        if (isSelected) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurface,
                             fontSize = 13.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -931,7 +1088,21 @@ private fun PromptSelectorItem(
                         Spacer(modifier = Modifier.height(4.dp))
                     }
                 }
+                Divider(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        thickness = 0.5.dp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(30.dp)
+                        .clickable(onClick = onManageClick),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("管理配置", color = MaterialTheme.colorScheme.primary, fontSize = 13.sp)
+                }
             }
         }
     }
-} 
+}

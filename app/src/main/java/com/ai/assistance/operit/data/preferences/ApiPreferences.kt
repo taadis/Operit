@@ -106,7 +106,7 @@ class ApiPreferences(private val context: Context) {
         const val DEFAULT_ENABLE_MEMORY_ATTACHMENT = true
 
         // Default value for Context Length (in K)
-        const val DEFAULT_CONTEXT_LENGTH = 8.0f
+        const val DEFAULT_CONTEXT_LENGTH = 36.0f
 
         // Default values for custom prompts
         const val DEFAULT_INTRO_PROMPT = "你是Operit，一个全能AI助手，旨在解决用户提出的任何任务。你有各种工具可以调用，以高效完成复杂的请求。"

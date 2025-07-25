@@ -86,7 +86,12 @@ class PromptPreferencesManager(private val context: Context) {
     }
 
     // Create a new prompt profile
-    suspend fun createProfile(name: String, isDefault: Boolean = false): String {
+    suspend fun createProfile(
+        name: String,
+        introPrompt: String? = null,
+        tonePrompt: String? = null,
+        isDefault: Boolean = false
+    ): String {
         val id = if (isDefault) "default" else UUID.randomUUID().toString()
 
         dataStore.edit { preferences ->
@@ -99,8 +104,8 @@ class PromptPreferencesManager(private val context: Context) {
 
             // Set profile data
             preferences[profileNameKey(id)] = name
-            preferences[profileIntroPromptKey(id)] = defaultIntroPrompt
-            preferences[profileTonePromptKey(id)] = defaultTonePrompt
+            preferences[profileIntroPromptKey(id)] = introPrompt ?: defaultIntroPrompt
+            preferences[profileTonePromptKey(id)] = tonePrompt ?: defaultTonePrompt
             preferences[profileIsDefaultKey(id)] = isDefault
 
             // If this is the first profile or is default, make it active

@@ -26,6 +26,18 @@ object ObjectBoxManager {
         stores.remove(profileId)?.close()
     }
 
+    /**
+     * 物理删除指定profileId的数据库（包括关闭store和删除文件夹）。
+     */
+    fun delete(context: Context, profileId: String) {
+        close(profileId) // 先关闭
+        val dbName = if (profileId == "default") "objectbox" else "objectbox_$profileId"
+        val dbDir = File(context.filesDir, dbName)
+        if (dbDir.exists()) {
+            dbDir.deleteRecursively()
+        }
+    }
+
     fun closeAll() {
         stores.values.forEach { it.close() }
         stores.clear()

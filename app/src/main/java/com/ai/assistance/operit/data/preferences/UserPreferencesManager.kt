@@ -19,6 +19,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import com.ai.assistance.operit.data.db.ObjectBoxManager
 
 private val Context.userPreferencesDataStore: DataStore<Preferences> by
         preferencesDataStore(name = "user_preferences")
@@ -456,6 +457,8 @@ class UserPreferencesManager(private val context: Context) {
                 preferences[ACTIVE_PROFILE_ID] = DEFAULT_PROFILE_ID
             }
         }
+        // 删除对应的知识库数据库
+        ObjectBoxManager.delete(context, profileId)
     }
 
     // 重置用户偏好

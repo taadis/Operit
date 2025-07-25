@@ -2,6 +2,7 @@ package com.ai.assistance.operit.ui.features.chat.screens
 
 import android.provider.Settings
 import android.util.Log
+import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -12,14 +13,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalView
-import android.view.WindowManager
-import androidx.compose.material.icons.filled.MoreVert
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.preferences.ApiPreferences
@@ -43,8 +43,6 @@ import java.io.File
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,6 +55,9 @@ fun AIChatScreen(
         hasBackgroundImage: Boolean = false,
         onNavigateToTokenConfig: () -> Unit = {},
         onNavigateToSettings: () -> Unit = {},
+        onNavigateToUserPreferences: () -> Unit = {},
+        onNavigateToModelConfig: () -> Unit = {},
+        onNavigateToModelPrompts: () -> Unit = {},
         onGestureConsumed: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -111,7 +112,8 @@ fun AIChatScreen(
     val planItems by actualViewModel.planItems.collectAsState()
     val enableAiPlanning by actualViewModel.enableAiPlanning.collectAsState()
     val enableThinkingMode by actualViewModel.enableThinkingMode.collectAsState() // 收集思考模式状态
-    val enableThinkingGuidance by actualViewModel.enableThinkingGuidance.collectAsState() // 收集思考引导状态
+    val enableThinkingGuidance by
+            actualViewModel.enableThinkingGuidance.collectAsState() // 收集思考引导状态
     val enableMemoryAttachment by actualViewModel.enableMemoryAttachment.collectAsState()
     val showChatHistorySelector by actualViewModel.showChatHistorySelector.collectAsState()
     val chatHistories by actualViewModel.chatHistories.collectAsState()
@@ -271,7 +273,9 @@ fun AIChatScreen(
 
     // 添加手势状态
     var chatScreenGestureConsumed by remember { mutableStateOf(false) }
-    val onChatScreenGestureConsumedChange = remember { { it: Boolean -> chatScreenGestureConsumed = it } }
+    val onChatScreenGestureConsumedChange = remember {
+        { it: Boolean -> chatScreenGestureConsumed = it }
+    }
 
     // 添加累计滑动距离变量
     var currentDrag by remember { mutableStateOf(0f) }
@@ -291,9 +295,7 @@ fun AIChatScreen(
             // 当进入工作区时，设置为 adjustResize
             window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
             // 注册一个清理函数，当退出工作区时恢复原始模式
-            onDispose {
-                window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN)
-            }
+            onDispose { window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN) }
         } else {
             // 当不在工作区时，不执行任何操作，并注册一个空的清理函数
             window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN)
@@ -376,51 +378,51 @@ fun AIChatScreen(
                     // 只在不显示配置界面时显示底部输入框
                     if (!shouldShowConfig) {
                         // ChatInputSection is back in the bottomBar to reserve space
-                            ChatInputSection(
-                                    actualViewModel = actualViewModel,
-                                    userMessage = userMessage,
-                                    onUserMessageChange = { actualViewModel.updateUserMessage(it) },
-                                    onSendMessage = {
-                                        actualViewModel.sendUserMessage()
-                                        // 在发送消息后重置附件面板状态
-                                        actualViewModel.resetAttachmentPanelState()
-                                    },
-                                    onCancelMessage = { actualViewModel.cancelCurrentMessage() },
-                                    isLoading = isLoading,
-                                    inputState = inputProcessingState,
-                                    allowTextInputWhileProcessing = true,
-                                    onAttachmentRequest = { filePath ->
-                                        // 处理附件 - 现在使用文件路径而不是Uri
-                                        actualViewModel.handleAttachment(filePath)
-                                    },
-                                    attachments = attachments,
-                                    onRemoveAttachment = { filePath ->
-                                        // 删除附件 - 现在使用文件路径而不是Uri
-                                        actualViewModel.removeAttachment(filePath)
-                                    },
-                                    onInsertAttachment = { attachment: AttachmentInfo ->
-                                        // 在光标位置插入附件引用
-                                        actualViewModel.insertAttachmentReference(attachment)
-                                    },
-                                    onAttachScreenContent = {
-                                        // 添加屏幕内容附件
-                                        actualViewModel.captureScreenContent()
-                                    },
-                                    onAttachNotifications = {
-                                        // 添加当前通知附件
-                                        actualViewModel.captureNotifications()
-                                    },
-                                    onAttachLocation = {
-                                        // 添加当前位置附件
-                                        actualViewModel.captureLocation()
-                                    },
-                                    hasBackgroundImage = hasBackgroundImage,
-                                    // 传递附件面板状态
-                                    externalAttachmentPanelState = attachmentPanelState,
-                                    onAttachmentPanelStateChange = { newState ->
-                                        actualViewModel.updateAttachmentPanelState(newState)
-                                    }
-                            )
+                        ChatInputSection(
+                                actualViewModel = actualViewModel,
+                                userMessage = userMessage,
+                                onUserMessageChange = { actualViewModel.updateUserMessage(it) },
+                                onSendMessage = {
+                                    actualViewModel.sendUserMessage()
+                                    // 在发送消息后重置附件面板状态
+                                    actualViewModel.resetAttachmentPanelState()
+                                },
+                                onCancelMessage = { actualViewModel.cancelCurrentMessage() },
+                                isLoading = isLoading,
+                                inputState = inputProcessingState,
+                                allowTextInputWhileProcessing = true,
+                                onAttachmentRequest = { filePath ->
+                                    // 处理附件 - 现在使用文件路径而不是Uri
+                                    actualViewModel.handleAttachment(filePath)
+                                },
+                                attachments = attachments,
+                                onRemoveAttachment = { filePath ->
+                                    // 删除附件 - 现在使用文件路径而不是Uri
+                                    actualViewModel.removeAttachment(filePath)
+                                },
+                                onInsertAttachment = { attachment: AttachmentInfo ->
+                                    // 在光标位置插入附件引用
+                                    actualViewModel.insertAttachmentReference(attachment)
+                                },
+                                onAttachScreenContent = {
+                                    // 添加屏幕内容附件
+                                    actualViewModel.captureScreenContent()
+                                },
+                                onAttachNotifications = {
+                                    // 添加当前通知附件
+                                    actualViewModel.captureNotifications()
+                                },
+                                onAttachLocation = {
+                                    // 添加当前位置附件
+                                    actualViewModel.captureLocation()
+                                },
+                                hasBackgroundImage = hasBackgroundImage,
+                                // 传递附件面板状态
+                                externalAttachmentPanelState = attachmentPanelState,
+                                onAttachmentPanelStateChange = { newState ->
+                                    actualViewModel.updateAttachmentPanelState(newState)
+                                }
+                        )
                     }
                 },
                 floatingActionButton = {
@@ -466,62 +468,66 @@ fun AIChatScreen(
             } else {
                 // The main content area is now a Box to allow overlaying.
                 // It respects the padding from the Scaffold's bottomBar.
-                Box(modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)) {
+                Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
                     // ChatScreenContent now fills this Box, and has the overlay on top of it.
-                ChatScreenContent(
-                            paddingValues = PaddingValues(), // Padding is already handled by the parent Box
-                        actualViewModel = actualViewModel,
-                        showChatHistorySelector = showChatHistorySelector,
-                        chatHistory = chatHistory,
-                        planItems = planItems,
-                        enableAiPlanning = enableAiPlanning,
-                        isLoading = isLoading,
-                        userMessageColor = userMessageColor,
-                        aiMessageColor = aiMessageColor,
-                        userTextColor = userTextColor,
-                        aiTextColor = aiTextColor,
-                        systemMessageColor = systemMessageColor,
-                        systemTextColor = systemTextColor,
-                        thinkingBackgroundColor = thinkingBackgroundColor,
-                        thinkingTextColor = thinkingTextColor,
-                        hasBackgroundImage = hasBackgroundImage,
-                        editingMessageIndex = editingMessageIndex,
-                        editingMessageContent = editingMessageContent,
-                        chatScreenGestureConsumed = chatScreenGestureConsumed,
-                        onChatScreenGestureConsumed = onChatScreenGestureConsumedChange,
-                        currentDrag = currentDrag,
-                        onCurrentDragChange = onCurrentDragChange,
-                        verticalDrag = verticalDrag,
-                        onVerticalDragChange = onVerticalDragChange,
-                        dragThreshold = dragThreshold,
-                        scrollState = scrollState,
-                        showScrollButton = showScrollButton,
-                        onShowScrollButtonChange = onShowScrollButtonChange,
-                        autoScrollToBottom = autoScrollToBottom,
-                        onAutoScrollToBottomChange = onAutoScrollToBottomChange,
-                        coroutineScope = coroutineScope,
-                        chatHistories = chatHistories,
-                        currentChatId = currentChatId ?: ""
-                )
+                    ChatScreenContent(
+                            paddingValues =
+                                    PaddingValues(), // Padding is already handled by the parent Box
+                            actualViewModel = actualViewModel,
+                            showChatHistorySelector = showChatHistorySelector,
+                            chatHistory = chatHistory,
+                            planItems = planItems,
+                            enableAiPlanning = enableAiPlanning,
+                            isLoading = isLoading,
+                            userMessageColor = userMessageColor,
+                            aiMessageColor = aiMessageColor,
+                            userTextColor = userTextColor,
+                            aiTextColor = aiTextColor,
+                            systemMessageColor = systemMessageColor,
+                            systemTextColor = systemTextColor,
+                            thinkingBackgroundColor = thinkingBackgroundColor,
+                            thinkingTextColor = thinkingTextColor,
+                            hasBackgroundImage = hasBackgroundImage,
+                            editingMessageIndex = editingMessageIndex,
+                            editingMessageContent = editingMessageContent,
+                            chatScreenGestureConsumed = chatScreenGestureConsumed,
+                            onChatScreenGestureConsumed = onChatScreenGestureConsumedChange,
+                            currentDrag = currentDrag,
+                            onCurrentDragChange = onCurrentDragChange,
+                            verticalDrag = verticalDrag,
+                            onVerticalDragChange = onVerticalDragChange,
+                            dragThreshold = dragThreshold,
+                            scrollState = scrollState,
+                            showScrollButton = showScrollButton,
+                            onShowScrollButtonChange = onShowScrollButtonChange,
+                            autoScrollToBottom = autoScrollToBottom,
+                            onAutoScrollToBottomChange = onAutoScrollToBottomChange,
+                            coroutineScope = coroutineScope,
+                            chatHistories = chatHistories,
+                            currentChatId = currentChatId ?: ""
+                    )
 
                     // The settings bar is aligned to the bottom-end of the parent Box,
                     // effectively overlaying the chat content just above the input section.
                     ChatSettingsBar(
-                        modifier = Modifier.align(Alignment.BottomEnd),
-                        enableAiPlanning = enableAiPlanning,
-                        onToggleAiPlanning = { actualViewModel.toggleAiPlanning() },
-                        permissionLevel = actualViewModel.masterPermissionLevel.collectAsState().value,
-                        onTogglePermission = { actualViewModel.toggleMasterPermission() },
-                        enableThinkingMode = enableThinkingMode,
-                        onToggleThinkingMode = { actualViewModel.toggleThinkingMode() },
-                        enableThinkingGuidance = enableThinkingGuidance,
-                        onToggleThinkingGuidance = { actualViewModel.toggleThinkingGuidance() },
-                        maxWindowSizeInK = actualViewModel.maxWindowSizeInK.collectAsState().value,
-                        onContextLengthChange = { actualViewModel.updateContextLength(it) },
-                        enableMemoryAttachment = enableMemoryAttachment,
-                        onToggleMemoryAttachment = { actualViewModel.toggleMemoryAttachment() }
+                            modifier = Modifier.align(Alignment.BottomEnd),
+                            enableAiPlanning = enableAiPlanning,
+                            onToggleAiPlanning = { actualViewModel.toggleAiPlanning() },
+                            permissionLevel =
+                                    actualViewModel.masterPermissionLevel.collectAsState().value,
+                            onTogglePermission = { actualViewModel.toggleMasterPermission() },
+                            enableThinkingMode = enableThinkingMode,
+                            onToggleThinkingMode = { actualViewModel.toggleThinkingMode() },
+                            enableThinkingGuidance = enableThinkingGuidance,
+                            onToggleThinkingGuidance = { actualViewModel.toggleThinkingGuidance() },
+                            maxWindowSizeInK =
+                                    actualViewModel.maxWindowSizeInK.collectAsState().value,
+                            onContextLengthChange = { actualViewModel.updateContextLength(it) },
+                            enableMemoryAttachment = enableMemoryAttachment,
+                            onToggleMemoryAttachment = { actualViewModel.toggleMemoryAttachment() },
+                            onNavigateToUserPreferences = onNavigateToUserPreferences,
+                            onNavigateToModelConfig = onNavigateToModelConfig,
+                            onNavigateToModelPrompts = onNavigateToModelPrompts
                     )
                 }
             }
@@ -674,8 +680,8 @@ fun AIChatScreen(
     val showInvitationExplanation by actualViewModel.showInvitationExplanation.collectAsState()
     if (showInvitationExplanation) {
         InvitationExplanationDialog(
-            onDismiss = { actualViewModel.dismissInvitationExplanation() },
-            onConfirm = { actualViewModel.onInvitationExplanationConfirmed() }
+                onDismiss = { actualViewModel.dismissInvitationExplanation() },
+                onConfirm = { actualViewModel.onInvitationExplanationConfirmed() }
         )
     }
 
@@ -686,11 +692,11 @@ fun AIChatScreen(
         val invitationMessage by actualViewModel.generatedInvitationMessage.collectAsState()
 
         InvitationPanelDialog(
-            invitationCount = invitationCount,
-            invitationMessage = invitationMessage,
-            onDismiss = { actualViewModel.dismissInvitationPanel() },
-            onShare = { message -> actualViewModel.shareInvitationMessage(message) },
-            onVerifyCode = { code -> actualViewModel.verifyAndHandleConfirmationCode(code) }
+                invitationCount = invitationCount,
+                invitationMessage = invitationMessage,
+                onDismiss = { actualViewModel.dismissInvitationPanel() },
+                onShare = { message -> actualViewModel.shareInvitationMessage(message) },
+                onVerifyCode = { code -> actualViewModel.verifyAndHandleConfirmationCode(code) }
         )
     }
 

@@ -790,24 +790,7 @@ fun StableMarkdownNodeRenderer(
                     var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
                     Text(
                             text = inlineContent,
-                            modifier = Modifier.fillMaxWidth().pointerInput(onLinkClick) {
-                                forEachGesture {
-                                    awaitPointerEventScope {
-                                        val down = awaitFirstDown(requireUnconsumed = false)
-                                        val up = waitForUpOrCancellation()
-                                        if (up != null) {
-                                            textLayoutResult?.let { layoutResult ->
-                                                val position = layoutResult.getOffsetForPosition(up.position)
-                                                inlineContent.getStringAnnotations("URL", position, position)
-                                                    .firstOrNull()?.let { annotation ->
-                                                        up.consume()
-                                                        onLinkClick?.invoke(annotation.item)
-                                                    }
-                                            }
-                                        }
-                                    }
-                                }
-                            },
+                            modifier = Modifier.fillMaxWidth().handleLinkClicks(onLinkClick, textLayoutResult, inlineContent),
                             inlineContent = inlineContentMap,
                             color = textColor,
                             style = MaterialTheme.typography.bodyMedium,
@@ -894,12 +877,14 @@ fun StableMarkdownNodeRenderer(
                             }
                         }
 
+                var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
                 Text(
                         text = inlineContent,
+                        modifier = Modifier.weight(1f).handleLinkClicks(onLinkClick, textLayoutResult, inlineContent),
                         inlineContent = inlineContentMap,
                         color = textColor,
                         style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f)
+                        onTextLayout = { textLayoutResult = it }
                 )
             }
         }
@@ -948,12 +933,14 @@ fun StableMarkdownNodeRenderer(
                             }
                         }
 
+                var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
                 Text(
                         text = inlineContent,
+                        modifier = Modifier.weight(1f).handleLinkClicks(onLinkClick, textLayoutResult, inlineContent),
                         inlineContent = inlineContentMap,
                         color = textColor,
                         style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f)
+                        onTextLayout = { textLayoutResult = it }
                 )
             }
         }
@@ -1095,24 +1082,7 @@ fun StableMarkdownNodeRenderer(
             var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
             Text(
                     text = inlineContent,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp).pointerInput(onLinkClick) {
-                        forEachGesture {
-                            awaitPointerEventScope {
-                                val down = awaitFirstDown(requireUnconsumed = false)
-                                val up = waitForUpOrCancellation()
-                                if (up != null) {
-                                    textLayoutResult?.let { layoutResult ->
-                                        val position = layoutResult.getOffsetForPosition(up.position)
-                                        inlineContent.getStringAnnotations("URL", position, position)
-                                            .firstOrNull()?.let { annotation ->
-                                                up.consume()
-                                                onLinkClick?.invoke(annotation.item)
-                                            }
-                                    }
-                                }
-                            }
-                        }
-                    },
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp).handleLinkClicks(onLinkClick, textLayoutResult, inlineContent),
                     inlineContent = inlineContentMap,
                     color = textColor,
                     style = MaterialTheme.typography.bodyMedium,
@@ -1141,24 +1111,7 @@ fun StableMarkdownNodeRenderer(
             var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
             Text(
                     text = inlineContent,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp).pointerInput(onLinkClick) {
-                        forEachGesture {
-                            awaitPointerEventScope {
-                                val down = awaitFirstDown(requireUnconsumed = false)
-                                val up = waitForUpOrCancellation()
-                                if (up != null) {
-                                    textLayoutResult?.let { layoutResult ->
-                                        val position = layoutResult.getOffsetForPosition(up.position)
-                                        inlineContent.getStringAnnotations("URL", position, position)
-                                            .firstOrNull()?.let { annotation ->
-                                                up.consume()
-                                                onLinkClick?.invoke(annotation.item)
-                                            }
-                                    }
-                                }
-                            }
-                        }
-                    },
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp).handleLinkClicks(onLinkClick, textLayoutResult, inlineContent),
                     inlineContent = inlineContentMap,
                     color = textColor,
                     style = MaterialTheme.typography.bodyMedium,
@@ -1166,6 +1119,34 @@ fun StableMarkdownNodeRenderer(
             )
         }
     }
+}
+
+/** 扩展函数，用于处理Markdown文本中的链接点击事件 */
+private fun Modifier.handleLinkClicks(
+    onLinkClick: ((String) -> Unit)?,
+    textLayoutResult: TextLayoutResult?,
+    annotatedString: AnnotatedString
+): Modifier = if (onLinkClick != null) {
+    this.pointerInput(onLinkClick, textLayoutResult, annotatedString) {
+        forEachGesture {
+            awaitPointerEventScope {
+                val down = awaitFirstDown(requireUnconsumed = false)
+                val up = waitForUpOrCancellation()
+                if (up != null) {
+                    textLayoutResult?.let { layoutResult ->
+                        val position = layoutResult.getOffsetForPosition(up.position)
+                        annotatedString.getStringAnnotations("URL", position, position)
+                            .firstOrNull()?.let { annotation ->
+                                up.consume()
+                                onLinkClick(annotation.item)
+                            }
+                    }
+                }
+            }
+        }
+    }
+} else {
+    this
 }
 
 /** 将文本及其子节点添加到AnnotatedString中，应用适当的样式 */
