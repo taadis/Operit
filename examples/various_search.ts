@@ -484,15 +484,16 @@ const various_search = (function () {
             };
         }
 
+        const platformKeys = platforms.split(",").map(p => p.trim());
         const validPlatforms: string[] = [];
-        const errors: Array<{ platform: string, error: string }> = [];
+        const invalidPlatforms: Array<{ platform: string, error: string }> = [];
 
         // 验证平台
-        for (const platform of platforms.split(",")) {
+        for (const platform of platformKeys) {
             if (["bing", "baidu", "sogou", "quark"].includes(platform)) {
                 validPlatforms.push(platform);
             } else {
-                errors.push({
+                invalidPlatforms.push({
                     platform,
                     error: `不支持的搜索平台: ${platform}`
                 });
@@ -504,44 +505,57 @@ const various_search = (function () {
             return {
                 success: false,
                 message: "没有提供有效的搜索平台",
-                supported_platforms: ["bing", "baidu", "sogou", "quark"]
+                supported_platforms: ["bing", "baidu", "sogou", "quark"],
+                errors: invalidPlatforms
             };
         }
 
-        // 选择第一个有效平台执行搜索
-        const platform = validPlatforms[0];
-
-        // 调用对应平台的搜索函数
-        try {
+        const searchPromises = validPlatforms.map(async (platform) => {
             let result;
-            switch (platform) {
-                case 'bing':
-                    result = await search_bing({ query });
-                    break;
-                case 'baidu':
-                    result = await search_baidu({ query, page: 1 });
-                    break;
-                case 'sogou':
-                    result = await search_sogou({ query, page: 1 });
-                    break;
-                case 'quark':
-                    result = await search_quark({ query, page: 1 });
-                    break;
+            try {
+                switch (platform) {
+                    case 'bing':
+                        result = await search_bing({ query });
+                        break;
+                    case 'baidu':
+                        result = await search_baidu({ query, page: 1 });
+                        break;
+                    case 'sogou':
+                        result = await search_sogou({ query, page: 1 });
+                        break;
+                    case 'quark':
+                        result = await search_quark({ query, page: 1 });
+                        break;
+                }
+            } catch (error: any) {
+                result = { success: false, message: error.message };
             }
+            return { ...result, platform };
+        });
 
-            // 添加平台信息到结果中
-            if (result) {
-                result.platform = platform;
-            }
+        const allResults = await Promise.all(searchPromises);
 
-            return result;
-        } catch (error: any) {
-            return {
-                success: false,
-                message: `${platform}搜索时出错: ${error.message}`,
-                platform: platform
-            };
+        const successfulResults = allResults.filter(r => r.success);
+        let finalMessage = `组合搜索完成。`;
+        if (invalidPlatforms.length > 0) {
+            finalMessage += ` 无效平台: ${invalidPlatforms.map(e => e.platform).join(', ')}。`
         }
+
+        if (successfulResults.length > 0) {
+            finalMessage += ` 成功平台: ${successfulResults.map(r => r.platform).join(', ')}。`
+        }
+
+        const failedResults = allResults.filter(r => !r.success);
+        if (failedResults.length > 0) {
+            finalMessage += ` 失败平台: ${failedResults.map(r => r.platform).join(', ')}。`
+        }
+
+        return {
+            success: successfulResults.length > 0,
+            message: finalMessage,
+            results: allResults,
+            errors: invalidPlatforms.length > 0 ? invalidPlatforms : undefined,
+        };
     }
 
     return {
@@ -570,82 +584,11 @@ exports.search_sogou = various_search.search_sogou;
 exports.search_quark = various_search.search_quark;
 exports.combined_search = various_search.combined_search;
 
-/**
- * 测试所有搜索函数的主函数
- */
 async function main() {
     console.log("开始测试各搜索平台...");
     const testQuery = "人工智能最新发展";
-    const results: Record<string, boolean> = {};
 
-    // 测试函数包装器
-    const testFunction = async (name: string, func: (params: any) => void, params: any) => {
-        console.log(`测试 ${name} 搜索...`);
-        try {
-            // 存储原始complete函数
-            const originalComplete = complete;
-
-            // 创建一个Promise用于接收结果
-            const result = await new Promise<any>((resolve) => {
-                // 替换complete函数
-                // @ts-ignore 忽略类型检查
-                complete = (result: any) => {
-                    // 恢复原始complete函数
-                    // @ts-ignore 忽略类型检查
-                    complete = originalComplete;
-                    resolve(result);
-                };
-
-                // 调用搜索函数
-                func(params);
-            });
-
-            // 检查结果
-            const success = result && result.success === true && (result.content || (result.data && result.data.content));
-            results[name] = success;
-            console.log(`${name} 搜索${success ? '成功' : '失败'}`);
-
-            // 显示结果信息
-            if (success) {
-                const content = result.content || (result.data && result.data.content);
-                const contentLength = content ? content.length : 0;
-                console.log(`  - 获取到内容长度: ${contentLength} 字符`);
-
-                // 显示内容片段
-                if (contentLength > 0) {
-                    const snippet = content.substring(0, 100).replace(/\n/g, ' ') + '...';
-                    console.log(`  - 内容片段: ${snippet}`);
-                }
-            } else {
-                console.log(`  - 失败原因: ${result.message || '未知错误'}`);
-            }
-        } catch (error: any) {
-            results[name] = false;
-            console.log(`${name} 搜索出现异常: ${error.message}`);
-        }
-    };
-
-    // 测试各平台
-    await testFunction("必应", various_search.search_bing, { query: testQuery });
-    await testFunction("百度", various_search.search_baidu, { query: testQuery });
-    await testFunction("搜狗", various_search.search_sogou, { query: testQuery });
-    await testFunction("夸克", various_search.search_quark, { query: testQuery });
-
-    // 测试组合搜索
-    await testFunction("组合搜索", various_search.combined_search, {
-        query: testQuery,
-        platforms: ["bing", "baidu"]
-    });
-
-    // 输出测试结果汇总
-    console.log("\n=== 测试结果汇总 ===");
-    for (const [name, success] of Object.entries(results)) {
-        console.log(`${name}: ${success ? '✅ 成功' : '❌ 失败'}`);
-    }
-
-    const successCount = Object.values(results).filter(v => v).length;
-    const totalCount = Object.keys(results).length;
-    console.log(`\n总计: ${successCount}/${totalCount} 成功率: ${Math.round(successCount / totalCount * 100)}%`);
+    various_search.combined_search({ query: testQuery, platforms: "bing,baidu" });
 }
 
 // 导出main函数

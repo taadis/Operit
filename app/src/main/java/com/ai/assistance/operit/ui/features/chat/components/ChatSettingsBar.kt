@@ -556,17 +556,7 @@ private fun SettingItem(
             tint = iconTint,
             modifier = Modifier.size(16.dp)
         )
-
-        // 文本
-        Text(
-            text = title,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Normal,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
-        )
-
-        // 详情按钮
+        // 详情按钮（左侧）
         IconButton(onClick = onInfoClick, modifier = Modifier.size(24.dp)) {
             Icon(
                 imageVector = Icons.Outlined.Info,
@@ -575,7 +565,14 @@ private fun SettingItem(
                 modifier = Modifier.size(16.dp)
             )
         }
-
+        // 文本
+        Text(
+            text = title,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Normal,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
+        )
         // 开关
         Switch(
             checked = isChecked,
@@ -617,7 +614,15 @@ private fun ContextLengthSettingItem(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 modifier = Modifier.size(16.dp)
             )
-
+            // 详情按钮（左侧）
+            IconButton(onClick = onInfoClick, modifier = Modifier.size(24.dp)) {
+                Icon(
+                    imageVector = Icons.Outlined.Info,
+                    contentDescription = "详情",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
             Text(
                 text = "上下文长度",
                 fontSize = 13.sp,
@@ -625,9 +630,7 @@ private fun ContextLengthSettingItem(
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(horizontal = 8.dp)
             )
-
             Spacer(modifier = Modifier.weight(1f))
-
             BasicTextField(
                 value = textValue,
                 onValueChange = { newText ->
@@ -676,15 +679,6 @@ private fun ContextLengthSettingItem(
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(start = 2.dp, end = 4.dp)
             )
-
-            IconButton(onClick = onInfoClick, modifier = Modifier.size(24.dp)) {
-                Icon(
-                    imageVector = Icons.Outlined.Info,
-                    contentDescription = "详情",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    modifier = Modifier.size(16.dp)
-                )
-            }
         }
 
         Slider(
@@ -708,8 +702,8 @@ private fun MemorySelectorItem(
     onSelectMemory: (String) -> Unit,
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
-        onInfoClick: () -> Unit,
-        onManageClick: () -> Unit
+    onInfoClick: () -> Unit,
+    onManageClick: () -> Unit
 ) {
     val currentProfile = preferenceProfiles.find { it.id == currentProfileId }
 
@@ -728,7 +722,15 @@ private fun MemorySelectorItem(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 modifier = Modifier.size(16.dp)
             )
-
+            // 详情按钮（左侧）
+            IconButton(onClick = onInfoClick, modifier = Modifier.size(24.dp)) {
+                Icon(
+                    imageVector = Icons.Outlined.Info,
+                    contentDescription = "详情",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
             Row(
                     modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -749,16 +751,6 @@ private fun MemorySelectorItem(
                     fontWeight = FontWeight.Bold
                 )
             }
-
-            IconButton(onClick = onInfoClick, modifier = Modifier.size(24.dp)) {
-                Icon(
-                    imageVector = Icons.Outlined.Info,
-                    contentDescription = "详情",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-
             Icon(
                     imageVector =
                             if (expanded) Icons.Filled.KeyboardArrowUp
@@ -837,9 +829,9 @@ private fun ModelSelectorItem(
     currentConfigId: String,
     onSelectModel: (String) -> Unit,
     expanded: Boolean,
-        onExpandedChange: (Boolean) -> Unit,
-        onManageClick: () -> Unit,
-        onInfoClick: () -> Unit
+    onExpandedChange: (Boolean) -> Unit,
+    onManageClick: () -> Unit,
+    onInfoClick: () -> Unit
 ) {
     val currentConfig = configSummaries.find { it.id == currentConfigId }
 
@@ -858,9 +850,17 @@ private fun ModelSelectorItem(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 modifier = Modifier.size(16.dp)
             )
-
+            // 详情按钮（左侧）
+            IconButton(onClick = onInfoClick, modifier = Modifier.size(24.dp)) {
+                Icon(
+                    imageVector = Icons.Outlined.Info,
+                    contentDescription = "详情",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
             Row(
-                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
@@ -879,20 +879,8 @@ private fun ModelSelectorItem(
                     fontWeight = FontWeight.Bold
                 )
             }
-
-            IconButton(onClick = onInfoClick, modifier = Modifier.size(24.dp)) {
-                Icon(
-                        imageVector = Icons.Outlined.Info,
-                        contentDescription = "详情",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                        modifier = Modifier.size(16.dp)
-                )
-            }
-
             Icon(
-                    imageVector =
-                            if (expanded) Icons.Filled.KeyboardArrowUp
-                            else Icons.Filled.KeyboardArrowDown,
+                imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
                 contentDescription = if (expanded) "收起" else "展开",
                 modifier = Modifier.size(20.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
@@ -983,19 +971,15 @@ private fun PromptSelectorItem(
     currentProfileId: String,
     onSelectPrompt: (String) -> Unit,
     expanded: Boolean,
-        onExpandedChange: (Boolean) -> Unit,
-        onManageClick: () -> Unit,
-        onInfoClick: () -> Unit
+    onExpandedChange: (Boolean) -> Unit,
+    onManageClick: () -> Unit,
+    onInfoClick: () -> Unit
 ) {
     val currentProfile = promptProfiles.find { it.id == currentProfileId }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
-                modifier =
-                        Modifier.fillMaxWidth()
-                .height(36.dp)
-                .clickable { onExpandedChange(!expanded) }
-                .padding(horizontal = 12.dp),
+            modifier = Modifier.fillMaxWidth().height(36.dp).clickable { onExpandedChange(!expanded) }.padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
@@ -1004,9 +988,17 @@ private fun PromptSelectorItem(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 modifier = Modifier.size(16.dp)
             )
-
+            // 详情按钮（左侧）
+            IconButton(onClick = onInfoClick, modifier = Modifier.size(24.dp)) {
+                Icon(
+                    imageVector = Icons.Outlined.Info,
+                    contentDescription = "详情",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
             Row(
-                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
@@ -1025,20 +1017,8 @@ private fun PromptSelectorItem(
                     fontWeight = FontWeight.Bold
                 )
             }
-
-            IconButton(onClick = onInfoClick, modifier = Modifier.size(24.dp)) {
-                Icon(
-                        imageVector = Icons.Outlined.Info,
-                        contentDescription = "详情",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                        modifier = Modifier.size(16.dp)
-                )
-            }
-
             Icon(
-                    imageVector =
-                            if (expanded) Icons.Filled.KeyboardArrowUp
-                            else Icons.Filled.KeyboardArrowDown,
+                imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
                 contentDescription = if (expanded) "收起" else "展开",
                 modifier = Modifier.size(20.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
