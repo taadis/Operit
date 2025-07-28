@@ -218,7 +218,7 @@ class GeminiProvider(
                     logDebug("发现系统消息: ${systemContent.take(50)}...")
 
                     // 估算token
-                    val tokens = estimateTokenCount(systemContent) + 20 // 增加一些token计数以包含额外的格式标记
+                    val tokens = ChatUtils.estimateTokenCount(systemContent) + 20 // 增加一些token计数以包含额外的格式标记
                     _inputTokenCount += tokens
                     break // 只处理第一条系统消息
                 }
@@ -263,7 +263,7 @@ class GeminiProvider(
                 contentsArray.put(contentObject)
 
                 // 估算token
-                val tokens = estimateTokenCount(content)
+                val tokens = ChatUtils.estimateTokenCount(content)
                 _inputTokenCount += tokens
             }
         }
@@ -280,7 +280,7 @@ class GeminiProvider(
         contentsArray.put(userContentObject)
 
         // 估算token
-        val tokens = estimateTokenCount(message)
+        val tokens = ChatUtils.estimateTokenCount(message)
         _inputTokenCount += tokens
 
         // 添加contents到请求体
@@ -648,7 +648,7 @@ class GeminiProvider(
                     }
 
                     // 估算token
-                    val tokens = estimateTokenCount(text)
+                    val tokens = ChatUtils.estimateTokenCount(text)
                     _outputTokenCount += tokens
                     onTokensUpdated(_inputTokenCount, _outputTokenCount)
                 }
@@ -659,15 +659,6 @@ class GeminiProvider(
             logError("提取内容时发生错误: ${e.message}", e)
             return ""
         }
-    }
-
-    /** 估算Token数量 */
-    private fun estimateTokenCount(text: String): Int {
-        // 简单估算：中文每个字约1.5个token，英文每4个字符约1个token
-        val chineseCharCount = text.count { it.code in 0x4E00..0x9FFF }
-        val otherCharCount = text.length - chineseCharCount
-
-        return (chineseCharCount * 1.5 + otherCharCount * 0.25).toInt()
     }
 
     /** 获取模型列表 */

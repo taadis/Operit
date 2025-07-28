@@ -43,15 +43,6 @@ open class OpenAIProvider(
     override val outputTokenCount: Int
         get() = _outputTokenCount
 
-    // Token计数逻辑
-    private fun estimateTokenCount(text: String): Int {
-        // 简单估算：中文每个字约1.5个token，英文每4个字符约1个token
-        val chineseCharCount = text.count { it.code in 0x4E00..0x9FFF }
-        val otherCharCount = text.length - chineseCharCount
-
-        return (chineseCharCount * 1.5 + otherCharCount * 0.25).toInt()
-    }
-
     // 重置token计数
     override fun resetTokenCounts() {
         _inputTokenCount = 0
@@ -202,7 +193,7 @@ open class OpenAIProvider(
                 messagesArray.put(historyMessage)
 
                 // 计算输入token
-                _inputTokenCount += estimateTokenCount(content)
+                _inputTokenCount += ChatUtils.estimateTokenCount(content)
             }
         }
 
@@ -219,7 +210,7 @@ open class OpenAIProvider(
             messagesArray.put(messageObject)
 
             // 计算当前消息的token
-            _inputTokenCount += estimateTokenCount(message)
+            _inputTokenCount += ChatUtils.estimateTokenCount(message)
         } else {
             // 如果上一条消息也是用户，将当前消息与上一条合并
             Log.d("AIService", "合并连续的用户消息")
@@ -229,7 +220,7 @@ open class OpenAIProvider(
                 lastMessage.put("content", combinedContent)
 
                 // 重新计算合并后消息的token
-                _inputTokenCount += estimateTokenCount(message)
+                _inputTokenCount += ChatUtils.estimateTokenCount(message)
             }
         }
 
@@ -378,7 +369,7 @@ open class OpenAIProvider(
                                                             // 发射思考内容
                                                             emit(reasoningContent)
                                                             _outputTokenCount +=
-                                                                    estimateTokenCount(
+                                                                    ChatUtils.estimateTokenCount(
                                                                             reasoningContent
                                                                     )
                                                             onTokensUpdated(_inputTokenCount, _outputTokenCount)
@@ -407,7 +398,7 @@ open class OpenAIProvider(
 
                                                             // 计算输出tokens
                                                             _outputTokenCount +=
-                                                                    estimateTokenCount(
+                                                                    ChatUtils.estimateTokenCount(
                                                                             regularContent
                                                                     )
                                                             onTokensUpdated(_inputTokenCount, _outputTokenCount)
@@ -440,7 +431,7 @@ open class OpenAIProvider(
                                                                                 "</think>"
                                                                 )
                                                                 _outputTokenCount +=
-                                                                        estimateTokenCount(
+                                                                        ChatUtils.estimateTokenCount(
                                                                                 reasoningContent
                                                                         )
                                                                 onTokensUpdated(_inputTokenCount, _outputTokenCount)
@@ -452,7 +443,7 @@ open class OpenAIProvider(
                                                             ) {
                                                                 emit(regularContent)
                                                                 _outputTokenCount +=
-                                                                        estimateTokenCount(
+                                                                        ChatUtils.estimateTokenCount(
                                                                                 regularContent
                                                                         )
                                                                 onTokensUpdated(_inputTokenCount, _outputTokenCount)

@@ -126,7 +126,7 @@ fun ChatScreenHeader(
             // 统计信息
             val currentWindowSize = actualViewModel.currentWindowSize.value
             val maxWindowSizeInK = actualViewModel.maxWindowSizeInK.value
-            val maxWindowSize = (maxWindowSizeInK * 1000).toInt()
+            val maxWindowSize = (maxWindowSizeInK * 1024).toInt()
 
             val inputTokenCount = actualViewModel.inputTokenCount.value
             val outputTokenCount = actualViewModel.outputTokenCount.value

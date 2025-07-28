@@ -42,15 +42,6 @@ class ClaudeProvider(
     override val outputTokenCount: Int
         get() = _outputTokenCount
 
-    // Token计数逻辑
-    private fun estimateTokenCount(text: String): Int {
-        // 简单估算：中文每个字约1.5个token，英文每4个字符约1个token
-        val chineseCharCount = text.count { it.code in 0x4E00..0x9FFF }
-        val otherCharCount = text.length - chineseCharCount
-
-        return (chineseCharCount * 1.5 + otherCharCount * 0.25).toInt()
-    }
-
     // 重置token计数
     override fun resetTokenCounts() {
         _inputTokenCount = 0
@@ -126,7 +117,7 @@ class ClaudeProvider(
             messagesArray.put(messageObject)
 
             // 计算输入token
-            _inputTokenCount += estimateTokenCount(content)
+            _inputTokenCount += ChatUtils.estimateTokenCount(content)
         }
 
         // 添加当前用户消息
@@ -152,7 +143,7 @@ class ClaudeProvider(
             messagesArray.put(userMessage)
 
             // 计算当前消息的token
-            _inputTokenCount += estimateTokenCount(message)
+            _inputTokenCount += ChatUtils.estimateTokenCount(message)
         } else {
             // 如果上一条消息也是用户，将当前消息与上一条合并
             Log.d("AIService", "合并连续的用户消息")
@@ -164,7 +155,7 @@ class ClaudeProvider(
             lastContentObject.put("text", existingText + "\n" + message)
 
             // 重新计算合并后消息的token
-            _inputTokenCount += estimateTokenCount(message)
+            _inputTokenCount += ChatUtils.estimateTokenCount(message)
         }
 
         jsonObject.put("messages", messagesArray)
@@ -172,7 +163,7 @@ class ClaudeProvider(
         // Claude对系统消息的处理有所不同，它使用system参数
         if (systemPrompt != null) {
             jsonObject.put("system", systemPrompt)
-            _inputTokenCount += estimateTokenCount(systemPrompt)
+            _inputTokenCount += ChatUtils.estimateTokenCount(systemPrompt)
         }
 
         // 添加extended thinking支持
@@ -311,7 +302,7 @@ class ClaudeProvider(
                                         val content = jsonResponse.optString("content", "")
 
                                         if (content.isNotEmpty()) {
-                                            _outputTokenCount += estimateTokenCount(content)
+                                            _outputTokenCount += ChatUtils.estimateTokenCount(content)
                                             onTokensUpdated(_inputTokenCount, _outputTokenCount)
                                             emit(content)
                                         }

@@ -709,7 +709,16 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 enableMemoryAttachment = enableMemoryAttachment.value // 传递记忆附着的状态
         )
 
-        if (chatHistoryDelegate.shouldGenerateSummary(chatHistoryDelegate.chatHistory.value)) {
+        // 检查是否应该生成总结
+        val currentTokens = currentWindowSize.value
+        // 将maxWindowSizeInK (例如4.0f) 转换为实际的token数
+        val maxTokens = (maxWindowSizeInK.value * 1024).toInt()
+
+        if (chatHistoryDelegate.shouldGenerateSummary(
+                messages = chatHistoryDelegate.chatHistory.value,
+                currentTokens = currentTokens,
+                maxTokens = maxTokens
+            )) {
             // 触发总结
             viewModelScope.launch(Dispatchers.IO) {
                 chatHistoryDelegate.summarizeMemory(chatHistoryDelegate.chatHistory.value)
