@@ -53,11 +53,8 @@ object MCPRepositoryConstants {
                                         "PowerPoint" to
                                                 "https://upload.wikimedia.org/wikipedia/commons/0/0d/Microsoft_Office_PowerPoint_%282019%E2%80%93present%29.svg",
                                         "Fetch" to "$BASE_GITHUB_LOGO/fetch.png",
-                                        "12306" to "https://www.12306.cn/index/images/favicon.ico",
-                                        "DuckDuckGo" to "https://duckduckgo.com/favicon.ico",
                                         "Playwright" to
                                                 "https://playwright.dev/img/playwright-logo.svg",
-                                        "Tavily" to "https://tavily.com/favicon.ico",
                                         "MarkItDown" to "https://markitdown.dev/favicon.ico"
                                 )
 
@@ -74,17 +71,12 @@ object MCPRepositoryConstants {
 
                                 // 常用服务的直接映射，保证快速响应
                                 when (cleanServerName.lowercase()) {
-                                        "tavily" ->
-                                                return "https://storage.googleapis.com/cline_public_images/tavily.jpg"
-                                        "duckduckgo" -> return "https://duckduckgo.com/favicon.ico"
                                         "word" ->
                                                 return "https://upload.wikimedia.org/wikipedia/commons/f/fd/Microsoft_Office_Word_%282019%E2%80%93present%29.svg"
                                         "excel" ->
                                                 return "https://upload.wikimedia.org/wikipedia/commons/3/34/Microsoft_Office_Excel_%282019%E2%80%93present%29.svg"
                                         "powerpoint" ->
                                                 return "https://upload.wikimedia.org/wikipedia/commons/0/0d/Microsoft_Office_PowerPoint_%282019%E2%80%93present%29.svg"
-                                        "12306" ->
-                                                return "https://www.12306.cn/index/images/favicon.ico"
                                         "playwright" ->
                                                 return "https://playwright.dev/img/playwright-logo.svg"
                                         "markitdown" -> return "https://markitdown.dev/favicon.ico"
@@ -117,9 +109,6 @@ object MCPRepositoryConstants {
 
                                 // Try to match known domains
                                 return when {
-                                        cleanName == "duckduckgo" -> "duckduckgo.com"
-                                        cleanName == "tavily" -> "tavily.com"
-                                        cleanName == "12306" -> "12306.cn"
                                         cleanName == "markitdown" -> "markitdown.dev"
                                         cleanName == "playwright" -> "playwright.dev"
                                         cleanName.contains("word") -> "microsoft.com"
@@ -154,36 +143,11 @@ object MCPRepositoryConstants {
 
                         /** 添加核心推荐服务器 */
                         private fun addCoreRecommendedServers(servers: MutableList<MCPServer>) {
-                                // 核心服务器列表，根据用户要求添加
-                                addServer(
-                                        servers,
-                                        "Tavily",
-                                        "专为AI代理设计的搜索引擎，提供网页搜索、内容提取、网站地图和网站爬取等功能",
-                                        "搜索引擎",
-                                        true,
-                                        "https://github.com/tavily-ai/tavily-mcp"
-                                )
+                                
                         }
 
                         /** 添加其他常用服务器 */
                         private fun addCommonServers(servers: MutableList<MCPServer>) {
-                                // 其他常用服务器列表，根据用户要求添加
-                                addServer(
-                                        servers,
-                                        "12306",
-                                        "基于MCP的12306铁路购票信息查询服务器，支持车票查询、列车信息过滤和过站查询等功能，为AI模型提供中国铁路出行数据支持",
-                                        "交通出行",
-                                        false,
-                                        "https://github.com/Joooook/12306-mcp"
-                                )
-                                addServer(
-                                        servers,
-                                        "DuckDuckGo",
-                                        "注重隐私保护的搜索引擎MCP服务器，提供网络搜索和内容获取功能，支持查询限制和安全搜索选项，确保无追踪的搜索体验",
-                                        "搜索工具",
-                                        false,
-                                        "https://github.com/nickclyde/duckduckgo-mcp-server"
-                                )
                         }
 
                         /** 添加单个服务器到列表 */

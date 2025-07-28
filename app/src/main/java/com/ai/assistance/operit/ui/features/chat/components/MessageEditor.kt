@@ -39,6 +39,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -106,9 +107,19 @@ fun MessageEditor(
     var partsState by remember { mutableStateOf(initialParts) }
     var partToEdit by remember { mutableStateOf<Pair<Int, ParsedMessagePart>?>(null) }
     var showCreateTagDialog by remember { mutableStateOf(false) }
+    var isRawEditMode by remember { mutableStateOf(false) }
 
     LaunchedEffect(partsState) {
-        editingMessageContent.value = recomposeMessageFromParts(partsState)
+        if (!isRawEditMode) {
+            editingMessageContent.value = recomposeMessageFromParts(partsState)
+        }
+    }
+
+    LaunchedEffect(isRawEditMode) {
+        if (!isRawEditMode) {
+            // Just switched from raw to visual editor, re-parse the content
+            partsState = parseMessageContentForEditor(editingMessageContent.value)
+        }
     }
 
     Dialog(
@@ -141,17 +152,23 @@ fun MessageEditor(
                         color = MaterialTheme.colorScheme.onSurface
                     )
 
-                    IconButton(
-                        onClick = onCancel,
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                    ) {
-                        Icon(
-                            Icons.Default.Close,
-                            contentDescription = "取消",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { isRawEditMode = !isRawEditMode }) {
+                            Text(if (isRawEditMode) "可视化" else "纯文本")
+                        }
+
+                        IconButton(
+                            onClick = onCancel,
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                        ) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "取消",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
 
@@ -162,90 +179,146 @@ fun MessageEditor(
                         .weight(1f, fill = false)
                         .heightIn(max = 450.dp)
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .verticalScroll(rememberScrollState())
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        // Section label
-                        Row(
-                            modifier = Modifier.padding(bottom = 8.dp, top = 4.dp, start = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                "内容片段",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary
+                    if (isRawEditMode) {
+                        OutlinedTextField(
+                            value = editingMessageContent.value,
+                            onValueChange = { editingMessageContent.value = it },
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            label = { Text("纯文本内容") },
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                fontFamily = FontFamily.Monospace
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = TextFieldDefaults.outlinedTextFieldColors(
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha=0.3f)
                             )
-                        }
-
-                        // Message parts
-                        partsState.forEachIndexed { index, part ->
-                            when (part.type) {
-                                PartType.TEXT -> {
-                                    OutlinedTextField(
-                                        value = part.content,
-                                        onValueChange = { newText ->
-                                            val updatedParts = partsState.toMutableList()
-                                            updatedParts[index] = part.copy(content = newText)
-                                            partsState = updatedParts
-                                        },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(bottom = 8.dp),
-                                        label = { Text("文本", style = MaterialTheme.typography.bodySmall) },
-                                        placeholder = { Text("输入文本内容...") },
-                                        shape = RoundedCornerShape(12.dp),
-                                        colors = TextFieldDefaults.outlinedTextFieldColors(
-                                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha=0.3f)
-                                        ),
-                                        textStyle = MaterialTheme.typography.bodyMedium
-                                    )
-                                }
-                                PartType.XML -> {
-                                    XmlTagItem(
-                                        part = part,
-                                        onClick = { partToEdit = index to part },
-                                        onDelete = {
-                                            val updatedParts = partsState.toMutableList()
-                                            updatedParts.removeAt(index)
-                                            partsState = updatedParts
-                                        }
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                }
-                            }
-                        }
-
-                        // Add tag button
-                        Box(
+                        )
+                    } else {
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            contentAlignment = Alignment.Center
+                                .verticalScroll(rememberScrollState())
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
                         ) {
-                            OutlinedButton(
-                                onClick = { showCreateTagDialog = true },
-                                shape = RoundedCornerShape(16.dp),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = MaterialTheme.colorScheme.primary
-                                ),
-                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                            // Section label
+                            Row(
+                                modifier = Modifier.padding(bottom = 8.dp, top = 4.dp, start = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(
-                                    Icons.Outlined.Tag,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    "添加标签",
-                                    style = MaterialTheme.typography.labelMedium
+                                    "内容片段",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary
                                 )
+                            }
+
+                            // Message parts
+                            partsState.forEachIndexed { index, part ->
+                                when (part.type) {
+                                    PartType.TEXT -> {
+                                        Box(modifier = Modifier.padding(bottom = 8.dp)) {
+                                            OutlinedTextField(
+                                                value = part.content,
+                                                onValueChange = { newText ->
+                                                    val updatedParts = partsState.toMutableList()
+                                                    updatedParts[index] = part.copy(content = newText)
+                                                    partsState = updatedParts
+                                                },
+                                                modifier = Modifier
+                                                    .fillMaxWidth(),
+                                                label = { Text("文本", style = MaterialTheme.typography.bodySmall) },
+                                                placeholder = { Text("输入文本内容...") },
+                                                shape = RoundedCornerShape(12.dp),
+                                                colors = TextFieldDefaults.outlinedTextFieldColors(
+                                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha=0.3f)
+                                                ),
+                                                textStyle = MaterialTheme.typography.bodyMedium
+                                            )
+                                            ActionIconButton(
+                                                icon = Icons.Default.Delete,
+                                                contentDescription = "删除",
+                                                onClick = {
+                                                    val updatedParts = partsState.toMutableList()
+                                                    updatedParts.removeAt(index)
+                                                    partsState = updatedParts
+                                                },
+                                                modifier = Modifier
+                                                    .align(Alignment.TopEnd)
+                                                    .padding(top = 6.dp, end = 4.dp)
+                                            )
+                                        }
+                                    }
+                                    PartType.XML -> {
+                                        XmlTagItem(
+                                            part = part,
+                                            onClick = { partToEdit = index to part },
+                                            onDelete = {
+                                                val updatedParts = partsState.toMutableList()
+                                                updatedParts.removeAt(index)
+                                                partsState = updatedParts
+                                            }
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                    }
+                                }
+                            }
+
+                            // Add part buttons
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
+                            ) {
+                                // Add text button
+                                OutlinedButton(
+                                    onClick = { partsState = partsState + ParsedMessagePart(PartType.TEXT, "") },
+                                    shape = RoundedCornerShape(16.dp),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.primary
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Add,
+                                        contentDescription = "添加文本",
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        "添加文本",
+                                        style = MaterialTheme.typography.labelMedium
+                                    )
+                                }
+
+                                // Add tag button
+                                OutlinedButton(
+                                    onClick = { showCreateTagDialog = true },
+                                    shape = RoundedCornerShape(16.dp),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.primary
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.Tag,
+                                        contentDescription = "添加标签",
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        "添加标签",
+                                        style = MaterialTheme.typography.labelMedium
+                                    )
+                                }
                             }
                         }
                     }
@@ -466,11 +539,12 @@ private fun XmlTagItem(
 private fun ActionIconButton(
     icon: ImageVector,
     contentDescription: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     IconButton(
         onClick = onClick,
-        modifier = Modifier
+        modifier = modifier
             .size(28.dp)
             .clip(CircleShape)
     ) {
