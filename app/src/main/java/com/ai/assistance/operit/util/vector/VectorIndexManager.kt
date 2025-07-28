@@ -6,6 +6,7 @@ import com.github.jelmerk.hnswlib.core.hnsw.HnswIndex
 import java.io.File
 import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
+import java.io.IOException
 
 /**
  * 精简的HNSW向量索引管理器，支持初始化、添加、查询、保存、加载。
@@ -17,10 +18,23 @@ class VectorIndexManager<T : Item<Id, FloatArray>, Id : Any>(
 ) {
     private var index: HnswIndex<Id, FloatArray, T, Float>? = null
 
+    init {
+        initIndex()
+    }
+
     /** 初始化索引（新建或加载） */
     fun initIndex() {
         index = if (indexFile != null && indexFile.exists()) {
-            ObjectInputStream(indexFile.inputStream()).use { it.readObject() as HnswIndex<Id, FloatArray, T, Float> }
+            try {
+                ObjectInputStream(indexFile.inputStream()).use { it.readObject() as HnswIndex<Id, FloatArray, T, Float> }
+            } catch (e: Exception) {
+                android.util.Log.e("VectorIndexManager", "Failed to load index, creating new one.", e)
+                // 如果加载失败，删除可能已损坏的文件并创建一个新的
+                indexFile.delete()
+                HnswIndex
+                    .newBuilder(dimensions, DistanceFunctions.FLOAT_COSINE_DISTANCE, maxElements)
+                    .build()
+            }
         } else {
             HnswIndex
                 .newBuilder(dimensions, DistanceFunctions.FLOAT_COSINE_DISTANCE, maxElements)
@@ -41,7 +55,13 @@ class VectorIndexManager<T : Item<Id, FloatArray>, Id : Any>(
     /** 保存索引到文件 */
     fun save() {
         if (indexFile != null && index != null) {
-            ObjectOutputStream(indexFile.outputStream()).use { it.writeObject(index) }
+            try {
+                // 确保父目录存在
+                indexFile.parentFile?.mkdirs()
+                ObjectOutputStream(indexFile.outputStream()).use { it.writeObject(index) }
+            } catch (e: IOException) {
+                android.util.Log.e("VectorIndexManager", "Failed to save index to ${indexFile.absolutePath}", e)
+            }
         }
     }
 

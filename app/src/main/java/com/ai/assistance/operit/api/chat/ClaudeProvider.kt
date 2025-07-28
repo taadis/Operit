@@ -24,12 +24,7 @@ class ClaudeProvider(
         private val apiKey: String,
         private val modelName: String
 ) : AIService {
-    private val client =
-            OkHttpClient.Builder()
-                    .connectTimeout(30, TimeUnit.SECONDS)
-                    .readTimeout(1000, TimeUnit.SECONDS)
-                    .writeTimeout(1000, TimeUnit.SECONDS)
-                    .build()
+    private val client: OkHttpClient = HttpClientFactory.instance
 
     private val JSON = "application/json; charset=utf-8".toMediaType()
     private val ANTHROPIC_VERSION = "2023-06-01" // Claude API版本

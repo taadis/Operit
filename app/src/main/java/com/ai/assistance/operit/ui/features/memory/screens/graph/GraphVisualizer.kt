@@ -25,7 +25,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.sin
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.geometry.Rect
+import android.util.Log
 
 @OptIn(ExperimentalTextApi::class)
 @Composable
@@ -33,15 +38,27 @@ fun GraphVisualizer(
     graph: Graph,
     modifier: Modifier = Modifier,
     selectedNodeId: String? = null,
+    boxSelectedNodeIds: Set<String> = emptySet(),
+    isBoxSelectionMode: Boolean = false, // 新增：是否处于框选模式
     linkingNodeIds: List<String> = emptyList(),
     selectedEdgeId: Long? = null,
     onNodeClick: (Node) -> Unit,
-    onEdgeClick: (Edge) -> Unit
+    onEdgeClick: (Edge) -> Unit,
+    onNodesSelected: (Set<String>) -> Unit // 新增：框选完成后的回调
 ) {
+    Log.d("GraphVisualizer", "Recomposing. isBoxSelectionMode: $isBoxSelectionMode")
     val textMeasurer = rememberTextMeasurer()
     var nodePositions by remember { mutableStateOf(mapOf<String, Offset>()) }
     var scale by remember { mutableStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
+    var selectionRect by remember { mutableStateOf<Rect?>(null) } // 用于绘制选择框
+
+    // 当退出框选模式时，确保清除选框
+    LaunchedEffect(isBoxSelectionMode) {
+        if (!isBoxSelectionMode) {
+            selectionRect = null
+        }
+    }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val width = constraints.maxWidth.toFloat()
@@ -155,19 +172,78 @@ fun GraphVisualizer(
 
         Canvas(modifier = Modifier
             .fillMaxSize()
-            .pointerInput(Unit) {
+            .pointerInput(isBoxSelectionMode) { // KEY CHANGE: Relaunch gestures when mode changes
+                Log.d("GraphVisualizer", "pointerInput recomposed/restarted. NEW MODE: ${if (isBoxSelectionMode) "BoxSelect" else "Normal"}")
                 coroutineScope {
-                    launch {
-                        detectTransformGestures { centroid, pan, zoom, _ ->
-                            val oldScale = scale
-                            val newScale = (scale * zoom).coerceIn(0.2f, 5f)
-                            offset = (offset - centroid) * (newScale / oldScale) + centroid + pan
-                            scale = newScale
+                    if (isBoxSelectionMode) {
+                        Log.d("GraphVisualizer", "Setting up GESTURES FOR BOX SELECTION mode.")
+                        // --- 框选模式下的手势 ---
+                        // 1. 拖拽框选 (排他性，禁用平移/缩放)
+                        launch {
+                            var dragStart: Offset? = null
+                            detectDragGestures(
+                                onDragStart = { startOffset ->
+                                    Log.d("GraphVisualizer", "BoxSelect: onDragStart")
+                                    dragStart = startOffset
+                                    selectionRect = createNormalizedRect(startOffset, startOffset)
+                                },
+                                onDrag = { change, _ ->
+                                    dragStart?.let { start ->
+                                        selectionRect =
+                                            createNormalizedRect(start, change.position)
+                                    }
+                                },
+                                onDragEnd = {
+                                    Log.d("GraphVisualizer", "BoxSelect: onDragEnd")
+                                    selectionRect?.let { rect ->
+                                        val selectedIds = nodePositions.filter { (_, pos) ->
+                                            val viewPos = pos * scale + offset
+                                            rect.contains(viewPos)
+                                        }.keys
+                                        onNodesSelected(selectedIds)
+                                    }
+                                    selectionRect = null
+                                    dragStart = null
+                                },
+                                onDragCancel = {
+                                    Log.d("GraphVisualizer", "BoxSelect: onDragCancel")
+                                    selectionRect = null
+                                    dragStart = null
+                                }
+                            )
                         }
-                    }
-                    launch {
-                        detectTapGestures(
-                            onTap = { tapOffset ->
+                        // 2. 点击单选/取消
+                        launch {
+                            detectTapGestures(onTap = { tapOffset ->
+                                Log.d("GraphVisualizer", "BoxSelect: onTap")
+                                val clickedNode = graph.nodes.findLast { node ->
+                                    nodePositions[node.id]?.let { pos ->
+                                        val viewPos = pos * scale + offset
+                                        (tapOffset - viewPos).getDistance() <= 60f * scale
+                                    } ?: false
+                                }
+                                if (clickedNode != null) {
+                                    onNodeClick(clickedNode)
+                                }
+                            })
+                        }
+                    } else {
+                        Log.d("GraphVisualizer", "Setting up GESTURES FOR NORMAL mode.")
+                        // --- 普通模式下的手势 ---
+                        // 1. 平移和缩放
+                        launch {
+                            Log.d("GraphVisualizer", "Launching detectTransformGestures (Pan/Zoom).")
+                            detectTransformGestures { centroid, pan, zoom, _ ->
+                                val oldScale = scale
+                                val newScale = (scale * zoom).coerceIn(0.2f, 5f)
+                                offset = (offset - centroid) * (newScale / oldScale) + centroid + pan
+                                scale = newScale
+                            }
+                        }
+                        // 2. 点击
+                        launch {
+                            detectTapGestures(onTap = { tapOffset ->
+                                Log.d("GraphVisualizer", "Normal Mode: onTap")
                                 val clickedNode = graph.nodes.findLast { node ->
                                     nodePositions[node.id]?.let { pos ->
                                         val viewPos = pos * scale + offset
@@ -191,12 +267,27 @@ fun GraphVisualizer(
                                 } else if (clickedEdge != null) {
                                     onEdgeClick(clickedEdge)
                                 }
-                            }
-                        )
+                            })
+                        }
                     }
                 }
             }
         ) {
+            // 绘制选框
+            selectionRect?.let { rect ->
+                drawRect(
+                    color = Color.Blue.copy(alpha = 0.3f),
+                    topLeft = rect.topLeft,
+                    size = rect.size
+                )
+                drawRect(
+                    color = Color.Blue,
+                    topLeft = rect.topLeft,
+                    size = rect.size,
+                    style = Stroke(width = 6f)
+                )
+            }
+
             // Edges
             graph.edges.forEach { edge ->
                 val sourcePos = nodePositions[edge.sourceId]
@@ -241,18 +332,32 @@ fun GraphVisualizer(
                 if (position != null) {
                     val isSelected = node.id == selectedNodeId
                     val isLinkingCandidate = node.id in linkingNodeIds
+                    val isBoxSelected = node.id in boxSelectedNodeIds // 新增：检查是否被框选
                     drawNode(
                         node = node,
                         position = position * scale + offset,
                         radius = 60f * scale,
                         textMeasurer = textMeasurer,
                         isSelected = isSelected,
-                        isLinkingCandidate = isLinkingCandidate
+                        isLinkingCandidate = isLinkingCandidate,
+                        isBoxSelected = isBoxSelected // 新增：传递框选状态
                     )
                 }
             }
         }
     }
+}
+
+/**
+ * 根据起始点和结束点创建标准化的矩形，确保left <= right, top <= bottom。
+ */
+private fun createNormalizedRect(start: Offset, end: Offset): Rect {
+    return Rect(
+        left = min(start.x, end.x),
+        top = min(start.y, end.y),
+        right = max(start.x, end.x),
+        bottom = max(start.y, end.y)
+    )
 }
 
 private fun distanceToSegment(p: Offset, start: Offset, end: Offset): Float {
@@ -271,7 +376,8 @@ private fun DrawScope.drawNode(
     radius: Float,
     textMeasurer: TextMeasurer,
     isSelected: Boolean,
-    isLinkingCandidate: Boolean
+    isLinkingCandidate: Boolean,
+    isBoxSelected: Boolean // 新增：接收框选状态
 ) {
     val color = if (isSelected) Color.Yellow else node.color
     drawCircle(
@@ -279,6 +385,17 @@ private fun DrawScope.drawNode(
         radius = radius,
         center = position
     )
+
+    // 框选高亮
+    if (isBoxSelected) {
+        drawCircle(
+            color = Color(0xFF4FC3F7), // 亮蓝色高亮
+            radius = radius + 10f, // 比节点稍大
+            center = position,
+            style = Stroke(width = 8f)
+        )
+    }
+
     if (isLinkingCandidate) {
         drawCircle(
             color = Color.Red,

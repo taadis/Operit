@@ -32,24 +32,7 @@ class GeminiProvider(
     }
 
     // HTTP客户端
-    private val client =
-            OkHttpClient.Builder()
-                    .connectTimeout(30, TimeUnit.SECONDS)
-                    .readTimeout(1000, TimeUnit.SECONDS)
-                    .writeTimeout(1000, TimeUnit.SECONDS)
-                    .addInterceptor { chain ->
-                        val request = chain.request()
-                        val requestId = System.currentTimeMillis().toString()
-                        Log.d(TAG, "发送请求: ${request.method} ${request.url}")
-
-                        val startTime = System.currentTimeMillis()
-                        val response = chain.proceed(request)
-                        val duration = System.currentTimeMillis() - startTime
-
-                        Log.d(TAG, "收到响应: ${response.code}, 耗时: ${duration}ms")
-                        response
-                    }
-                    .build()
+    private val client: OkHttpClient = HttpClientFactory.instance
 
     private val JSON = "application/json; charset=utf-8".toMediaType()
 
@@ -129,9 +112,6 @@ class GeminiProvider(
             enableThinking: Boolean,
             onTokensUpdated: suspend (input: Int, output: Int) -> Unit
     ): Stream<String> = stream {
-        if (enableThinking) {
-            Log.w(TAG, "Gemini API当前不支持“思考模式”，该参数将被忽略。")
-        }
         val requestId = System.currentTimeMillis().toString()
         // 重置token计数
         resetTokenCounts()
@@ -143,7 +123,7 @@ class GeminiProvider(
         var retryCount = 0
         var lastException: Exception? = null
 
-        val requestBody = createRequestBody(message, chatHistory, modelParameters)
+        val requestBody = createRequestBody(message, chatHistory, modelParameters, enableThinking)
         onTokensUpdated(_inputTokenCount, _outputTokenCount)
         val request = createRequest(requestBody, true, requestId) // 使用流式请求
 
@@ -207,7 +187,8 @@ class GeminiProvider(
     private fun createRequestBody(
             message: String,
             chatHistory: List<Pair<String, String>>,
-            modelParameters: List<ModelParameter<*>>
+            modelParameters: List<ModelParameter<*>>,
+            enableThinking: Boolean
     ): RequestBody {
         val requestId = System.currentTimeMillis().toString()
         val json = JSONObject()
@@ -307,6 +288,14 @@ class GeminiProvider(
 
         // 添加生成配置
         val generationConfig = JSONObject()
+
+        // 如果启用了思考模式，则为Gemini模型添加特定的`thinkingConfig`参数
+        if (enableThinking) {
+            val thinkingConfig = JSONObject()
+            thinkingConfig.put("includeThoughts", true)
+            generationConfig.put("thinkingConfig", thinkingConfig)
+            logDebug("已为Gemini模型启用“思考模式”。")
+        }
 
         // 添加模型参数
         for (param in modelParameters) {
@@ -647,15 +636,21 @@ class GeminiProvider(
             for (i in 0 until parts.length()) {
                 val part = parts.getJSONObject(i)
                 val text = part.optString("text", "")
+                val isThought = part.optBoolean("thought", false)
 
                 if (text.isNotEmpty()) {
-                    contentBuilder.append(text)
+                    if (isThought) {
+                        contentBuilder.append("<think>").append(text).append("</think>")
+                        logDebug("提取思考内容，长度=${text.length}")
+                    } else {
+                        contentBuilder.append(text)
+                        logDebug("提取文本，长度=${text.length}")
+                    }
 
                     // 估算token
                     val tokens = estimateTokenCount(text)
                     _outputTokenCount += tokens
                     onTokensUpdated(_inputTokenCount, _outputTokenCount)
-                    logDebug("提取文本，长度=${text.length}, tokens=$tokens")
                 }
             }
 

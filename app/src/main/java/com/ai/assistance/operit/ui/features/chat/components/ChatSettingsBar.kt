@@ -425,7 +425,7 @@ fun ChatSettingsBar(
                                 isChecked = enableThinkingMode,
                                 onToggle = onToggleThinkingMode,
                                 onInfoClick = {
-                                    infoPopupContent = "思考模式" to "目前只支持Qwen3和Claude，能够启用内置的思考。"
+                                    infoPopupContent = "思考模式" to "目前只支持Gemini、Qwen3和Claude，能够启用内置的思考。"
                                     showMenu = false
                                 }
                             )

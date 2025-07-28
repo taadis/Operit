@@ -28,6 +28,13 @@ data class Memory(
     var credibility: Float = 0.5f, // 可信度 (0.0 to 1.0)
     var importance: Float = 0.5f,  // 重要性 (0.0 to 1.0)
 
+    // 新增：如果这是一个文档节点，则存储文档的路径/URI
+    var documentPath: String? = null,
+    // 新增：标记此记忆是否代表一个外部文档
+    var isDocumentNode: Boolean = false,
+    // 新增：如果这是一个文档节点，则存储其区块索引文件的路径
+    var chunkIndexFilePath: String? = null,
+
     // 文本内容的向量嵌入
     @Convert(converter = EmbeddingConverter::class, dbType = ByteArray::class)
     var embedding: Embedding? = null,
@@ -49,6 +56,10 @@ data class Memory(
     // 这个记忆作为目标被哪些关联指向 (反向链接)
     @Backlink(to = "target")
     lateinit var backlinks: ToMany<MemoryLink>
+
+    // 新增：如果这是一个文档节点，则包含其所有内容区块
+    @Backlink(to = "memory")
+    lateinit var documentChunks: ToMany<DocumentChunk>
 }
 
 /**
