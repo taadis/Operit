@@ -65,6 +65,9 @@ class OperitApplication : Application() {
         super.onCreate()
         instance = this
 
+        // Initialize ActivityLifecycleManager to track the current activity
+        ActivityLifecycleManager.initialize(this)
+
         // Initialize Embedding Service as early as possible
         EmbeddingService.initialize(this)
 

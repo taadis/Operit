@@ -332,9 +332,6 @@ class ConversationService(private val context: Context) {
             return
         }
 
-        // 获取内存优化设置
-        val memoryOptimizationEnabled = apiPreferences.memoryOptimizationFlow.first()
-
         // 按顺序处理标签
         val segments = mutableListOf<Pair<String, String>>() // 角色, 内容
 
@@ -350,8 +347,8 @@ class ConversationService(private val context: Context) {
                 continue
             }
 
-            // 应用内存优化（如果启用）
-            if (memoryOptimizationEnabled && tagContent.length > 1000 && tagName == "tool_result") {
+            // 应用内存优化（现在默认启用）
+            if (tagContent.length > 1000 && tagName == "tool_result") {
                 tagContent = optimizeToolResult(tagContent)
             }
 

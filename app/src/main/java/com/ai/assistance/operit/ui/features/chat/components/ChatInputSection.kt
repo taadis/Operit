@@ -297,9 +297,9 @@ fun ChatInputSection(
                                                                                         .error
                                                                         canSendMessage ->
                                                                                 if (sendButtonEnabled)
-                                                                                        MaterialTheme
-                                                                                                .colorScheme
-                                                                                                .primary
+                                                                                MaterialTheme
+                                                                                        .colorScheme
+                                                                                        .primary
                                                                                 else
                                                                                         MaterialTheme
                                                                                                 .colorScheme

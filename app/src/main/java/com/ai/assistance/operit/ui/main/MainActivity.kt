@@ -65,14 +65,14 @@ class MainActivity : ComponentActivity() {
     private var showReminderDialogState by mutableStateOf<String?>(null)
 
     // ======== 导航状态 ========
-    private var showPreferencesGuide = false
+    private var showPreferencesGuide by mutableStateOf(false)
 
     // ======== MCP插件状态 ========
     private val pluginLoadingState = PluginLoadingState()
 
     // ======== 数据迁移状态 ========
     private lateinit var migrationManager: ChatHistoryMigrationManager
-    private var showMigrationScreen = false
+    private var showMigrationScreen by mutableStateOf(false)
 
     // ======== 双击返回退出相关变量 ========
     private var backPressedTime: Long = 0
@@ -82,7 +82,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var updateManager: UpdateManager
 
     // 是否显示权限引导界面
-    private var showPermissionGuide = false
+    private var showPermissionGuide by mutableStateOf(false)
 
     // 是否已完成权限和迁移检查
     private var initialChecksDone = false
@@ -133,7 +133,7 @@ class MainActivity : ComponentActivity() {
         }
 
         // 设置初始界面 - 显示加载占位符
-        setInitialContent()
+        setAppContent()
 
         // 初始化并设置更新管理器
         setupUpdateManager()
@@ -145,7 +145,6 @@ class MainActivity : ComponentActivity() {
         } else {
             // 配置变更时不重新检查，直接显示主界面
             initialChecksDone = true
-            setAppContent()
         }
 
         // 设置双击返回退出
@@ -153,19 +152,6 @@ class MainActivity : ComponentActivity() {
     }
 
     // ======== 设置初始占位内容 ========
-    private fun setInitialContent() {
-        setContent {
-            OperitTheme {
-                Box {
-                    // 初始阶段只显示一个加载界面
-                    PluginLoadingScreenWithState(
-                            loadingState = PluginLoadingState().apply { show() },
-                            modifier = Modifier.zIndex(10f)
-                    )
-                }
-            }
-        }
-    }
 
     // ======== 执行初始化检查 ========
     private fun performInitialChecks() {
@@ -419,69 +405,71 @@ class MainActivity : ComponentActivity() {
 
     // ======== 设置应用内容 ========
     private fun setAppContent() {
-        // 如果初始化检查未完成，不显示主界面
-        if (!initialChecksDone) return
-
         setContent {
             OperitTheme {
                 Box {
-                    // 检查是否需要显示用户协议
-                    if (!agreementPreferences.isAgreementAccepted()) {
-                        AgreementScreen(
-                                onAgreementAccepted = {
-                                    agreementPreferences.setAgreementAccepted(true)
-                                    // 协议接受后，检查权限级别设置
-                                    lifecycleScope.launch {
-                                        // 确保使用非阻塞方式更新UI
-                                        delay(300) // 短暂延迟确保UI状态更新
-                                        checkPermissionLevelSet()
+                    // 如果初始化检查未完成，则显示一个占位符，避免在检查完成前显示不完整的界面
+                    if (!initialChecksDone) {
+                        // 在这里可以放置一个加载指示器，或者一个空白屏幕
+                        // 为了简单起见，我们暂时留空，因为检查过程很快
+                    } else {
+                        // 检查是否需要显示用户协议
+                        if (!agreementPreferences.isAgreementAccepted()) {
+                            AgreementScreen(
+                                    onAgreementAccepted = {
+                                        agreementPreferences.setAgreementAccepted(true)
+                                        // 协议接受后，检查权限级别设置
+                                        lifecycleScope.launch {
+                                            // 确保使用非阻塞方式更新UI
+                                            delay(300) // 短暂延迟确保UI状态更新
+                                            checkPermissionLevelSet()
+                                            // 重新设置应用内容
+                                            setAppContent()
+                                        }
+                                    }
+                            )
+                        }
+                        // 检查是否需要显示数据迁移界面
+                        else if (showMigrationScreen) {
+                            MigrationScreen(
+                                    migrationManager = migrationManager,
+                                    onComplete = {
+                                        showMigrationScreen = false
+                                        // 迁移完成后，启动插件加载
+                                        startPluginLoading()
                                         // 重新设置应用内容
                                         setAppContent()
                                     }
-                                }
-                        )
+                            )
+                        }
+                        // 检查是否需要显示权限引导界面
+                        else if (showPermissionGuide) {
+                            PermissionGuideScreen(
+                                    onComplete = {
+                                        showPermissionGuide = false
+                                        // 权限设置完成后，重新设置应用内容
+                                        setAppContent()
+                                    }
+                            )
+                        }
+                        // 显示主应用界面
+                        else {
+                            // 主应用界面 (始终存在于底层)
+                            OperitApp(
+                                    initialNavItem =
+                                            when {
+                                                showPreferencesGuide -> NavItem.UserPreferencesGuide
+                                                else -> NavItem.AiChat
+                                            },
+                                    toolHandler = toolHandler
+                            )
+                        }
                     }
-                    // 检查是否需要显示数据迁移界面
-                    else if (showMigrationScreen) {
-                        MigrationScreen(
-                                migrationManager = migrationManager,
-                                onComplete = {
-                                    showMigrationScreen = false
-                                    // 迁移完成后，启动插件加载
-                                    startPluginLoading()
-                                    // 重新设置应用内容
-                                    setAppContent()
-                                }
-                        )
-                    }
-                    // 检查是否需要显示权限引导界面
-                    else if (showPermissionGuide) {
-                        PermissionGuideScreen(
-                                onComplete = {
-                                    showPermissionGuide = false
-                                    // 权限设置完成后，重新设置应用内容
-                                    setAppContent()
-                                }
-                        )
-                    }
-                    // 显示主应用界面
-                    else {
-                        // 主应用界面 (始终存在于底层)
-                        OperitApp(
-                                initialNavItem =
-                                        when {
-                                            showPreferencesGuide -> NavItem.UserPreferencesGuide
-                                            else -> NavItem.AiChat
-                                        },
-                                toolHandler = toolHandler
-                        )
-
-                        // 插件加载界面 (带有淡出效果)
-                        PluginLoadingScreenWithState(
-                                loadingState = pluginLoadingState,
-                                modifier = Modifier.zIndex(10f) // 确保加载界面在最上层
-                        )
-                    }
+                    // 插件加载界面 (带有淡出效果) - 始终在最上层
+                    PluginLoadingScreenWithState(
+                            loadingState = pluginLoadingState,
+                            modifier = Modifier.zIndex(10f) // 确保加载界面在最上层
+                    )
 
                     // 显示邀请结果对话框
                     showConfirmationDialogState?.let { code ->

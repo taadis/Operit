@@ -61,14 +61,15 @@ fun SettingsScreen(
                                 initial = ApiPreferences.DEFAULT_MODEL_NAME
                         )
                         .value
-        val memoryOptimization =
-                apiPreferences.memoryOptimizationFlow.collectAsState(
-                                initial = ApiPreferences.DEFAULT_MEMORY_OPTIMIZATION
-                        )
-                        .value
+
         val showFpsCounter =
                 apiPreferences.showFpsCounterFlow.collectAsState(
                                 initial = ApiPreferences.DEFAULT_SHOW_FPS_COUNTER
+                        )
+                        .value
+        val keepScreenOn =
+                apiPreferences.keepScreenOnFlow.collectAsState(
+                                initial = ApiPreferences.DEFAULT_KEEP_SCREEN_ON
                         )
                         .value
 
@@ -76,8 +77,9 @@ fun SettingsScreen(
         var apiKeyInput by remember { mutableStateOf(apiKey) }
         var apiEndpointInput by remember { mutableStateOf(apiEndpoint) }
         var modelNameInput by remember { mutableStateOf(modelName) }
-        var memoryOptimizationInput by remember { mutableStateOf(memoryOptimization) }
+
         var showFpsCounterInput by remember { mutableStateOf(showFpsCounter) }
+        var keepScreenOnInput by remember { mutableStateOf(keepScreenOn) }
         var showSaveSuccessMessage by remember { mutableStateOf(false) }
 
         // Add state for endpoint warning
@@ -103,14 +105,14 @@ fun SettingsScreen(
                 apiKey,
                 apiEndpoint,
                 modelName,
-                memoryOptimization,
-                showFpsCounter
+                showFpsCounter,
+                keepScreenOn
         ) {
                 apiKeyInput = apiKey
                 apiEndpointInput = apiEndpoint
                 modelNameInput = modelName
-                memoryOptimizationInput = memoryOptimization
                 showFpsCounterInput = showFpsCounter
+                keepScreenOnInput = keepScreenOn
         }
 
         Column(
@@ -245,23 +247,20 @@ fun SettingsScreen(
                                         )
                                 }
 
-                                // 记忆优化开关
+
+
+                                // 屏幕常亮开关
                                 SettingsToggle(
-                                        title =
-                                                stringResource(
-                                                        id = R.string.settings_memory_optimization
-                                                ),
+                                        title = stringResource(id = R.string.settings_keep_screen_on),
                                         description =
                                                 stringResource(
-                                                        id =
-                                                                R.string
-                                                                        .settings_memory_optimization_desc
+                                                        id = R.string.settings_keep_screen_on_desc
                                                 ),
-                                        checked = memoryOptimizationInput,
+                                        checked = keepScreenOnInput,
                                         onCheckedChange = {
-                                                memoryOptimizationInput = it
+                                                keepScreenOnInput = it
                                                 scope.launch {
-                                                        apiPreferences.saveMemoryOptimization(it)
+                                                        apiPreferences.saveKeepScreenOn(it)
                                                         showSaveSuccessMessage = true
                                                 }
                                         }

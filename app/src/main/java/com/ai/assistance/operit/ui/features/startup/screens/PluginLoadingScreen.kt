@@ -2,12 +2,14 @@ package com.ai.assistance.operit.ui.features.startup.screens
 
 import android.content.Context
 import android.util.Log
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -25,23 +28,31 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.IntOffset
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.mcp.MCPConfigPreferences
 import com.ai.assistance.operit.data.mcp.MCPInstaller
@@ -56,6 +67,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlin.math.roundToInt
 
 /** 表示插件加载状态的枚举 */
 enum class PluginStatus {
@@ -89,6 +101,8 @@ fun PluginLoadingScreen(
         pluginsStarted: Int,
         pluginsTotal: Int,
         pluginsList: List<PluginInfo>,
+        isExpanded: Boolean,
+        onToggleExpansion: () -> Unit,
         onSkip: () -> Unit = {},
         modifier: Modifier = Modifier
 ) {
@@ -105,111 +119,221 @@ fun PluginLoadingScreen(
                             animationSpec = androidx.compose.animation.core.tween(800)
                     )
     ) {
-        Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                // 跳过加载文本 - 放在右上角
-                Text(
-                        text = stringResource(id = R.string.plugin_skip),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier =
-                                Modifier.align(Alignment.TopEnd).padding(16.dp).clickable {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .padding(16.dp),
+        ) {
+            AnimatedContent(targetState = isExpanded, modifier = Modifier.align(if(isExpanded) Alignment.BottomCenter else Alignment.TopEnd), label = "") { expanded ->
+                if (expanded) {
+                    ExpandedLoadingView(progress, message, pluginsStarted, pluginsTotal, pluginsList, onSkip, onCollapse = onToggleExpansion)
+                } else {
+                    DraggableCollapsedIndicator(progress, pluginsStarted, pluginsTotal, onClick = onToggleExpansion)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DraggableCollapsedIndicator(
+    progress: Float,
+    pluginsStarted: Int,
+    pluginsTotal: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var offset by remember { mutableStateOf(Offset.Zero) }
+
+    Box(
+        modifier = modifier
+            .offset { IntOffset(offset.x.roundToInt(), offset.y.roundToInt()) }
+            .pointerInput(Unit) {
+                detectDragGestures { change, dragAmount ->
+                    change.consume()
+                    offset += dragAmount
+                }
+            }
+    ) {
+        CollapsedLoadingIndicator(
+            progress = progress,
+            pluginsStarted = pluginsStarted,
+            pluginsTotal = pluginsTotal,
+            onClick = onClick
+        )
+    }
+}
+
+@Composable
+private fun CollapsedLoadingIndicator(
+    progress: Float,
+    pluginsStarted: Int,
+    pluginsTotal: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = 2.dp,
+        shadowElevation = 8.dp
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.size(48.dp)
+        ) {
+            CircularProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxSize(),
+                strokeWidth = 3.dp,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+            Text(
+                text = "$pluginsStarted/$pluginsTotal",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+private fun ExpandedLoadingView(
+    progress: Float,
+    message: String,
+    pluginsStarted: Int,
+    pluginsTotal: Int,
+    pluginsList: List<PluginInfo>,
+    onSkip: () -> Unit,
+    onCollapse: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = 450.dp), // Constrain height
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = 2.dp,
+        shadowElevation = 8.dp
+    ) {
+        Box(modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)) {
+            // 折叠按钮
+            IconButton(onClick = onCollapse, modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(0.dp)) {
+                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Collapse")
+            }
+            // 跳过加载文本 - 放在右上角
+            Text(
+                    text = stringResource(id = R.string.plugin_skip),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier =
+                            Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(8.dp)
+                                .clickable {
                                     onSkip()
                                 }
+            )
+
+            // 主要内容区域
+            Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+            ) {
+                // 应用名称/Logo
+                Text(
+                        text = stringResource(id = R.string.plugin_app_name),
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 32.sp
                 )
 
-                // 主要内容区域
-                Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier =
-                                Modifier.fillMaxWidth(0.9f).align(Alignment.Center).padding(16.dp)
-                ) {
-                    // 应用名称/Logo
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // 使用平滑过渡的进度条组件
+                SmoothLinearProgressIndicator(
+                        progress = progress,
+                        modifier = Modifier.fillMaxWidth(),
+                        height = 8.dp,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                        progressColor = MaterialTheme.colorScheme.primary,
+                        intermediateSteps = 20, // 增加中间步骤数量，使过渡更加平滑
+                        stepDuration = 50 // 减少每步时长，保持总体流畅感
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // 简洁的状态消息
+                Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // 总插件统计
+                Text(
+                        text =
+                                stringResource(
+                                        id = R.string.plugin_status,
+                                        pluginsStarted,
+                                        pluginsTotal
+                                ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                )
+
+                // 移除此处的跳过按钮
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // 插件列表
+                if (pluginsList.isNotEmpty()) {
                     Text(
-                            text = stringResource(id = R.string.plugin_app_name),
-                            style = MaterialTheme.typography.headlineLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontSize = 32.sp
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // 使用平滑过渡的进度条组件
-                    SmoothLinearProgressIndicator(
-                            progress = progress,
-                            modifier = Modifier.fillMaxWidth(),
-                            height = 8.dp,
-                            trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                            progressColor = MaterialTheme.colorScheme.primary,
-                            intermediateSteps = 20, // 增加中间步骤数量，使过渡更加平滑
-                            stepDuration = 50 // 减少每步时长，保持总体流畅感
+                            text = stringResource(id = R.string.plugin_loading_status_title),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Bold
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // 简洁的状态消息
-                    Text(
-                            text = message,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            textAlign = TextAlign.Center
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    // 总插件统计
-                    Text(
-                            text =
-                                    stringResource(
-                                            id = R.string.plugin_status,
-                                            pluginsStarted,
-                                            pluginsTotal
-                                    ),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                    )
-
-                    // 移除此处的跳过按钮
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // 插件列表
-                    if (pluginsList.isNotEmpty()) {
-                        Text(
-                                text = stringResource(id = R.string.plugin_loading_status_title),
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontWeight = FontWeight.Bold
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // 插件加载状态列表
-                        LazyColumn(
-                                modifier =
-                                        Modifier.fillMaxWidth()
-                                                .weight(1f, fill = false)
-                                                .heightIn(max = 300.dp)
-                        ) {
-                            items(pluginsList) { plugin ->
-                                PluginStatusItem(
-                                        plugin = plugin,
-                                        modifier = Modifier.fillMaxWidth()
-                                )
-                            }
+                    // 插件加载状态列表
+                    LazyColumn(
+                            modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f, fill = false)
+                                        .heightIn(max = 200.dp) // reduce height for smaller card
+                    ) {
+                        items(pluginsList) { plugin ->
+                            PluginStatusItem(
+                                    plugin = plugin,
+                                    modifier = Modifier.fillMaxWidth()
+                            )
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // 底部版权信息
-                    Text(
-                            text = stringResource(id = R.string.plugin_copyright),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // 底部版权信息
+                Text(
+                        text = stringResource(id = R.string.plugin_copyright),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
@@ -327,6 +451,10 @@ class PluginLoadingState {
     private val _isVisible = MutableStateFlow(false)
     val isVisible: StateFlow<Boolean> = _isVisible
 
+    // 是否展开
+    private val _isExpanded = MutableStateFlow(false)
+    val isExpanded: StateFlow<Boolean> = _isExpanded
+
     // 插件列表及其状态
     private val _plugins = MutableStateFlow<List<PluginInfo>>(emptyList())
     val plugins: StateFlow<List<PluginInfo>> = _plugins
@@ -347,6 +475,10 @@ class PluginLoadingState {
     // 设置应用上下文
     fun setAppContext(context: Context) {
         this.appContext = context
+    }
+
+    fun toggleExpansion() {
+        _isExpanded.value = !_isExpanded.value
     }
 
     /** 更新进度信息 */
@@ -484,6 +616,7 @@ class PluginLoadingState {
         _plugins.value = emptyList()
         _isVisible.value = false
         _hasTimedOut.value = false
+        _isExpanded.value = false
     }
 
     // 添加方法来初始化MCP服务器并启动插件
@@ -740,6 +873,7 @@ fun PluginLoadingScreenWithState(loadingState: PluginLoadingState, modifier: Mod
     val pluginsStarted by loadingState.pluginsStarted.collectAsState()
     val pluginsTotal by loadingState.pluginsTotal.collectAsState()
     val plugins by loadingState.plugins.collectAsState()
+    val isExpanded by loadingState.isExpanded.collectAsState()
 
     PluginLoadingScreen(
             isVisible = isVisible,
@@ -748,6 +882,8 @@ fun PluginLoadingScreenWithState(loadingState: PluginLoadingState, modifier: Mod
             pluginsStarted = pluginsStarted,
             pluginsTotal = pluginsTotal,
             pluginsList = plugins,
+            isExpanded = isExpanded,
+            onToggleExpansion = { loadingState.toggleExpansion() },
             onSkip = { loadingState.skip() },
             modifier = modifier
     )

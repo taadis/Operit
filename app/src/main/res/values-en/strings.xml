@@ -328,8 +328,9 @@
     <string name="settings_configure_function">Configure Function</string>
     
     <string name="settings_section_display">Display and Behavior</string>
-    <string name="settings_memory_optimization">Memory Optimization</string>
-    <string name="settings_memory_optimization_desc">When enabled, AI will have certain forgetting capabilities</string>
+
+    <string name="settings_keep_screen_on">Keep Screen On</string>
+    <string name="settings_keep_screen_on_desc">Keep screen on during AI output to prevent screen from turning off</string>
     <string name="settings_auto_accessibility">Auto-grant Accessibility Permission</string>
     <string name="settings_auto_accessibility_desc">When disabled, manual authorization is required each time the app is opened</string>
     

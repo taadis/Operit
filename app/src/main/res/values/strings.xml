@@ -317,8 +317,9 @@
     <string name="settings_configure_function">配置功能</string>
     
     <string name="settings_section_display">显示与行为</string>
-    <string name="settings_memory_optimization">记忆优化</string>
-    <string name="settings_memory_optimization_desc">开启后，AI会有一定的遗忘能力</string>
+
+    <string name="settings_keep_screen_on">屏幕常亮</string>
+    <string name="settings_keep_screen_on_desc">AI输出时保持屏幕常亮，避免屏幕熄灭</string>
     <string name="settings_auto_accessibility">自动授予无障碍权限</string>
     <string name="settings_auto_accessibility_desc">关闭后需每次打开软件手动授权</string>
     

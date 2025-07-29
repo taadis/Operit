@@ -37,8 +37,8 @@ class ApiConfigDelegate(
     private val _enableAiPlanning = MutableStateFlow(ApiPreferences.DEFAULT_ENABLE_AI_PLANNING)
     val enableAiPlanning: StateFlow<Boolean> = _enableAiPlanning.asStateFlow()
 
-    private val _memoryOptimization = MutableStateFlow(ApiPreferences.DEFAULT_MEMORY_OPTIMIZATION)
-    val memoryOptimization: StateFlow<Boolean> = _memoryOptimization.asStateFlow()
+    private val _keepScreenOn = MutableStateFlow(ApiPreferences.DEFAULT_KEEP_SCREEN_ON)
+    val keepScreenOn: StateFlow<Boolean> = _keepScreenOn.asStateFlow()
 
     private val _enableThinkingMode = MutableStateFlow(ApiPreferences.DEFAULT_ENABLE_THINKING_MODE)
     val enableThinkingMode: StateFlow<Boolean> = _enableThinkingMode.asStateFlow()
@@ -117,10 +117,10 @@ class ApiConfigDelegate(
             }
         }
 
-        // Collect memory optimization preference
+        // Collect keep screen on setting
         viewModelScope.launch {
-            apiPreferences.memoryOptimizationFlow.collect { enabled ->
-                _memoryOptimization.value = enabled
+            apiPreferences.keepScreenOnFlow.collect { enabled ->
+                _keepScreenOn.value = enabled
             }
         }
 

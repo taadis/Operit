@@ -158,7 +158,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     val apiKey: StateFlow<String> by lazy { apiConfigDelegate.apiKey }
     val isConfigured: StateFlow<Boolean> by lazy { apiConfigDelegate.isConfigured }
     val enableAiPlanning: StateFlow<Boolean> by lazy { apiConfigDelegate.enableAiPlanning }
-    val memoryOptimization: StateFlow<Boolean> by lazy { apiConfigDelegate.memoryOptimization }
+    val keepScreenOn: StateFlow<Boolean> by lazy { apiConfigDelegate.keepScreenOn }
 
     // 思考模式和思考引导状态现在由ApiConfigDelegate管理
     val enableThinkingMode: StateFlow<Boolean> by lazy { apiConfigDelegate.enableThinkingMode }

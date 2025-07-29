@@ -4,12 +4,14 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.util.Log
+import android.view.WindowManager
 import com.ai.assistance.operit.api.chat.enhance.ConversationMarkupManager
 import com.ai.assistance.operit.api.chat.enhance.ConversationRoundManager
 import com.ai.assistance.operit.api.chat.enhance.ConversationService
 import com.ai.assistance.operit.api.chat.enhance.InputProcessor
 import com.ai.assistance.operit.api.chat.enhance.MultiServiceManager
 import com.ai.assistance.operit.api.chat.enhance.ToolExecutionManager
+import com.ai.assistance.operit.core.application.ActivityLifecycleManager
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.core.tools.StringResultData
 import com.ai.assistance.operit.core.tools.packTool.PackageManager
@@ -236,6 +238,7 @@ class EnhancedAIService private constructor(private val context: Context) {
 
     // Api Preferences for settings
     private val apiPreferences = ApiPreferences(context)
+
 
     // Coroutine management
     private val toolProcessingScope = CoroutineScope(Dispatchers.IO)
@@ -1294,6 +1297,9 @@ class EnhancedAIService private constructor(private val context: Context) {
         currentResponseCallback = null
         currentCompleteCallback = null
 
+        // 停止AI服务并关闭屏幕常亮
+        stopAiService()
+
         Log.d(TAG, "Conversation cancellation complete - all state reset except plan items")
     }
 
@@ -1301,6 +1307,7 @@ class EnhancedAIService private constructor(private val context: Context) {
     private fun cancelAllToolExecutions() {
         toolProcessingScope.coroutineContext.cancelChildren()
     }
+
     // --- Service Lifecycle Management ---
 
     /** 启动前台服务以保持应用活跃 */
@@ -1315,6 +1322,9 @@ class EnhancedAIService private constructor(private val context: Context) {
         } else {
             Log.d(TAG, "AI前台服务已在运行，无需重复启动。")
         }
+        
+        // 使用管理器来应用屏幕常亮设置
+        ActivityLifecycleManager.checkAndApplyKeepScreenOn(true)
     }
 
     /** 停止前台服务 */
@@ -1325,6 +1335,9 @@ class EnhancedAIService private constructor(private val context: Context) {
         } else {
             Log.d(TAG, "AI前台服务未在运行，无需重复停止。")
         }
+        
+        // 使用管理器来恢复屏幕常亮设置
+        ActivityLifecycleManager.checkAndApplyKeepScreenOn(false)
     }
 
     /**

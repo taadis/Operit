@@ -33,12 +33,13 @@ class ApiPreferences(private val context: Context) {
         val API_ENDPOINT = stringPreferencesKey("api_endpoint")
         val MODEL_NAME = stringPreferencesKey("model_name")
         val API_PROVIDER_TYPE = stringPreferencesKey("api_provider_type")
-        val MEMORY_OPTIMIZATION = booleanPreferencesKey("memory_optimization")
+
         val PREFERENCE_ANALYSIS_INPUT_TOKENS = intPreferencesKey("preference_analysis_input_tokens")
         val PREFERENCE_ANALYSIS_OUTPUT_TOKENS =
                 intPreferencesKey("preference_analysis_output_tokens")
         val SHOW_FPS_COUNTER = booleanPreferencesKey("show_fps_counter")
         val ENABLE_AI_PLANNING = booleanPreferencesKey("enable_ai_planning")
+        val KEEP_SCREEN_ON = booleanPreferencesKey("keep_screen_on")
 
         // Keys for Thinking Mode and Thinking Guidance
         val ENABLE_THINKING_MODE = booleanPreferencesKey("enable_thinking_mode")
@@ -94,9 +95,10 @@ class ApiPreferences(private val context: Context) {
         val DEFAULT_API_KEY: String by lazy { decodeApiKey(ENCODED_API_KEY) }
 
         const val DEFAULT_API_PROVIDER_TYPE = "DEEPSEEK"
-        const val DEFAULT_MEMORY_OPTIMIZATION = true
+
         const val DEFAULT_SHOW_FPS_COUNTER = false
         const val DEFAULT_ENABLE_AI_PLANNING = false
+        const val DEFAULT_KEEP_SCREEN_ON = true
 
         // Default values for Thinking Mode and Thinking Guidance
         const val DEFAULT_ENABLE_THINKING_MODE = false
@@ -236,11 +238,7 @@ class ApiPreferences(private val context: Context) {
                 preferences[REPETITION_PENALTY_ENABLED] ?: DEFAULT_PARAM_ENABLED
             }
 
-    // Get Memory Optimization as Flow
-    val memoryOptimizationFlow: Flow<Boolean> =
-            context.apiDataStore.data.map { preferences ->
-                preferences[MEMORY_OPTIMIZATION] ?: DEFAULT_MEMORY_OPTIMIZATION
-            }
+
 
     // 获取偏好分析输入token计数
     val preferenceAnalysisInputTokensFlow: Flow<Int> =
@@ -264,6 +262,12 @@ class ApiPreferences(private val context: Context) {
     val enableAiPlanningFlow: Flow<Boolean> =
             context.apiDataStore.data.map { preferences ->
                 preferences[ENABLE_AI_PLANNING] ?: DEFAULT_ENABLE_AI_PLANNING
+            }
+
+    // Get Keep Screen On setting as Flow
+    val keepScreenOnFlow: Flow<Boolean> =
+            context.apiDataStore.data.map { preferences ->
+                preferences[KEEP_SCREEN_ON] ?: DEFAULT_KEEP_SCREEN_ON
             }
 
     // Flow for Thinking Mode
@@ -373,12 +377,7 @@ class ApiPreferences(private val context: Context) {
         }
     }
 
-    // Save Memory Optimization setting
-    suspend fun saveMemoryOptimization(memoryOptimization: Boolean) {
-        context.apiDataStore.edit { preferences ->
-            preferences[MEMORY_OPTIMIZATION] = memoryOptimization
-        }
-    }
+
 
     // Save FPS Counter Display setting
     suspend fun saveShowFpsCounter(showFpsCounter: Boolean) {
@@ -388,6 +387,11 @@ class ApiPreferences(private val context: Context) {
     // Save AI Planning setting
     suspend fun saveEnableAiPlanning(isEnabled: Boolean) {
         context.apiDataStore.edit { preferences -> preferences[ENABLE_AI_PLANNING] = isEnabled }
+    }
+
+    // Save Keep Screen On setting
+    suspend fun saveKeepScreenOn(isEnabled: Boolean) {
+        context.apiDataStore.edit { preferences -> preferences[KEEP_SCREEN_ON] = isEnabled }
     }
 
     // Save Thinking Mode setting
@@ -442,181 +446,12 @@ class ApiPreferences(private val context: Context) {
 
     // 保存显示和行为设置的方法，不会影响模型参数
     suspend fun saveDisplaySettings(
-            memoryOptimization: Boolean,
-            showFpsCounter: Boolean
-    ) {
-        context.apiDataStore.edit { preferences ->
-            preferences[MEMORY_OPTIMIZATION] = memoryOptimization
-            preferences[SHOW_FPS_COUNTER] = showFpsCounter
-        }
-    }
-
-    // Update the saveAllSettings method to include all model parameters with enabled state
-    suspend fun saveAllSettings(
-            apiKey: String,
-            endpoint: String,
-            modelName: String,
-            memoryOptimization: Boolean,
             showFpsCounter: Boolean,
-            enableAiPlanning: Boolean,
-            modelParameters: List<ModelParameter<*>> = emptyList()
+            keepScreenOn: Boolean
     ) {
         context.apiDataStore.edit { preferences ->
-            preferences[API_KEY] = apiKey
-            preferences[API_ENDPOINT] = endpoint
-            preferences[MODEL_NAME] = modelName
-            preferences[MEMORY_OPTIMIZATION] = memoryOptimization
             preferences[SHOW_FPS_COUNTER] = showFpsCounter
-            preferences[ENABLE_AI_PLANNING] = enableAiPlanning
-
-            // Save all model parameters
-            for (param in modelParameters) {
-                when (param.id) {
-                    "max_tokens" -> {
-                        preferences[MAX_TOKENS] = (param.currentValue as Int)
-                        preferences[MAX_TOKENS_ENABLED] = param.isEnabled
-                    }
-                    "temperature" -> {
-                        preferences[TEMPERATURE] = (param.currentValue as Float)
-                        preferences[TEMPERATURE_ENABLED] = param.isEnabled
-                    }
-                    "top_p" -> {
-                        preferences[TOP_P] = (param.currentValue as Float)
-                        preferences[TOP_P_ENABLED] = param.isEnabled
-                    }
-                    "top_k" -> {
-                        preferences[TOP_K] = (param.currentValue as Int)
-                        preferences[TOP_K_ENABLED] = param.isEnabled
-                    }
-                    "presence_penalty" -> {
-                        preferences[PRESENCE_PENALTY] = (param.currentValue as Float)
-                        preferences[PRESENCE_PENALTY_ENABLED] = param.isEnabled
-                    }
-                    "frequency_penalty" -> {
-                        preferences[FREQUENCY_PENALTY] = (param.currentValue as Float)
-                        preferences[FREQUENCY_PENALTY_ENABLED] = param.isEnabled
-                    }
-                    "repetition_penalty" -> {
-                        preferences[REPETITION_PENALTY] = (param.currentValue as Float)
-                        preferences[REPETITION_PENALTY_ENABLED] = param.isEnabled
-                    }
-                // Add more parameters as needed
-                }
-            }
-        }
-    }
-
-    // Save model parameters only - now accepts a list of parameters
-    suspend fun saveModelParameters(parameters: List<ModelParameter<*>>) {
-        // 分离标准参数和自定义参数
-        val standardParams = parameters.filter { !it.isCustom }
-        val customParams = parameters.filter { it.isCustom }
-
-        context.apiDataStore.edit { preferences ->
-            // 保存标准参数
-            for (param in standardParams) {
-                when (param.id) {
-                    "max_tokens" -> {
-                        preferences[MAX_TOKENS] = (param.currentValue as Int)
-                        preferences[MAX_TOKENS_ENABLED] = param.isEnabled
-                    }
-                    "temperature" -> {
-                        preferences[TEMPERATURE] = (param.currentValue as Float)
-                        preferences[TEMPERATURE_ENABLED] = param.isEnabled
-                    }
-                    "top_p" -> {
-                        preferences[TOP_P] = (param.currentValue as Float)
-                        preferences[TOP_P_ENABLED] = param.isEnabled
-                    }
-                    "top_k" -> {
-                        preferences[TOP_K] = (param.currentValue as Int)
-                        preferences[TOP_K_ENABLED] = param.isEnabled
-                    }
-                    "presence_penalty" -> {
-                        preferences[PRESENCE_PENALTY] = (param.currentValue as Float)
-                        preferences[PRESENCE_PENALTY_ENABLED] = param.isEnabled
-                    }
-                    "frequency_penalty" -> {
-                        preferences[FREQUENCY_PENALTY] = (param.currentValue as Float)
-                        preferences[FREQUENCY_PENALTY_ENABLED] = param.isEnabled
-                    }
-                    "repetition_penalty" -> {
-                        preferences[REPETITION_PENALTY] = (param.currentValue as Float)
-                        preferences[REPETITION_PENALTY_ENABLED] = param.isEnabled
-                    }
-                }
-            }
-
-            // 保存自定义参数为JSON字符串
-            if (customParams.isNotEmpty()) {
-                val customParamsList =
-                        customParams.map { param ->
-                            when (param.valueType) {
-                                ParameterValueType.INT -> {
-                                    CustomParameterData(
-                                            id = param.id,
-                                            name = param.name,
-                                            apiName = param.apiName,
-                                            description = param.description,
-                                            defaultValue = (param.defaultValue as Int).toString(),
-                                            currentValue = (param.currentValue as Int).toString(),
-                                            isEnabled = param.isEnabled,
-                                            valueType = param.valueType.name,
-                                            minValue = (param.minValue as? Int)?.toString(),
-                                            maxValue = (param.maxValue as? Int)?.toString(),
-                                            category = param.category.name
-                                    )
-                                }
-                                ParameterValueType.FLOAT -> {
-                                    CustomParameterData(
-                                            id = param.id,
-                                            name = param.name,
-                                            apiName = param.apiName,
-                                            description = param.description,
-                                            defaultValue = (param.defaultValue as Float).toString(),
-                                            currentValue = (param.currentValue as Float).toString(),
-                                            isEnabled = param.isEnabled,
-                                            valueType = param.valueType.name,
-                                            minValue = (param.minValue as? Float)?.toString(),
-                                            maxValue = (param.maxValue as? Float)?.toString(),
-                                            category = param.category.name
-                                    )
-                                }
-                                ParameterValueType.STRING -> {
-                                    CustomParameterData(
-                                            id = param.id,
-                                            name = param.name,
-                                            apiName = param.apiName,
-                                            description = param.description,
-                                            defaultValue = param.defaultValue as String,
-                                            currentValue = param.currentValue as String,
-                                            isEnabled = param.isEnabled,
-                                            valueType = param.valueType.name,
-                                            category = param.category.name
-                                    )
-                                }
-                                ParameterValueType.BOOLEAN -> {
-                                    CustomParameterData(
-                                            id = param.id,
-                                            name = param.name,
-                                            apiName = param.apiName,
-                                            description = param.description,
-                                            defaultValue =
-                                                    (param.defaultValue as Boolean).toString(),
-                                            currentValue =
-                                                    (param.currentValue as Boolean).toString(),
-                                            isEnabled = param.isEnabled,
-                                            valueType = param.valueType.name,
-                                            category = param.category.name
-                                    )
-                                }
-                            }
-                        }
-                preferences[CUSTOM_PARAMETERS] = Json.encodeToString(customParamsList)
-            } else {
-                // 如果没有自定义参数，保存空列表
-                preferences[CUSTOM_PARAMETERS] = DEFAULT_CUSTOM_PARAMETERS
-            }
+            preferences[KEEP_SCREEN_ON] = keepScreenOn
         }
     }
 
