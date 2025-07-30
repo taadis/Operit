@@ -363,7 +363,7 @@ When using Operit AI for the first time, you'll need to perform a simple setup t
 <h3 id="out-of-the-box" style="display: flex; justify-content: space-between; align-items: center;"><span>🧰 Out-of-the-Box</span><a href="#advanced-usage" style="text-decoration: none; font-size: 0.8em;" title="Back to Parent">↩️</a></h3>
 <em>This part covers the <strong>built-in packages</strong>.</em>
 <br>
-When you ask the AI to write software, the performance of the software depends on the AI's capabilities. The model in the example is <code>Deepseel-R1</code>.
+When you ask the AI to write software, the performance of the software depends on the AI's capabilities. The model in the example is <code>DeepSeek-R1</code>.
 
 <table style="width: 100%;">
   <thead>
