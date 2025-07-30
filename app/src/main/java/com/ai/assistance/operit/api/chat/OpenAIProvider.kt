@@ -103,7 +103,7 @@ open class OpenAIProvider(
             // 这比getModelsList更可靠，因为它直接命中了聊天API。
             // 提供一个通用的系统提示，以防止某些需要它的模型出现错误。
             val testHistory = listOf("system" to "You are a helpful assistant.")
-            val stream = sendMessage("Hi", testHistory, emptyList(), enableThinking = false) { _, _ -> }
+            val stream = sendMessage("Hi", testHistory, emptyList(), enableThinking = false, onTokensUpdated = { _, _ -> }, onNonFatalError = {})
 
             // 消耗流以确保连接有效。
             // 对 "Hi" 的响应应该很短，所以这会很快完成。
@@ -246,7 +246,8 @@ open class OpenAIProvider(
             chatHistory: List<Pair<String, String>>,
             modelParameters: List<ModelParameter<*>>,
             enableThinking: Boolean,
-            onTokensUpdated: suspend (input: Int, output: Int) -> Unit
+            onTokensUpdated: suspend (input: Int, output: Int) -> Unit,
+            onNonFatalError: suspend (error: String) -> Unit
     ): Stream<String> = stream {
         // 重置token计数
         _inputTokenCount = 0
@@ -262,22 +263,44 @@ open class OpenAIProvider(
         var retryCount = 0
         var lastException: Exception? = null
 
-        Log.d("AIService", "【发送消息】标准化聊天历史记录，原始大小: ${chatHistory.size}")
-        val standardizedHistory = ChatUtils.mapChatHistoryToStandardRoles(chatHistory)
-        Log.d("AIService", "【发送消息】历史记录标准化完成，标准化后大小: ${standardizedHistory.size}")
+        // 用于保存已接收到的内容，以便在重试时使用
+        val receivedContent = StringBuilder()
 
-        Log.d(
-                "AIService",
-                "【发送消息】准备构建请求体，模型参数数量: ${modelParameters.size}，已启用参数: ${modelParameters.count { it.isEnabled }}"
-        )
-        val requestBody = createRequestBody(message, standardizedHistory, modelParameters, enableThinking)
-        onTokensUpdated(_inputTokenCount, _outputTokenCount)
-        val request = createRequest(requestBody)
-        Log.d("AIService", "【发送消息】请求体构建完成，目标模型: $modelName，API端点: $apiEndpoint")
-
-        Log.d("AIService", "【发送消息】准备连接到AI服务...")
         while (retryCount < maxRetries) {
             try {
+                // 如果是重试，我们需要构建一个新的请求
+                val currentMessage: String
+                val currentHistory: List<Pair<String, String>>
+
+                if (retryCount > 0 && receivedContent.isNotEmpty()) {
+                    Log.d("AIService", "【重试】准备续写请求，已接收内容长度: ${receivedContent.length}")
+                    // 在用户消息后附加续写指令
+                    currentMessage = message + "\n\n[SYSTEM NOTE] The previous response was cut off by a network error. You MUST continue from the exact point of interruption. Do not repeat any content. If you were in the middle of a code block or XML tag, complete it. Just output the text that would have come next."
+                    // 将已接收的内容作为AI的上一条消息
+                    val resumeHistory = chatHistory.toMutableList()
+                    resumeHistory.add("assistant" to receivedContent.toString())
+                    currentHistory = resumeHistory
+                } else {
+                    currentMessage = message
+                    currentHistory = chatHistory
+                }
+
+
+                Log.d("AIService", "【发送消息】标准化聊天历史记录，原始大小: ${currentHistory.size}")
+                val standardizedHistory = ChatUtils.mapChatHistoryToStandardRoles(currentHistory)
+                Log.d("AIService", "【发送消息】历史记录标准化完成，标准化后大小: ${standardizedHistory.size}")
+
+                Log.d(
+                        "AIService",
+                        "【发送消息】准备构建请求体，模型参数数量: ${modelParameters.size}，已启用参数: ${modelParameters.count { it.isEnabled }}"
+                )
+                val requestBody = createRequestBody(currentMessage, standardizedHistory, modelParameters, enableThinking)
+                onTokensUpdated(_inputTokenCount, _outputTokenCount)
+                val request = createRequest(requestBody)
+                Log.d("AIService", "【发送消息】请求体构建完成，目标模型: $modelName，API端点: $apiEndpoint")
+
+                Log.d("AIService", "【发送消息】准备连接到AI服务...")
+
                 // 创建Call对象并保存到activeCall中，以便可以取消
                 val call = client.newCall(request)
                 activeCall = call
@@ -292,6 +315,7 @@ open class OpenAIProvider(
                     if (!response.isSuccessful) {
                         val errorBody = response.body?.string() ?: "No error details"
                         Log.e("AIService", "【发送消息】API请求失败，状态码: ${response.code}，错误信息: $errorBody")
+                        // 对于4xx/5xx这类明确的API错误，直接抛出，不进行续写重试
                         throw IOException("API请求失败，状态码: ${response.code}，错误信息: $errorBody")
                     }
 
@@ -363,11 +387,13 @@ open class OpenAIProvider(
                                                                 // 第一次发现思考内容，发射<think>开始标签
                                                                 if (!hasEmittedThinkStart) {
                                                                     emit("<think>")
+                                                                    receivedContent.append("<think>")
                                                                     hasEmittedThinkStart = true
                                                                 }
                                                             }
                                                             // 发射思考内容
                                                             emit(reasoningContent)
+                                                            receivedContent.append(reasoningContent)
                                                             _outputTokenCount +=
                                                                     ChatUtils.estimateTokenCount(
                                                                             reasoningContent
@@ -382,6 +408,7 @@ open class OpenAIProvider(
                                                             if (isInReasoningMode) {
                                                                 isInReasoningMode = false
                                                                 emit("</think>")
+                                                                receivedContent.append("</think>")
                                                             }
 
                                                             // 当收到第一个有效内容时，标记不再是首次响应
@@ -395,6 +422,7 @@ open class OpenAIProvider(
 
                                                             // 更新内容
                                                             currentContent.append(regularContent)
+                                                            receivedContent.append(regularContent)
 
                                                             // 计算输出tokens
                                                             _outputTokenCount +=
@@ -425,11 +453,11 @@ open class OpenAIProvider(
                                                                             reasoningContent !=
                                                                                     "null"
                                                             ) {
-                                                                emit(
-                                                                        "<think>" +
-                                                                                reasoningContent +
-                                                                                "</think>"
-                                                                )
+                                                                val thinkContent = "<think>" +
+                                                                        reasoningContent +
+                                                                        "</think>"
+                                                                emit(thinkContent)
+                                                                receivedContent.append(thinkContent)
                                                                 _outputTokenCount +=
                                                                         ChatUtils.estimateTokenCount(
                                                                                 reasoningContent
@@ -442,6 +470,7 @@ open class OpenAIProvider(
                                                                             regularContent != "null"
                                                             ) {
                                                                 emit(regularContent)
+                                                                receivedContent.append(regularContent)
                                                                 _outputTokenCount +=
                                                                         ChatUtils.estimateTokenCount(
                                                                                 regularContent
@@ -460,6 +489,7 @@ open class OpenAIProvider(
                                             if (isInReasoningMode) {
                                                 isInReasoningMode = false
                                                 emit("</think>")
+                                                receivedContent.append("</think>")
                                             }
                                             Log.d("AIService", "【发送消息】收到流结束标记[DONE]")
                                         }
@@ -471,12 +501,15 @@ open class OpenAIProvider(
                                     "【发送消息】响应流处理完成，总块数: $chunkCount，输出token: $_outputTokenCount"
                             )
                         } catch (e: IOException) {
-                            // 捕获IO异常，可能是由于取消Call导致的
+                            // 捕获IO异常，可能是由于取消Call导致的，也可能是网络中断
                             if (activeCall?.isCanceled() == true) {
                                 Log.d("AIService", "【发送消息】流式传输已被取消，处理IO异常")
                                 wasCancelled = true
                             } else {
-                                Log.e("AIService", "【发送消息】流式读取时发生IO异常", e)
+                                // 这是网络中断的关键点，我们将在这里处理重试逻辑，而不是直接抛出异常
+                                Log.e("AIService", "【发送消息】流式读取时发生IO异常，准备重试", e)
+                                lastException = e
+                                // 跳出useLines和try-catch，进入外层while循环进行重试
                                 throw e
                             }
                         }
@@ -499,21 +532,52 @@ open class OpenAIProvider(
             } catch (e: SocketTimeoutException) {
                 lastException = e
                 retryCount++
+                if (retryCount >= maxRetries) {
+                    Log.e("AIService", "【发送消息】连接超时且达到最大重试次数", e)
+                    throw IOException("AI响应获取失败，连接超时且已达最大重试次数: ${e.message}")
+                }
                 Log.w("AIService", "【发送消息】连接超时，正在进行第 $retryCount 次重试...", e)
+                onNonFatalError("【网络超时，正在进行第 $retryCount 次重试...】")
                 // 指数退避重试
-                delay(1000L * retryCount)
+                delay(1000L * (1 shl (retryCount - 1)))
             } catch (e: UnknownHostException) {
-                Log.e("AIService", "【发送消息】无法连接到服务器，请检查网络", e)
-                throw IOException("无法连接到服务器，请检查网络连接或API地址是否正确")
+                // 对于无法解析主机这类错误，也应该重试，因为网络可能会恢复（例如切换wifi）
+                lastException = e
+                retryCount++
+                if (retryCount >= maxRetries) {
+                    Log.e("AIService", "【发送消息】无法解析主机且达到最大重试次数", e)
+                    throw IOException("无法连接到服务器，请检查网络连接或API地址是否正确")
+                }
+                Log.w("AIService", "【发送消息】无法解析主机，正在进行第 $retryCount 次重试...", e)
+                onNonFatalError("【网络不稳定，正在进行第 $retryCount 次重试...】")
+                delay(1000L * (1 shl (retryCount - 1)))
+            } catch (e: IOException) {
+                // 这个catch块现在主要处理来自流读取中断的IO异常
+                lastException = e
+                retryCount++
+                if (retryCount >= maxRetries) {
+                    Log.e("AIService", "【发送消息】达到最大重试次数，无法恢复", e)
+                    throw IOException("AI响应获取失败，已达最大重试次数: ${e.message}")
+                }
+                Log.w("AIService", "【发送消息】网络中断，正在进行第 $retryCount 次重试...", e)
+                onNonFatalError("【网络中断，正在进行第 $retryCount 次重试...】")
+                delay(1000L * (1 shl (retryCount - 1))) // 增加延迟
             } catch (e: Exception) {
-                Log.e("AIService", "【发送消息】连接失败", e)
-                throw IOException("AI响应获取失败: ${e.message} ${e.stackTrace.joinToString("\n")}")
+                 // 其他未知异常，也尝试重试
+                lastException = e
+                retryCount++
+                if (retryCount >= maxRetries) {
+                    Log.e("AIService", "【发送消息】发生未知异常且达到最大重试次数", e)
+                    throw IOException("AI响应获取失败: ${e.message}")
+                }
+                Log.e("AIService", "【发送消息】连接失败，正在进行第 $retryCount 次重试...", e)
+                onNonFatalError("【连接失败，正在进行第 $retryCount 次重试...】")
+                delay(1000L * (1 shl (retryCount - 1)))
             }
         }
 
         // 所有重试都失败
         Log.e("AIService", "【发送消息】重试失败，请检查网络连接，最大重试次数: $maxRetries", lastException)
-        emit("【重试失败，请检查网络连接】")
-        throw IOException("连接超时，已重试 $maxRetries 次: ${lastException?.message}")
+        throw IOException("连接超时或中断，已重试 $maxRetries 次: ${lastException?.message}")
     }
 }

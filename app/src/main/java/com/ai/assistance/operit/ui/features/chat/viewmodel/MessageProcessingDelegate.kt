@@ -4,8 +4,7 @@ import android.content.Context
 import android.util.Log
 import androidx.lifecycle.viewModelScope
 import com.ai.assistance.operit.api.chat.EnhancedAIService
-import com.ai.assistance.operit.core.tools.AIToolHandler
-import com.ai.assistance.operit.core.tools.MemoryQueryResultData
+import com.ai.assistance.operit.core.chat.AIMessageManager
 import com.ai.assistance.operit.data.model.*
 import com.ai.assistance.operit.data.model.InputProcessingState as EnhancedInputProcessingState
 import com.ai.assistance.operit.data.preferences.PromptFunctionType
@@ -31,13 +30,12 @@ class MessageProcessingDelegate(
         private val viewModelScope: CoroutineScope,
         private val getEnhancedAiService: () -> EnhancedAIService?,
         private val getChatHistory: () -> List<ChatMessage>,
-        private val getMemory: (Boolean) -> List<Pair<String, String>>,
         private val addMessageToChat: (ChatMessage) -> Unit,
         private val saveCurrentChat: () -> Unit,
         private val showErrorMessage: (String) -> Unit,
         private val updateChatTitle: (chatId: String, title: String) -> Unit,
-        private val onTurnComplete: () -> Unit,
-        private val toolHandler: AIToolHandler
+        private val onTurnComplete: () -> Unit
+        // toolHandler is no longer needed here
 ) {
     companion object {
         private const val TAG = "MessageProcessingDelegate"
@@ -54,6 +52,9 @@ class MessageProcessingDelegate(
 
     private val _scrollToBottomEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val scrollToBottomEvent = _scrollToBottomEvent.asSharedFlow()
+
+    private val _nonFatalErrorEvent = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val nonFatalErrorEvent = _nonFatalErrorEvent.asSharedFlow()
 
     // 当前活跃的AI响应流
     private var currentResponseStream: SharedStream<String>? = null
@@ -97,61 +98,28 @@ class MessageProcessingDelegate(
         _inputProcessingState.value = EnhancedInputProcessingState.Processing("正在处理消息...")
 
         viewModelScope.launch(Dispatchers.IO) {
-        // 检查这是否是聊天中的第一条用户消息
-        val isFirstMessage = getChatHistory().none { it.sender == "user" || it.sender == "ai" }
-        if (isFirstMessage && chatId != null) {
-            val newTitle =
+            // 检查这是否是聊天中的第一条用户消息
+            val isFirstMessage = getChatHistory().none { it.sender == "user" || it.sender == "ai" }
+            if (isFirstMessage && chatId != null) {
+                val newTitle =
                     when {
                         messageText.isNotBlank() -> messageText
                         attachments.isNotEmpty() -> attachments.first().fileName
                         else -> "新对话"
                     }
-            updateChatTitle(chatId, newTitle)
-        }
-
-        Log.d(TAG, "开始处理用户消息：附件数量=${attachments.size}")
-
-            // 1. 根据新开关决定是否查询知识库
-            var memoryTag = ""
-            if (enableMemoryAttachment && messageText.isNotBlank() && !messageText.contains("<memory>", ignoreCase = true)) {
-                val queryTool = AITool(
-                        name = "query_knowledge_library",
-                        parameters = listOf(ToolParameter("query", messageText))
-                )
-                val result = toolHandler.executeTool(queryTool)
-
-                // 检查结果是否是结构化数据且包含记忆
-                if (result.success && result.result is MemoryQueryResultData) {
-                    val memoryData = result.result as MemoryQueryResultData
-                    if (memoryData.memories.isNotEmpty()) {
-                        val instruction = "你不用刻意去针对memory进行回复，仅针对用户说的话回答即可"
-                        // 使用结构化数据的toString()方法来格式化内容
-                        val memoryContent = memoryData.toString()
-                        memoryTag = "<memory>${instruction}\n---\n${memoryContent}</memory>"
-                    }
-                }
+                updateChatTitle(chatId, newTitle)
             }
 
-            // 2. 构建附件标签
-            val attachmentTags = if (attachments.isNotEmpty()) {
-                attachments.joinToString(" ") { attachment ->
-                    "<attachment " +
-                            "id=\"${attachment.filePath}\" " +
-                            "filename=\"${attachment.fileName}\" " +
-                            "type=\"${attachment.mimeType}\" " +
-                            (if (attachment.fileSize > 0) "size=\"${attachment.fileSize}\" " else "") +
-                            (if (attachment.content.isNotEmpty()) "content=\"${attachment.content}\" " else "") +
-                            "/>"
-                }
-            } else ""
+            Log.d(TAG, "开始处理用户消息：附件数量=${attachments.size}")
 
-            // 3. 组合最终消息
-            val finalMessage = listOf(messageText, attachmentTags, memoryTag)
-                    .filter { it.isNotBlank() }
-                    .joinToString(" ")
+            // 1. 使用 AIMessageManager 构建最终消息
+            val finalMessageContent = AIMessageManager.buildUserMessageContent(
+                messageText,
+                attachments,
+                enableMemoryAttachment
+            )
 
-        addMessageToChat(ChatMessage(sender = "user", content = finalMessage))
-
+            addMessageToChat(ChatMessage(sender = "user", content = finalMessageContent))
 
             lateinit var aiMessage: ChatMessage
             try {
@@ -163,69 +131,71 @@ class MessageProcessingDelegate(
                 }
 
                 val service =
-                        getEnhancedAiService()
-                                ?: run {
-                                    withContext(Dispatchers.Main) { showErrorMessage("AI服务未初始化") }
-                                    _isLoading.value = false
-                                    _inputProcessingState.value = EnhancedInputProcessingState.Idle
-                                    return@launch
-                                }
-
-                val history = getMemory(true)
+                    getEnhancedAiService()
+                        ?: run {
+                            withContext(Dispatchers.Main) { showErrorMessage("AI服务未初始化") }
+                            _isLoading.value = false
+                            _inputProcessingState.value = EnhancedInputProcessingState.Idle
+                            return@launch
+                        }
 
                 val startTime = System.currentTimeMillis()
-
                 val deferred = CompletableDeferred<Unit>()
-                val responseStream =
-                        service.sendMessage(
-                                finalMessage,
-                                history,
-                                workspacePath,
-                                promptFunctionType = promptFunctionType,
-                                enableThinking = enableThinking, // 将参数传递给服务层
-                                thinkingGuidance = thinkingGuidance // 将参数传递给服务层
-                        )
+
+                // 2. 使用 AIMessageManager 发送消息
+                val responseStream = AIMessageManager.sendMessage(
+                    enhancedAiService = service,
+                    messageContent = finalMessageContent,
+                    chatHistory = getChatHistory(),
+                    workspacePath = workspacePath,
+                    promptFunctionType = promptFunctionType,
+                    enableThinking = enableThinking,
+                    thinkingGuidance = thinkingGuidance,
+                    onNonFatalError = { error ->
+                        _nonFatalErrorEvent.emit(error)
+                    }
+                )
 
                 // 将字符串流共享，以便多个收集器可以使用
                 val sharedCharStream =
-                        responseStream.share(
-                                scope = viewModelScope,
-                                replay = 0, // 不重放历史消息
-                                onComplete = {
-                                    deferred.complete(Unit)
-                                    Log.d(
-                                            TAG,
-                                            "共享流完成，耗时: ${System.currentTimeMillis() - startTime}ms"
-                                    )
-                                    currentResponseStream = null // 清除本地引用
-                                }
-                        )
+                    responseStream.share(
+                        scope = viewModelScope,
+                        replay = 0, // 不重放历史消息
+                        onComplete = {
+                            deferred.complete(Unit)
+                            Log.d(
+                                TAG,
+                                "共享流完成，耗时: ${System.currentTimeMillis() - startTime}ms"
+                            )
+                            currentResponseStream = null // 清除本地引用
+                        }
+                    )
 
                 // 更新当前响应流，使其可以被其他组件（如悬浮窗）访问
                 currentResponseStream = sharedCharStream
 
                 aiMessage = ChatMessage(sender = "ai", contentStream = sharedCharStream)
                 Log.d(
-                        TAG,
-                        "创建带流的AI消息, stream is null: ${aiMessage.contentStream == null}, timestamp: ${aiMessage.timestamp}"
+                    TAG,
+                    "创建带流的AI消息, stream is null: ${aiMessage.contentStream == null}, timestamp: ${aiMessage.timestamp}"
                 )
 
                 withContext(Dispatchers.Main) { addMessageToChat(aiMessage) }
 
                 // 启动一个独立的协程来收集流内容并持续更新数据库
                 streamCollectionJob =
-                        viewModelScope.launch(Dispatchers.IO) {
-                            val contentBuilder = StringBuilder()
-                            sharedCharStream.collect { chunk ->
-                                contentBuilder.append(chunk)
-                                val content = contentBuilder.toString()
-                                val updatedMessage = aiMessage.copy(content = content)
-                                // 防止后续读取不到
-                                aiMessage.content = content
-                                addMessageToChat(updatedMessage)
-                                _scrollToBottomEvent.tryEmit(Unit)
-                            }
+                    viewModelScope.launch(Dispatchers.IO) {
+                        val contentBuilder = StringBuilder()
+                        sharedCharStream.collect { chunk ->
+                            contentBuilder.append(chunk)
+                            val content = contentBuilder.toString()
+                            val updatedMessage = aiMessage.copy(content = content)
+                            // 防止后续读取不到
+                            aiMessage.content = content
+                            addMessageToChat(updatedMessage)
+                            _scrollToBottomEvent.tryEmit(Unit)
                         }
+                    }
 
                 // 等待流完成，以便finally块可以正确执行来更新UI状态
                 deferred.await()

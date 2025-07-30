@@ -2,6 +2,7 @@ package com.ai.assistance.operit.api.chat
 
 import android.util.Log
 import com.ai.assistance.operit.data.model.ModelParameter
+import com.ai.assistance.operit.util.stream.Stream
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -41,5 +42,17 @@ class QwenAIProvider(
 
         // 使用更新后的JSONObject创建新的RequestBody
         return jsonObject.toString().toRequestBody(JSON)
+    }
+
+    override suspend fun sendMessage(
+            message: String,
+            chatHistory: List<Pair<String, String>>,
+            modelParameters: List<ModelParameter<*>>,
+            enableThinking: Boolean,
+            onTokensUpdated: suspend (input: Int, output: Int) -> Unit,
+            onNonFatalError: suspend (error: String) -> Unit
+    ): Stream<String> {
+        // 直接调用父类的sendMessage实现，它已经包含了续写逻辑
+        return super.sendMessage(message, chatHistory, modelParameters, enableThinking, onTokensUpdated, onNonFatalError)
     }
 } 

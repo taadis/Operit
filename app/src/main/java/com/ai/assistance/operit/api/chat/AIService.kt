@@ -39,7 +39,8 @@ interface AIService {
             chatHistory: List<Pair<String, String>> = emptyList(),
             modelParameters: List<ModelParameter<*>> = emptyList(),
             enableThinking: Boolean = false,
-            onTokensUpdated: suspend (input: Int, output: Int) -> Unit = { _, _ -> }
+            onTokensUpdated: suspend (input: Int, output: Int) -> Unit = { _, _ -> },
+            onNonFatalError: suspend (error: String) -> Unit = {}
     ): Stream<String>
 
     /**

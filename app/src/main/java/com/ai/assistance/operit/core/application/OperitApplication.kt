@@ -11,6 +11,7 @@ import androidx.core.os.LocaleListCompat
 import coil.ImageLoader
 import coil.disk.DiskCache
 import coil.request.CachePolicy
+import com.ai.assistance.operit.core.chat.AIMessageManager
 import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
 import com.ai.assistance.operit.data.db.AppDatabase
 import com.ai.assistance.operit.data.mcp.MCPImageCache
@@ -67,6 +68,9 @@ class OperitApplication : Application() {
 
         // Initialize ActivityLifecycleManager to track the current activity
         ActivityLifecycleManager.initialize(this)
+
+        // Initialize AIMessageManager
+        AIMessageManager.initialize(this)
 
         // Initialize Embedding Service as early as possible
         EmbeddingService.initialize(this)

@@ -110,7 +110,8 @@ class GeminiProvider(
             chatHistory: List<Pair<String, String>>,
             modelParameters: List<ModelParameter<*>>,
             enableThinking: Boolean,
-            onTokensUpdated: suspend (input: Int, output: Int) -> Unit
+            onTokensUpdated: suspend (input: Int, output: Int) -> Unit,
+            onNonFatalError: suspend (error: String) -> Unit
     ): Stream<String> = stream {
         val requestId = System.currentTimeMillis().toString()
         // 重置token计数
@@ -123,9 +124,9 @@ class GeminiProvider(
         var retryCount = 0
         var lastException: Exception? = null
 
-        val requestBody = createRequestBody(message, chatHistory, modelParameters, enableThinking)
-        onTokensUpdated(_inputTokenCount, _outputTokenCount)
-        val request = createRequest(requestBody, true, requestId) // 使用流式请求
+        // 用于保存已接收到的内容，以便在重试时使用
+        val receivedContent = StringBuilder()
+
 
         // 状态更新函数 - 在Stream中我们使用emit来传递连接状态
         val emitConnectionStatus: (String) -> Unit = { status ->
@@ -137,6 +138,25 @@ class GeminiProvider(
 
         while (retryCount < maxRetries) {
             try {
+                // 如果是重试，我们需要构建一个新的请求
+                val currentMessage: String
+                val currentHistory: List<Pair<String, String>>
+
+                if (retryCount > 0 && receivedContent.isNotEmpty()) {
+                    Log.d(TAG, "【Gemini 重试】准备续写请求，已接收内容长度: ${receivedContent.length}")
+                    currentMessage = message + "\n\n[SYSTEM NOTE] The previous response was cut off by a network error. You MUST continue from the exact point of interruption. Do not repeat any content. If you were in the middle of a code block or XML tag, complete it. Just output the text that would have come next."
+                    val resumeHistory = chatHistory.toMutableList()
+                    resumeHistory.add("model" to receivedContent.toString()) // Gemini uses 'model' role for assistant
+                    currentHistory = resumeHistory
+                } else {
+                    currentMessage = message
+                    currentHistory = chatHistory
+                }
+
+                val requestBody = createRequestBody(currentMessage, currentHistory, modelParameters, enableThinking)
+                onTokensUpdated(_inputTokenCount, _outputTokenCount)
+                val request = createRequest(requestBody, true, requestId) // 使用流式请求
+
                 val call = client.newCall(request)
                 activeCall = call
 
@@ -156,7 +176,7 @@ class GeminiProvider(
                     }
 
                     // 处理响应
-                    processStreamingResponse(response, this, requestId, onTokensUpdated)
+                    processStreamingResponse(response, this, requestId, onTokensUpdated, receivedContent)
                 }
 
                 activeCall = null
@@ -164,23 +184,49 @@ class GeminiProvider(
             } catch (e: SocketTimeoutException) {
                 lastException = e
                 retryCount++
+                if (retryCount >= maxRetries) {
+                    logError("连接超时且达到最大重试次数", e)
+                    throw IOException("AI响应获取失败，连接超时且已达最大重试次数: ${e.message}")
+                }
                 logError("连接超时，尝试重试 $retryCount/$maxRetries", e)
-
-                emitConnectionStatus("连接超时，正在重试 $retryCount...")
-                delay(1000L * retryCount)
+                onNonFatalError("【网络超时，正在进行第 $retryCount 次重试...】")
+                delay(1000L * (1 shl (retryCount - 1)))
             } catch (e: UnknownHostException) {
-                logError("无法连接到服务器，可能是网络问题", e)
-                emitConnectionStatus("无法连接到服务器，请检查网络")
-                throw IOException("无法连接到服务器，请检查网络连接")
+                lastException = e
+                retryCount++
+                if (retryCount >= maxRetries) {
+                    logError("无法解析主机且达到最大重试次数", e)
+                    throw IOException("无法连接到服务器，请检查网络连接或API地址是否正确")
+                }
+                logError("无法解析主机，尝试重试 $retryCount/$maxRetries", e)
+                onNonFatalError("【网络不稳定，正在进行第 $retryCount 次重试...】")
+                delay(1000L * (1 shl (retryCount - 1)))
+            } catch (e: IOException) {
+                // 捕获所有其他IO异常，包括流读取中断
+                lastException = e
+                retryCount++
+                if (retryCount >= maxRetries) {
+                    logError("达到最大重试次数后仍然失败", e)
+                    throw IOException("AI响应获取失败，已达最大重试次数: ${e.message}")
+                }
+                logError("IO异常，尝试重试 $retryCount/$maxRetries", e)
+                onNonFatalError("【网络中断，正在进行第 $retryCount 次重试...】")
+                delay(1000L * (1 shl (retryCount - 1)))
             } catch (e: Exception) {
-                logError("发送消息时发生异常", e)
-                emitConnectionStatus("连接失败: ${e.message}")
-                throw IOException("AI响应获取失败: ${e.message}")
+                lastException = e
+                retryCount++
+                 if (retryCount >= maxRetries) {
+                    logError("未知异常且达到最大重试次数", e)
+                    throw IOException("AI响应获取失败: ${e.message}")
+                }
+                logError("发送消息时发生异常，尝试重试 $retryCount/$maxRetries", e)
+                onNonFatalError("【连接失败，正在进行第 $retryCount 次重试...】")
+                delay(1000L * (1 shl (retryCount - 1)))
             }
         }
 
         logError("重试${maxRetries}次后仍然失败", lastException)
-        throw IOException("连接超时，已重试 $maxRetries 次")
+        throw IOException("连接超时或中断，已重试 $maxRetries 次: ${lastException?.message}")
     }
 
     /** 创建请求体 */
@@ -374,7 +420,8 @@ class GeminiProvider(
             response: Response,
             streamBuilder: StreamCollector<String>,
             requestId: String,
-            onTokensUpdated: suspend (input: Int, output: Int) -> Unit
+            onTokensUpdated: suspend (input: Int, output: Int) -> Unit,
+            receivedContent: StringBuilder
     ) {
         Log.d(TAG, "开始处理响应流")
         val responseBody = response.body ?: throw IOException("响应为空")
@@ -421,6 +468,7 @@ class GeminiProvider(
                             if (content.isNotEmpty()) {
                                 contentCount++
                                 logDebug("提取SSE内容，长度: ${content.length}")
+                                receivedContent.append(content)
 
                                 // 只发送新增的内容
                                 streamBuilder.emit(content)
@@ -485,6 +533,7 @@ class GeminiProvider(
                                                         logDebug(
                                                                 "从JSON数组[$i]提取内容，长度: ${content.length}"
                                                         )
+                                                        receivedContent.append(content)
 
                                                         // 只发送这个单独对象产生的内容
                                                         streamBuilder.emit(content)
@@ -500,6 +549,7 @@ class GeminiProvider(
                                             if (content.isNotEmpty()) {
                                                 contentCount++
                                                 logDebug("从JSON对象提取内容，长度: ${content.length}")
+                                                receivedContent.append(content)
 
                                                 // 只发送新提取的内容
                                                 streamBuilder.emit(content)
@@ -553,6 +603,7 @@ class GeminiProvider(
                                 if (content.isNotEmpty()) {
                                     contentCount++
                                     logDebug("从最终JSON数组[$i]提取内容，长度: ${content.length}")
+                                    receivedContent.append(content)
                                     streamBuilder.emit(content)
                                 }
                             }
@@ -563,6 +614,7 @@ class GeminiProvider(
                             if (content.isNotEmpty()) {
                                 contentCount++
                                 logDebug("从最终JSON对象提取内容，长度: ${content.length}")
+                                receivedContent.append(content)
                                 streamBuilder.emit(content)
                             }
                         }
@@ -676,7 +728,7 @@ class GeminiProvider(
             // 这比getModelsList更可靠，因为它直接命中了聊天API。
             // 提供一个通用的系统提示，以防止某些需要它的模型出现错误。
             val testHistory = listOf("system" to "You are a helpful assistant.")
-            val stream = sendMessage("Hi", testHistory, emptyList(), false) { _, _ -> }
+            val stream = sendMessage("Hi", testHistory, emptyList(), false, onTokensUpdated = { _, _ -> }, onNonFatalError = {})
 
             // 消耗流以确保连接有效。
             // 对 "Hi" 的响应应该很短，所以这会很快完成。

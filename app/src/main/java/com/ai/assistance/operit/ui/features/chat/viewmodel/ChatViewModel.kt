@@ -11,6 +11,7 @@ import androidx.compose.material3.Typography
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ai.assistance.operit.api.chat.EnhancedAIService
+import com.ai.assistance.operit.core.chat.AIMessageManager
 import com.ai.assistance.operit.core.invitation.InvitationManager
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.data.model.AttachmentInfo
@@ -274,9 +275,6 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                         viewModelScope = viewModelScope,
                         getEnhancedAiService = { enhancedAiService },
                         getChatHistory = { chatHistoryDelegate.chatHistory.value },
-                        getMemory = { includePlanInfo ->
-                            chatHistoryDelegate.getMemory(includePlanInfo)
-                        },
                         addMessageToChat = { message ->
                             chatHistoryDelegate.addMessageToChat(message)
                         },
@@ -306,8 +304,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                                 tokenStatsDelegate.getCumulativeTokenCounts()
                             val windowSize = tokenStatsDelegate.getLastCurrentWindowSize()
                             chatHistoryDelegate.saveCurrentChat(inputTokens, outputTokens, windowSize)
-                        },
-                        toolHandler = toolHandler
+                        }
                 )
 
         // Finally initialize floating window delegate
@@ -709,19 +706,37 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 enableMemoryAttachment = enableMemoryAttachment.value // 传递记忆附着的状态
         )
 
-        // 检查是否应该生成总结
+        // 在sendMessageInternal中，添加对nonFatalErrorEvent的收集
+        viewModelScope.launch {
+            messageProcessingDelegate.nonFatalErrorEvent.collect { errorMessage ->
+                uiStateDelegate.showToast(errorMessage)
+            }
+        }
+
+        // 使用 AIMessageManager 检查是否应该生成总结
+        val currentMessages = chatHistoryDelegate.chatHistory.value
         val currentTokens = currentWindowSize.value
-        // 将maxWindowSizeInK (例如4.0f) 转换为实际的token数
         val maxTokens = (maxWindowSizeInK.value * 1024).toInt()
 
-        if (chatHistoryDelegate.shouldGenerateSummary(
-                messages = chatHistoryDelegate.chatHistory.value,
+        if (AIMessageManager.shouldGenerateSummary(
+                messages = currentMessages,
                 currentTokens = currentTokens,
                 maxTokens = maxTokens
-            )) {
-            // 触发总结
+            )
+        ) {
+            // 1. 在调用挂起函数之前，根据当前的消息快照预先计算好插入位置
+            val insertPosition = chatHistoryDelegate.findProperSummaryPosition(currentMessages)
+
+            // 2. 异步触发总结生成
             viewModelScope.launch(Dispatchers.IO) {
-                chatHistoryDelegate.summarizeMemory(chatHistoryDelegate.chatHistory.value)
+                enhancedAiService?.let { service ->
+                    // 传入快照进行总结
+                    val summaryMessage = AIMessageManager.summarizeMemory(service, currentMessages)
+                    summaryMessage?.let {
+                        // 3. 使用预先计算好的位置插入总结消息
+                        chatHistoryDelegate.addSummaryMessage(it, insertPosition)
+                    }
+                }
             }
         }
 

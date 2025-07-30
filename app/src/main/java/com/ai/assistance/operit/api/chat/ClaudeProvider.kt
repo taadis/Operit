@@ -245,7 +245,8 @@ class ClaudeProvider(
             chatHistory: List<Pair<String, String>>,
             modelParameters: List<ModelParameter<*>>,
             enableThinking: Boolean,
-            onTokensUpdated: suspend (input: Int, output: Int) -> Unit
+            onTokensUpdated: suspend (input: Int, output: Int) -> Unit,
+            onNonFatalError: suspend (error: String) -> Unit
     ): Stream<String> = stream {
         // 重置token计数
         _inputTokenCount = 0
@@ -255,13 +256,32 @@ class ClaudeProvider(
         var retryCount = 0
         var lastException: Exception? = null
 
-        val requestBody = createRequestBody(message, chatHistory, modelParameters, enableThinking)
-        onTokensUpdated(_inputTokenCount, _outputTokenCount)
-        val request = createRequest(requestBody)
+        // 用于保存已接收到的内容，以便在重试时使用
+        val receivedContent = StringBuilder()
 
         Log.d("AIService", "准备连接到Claude AI服务...")
         while (retryCount < maxRetries) {
             try {
+                // 如果是重试，我们需要构建一个新的请求
+                val currentMessage: String
+                val currentHistory: List<Pair<String, String>>
+
+                if (retryCount > 0 && receivedContent.isNotEmpty()) {
+                    Log.d("AIService", "【Claude 重试】准备续写请求，已接收内容: ${receivedContent.length}")
+                    // Claude 对续写指令可能需要不同的优化，这里使用一个通用的方式
+                    currentMessage = message + "\n\n[SYSTEM NOTE] The previous response was cut off by a network error. You MUST continue from the exact point of interruption. Do not repeat any content. If you were in the middle of a code block or XML tag, complete it. Just output the text that would have come next."
+                    val resumeHistory = chatHistory.toMutableList()
+                    resumeHistory.add("assistant" to receivedContent.toString())
+                    currentHistory = resumeHistory
+                } else {
+                    currentMessage = message
+                    currentHistory = chatHistory
+                }
+
+                val requestBody = createRequestBody(currentMessage, currentHistory, modelParameters, enableThinking)
+                onTokensUpdated(_inputTokenCount, _outputTokenCount)
+                val request = createRequest(requestBody)
+
                 // 创建Call对象并保存到activeCall中，以便可以取消
                 val call = client.newCall(request)
                 activeCall = call
@@ -299,16 +319,32 @@ class ClaudeProvider(
 
                                         // Claude API在响应中包含content
                                         val type = jsonResponse.optString("type", "")
-                                        val content = jsonResponse.optString("content", "")
-
-                                        if (content.isNotEmpty()) {
-                                            _outputTokenCount += ChatUtils.estimateTokenCount(content)
-                                            onTokensUpdated(_inputTokenCount, _outputTokenCount)
-                                            emit(content)
+                                        
+                                        // 根据type处理不同的事件
+                                        when (type) {
+                                            "content_block_delta" -> {
+                                                val delta = jsonResponse.optJSONObject("delta")
+                                                if (delta != null) {
+                                                    val content = delta.optString("text", "")
+                                                    if (content.isNotEmpty()) {
+                                                        _outputTokenCount += ChatUtils.estimateTokenCount(content)
+                                                        onTokensUpdated(_inputTokenCount, _outputTokenCount)
+                                                        emit(content)
+                                                        receivedContent.append(content)
+                                                    }
+                                                }
+                                            }
+                                            "message_delta" -> {
+                                                 //  可以处理stop_reason等
+                                            }
+                                            "content_block_stop" -> {
+                                                // 块停止
+                                            }
                                         }
+
                                     } catch (e: Exception) {
                                         // 忽略解析错误，继续处理下一行
-                                        Log.d("AIService", "JSON解析错误: ${e.message}")
+                                        Log.w("AIService", "JSON解析错误: ${e.message}")
                                     }
                                 }
                             }
@@ -319,6 +355,8 @@ class ClaudeProvider(
                             Log.d("AIService", "流式传输已被取消，处理IO异常")
                             wasCancelled = true
                         } else {
+                             Log.e("AIService", "【Claude】流式读取时发生IO异常，准备重试", e)
+                            lastException = e
                             throw e
                         }
                     }
@@ -328,25 +366,55 @@ class ClaudeProvider(
                 }
 
                 // 成功处理后，返回
+                 Log.d( "AIService", "【Claude】请求成功完成")
                 return@stream
             } catch (e: SocketTimeoutException) {
                 lastException = e
                 retryCount++
-                Log.d("AIService", "连接超时，正在进行第 $retryCount 次重试...")
-                // 指数退避重试
-                delay(1000L * retryCount)
+                if (retryCount >= maxRetries) {
+                    Log.e("AIService", "【Claude】连接超时且达到最大重试次数", e)
+                    throw IOException("AI响应获取失败，连接超时且已达最大重试次数: ${e.message}")
+                }
+                Log.w("AIService", "【Claude】连接超时，正在进行第 $retryCount 次重试...", e)
+                onNonFatalError("【网络超时，正在进行第 $retryCount 次重试...】")
+                delay(1000L * (1 shl (retryCount - 1)))
             } catch (e: UnknownHostException) {
-                Log.d("AIService", "无法连接到服务器，请检查网络")
-                throw IOException("无法连接到服务器，请检查网络连接或API地址是否正确")
-            } catch (e: Exception) {
-                Log.d("AIService", "连接失败: ${e.message}")
-                throw IOException("AI响应获取失败: ${e.message} ${e.stackTrace.joinToString("\n")}")
+                lastException = e
+                retryCount++
+                if (retryCount >= maxRetries) {
+                    Log.e("AIService", "【Claude】无法解析主机且达到最大重试次数", e)
+                    throw IOException("无法连接到服务器，请检查网络连接或API地址是否正确")
+                }
+                Log.w("AIService", "【Claude】无法解析主机，正在进行第 $retryCount 次重试...", e)
+                onNonFatalError("【网络不稳定，正在进行第 $retryCount 次重试...】")
+                delay(1000L * (1 shl (retryCount - 1)))
+            } catch (e: IOException) {
+                lastException = e
+                retryCount++
+                if(retryCount >= maxRetries) {
+                    Log.e("AIService", "【Claude】达到最大重试次数", e)
+                    throw IOException("AI响应获取失败，已达最大重试次数: ${e.message}")
+                }
+                Log.w("AIService", "【Claude】网络中断，正在进行第 $retryCount 次重试...", e)
+                onNonFatalError("【网络中断，正在进行第 $retryCount 次重试...】")
+                delay(1000L * (1 shl (retryCount - 1)))
+            }
+            catch (e: Exception) {
+                lastException = e
+                retryCount++
+                if(retryCount >= maxRetries) {
+                    Log.e("AIService", "【Claude】发生未知异常且达到最大重试次数", e)
+                    throw IOException("AI响应获取失败: ${e.message}")
+                }
+                Log.e("AIService", "【Claude】连接失败，正在进行第 $retryCount 次重试...", e)
+                onNonFatalError("【连接失败，正在进行第 $retryCount 次重试...】")
+                delay(1000L * (1 shl (retryCount - 1)))
             }
         }
-
-        Log.d("AIService", "重试失败，请检查网络连接")
+        
+        Log.e("AIService", "【Claude】重试失败，请检查网络连接", lastException)
         // 所有重试都失败
-        throw IOException("连接超时，已重试 $maxRetries 次: ${lastException?.message}")
+        throw IOException("连接超时或中断，已重试 $maxRetries 次: ${lastException?.message}")
     }
 
     /**
@@ -368,7 +436,7 @@ class ClaudeProvider(
             // 这比getModelsList更可靠，因为它直接命中了聊天API。
             // 提供一个通用的系统提示，以防止某些需要它的模型出现错误。
             val testHistory = listOf("system" to "You are a helpful assistant.")
-            val stream = sendMessage("Hi", testHistory, emptyList(), false) { _, _ -> }
+            val stream = sendMessage("Hi", testHistory, emptyList(), false, onTokensUpdated = { _, _ -> }, onNonFatalError = {})
 
             // 消耗流以确保连接有效。
             // 对 "Hi" 的响应应该很短，所以这会很快完成。
