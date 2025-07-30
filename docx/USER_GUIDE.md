@@ -365,7 +365,7 @@
 <h3 id="section-3-1" style="display: flex; justify-content: space-between; align-items: center;"><span>🧰 开箱即用</span><a href="#section-3" style="text-decoration: none; font-size: 0.8em;" title="返回上一级">↩️</a></h3>
 <em>这部分为<strong>内置包</strong></em>
 <br>
-当你让AI写软件，软件的性能取决于AI的能力。示例中的模型为<code>Deepseel-R1</code>模型
+当你让AI写软件，软件的性能取决于AI的能力。示例中的模型为<code>DeepSeek-R1</code>模型
 
 <table style="width: 100%;">
   <thead>
