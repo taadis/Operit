@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.layout.Layout
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.data.model.AITool
@@ -35,7 +36,7 @@ import com.ai.assistance.operit.ui.features.chat.components.ExportCompleteDialog
 import com.ai.assistance.operit.ui.features.chat.components.ExportPlatformDialog
 import com.ai.assistance.operit.ui.features.chat.components.ExportProgressDialog
 import com.ai.assistance.operit.ui.features.chat.components.WindowsExportDialog
-import com.ai.assistance.operit.ui.features.chat.components.WorkspaceScreen
+import com.ai.assistance.operit.ui.features.chat.webview.workspace.WorkspaceScreen
 import com.ai.assistance.operit.ui.features.chat.webview.computer.ComputerScreen
 import com.ai.assistance.operit.ui.features.chat.util.ConfigurationStateHolder
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
@@ -353,7 +354,10 @@ fun AIChatScreen(
                 )
             }
             // Web开发模式切换按钮
-            IconButton(onClick = { actualViewModel.onWorkspaceButtonClick() }) {
+            IconButton(onClick = {
+                actualViewModel.onWorkspaceButtonClick()
+                actualViewModel.refreshWebView()
+            }) {
                 Icon(
                         imageVector = Icons.Default.Code,
                         contentDescription = "代码编辑器",
@@ -549,30 +553,68 @@ fun AIChatScreen(
         }
 
         // AI电脑作为浮层
-        AnimatedVisibility(visible = showAiComputer) {
-            val currentChat = chatHistories.find { it.id == currentChatId }
-            ComputerScreen(
-                actualViewModel = actualViewModel,
-                currentChat = currentChat
-            )
+        Layout(
+            modifier = Modifier.fillMaxSize(),
+            content = {
+                // The content is composed unconditionally, keeping it "alive"
+                val currentChat = chatHistories.find { it.id == currentChatId }
+                ComputerScreen(
+                    actualViewModel = actualViewModel,
+                    currentChat = currentChat
+                )
+            }
+        ) { measurables, constraints ->
+            if (showAiComputer) {
+                // When visible, measure and place the content.
+                val placeable = measurables.first().measure(constraints)
+                layout(placeable.width, placeable.height) {
+                    placeable.placeRelative(0, 0)
+                }
+            } else {
+                // When not visible, we compose it but don't measure or place it.
+                // It occupies no space and is not drawn, but its state is preserved.
+                layout(0, 0) {}
+            }
         }
 
+
         // Web开发模式作为浮层，现在位于Scaffold外部，可以覆盖整个屏幕
-        AnimatedVisibility(visible = showWebView) {
-            val currentChat = chatHistories.find { it.id == currentChatId }
-            if (currentChat != null) {
-                WorkspaceScreen(
-                    actualViewModel = actualViewModel,
-                    currentChat = currentChat,
-                    onExportClick = { workDir ->
-                        webContentDir = workDir
-                        Log.d(
-                            "AIChatScreen",
-                            "正在导出工作区: ${workDir.absolutePath}, 聊天ID: $currentChatId"
-                        )
-                        showExportPlatformDialog = true
+        Layout(
+            modifier = Modifier.fillMaxSize(),
+            content = {
+                // The content is composed unconditionally, keeping it "alive"
+                val currentChat = chatHistories.find { it.id == currentChatId }
+                if (currentChat != null) {
+                    WorkspaceScreen(
+                        actualViewModel = actualViewModel,
+                        currentChat = currentChat,
+                        isVisible = showWebView, // Pass visibility state
+                        onExportClick = { workDir ->
+                            webContentDir = workDir
+                            Log.d(
+                                "AIChatScreen",
+                                "正在导出工作区: ${workDir.absolutePath}, 聊天ID: $currentChatId"
+                            )
+                            showExportPlatformDialog = true
+                        }
+                    )
+                }
+            }
+        ) { measurables, constraints ->
+            if (showWebView) {
+                // When visible, measure and place the content.
+                if (measurables.isNotEmpty()) {
+                    val placeable = measurables.first().measure(constraints)
+                    layout(placeable.width, placeable.height) {
+                        placeable.placeRelative(0, 0)
                     }
-                )
+                } else {
+                    layout(0, 0) {}
+                }
+            } else {
+                // When not visible, we compose it but don't measure or place it.
+                // It occupies no space and is not drawn, but its state is preserved.
+                layout(0, 0) {}
             }
         }
 

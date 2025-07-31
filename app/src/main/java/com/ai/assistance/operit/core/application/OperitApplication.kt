@@ -12,6 +12,8 @@ import coil.ImageLoader
 import coil.disk.DiskCache
 import coil.request.CachePolicy
 import com.ai.assistance.operit.core.chat.AIMessageManager
+import com.ai.assistance.operit.core.config.SystemPromptConfig
+import com.ai.assistance.operit.core.invitation.InvitationManager
 import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
 import com.ai.assistance.operit.data.db.AppDatabase
 import com.ai.assistance.operit.data.mcp.MCPImageCache
@@ -22,6 +24,7 @@ import com.ai.assistance.operit.data.preferences.initUserPreferencesManager
 import com.ai.assistance.operit.data.preferences.preferencesManager
 import com.ai.assistance.operit.services.EmbeddingService
 import com.ai.assistance.operit.ui.features.chat.webview.LocalWebServer
+import com.ai.assistance.operit.ui.features.chat.webview.computer.ComputerDesktopManager
 import com.ai.assistance.operit.ui.features.chat.webview.workspace.editor.language.LanguageFactory
 import com.ai.assistance.operit.util.GlobalExceptionHandler
 import com.ai.assistance.operit.util.LocaleUtils
@@ -66,6 +69,9 @@ class OperitApplication : Application() {
         super.onCreate()
         instance = this
 
+        // 初始化全局桌面管理器
+        ComputerDesktopManager.initialize(this)
+        
         // Initialize ActivityLifecycleManager to track the current activity
         ActivityLifecycleManager.initialize(this)
 

@@ -1,7 +1,7 @@
 package com.ai.assistance.operit.ui.features.chat.webview.computer
 
-import android.view.MotionEvent
-import android.webkit.WebView
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -18,16 +18,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
 import com.ai.assistance.operit.data.model.ChatHistory
-import com.ai.assistance.operit.ui.common.rememberLocal
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
 import com.ai.assistance.operit.ui.features.chat.webview.LocalWebServer
-import com.ai.assistance.operit.ui.features.chat.webview.WebViewHandler
 import java.io.IOException
 import java.util.UUID
 import kotlinx.serialization.Serializable
 import android.util.Log
-import android.webkit.WebResourceRequest
-import android.webkit.WebViewClient
 
 @Serializable
 data class ComputerTab(
@@ -42,57 +38,14 @@ fun ComputerManager(
     currentChat: ChatHistory?,
 ) {
     val context = LocalContext.current
+    val manager = ComputerDesktopManager
 
-    val initialTabs = listOf(ComputerTab(title = "Home", url = "http://localhost:${LocalWebServer.COMPUTER_PORT}"))
-    var openTabs by rememberLocal<List<ComputerTab>>(key = "computer_tabs_v2", initialTabs)
-    var currentTabIndex by rememberLocal(key = "current_tab_index_v2", 0)
-
-    fun newTab(url: String = "http://localhost:${LocalWebServer.COMPUTER_PORT}", title: String = "New Tab") {
-        openTabs = openTabs + ComputerTab(title = title, url = url)
-        currentTabIndex = openTabs.size - 1
-    }
-
-    val webViewHandler = remember(context) {
-        WebViewHandler(context).apply {
-            onFileChooserRequest = { intent, callback ->
-                actualViewModel.startFileChooserForResult(intent) { resultCode, data ->
-                    callback(resultCode, data)
-                }
-            }
-            urlLoadingOverrider = { _, request ->
-                val url = request?.url?.toString()
-                if (url != null) {
-                    if (url.startsWith("http://localhost:${LocalWebServer.COMPUTER_PORT}")) {
-                        newTab(
-                            url = url,
-                            title = url.substringAfterLast('/').ifEmpty { "File" }
-                        )
-                    } else {
-                        newTab(url = url, title = "Browser")
-                    }
-                    true // We've handled the URL override.
-                } else {
-                    false
-                }
-            }
-        }
-    }
-
-    val webView = remember(context) {
-        WebView(context).apply {
-            setOnTouchListener { v, event ->
-                when (event.action) {
-                    MotionEvent.ACTION_DOWN -> v.parent.requestDisallowInterceptTouchEvent(true)
-                    MotionEvent.ACTION_UP -> v.parent.requestDisallowInterceptTouchEvent(false)
-                }
-                false
-            }
-            webViewHandler.configureWebView(this)
-        }
-    }
+    // Sync progress from manager to a local state to trigger recomposition
+    val webViewProgress by manager.webViewHandler.observeProgress()
 
     // Start the computer web server when the manager is composed
     LaunchedEffect(Unit) {
+        manager.initialize(context)
         val computerServer = LocalWebServer.getInstance(context, LocalWebServer.ServerType.COMPUTER)
         if (!computerServer.isRunning()) {
             try {
@@ -101,21 +54,13 @@ fun ComputerManager(
                 Log.e("ComputerManager", "Failed to start computer web server", e)
             }
         }
+        // Ensure the server is running before creating the first tab
+        manager.ensureInitialTab()
     }
 
-    fun closeTab(index: Int) {
-        if (index >= 0 && index < openTabs.size) {
-            openTabs = openTabs.toMutableList().also { it.removeAt(index) }
-            if (currentTabIndex >= openTabs.size) {
-                currentTabIndex = openTabs.size - 1
-            }
-        }
-    }
-    
-    LaunchedEffect(currentTabIndex, openTabs) {
-        val currentTab = openTabs.getOrNull(currentTabIndex)
-        if (currentTab != null) {
-            webView.loadUrl(currentTab.url)
+    DisposableEffect(Unit) {
+        onDispose {
+            manager.onUiDispose()
         }
     }
 
@@ -126,25 +71,29 @@ fun ComputerManager(
             modifier = Modifier.zIndex(1f)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState())) {
-                    openTabs.forEachIndexed { index, tab ->
+                Row(modifier = Modifier
+                    .weight(1f)
+                    .horizontalScroll(rememberScrollState())) {
+                    manager.openTabs.forEachIndexed { index, tab ->
                         ComputerTabComponent(
                             title = tab.title,
                             icon = Icons.Default.Home,
-                            isActive = currentTabIndex == index,
+                            isActive = manager.currentTabIndex.value == index,
                             isUnsaved = false,
-                            onClose = if (openTabs.size > 1) { { closeTab(index) } } else null,
-                            onClick = { currentTabIndex = index }
+                            onClose = if (manager.openTabs.size > 1) { { manager.closeTab(index) } } else null,
+                            onClick = { manager.switchToTab(index) }
                         )
                     }
                 }
 
                 var showMenu by remember { mutableStateOf(false) }
 
-                IconButton(onClick = { newTab() }) {
+                IconButton(onClick = { manager.openBrowser() }) {
                     Icon(Icons.Default.Add, contentDescription = "New Tab")
                 }
 
@@ -156,11 +105,11 @@ fun ComputerManager(
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false }
                     ) {
-                        openTabs.forEachIndexed { index, tab ->
+                        manager.openTabs.forEachIndexed { index, tab ->
                             DropdownMenuItem(
                                 text = { Text(tab.title) },
                                 onClick = {
-                                    currentTabIndex = index
+                                    manager.switchToTab(index)
                                     showMenu = false
                                 }
                             )
@@ -170,11 +119,36 @@ fun ComputerManager(
             }
         }
 
+        if (webViewProgress > 0 && webViewProgress < 100) {
+            LinearProgressIndicator(
+                progress = { webViewProgress / 100f },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(2.dp)
+            )
+        }
+
         Box(modifier = Modifier.weight(1f)) {
-            if (openTabs.isNotEmpty()) {
-                AndroidView({ webView }, modifier = Modifier.fillMaxSize())
+            if (manager.openTabs.isNotEmpty()) {
+                AndroidView(
+                    factory = { ctx -> FrameLayout(ctx) },
+                    modifier = Modifier.fillMaxSize(),
+                    update = { container ->
+                        val currentTab = manager.openTabs.getOrNull(manager.currentTabIndex.value)
+                        if (currentTab != null) {
+                            val webView = manager.getOrCreateWebView(currentTab)
+
+                            if (webView.parent != container) {
+                                (webView.parent as? ViewGroup)?.removeView(webView)
+                                container.removeAllViews()
+                                container.addView(webView)
+                            }
+                        } else {
+                            container.removeAllViews()
+                        }
+                    }
+                )
             } else {
-                // Placeholder for when no tabs are open
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center

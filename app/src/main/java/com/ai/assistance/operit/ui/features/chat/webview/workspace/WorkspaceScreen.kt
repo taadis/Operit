@@ -22,6 +22,7 @@ import java.io.File
 fun WorkspaceScreen(
     actualViewModel: ChatViewModel,
     currentChat: ChatHistory?,
+    isVisible: Boolean,
     onExportClick: (workDir: File) -> Unit
 ) {
     if (currentChat?.workspace != null) {
@@ -29,6 +30,7 @@ fun WorkspaceScreen(
             actualViewModel = actualViewModel,
             currentChat = currentChat,
             workspacePath = currentChat.workspace,
+            isVisible = isVisible,
             onExportClick = onExportClick
         )
     } else if (currentChat != null) {

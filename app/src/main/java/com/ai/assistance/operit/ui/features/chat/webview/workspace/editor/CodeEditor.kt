@@ -318,6 +318,14 @@ class NativeCodeEditor : ViewGroup {
             codeText.setSelection(start + symbol.length)
         }
     }
+
+    /**
+     * 以编程方式替换所有文本，并记录为单一的可撤销操作
+     * @param newText 新的文本内容
+     */
+    fun replaceAllText(newText: String) {
+        codePane.getCodeText().replaceAllText(newText)
+    }
     
     /** 获取光标在屏幕上的位置 */
     fun getCursorScreenPosition(): Point? {

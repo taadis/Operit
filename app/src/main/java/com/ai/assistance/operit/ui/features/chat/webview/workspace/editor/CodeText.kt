@@ -203,7 +203,32 @@ class CodeText : ColorsText {
         // 清空重做历史
         redoHistory.clear()
     }
-    
+
+    /**
+     * 以编程方式替换所有文本，并作为一个整体记录到撤销历史中
+     * @param newText 新的文本内容
+     */
+    fun replaceAllText(newText: String) {
+        val oldText = text.toString()
+        if (oldText == newText) return
+
+        // 锁定，防止TextWatcher记录这次更改
+        isUndoingOrRedoing = true
+
+        // 将“删除旧文本”和“插入新文本”作为一组操作记录下来
+        undoHistory.add(Edit(EditType.DELETE, oldText, 0))
+        undoHistory.add(Edit(EditType.INSERT, newText, 0))
+
+        // 实际执行文本替换
+        text?.replace(0, oldText.length, newText)
+
+        // 任何新的编辑都会使重做历史失效
+        redoHistory.clear()
+
+        // 解锁
+        isUndoingOrRedoing = false
+    }
+
     /**
      * 请求显示补全
      */

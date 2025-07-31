@@ -46,6 +46,7 @@ fun WorkspaceManager(
         actualViewModel: ChatViewModel,
         currentChat: ChatHistory,
         workspacePath: String,
+        isVisible: Boolean,
         onExportClick: (workDir: File) -> Unit
 ) {
     val context = LocalContext.current
@@ -77,7 +78,7 @@ fun WorkspaceManager(
                         }
                         false
                     }
-                    webViewHandler.configureWebView(this)
+                    webViewHandler.configureWebView(this, WebViewHandler.WebViewMode.WORKSPACE)
                     loadUrl("http://localhost:8093")
                 }
             }
@@ -94,6 +95,39 @@ fun WorkspaceManager(
     
     // 当前活动的编辑器引用
     var activeEditor by remember { mutableStateOf<com.ai.assistance.operit.ui.features.chat.webview.workspace.editor.NativeCodeEditor?>(null) }
+
+    // 当工作区可见时，检查文件更新
+    LaunchedEffect(isVisible) {
+        if (isVisible) {
+            val updatedFiles = openFiles.map { fileInfo ->
+                val currentFile = File(fileInfo.path)
+                if (currentFile.exists() && currentFile.lastModified() > fileInfo.lastModified) {
+                    // 文件已在外部被修改，重新加载内容
+                    val tool = AITool("read_file", listOf(ToolParameter("path", fileInfo.path)))
+                    val result = toolHandler.executeTool(tool)
+                    if (result.success && result.result is com.ai.assistance.operit.core.tools.FileContentData) {
+                        val newContent = (result.result as com.ai.assistance.operit.core.tools.FileContentData).content
+                        
+                        // 如果当前文件就是这个被修改的文件，则更新编辑器内容
+                        if (openFiles.getOrNull(currentFileIndex)?.path == fileInfo.path) {
+                             activeEditor?.replaceAllText(newContent)
+                        }
+                        
+                        // 返回更新后的文件信息
+                        fileInfo.copy(
+                            content = newContent,
+                            lastModified = currentFile.lastModified()
+                        )
+                    } else {
+                        fileInfo // 加载失败，保留旧信息
+                    }
+                } else {
+                    fileInfo // 文件未更改
+                }
+            }
+            openFiles = updatedFiles
+        }
+    }
     
     // 保存文件函数
     fun saveFile(fileInfo: OpenFileInfo) {

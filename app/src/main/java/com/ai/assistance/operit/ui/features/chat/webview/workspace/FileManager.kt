@@ -45,6 +45,7 @@ data class DirectoryEntry(
 data class OpenFileInfo(
         val path: String,
         val content: String,
+        val lastModified: Long,
         val name: String = File(path).name
 )
 
@@ -149,8 +150,10 @@ fun FileBrowser(
                 val tool = AITool("read_file", listOf(ToolParameter("path", filePath)))
                 val result = toolHandler.executeTool(tool)
                 if (result.success && result.result is FileContentData) {
-                    val content = (result.result as FileContentData).content
-                    val openFileInfo = OpenFileInfo(path = filePath, content = content)
+                    val fileContentData = result.result as FileContentData
+                    val content = fileContentData.content
+                    val lastModified = File(filePath).lastModified()
+                    val openFileInfo = OpenFileInfo(path = filePath, content = content, lastModified = lastModified)
                     onFileOpen?.invoke(openFileInfo)
                 }
             } catch (e: Exception) {

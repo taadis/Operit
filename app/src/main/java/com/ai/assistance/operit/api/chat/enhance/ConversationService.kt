@@ -229,7 +229,7 @@ class ConversationService(private val context: Context) {
             }
 
             // Process each message in chat history
-            for (message in chatHistory) {
+            chatHistory.forEachIndexed { index, message ->
                 val role = message.first
                 val content = message.second
 
@@ -238,7 +238,7 @@ class ConversationService(private val context: Context) {
                     val xmlTags = splitXmlTag(content)
                     if (xmlTags.isNotEmpty()) {
                         // Process the message with tool results
-                        processChatMessageWithTools(content, xmlTags, preparedHistory)
+                        processChatMessageWithTools(content, xmlTags, preparedHistory, index, chatHistory.size)
                     } else {
                         // Add the message as is
                         preparedHistory.add(message)
@@ -324,7 +324,9 @@ class ConversationService(private val context: Context) {
     suspend fun processChatMessageWithTools(
             content: String,
             xmlTags: List<List<String>>,
-            conversationHistory: MutableList<Pair<String, String>>
+            conversationHistory: MutableList<Pair<String, String>>,
+            messageIndex: Int,
+            totalMessages: Int
     ) {
         if (xmlTags.isEmpty()) {
             // 如果没有XML标签，直接添加为AI消息
@@ -347,8 +349,10 @@ class ConversationService(private val context: Context) {
                 continue
             }
 
-            // 应用内存优化（现在默认启用）
-            if (tagContent.length > 1000 && tagName == "tool_result") {
+            // 应用内存优化: 只有当消息不是最近25条时才触发
+            val distanceFromEnd = totalMessages - 1 - messageIndex
+            if (distanceFromEnd > 25 && tagContent.length > 1000 && tagName == "tool_result") {
+                 Log.d(TAG, "Optimizing tool result for message at index $messageIndex (distance from end: $distanceFromEnd)")
                 tagContent = optimizeToolResult(tagContent)
             }
 
@@ -533,24 +537,62 @@ class ConversationService(private val context: Context) {
 
             val systemPrompt =
                 """
-                You are a code editing assistant. Your task is to transform the 'Original File' based on the 'AI-Generated Code' by creating a custom patch file. The placeholder `// ... existing code ...` in the AI code represents the entire original content.
+                You are an expert code editing assistant. Your task is to convert an 'AI-Generated Request' into a precise patch file. This patch will be used to modify the 'Original File Content'.
 
                 **CRITICAL RULES:**
                 1. Your output MUST ONLY be the patch content, following the custom format below. Do not add any explanations or markdown.
-                2. The format for each change consists of a SEARCH block and a REPLACE block.
-                3. The SEARCH block starts with `<<<<<<< SEARCH`, ends with `=======`, and contains the **exact, verbatim text** from the 'Original File' to be replaced.
-                4. The REPLACE block starts after `=======`, ends with `>>>>>>> REPLACE`, and contains the new code. To correctly append or prepend, you must include the original content (represented by the placeholder) in the REPLACE block.
+                2. The patch format for each change consists of a SEARCH block and a REPLACE block.
+                3. The SEARCH block starts with `<<<<<<< SEARCH`, ends with `=======`, and contains the **exact, verbatim text** from the 'Original File' to be replaced or deleted.
+                4. The REPLACE block starts after `=======`, ends with `>>>>>>> REPLACE`, and contains the new code. For deletions, the REPLACE block is empty.
 
-                Example for appending:
-                AI-Generated Code:
+                **How to interpret the 'AI-Generated Request':**
+                The request can come in several formats:
+                - **Placeholders:** `// ... existing code ...` represents the entire unchanged original content. Use this to determine if changes are prepended or appended.
+                - **Diff-like format:** Lines starting with `+` are additions. Lines starting with `-` are deletions. Lines without a prefix are context for locating the change.
+                - **Natural Language Comments:** Instructions like `// delete the login function` or `// add a new parameter to this method` provide high-level guidance. You must find the corresponding code block in the 'Original File Content' and generate the appropriate SEARCH/REPLACE blocks.
+
+                **Example 1: Using Placeholders (Appending)**
+                AI-Generated Request:
                 `// ... existing code ...
-                new line`
+                new final line`
                 Resulting Patch:
                 <<<<<<< SEARCH
-                original content
+                <entire original content>
                 =======
-                original content
-                new line
+                <entire original content>
+                new final line
+                >>>>>>> REPLACE
+
+                **Example 2: Using Diff Format**
+                Original File Content:
+                `line 1
+                line 2
+                line 3`
+                AI-Generated Request:
+                `line 1
+                -line 2
+                +new line 2
+                line 3`
+                Resulting Patch:
+                <<<<<<< SEARCH
+                line 2
+                =======
+                new line 2
+                >>>>>>> REPLACE
+
+                **Example 3: Using Natural Language**
+                Original File Content:
+                `function login(user, pass) {
+                  // ... implementation ...
+                }`
+                AI-Generated Request:
+                `// delete the login function`
+                Resulting Patch:
+                <<<<<<< SEARCH
+                function login(user, pass) {
+                  // ... implementation ...
+                }
+                =======
                 >>>>>>> REPLACE
                 """.trimIndent()
 
@@ -560,11 +602,11 @@ class ConversationService(private val context: Context) {
 ```
 $normalizedOriginalContent
 ```
-**AI-Generated Code (with placeholders):**
+**AI's Edit Request:**
 ```
 $normalizedAiGeneratedCode
 ```
-Now, generate ONLY the patch in the custom format.
+Now, generate ONLY the patch in the custom format based on all the rules.
 """.trimIndent()
             val modelParameters = runBlocking { apiPreferences.getAllModelParameters() }
             val fileBindingService =
