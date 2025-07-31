@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,7 +22,10 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalView
 import com.ai.assistance.operit.R
+import com.ai.assistance.operit.core.tools.AIToolHandler
+import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.AttachmentInfo
+import com.ai.assistance.operit.data.model.ToolParameter
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.ui.components.ErrorDialog
@@ -32,8 +36,7 @@ import com.ai.assistance.operit.ui.features.chat.components.ExportPlatformDialog
 import com.ai.assistance.operit.ui.features.chat.components.ExportProgressDialog
 import com.ai.assistance.operit.ui.features.chat.components.WindowsExportDialog
 import com.ai.assistance.operit.ui.features.chat.components.WorkspaceScreen
-import com.ai.assistance.operit.ui.features.chat.components.exportAndroidApp
-import com.ai.assistance.operit.ui.features.chat.components.exportWindowsApp
+import com.ai.assistance.operit.ui.features.chat.webview.computer.ComputerScreen
 import com.ai.assistance.operit.ui.features.chat.util.ConfigurationStateHolder
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModelFactory
@@ -286,6 +289,8 @@ fun AIChatScreen(
 
     // 收集WebView显示状态
     val showWebView by actualViewModel.showWebView.collectAsState()
+    // 收集AI电脑显示状态
+    val showAiComputer by actualViewModel.showAiComputer.collectAsState()
     val view = LocalView.current
 
     // Dynamically change window soft input mode based on web view visibility
@@ -335,8 +340,18 @@ fun AIChatScreen(
 
     // 当showWebView状态改变时，更新TopAppBar的actions
     // 使用DisposableEffect确保当AIChatScreen离开组合时，actions被清空
-    DisposableEffect(showWebView) {
+    DisposableEffect(showWebView, showAiComputer) {
         setTopBarActions {
+            // AI电脑模式切换按钮
+            IconButton(onClick = { actualViewModel.onAiComputerButtonClick() }) {
+                Icon(
+                    imageVector = Icons.Default.Computer,
+                    contentDescription = "AI电脑",
+                    tint =
+                    if (showAiComputer) MaterialTheme.colorScheme.primaryContainer
+                    else MaterialTheme.colorScheme.onPrimary
+                )
+            }
             // Web开发模式切换按钮
             IconButton(onClick = { actualViewModel.onWorkspaceButtonClick() }) {
                 Icon(
@@ -533,21 +548,30 @@ fun AIChatScreen(
             }
         }
 
+        // AI电脑作为浮层
+        AnimatedVisibility(visible = showAiComputer) {
+            val currentChat = chatHistories.find { it.id == currentChatId }
+            ComputerScreen(
+                actualViewModel = actualViewModel,
+                currentChat = currentChat
+            )
+        }
+
         // Web开发模式作为浮层，现在位于Scaffold外部，可以覆盖整个屏幕
         AnimatedVisibility(visible = showWebView) {
             val currentChat = chatHistories.find { it.id == currentChatId }
             if (currentChat != null) {
                 WorkspaceScreen(
-                        actualViewModel = actualViewModel,
-                        currentChat = currentChat,
-                        onExportClick = { workDir ->
-                            webContentDir = workDir
-                            Log.d(
-                                    "AIChatScreen",
-                                    "正在导出工作区: ${workDir.absolutePath}, 聊天ID: $currentChatId"
-                            )
-                            showExportPlatformDialog = true
-                        }
+                    actualViewModel = actualViewModel,
+                    currentChat = currentChat,
+                    onExportClick = { workDir ->
+                        webContentDir = workDir
+                        Log.d(
+                            "AIChatScreen",
+                            "正在导出工作区: ${workDir.absolutePath}, 聊天ID: $currentChatId"
+                        )
+                        showExportPlatformDialog = true
+                    }
                 )
             }
         }
@@ -658,7 +682,11 @@ fun AIChatScreen(
                     errorMessage = exportErrorMessage,
                     onDismiss = { showExportCompleteDialog = false },
                     onOpenFile = { path ->
-                        // Share or open file logic
+                        val tool = AITool(
+                            name = "open_file",
+                            parameters = listOf(ToolParameter("path", path))
+                        )
+                        AIToolHandler.getInstance(context).executeTool(tool)
                     }
             )
         }

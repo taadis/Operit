@@ -8,6 +8,7 @@ import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.model.ModelConfigData
 import com.ai.assistance.operit.data.preferences.FunctionalConfigManager
 import com.ai.assistance.operit.data.preferences.ModelConfigManager
+import com.ai.assistance.operit.data.preferences.ApiPreferences
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -92,12 +93,17 @@ class MultiServiceManager(private val context: Context) {
     }
 
     /** 根据配置创建AIService实例 */
-    private fun createServiceFromConfig(config: ModelConfigData): AIService {
+    private suspend fun createServiceFromConfig(config: ModelConfigData): AIService {
+        // 从ApiPreferences中异步获取自定义请求头
+        val apiPreferences = ApiPreferences(context)
+        val customHeadersJson = apiPreferences.getCustomHeaders()
+
         return AIServiceFactory.createService(
                 apiProviderType = config.apiProviderType,
                 apiEndpoint = config.apiEndpoint,
                 apiKey = config.apiKey,
-                modelName = config.modelName
+                modelName = config.modelName,
+                customHeadersJson = customHeadersJson
         )
     }
 }

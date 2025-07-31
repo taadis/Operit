@@ -129,8 +129,12 @@ class ApiPreferences(private val context: Context) {
         // 自定义参数存储键
         val CUSTOM_PARAMETERS = stringPreferencesKey("custom_parameters")
 
+        // 自定义请求头存储键
+        val CUSTOM_HEADERS = stringPreferencesKey("custom_headers")
+
         // 默认空的自定义参数列表
         const val DEFAULT_CUSTOM_PARAMETERS = "[]"
+        const val DEFAULT_CUSTOM_HEADERS = "{}"
     }
 
     // Get API Key as Flow
@@ -304,6 +308,12 @@ class ApiPreferences(private val context: Context) {
             context.apiDataStore.data.map { preferences ->
                 preferences[CUSTOM_TONE_PROMPT] ?: DEFAULT_TONE_PROMPT
             }
+
+    // Flow for Custom Headers
+    val customHeadersFlow: Flow<String> =
+        context.apiDataStore.data.map { preferences ->
+            preferences[CUSTOM_HEADERS] ?: DEFAULT_CUSTOM_HEADERS
+        }
 
     // Save API Key
     suspend fun saveApiKey(apiKey: String) {
@@ -665,6 +675,19 @@ class ApiPreferences(private val context: Context) {
         }
 
         return parameters
+    }
+
+    // 保存自定义请求头
+    suspend fun saveCustomHeaders(headersJson: String) {
+        context.apiDataStore.edit { preferences ->
+            preferences[CUSTOM_HEADERS] = headersJson
+        }
+    }
+
+    // 读取自定义请求头
+    suspend fun getCustomHeaders(): String {
+        val preferences = context.apiDataStore.data.first()
+        return preferences[CUSTOM_HEADERS] ?: DEFAULT_CUSTOM_HEADERS
     }
 
     // 更新偏好分析token计数

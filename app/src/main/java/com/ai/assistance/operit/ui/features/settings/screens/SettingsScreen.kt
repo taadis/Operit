@@ -33,7 +33,8 @@ fun SettingsScreen(
         navigateToFunctionalConfig: () -> Unit,
         navigateToChatHistorySettings: () -> Unit,
         navigateToLanguageSettings: () -> Unit,
-        navigateToSpeechServicesSettings: () -> Unit
+        navigateToSpeechServicesSettings: () -> Unit,
+        navigateToCustomHeadersSettings: () -> Unit
 ) {
         val context = LocalContext.current
         val apiPreferences = remember { ApiPreferences(context) }
@@ -149,6 +150,15 @@ fun SettingsScreen(
                     onClick = navigateToSpeechServicesSettings,
                     buttonText = "配置语音服务",
                     icon = Icons.Default.RecordVoiceOver
+                )
+
+                // 自定义请求头卡片
+                SettingsCard(
+                    title = "自定义请求头",
+                    description = "为API请求添加自定义HTTP头，例如 User-Agent 或其他代理所需的字段。",
+                    onClick = navigateToCustomHeadersSettings,
+                    buttonText = "配置请求头",
+                    icon = Icons.Default.AddModerator
                 )
 
                 // 模型与参数配置卡片

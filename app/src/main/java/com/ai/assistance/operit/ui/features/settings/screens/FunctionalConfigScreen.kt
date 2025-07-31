@@ -22,6 +22,7 @@ import com.ai.assistance.operit.api.chat.AIServiceFactory
 import com.ai.assistance.operit.api.chat.EnhancedAIService
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.model.ModelConfigSummary
+import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.FunctionalConfigManager
 import com.ai.assistance.operit.data.preferences.ModelConfigManager
 import kotlinx.coroutines.launch
@@ -362,13 +363,18 @@ fun FunctionConfigCard(
                                                             ?: FunctionalConfigManager.DEFAULT_CONFIG_ID
                                             val fullConfig =
                                                     modelConfigManager.getModelConfigFlow(configId).first()
+                                            
+                                            // 异步获取自定义请求头
+                                            val apiPreferences = ApiPreferences(context)
+                                            val customHeadersJson = apiPreferences.getCustomHeaders()
 
                                             val service =
                                                     AIServiceFactory.createService(
                                                             apiProviderType = fullConfig.apiProviderType,
                                                             apiEndpoint = fullConfig.apiEndpoint,
                                                             apiKey = fullConfig.apiKey,
-                                                            modelName = fullConfig.modelName
+                                                            modelName = fullConfig.modelName,
+                                                            customHeadersJson = customHeadersJson
                                                     )
                                             testResult = service.testConnection()
                                         } catch (e: Exception) {

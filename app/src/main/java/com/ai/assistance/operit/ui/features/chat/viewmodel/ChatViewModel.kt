@@ -219,6 +219,10 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     private val _showWebView = MutableStateFlow(false)
     val showWebView: StateFlow<Boolean> = _showWebView
 
+    // 添加“AI电脑”附加层显示状态
+    private val _showAiComputer = MutableStateFlow(false)
+    val showAiComputer: StateFlow<Boolean> = _showAiComputer
+
     // 添加WebView刷新控制流
     private val _webViewNeedsRefresh = MutableStateFlow(false)
     val webViewNeedsRefresh: StateFlow<Boolean> = _webViewNeedsRefresh
@@ -1022,6 +1026,18 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     fun toggleWebView() {
         // 如果要显示WebView，确保本地Web服务器已启动
         if (!_showWebView.value) {
+            // Get the WORKSPACE server instance and ensure it's running
+            val workspaceServer = LocalWebServer.getInstance(context, LocalWebServer.ServerType.WORKSPACE)
+            if (!workspaceServer.isRunning()) {
+                try {
+                    workspaceServer.start()
+                } catch (e: IOException) {
+                    Log.e(TAG, "Failed to start workspace web server", e)
+                    showErrorMessage("Failed to start workspace server.")
+                    return
+                }
+            }
+
             // 获取当前聊天ID
             val chatId = currentChatId.value
             if (chatId != null) {
@@ -1048,7 +1064,13 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         }
 
         // 切换WebView显示状态
-        _showWebView.value = !_showWebView.value
+        val newShowState = !_showWebView.value
+        _showWebView.value = newShowState
+
+        // 如果打开WebView，则关闭AI电脑
+        if (newShowState) {
+            _showAiComputer.value = false
+        }
         
         // 每次切换时，标记需要刷新
         if (_showWebView.value) {
@@ -1056,11 +1078,22 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         }
     }
 
+    // AI电脑控制方法
+    fun toggleAiComputer() {
+        val newShowState = !_showAiComputer.value
+        _showAiComputer.value = newShowState
+
+        // 如果打开AI电脑，则关闭WebView
+        if (newShowState) {
+            _showWebView.value = false
+        }
+    }
+
     // 初始化本地Web服务器
     private fun initLocalWebServer() {
         try {
             // 使用单例模式获取LocalWebServer实例
-            val webServer = LocalWebServer.getInstance(context)
+            val webServer = LocalWebServer.getInstance(context, LocalWebServer.ServerType.WORKSPACE)
             // 只有当服务器未运行时才启动
             if (!webServer.isRunning()) {
                 webServer.start()
@@ -1087,12 +1120,12 @@ class ChatViewModel(private val context: Context) : ViewModel() {
             }
 
             // 使用单例模式获取LocalWebServer实例
-            val webServer = LocalWebServer.getInstance(context)
+            val webServer = LocalWebServer.getInstance(context, LocalWebServer.ServerType.WORKSPACE)
             // 确保服务器已启动
             if (!webServer.isRunning()) {
                 webServer.start()
             }
-            webServer.updateChatWorkspace(chatId, workspacePath)
+            webServer.updateChatWorkspace(workspacePath)
             Log.d(TAG, "Web服务器工作空间已更新为: $workspacePath for chat $chatId")
         } catch (e: Exception) {
             Log.e(TAG, "更新Web服务器工作空间失败", e)
@@ -1235,11 +1268,11 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         // 2. Update the web server with the new path and refresh
         viewModelScope.launch {
             try {
-                val webServer = LocalWebServer.getInstance(context)
+                val webServer = LocalWebServer.getInstance(context, LocalWebServer.ServerType.WORKSPACE)
                 if (!webServer.isRunning()) {
                     webServer.start()
                 }
-                webServer.updateChatWorkspace(chatId, workspace)
+                webServer.updateChatWorkspace(workspace)
                 Log.d(TAG, "Web server workspace updated to: $workspace for chat $chatId")
 
                 // 3. Trigger a refresh of the WebView
@@ -1283,5 +1316,9 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 _showInvitationExplanation.value = true
             }
         }
+    }
+
+    fun onAiComputerButtonClick() {
+        toggleAiComputer()
     }
 }

@@ -226,10 +226,15 @@ class OperitApplication : Application() {
         super.onTerminate()
         // 在应用终止时关闭LocalWebServer服务器
         try {
-            val webServer = LocalWebServer.getInstance(applicationContext)
+            val webServer = LocalWebServer.getInstance(applicationContext, LocalWebServer.ServerType.WORKSPACE)
             if (webServer.isRunning()) {
                 webServer.stop()
                 Log.d(TAG, "应用终止，已关闭本地Web服务器")
+            }
+            val computerServer = LocalWebServer.getInstance(applicationContext, LocalWebServer.ServerType.COMPUTER)
+            if (computerServer.isRunning()) {
+                computerServer.stop()
+                Log.d(TAG, "应用终止，已关闭AI电脑服务器")
             }
         } catch (e: Exception) {
             Log.e(TAG, "关闭本地Web服务器失败: ${e.message}", e)

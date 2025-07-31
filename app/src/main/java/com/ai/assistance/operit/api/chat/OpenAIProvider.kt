@@ -5,6 +5,7 @@ import com.ai.assistance.operit.data.model.ApiProviderType
 import com.ai.assistance.operit.data.model.ModelOption
 import com.ai.assistance.operit.data.model.ModelParameter
 import com.ai.assistance.operit.util.ChatUtils
+import com.ai.assistance.operit.util.exceptions.UserCancellationException
 import com.ai.assistance.operit.util.stream.Stream
 import com.ai.assistance.operit.util.stream.stream
 import java.io.IOException
@@ -24,14 +25,17 @@ import org.json.JSONObject
 open class OpenAIProvider(
         private val apiEndpoint: String,
         private val apiKey: String,
-        private val modelName: String
+        private val modelName: String,
+        private val client: OkHttpClient,
+        private val customHeaders: Map<String, String> = emptyMap()
 ) : AIService {
-    private val client: OkHttpClient = HttpClientFactory.instance
+    // private val client: OkHttpClient = HttpClientFactory.instance
 
     protected val JSON = "application/json; charset=utf-8".toMediaType()
 
     // 当前活跃的Call对象，用于取消流式传输
     private var activeCall: Call? = null
+    @Volatile private var isManuallyCancelled = false
 
     // 添加token计数器
     private var _inputTokenCount = 0
@@ -75,6 +79,7 @@ open class OpenAIProvider(
 
     // 取消当前流式传输
     override fun cancelStreaming() {
+        isManuallyCancelled = true
         activeCall?.let {
             if (!it.isCanceled()) {
                 it.cancel()
@@ -233,12 +238,19 @@ open class OpenAIProvider(
 
     // 创建请求
     private fun createRequest(requestBody: RequestBody): Request {
-        return Request.Builder()
+        val builder = Request.Builder()
                 .url(apiEndpoint)
                 .addHeader("Authorization", "Bearer $apiKey")
                 .addHeader("Content-Type", "application/json")
-                .post(requestBody)
-                .build()
+
+        // 添加自定义请求头
+        customHeaders.forEach { (key, value) ->
+            builder.addHeader(key, value)
+        }
+
+        val request = builder.post(requestBody).build()
+        logLargeString("AIService", "请求头: \n${request.headers}")
+        return request
     }
 
     override suspend fun sendMessage(
@@ -249,6 +261,7 @@ open class OpenAIProvider(
             onTokensUpdated: suspend (input: Int, output: Int) -> Unit,
             onNonFatalError: suspend (error: String) -> Unit
     ): Stream<String> = stream {
+        isManuallyCancelled = false
         // 重置token计数
         _inputTokenCount = 0
         _outputTokenCount = 0
@@ -502,9 +515,9 @@ open class OpenAIProvider(
                             )
                         } catch (e: IOException) {
                             // 捕获IO异常，可能是由于取消Call导致的，也可能是网络中断
-                            if (activeCall?.isCanceled() == true) {
-                                Log.d("AIService", "【发送消息】流式传输已被取消，处理IO异常")
-                                wasCancelled = true
+                            if (isManuallyCancelled) {
+                                Log.d("AIService", "【发送消息】流式传输已被用户取消，停止后续操作。")
+                                throw UserCancellationException("请求已被用户取消", e)
                             } else {
                                 // 这是网络中断的关键点，我们将在这里处理重试逻辑，而不是直接抛出异常
                                 Log.e("AIService", "【发送消息】流式读取时发生IO异常，准备重试", e)
@@ -530,6 +543,10 @@ open class OpenAIProvider(
                 )
                 return@stream
             } catch (e: SocketTimeoutException) {
+                if (isManuallyCancelled) {
+                    Log.d("AIService", "请求被用户取消，停止重试。")
+                    throw UserCancellationException("请求已被用户取消", e)
+                }
                 lastException = e
                 retryCount++
                 if (retryCount >= maxRetries) {
@@ -541,17 +558,25 @@ open class OpenAIProvider(
                 // 指数退避重试
                 delay(1000L * (1 shl (retryCount - 1)))
             } catch (e: UnknownHostException) {
+                if (isManuallyCancelled) {
+                    Log.d("AIService", "请求被用户取消，停止重试。")
+                    throw UserCancellationException("请求已被用户取消", e)
+                }
                 // 对于无法解析主机这类错误，也应该重试，因为网络可能会恢复（例如切换wifi）
                 lastException = e
                 retryCount++
                 if (retryCount >= maxRetries) {
                     Log.e("AIService", "【发送消息】无法解析主机且达到最大重试次数", e)
-                    throw IOException("无法连接到服务器，请检查网络连接或API地址是否正确")
+                throw IOException("无法连接到服务器，请检查网络连接或API地址是否正确")
                 }
                 Log.w("AIService", "【发送消息】无法解析主机，正在进行第 $retryCount 次重试...", e)
                 onNonFatalError("【网络不稳定，正在进行第 $retryCount 次重试...】")
                 delay(1000L * (1 shl (retryCount - 1)))
             } catch (e: IOException) {
+                if (isManuallyCancelled) {
+                    Log.d("AIService", "请求被用户取消，停止重试。")
+                    throw UserCancellationException("请求已被用户取消", e)
+                }
                 // 这个catch块现在主要处理来自流读取中断的IO异常
                 lastException = e
                 retryCount++
@@ -563,6 +588,10 @@ open class OpenAIProvider(
                 onNonFatalError("【网络中断，正在进行第 $retryCount 次重试...】")
                 delay(1000L * (1 shl (retryCount - 1))) // 增加延迟
             } catch (e: Exception) {
+                if (isManuallyCancelled) {
+                    Log.d("AIService", "请求被用户取消，停止重试。")
+                    throw UserCancellationException("请求已被用户取消", e)
+                }
                  // 其他未知异常，也尝试重试
                 lastException = e
                 retryCount++

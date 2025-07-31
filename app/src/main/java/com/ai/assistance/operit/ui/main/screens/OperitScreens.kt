@@ -26,6 +26,7 @@ import com.ai.assistance.operit.ui.features.settings.screens.ThemeSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ToolPermissionSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.UserPreferencesGuideScreen
 import com.ai.assistance.operit.ui.features.settings.screens.UserPreferencesSettingsScreen
+import com.ai.assistance.operit.ui.features.settings.screens.CustomHeadersSettingsScreen
 import com.ai.assistance.operit.ui.features.token.TokenConfigWebViewScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.AppPermissionsToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.FileManagerToolScreen
@@ -206,7 +207,8 @@ sealed class Screen(
                     navigateToFunctionalConfig = { navigateTo(FunctionalConfig) },
                     navigateToChatHistorySettings = { navigateTo(ChatHistorySettings) },
                     navigateToLanguageSettings = { navigateTo(LanguageSettings) },
-                    navigateToSpeechServicesSettings = { navigateTo(SpeechServicesSettings) }
+                    navigateToSpeechServicesSettings = { navigateTo(SpeechServicesSettings) },
+                    navigateToCustomHeadersSettings = { navigateTo(CustomHeadersSettings) }
             )
         }
     }
@@ -395,6 +397,24 @@ sealed class Screen(
                 onGestureConsumed: (Boolean) -> Unit
         ) {
             SpeechServicesSettingsScreen(onBackPressed = onGoBack)
+        }
+    }
+    
+    // 添加自定义请求头设置屏幕
+    data object CustomHeadersSettings :
+        Screen(parentScreen = Settings, navItem = NavItem.Settings, titleRes = "自定义请求头") {
+        @Composable
+        override fun Content(
+            navController: NavController,
+            navigateTo: ScreenNavigationHandler,
+            updateNavItem: NavItemChangeHandler,
+            onGoBack: () -> Unit,
+            hasBackgroundImage: Boolean,
+            onLoading: (Boolean) -> Unit,
+            onError: (String) -> Unit,
+            onGestureConsumed: (Boolean) -> Unit
+        ) {
+            CustomHeadersSettingsScreen(onBackPressed = onGoBack)
         }
     }
     

@@ -3,28 +3,49 @@ package com.ai.assistance.operit.ui.features.chat.webview
 import android.content.Context
 import android.os.Environment
 import android.util.Log
+import com.ai.assistance.operit.core.tools.AIToolHandler
+import com.ai.assistance.operit.core.tools.DirectoryListingData
+import com.ai.assistance.operit.core.tools.StringResultData
+import com.ai.assistance.operit.data.model.AITool
+import com.ai.assistance.operit.data.model.ToolParameter
 import fi.iki.elonen.NanoHTTPD
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileNotFoundException
+import java.io.FileOutputStream
 import java.io.IOException
 import java.net.ServerSocket
 import java.net.Socket
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+
+@Serializable
+data class FileApiEntry(val name: String, val isDirectory: Boolean)
 
 /** LocalWebServer - 基于NanoHTTPD的本地Web服务器 用于显示工作空间目录中的文件 */
 class LocalWebServer
 private constructor(
-        private val port: Int,
-        private val context: Context,
+    private val context: Context,
+    private val port: Int,
+    private var rootPath: String,
+    private val type: ServerType
 ) : NanoHTTPD(port) {
+
+    enum class ServerType {
+        WORKSPACE,
+        COMPUTER
+    }
 
     companion object {
         private const val TAG = "LocalWebServer"
 
-        // 公共常量
-        const val DEFAULT_PORT = 8080
+        // Port constants
+        const val WORKSPACE_PORT = 8093
+        const val COMPUTER_PORT = 8094
 
         private const val DEFAULT_INDEX_HTML_CONTENT = """
         <!DOCTYPE html>
@@ -80,159 +101,188 @@ private constructor(
         </html>
         """
 
-        // 单例实例
-        @Volatile private var INSTANCE: LocalWebServer? = null
+        @Volatile
+        private var instances = mutableMapOf<ServerType, LocalWebServer>()
 
-        // 获取单例实例的方法
-        fun getInstance(context: Context, port: Int = DEFAULT_PORT): LocalWebServer {
-            return INSTANCE
-                    ?: synchronized(this) {
-                        INSTANCE
-                                ?: LocalWebServer(port, context.applicationContext).also {
-                                    INSTANCE = it
-                                }
+        @Synchronized
+        fun getInstance(context: Context, type: ServerType): LocalWebServer {
+            return instances.getOrPut(type) {
+                val server: LocalWebServer = when (type) {
+                    ServerType.WORKSPACE -> {
+                        val workspaceRoot = File(
+                            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                            "Operit/workspace"
+                        )
+                        LocalWebServer(
+                            context.applicationContext,
+                            WORKSPACE_PORT,
+                            workspaceRoot.absolutePath,
+                            ServerType.WORKSPACE
+                        )
                     }
-        }
 
-        // 工作空间的基础路径
-        @Deprecated("Use specific workspace paths instead of deriving from chatId")
-        fun getWorkspacePath(chatId: String): String {
-            val downloadDir =
-                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            return "$downloadDir/Operit/workspace/$chatId"
-        }
-
-        // 确保工作空间目录存在
-        fun ensureWorkspaceDirExists(path: String): String {
-            val workspaceDir = File(path)
-            if (!workspaceDir.exists()) {
-                workspaceDir.mkdirs()
+                    ServerType.COMPUTER -> {
+                        val computerRoot = getComputerRootPath()
+                        // Asset copying logic is now in start() to ensure overwrite on each launch
+                        LocalWebServer(
+                            context.applicationContext,
+                            COMPUTER_PORT,
+                            computerRoot.absolutePath,
+                            ServerType.COMPUTER
+                        )
+                    }
+                }
+                server
             }
-            return path
         }
 
-        /** 如果需要，创建默认的index.html文件 */
+        private fun getComputerRootPath(): File {
+            val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            return File(downloadDir, "Operit/computer")
+        }
+
+        private fun copyAssetsToDirectory(context: Context, assetDir: String, destDir: File) {
+            // Always overwrite. First, delete existing files if the directory exists.
+            if (destDir.exists()) {
+                destDir.deleteRecursively()
+                Log.d("LocalWebServer", "Cleared existing computer directory for refresh: ${destDir.absolutePath}")
+            }
+
+            if (!destDir.mkdirs()) {
+                Log.e("LocalWebServer", "Failed to create destination directory: ${destDir.absolutePath}")
+                return
+            }
+
+            val assetManager = context.assets
+            try {
+                val assets = assetManager.list(assetDir)
+                if (assets == null || assets.isEmpty()) {
+                    Log.w("LocalWebServer", "No assets found in directory: $assetDir")
+                    return
+                }
+                for (asset in assets) {
+                    val sourcePath = "$assetDir/$asset"
+                    val destPath = File(destDir, asset)
+                    // Check if it's a directory by trying to list its contents
+                    val isDir = try {
+                        assetManager.list(sourcePath)?.isNotEmpty() == true
+                    } catch (e: IOException) {
+                        false
+                    }
+
+                    if (isDir) {
+                        // It's a directory, recurse
+                        copyAssetsToDirectory(context, sourcePath, destPath)
+                    } else {
+                        // It's a file, copy it
+                        assetManager.open(sourcePath).use { inputStream ->
+                            FileOutputStream(destPath).use { outputStream ->
+                                inputStream.copyTo(outputStream)
+                            }
+                        }
+                    }
+                }
+            } catch (e: IOException) {
+                Log.e("LocalWebServer", "Failed to copy assets from '$assetDir'", e)
+            }
+        }
+        
+        fun ensureDirectoryExists(dir: File) {
+            if (!dir.exists()) {
+                dir.mkdirs()
+            }
+        }
+
+        /** If needed, creates a default index.html file */
         fun createDefaultIndexHtmlIfNeeded(workspaceDir: File) {
             val indexHtmlFile = File(workspaceDir, "index.html")
             if (!indexHtmlFile.exists()) {
                 try {
                     indexHtmlFile.writeText(DEFAULT_INDEX_HTML_CONTENT.trimIndent())
-                    Log.d(TAG, "已在 ${indexHtmlFile.absolutePath} 创建默认的 index.html")
+                    Log.d(TAG, "Created default index.html at ${indexHtmlFile.absolutePath}")
                 } catch (e: IOException) {
-                    Log.e(TAG, "创建默认的 index.html 失败", e)
+                    Log.e(TAG, "Failed to create default index.html", e)
                 }
             }
         }
     }
 
-    private var workspacePath: String = "" // Default to empty
-
     private val isServerRunning = AtomicBoolean(false)
-    private var serverSocket: ServerSocket? = null
-    private val executor = Executors.newCachedThreadPool()
-    private var currentChatId: String? = null
 
-    // 在启动前确保工作区目录存在
     @Throws(IOException::class)
     override fun start() {
-        if (workspacePath.isNotEmpty()) {
-            ensureWorkspaceDirExists(workspacePath)
+        if (type == ServerType.COMPUTER) {
+            val computerRoot = getComputerRootPath()
+            Log.d(TAG, "确保AI电脑资源已是最新，路径: ${computerRoot.absolutePath}")
+            copyAssetsToDirectory(context, "computer_desktop", computerRoot)
         }
-        super.start()
+        super.start(SOCKET_READ_TIMEOUT, false)
+        Log.d(TAG, "本地Web服务器已在端口 $port 上启动, 根目录: $rootPath")
         isServerRunning.set(true)
-        Log.d(TAG, "本地服务器已启动，端口: $port，工作空间: $workspacePath")
     }
 
     override fun stop() {
         super.stop()
         isServerRunning.set(false)
-        Log.d(TAG, "本地服务器已停止")
+        Log.d(TAG, "Local server stopped at port: $port")
     }
 
-    fun updateChatWorkspace(chatId: String, newWorkspacePath: String) {
-        this.workspacePath = newWorkspacePath
-        ensureWorkspaceDirExists(newWorkspacePath)
-        Log.d(TAG, "工作空间已更新: $workspacePath")
+    fun updateChatWorkspace(newWorkspacePath: String) {
+        // This is now specific to the workspace server.
+        // A better approach would be to create a new instance if the path changes fundamentally,
+        // but for now, we'll just update the path for the WORKSPACE instance.
+        this.rootPath = newWorkspacePath
+        ensureDirectoryExists(File(newWorkspacePath))
+        Log.d(TAG, "Workspace path updated to: $rootPath")
     }
 
     fun isRunning(): Boolean {
         return isServerRunning.get()
     }
 
-    private fun handleRequest(socket: Socket) {
-        // 请求处理逻辑...
-    }
-
     override fun serve(session: IHTTPSession): Response {
-        Log.d(TAG, "收到请求: ${session.uri}")
+        Log.d(TAG, "Request received: ${session.uri} at port $port")
 
-        var uri = session.uri
-        // 处理根路径，默认显示index.html
-        if (uri == "/" || uri.isEmpty()) {
-            uri = "/index.html"
+        // API route for file listing
+        if (session.uri.startsWith("/api/")) {
+            return handleApiRequest(session)
         }
 
-        // 检查请求的文件是否在工作空间内
-        val requestedFile = File(workspacePath, uri.substring(1))
+        // Serve static files from rootPath
+        val uri = if (session.uri == "/") "/index.html" else session.uri
+        val file = File(rootPath, uri)
 
-        // 如果index.html不存在，创建一个默认的欢迎页面
-        if (uri == "/index.html" && !requestedFile.exists()) {
-            return createDefaultIndexHtml().addCorsHeaders()
+        if (!file.exists() || !isInRoot(file)) {
+            Log.w(TAG, "File not found or access denied: ${file.absolutePath}")
+            return newFixedLengthResponse(
+                Response.Status.NOT_FOUND,
+                MIME_PLAINTEXT,
+                "File not found"
+            ).addCorsHeaders()
         }
 
-        try {
-            if (!requestedFile.exists()) {
-                Log.w(TAG, "文件不存在: $requestedFile")
-                return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "文件不存在")
-                        .addCorsHeaders()
-            }
+        val mimeType = getMimeTypeForFile(uri)
+        return try {
+            val fstream = FileInputStream(file)
+            // Read the file into a byte array to serve it directly.
+            // This avoids the GZIP streaming issue with WebView that causes "Broken pipe".
+            val bytes = fstream.readBytes()
+            fstream.close()
 
-            if (!isInWorkspace(requestedFile)) {
-                Log.w(TAG, "试图访问工作空间外的文件: $requestedFile")
-                return newFixedLengthResponse(Response.Status.FORBIDDEN, MIME_PLAINTEXT, "禁止访问")
-                        .addCorsHeaders()
-            }
-
-            // 确定MIME类型
-            val mimeType = getMimeTypeForFile(uri)
-
-            // 如果是HTML文件，注入eruda
-            if (mimeType == "text/html") {
-                try {
-                    val fileContent = requestedFile.readText(Charsets.UTF_8)
-                    val injectedContent = injectErudaIntoHtml(fileContent)
-                    return newFixedLengthResponse(Response.Status.OK, mimeType, injectedContent)
-                            .addCorsHeaders()
-                } catch (e: Exception) {
-                    Log.e(TAG, "读取或注入HTML时出错: ${e.message}")
-                    // 出错则回退到直接提供文件
-                }
-            }
-
-            // 返回文件内容
-            val fileInputStream = FileInputStream(requestedFile)
-            return newChunkedResponse(Response.Status.OK, mimeType, fileInputStream)
-                    .addCorsHeaders()
-        } catch (e: FileNotFoundException) {
-            Log.e(TAG, "文件未找到: ${e.message}")
-            return newFixedLengthResponse(
-                            Response.Status.NOT_FOUND,
-                            MIME_PLAINTEXT,
-                            "文件不存在: ${e.message}"
-                    )
-                    .addCorsHeaders()
-        } catch (e: Exception) {
-            Log.e(TAG, "服务器错误: ${e.message}")
-            return newFixedLengthResponse(
-                            Response.Status.INTERNAL_ERROR,
-                            MIME_PLAINTEXT,
-                            "服务器错误: ${e.message}"
-                    )
-                    .addCorsHeaders()
+            // Serve the file from a byte array input stream. This is the robust way to avoid GZIP issues.
+            val inputStream = ByteArrayInputStream(bytes)
+            val response = newFixedLengthResponse(Response.Status.OK, mimeType, inputStream, bytes.size.toLong())
+            response.addCorsHeaders()
+            response
+        } catch (ioe: IOException) {
+            newFixedLengthResponse(
+                Response.Status.INTERNAL_ERROR,
+                MIME_PLAINTEXT,
+                "Could not read file."
+            ).addCorsHeaders()
         }
     }
 
-    // 注入eruda脚本到HTML内容中
     private fun injectErudaIntoHtml(htmlContent: String): String {
         val erudaScript =
                 """
@@ -258,50 +308,75 @@ private constructor(
         })();
         </script>
         """
-        // 将脚本插入到</body>之前
         return htmlContent.replace("</body>", "$erudaScript</body>", ignoreCase = true)
     }
 
-    // 检查文件是否在工作空间内
-    private fun isInWorkspace(file: File): Boolean {
+    private fun isInRoot(file: File): Boolean {
         return try {
-            val workspaceDir = File(workspacePath)
-            file.canonicalPath.startsWith(workspaceDir.canonicalPath)
+            val rootDir = File(rootPath)
+            file.canonicalPath.startsWith(rootDir.canonicalPath)
         } catch (e: IOException) {
-            Log.e(TAG, "检查文件路径时出错: ${e.message}")
+            Log.e(TAG, "Error checking file path: ${e.message}")
             false
         }
     }
 
-    // 创建默认的欢迎页面
     private fun createDefaultIndexHtml(): Response {
-        // 为默认页面也注入eruda
         val injectedHtml = injectErudaIntoHtml(DEFAULT_INDEX_HTML_CONTENT)
         return newFixedLengthResponse(Response.Status.OK, "text/html", injectedHtml)
     }
 
-    // 添加CORS响应头的扩展函数
-    private fun Response.addCorsHeaders(): Response {
-        // 允许所有来源的跨域请求
-        this.addHeader("Access-Control-Allow-Origin", "*")
-        // 允许的请求方法
-        this.addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD")
-        // 允许的请求头
-        this.addHeader(
-                "Access-Control-Allow-Headers",
-                "X-Requested-With, Content-Type, Authorization, Origin, Accept"
-        )
-        // 预检请求有效期（秒）
-        this.addHeader("Access-Control-Max-Age", "3600")
-        // 是否允许发送Cookie
-        this.addHeader("Access-Control-Allow-Credentials", "true")
-        // 如果是OPTIONS预检请求，快速返回
-        return this
+    private fun handleApiRequest(session: IHTTPSession): Response {
+        val uri = session.uri
+        return when {
+            uri.startsWith("/api/files") -> {
+                val path = session.parameters["path"]?.get(0) ?: ""
+                listDirectory(path)
+            }
+            else -> {
+                newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "API endpoint not found").addCorsHeaders()
+            }
+        }
     }
 
-    // 处理OPTIONS预检请求
-    private fun handleOptionsRequest(): Response {
-        val response = newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, "")
-        return response.addCorsHeaders()
+    private fun listDirectory(relativePath: String): Response {
+        try {
+            val toolHandler = AIToolHandler.getInstance(context)
+            
+            // Security check: ensure the path is within our root directory
+            val requestedDir = File(rootPath, relativePath).canonicalFile
+            if (!requestedDir.path.startsWith(File(rootPath).canonicalPath)) {
+                 return newFixedLengthResponse(Response.Status.FORBIDDEN, MIME_PLAINTEXT, "Access denied").addCorsHeaders()
+            }
+
+            val tool = AITool(
+                name = "list_files",
+                parameters = listOf(ToolParameter("path", requestedDir.absolutePath))
+            )
+
+            val result = toolHandler.executeTool(tool)
+
+            if (result.success && result.result is DirectoryListingData) {
+                // The result from list_files is already a JSON string of a list of file info.
+                val directoryListing = result.result as DirectoryListingData
+                val apiEntries = directoryListing.entries.map { FileApiEntry(it.name, it.isDirectory) }
+                val jsonResult = Json.encodeToString(apiEntries)
+                return newFixedLengthResponse(Response.Status.OK, "application/json", jsonResult).addCorsHeaders()
+            } else {
+                return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT, result.error ?: "Failed to list files").addCorsHeaders()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error listing directory", e)
+            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT, "Error: ${e.message}").addCorsHeaders()
+        }
+    }
+
+    private fun Response.addCorsHeaders(): Response {
+        this.addHeader("Access-Control-Allow-Origin", "*")
+        this.addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD")
+        this.addHeader("Access-Control-Allow-Headers", "X-Requested-With, Content-Type, Authorization, Origin, Accept")
+        this.addHeader("Access-Control-Max-Age", "3600")
+        this.addHeader("Access-Control-Allow-Credentials", "true")
+        return this
     }
 }

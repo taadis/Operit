@@ -21,6 +21,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.serializer
 
 // 定义一个用于UI偏好设置的DataStore实例
@@ -30,7 +31,8 @@ val Context.uiPreferencesDataStore: DataStore<Preferences> by preferencesDataSto
 @Composable
 inline fun <reified T> rememberLocal(
     key: String,
-    defaultValue: T
+    defaultValue: T,
+    serializer: KSerializer<T>? = null
 ): MutableState<T> {
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -49,7 +51,11 @@ inline fun <reified T> rememberLocal(
                 val json = preferences[stringPreferencesKey(key)]
                 if (json != null) {
                     try {
-                        Json.decodeFromString(serializer(), json)
+                        if (serializer != null) {
+                            Json.decodeFromString(serializer, json)
+                        } else {
+                            Json.decodeFromString(serializer(), json)
+                        }
                     } catch (e: Exception) {
                         defaultValue
                     }
@@ -76,7 +82,11 @@ inline fun <reified T> rememberLocal(
                                     is Float -> preferences[floatPreferencesKey(key)] = newValue
                                     is String -> preferences[stringPreferencesKey(key)] = newValue
                                     else -> {
-                                        val json = Json.encodeToString(serializer(), newValue)
+                                        val json = if (serializer != null) {
+                                            Json.encodeToString(serializer, newValue)
+                                        } else {
+                                            Json.encodeToString(serializer(), newValue)
+                                        }
                                         preferences[stringPreferencesKey(key)] = json
                                     }
                                 }

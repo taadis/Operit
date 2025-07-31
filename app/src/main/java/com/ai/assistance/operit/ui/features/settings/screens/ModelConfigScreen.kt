@@ -236,12 +236,15 @@ fun ModelConfigScreen(onBackPressed: () -> Unit = {}) {
                                         testResult = null
                                         try {
                                             selectedConfig.value?.let { config ->
+                                                // 异步获取自定义请求头
+                                                val customHeadersJson = apiPreferences.getCustomHeaders()
                                                 val service =
                                                         AIServiceFactory.createService(
                                                                 apiProviderType = config.apiProviderType,
                                                                 apiEndpoint = config.apiEndpoint,
                                                                 apiKey = config.apiKey,
-                                                                modelName = config.modelName
+                                                                modelName = config.modelName,
+                                                                customHeadersJson = customHeadersJson
                                                         )
                                                 testResult = service.testConnection()
                                             } ?: run {

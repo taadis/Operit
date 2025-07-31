@@ -5,6 +5,7 @@ import com.ai.assistance.operit.data.model.ApiProviderType
 import com.ai.assistance.operit.data.model.ModelOption
 import com.ai.assistance.operit.data.model.ModelParameter
 import com.ai.assistance.operit.util.ChatUtils
+import com.ai.assistance.operit.util.exceptions.UserCancellationException
 import com.ai.assistance.operit.util.stream.Stream
 import com.ai.assistance.operit.util.stream.StreamCollector
 import com.ai.assistance.operit.util.stream.stream
@@ -14,6 +15,7 @@ import java.net.URL
 import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -24,7 +26,9 @@ import org.json.JSONObject
 class GeminiProvider(
         private val apiEndpoint: String,
         private val apiKey: String,
-        private val modelName: String
+        private val modelName: String,
+        private val client: OkHttpClient,
+        private val customHeaders: Map<String, String> = emptyMap()
 ) : AIService {
     companion object {
         private const val TAG = "GeminiProvider"
@@ -32,12 +36,13 @@ class GeminiProvider(
     }
 
     // HTTP客户端
-    private val client: OkHttpClient = HttpClientFactory.instance
+    // private val client: OkHttpClient = HttpClientFactory.instance
 
     private val JSON = "application/json; charset=utf-8".toMediaType()
 
     // 活跃请求，用于取消流式请求
     private var activeCall: Call? = null
+    @Volatile private var isManuallyCancelled = false
 
     // Token计数
     private var _inputTokenCount = 0
@@ -50,6 +55,7 @@ class GeminiProvider(
 
     // 取消当前流式传输
     override fun cancelStreaming() {
+        isManuallyCancelled = true
         activeCall?.let {
             if (!it.isCanceled()) {
                 it.cancel()
@@ -113,6 +119,7 @@ class GeminiProvider(
             onTokensUpdated: suspend (input: Int, output: Int) -> Unit,
             onNonFatalError: suspend (error: String) -> Unit
     ): Stream<String> = stream {
+        isManuallyCancelled = false
         val requestId = System.currentTimeMillis().toString()
         // 重置token计数
         resetTokenCounts()
@@ -127,6 +134,8 @@ class GeminiProvider(
         // 用于保存已接收到的内容，以便在重试时使用
         val receivedContent = StringBuilder()
 
+        // 捕获stream collector的引用
+        val streamCollector = this
 
         // 状态更新函数 - 在Stream中我们使用emit来传递连接状态
         val emitConnectionStatus: (String) -> Unit = { status ->
@@ -163,25 +172,31 @@ class GeminiProvider(
                 emitConnectionStatus("建立连接中...")
 
                 val startTime = System.currentTimeMillis()
-                call.execute().use { response ->
-                    val duration = System.currentTimeMillis() - startTime
-                    Log.d(TAG, "收到初始响应, 耗时: ${duration}ms, 状态码: ${response.code}")
+                withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    call.execute().use { response ->
+                        val duration = System.currentTimeMillis() - startTime
+                        Log.d(TAG, "收到初始响应, 耗时: ${duration}ms, 状态码: ${response.code}")
 
-                    emitConnectionStatus("连接成功，处理响应...")
+                        emitConnectionStatus("连接成功，处理响应...")
 
-                    if (!response.isSuccessful) {
-                        val errorBody = response.body?.string() ?: "无错误详情"
-                        logError("API请求失败: ${response.code}, $errorBody")
-                        throw IOException("API请求失败: ${response.code}, $errorBody")
+                        if (!response.isSuccessful) {
+                            val errorBody = response.body?.string() ?: "无错误详情"
+                            logError("API请求失败: ${response.code}, $errorBody")
+                            throw IOException("API请求失败: ${response.code}, $errorBody")
+                        }
+
+                        // 处理响应
+                        processStreamingResponse(response, streamCollector, requestId, onTokensUpdated, receivedContent)
                     }
-
-                    // 处理响应
-                    processStreamingResponse(response, this, requestId, onTokensUpdated, receivedContent)
                 }
 
                 activeCall = null
                 return@stream
             } catch (e: SocketTimeoutException) {
+                if (isManuallyCancelled) {
+                    logError("请求被用户取消，停止重试。")
+                    throw UserCancellationException("请求已被用户取消", e)
+                }
                 lastException = e
                 retryCount++
                 if (retryCount >= maxRetries) {
@@ -192,6 +207,10 @@ class GeminiProvider(
                 onNonFatalError("【网络超时，正在进行第 $retryCount 次重试...】")
                 delay(1000L * (1 shl (retryCount - 1)))
             } catch (e: UnknownHostException) {
+                if (isManuallyCancelled) {
+                    logError("请求被用户取消，停止重试。")
+                    throw UserCancellationException("请求已被用户取消", e)
+                }
                 lastException = e
                 retryCount++
                 if (retryCount >= maxRetries) {
@@ -202,6 +221,10 @@ class GeminiProvider(
                 onNonFatalError("【网络不稳定，正在进行第 $retryCount 次重试...】")
                 delay(1000L * (1 shl (retryCount - 1)))
             } catch (e: IOException) {
+                if (isManuallyCancelled) {
+                    logError("请求被用户取消，停止重试。")
+                    throw UserCancellationException("请求已被用户取消", e)
+                }
                 // 捕获所有其他IO异常，包括流读取中断
                 lastException = e
                 retryCount++
@@ -213,6 +236,10 @@ class GeminiProvider(
                 onNonFatalError("【网络中断，正在进行第 $retryCount 次重试...】")
                 delay(1000L * (1 shl (retryCount - 1)))
             } catch (e: Exception) {
+                if (isManuallyCancelled) {
+                    logError("请求被用户取消，停止重试。")
+                    throw UserCancellationException("请求已被用户取消", e)
+                }
                 lastException = e
                 retryCount++
                  if (retryCount >= maxRetries) {
@@ -390,6 +417,11 @@ class GeminiProvider(
         // 创建Request Builder
         val builder = Request.Builder()
 
+        // 添加自定义请求头
+        customHeaders.forEach { (key, value) ->
+            builder.addHeader(key, value)
+        }
+
         // 添加API密钥
         val finalUrl =
                 if (requestUrl.contains("?")) {
@@ -398,10 +430,13 @@ class GeminiProvider(
                     "$requestUrl?key=$apiKey"
                 }
 
-        return builder.url(finalUrl)
+        val request = builder.url(finalUrl)
                 .post(requestBody)
                 .addHeader("Content-Type", "application/json")
                 .build()
+
+        logLargeString(TAG, "请求头: \n${request.headers}")
+        return request
     }
 
     /** 确定基础URL */
@@ -592,7 +627,6 @@ class GeminiProvider(
                             } else {
                                 JSONObject(finalJson)
                             }
-
                     // 处理内容
                     when (jsonContent) {
                         is JSONArray -> {

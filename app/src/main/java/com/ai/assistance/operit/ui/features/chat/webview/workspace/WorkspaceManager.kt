@@ -78,7 +78,7 @@ fun WorkspaceManager(
                         false
                     }
                     webViewHandler.configureWebView(this)
-                    loadUrl("http://localhost:8080")
+                    loadUrl("http://localhost:8093")
                 }
             }
 

@@ -5,6 +5,7 @@ import com.ai.assistance.operit.data.model.ApiProviderType
 import com.ai.assistance.operit.data.model.ModelOption
 import com.ai.assistance.operit.data.model.ModelParameter
 import com.ai.assistance.operit.util.ChatUtils
+import com.ai.assistance.operit.util.exceptions.UserCancellationException
 import com.ai.assistance.operit.util.stream.Stream
 import com.ai.assistance.operit.util.stream.stream
 import java.io.IOException
@@ -22,15 +23,18 @@ import org.json.JSONObject
 class ClaudeProvider(
         private val apiEndpoint: String,
         private val apiKey: String,
-        private val modelName: String
+        private val modelName: String,
+        private val client: OkHttpClient,
+        private val customHeaders: Map<String, String> = emptyMap()
 ) : AIService {
-    private val client: OkHttpClient = HttpClientFactory.instance
+    // private val client: OkHttpClient = HttpClientFactory.instance
 
     private val JSON = "application/json; charset=utf-8".toMediaType()
     private val ANTHROPIC_VERSION = "2023-06-01" // Claude API版本
 
     // 当前活跃的Call对象，用于取消流式传输
     private var activeCall: Call? = null
+    @Volatile private var isManuallyCancelled = false
 
     // 添加token计数器
     private var _inputTokenCount = 0
@@ -50,6 +54,7 @@ class ClaudeProvider(
 
     // 取消当前流式传输
     override fun cancelStreaming() {
+        isManuallyCancelled = true
         activeCall?.let {
             if (!it.isCanceled()) {
                 it.cancel()
@@ -237,7 +242,14 @@ class ClaudeProvider(
                         .addHeader("anthropic-version", ANTHROPIC_VERSION)
                         .addHeader("Content-Type", "application/json")
 
-        return builder.build()
+        // 添加自定义请求头
+        customHeaders.forEach { (key, value) ->
+            builder.addHeader(key, value)
+        }
+
+        val request = builder.build()
+        Log.d("AIService", "Claude请求头: \n${request.headers}")
+        return request
     }
 
     override suspend fun sendMessage(
@@ -248,6 +260,7 @@ class ClaudeProvider(
             onTokensUpdated: suspend (input: Int, output: Int) -> Unit,
             onNonFatalError: suspend (error: String) -> Unit
     ): Stream<String> = stream {
+        isManuallyCancelled = false
         // 重置token计数
         _inputTokenCount = 0
         _outputTokenCount = 0
@@ -350,6 +363,10 @@ class ClaudeProvider(
                             }
                         }
                     } catch (e: IOException) {
+                        if (isManuallyCancelled) {
+                            Log.d("AIService", "【Claude】流式传输已被用户取消，停止后续操作。")
+                            throw UserCancellationException("请求已被用户取消", e)
+                        }
                         // 捕获IO异常，可能是由于取消Call导致的
                         if (activeCall?.isCanceled() == true) {
                             Log.d("AIService", "流式传输已被取消，处理IO异常")
@@ -369,6 +386,10 @@ class ClaudeProvider(
                  Log.d( "AIService", "【Claude】请求成功完成")
                 return@stream
             } catch (e: SocketTimeoutException) {
+                if (isManuallyCancelled) {
+                    Log.d("AIService", "【Claude】请求被用户取消，停止重试。")
+                    throw UserCancellationException("请求已被用户取消", e)
+                }
                 lastException = e
                 retryCount++
                 if (retryCount >= maxRetries) {
@@ -379,16 +400,24 @@ class ClaudeProvider(
                 onNonFatalError("【网络超时，正在进行第 $retryCount 次重试...】")
                 delay(1000L * (1 shl (retryCount - 1)))
             } catch (e: UnknownHostException) {
+                if (isManuallyCancelled) {
+                    Log.d("AIService", "【Claude】请求被用户取消，停止重试。")
+                    throw UserCancellationException("请求已被用户取消", e)
+                }
                 lastException = e
                 retryCount++
                 if (retryCount >= maxRetries) {
                     Log.e("AIService", "【Claude】无法解析主机且达到最大重试次数", e)
-                    throw IOException("无法连接到服务器，请检查网络连接或API地址是否正确")
+                throw IOException("无法连接到服务器，请检查网络连接或API地址是否正确")
                 }
                 Log.w("AIService", "【Claude】无法解析主机，正在进行第 $retryCount 次重试...", e)
                 onNonFatalError("【网络不稳定，正在进行第 $retryCount 次重试...】")
                 delay(1000L * (1 shl (retryCount - 1)))
             } catch (e: IOException) {
+                if (isManuallyCancelled) {
+                    Log.d("AIService", "【Claude】请求被用户取消，停止重试。")
+                    throw UserCancellationException("请求已被用户取消", e)
+                }
                 lastException = e
                 retryCount++
                 if(retryCount >= maxRetries) {
@@ -400,6 +429,10 @@ class ClaudeProvider(
                 delay(1000L * (1 shl (retryCount - 1)))
             }
             catch (e: Exception) {
+                if (isManuallyCancelled) {
+                    Log.d("AIService", "【Claude】请求被用户取消，停止重试。")
+                    throw UserCancellationException("请求已被用户取消", e)
+                }
                 lastException = e
                 retryCount++
                 if(retryCount >= maxRetries) {

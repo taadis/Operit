@@ -8,6 +8,8 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Base64
 import android.util.Log
+import android.view.View
+import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.DownloadListener
 import android.webkit.JavascriptInterface
@@ -31,6 +33,9 @@ import java.util.Locale
 class WebViewHandler(private val context: Context) {
 
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
+
+    // 用于覆盖URL加载行为的回调
+    var urlLoadingOverrider: ((view: WebView?, request: WebResourceRequest?) -> Boolean)? = null
 
     // 通过JavaScript接口处理Blob/Base64数据下载
     private inner class BlobDownloadInterface {
@@ -90,6 +95,16 @@ class WebViewHandler(private val context: Context) {
     // 配置WebView的所有设置
     fun configureWebView(webView: WebView): WebView {
         return webView.apply {
+            // 明确设置布局参数，确保WebView填满其父容器
+            layoutParams =
+                ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+
+            // 为支持 backdrop-filter 等高级CSS效果，需要开启硬件加速
+            setLayerType(View.LAYER_TYPE_HARDWARE, null)
+
             // 配置WebViewClient处理页面加载和错误
             webViewClient = createWebViewClient()
 
@@ -151,6 +166,15 @@ class WebViewHandler(private val context: Context) {
                 super.onPageFinished(view, url)
                 // 注入Blob下载辅助代码
                 view?.let { injectBlobDownloadHelper(it) }
+            }
+
+            override fun shouldOverrideUrlLoading(
+                view: WebView?,
+                request: WebResourceRequest?
+            ): Boolean {
+                // 如果设置了URL加载覆盖器，则使用它
+                return urlLoadingOverrider?.invoke(view, request)
+                    ?: super.shouldOverrideUrlLoading(view, request)
             }
 
             // 处理SSL错误

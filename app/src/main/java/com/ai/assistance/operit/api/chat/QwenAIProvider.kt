@@ -7,6 +7,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import okhttp3.OkHttpClient
 
 /**
  * 针对阿里巴巴Qwen（通义千问）模型的特定API Provider。
@@ -15,8 +16,10 @@ import org.json.JSONObject
 class QwenAIProvider(
     apiEndpoint: String,
     apiKey: String,
-    modelName: String
-) : OpenAIProvider(apiEndpoint, apiKey, modelName) {
+    modelName: String,
+    client: OkHttpClient,
+    customHeaders: Map<String, String> = emptyMap()
+) : OpenAIProvider(apiEndpoint, apiKey, modelName, client, customHeaders) {
 
     /**
      * 重写创建请求体的方法，以支持Qwen的`enable_thinking`参数。
